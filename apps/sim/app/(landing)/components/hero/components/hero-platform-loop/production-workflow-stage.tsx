@@ -75,20 +75,20 @@ const EMPTY_IDS: ReadonlySet<string> = new Set()
 const ACTION_BUTTON_STYLES = [
   'size-[24px] rounded-md p-0',
   'border-none bg-transparent text-[var(--text-icon)]',
-  'hover-hover:bg-[var(--surface-5)] hover-hover:!text-[var(--text-primary)]',
-  'dark:hover-hover:bg-[var(--surface-4)]',
-  'transition-[background-color,color,opacity,transform] duration-150 active:scale-[0.96]',
+  'transition-[background-color,color,opacity,transform] duration-150',
   'group-data-[node-selected]:text-[var(--surface-2)]',
-  'hover-hover:group-data-[node-selected]:bg-[var(--surface-2)]',
-  'hover-hover:group-data-[node-selected]:!text-[var(--text-primary)]',
 ].join(' ')
 
 const FIRST_ACTION_STYLES =
   "!w-[40px] [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-x-[8px] [&>svg]:translate-y-px"
 
+/** A 24px target even at MIN_ZOOM, extending above/left of the unchanged 40px painted slot. */
+const RUN_ACTION_HIT_STYLES =
+  'group/run relative -ml-[14px] size-[54px] shrink-0 border-none bg-transparent! p-0'
+
 /** The running run slot: graphite fill, inverse glyph - the editor's own treatment. */
 const RUNNING_RUN_STYLES =
-  '!bg-[var(--text-secondary)] !text-[var(--text-inverse)] hover-hover:!bg-[var(--white)] hover-hover:!text-[var(--surface-inverted)]'
+  '!bg-[var(--text-secondary)] !text-[var(--text-inverse)] group-hover-hover/run:!bg-[var(--white)] group-hover-hover/run:!text-[var(--surface-inverted)]'
 /** A bystander card's actions dim mid-run; the run/stop slot keeps its ordinary chrome. */
 const BYSTANDER_ACTION_STYLES =
   '!bg-transparent !opacity-25 hover-hover:!bg-transparent dark:hover-hover:!bg-transparent'
@@ -227,7 +227,7 @@ function PreviewActionBar({ block, running, workflowRunning, onRunToggle }: Prev
   return (
     <div
       data-workflow-action-bar-swell=''
-      className='-top-[28px] pointer-events-auto absolute right-[24px] z-[40] h-[28px] w-fit overflow-hidden rounded-lg px-[0.2rem] py-0.5'
+      className='-top-[28px] pointer-events-auto absolute right-[24px] z-[40] h-[28px] w-fit rounded-lg px-[0.2rem] py-0.5'
     >
       <div className='pointer-events-none relative flex h-full flex-row items-center gap-[2px] opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-data-[action-menu-ready]:pointer-events-auto group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100'>
         {sweeping && (
@@ -250,35 +250,42 @@ function PreviewActionBar({ block, running, workflowRunning, onRunToggle }: Prev
         )}
         <Tooltip.Root preferAbove>
           <Tooltip.Trigger asChild>
-            <span className='inline-flex'>
+            <span className='inline-flex h-full items-end'>
               <Button
                 type='button'
                 variant='ghost'
                 aria-label={workflowRunning ? 'Stop workflow' : `Run ${block.name}`}
-                className={cn(
-                  ACTION_BUTTON_STYLES,
-                  FIRST_ACTION_STYLES,
-                  running && RUNNING_RUN_STYLES,
-                  workflowRunning && 'group/run'
-                )}
+                className={RUN_ACTION_HIT_STYLES}
                 onClick={(event) => {
                   event.stopPropagation()
                   onRunToggle()
                 }}
               >
-                {workflowRunning ? (
-                  running ? (
-                    <RunningActionIcon />
+                <span
+                  className={cn(
+                    'pointer-events-none absolute right-0 bottom-0 flex items-center justify-center',
+                    ACTION_BUTTON_STYLES,
+                    FIRST_ACTION_STYLES,
+                    'group-hover-hover/run:!text-[var(--text-primary)] group-hover-hover/run:bg-[var(--surface-5)] dark:group-hover-hover/run:bg-[var(--surface-4)]',
+                    'group-hover-hover/run:group-data-[node-selected]:!text-[var(--text-primary)] group-hover-hover/run:group-data-[node-selected]:bg-[var(--surface-2)]',
+                    'group-active/run:scale-[0.96]',
+                    running && RUNNING_RUN_STYLES
+                  )}
+                >
+                  {workflowRunning ? (
+                    running ? (
+                      <RunningActionIcon />
+                    ) : (
+                      <Square
+                        className='size-[11px] fill-current'
+                        aria-hidden='true'
+                        strokeWidth={0}
+                      />
+                    )
                   ) : (
-                    <Square
-                      className='size-[11px] fill-current'
-                      aria-hidden='true'
-                      strokeWidth={0}
-                    />
-                  )
-                ) : (
-                  <PlayOutline className='size-[14px]' />
-                )}
+                    <PlayOutline className='size-[14px]' />
+                  )}
+                </span>
               </Button>
             </span>
           </Tooltip.Trigger>
@@ -288,23 +295,22 @@ function PreviewActionBar({ block, running, workflowRunning, onRunToggle }: Prev
         {inertActions.map(({ label, Icon }) => (
           <Tooltip.Root key={label} preferAbove>
             <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
-                aria-label={label}
-                className={cn(
-                  ACTION_BUTTON_STYLES,
-                  label === 'Delete' && LAST_ACTION_STYLES,
-                  workflowRunning && !running && BYSTANDER_ACTION_STYLES,
-                  sweeping && SWEEP_SLOT_STYLES
-                )}
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                }}
-              >
-                <Icon className='size-[14px]' />
-              </Button>
+              <span className='inline-flex'>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  disabled
+                  aria-label={`${label} unavailable in preview`}
+                  className={cn(
+                    ACTION_BUTTON_STYLES,
+                    label === 'Delete' && LAST_ACTION_STYLES,
+                    workflowRunning && !running && BYSTANDER_ACTION_STYLES,
+                    sweeping && SWEEP_SLOT_STYLES
+                  )}
+                >
+                  <Icon className='size-[14px]' />
+                </Button>
+              </span>
             </Tooltip.Trigger>
             {!workflowRunning && <Tooltip.Content side='top'>{label}</Tooltip.Content>}
           </Tooltip.Root>

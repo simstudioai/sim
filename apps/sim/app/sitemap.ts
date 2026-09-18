@@ -221,7 +221,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
-  return [
+  const pages: MetadataRoute.Sitemap = [
     ...staticPages,
     ...blogPages,
     ...authorPages,
@@ -233,4 +233,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...modelEntries,
     ...comparisonPages,
   ]
+
+  const canonicalPages = new Map<string, MetadataRoute.Sitemap[number]>()
+  for (const page of pages) {
+    const existing = canonicalPages.get(page.url)
+    if (
+      !existing ||
+      (page.lastModified &&
+        (!existing.lastModified || new Date(page.lastModified) > new Date(existing.lastModified)))
+    ) {
+      canonicalPages.set(page.url, page)
+    }
+  }
+  return [...canonicalPages.values()]
 }

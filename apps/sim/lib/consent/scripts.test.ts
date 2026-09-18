@@ -7,7 +7,6 @@ import {
   GLOBAL_CONSENT_SCRIPTS,
   GOOGLE_ADS_ID,
   GOOGLE_ANALYTICS_ID,
-  HUBSPOT_SCRIPT,
   X_PIXEL_SCRIPT,
 } from '@/lib/consent/scripts'
 
@@ -27,7 +26,6 @@ const CALLBACK_INFO: ConsentScriptCallbackInfo = {
 afterEach(() => {
   window.dataLayer = []
   window.gtag = undefined
-  window._hsq = []
   window.history.replaceState({}, '', '/')
 })
 
@@ -49,8 +47,7 @@ describe('consent scripts', () => {
     ])
   })
 
-  it('keeps landing vendors in separate consent categories', () => {
-    expect(HUBSPOT_SCRIPT).toMatchObject({ id: 'hubspot', category: 'measurement' })
+  it('gates the landing conversion pixel on marketing consent', () => {
     expect(X_PIXEL_SCRIPT).toMatchObject({
       id: 'x-pixel',
       category: 'marketing',
@@ -85,14 +82,5 @@ describe('consent scripts', () => {
     expect(GLOBAL_CONSENT_SCRIPTS.map((script) => script.src)).not.toContain(
       `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`
     )
-  })
-
-  it('gives HubSpot a query-free path before its automatic first page view', () => {
-    window.history.replaceState({}, '', '/demo?email=private@example.com#booking')
-    window._hsq = []
-
-    HUBSPOT_SCRIPT.onBeforeLoad()
-
-    expect(window._hsq).toEqual([['setPath', '/demo']])
   })
 })

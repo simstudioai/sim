@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import {
+  type CompiledDocReadOptions,
   loadCompiledDoc,
   loadPublishedCompiledDoc,
   publishCompiledDocArtifact,
@@ -736,7 +737,7 @@ export async function loadCompiledDocByExt(
   workspaceId: string,
   source: string,
   ext: string,
-  options: {
+  options: CompiledDocReadOptions & {
     allowLegacyReferencedArtifact?: boolean
     allowPublishedReferencedArtifact?: boolean
     filePrincipal?: Principal
@@ -744,18 +745,24 @@ export async function loadCompiledDocByExt(
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
+  const readOptions: CompiledDocReadOptions = { maxBytes: options.maxBytes, signal: options.signal }
   const referencedFileIds = collectReferencedFileIds(source)
   if (!options.filePrincipal) {
     if (referencedFileIds.size === 0) {
-      const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+      const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
       return buffer ? { buffer, contentType: fmt.contentType } : null
     }
     if (options.allowPublishedReferencedArtifact) {
-      const publishedBuffer = await loadPublishedCompiledDoc(workspaceId, source, fmt.ext)
+      const publishedBuffer = await loadPublishedCompiledDoc(
+        workspaceId,
+        source,
+        fmt.ext,
+        readOptions
+      )
       if (publishedBuffer) return { buffer: publishedBuffer, contentType: fmt.contentType }
     }
     if (!options.allowLegacyReferencedArtifact) return null
-    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
     return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
   }
   const referencedImages = await resolveReferencedImages(
@@ -768,11 +775,12 @@ export async function loadCompiledDocByExt(
     workspaceId,
     source,
     fmt.ext,
-    referencedImages.artifactIdentity
+    referencedImages.artifactIdentity,
+    readOptions
   )
   if (buffer) return { buffer, contentType: fmt.contentType }
   if (referencedImages.artifactIdentity && options.allowLegacyReferencedArtifact) {
-    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
     if (legacyBuffer) return { buffer: legacyBuffer, contentType: fmt.contentType }
   }
   return null
@@ -799,7 +807,8 @@ export type ServableDoc =
 export async function resolveServableDoc(
   workspaceId: string,
   storedBytes: Buffer,
-  fileName: string
+  fileName: string,
+  options: CompiledDocReadOptions = {}
 ): Promise<ServableDoc> {
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) return { kind: 'passthrough' }
@@ -810,7 +819,7 @@ export async function resolveServableDoc(
       workspaceId,
       storedBytes.toString('utf-8'),
       fmt.ext,
-      { allowLegacyReferencedArtifact: true, allowPublishedReferencedArtifact: true }
+      { ...options, allowLegacyReferencedArtifact: true, allowPublishedReferencedArtifact: true }
     )
     return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
   } catch (error) {

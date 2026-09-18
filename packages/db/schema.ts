@@ -2332,7 +2332,7 @@ export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_
   'failed',
 ])
 
-/** Current and historical search-index state for one immutable workspace-file content revision. */
+/** contract-pending(chunk search fully deployed): retire legacy index state and segments after rollback window. */
 export const workspaceFileSearchIndex = pgTable(
   'workspace_file_search_index',
   {
@@ -2446,6 +2446,101 @@ export const workspaceFileSearchSegment = pgTable(
       'gin',
       table.workspaceId.asc().op('text_ops'),
       table.content.asc().op('gin_trgm_ops')
+    ),
+  })
+)
+
+/** Builds outlive file deletion so their text can be reclaimed in bounded background batches. */
+export const workspaceFileSearchBuild = pgTable(
+  'workspace_file_search_build',
+  {
+    id: text('id').primaryKey(),
+    fileId: text('file_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** Null only for a completely published build; abandoned workers expire automatically. */
+    expiresAt: timestamp('expires_at'),
+  },
+  (table) => ({
+    fileIdx: index('workspace_file_search_build_file_idx').on(table.fileId),
+    cleanupIdx: index('workspace_file_search_build_cleanup_idx')
+      .on(table.expiresAt, table.id)
+      .where(sql`${table.expiresAt} IS NOT NULL`),
+  })
+)
+
+/** One current revision per file. The build identity fences retries and publishes complete coverage. */
+export const workspaceFileSearchRevision = pgTable(
+  'workspace_file_search_revision',
+  {
+    fileId: text('file_id')
+      .primaryKey()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
+    buildId: text('build_id').references(() => workspaceFileSearchBuild.id, {
+      onDelete: 'set null',
+    }),
+    failureReason: text('failure_reason'),
+    lineCount: integer('line_count').notNull().default(0),
+    indexedBytes: integer('indexed_bytes').notNull().default(0),
+    chunkCount: integer('chunk_count').notNull().default(0),
+    dispatchedAt: timestamp('dispatched_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceStatusIdx: index('workspace_file_search_revision_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    buildIdx: index('workspace_file_search_revision_build_idx').on(table.buildId),
+    pendingIdx: index('workspace_file_search_revision_pending_idx')
+      .on(table.workspaceId, table.updatedAt, table.fileId, table.sourceContentUpdatedAt)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`),
+    activeIdx: index('workspace_file_search_revision_active_idx')
+      .on(table.dispatchedAt, table.workspaceId)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NOT NULL`),
+  })
+)
+
+/** UTF-8 byte-bounded blocks; long-line fragments overlap only for conservative candidate lookup. */
+export const workspaceFileSearchChunk = pgTable(
+  'workspace_file_search_chunk',
+  {
+    buildId: text('build_id')
+      .notNull()
+      .references(() => workspaceFileSearchBuild.id),
+    workspaceId: text('workspace_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    lineStart: integer('line_start').notNull(),
+    fragment: boolean('fragment').notNull(),
+    overlap: integer('overlap').notNull().default(0),
+    content: text('content').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workspace_file_search_chunk_pk',
+      columns: [table.buildId, table.ordinal],
+    }),
+    lineIdx: index('workspace_file_search_chunk_line_idx').on(
+      table.buildId,
+      table.lineStart,
+      table.ordinal
+    ),
+    contentIdx: index('workspace_file_search_chunk_content_idx').using(
+      'gin',
+      table.workspaceId.asc().op('text_ops'),
+      table.content.asc().op('gin_trgm_ops')
+    ),
+    contentSize: check(
+      'workspace_file_search_chunk_content_size',
+      sql`octet_length(${table.content}) <= 8192`
+    ),
+    position: check(
+      'workspace_file_search_chunk_position',
+      sql`${table.ordinal} >= 0 AND ${table.lineStart} > 0 AND ${table.overlap} BETWEEN 0 AND 2`
     ),
   })
 )

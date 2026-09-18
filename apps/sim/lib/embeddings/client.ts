@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { chunkArray } from '@sim/utils/helpers'
+import { truncate } from '@sim/utils/string'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
@@ -23,6 +24,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
@@ -31,6 +33,7 @@ import {
   ollamaEmbeddingModelName,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
+import { getEmbeddingResponseDiagnostic } from '@/lib/embeddings/error-diagnostics'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
@@ -168,29 +171,6 @@ export const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_R
  */
 export const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 60_000
 
-export class EmbeddingAPIError extends Error {
-  public status: number
-
-  /** True when the rejected request used a customer-managed credential. */
-  public readonly isBYOK: boolean
-
-  /** Rejected for an exhausted balance rather than a recoverable rate limit. */
-  public quotaExhausted?: boolean
-
-  /**
-   * Wait the provider asked for, read from the rejected response. Consumed by
-   * {@link retryWithExponentialBackoff}, which prefers it over its own backoff.
-   */
-  public retryAfterMs?: number
-
-  constructor(message: string, status: number, isBYOK = false) {
-    super(message)
-    this.name = 'EmbeddingAPIError'
-    this.status = status
-    this.isBYOK = isBYOK
-  }
-}
-
 class EmbeddingResponseValidationError extends EmbeddingAPIError {
   constructor(message: string) {
     super(`Embedding API returned an invalid success response: ${message}`, 502)
@@ -293,7 +273,7 @@ function isQuotaExhaustionBody(errorText: string): boolean {
   }
 }
 
-/** Reads a bounded provider body only for internal quota classification. */
+/** Reads a bounded provider body for internal diagnostics and quota classification. */
 async function readEmbeddingErrorBody(response: Response, signal?: AbortSignal): Promise<string> {
   try {
     return await readResponseTextWithLimit(response, {
@@ -542,6 +522,7 @@ async function callEmbeddingAPI(
   tokenizerProvider: string,
   taskType: EmbeddingTaskType,
   providerId: EmbeddingProviderKind,
+  modelName: string,
   quotaCircuitIdentity: EmbeddingQuotaCircuitIdentity,
   /**
    * The caller's explicit reduction, or undefined when none was requested. Kept
@@ -605,6 +586,12 @@ async function callEmbeddingAPI(
 
         if (!response.ok) {
           const classificationBody = await readEmbeddingErrorBody(response, controller.signal)
+          logger.warn('Embedding provider request failed', {
+            providerId,
+            modelName: truncate(modelName, 256),
+            status: response.status,
+            ...getEmbeddingResponseDiagnostic(response.headers, classificationBody),
+          })
           const error = new EmbeddingAPIError(
             `Embedding API failed: ${response.status}`,
             response.status,
@@ -856,6 +843,7 @@ async function callCheckpointedEmbeddingBatch(
     provider.info.tokenizerProvider,
     taskType,
     provider.providerId,
+    provider.modelName,
     provider.quotaCircuitIdentity,
     requestedDimensions,
     provider.dimensions,
@@ -1081,6 +1069,7 @@ export async function embedOpenRouter(
       limits.tokenizerProvider,
       'document',
       'openrouter',
+      model,
       quotaCircuitIdentity,
       options.dimensions,
       expectedDimensions,

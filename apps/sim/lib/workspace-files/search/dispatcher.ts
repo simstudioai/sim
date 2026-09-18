@@ -2,8 +2,7 @@ import { db } from '@sim/db'
 import {
   workspaceFileSearchBackfill,
   workspaceFileSearchDispatchQueue,
-  workspaceFileSearchIndex,
-  workspaceFileSearchSegment,
+  workspaceFileSearchRevision,
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -12,7 +11,6 @@ import { truncate } from '@sim/utils/string'
 import {
   and,
   asc,
-  count,
   eq,
   exists,
   gt,
@@ -31,25 +29,31 @@ import { runDetached } from '@/lib/core/utils/background'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
+  FILE_SEARCH_CLEANUP_BACKLOG_ROWS,
   FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS,
   FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS,
   FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS,
   FILE_SEARCH_INDEX_DISPATCH_WORKSPACES,
+  FILE_SEARCH_INDEX_GLOBAL_CONCURRENCY,
+  FILE_SEARCH_INDEX_MAX_DURATION_SECONDS,
   FILE_SEARCH_INDEX_MAX_OUTSTANDING,
   FILE_SEARCH_INDEX_STALE_DISPATCH_MS,
   FILE_SEARCH_INDEX_STALE_REAP_LIMIT,
   FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING,
+  FILE_SEARCH_RECONCILE_INTERVAL_MS,
 } from '@/lib/workspace-files/search/constants'
+import { cleanupFileSearchBuilds } from '@/lib/workspace-files/search/index-state'
 import {
   indexWorkspaceFileForSearch,
   markWorkspaceFileSearchIndexFailed,
   type WorkspaceFileSearchIndexPayload,
 } from '@/lib/workspace-files/search/indexing'
+import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 import type { workspaceFileSearchIndexTask } from '@/background/workspace-file-search-index'
 
 const logger = createLogger('WorkspaceFileSearchDispatcher')
 const DISPATCH_LOCK_NAME = 'workspace-file-search-dispatch'
-const BACKFILL_CURSOR_ID = 'workspace-file-search-v1'
+const BACKFILL_CURSOR_ID = 'workspace-file-search-chunks-v2'
 
 async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): Promise<T> {
   const startedAt = Date.now()
@@ -72,23 +76,10 @@ async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): 
   }
 }
 
-/** Preparation must roll back before the worker's hard deadline. */
-async function configureDispatchTimeouts(tx: DbTransaction): Promise<void> {
-  await tx.execute(sql`
-    SELECT
-      set_config('statement_timeout', ${`${FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS}ms`}, true),
-      set_config('lock_timeout', ${`${FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS}ms`}, true),
-      set_config(
-        'transaction_timeout',
-        ${`${FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS}ms`},
-        true
-      )
-  `)
-}
-
 interface RevisionIdentity {
   fileId: string
   sourceContentUpdatedAt: Date
+  dispatchToken?: string
 }
 
 interface PreparedDispatch {
@@ -119,7 +110,7 @@ export function buildWorkspaceFileSearchTriggerItems(
   return payloads.map((payload) => ({
     payload,
     options: {
-      idempotencyKey: `workspace-file-search:${payload.fileId}:${payload.sourceContentUpdatedAt}`,
+      idempotencyKey: `workspace-file-search-v2:${payload.fileId}:${payload.sourceContentUpdatedAt}:${payload.dispatchToken ?? 'initial'}`,
       idempotencyKeyTTL: '1h' as const,
       tags: [`workspaceId:${payload.workspaceId}`, `fileId:${payload.fileId}`],
       region,
@@ -131,8 +122,11 @@ function revisionFilter(rows: readonly RevisionIdentity[]): SQL | undefined {
   return or(
     ...rows.map((row) =>
       and(
-        eq(workspaceFileSearchIndex.fileId, row.fileId),
-        eq(workspaceFileSearchIndex.sourceContentUpdatedAt, row.sourceContentUpdatedAt)
+        eq(workspaceFileSearchRevision.fileId, row.fileId),
+        eq(workspaceFileSearchRevision.sourceContentUpdatedAt, row.sourceContentUpdatedAt),
+        row.dispatchToken
+          ? eq(workspaceFileSearchRevision.dispatchedAt, new Date(row.dispatchToken))
+          : undefined
       )
     )
   )
@@ -172,7 +166,14 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
     .where(eq(workspaceFileSearchBackfill.id, BACKFILL_CURSOR_ID))
     .for('update')
     .limit(1)
-  if (!cursor || cursor.completedAt) return 0
+  if (
+    !cursor ||
+    (cursor.completedAt &&
+      now.getTime() - cursor.completedAt.getTime() < FILE_SEARCH_RECONCILE_INTERVAL_MS)
+  )
+    return 0
+  const afterWorkspaceId = cursor.completedAt ? null : cursor.afterWorkspaceId
+  const afterFileId = cursor.completedAt ? null : cursor.afterFileId
 
   const rows = await tx
     .select({
@@ -186,12 +187,12 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
         eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt),
         isNotNull(workspaceFiles.workspaceId),
-        cursor.afterWorkspaceId && cursor.afterFileId
+        afterWorkspaceId && afterFileId
           ? or(
-              gt(workspaceFiles.workspaceId, cursor.afterWorkspaceId),
+              gt(workspaceFiles.workspaceId, afterWorkspaceId),
               and(
-                eq(workspaceFiles.workspaceId, cursor.afterWorkspaceId),
-                gt(workspaceFiles.id, cursor.afterFileId)
+                eq(workspaceFiles.workspaceId, afterWorkspaceId),
+                gt(workspaceFiles.id, afterFileId)
               )
             )
           : undefined
@@ -206,7 +207,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   )
   if (files.length > 0) {
     await tx
-      .insert(workspaceFileSearchIndex)
+      .insert(workspaceFileSearchRevision)
       .values(
         files.map((file) => ({
           workspaceId: file.workspaceId,
@@ -228,8 +229,8 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   await tx
     .update(workspaceFileSearchBackfill)
     .set({
-      afterWorkspaceId: last?.workspaceId ?? cursor.afterWorkspaceId,
-      afterFileId: last?.fileId ?? cursor.afterFileId,
+      afterWorkspaceId: last?.workspaceId ?? afterWorkspaceId,
+      afterFileId: last?.fileId ?? afterFileId,
       completedAt: rows.length < FILE_SEARCH_BACKFILL_PAGE_SIZE ? now : null,
       updatedAt: now,
     })
@@ -241,39 +242,39 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   const staleBefore = new Date(now.getTime() - FILE_SEARCH_INDEX_STALE_DISPATCH_MS)
   const rows = await tx
     .select({
-      workspaceId: workspaceFileSearchIndex.workspaceId,
-      fileId: workspaceFileSearchIndex.fileId,
-      sourceContentUpdatedAt: workspaceFileSearchIndex.sourceContentUpdatedAt,
+      workspaceId: workspaceFileSearchRevision.workspaceId,
+      fileId: workspaceFileSearchRevision.fileId,
+      sourceContentUpdatedAt: workspaceFileSearchRevision.sourceContentUpdatedAt,
       currentFileId: workspaceFiles.id,
     })
-    .from(workspaceFileSearchIndex)
+    .from(workspaceFileSearchRevision)
     .leftJoin(
       workspaceFiles,
       and(
-        eq(workspaceFiles.id, workspaceFileSearchIndex.fileId),
-        eq(workspaceFiles.workspaceId, workspaceFileSearchIndex.workspaceId),
+        eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
+        eq(workspaceFiles.workspaceId, workspaceFileSearchRevision.workspaceId),
         eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt),
-        eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchIndex.sourceContentUpdatedAt)
+        eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )
     )
     .where(
       and(
-        eq(workspaceFileSearchIndex.status, 'pending'),
-        isNotNull(workspaceFileSearchIndex.dispatchedAt),
-        lt(workspaceFileSearchIndex.dispatchedAt, staleBefore)
+        eq(workspaceFileSearchRevision.status, 'pending'),
+        isNotNull(workspaceFileSearchRevision.dispatchedAt),
+        lt(workspaceFileSearchRevision.dispatchedAt, staleBefore)
       )
     )
-    .orderBy(asc(workspaceFileSearchIndex.dispatchedAt), asc(workspaceFileSearchIndex.fileId))
+    .orderBy(asc(workspaceFileSearchRevision.dispatchedAt), asc(workspaceFileSearchRevision.fileId))
     .limit(FILE_SEARCH_INDEX_STALE_REAP_LIMIT)
-    .for('update', { of: workspaceFileSearchIndex, skipLocked: true })
+    .for('update', { of: workspaceFileSearchRevision, skipLocked: true })
 
   const current = rows.filter((row) => row.currentFileId !== null)
   const obsolete = rows.filter((row) => row.currentFileId === null)
   const currentFilter = revisionFilter(current)
   if (currentFilter) {
     await tx
-      .update(workspaceFileSearchIndex)
+      .update(workspaceFileSearchRevision)
       .set({ dispatchedAt: null, updatedAt: now })
       .where(currentFilter)
     await enqueueWorkspaces(
@@ -284,19 +285,7 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   }
   const obsoleteFilter = revisionFilter(obsolete)
   if (obsoleteFilter) {
-    await tx
-      .delete(workspaceFileSearchSegment)
-      .where(
-        or(
-          ...obsolete.map((row) =>
-            and(
-              eq(workspaceFileSearchSegment.fileId, row.fileId),
-              eq(workspaceFileSearchSegment.sourceContentUpdatedAt, row.sourceContentUpdatedAt)
-            )
-          )
-        )
-      )
-    await tx.delete(workspaceFileSearchIndex).where(obsoleteFilter)
+    await tx.delete(workspaceFileSearchRevision).where(obsoleteFilter)
   }
   return rows.length
 }
@@ -327,7 +316,7 @@ async function claimQueuedWorkspaceJobs(
       CROSS JOIN LATERAL (
         SELECT count(*)::int AS active_count
         FROM (
-          SELECT 1 FROM workspace_file_search_index AS active
+          SELECT 1 FROM workspace_file_search_revision AS active
           WHERE active.workspace_id = selected.workspace_id
             AND active.status = 'pending' AND active.dispatched_at IS NOT NULL
           LIMIT ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING}
@@ -336,7 +325,7 @@ async function claimQueuedWorkspaceJobs(
       CROSS JOIN LATERAL (
         SELECT search_index.workspace_id, search_index.file_id,
           search_index.source_content_updated_at, search_index.updated_at
-        FROM workspace_file_search_index AS search_index
+        FROM workspace_file_search_revision AS search_index
         INNER JOIN workspace_files AS file
           ON file.id = search_index.file_id
           AND file.workspace_id = search_index.workspace_id
@@ -352,7 +341,7 @@ async function claimQueuedWorkspaceJobs(
       ORDER BY queued.updated_at, queued.workspace_id, queued.file_id, queued.source_content_updated_at
       LIMIT ${remainingGlobalCapacity}
     )
-    UPDATE workspace_file_search_index AS search_index
+    UPDATE workspace_file_search_revision AS search_index
     SET dispatched_at = ${now.toISOString()}::timestamp
     FROM candidates
     WHERE search_index.file_id = candidates.file_id
@@ -366,23 +355,23 @@ async function claimQueuedWorkspaceJobs(
   `)
 
   const remainingForWorkspace = tx
-    .select({ fileId: workspaceFileSearchIndex.fileId })
-    .from(workspaceFileSearchIndex)
+    .select({ fileId: workspaceFileSearchRevision.fileId })
+    .from(workspaceFileSearchRevision)
     .innerJoin(
       workspaceFiles,
       and(
-        eq(workspaceFiles.id, workspaceFileSearchIndex.fileId),
+        eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
         eq(workspaceFiles.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
         eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt),
-        eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchIndex.sourceContentUpdatedAt)
+        eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )
     )
     .where(
       and(
-        eq(workspaceFileSearchIndex.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
-        eq(workspaceFileSearchIndex.status, 'pending'),
-        isNull(workspaceFileSearchIndex.dispatchedAt)
+        eq(workspaceFileSearchRevision.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
+        eq(workspaceFileSearchRevision.status, 'pending'),
+        isNull(workspaceFileSearchRevision.dispatchedAt)
       )
     )
   await tx
@@ -407,13 +396,22 @@ async function claimQueuedWorkspaceJobs(
     workspaceId: row.workspaceId,
     fileId: row.fileId,
     sourceContentUpdatedAt: new Date(row.sourceContentUpdatedAt).toISOString(),
+    dispatchToken: now.toISOString(),
   }))
 }
 
-export async function prepareWorkspaceFileSearchDispatch(): Promise<PreparedDispatch> {
+export async function prepareWorkspaceFileSearchDispatch(
+  maxOutstanding = FILE_SEARCH_INDEX_MAX_OUTSTANDING
+): Promise<PreparedDispatch> {
   return runDispatchPhase('prepare-transaction', () =>
     db.transaction(async (tx) => {
-      await runDispatchPhase('configure-timeouts', () => configureDispatchTimeouts(tx))
+      await runDispatchPhase('configure-timeouts', () =>
+        configureFileSearchTransaction(tx, {
+          statementTimeout: FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS,
+          lockTimeout: FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS,
+          transactionTimeout: FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS,
+        })
+      )
       return runDispatchPhase('prepare', async () => {
         const [lock] = await tx.execute<{ acquired: boolean }>(
           sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${DISPATCH_LOCK_NAME}, 0)) AS acquired`
@@ -425,19 +423,29 @@ export async function prepareWorkspaceFileSearchDispatch(): Promise<PreparedDisp
         const now = new Date()
         const backfilledFiles = await runDispatchPhase('backfill', () => seedBackfillPage(tx, now))
         const reapedClaims = await runDispatchPhase('reap', () => reapStaleClaims(tx, now))
-        const [{ active }] = await tx
-          .select({ active: count() })
-          .from(workspaceFileSearchIndex)
-          .where(
-            and(
-              eq(workspaceFileSearchIndex.status, 'pending'),
-              isNotNull(workspaceFileSearchIndex.dispatchedAt)
-            )
-          )
-        const remainingGlobalCapacity = Math.max(
-          0,
-          FILE_SEARCH_INDEX_MAX_OUTSTANDING - Number(active)
-        )
+        const [{ active, cleanupBacklogged }] = await tx.execute<{
+          active: number
+          cleanupBacklogged: boolean
+        }>(sql`
+          SELECT count(*)::int AS active,
+            (SELECT count(*) >= ${FILE_SEARCH_CLEANUP_BACKLOG_ROWS} FROM (
+              SELECT 1 FROM workspace_file_search_build build
+              CROSS JOIN LATERAL (
+                SELECT 1 FROM workspace_file_search_chunk chunk WHERE chunk.build_id = build.id
+                LIMIT ${FILE_SEARCH_CLEANUP_BACKLOG_ROWS}
+              ) retired_chunk
+              WHERE build.expires_at <= now() LIMIT ${FILE_SEARCH_CLEANUP_BACKLOG_ROWS}
+            ) retired) AS "cleanupBacklogged"
+          FROM (
+            SELECT 1 FROM workspace_file_search_revision
+            WHERE status = 'pending' AND dispatched_at IS NOT NULL
+            LIMIT ${FILE_SEARCH_INDEX_MAX_OUTSTANDING}
+          ) AS active_claims`)
+        if (cleanupBacklogged) {
+          logger.info('Workspace file search dispatch paused for cleanup')
+          return { payloads: [], backfilledFiles, reapedClaims, lockAcquired: true }
+        }
+        const remainingGlobalCapacity = Math.max(0, maxOutstanding - Number(active))
         if (remainingGlobalCapacity === 0) {
           return { payloads: [], backfilledFiles, reapedClaims, lockAcquired: true }
         }
@@ -473,15 +481,16 @@ async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndex
     workspaceId: payload.workspaceId,
     fileId: payload.fileId,
     sourceContentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    dispatchToken: payload.dispatchToken,
   }))
   await runDispatchPhase('release-claims', () =>
     db.transaction(async (tx) => {
       const filter = revisionFilter(rows)
       if (filter) {
         await tx
-          .update(workspaceFileSearchIndex)
+          .update(workspaceFileSearchRevision)
           .set({ dispatchedAt: null, updatedAt: new Date() })
-          .where(and(filter, eq(workspaceFileSearchIndex.status, 'pending')))
+          .where(and(filter, eq(workspaceFileSearchRevision.status, 'pending')))
       }
       await enqueueWorkspaces(
         tx,
@@ -500,7 +509,10 @@ async function dispatchPreparedJobs(
     runDetached('workspace-file-search-index', async () => {
       for (const payload of payloads) {
         try {
-          await indexWorkspaceFileForSearch(payload, new AbortController().signal)
+          await indexWorkspaceFileForSearch(
+            payload,
+            AbortSignal.timeout(FILE_SEARCH_INDEX_MAX_DURATION_SECONDS * 1000)
+          )
         } catch {
           await markWorkspaceFileSearchIndexFailed(payload)
         }
@@ -526,7 +538,14 @@ async function dispatchPreparedJobs(
 }
 
 export async function dispatchWorkspaceFileSearchIndexJobs(): Promise<WorkspaceFileSearchDispatchResult> {
-  const prepared = await prepareWorkspaceFileSearchDispatch()
+  await cleanupFileSearchBuilds().catch((error: unknown) => {
+    logger.warn('Workspace file search cleanup deferred', { code: getPostgresErrorCode(error) })
+  })
+  const prepared = await prepareWorkspaceFileSearchDispatch(
+    shouldUseWorkspaceFileSearchTrigger(isTriggerDevEnabled, isInsideTriggerRun())
+      ? FILE_SEARCH_INDEX_MAX_OUTSTANDING
+      : FILE_SEARCH_INDEX_GLOBAL_CONCURRENCY
+  )
   if (!prepared.lockAcquired || prepared.payloads.length === 0) {
     return {
       dispatchedFiles: 0,

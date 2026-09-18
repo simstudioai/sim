@@ -803,16 +803,14 @@ const hasMaxTierWorkspaceAccess = cache(
  * Inbox.
  *
  * Otherwise returns true if:
- * - INBOX_ENABLED env var is set (self-hosted override), OR
- * - billing is disabled, OR
+ * - on self-hosted deployments, INBOX_ENABLED is set or billing is disabled, OR
  * - the workspace belongs to an organization on a Max/enterprise plan (org-mode), OR
  * - the billed user has an individual Max/enterprise subscription (personal workspace).
  */
 export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
     if (!env.COPILOT_API_KEY) return false
-    if (isInboxEnabled) return true
-    if (!isBillingEnabled) return true
+    if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace inbox access', { error, workspaceId })
@@ -834,12 +832,12 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
  */
 export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (isInboxEnabled) return true
-    if (!isBillingEnabled) return true
+    if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
 
     return await hasWorkspaceTierAccess(workspaceId, isMaxTier, {
       intent: 'retention',
       onMissingWorkspace: true,
+      onError: 'throw',
     })
   } catch (error) {
     logger.error('Error checking workspace inbox grace access', { error, workspaceId })

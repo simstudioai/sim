@@ -53,9 +53,9 @@ describe('ToolCallItem', () => {
   it.each([
     ['executing', 'Checking the invoice totals'],
     ['success', 'Checked the invoice totals'],
-    ['error', 'Failed checking the invoice totals'],
+    ['error', 'Checking the invoice totals'],
     ['cancelled', 'Stopped checking the invoice totals'],
-    ['rejected', 'Failed checking the invoice totals'],
+    ['rejected', 'Checking the invoice totals'],
     ['skipped', 'Skipped checking the invoice totals'],
   ] as const)(
     'projects %s from the actual tool status onto the model description',
@@ -130,7 +130,7 @@ describe('ToolCallItem', () => {
       />
     )
 
-    expect(markup).toContain('Failed checking invoices')
+    expect(markup).toContain('Checking invoices')
     expect(markup).not.toContain('Stopped checking invoices')
   })
 

@@ -127,16 +127,14 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       advance(100)
       render([tool('first', 'success'), tool('second')])
       render([tool('first', 'success'), tool('second', status)])
-      const prefix =
+      const label =
         status === 'error' || status === 'rejected'
-          ? 'Failed'
-          : status === 'skipped'
-            ? 'Skipped'
-            : 'Stopped'
-      expect(header()?.textContent).toBe(`${prefix} reading second`)
+          ? 'Reading second'
+          : `${status === 'skipped' ? 'Skipped' : 'Stopped'} reading second`
+      expect(header()?.textContent).toBe(label)
       expect(container.querySelector('[class*="shimmer"]')).toBeNull()
       advance(1500)
-      expect(header()?.textContent).toBe(`${prefix} reading second`)
+      expect(header()?.textContent).toBe(label)
     }
   )
 
@@ -176,14 +174,50 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     const trigger = container.querySelector<HTMLElement>('[role="button"]')!
     act(() => trigger.click())
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
-      'Failed reading firstReading second'
+      'Reading firstReading second'
     )
     render([tool('first', 'error'), tool('second', 'success')], false)
     expect(header()?.textContent).toBe('Read files')
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
-      'Failed reading firstRead second'
+      'Reading firstRead second'
     )
   })
+
+  it.each(['error', 'rejected'] as const)(
+    'keeps a %s model description neutral in the header and expanded history',
+    (status) => {
+      render(
+        [
+          {
+            ...tool('first', status),
+            displayTitle: 'Failed reading reference material',
+            activityDescription: 'Locating reference material',
+          },
+        ],
+        false
+      )
+      expect(header()?.textContent).toBe('Locating reference material')
+      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+      render(
+        [
+          {
+            ...tool('first', status),
+            displayTitle: 'Failed reading reference material',
+            activityDescription: 'Failed: Locating reference material',
+          },
+          tool('second', 'success'),
+        ],
+        false
+      )
+      const trigger = container.querySelector<HTMLElement>('[role="button"]')!
+      act(() => trigger.click())
+      expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+        'Locating reference materialRead second'
+      )
+      expect(container.textContent).not.toContain('Failed')
+      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    }
+  )
 
   it('shows three distinct actions and keeps the complete history available', () => {
     render(

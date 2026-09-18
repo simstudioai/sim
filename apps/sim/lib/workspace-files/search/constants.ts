@@ -1,9 +1,4 @@
-/**
- * `pg_trgm` can only extract a trigram from three consecutive characters, so a
- * shorter query has nothing for the segment GIN index to probe and degrades to a
- * scan of every tenant's segments. It bounds the literal query length and, in
- * regex mode, the shortest literal run every match is guaranteed to contain.
- */
+/** Require enough literal characters for a selective trigram probe when the pattern permits one. */
 export const FILE_SEARCH_MIN_QUERY_LENGTH = 3
 export const FILE_SEARCH_MAX_QUERY_LENGTH = 512
 
@@ -16,12 +11,7 @@ export const FILE_SEARCH_PATTERN_LITERAL_CAP = 512
 export const FILE_SEARCH_PATTERN_MAX_REPEAT = 1000
 export const FILE_SEARCH_PATTERN_MAX_DEPTH = 20
 
-/**
- * Backstop for a pattern whose trigrams the planner cannot use — a punctuation-only
- * or non-ASCII literal, or a regex whose guaranteed run yields no trigram. Those
- * plan as a sequential scan across every workspace's segments, so the search must
- * not be able to hold a pooled connection open indefinitely.
- */
+/** Total search deadline, including patterns whose literals cannot provide a selective trigram probe. */
 export const FILE_SEARCH_STATEMENT_TIMEOUT_MS = 10 * 1000
 export const FILE_SEARCH_LOCK_TIMEOUT_MS = 5 * 1000
 export const FILE_SEARCH_DEFAULT_MAX_RESULTS = 50
@@ -30,9 +20,19 @@ export const FILE_SEARCH_MAX_RESULTS = 200
 export const FILE_SEARCH_MAX_SOURCE_BYTES = 25 * 1024 * 1024
 export const FILE_SEARCH_MAX_EXTRACTED_BYTES = 25 * 1024 * 1024
 export const FILE_SEARCH_MAX_PREVIEW_BYTES = 2 * 1024
-export const FILE_SEARCH_SEGMENT_CHARS = 16 * 1024
-export const FILE_SEARCH_SEGMENT_OVERLAP_CHARS =
-  FILE_SEARCH_MAX_QUERY_LENGTH + FILE_SEARCH_MAX_PREVIEW_BYTES
+export const FILE_SEARCH_CHUNK_BYTES = 8 * 1024
+export const FILE_SEARCH_CANDIDATE_PAGE_SIZE = 16
+export const FILE_SEARCH_CANDIDATE_PROBE_SIZE = 256
+export const FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY = 10
+export const FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY = 2
+export const FILE_SEARCH_CANDIDATE_LITERAL_CHARS = 3
+export const FILE_SEARCH_BUILD_LEASE_MS = 20 * 60 * 1000
+export const FILE_SEARCH_CLEANUP_BATCH_ROWS = 1000
+export const FILE_SEARCH_CLEANUP_BATCH_BUILDS = 100
+export const FILE_SEARCH_CLEANUP_BACKLOG_ROWS = 10000
+export const FILE_SEARCH_CLEANUP_MAX_BATCHES = 10
+export const FILE_SEARCH_CLEANUP_BUDGET_MS = 5000
+export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
 export const FILE_SEARCH_INSERT_BATCH_BYTES = 1024 * 1024
 

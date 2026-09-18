@@ -481,7 +481,7 @@ export function ResourceTabs({
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
-        const dragImage = buildMultiDragImage(e.currentTarget.closest('[role="tablist"]'), selected)
+        const dragImage = buildMultiDragImage(e.currentTarget.closest('[data-tab-strip]'), selected)
         if (dragImage) {
           e.dataTransfer.setDragImage(dragImage, 16, 16)
           dragImageRef.current = dragImage

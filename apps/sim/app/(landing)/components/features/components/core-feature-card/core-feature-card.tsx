@@ -48,6 +48,7 @@ export function CoreFeatureCard({
   const graphic = (
     <div
       aria-hidden={interactiveVisual ? undefined : true}
+      inert={!interactiveVisual}
       className={cn(
         'relative aspect-[5/6] overflow-hidden border border-[var(--border)] transition-colors duration-300 group-hover:border-[var(--border)] motion-reduce:transition-none',
         LANDING_STAGE_RADIUS,

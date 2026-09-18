@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   AgentMailAttachment,
   AgentMailInbox,
@@ -20,7 +21,23 @@ function getApiKey(): string {
   return key
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+class AgentMailError extends Error {
+  constructor(
+    readonly status: number,
+    path: string
+  ) {
+    super(
+      status === 409 && path === '/inboxes'
+        ? 'This email address is unavailable. Choose another prefix or try again later.'
+        : status === 400 && path === '/inboxes'
+          ? 'Unable to create this inbox. Check the email prefix and try again, or contact support.'
+          : 'The email service is unavailable. Please try again later or contact support.'
+    )
+    this.name = 'AgentMailError'
+  }
+}
+
+async function requestResponse(path: string, options: RequestInit = {}): Promise<Response> {
   const url = `${BASE_URL}${path}`
   const response = await fetch(url, {
     ...options,
@@ -32,20 +49,59 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    logger.error('AgentMail API error', {
-      status: response.status,
-      path,
-      body,
-    })
-    throw new Error(`AgentMail API error: ${response.status} ${body}`)
+    logger.error('AgentMail API error', { status: response.status, path })
+    await response.body?.cancel()
+    throw new AgentMailError(response.status, path)
   }
+  return response
+}
 
-  if (response.status === 204) {
-    return undefined as T
-  }
-
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await requestResponse(path, options)
   return response.json() as Promise<T>
+}
+
+function withResourceTimeout(options: RequestInit): RequestInit {
+  return {
+    ...options,
+    signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(15_000)])
+      : AbortSignal.timeout(15_000),
+  }
+}
+
+async function requestResource<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await requestResponse(path, withResourceTimeout(options))
+  return readResponseJsonWithLimit<T>(response, {
+    maxBytes: 64 * 1024,
+    label: 'AgentMail resource',
+  })
+}
+
+/** Treat already-absent resources as deleted, and distinguish asynchronous acceptance. */
+async function deleteResource(path: string, signal?: AbortSignal): Promise<boolean> {
+  try {
+    const response = await requestResponse(path, withResourceTimeout({ method: 'DELETE', signal }))
+    await response.body?.cancel()
+    return response.status !== 202
+  } catch (error) {
+    if (error instanceof AgentMailError && error.status === 404) return true
+    throw error
+  }
+}
+
+export async function getInbox(
+  inboxId: string,
+  signal?: AbortSignal
+): Promise<AgentMailInbox | null> {
+  try {
+    return await requestResource<AgentMailInbox>(`/inboxes/${encodeURIComponent(inboxId)}`, {
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof AgentMailError && error.status === 404) return null
+    throw error
+  }
 }
 
 export async function createInbox(opts: {
@@ -53,7 +109,7 @@ export async function createInbox(opts: {
   displayName?: string
 }): Promise<AgentMailInbox> {
   const domain = env.AGENTMAIL_DOMAIN
-  return request<AgentMailInbox>('/inboxes', {
+  return requestResource<AgentMailInbox>('/inboxes', {
     method: 'POST',
     body: JSON.stringify({
       username: opts.username,
@@ -63,10 +119,8 @@ export async function createInbox(opts: {
   })
 }
 
-export async function deleteInbox(inboxId: string): Promise<void> {
-  return request<void>(`/inboxes/${encodeURIComponent(inboxId)}`, {
-    method: 'DELETE',
-  })
+export function deleteInbox(inboxId: string, signal?: AbortSignal): Promise<boolean> {
+  return deleteResource(`/inboxes/${encodeURIComponent(inboxId)}`, signal)
 }
 
 export async function createWebhook(opts: {
@@ -74,7 +128,7 @@ export async function createWebhook(opts: {
   eventTypes: string[]
   inboxIds: string[]
 }): Promise<AgentMailWebhook> {
-  return request<AgentMailWebhook>('/webhooks', {
+  return requestResource<AgentMailWebhook>('/webhooks', {
     method: 'POST',
     body: JSON.stringify({
       url: opts.url,
@@ -84,10 +138,8 @@ export async function createWebhook(opts: {
   })
 }
 
-export async function deleteWebhook(webhookId: string): Promise<void> {
-  return request<void>(`/webhooks/${encodeURIComponent(webhookId)}`, {
-    method: 'DELETE',
-  })
+export function deleteWebhook(webhookId: string, signal?: AbortSignal): Promise<boolean> {
+  return deleteResource(`/webhooks/${encodeURIComponent(webhookId)}`, signal)
 }
 
 export async function replyToMessage(

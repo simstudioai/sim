@@ -2,16 +2,16 @@
  * @vitest-environment node
  */
 
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { createMockLogger, resetEnvMock, setEnv } from '@sim/testing'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   assertKnowledgeEmbeddingCapacityForDeployment,
   clampEmbeddingConcurrency,
   EMBEDDING_MAX_RETRIES,
   EMBEDDING_RETRY_BUDGET_MS,
-  EmbeddingAPIError,
   EmbeddingOutputLimitError,
   EmbeddingQuotaExhaustedError,
   embed,
@@ -26,6 +26,11 @@ import {
 
 const { mockGetBYOKKey } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
+}))
+
+const { mockDiagnosticWarn } = vi.hoisted(() => ({ mockDiagnosticWarn: vi.fn() }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ ...createMockLogger(), warn: mockDiagnosticWarn }),
 }))
 
 const { quotaGates, mockAdmit, mockCooldown, mockQuotaCheck } = vi.hoisted(() => ({
@@ -116,6 +121,7 @@ function oversizedChunkedSuccessResponse(): Response {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  mockDiagnosticWarn.mockClear()
   mockQuotaCheck
     .mockReset()
     .mockImplementation(async (identity: { credentialFingerprint: string }) =>
@@ -152,6 +158,105 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   resetEnvMock()
+})
+
+describe('embedding HTTP failure diagnostics', () => {
+  const options = { model: 'text-embedding-3-small', projectInputs: null } as const
+
+  it('logs safe OpenAI context internally while preserving the public error and retry policy', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { error: { code: 'model_not_found', message: 'private document and private-key' } },
+        404,
+        { 'x-request-id': 'req_test', authorization: 'Bearer private-key' }
+      )
+    )
+    const error = await embed(['private document'], { ...options, apiKey: 'private-key' }).catch(
+      (caught) => caught
+    )
+    expect(error).toBeInstanceOf(EmbeddingAPIError)
+    expect(error.message).toBe('Embedding API failed: 404')
+    expect(isTransientEmbeddingError(error)).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mockDiagnosticWarn).toHaveBeenCalledWith('Embedding provider request failed', {
+      providerId: 'openai',
+      modelName: 'text-embedding-3-small',
+      status: 404,
+      providerRequestId: 'req_test',
+      providerErrorCode: 'model_not_found',
+      providerErrorType: null,
+      bodyFormat: 'json',
+    })
+    expect(JSON.stringify(mockDiagnosticWarn.mock.calls)).not.toContain('private')
+    expect(JSON.stringify(error)).not.toContain('req_test')
+    expect(JSON.stringify(error)).not.toContain('model_not_found')
+  })
+
+  it('identifies the actual Azure transport and deployment selected for a catalog model', async () => {
+    setEnv({
+      AZURE_OPENAI_API_KEY: 'private-azure-key',
+      AZURE_OPENAI_ENDPOINT: 'https://azure.example',
+      AZURE_OPENAI_API_VERSION: '2024-02-01',
+      KB_OPENAI_MODEL_NAME: 'test-embedding-deployment',
+    })
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { code: 'DeploymentNotFound' } }, 404, {
+        'apim-request-id': 'azure-request-test',
+      })
+    )
+    await expect(embed(['text'], options)).rejects.toThrow('Embedding API failed: 404')
+    expect(mockDiagnosticWarn).toHaveBeenCalledWith(
+      'Embedding provider request failed',
+      expect.objectContaining({
+        providerId: 'azure-openai',
+        modelName: 'test-embedding-deployment',
+        providerRequestId: 'azure-request-test',
+        providerErrorCode: 'DeploymentNotFound',
+      })
+    )
+    expect(JSON.stringify(mockDiagnosticWarn.mock.calls)).not.toContain('private-azure-key')
+    expect(JSON.stringify(mockDiagnosticWarn.mock.calls)).not.toContain('https://azure.example')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the HTTP failure diagnosable when its response body cannot be read', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error('private body failure'))
+            },
+          }),
+          { status: 404, headers: { 'x-request-id': 'req_unreadable' } }
+        )
+    )
+    await expect(embed(['text'], { ...options, apiKey: 'key' })).rejects.toThrow(
+      'Embedding API failed: 404'
+    )
+    expect(mockDiagnosticWarn).toHaveBeenCalledWith(
+      'Embedding provider request failed',
+      expect.objectContaining({
+        status: 404,
+        providerRequestId: 'req_unreadable',
+        bodyFormat: 'unavailable',
+      })
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(mockDiagnosticWarn.mock.calls)).not.toContain('private')
+  })
+
+  it('logs quota rejection before the existing quota circuit wraps the HTTP error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { code: 'insufficient_quota' } }, 429))
+    await expect(embed(['text'], { ...options, apiKey: 'key' })).rejects.toBeInstanceOf(
+      EmbeddingQuotaExhaustedError
+    )
+    expect(mockDiagnosticWarn).toHaveBeenCalledWith(
+      'Embedding provider request failed',
+      expect.objectContaining({ status: 429, providerErrorCode: 'insufficient_quota' })
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('embedding cancellation', () => {

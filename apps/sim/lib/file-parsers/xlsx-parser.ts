@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import * as XLSX from 'xlsx'
+import { CompleteTextBuilder } from '@/lib/file-parsers/complete-text'
 import {
   FileParserError,
   isEncryptedOfficeParserError,
@@ -12,7 +13,7 @@ import {
   normalizeSheetDisplayText,
   SHEET_DISPLAY_READ_OPTIONS,
 } from '@/lib/file-parsers/sheet-display-text'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
@@ -50,7 +51,7 @@ export class XlsxParser implements FileParser {
    * Read the file into a buffer and delegate to {@link parseBuffer} so the
    * decompression-bomb guard runs before SheetJS inflates the workbook.
    */
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
@@ -61,11 +62,12 @@ export class XlsxParser implements FileParser {
 
     logger.info(`Parsing XLSX file: ${filePath}`)
 
-    const buffer = await readFile(filePath)
-    return this.parseBuffer(buffer)
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    options.signal?.throwIfAborted()
     try {
       const bufferSize = buffer.length
       logger.info(
@@ -85,8 +87,14 @@ export class XlsxParser implements FileParser {
         ...SHEET_DISPLAY_READ_OPTIONS,
       })
 
-      return this.processWorkbook(workbook)
+      const result =
+        options.contentMode === 'complete'
+          ? this.processCompleteWorkbook(workbook, options)
+          : this.processWorkbook(workbook)
+      options.signal?.throwIfAborted()
+      return result
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.error('XLSX buffer parsing error:', error)
       if (isEncryptedOfficeParserError(error)) {
         throw new FileParserError(
@@ -96,6 +104,64 @@ export class XlsxParser implements FileParser {
         )
       }
       throw toFileParserError(error, 'invalid_format', 'Failed to parse XLSX buffer')
+    }
+  }
+
+  /** Visits populated cells, never the possibly enormous declared worksheet rectangle. */
+  private processCompleteWorkbook(
+    workbook: XLSX.WorkBook,
+    options: FileParseOptions
+  ): FileParseResult {
+    const content = new CompleteTextBuilder(options.maxTextBytes)
+    let rowCount = 0
+    for (const sheetName of workbook.SheetNames) {
+      options.signal?.throwIfAborted()
+      const sheet = workbook.Sheets[sheetName]
+      const data: (XLSX.CellObject[] | undefined)[] | undefined = sheet['!data']
+      if (!data) {
+        if (!sheet['!ref']) continue
+        throw new FileParserError(
+          'runtime_failure',
+          'Complete spreadsheet extraction requires dense cell data'
+        )
+      }
+      content.append(`\n=== Sheet: ${sanitizeTextForUTF8(sheetName)} ===\n`)
+      for (const rowKey in data) {
+        if (!Object.hasOwn(data, rowKey) || !/^\d+$/.test(rowKey)) continue
+        options.signal?.throwIfAborted()
+        const row = data[Number(rowKey)]
+        if (!row) continue
+        const rowText = new CompleteTextBuilder(options.maxTextBytes)
+        let previousColumn = -1
+        let meaningful = false
+        for (const columnKey in row) {
+          if (!Object.hasOwn(row, columnKey) || !/^\d+$/.test(columnKey)) continue
+          const column = Number(columnKey)
+          if (column > 16383)
+            throw new FileParserError(
+              'complexity_limit',
+              'Spreadsheet column exceeds the Excel format limit'
+            )
+          const cell = row[column]
+          if (!cell || cell.t === 'z') continue
+          const address = { r: Number(rowKey), c: column }
+          normalizeSheetDisplayText(sheet, { s: address, e: address }, XLSX.utils)
+          const value = this.truncateCell(XLSX.utils.format_cell(cell))
+          rowText.append('\t'.repeat(previousColumn < 0 ? column : column - previousColumn))
+          rowText.append(value)
+          previousColumn = column
+          meaningful ||= value.trim().length > 0
+        }
+        if (meaningful) {
+          content.append(rowText.finish())
+          content.append('\n')
+          rowCount++
+        }
+      }
+    }
+    return {
+      content: content.finish(),
+      metadata: { rowCount, truncated: false, degraded: rowCount === 0 },
     }
   }
 

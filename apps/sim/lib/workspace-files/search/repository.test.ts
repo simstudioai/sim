@@ -83,6 +83,10 @@ describe('searchWorkspaceFileIndex fault mapping', () => {
   })
 
   it('caps how long a search may hold its connection', async () => {
+    dbChainMockFns.execute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ slot: 1 }])
+      .mockResolvedValueOnce([{ slot: 1 }])
     await searchWorkspaceFileIndex({
       workspaceId: 'workspace-1',
       pattern: compileFileSearchPattern('needle', 'exact'),

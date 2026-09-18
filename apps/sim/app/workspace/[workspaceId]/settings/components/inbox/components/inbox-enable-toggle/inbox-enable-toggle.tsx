@@ -1,21 +1,25 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import {
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSwitch,
   Label,
-  Switch,
 } from '@sim/emcn'
-import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
-const logger = createLogger('InboxEnableToggle')
+const INBOX_OPTIONS = [
+  { value: 'enabled', label: 'On' },
+  { value: 'disabled', label: 'Off' },
+] as const
 
 export function InboxEnableToggle() {
   const params = useParams()
@@ -28,56 +32,68 @@ export function InboxEnableToggle() {
   const [isDisableOpen, setIsDisableOpen] = useState(false)
   const [enableUsername, setEnableUsername] = useState('')
 
-  const handleToggle = useCallback(async (checked: boolean) => {
+  function handleToggle(checked: boolean) {
+    toggleInbox.reset()
     if (checked) {
       setIsEnableOpen(true)
-      return
+    } else {
+      setIsDisableOpen(true)
     }
-    setIsDisableOpen(true)
-  }, [])
+  }
 
-  const handleDisable = useCallback(async () => {
-    try {
-      await toggleInbox.mutateAsync({ workspaceId, enabled: false })
-      setIsDisableOpen(false)
-    } catch (error) {
-      logger.error('Failed to disable inbox', { error })
-    }
-  }, [workspaceId, toggleInbox.mutateAsync])
+  function handleEnableOpenChange(open: boolean) {
+    if (!toggleInbox.isPending) setIsEnableOpen(open)
+  }
 
-  const handleEnable = useCallback(async () => {
-    try {
-      await toggleInbox.mutateAsync({
-        workspaceId,
-        enabled: true,
-        username: enableUsername.trim() || undefined,
-      })
-      setIsEnableOpen(false)
-      setEnableUsername('')
-    } catch (error) {
-      logger.error('Failed to enable inbox', { error })
-    }
-  }, [workspaceId, enableUsername, toggleInbox.mutateAsync])
+  function handleDisable() {
+    toggleInbox.mutate(
+      { workspaceId, enabled: false },
+      { onSuccess: () => setIsDisableOpen(false) }
+    )
+  }
+
+  function handleEnable() {
+    toggleInbox.mutate(
+      { workspaceId, enabled: true, username: enableUsername.trim() || undefined },
+      {
+        onSuccess: () => {
+          setIsEnableOpen(false)
+          setEnableUsername('')
+        },
+      }
+    )
+  }
+
+  const error = toggleInbox.error
+    ? getErrorMessage(toggleInbox.error, 'Failed to update inbox')
+    : null
 
   return (
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <Label htmlFor='inbox-enabled'>Enable email inbox</Label>
+          <Label>Enable email inbox</Label>
           <p className='text-[var(--text-muted)] text-caption'>
             Allow this workspace to receive tasks via email
           </p>
         </div>
-        <Switch
-          id='inbox-enabled'
-          checked={config?.enabled ?? false}
-          onCheckedChange={handleToggle}
+        <ChipSwitch
+          aria-label='Enable email inbox'
+          options={INBOX_OPTIONS}
+          value={config?.enabled ? 'enabled' : 'disabled'}
+          onChange={(value) => handleToggle(value === 'enabled')}
           disabled={toggleInbox.isPending}
         />
       </div>
 
-      <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
-        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>Enable email inbox</ChipModalHeader>
+      <ChipModal
+        open={isEnableOpen}
+        onOpenChange={handleEnableOpenChange}
+        srTitle='Enable email inbox'
+      >
+        <ChipModalHeader onClose={() => handleEnableOpenChange(false)}>
+          Enable email inbox
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             An email address will be created for this workspace. Anyone in the allowed senders list
@@ -93,11 +109,13 @@ export function InboxEnableToggle() {
           <p className='px-2 text-[var(--text-muted)] text-sm'>
             Leave blank for an auto-generated address.
           </p>
+          <ChipModalError>{error}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
-          onCancel={() => setIsEnableOpen(false)}
+          onCancel={() => handleEnableOpenChange(false)}
+          cancelDisabled={toggleInbox.isPending}
           primaryAction={{
-            label: 'Enable',
+            label: toggleInbox.isPending ? 'Enabling...' : 'Enable',
             onClick: handleEnable,
             disabled: toggleInbox.isPending,
           }}
@@ -125,6 +143,7 @@ export function InboxEnableToggle() {
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           Your existing conversations and task history will be preserved.
         </p>
+        <ChipModalError>{error}</ChipModalError>
       </ChipConfirmModal>
     </>
   )
