@@ -519,7 +519,6 @@ export function useConnectorSettingsForm({
     hasMaxAccess,
     isSaving,
     error: error ?? searchSetupError,
-    saveBlockedReason,
     access,
     onAccessChange: setAccess,
     canAdmin,

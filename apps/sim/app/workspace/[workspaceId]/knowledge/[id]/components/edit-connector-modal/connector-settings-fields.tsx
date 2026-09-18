@@ -91,7 +91,6 @@ export interface ConnectorSettingsFieldsProps {
   hasMaxAccess: boolean
   isSaving: boolean
   error: string | null
-  saveBlockedReason?: string
   access: ConnectorAccessSelection
   onAccessChange: (access: ConnectorAccessSelection) => void
   canAdmin: boolean
@@ -134,7 +133,6 @@ export function ConnectorSettingsFields({
   hasMaxAccess,
   isSaving,
   error,
-  saveBlockedReason,
   access,
   onAccessChange,
   canAdmin,
@@ -553,11 +551,6 @@ export function ConnectorSettingsFields({
         </ChipModalField>
       )}
 
-      {saveBlockedReason && (
-        <p role='status' className='px-2 text-[var(--text-muted)] text-caption'>
-          {saveBlockedReason}
-        </p>
-      )}
       <ChipModalError>{error}</ChipModalError>
     </>
   )

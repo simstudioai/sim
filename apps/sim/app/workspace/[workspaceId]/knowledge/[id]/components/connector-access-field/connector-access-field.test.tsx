@@ -123,7 +123,17 @@ describe('connection method selection', () => {
     expect(container.textContent).toContain(label)
     expect(container.textContent).not.toContain('Add a new connection')
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
-    expect(container.querySelector('button')).toBeNull()
+    const trigger = container.querySelector('button')!
+    expect(trigger).toBeDisabled()
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    await act(async () => {
+      trigger.parentElement!.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 200, clientY: 200 })
+      )
+    })
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent(
+      'Add a new connection to change the sync method.'
+    )
     expect(onChange).not.toHaveBeenCalled()
   })
 
