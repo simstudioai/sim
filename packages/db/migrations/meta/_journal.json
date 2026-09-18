@@ -2535,6 +2535,13 @@
       "when": 1789700849145,
       "tag": "0362_document_autovacuum",
       "breakpoints": true
+    },
+    {
+      "idx": 363,
+      "version": "7",
+      "when": 1789713467804,
+      "tag": "0363_connector_sync_schedule_precision",
+      "breakpoints": true
     }
   ]
 }

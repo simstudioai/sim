@@ -5678,7 +5678,12 @@ export const knowledgeConnector = pgTable(
     memberSyncStatus: text('member_sync_status').notNull().default('idle'),
     memberSyncLockToken: text('member_sync_lock_token'),
     memberSyncLockLeaseAt: timestamp('member_sync_lock_lease_at'),
-    nextMemberSyncAt: timestamp('next_member_sync_at'),
+    /**
+     * Millisecond precision: the scheduler round-trips this through a JavaScript `Date` and claims
+     * the run by equality, so stored microseconds from a SQL writer could never be matched back.
+     * Any column compared that way has to stay within what a `Date` can carry.
+     */
+    nextMemberSyncAt: timestamp('next_member_sync_at', { precision: 3 }),
     lastMemberSyncAt: timestamp('last_member_sync_at'),
     lastMemberSyncError: text('last_member_sync_error'),
     memberSyncConsecutiveFailures: integer('member_sync_consecutive_failures').notNull().default(0),
@@ -5706,7 +5711,8 @@ export const knowledgeConnector = pgTable(
     listingCheckpoint: jsonb('listing_checkpoint').$type<Record<string, unknown>>(),
     /** Member account enumeration resumes independently of the content listing. */
     directoryCheckpoint: jsonb('directory_checkpoint').$type<Record<string, unknown>>(),
-    nextSyncAt: timestamp('next_sync_at'),
+    /** Millisecond precision for the same round-trip reason as `next_member_sync_at`. */
+    nextSyncAt: timestamp('next_sync_at', { precision: 3 }),
     nextDirectorySyncAt: timestamp('next_directory_sync_at').notNull().defaultNow(),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     /**
