@@ -2295,6 +2295,24 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
     /**
+     * Serves the search backfill's hourly keyset walk over every live workspace file, which pages
+     * by `(workspace_id, id)`.
+     *
+     * Without this index nothing supplies that order under that filter, so each page sorts the
+     * whole remaining set and the dispatcher's statement timeout aborts the transaction before any
+     * page commits. The column order must match the walk's `ORDER BY`, and the predicate must match
+     * its filter exactly, or the planner cannot prove the partial index covers the query.
+     *
+     * The walk must also compare its cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek
+     * with this index; `a > x OR (a = x AND b > y)` is only ever a filter. See `seedBackfillPage`.
+     */
+    workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
+      .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
      * One display name per chat for mothership chat uploads, enforced across the row's
      * entire lifetime (including soft-deleted rows). VFS paths must remain stable for the
      * LLM's session — soft-deleting a sibling cannot free a name slot that the model has
