@@ -310,8 +310,11 @@ function clampToCap(
  * Temperature and max output tokens are caps in the primary's terms, so they
  * are clamped to what the fallback allows rather than dropped: a low
  * temperature chosen for repeatability must survive, and "no more than N" still
- * holds under a smaller ceiling. A model the catalog does not know has no caps
- * and no lists, so everything passes through unchanged.
+ * holds under a smaller ceiling. A fallback the catalog does not know has no
+ * caps and no lists, so everything passes through to it unchanged. A primary
+ * the catalog does not know never showed a graded knob in the editor, so a
+ * value stored under it is stale and is not inherited; the row shows the field
+ * instead, and its own value is what applies.
  */
 export function resolveFallbackTuning(
   candidate: FallbackModelCandidate,

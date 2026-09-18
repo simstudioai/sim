@@ -265,6 +265,22 @@ describe('resolveFallbackTuning', () => {
     expect(resolved.thinkingLevel).toBeUndefined()
   })
 
+  it('treats a value stored under an uncatalogued primary as stale, and lets the row decide', () => {
+    /** The block never shows a graded knob for a model outside the catalog. */
+    const stale = resolveFallbackTuning({ model: 'gpt-small' }, 'openrouter/custom', {
+      reasoningEffort: 'high',
+    })
+    expect(stale.reasoningEffort).toBeUndefined()
+    expect(stale.adjustments).toEqual(['reasoningEffort: high -> provider default'])
+
+    const own = resolveFallbackTuning(
+      { model: 'gpt-small', reasoningEffort: 'low' },
+      'openrouter/custom',
+      { reasoningEffort: 'high' }
+    )
+    expect(own.reasoningEffort).toBe('low')
+  })
+
   it('clamps temperature and max tokens to the fallback caps, keeping the input type', () => {
     const resolved = resolveFallbackTuning({ model: 'claude-sonnet-5' }, 'gpt-big', {
       temperature: '1.5',
