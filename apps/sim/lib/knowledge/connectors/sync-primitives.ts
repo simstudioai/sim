@@ -9,7 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
@@ -27,6 +27,12 @@ import {
   persistSkippedRetryHashes,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-liveness'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -1330,16 +1336,11 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
   const sweepEvaluatedAt = new Date()
   const sweepCandidates = await db
     .select({
-      id: document.id,
+      ...processingSnapshotColumns,
       fileUrl: document.fileUrl,
       filename: document.filename,
       fileSize: document.fileSize,
       mimeType: document.mimeType,
-      processingStatus: document.processingStatus,
-      processingQueuedAt: document.processingQueuedAt,
-      processingStartedAt: document.processingStartedAt,
-      processingDeferredUntil: document.processingDeferredUntil,
-      processingCompletedAt: document.processingCompletedAt,
       uploadedAt: document.uploadedAt,
     })
     .from(document)
@@ -1360,8 +1361,9 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         END`),
       asc(document.id)
     )
-    .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
-  const stuckDocs = sweepCandidates.filter(
+    .limit(Math.min(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC, DOCUMENT_LIVENESS_BATCH_SIZE))
+  const abandonedCandidates = await findAbandonedDocumentProcessing(sweepCandidates)
+  const stuckDocs = abandonedCandidates.filter(
     (row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
       isDocumentProcessingStatus(row.processingStatus)
   )
@@ -1396,22 +1398,18 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
 
       const lockedCandidates = await tx
         .select({
-          id: document.id,
+          ...processingSnapshotColumns,
           fileUrl: document.fileUrl,
           filename: document.filename,
           fileSize: document.fileSize,
           mimeType: document.mimeType,
-          processingStatus: document.processingStatus,
-          processingQueuedAt: document.processingQueuedAt,
-          processingStartedAt: document.processingStartedAt,
-          processingDeferredUntil: document.processingDeferredUntil,
-          processingCompletedAt: document.processingCompletedAt,
           uploadedAt: document.uploadedAt,
         })
         .from(document)
         .where(
           and(
             inArray(document.id, stuckDocIds),
+            or(...stuckDocs.map(documentProcessingSnapshotCondition)),
             eq(document.connectorId, connectorId),
             documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
             lt(document.uploadedAt, syncStartedAt)

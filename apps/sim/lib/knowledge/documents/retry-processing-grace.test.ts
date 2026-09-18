@@ -26,6 +26,16 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
+const OBSERVED_DOCUMENT = {
+  id: 'doc-1',
+  processingStatus: 'completed',
+  processingQueueToken: 'old-token',
+  processingQueuedAt: new Date(0),
+  processingStartedAt: null,
+  processingDeferredUntil: null,
+  processingCompletedAt: new Date(0),
+}
+
 const DOC_DATA = {
   filename: 'report.pdf',
   fileUrl: 'https://example.com/report.pdf',
@@ -66,6 +76,7 @@ describe('retryDocumentProcessing requeue stamp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
   })
 
   it('clears the previous attempt terminal state', async () => {
@@ -171,6 +182,7 @@ describe('retryDocumentProcessing requeue guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
   })
 
   /**
@@ -393,6 +405,7 @@ describe('retryDocumentProcessing dispatch unwind', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
   })
 
   /**

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
@@ -11,6 +11,12 @@ import {
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-liveness'
 import {
   createDocumentProcessingPayload,
   createOrganizationDocumentProcessingBillingContext,
@@ -69,7 +75,7 @@ async function recoverStoredDocumentBatch(
   limit: number
 ): Promise<number> {
   /** Discovery does not claim work. Ownership is rechecked under lifecycle locks below. */
-  const candidates = await db.transaction(async (tx) => {
+  const observedCandidates = await db.transaction(async (tx) => {
     signal.throwIfAborted()
     await tx.execute(
       sql`SELECT set_config('statement_timeout', '5000', true), set_config('lock_timeout', '1000', true)`
@@ -77,7 +83,7 @@ async function recoverStoredDocumentBatch(
     signal.throwIfAborted()
     return tx
       .select({
-        id: document.id,
+        ...processingSnapshotColumns,
         knowledgeBaseId: document.knowledgeBaseId,
         connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
@@ -102,9 +108,11 @@ async function recoverStoredDocumentBatch(
         )
       )
       .orderBy(asc(document.uploadedAt), asc(document.id))
-      .limit(limit)
+      .limit(Math.min(limit, DOCUMENT_LIVENESS_BATCH_SIZE))
   })
   signal.throwIfAborted()
+  for (const candidate of observedCandidates) attemptedConnectors.add(candidate.connectorId)
+  const candidates = await findAbandonedDocumentProcessing(observedCandidates, signal)
   if (candidates.length === 0) return 0
 
   let recovered = 0
@@ -183,6 +191,7 @@ async function recoverStoredDocumentBatch(
                 document.id,
                 group.map((row) => row.id)
               ),
+              or(...group.map(documentProcessingSnapshotCondition)),
               eq(document.knowledgeBaseId, knowledgeBaseId),
               inArray(
                 document.connectorId,

@@ -11,9 +11,10 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityConfig, getMistralCapacityScope } from '@/lib/internal/mistral/capacity'
+import { getOcrResponseDiagnostic } from '@/lib/internal/mistral/error-diagnostics'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { MISTRAL_OCR_REQUEST_POLICY } from '@/lib/knowledge/documents/ocr-request-policy'
-import { readBoundedHttpErrorBody, resolveRetryDelayMs } from '@/lib/knowledge/documents/utils'
+import { readBoundedHttpErrorPayload, resolveRetryDelayMs } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('MistralClient')
 const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/ocr'
@@ -138,8 +139,13 @@ export async function submitMistralOcr(
             retryAfterMs,
           })
         }
-        await readBoundedHttpErrorBody(response)
-        logger.error('Mistral API error', { status: response.status })
+        const payload = await readBoundedHttpErrorPayload(response)
+        logger.error('Mistral API error', {
+          provider: 'mistral',
+          operation: 'ocr',
+          status: response.status,
+          ...getOcrResponseDiagnostic(response.headers, payload.ok ? payload.body : ''),
+        })
         throw new MistralOperationError(
           response.status,
           { success: false, error: `Mistral API error: HTTP ${response.status}` },

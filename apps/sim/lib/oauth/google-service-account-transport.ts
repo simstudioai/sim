@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
 import {
   isRetryableError,
@@ -7,6 +8,7 @@ import {
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504])
 const TOKEN_EXCHANGE_BUDGET_MS = 30_000
+const logger = createLogger('GoogleServiceAccountTransport')
 
 interface GoogleTokenExchangeResponse {
   ok: boolean
@@ -33,10 +35,18 @@ export async function exchangeGoogleServiceAccountJwt(
   jwt: string,
   signal?: AbortSignal
 ): Promise<GoogleTokenExchangeResponse> {
+  const startedAt = Date.now()
+  let attempts = 0
+  let stage: 'awaiting_response' | 'reading_response' | 'between_attempts' = 'awaiting_response'
+  let currentStatus: number | undefined
+  let lastStatus: number | undefined
   let lastResponse: GoogleTokenExchangeResponse | undefined
   try {
     return await retryWithExponentialBackoff(
       async (attemptSignal) => {
+        attempts++
+        stage = 'awaiting_response'
+        currentStatus = undefined
         lastResponse = undefined
         const response = await fetch(tokenUri, {
           method: 'POST',
@@ -48,6 +58,9 @@ export async function exchangeGoogleServiceAccountJwt(
           }),
           signal: attemptSignal,
         })
+        stage = 'reading_response'
+        currentStatus = response.status
+        lastStatus = response.status
         const payload = await readBoundedHttpErrorPayload(response)
         attemptSignal.throwIfAborted()
         if (response.ok && !payload.ok)
@@ -68,12 +81,27 @@ export async function exchangeGoogleServiceAccountJwt(
         maxDelayMs: 2000,
         retryBudgetMs: TOKEN_EXCHANGE_BUDGET_MS,
         signal,
-        retryCondition: (error) =>
-          error instanceof TokenExchangeRetryError || isRetryableError(error),
+        retryCondition: (error) => {
+          const retryable = error instanceof TokenExchangeRetryError || isRetryableError(error)
+          if (retryable) stage = 'between_attempts'
+          return retryable
+        },
       }
     )
   } catch (error) {
     if (error instanceof TokenExchangeRetryError && lastResponse) return lastResponse
+    if (!signal?.aborted) {
+      logger.warn('Google service account token transport failed', {
+        operation: 'google.oauth.token_exchange',
+        stage,
+        attempts,
+        elapsedMs: Date.now() - startedAt,
+        budgetMs: TOKEN_EXCHANGE_BUDGET_MS,
+        ...(currentStatus !== undefined ? { currentStatus } : {}),
+        ...(lastStatus !== undefined ? { lastHttpStatus: lastStatus } : {}),
+        timedOut: error instanceof Error && error.name === 'TimeoutError',
+      })
+    }
     throw error
   }
 }

@@ -3,6 +3,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { errorLog } = vi.hoisted(() => ({ errorLog: vi.fn() }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ error: errorLog, info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
+}))
+
 const { fetchPinned, admit, settle, validate } = vi.hoisted(() => ({
   fetchPinned: vi.fn(),
   admit: vi.fn(),
@@ -63,9 +68,41 @@ describe('Mistral provider transport', () => {
     expect(settle).toHaveBeenCalledWith('success', undefined)
   })
 
+  it('records cooldown without waiting for a stalled 429 error body', async () => {
+    const cancel = vi.fn()
+    fetchPinned.mockResolvedValue(
+      new Response(new ReadableStream({ cancel }), {
+        status: 429,
+        headers: { 'retry-after': '60' },
+      })
+    )
+    await expect(submitMistralOcr('private-key', {})).rejects.toMatchObject({
+      reason: 'rate_limit',
+      retryAfterMs: 60_000,
+    })
+    expect(settle).toHaveBeenCalledWith('rate_limit', 60_000)
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(fetchPinned).toHaveBeenCalledOnce()
+  })
+
+  it('preserves provider rejection when its diagnostic body exceeds the byte limit', async () => {
+    fetchPinned.mockResolvedValue(new Response('x'.repeat(70_000), { status: 400 }))
+    await expect(submitMistralOcr('private-key', {})).rejects.toMatchObject({
+      status: 400,
+      body: { success: false, error: 'Mistral API error: HTTP 400' },
+    })
+    expect(errorLog).toHaveBeenCalledWith(
+      'Mistral API error',
+      expect.objectContaining({ status: 400, bodyFormat: 'unavailable' })
+    )
+  })
+
   it('identifies provider request rejection without retaining echoed document contents', async () => {
     fetchPinned.mockResolvedValue(
-      Response.json({ message: 'Sensitive fixture document text' }, { status: 400 })
+      Response.json(
+        { type: 'invalid_request_error', code: 400, message: 'Sensitive fixture document text' },
+        { status: 400, headers: { 'x-request-id': 'ocr-request-123' } }
+      )
     )
     await expect(submitMistralOcr('key', {})).rejects.toMatchObject({
       source: 'provider',
@@ -74,6 +111,16 @@ describe('Mistral provider transport', () => {
     })
     expect(fetchPinned).toHaveBeenCalledOnce()
     expect(settle).toHaveBeenCalledWith('failure', undefined)
+    expect(errorLog).toHaveBeenCalledWith(
+      'Mistral API error',
+      expect.objectContaining({
+        status: 400,
+        providerRequestId: 'ocr-request-123',
+        providerErrorCode: '400',
+        providerErrorType: 'invalid_request_error',
+      })
+    )
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('Sensitive fixture document text')
   })
 
   it.each([

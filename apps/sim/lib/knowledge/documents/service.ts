@@ -104,6 +104,11 @@ import {
 } from '@/lib/knowledge/documents/processing-claim'
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
+import {
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-liveness'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -824,15 +829,10 @@ interface MarkDocumentsQueuedResult {
 }
 
 function acceptedDocumentStateCondition(observedAt: Date): SQL | undefined {
-  const queuedCutoff = new Date(observedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   const processingCutoff = new Date(observedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
   return or(
     eq(document.processingStatus, 'completed'),
-    and(
-      eq(document.processingStatus, 'pending'),
-      isNotNull(document.processingQueuedAt),
-      gte(document.processingQueuedAt, queuedCutoff)
-    ),
+    and(eq(document.processingStatus, 'pending'), isNotNull(document.processingQueuedAt)),
     and(
       eq(document.processingStatus, 'processing'),
       isNotNull(document.processingStartedAt),
@@ -881,7 +881,6 @@ async function markDocumentsQueued(
   queuedAt: Date,
   lease: ProcessingDispatchLease | undefined
 ): Promise<MarkDocumentsQueuedResult> {
-  const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   return db.transaction(async (tx) => {
     if (lease) await assertSyncLeaseHeldInTx(tx, lease.connectorId, lease)
     const claimed = await tx
@@ -925,20 +924,8 @@ async function markDocumentsQueued(
               and(
                 inArray(document.id, unclaimedIds),
                 eq(document.knowledgeBaseId, knowledgeBaseId),
-                or(
-                  and(
-                    or(
-                      eq(document.processingStatus, 'pending'),
-                      eq(document.processingStatus, 'failed')
-                    ),
-                    eq(document.processingQueueToken, queueToken)
-                  ),
-                  and(
-                    eq(document.processingStatus, 'pending'),
-                    isNull(document.processingQueueToken),
-                    lt(document.processingQueuedAt, legacyAdoptionCutoff)
-                  )
-                ),
+                inArray(document.processingStatus, ['pending', 'failed']),
+                eq(document.processingQueueToken, queueToken),
                 isNotNull(document.processingQueuedAt),
                 isNull(document.processingDeferredUntil),
                 eq(document.userExcluded, false),
@@ -3436,78 +3423,76 @@ export async function retryDocumentProcessing(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
-  /**
-   * A document may be retried from a terminal state, or from a `pending` state
-   * old enough that its dispatch is certainly lost.
-   *
-   * Unguarded, a double-click issued two full passes: the second reset a
-   * document that the first had already queued, so both dispatches ran, both
-   * indexed, and both billed. A terminal-only guard closes that, but it also
-   * strands a document that never left `pending` — a worker killed before its
-   * claim UPDATE burns an attempt without changing status, and once the
-   * processing-attempt budget is spent the connector sweep drops it too. The row
-   * then matches nothing anywhere.
-   *
-   * The `pending` arm is admitted only past {@link QUEUED_DISPATCH_GRACE_MS},
-   * which is the same grace the connector sweep waits out, so a second click
-   * still lands inside a live dispatch's window and still matches no rows.
-   *
-   * Age is measured from `COALESCE(processingQueuedAt, uploadedAt)`, exactly as
-   * `isStuckDocumentSweepEligible` measures it. `processingQueuedAt` is NULL
-   * only for a document no dispatch has ever stamped, and falling back to
-   * `uploadedAt` — rather than treating NULL as retryable — keeps the grace
-   * window closed for a document created moments ago whose first dispatch is
-   * still in flight.
-   */
-  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
-  const requeued = await db.transaction(async (tx) => {
-    const reset = await tx
-      .update(document)
-      .set({
-        processingStatus: 'pending',
-        /**
-         * Invalidates the prior dispatch generation in the same write that
-         * reopens the row. The dispatch below installs its fresh generation.
-         */
-        processingQueuedAt: null,
-        processingQueueToken: null,
-        processingStartedAt: null,
-        processingDeferredUntil: null,
-        processingCompletedAt: null,
-        processingError: null,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-      })
-      .where(
-        and(
-          eq(document.id, documentId),
-          or(isNull(document.connectorId), isNotNull(document.contentHash)),
-          not(skippedDocumentCondition()),
-          or(
-            inArray(document.processingStatus, ['completed', 'failed']),
-            and(
-              eq(document.processingStatus, 'pending'),
-              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`,
-              or(
-                isNull(document.processingDeferredUntil),
-                lt(document.processingDeferredUntil, queuedGraceCutoff)
-              )
-            )
-          ),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
+  const [observed] = await db
+    .select(processingSnapshotColumns)
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNull(document.deletedAt),
+        isNull(document.archivedAt)
       )
-      .returning({ id: document.id })
+    )
+    .limit(1)
+  const mayReplace =
+    observed &&
+    (observed.processingStatus === 'completed' ||
+      (['pending', 'failed'].includes(observed.processingStatus) &&
+        (await findAbandonedDocumentProcessing([observed])).length === 1))
+  /** Age alone does not prove a queued generation was lost. */
+  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
+  const requeued =
+    mayReplace &&
+    (await db.transaction(async (tx) => {
+      const reset = await tx
+        .update(document)
+        .set({
+          processingStatus: 'pending',
+          /**
+           * Invalidates the prior dispatch generation in the same write that
+           * reopens the row. The dispatch below installs its fresh generation.
+           */
+          processingQueuedAt: null,
+          processingQueueToken: null,
+          processingStartedAt: null,
+          processingDeferredUntil: null,
+          processingCompletedAt: null,
+          processingError: null,
+          chunkCount: 0,
+          tokenCount: 0,
+          characterCount: 0,
+        })
+        .where(
+          and(
+            eq(document.id, documentId),
+            eq(document.knowledgeBaseId, knowledgeBaseId),
+            documentProcessingSnapshotCondition(observed),
+            or(isNull(document.connectorId), isNotNull(document.contentHash)),
+            not(skippedDocumentCondition()),
+            or(
+              inArray(document.processingStatus, ['completed', 'failed']),
+              and(
+                eq(document.processingStatus, 'pending'),
+                sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`,
+                or(
+                  isNull(document.processingDeferredUntil),
+                  lt(document.processingDeferredUntil, queuedGraceCutoff)
+                )
+              )
+            ),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+        .returning({ id: document.id })
 
-    // Embeddings are dropped only for a document this call actually claimed,
-    // so a losing double-click cannot wipe the winner's in-flight work.
-    if (reset.length > 0) {
-      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-    }
-    return reset.length > 0
-  })
+      /** Only the winning reset may remove embeddings. */
+      if (reset.length > 0) {
+        await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+      }
+      return reset.length > 0
+    }))
 
   if (!requeued) {
     const [skipped] = await db

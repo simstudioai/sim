@@ -22,7 +22,6 @@ import {
 } from '@/lib/core/config/trigger-runtime'
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
-import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const { mockBatchTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
@@ -259,53 +258,6 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     )
     expect(whereIndex).toBeGreaterThanOrEqual(0)
     return dbChainMockFns.where.mock.calls[whereIndex]?.[0]
-  }
-
-  function resumeAlternatives(guard: unknown): MockCondition[] {
-    const alternatives = flattenMockConditions(guard).find(
-      (node) =>
-        node.type === 'or' &&
-        (node.conditions as MockCondition[]).some((condition) =>
-          hasMockCondition(
-            condition,
-            (nested) =>
-              nested.type === 'eq' &&
-              nested.left === schemaMock.document.processingQueueToken &&
-              nested.right === 'request-1'
-          )
-        ) &&
-        (node.conditions as MockCondition[]).some((condition) =>
-          hasMockCondition(
-            condition,
-            (nested) =>
-              nested.type === 'isNull' && nested.column === schemaMock.document.processingQueueToken
-          )
-        )
-    )?.conditions
-    expect(alternatives).toBeDefined()
-    expect(alternatives).toHaveLength(2)
-    const conditions = alternatives as MockCondition[]
-    expect(
-      conditions.filter((condition) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingQueueToken &&
-            node.right === 'request-1'
-        )
-      )
-    ).toHaveLength(1)
-    expect(
-      conditions.filter((condition) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        )
-      )
-    ).toHaveLength(1)
-    return conditions
   }
 
   beforeEach(() => {
@@ -573,12 +525,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         (node: MockCondition) =>
           node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
       )
-    ).toBe(true)
-    const queuedFreshness = flattenMockConditions(pendingWithQueueState).find(
-      (node: MockCondition) =>
-        node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
-    )
-    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
+    ).toBe(false)
     const liveProcessingState = acceptedStatuses.find(
       (condition) =>
         condition.type === 'and' &&
@@ -652,52 +599,30 @@ describe('processDocumentsWithQueue dispatch backend', () => {
           node.type === 'isNull' && node.column === schemaMock.document.processingDeferredUntil
       )
     ).toBe(true)
-    const sameTokenBranch = resumeAlternatives(resumeGuard).find((condition) =>
+    expect(
       hasMockCondition(
-        condition,
+        resumeGuard,
         (node: MockCondition) =>
           node.type === 'eq' &&
           node.left === schemaMock.document.processingQueueToken &&
           node.right === 'request-1'
       )
-    )
-    expect(sameTokenBranch).toBeDefined()
+    ).toBe(true)
     expect(
       hasMockCondition(
         resumeGuard,
         (node: MockCondition) =>
-          node.type === 'isNotNull' && node.column === schemaMock.document.processingQueuedAt
+          node.type === 'inArray' &&
+          node.column === schemaMock.document.processingStatus &&
+          JSON.stringify(node.values) === JSON.stringify(['pending', 'failed'])
       )
     ).toBe(true)
-    const statusGuard = flattenMockConditions(sameTokenBranch).find(
-      (node: MockCondition) => node.type === 'or'
-    )
-    expect(statusGuard).toBeDefined()
-    const statusConditions = statusGuard?.conditions as MockCondition[]
-    expect(statusConditions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'eq',
-          left: schemaMock.document.processingStatus,
-          right: 'pending',
-        }),
-        expect.objectContaining({
-          type: 'eq',
-          left: schemaMock.document.processingStatus,
-          right: 'failed',
-        }),
-      ])
-    )
   })
 
-  it('treats a recent legacy queued-at-only row as live without redispatching it', async () => {
-    vi.useFakeTimers()
-    const now = new Date('2026-08-24T22:00:00.000Z')
-    vi.setSystemTime(now)
+  it('preserves an old legacy generation for the liveness-aware recovery path', async () => {
     markInsideTriggerRun()
     dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
     queueTableRows(schemaMock.document, [{ id: 'document-1' }])
-
     const result = await processDocumentsWithQueue(
       [DOCUMENT],
       'knowledge-base-1',
@@ -706,98 +631,15 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION,
       'interactive'
     )
-
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
     expect(mockBatchTrigger).not.toHaveBeenCalled()
-    const resumeWrite = dbChainMockFns.set.mock.calls.find(
-      (call) =>
-        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
-        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
-    )
-    expect(resumeWrite).toBeDefined()
-    const resumeGuard = guardForResumeWrite()
-    const legacyBranch = resumeAlternatives(resumeGuard).find(
-      (condition) =>
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        ) &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-        )
-    )
-    expect(legacyBranch).toBeDefined()
-    const cutoff = flattenMockConditions(legacyBranch).find(
-      (node: MockCondition) =>
-        node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-    )
-    expect(cutoff?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
-  })
-
-  it('CAS-adopts a stale legacy queued-at-only row without charging again', async () => {
-    markInsideTriggerRun()
-    const legacyQueuedAt = new Date('2020-01-01T00:00:00.000Z')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: legacyQueuedAt }])
-
-    const result = await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION,
-      'interactive'
-    )
-
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-    expect(mockBatchTrigger.mock.calls[0][1][0].payload).toMatchObject({
-      processingQueueToken: 'request-1',
-      processingQueuedAt: legacyQueuedAt.toISOString(),
-      chargedAtDispatch: false,
-    })
-
-    const legacyAdoptionGuard = guardForResumeWrite()
-    const legacyBranch = resumeAlternatives(legacyAdoptionGuard).find(
-      (condition) =>
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        ) &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-        )
-    )
-    expect(legacyBranch).toBeDefined()
     expect(
       hasMockCondition(
-        legacyAdoptionGuard,
+        guardForResumeWrite(),
         (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.document.knowledgeBaseId &&
-          node.right === 'knowledge-base-1'
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
       )
-    ).toBe(true)
-    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
-      expect(
-        hasMockCondition(
-          legacyAdoptionGuard,
-          (node: MockCondition) => node.type === 'isNull' && node.column === column
-        )
-      ).toBe(true)
-    }
-    const adoptionWrite = dbChainMockFns.set.mock.calls.find(
-      (call) =>
-        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
-        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
-    )
-    expect(adoptionWrite?.[0]).not.toHaveProperty('processingAttempts')
+    ).toBe(false)
   })
 
   it('keeps a pre-claim same-request fallback failure retryable without clearing its stamp', async () => {
@@ -1059,7 +901,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       (node: MockCondition) =>
         node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
     )
-    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
+    expect(queuedFreshness).toBeUndefined()
     const processingState = acceptedStatuses.find(
       (condition) =>
         condition.type === 'and' &&
