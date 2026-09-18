@@ -408,12 +408,12 @@ export function DocumentTagsModal({
                   <div className='flex shrink-0 items-center gap-1'>
                     <Button
                       aria-label='Remove tag'
-                      variant='ghost'
+                      variant='ghost-destructive-muted'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemoveTag(index)
                       }}
-                      className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                      className='size-4 p-0'
                     >
                       <Trash className='size-3' />
                     </Button>
