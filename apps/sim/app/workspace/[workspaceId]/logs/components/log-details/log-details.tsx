@@ -169,6 +169,7 @@ export const WorkflowOutputSection = memo(
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label={copied ? 'Copied' : 'Copy'}
                     type='button'
                     variant='default'
                     onClick={(e) => {
@@ -189,6 +190,7 @@ export const WorkflowOutputSection = memo(
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label='Search'
                     type='button'
                     variant='default'
                     onClick={(e) => {

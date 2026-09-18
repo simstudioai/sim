@@ -250,6 +250,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
   return (
     <div className='flex flex-col items-start gap-2'>
       <Button
+        aria-label='Download all files'
         variant='ghost-secondary'
         onClick={handleDownloadAll}
         disabled={isDownloading}

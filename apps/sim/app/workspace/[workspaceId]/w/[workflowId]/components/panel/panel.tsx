@@ -741,7 +741,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='size-[30px] rounded-[5px]'>
+                  <Button aria-label='Workflow actions' className='size-[30px] rounded-[5px]'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -801,6 +801,7 @@ export const Panel = memo(function Panel() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
+                aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
                 className='size-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
@@ -911,7 +912,12 @@ export const Panel = memo(function Panel() {
                     {copilotChatTitle || 'New Chat'}
                   </h2>
                   <div className='flex items-center gap-2'>
-                    <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
+                    <Button
+                      aria-label='New Chat'
+                      variant='ghost'
+                      className='p-0'
+                      onClick={handleCopilotNewChat}
+                    >
                       <Plus className='size-[14px]' />
                     </Button>
                     <DropdownMenu

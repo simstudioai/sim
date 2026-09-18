@@ -272,6 +272,7 @@ export const ClientChatMessage = memo(function ClientChatMessage({
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button
+                        aria-label={isCopied ? 'Copied!' : 'Copy to clipboard'}
                         variant='ghost-secondary'
                         className='p-0'
                         onClick={() => {

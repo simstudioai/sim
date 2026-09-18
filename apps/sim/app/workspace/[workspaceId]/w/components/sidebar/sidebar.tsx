@@ -1646,6 +1646,7 @@ export const Sidebar = memo(function Sidebar() {
                                 <Tooltip.Trigger asChild>
                                   <DropdownMenuTrigger asChild>
                                     <Button
+                                      aria-label='More actions'
                                       variant='quiet'
                                       size='icon'
                                       disabled={!permissionsLoading && !canEdit}
@@ -1686,6 +1687,9 @@ export const Sidebar = memo(function Sidebar() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label={
+                                    isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'
+                                  }
                                   variant='quiet'
                                   size='icon'
                                   onClick={handleCreateWorkflow}

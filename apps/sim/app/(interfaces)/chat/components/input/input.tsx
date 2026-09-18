@@ -222,6 +222,7 @@ export const ChatInput: React.FC<{
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label='Attach files'
                     variant='quiet'
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachedFiles.length >= 15}

@@ -508,6 +508,7 @@ export const ActionBar = memo(
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
                   <Button
+                    aria-label={isEnabled ? 'Disable' : 'Enable'}
                     variant='ghost'
                     onClick={(e) => {
                       e.stopPropagation()
@@ -609,6 +610,7 @@ export const ActionBar = memo(
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
                   <Button
+                    aria-label={isLocked ? 'Unlock' : 'Lock'}
                     variant='ghost'
                     onClick={(e) => {
                       e.stopPropagation()
@@ -640,6 +642,7 @@ export const ActionBar = memo(
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
                   <Button
+                    aria-label='Duplicate'
                     variant='ghost'
                     onClick={(e) => {
                       e.stopPropagation()
@@ -667,6 +670,7 @@ export const ActionBar = memo(
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
                   <Button
+                    aria-label='Remove from Subflow'
                     variant='ghost'
                     onClick={(e) => {
                       e.stopPropagation()
@@ -705,6 +709,7 @@ export const ActionBar = memo(
             <Tooltip.Trigger asChild>
               <span className='inline-flex'>
                 <Button
+                  aria-label='Delete'
                   variant='ghost'
                   onClick={(e) => {
                     e.stopPropagation()

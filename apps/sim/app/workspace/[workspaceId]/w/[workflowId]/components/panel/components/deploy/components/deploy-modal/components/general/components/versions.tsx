@@ -328,6 +328,7 @@ export function Versions({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label={v.description ? 'Edit description' : 'Add description'}
                       variant='ghost'
                       className={cn(
                         'p-1!',
@@ -356,6 +357,7 @@ export function Versions({
                 >
                   <PopoverTrigger asChild>
                     <Button
+                      aria-label='Version actions'
                       variant='ghost'
                       className='p-1!'
                       disabled={isPromotingVersion}

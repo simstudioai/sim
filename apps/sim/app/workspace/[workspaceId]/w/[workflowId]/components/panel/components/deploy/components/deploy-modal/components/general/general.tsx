@@ -242,6 +242,7 @@ export function GeneralDeploy({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label='See preview'
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
