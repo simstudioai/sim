@@ -159,7 +159,8 @@ function orderOperations(operations: EditWorkflowOperation[]): EditWorkflowOpera
 export function applyOperationsToWorkflowState(
   workflowState: Record<string, unknown>,
   operations: EditWorkflowOperation[],
-  permissionConfig: PermissionGroupConfig | null = null
+  permissionConfig: PermissionGroupConfig | null = null,
+  enforceToolBindingContract = false
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
   const modifiedState = structuredClone(workflowState)
@@ -186,6 +187,7 @@ export function applyOperationsToWorkflowState(
   })
 
   const ctx: OperationContext = {
+    enforceToolBindingContract,
     modifiedState,
     skippedItems,
     validationErrors,

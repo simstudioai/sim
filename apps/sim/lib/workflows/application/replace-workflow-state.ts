@@ -27,7 +27,12 @@ import {
   collectWorkflowGraphIds,
   replaceWorkflowNormalizedState,
 } from '@/lib/workflows/persistence/replace-normalized-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import {
+  getToolBindingAuthoringSchema,
+  validateToolBindingAuthoring,
+} from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('ReplaceWorkflowState')
@@ -127,6 +132,19 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
 
     /** Use registry control types, never the caller's subblock type, just as operation edits do. */
     const blocks = structuredClone(sanitized.blocks) as Record<string, BlockState>
+    const enforceToolBindings =
+      principal.kind === 'delegated' &&
+      principal.serviceId === 'copilot' &&
+      Object.values(blocks).some((block) => getToolBindingAuthoringSchema(block.type))
+    const previous = enforceToolBindings
+      ? await loadWorkflowFromNormalizedTables(context.workflowId)
+      : undefined
+    if (enforceToolBindings && !previous) {
+      throw new OrchestrationError(
+        'validation',
+        'Cannot validate tool edits without the saved workflow state'
+      )
+    }
     for (const [blockId, block] of Object.entries(blocks)) {
       const config = getBlock(block.type)
       if (!config) continue
@@ -134,6 +152,16 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       for (const [fieldId, stored] of Object.entries(block.subBlocks ?? {})) {
         const field = fields.get(fieldId)
         if (!field) continue
+        if (enforceToolBindings && field.type === 'tool-input') {
+          const savedBlock = previous?.blocks[blockId]
+          const error = validateToolBindingAuthoring(
+            block.type,
+            stored.value,
+            savedBlock?.type === block.type ? savedBlock.subBlocks[fieldId]?.value : undefined
+          )
+          if (error)
+            throw new OrchestrationError('validation', `Block ${block.name || blockId}: ${error}`)
+        }
         const result = validateValueForSubBlockType(
           field,
           stored.value,

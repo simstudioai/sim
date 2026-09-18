@@ -158,14 +158,21 @@ export function createBlockFromParams(
   parentId?: string,
   errorsCollector?: ValidationError[],
   permissionConfig?: PermissionGroupConfig | null,
-  skippedItems?: SkippedItem[]
+  skippedItems?: SkippedItem[],
+  enforceToolBindingContract = false
 ): any {
   const blockConfig = getBlock(params.type)
 
   // Validate inputs against block configuration
   let validatedInputs: Record<string, any> | undefined
   if (params.inputs) {
-    const result = validateInputsForBlock(params.type, params.inputs, blockId)
+    const result = validateInputsForBlock(
+      params.type,
+      params.inputs,
+      blockId,
+      {},
+      enforceToolBindingContract
+    )
     validatedInputs = result.validInputs
     if (errorsCollector && result.errors.length > 0) {
       errorsCollector.push(...result.errors)

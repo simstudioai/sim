@@ -110,7 +110,8 @@ function processNestedNodesForParent(
       parentBlockId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
       applyLoopOrParallelContainerData(childBlockState, childBlock)
@@ -207,7 +208,8 @@ function mergeNestedNodesForParent(
           existingBlock.type,
           childBlock.inputs,
           existingId,
-          buildSubBlockValues(existingBlock.subBlocks)
+          buildSubBlockValues(existingBlock.subBlocks),
+          ctx.enforceToolBindingContract
         )
         validationErrors.push(...childValidation.errors)
 
@@ -287,7 +289,8 @@ function mergeNestedNodesForParent(
       parentBlockId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
       applyLoopOrParallelContainerData(childBlockState, childBlock)
@@ -452,7 +455,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       block.type,
       params.inputs,
       block_id,
-      buildSubBlockValues(block.subBlocks)
+      buildSubBlockValues(block.subBlocks),
+      ctx.enforceToolBindingContract
     )
     validationErrors.push(...validationResult.errors)
 
@@ -850,7 +854,8 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     undefined,
     validationErrors,
     permissionConfig,
-    skippedItems
+    skippedItems,
+    ctx.enforceToolBindingContract
   )
 
   if (params.type === 'loop' || params.type === 'parallel') {
@@ -967,7 +972,8 @@ export function handleInsertIntoSubflowOperation(
         existingBlock.type,
         params.inputs,
         block_id,
-        buildSubBlockValues(existingBlock.subBlocks ?? {})
+        buildSubBlockValues(existingBlock.subBlocks ?? {}),
+        ctx.enforceToolBindingContract
       )
       validationErrors.push(...validationResult.errors)
 
@@ -1064,7 +1070,8 @@ export function handleInsertIntoSubflowOperation(
       subflowId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     modifiedState.blocks[block_id] = newBlock
     if (params.type === 'loop' || params.type === 'parallel') {

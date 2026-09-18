@@ -12,6 +12,7 @@ import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/
 import { projectBlockOutputs } from '@/lib/catalog/projection/block-detail'
 import { resolveDeniedBlockOperations } from '@/lib/integrations/tool-projection'
 import { withModelHints } from '@/lib/mothership/agent-cli/model-hints'
+import { withToolBindingHints } from '@/lib/mothership/agent-cli/tool-binding-hints'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
@@ -95,6 +96,7 @@ export async function curateBlockDetail(
         }
       : detail
   )
+  enriched = withToolBindingHints(enriched)
   if (detail.toolIds.includes('table_query_rows_v2')) {
     const workspace = await resolveActiveWorkspaceApplicationContext(viewer.workspaceId)
     enriched = {

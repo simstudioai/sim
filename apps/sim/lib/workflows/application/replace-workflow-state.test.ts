@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
   needsRedeployment: vi.fn(),
+  loadNormalized: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -52,11 +53,15 @@ vi.mock('@/lib/workflows/sanitization/validation', () => ({
 vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mocks.needsRedeployment,
 }))
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
+}))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { REFERENCES_UNCHECKED_NOTE } from '@/lib/workflows/editing/lint-report'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
+import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { getBlock } from '@/blocks/registry'
 
@@ -93,7 +98,7 @@ describe('replaceWorkflowState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getBlock).mockImplementation((type) =>
-      type === 'exa' ? ExaBlock : defaultGetBlock?.(type)
+      type === 'exa' ? ExaBlock : type === 'agent' ? AgentBlock : defaultGetBlock?.(type)
     )
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -110,6 +115,7 @@ describe('replaceWorkflowState', () => {
     })
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
+    mocks.loadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
   /**
@@ -499,6 +505,71 @@ describe('replaceWorkflowState', () => {
           state: { blocks: { [BLOCK.id]: block }, edges: [], variables: undefined },
         })
       )
+    })
+  })
+
+  describe('Mothership attachment identity on state replacement', () => {
+    const copilotPrincipal = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'tool-call-1',
+      audience: 'sim:workflows',
+      issuedAt: new Date('2026-01-01T00:00:00Z'),
+      expiresAt: new Date('2099-01-01T00:00:00Z'),
+    }
+    const block = {
+      ...BLOCK,
+      type: 'agent',
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input' as const,
+          value: [{ type: 'exa', operation: 'exa_search', title: 'Existing label' }],
+        },
+      },
+    }
+    const replacement = { ...input, blocks: { [BLOCK.id]: block } }
+
+    it.each([false, true])('rejects new aliases before persistence (dryRun=%s)', async (dryRun) => {
+      await expect(
+        replaceWorkflowState.execute({
+          principal: copilotPrincipal,
+          input: { ...replacement, dryRun },
+        })
+      ).rejects.toThrow('attachment names are read-only')
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    it('preserves an existing label when replacing the graph and editing other fields', async () => {
+      mocks.loadNormalized.mockResolvedValue({
+        blocks: { [BLOCK.id]: block },
+        edges: [],
+        loops: {},
+        parallels: {},
+      })
+      await expect(
+        replaceWorkflowState.execute({
+          principal: copilotPrincipal,
+          input: { ...replacement, blocks: { [BLOCK.id]: { ...block, name: 'Updated Agent' } } },
+        })
+      ).resolves.toMatchObject({ dryRun: false })
+      expect(mocks.replace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: expect.objectContaining({
+            blocks: { [BLOCK.id]: { ...block, name: 'Updated Agent' } },
+          }),
+        })
+      )
+    })
+
+    it('leaves ordinary authoring unchanged and avoids loading the graph', async () => {
+      await expect(
+        replaceWorkflowState.execute({ principal: sessionPrincipal, input: replacement })
+      ).resolves.toMatchObject({ dryRun: false })
+      expect(mocks.loadNormalized).not.toHaveBeenCalled()
     })
   })
 

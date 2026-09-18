@@ -243,7 +243,7 @@ describe('applyWorkflowOperations', () => {
     })
 
     expect(mocks.normalizeState).toHaveBeenCalledWith(emptyGraph)
-    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null, false)
     expect(mocks.replace).toHaveBeenCalledTimes(1)
     expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
   })
@@ -539,7 +539,7 @@ describe('applyWorkflowOperations', () => {
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
     expect(mocks.loadNormalized).not.toHaveBeenCalled()
-    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
 
     vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
@@ -566,7 +566,7 @@ describe('applyWorkflowOperations', () => {
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
     expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
   })
 
   it('applies the block enablement slice and declines a locked block as a skipped item', async () => {
