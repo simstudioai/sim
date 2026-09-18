@@ -102,6 +102,20 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitizedValue('oauth-input', 'cred-123')).toBeNull()
   })
 
+  it('keeps fallback models and only env-var-referenced row keys', () => {
+    expect(
+      sanitizedValue('model-fallback-list', [
+        { id: 'a', model: 'gpt-5' },
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+        { id: 'c', model: 'openrouter/y', apiKey: 'sk-raw-secret' },
+      ])
+    ).toEqual([
+      { id: 'a', model: 'gpt-5' },
+      { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+      { id: 'c', model: 'openrouter/y' },
+    ])
+  })
+
   it('leaves an ordinary field untouched', () => {
     expect(sanitizedValue('short-input', 'plain text')).toBe('plain text')
   })

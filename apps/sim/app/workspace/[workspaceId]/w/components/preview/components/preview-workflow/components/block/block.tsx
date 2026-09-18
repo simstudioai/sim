@@ -23,6 +23,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFolderPathLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
@@ -151,6 +152,7 @@ function resolvePreviewDisplayValue(
   // schema/registry fallbacks rather than the API.
   const toolsDisplay = resolveToolsLabel(subBlock, rawValue, [])
   const skillsDisplay = resolveSkillsLabel(subBlock, rawValue, [])
+  const fallbackModelsDisplay = resolveFallbackModelsLabel(subBlock, rawValue)
   const workflowName = resolveWorkflowSelectionLabel(subBlock, rawValue, workflowLookup)
   const workflowMultiSelectionNames = resolveWorkflowMultiSelectLabel(
     subBlock,
@@ -165,6 +167,7 @@ function resolvePreviewDisplayValue(
     variablesDisplay ||
     toolsDisplay ||
     skillsDisplay ||
+    fallbackModelsDisplay ||
     workflowName ||
     workflowMultiSelectionNames ||
     /*

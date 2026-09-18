@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
@@ -8,6 +9,14 @@ import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
+import {
+  FALLBACK_TUNING_KNOBS,
+  FALLBACK_TUNING_LABELS,
+  getTuningOptionsForModel,
+  isTuningValueValidForModel,
+  isWholeEnvVarReference,
+  MAX_FALLBACK_MODELS,
+} from '@/lib/workflows/blocks/fallback-models'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 import { containsReference } from '@/lib/workflows/sanitization/references'
@@ -360,6 +369,50 @@ function validateAgentToolEntry(item: any, index: number): string | null {
  * Skills are a SEPARATE array from tools; each entry references a workspace or
  * builtin skill by `skillId`. Returns an error string or null when valid.
  */
+/**
+ * Validates one fallback-model row. Returns an error string or null when valid.
+ *
+ * Refuses rather than repairs: an unknown model, sim-auto, or a raw key is an
+ * authoring mistake the caller must see. A missing React-key `id` is the one
+ * thing filled in, since it carries no meaning.
+ */
+function validateFallbackModelEntry(item: any, index: number): string | null {
+  const where = `fallbackModels[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be an object { model, apiKey? }`
+  }
+  const model = typeof item.model === 'string' ? item.model.trim() : ''
+  if (model === '') {
+    return `${where} is missing a string "model"`
+  }
+  if (isAutoModel(model)) {
+    return `${where}: sim-auto cannot be a fallback model; it already routes and falls back on its own`
+  }
+  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+    const suggestions = suggestModelIdsForUnknownModel(model)
+    const suggestionText =
+      suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+    return `${where}: unknown model id "${model}".${suggestionText}`
+  }
+  if (item.apiKey !== undefined && item.apiKey !== null && item.apiKey !== '') {
+    if (!isWholeEnvVarReference(item.apiKey)) {
+      return `${where}.apiKey must be a whole {{ENV_VAR}} reference; put the key in an environment variable instead of pasting it`
+    }
+  }
+  for (const knob of FALLBACK_TUNING_KNOBS) {
+    const value = item[knob]
+    if (value === undefined || value === null || value === '') continue
+    if (typeof value !== 'string' || !isTuningValueValidForModel(model, knob, value)) {
+      const options = getTuningOptionsForModel(model, knob)
+      const hint = options
+        ? ` Valid options: ${options.join(', ')}.`
+        : ` ${model} has no such setting.`
+      return `${where}.${knob}: "${String(value)}" is not a ${FALLBACK_TUNING_LABELS[knob].toLowerCase()} option for ${model}.${hint}`
+    }
+  }
+  return null
+}
+
 function validateAgentSkillEntry(item: any, index: number): string | null {
   const where = `skills[${index}]`
   if (item === null || typeof item !== 'object' || Array.isArray(item)) {
@@ -579,6 +632,61 @@ export function validateValueForSubBlockType(
         }
       }
       return { valid: true, value }
+    }
+
+    case 'model-fallback-list': {
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid model-fallback-list value for field "${fieldName}" - expected an array of { model, apiKey? } objects`,
+          },
+        }
+      }
+      if (value.length > MAX_FALLBACK_MODELS) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `"${fieldName}" allows at most ${MAX_FALLBACK_MODELS} fallback models`,
+          },
+        }
+      }
+      const fallbackErrors = value
+        .map((item, index) => validateFallbackModelEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (fallbackErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid fallback ${fallbackErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${fallbackErrors.join('; ')}`,
+          },
+        }
+      }
+      return {
+        valid: true,
+        value: value.map((item: Record<string, unknown> & { model: string }) => ({
+          id: typeof item.id === 'string' && item.id ? item.id : generateShortId(),
+          model: item.model.trim(),
+          ...(isWholeEnvVarReference(item.apiKey) ? { apiKey: item.apiKey.trim() } : {}),
+          ...Object.fromEntries(
+            FALLBACK_TUNING_KNOBS.filter(
+              (knob) => typeof item[knob] === 'string' && (item[knob] as string).trim() !== ''
+            ).map((knob) => [knob, (item[knob] as string).trim().toLowerCase()])
+          ),
+        })),
+      }
     }
 
     case 'skill-input': {

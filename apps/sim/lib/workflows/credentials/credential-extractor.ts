@@ -171,6 +171,26 @@ function isEnvironmentVariableReference(value: unknown): value is string {
 }
 
 /**
+ * Keeps a fallback list's models and drops every row key that is not a whole
+ * environment-variable reference. The editor only ever writes references, but the
+ * realtime subblock-value op runs no validator, so this is what guarantees a raw
+ * key can never leave the workspace in an export or template.
+ */
+function sanitizeFallbackModelsValue(
+  value: unknown,
+  options: WorkflowSanitizationOptions
+): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row
+    const { apiKey, ...rest } = row as Record<string, unknown>
+    return options.preserveEnvVars && isEnvironmentVariableReference(apiKey)
+      ? { ...rest, apiKey }
+      : rest
+  })
+}
+
+/**
  * Sanitizes nested tool parameters using the same codecs as workflow search and fork remapping.
  * Only parameters resolved from a registered definition retain non-sensitive values. Custom, MCP,
  * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
@@ -244,6 +264,9 @@ function sanitizeConfiguredSubBlockValue(
   }
   if (config.password === true) {
     return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
+  }
+  if (config.type === 'model-fallback-list') {
+    return sanitizeFallbackModelsValue(value, options)
   }
   if (
     WORKSPACE_SPECIFIC_TYPES.has(config.type) ||

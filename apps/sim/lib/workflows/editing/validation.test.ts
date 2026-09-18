@@ -3,6 +3,8 @@
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getTuningOptionsForModel } from '@/lib/workflows/blocks/fallback-models'
+import { getThinkingLevelsForModel } from '@/providers/models'
 import { normalizeConditionRouterIds } from './builders'
 
 const {
@@ -336,6 +338,73 @@ describe('validateInputsForBlock', () => {
     expect(
       validateValueForSubBlockType(config, [], 'eventTypes', 'quickbooks', 'quickbooks-1').valid
     ).toBe(false)
+  })
+
+  describe('model-fallback-list', () => {
+    const config = { id: 'fallbackModels', type: 'model-fallback-list' as const }
+    const validate = (value: unknown) =>
+      validateValueForSubBlockType(config, value, 'fallbackModels', 'agent', 'agent-1')
+
+    it('accepts known models with env-var-referenced keys and fills missing row ids', () => {
+      const result = validate([
+        { id: 'row-1', model: ' claude-sonnet-5 ' },
+        { model: 'openrouter/anthropic/claude', apiKey: '{{OPENROUTER_API_KEY}}' },
+      ])
+      expect(result.valid).toBe(true)
+      const rows = (result as { value: Array<{ id: string; model: string; apiKey?: string }> })
+        .value
+      expect(rows[0]).toEqual({ id: 'row-1', model: 'claude-sonnet-5' })
+      expect(rows[1].id).toEqual(expect.any(String))
+      expect(rows[1]).toMatchObject({
+        model: 'openrouter/anthropic/claude',
+        apiKey: '{{OPENROUTER_API_KEY}}',
+      })
+    })
+
+    it('refuses a raw key rather than repairing it', () => {
+      const result = validate([{ model: 'claude-sonnet-5', apiKey: 'sk-live-raw' }])
+      expect(result.valid).toBe(false)
+      expect((result as { error: { error: string } }).error.error).toContain(
+        'apiKey must be a whole {{ENV_VAR}} reference'
+      )
+    })
+
+    it('refuses sim-auto, unknown models, missing models, and non-arrays', () => {
+      expect(validate([{ model: 'sim-auto' }]).valid).toBe(false)
+      expect(validate([{ model: 'definitely-not-a-model-9000' }]).valid).toBe(false)
+      expect(validate([{ apiKey: '{{KEY}}' }]).valid).toBe(false)
+      expect(validate({ model: 'claude-sonnet-5' }).valid).toBe(false)
+    })
+
+    it('accepts a row tuning value the model declares and refuses one it does not', () => {
+      const levels = getThinkingLevelsForModel('claude-sonnet-5')
+      expect(levels?.length).toBeGreaterThan(0)
+      const ok = validate([
+        { model: 'claude-sonnet-5', thinkingLevel: ` ${levels![0].toUpperCase()} ` },
+      ])
+      expect(ok.valid).toBe(true)
+      expect((ok as { value: Array<{ thinkingLevel?: string }> }).value[0].thinkingLevel).toBe(
+        levels![0]
+      )
+
+      const bad = validate([{ model: 'claude-sonnet-5', thinkingLevel: 'bogus' }])
+      expect(bad.valid).toBe(false)
+      expect((bad as { error: { error: string } }).error.error).toContain('thinking level option')
+
+      const undeclared = (['reasoningEffort', 'verbosity', 'thinkingLevel'] as const).find(
+        (knob) => getTuningOptionsForModel('claude-sonnet-5', knob) === null
+      )
+      expect(undeclared).toBeDefined()
+      const missingKnob = validate([{ model: 'claude-sonnet-5', [undeclared as string]: 'low' }])
+      expect(missingKnob.valid).toBe(false)
+    })
+
+    it('refuses more rows than the cap', () => {
+      const rows = Array.from({ length: 6 }, () => ({ model: 'claude-sonnet-5' }))
+      const result = validate(rows)
+      expect(result.valid).toBe(false)
+      expect((result as { error: { error: string } }).error.error).toContain('at most 5')
+    })
   })
 
   it('accepts condition-input arrays with arbitrary item ids', () => {

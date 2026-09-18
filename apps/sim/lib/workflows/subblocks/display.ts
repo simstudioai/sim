@@ -583,6 +583,29 @@ export function resolveSkillsLabel(
 }
 
 /**
+ * Resolves a fallback-model list to its model ids, e.g. "gpt-5.6, gemini-3.6-flash +1".
+ * Returns null for other subblocks and for an empty list so callers fall through.
+ * Row keys are never shown.
+ */
+export function resolveFallbackModelsLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'model-fallback-list') return null
+  if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+
+  const models = rawValue
+    .map((row: unknown) => {
+      if (!row || typeof row !== 'object') return null
+      const model = (row as { model?: unknown }).model
+      return typeof model === 'string' && model.trim() ? model.trim() : null
+    })
+    .filter((model): model is string => !!model)
+
+  return summarizeNames(models)
+}
+
+/**
  * Resolves the Function block's stored sandbox id to the sandbox name.
  *
  * Unlike its siblings there is no dedicated subblock type to match on: the picker
