@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
@@ -231,17 +231,24 @@ export function copyTraceSpansWithoutCosts(spans?: TraceSpan[]): TraceSpan[] | u
  *
  * On any failure (no scope, oversized, storage error) the original (already
  * cost-stripped) execution data is returned unchanged so the log is never lost.
+ * Backfills pass `throwOnError` to stop instead of retaining inline data.
  */
 export async function externalizeExecutionData(
   executionData: Record<string, unknown>,
-  context: TraceStoreWriteContext
+  context: TraceStoreWriteContext,
+  options: { throwOnError?: boolean } = {}
 ): Promise<Record<string, unknown>> {
   const { workspaceId, workflowId, executionId, userId } = context
   // workspaceId/workflowId build the storage key and can be null for
   // deleted-workflow rows. userId is type-guaranteed by TraceStoreWriteContext;
   // the falsy check is a defensive guard against an empty string. If any are
   // missing the durable write can't succeed, so keep the data inline.
-  if (!workspaceId || !workflowId || !userId) return executionData
+  if (!workspaceId || !workflowId || !userId) {
+    if (options.throwOnError) {
+      throw new Error('Trace storage requires workspaceId, workflowId, and userId')
+    }
+    return executionData
+  }
 
   try {
     const json = JSON.stringify(executionData)
@@ -266,9 +273,10 @@ export async function externalizeExecutionData(
     }
     return slim
   } catch (error) {
+    if (options.throwOnError) throw error
     logger.warn('Failed to externalize execution data; keeping inline', {
       executionId,
-      error: toError(error).message,
+      error: describeError(error),
     })
     return executionData
   }
