@@ -1,13 +1,8 @@
-import { Button, chipFilledFillTokens, cn, Tooltip } from '@sim/emcn'
+import { Button, cn, Tooltip } from '@sim/emcn'
 import { Ban, Circle, Trash } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
+import { RESOURCE_ACTION_BUTTON_FILLED } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar/action-bar-styles'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-
-/** One source of truth for the button chrome, so the three actions read as one control strip. */
-const ACTION_BUTTON_CLASS = cn(
-  chipFilledFillTokens,
-  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 hover-hover:bg-[var(--brand-secondary)]'
-)
 
 interface ActionBarProps {
   selectedCount: number
@@ -97,7 +92,7 @@ export function ActionBar({
                     aria-label='Enable'
                     onClick={onEnable}
                     disabled={isLoading}
-                    className={ACTION_BUTTON_CLASS}
+                    className={RESOURCE_ACTION_BUTTON_FILLED}
                   >
                     <Circle className='size-[12px]' />
                   </Button>
@@ -114,7 +109,7 @@ export function ActionBar({
                     aria-label='Disable'
                     onClick={onDisable}
                     disabled={isLoading}
-                    className={ACTION_BUTTON_CLASS}
+                    className={RESOURCE_ACTION_BUTTON_FILLED}
                   >
                     <Ban className='size-[12px]' />
                   </Button>
@@ -131,7 +126,7 @@ export function ActionBar({
                     aria-label='Delete'
                     onClick={onDelete}
                     disabled={isLoading}
-                    className={ACTION_BUTTON_CLASS}
+                    className={RESOURCE_ACTION_BUTTON_FILLED}
                   >
                     <Trash className='size-[12px]' />
                   </Button>

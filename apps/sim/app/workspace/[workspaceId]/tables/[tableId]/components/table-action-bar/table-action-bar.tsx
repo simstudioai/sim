@@ -4,6 +4,7 @@ import type React from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { RESOURCE_ACTION_BUTTON_BASE } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar/action-bar-styles'
 
 interface TableActionBarProps {
   /** Number of (row × group) cells the run/stop buttons would target. Drives
@@ -157,7 +158,7 @@ function ActionIconButton({ label, onClick, disabled, children }: ActionIconButt
           variant='ghost'
           onClick={onClick}
           disabled={disabled}
-          className='size-[28px] rounded-lg bg-[var(--surface-5)] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!'
+          className={cn(RESOURCE_ACTION_BUTTON_BASE, 'bg-[var(--surface-5)]')}
           aria-label={label}
         >
           {children}

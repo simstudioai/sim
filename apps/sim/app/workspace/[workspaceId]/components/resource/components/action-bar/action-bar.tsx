@@ -3,7 +3,6 @@
 import type { ComponentType } from 'react'
 import {
   Button,
-  chipFilledFillTokens,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +14,7 @@ import {
 import { Download } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
-
-/** Shared chrome for every action button, so the bar reads as one control strip. */
-const ACTION_BUTTON_CLASS = cn(
-  chipFilledFillTokens,
-  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 hover-hover:bg-[var(--brand-secondary)]'
-)
+import { RESOURCE_ACTION_BUTTON_FILLED } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar/action-bar-styles'
 
 interface ActionButtonProps {
   icon: ComponentType<{ className?: string }>
@@ -38,7 +32,7 @@ function ActionButton({ icon: Icon, label, onClick, disabled }: ActionButtonProp
           variant='ghost'
           onClick={onClick}
           disabled={disabled}
-          className={ACTION_BUTTON_CLASS}
+          className={RESOURCE_ACTION_BUTTON_FILLED}
         >
           <Icon className='size-[12px]' />
         </Button>
@@ -133,7 +127,7 @@ export function ResourceActionBar({
                       aria-label='Move'
                       variant='ghost'
                       disabled={actionsDisabled}
-                      className={ACTION_BUTTON_CLASS}
+                      className={RESOURCE_ACTION_BUTTON_FILLED}
                     >
                       <Folder className='size-[12px]' />
                     </Button>
