@@ -32,6 +32,7 @@ import { deferConnectorSync } from '@/lib/knowledge/connectors/sync-deferral'
 import { completeSuccessfulSync } from '@/lib/knowledge/connectors/sync-engine'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
+import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { deleteKnowledgeBase } from '@/lib/knowledge/service'
 import { GitHubRequestDeferredError } from '@/connectors/github/request'
 import type { SyncResult } from '@/connectors/types'
@@ -282,14 +283,24 @@ describe('source lifecycle KB guards', () => {
       .from(document)
       .where(eq(document.id, retryDocumentId))
     expect(row).toEqual({ status: 'pending', attempts: 1, token: null })
+    expect(vi.mocked(processDocumentsWithQueue).mock.lastCall?.[0]).toEqual([
+      expect.objectContaining({ documentId: retryDocumentId }),
+    ])
   })
 
-  it('keeps the charge of an attempt that reached a worker', async () => {
+  it.each([
+    ['failed', {}],
+    ['stale processing', { processingStatus: 'processing', processingStartedAt: new Date(0) }],
+  ] as const)('keeps the charge of a %s attempt that reached a worker', async (_state, row) => {
+    await db
+      .update(document)
+      .set({ ...row, processingAttempts: 2, processingQueuedAt: new Date(0) })
+      .where(eq(document.id, retryDocumentId))
     await run('recover')
-    const [row] = await db
-      .select({ attempts: document.processingAttempts })
+    const [after] = await db
+      .select({ status: document.processingStatus, attempts: document.processingAttempts })
       .from(document)
       .where(eq(document.id, retryDocumentId))
-    expect(row.attempts).toBe(1)
+    expect(after).toEqual({ status: 'pending', attempts: 2 })
   })
 })
