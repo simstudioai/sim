@@ -2295,17 +2295,16 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
     /**
-     * Serves the search backfill's keyset walk over live workspace files, which pages by
-     * `(workspace_id, id)` once an hour across every such file.
+     * Serves the search backfill's hourly keyset walk over every live workspace file, which pages
+     * by `(workspace_id, id)`.
      *
-     * Without it no index supplies that order under this predicate, so each page sorts the whole
-     * remaining set and the dispatcher's 10s statement timeout aborts the transaction. The column
-     * order must match the walk's `ORDER BY`, and the predicate must match its filter exactly, or
-     * the planner cannot prove the partial index covers the query.
+     * Without this index nothing supplies that order under that filter, so each page sorts the
+     * whole remaining set and the dispatcher's statement timeout aborts the transaction before any
+     * page commits. The column order must match the walk's `ORDER BY`, and the predicate must match
+     * its filter exactly, or the planner cannot prove the partial index covers the query.
      *
-     * The walk must compare the cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek with
-     * this index. The equivalent `a > x OR (a = x AND b > y)` spelling is only ever a filter, which
-     * restarts the scan at the low end of the index on every page.
+     * The walk must also compare its cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek
+     * with this index; `a > x OR (a = x AND b > y)` is only ever a filter. See `seedBackfillPage`.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)

@@ -184,7 +184,10 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   })
 
   it('walks every live workspace file exactly once across backfill pages', async () => {
-    const files = 2 * FILE_SEARCH_BACKFILL_PAGE_SIZE + FILE_SEARCH_BACKFILL_PAGE_SIZE / 2
+    /** Deliberately not a whole number of pages, so the short final page ends the walk. */
+    const files =
+      2 * FILE_SEARCH_BACKFILL_PAGE_SIZE + Math.floor(FILE_SEARCH_BACKFILL_PAGE_SIZE / 2)
+    const expectedPages = Math.ceil(files / FILE_SEARCH_BACKFILL_PAGE_SIZE)
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
       SELECT md5(n::text), 'workspace-' || lpad((n % 7)::text, 2, '0'), 'workspace', '2026-09-16'
       FROM generate_series(1, ${files}) n`
@@ -195,18 +198,19 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       VALUES ('skipped-context', 'workspace-00', 'execution', '2026-09-16')`
 
     let pages = 0
-    for (;;) {
+    let completed = false
+    while (!completed) {
       await prepareWorkspaceFileSearchDispatch()
       pages += 1
       const [cursor] = await connection`SELECT completed_at FROM workspace_file_search_backfill`
-      if (cursor.completed_at) break
-      expect(pages).toBeLessThanOrEqual(files)
+      completed = cursor.completed_at !== null
+      expect(pages).toBeLessThanOrEqual(expectedPages)
     }
 
-    expect(pages).toBe(Math.ceil(files / FILE_SEARCH_BACKFILL_PAGE_SIZE))
-    const [seeded] = await connection`SELECT count(*)::int AS total,
-      count(DISTINCT file_id)::int AS distinct_files FROM workspace_file_search_revision`
-    expect(seeded).toEqual({ total: files, distinct_files: files })
+    expect(pages).toBe(expectedPages)
+    const [seeded] =
+      await connection`SELECT count(*)::int AS total FROM workspace_file_search_revision`
+    expect(seeded.total).toBe(files)
     const [skipped] = await connection`SELECT count(*)::int AS missed FROM workspace_files file
       WHERE file.context = 'workspace' AND file.deleted_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM workspace_file_search_revision revision

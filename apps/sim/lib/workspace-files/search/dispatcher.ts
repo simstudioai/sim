@@ -156,11 +156,16 @@ async function enqueueWorkspaces(
 /**
  * Seeds one page of the backfill that walks every live workspace file into the revision table.
  *
- * The cursor is compared row-wise so the walk seeks straight to it using
- * `workspace_files_workspace_active_keyset_idx`. The equivalent
+ * Two things keep this page cheap, and losing either one reintroduces a dispatch that times out.
+ *
+ * `workspace_files_workspace_active_keyset_idx` supplies the `(workspace_id, id)` order under this
+ * exact filter. Without it nothing does, so the page sorts every remaining row instead of reading
+ * only the thousand it returns.
+ *
+ * The cursor is then compared row-wise so that order becomes a seek. The equivalent
  * `workspace_id > :ws OR (workspace_id = :ws AND id > :id)` spelling is not something the planner
- * can turn into an index condition: it stays a filter, so every page rescans the pages before it
- * and the walk degrades to O(files^2) until it exceeds the dispatch statement timeout.
+ * can turn into an index condition; it stays a filter, so each page restarts at the low end of the
+ * index and re-reads every page before it, making the walk quadratic in the file count.
  */
 async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   await tx
