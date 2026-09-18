@@ -1,7 +1,8 @@
 /** @vitest-environment node */
-import { Button } from '@sim/emcn'
+// biome-ignore assist/source/organizeImports: Follow documented core/external/UI order; the sorter groups @sim/emcn and react-dom as generic packages.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { Button } from '@sim/emcn'
 
 function normalizeClasses(markup: string) {
   return markup.replace(
