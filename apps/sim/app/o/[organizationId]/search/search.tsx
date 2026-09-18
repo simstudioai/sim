@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { ArrowUp, Search } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -122,7 +122,7 @@ function SearchField({
 
 /**
  * Sim Search over the organization's sources. Empty, it is the greeting over the
- * query field, centered like Home; once results arrive the field docks at
+ * query field, centered like Home; once a query is submitted the field docks at
  * the top of the page — where every other organization page's title sits — and
  * the results scroll beneath it under the sidebar's edge fade. The submitted
  * query lives in the URL; the field holds the draft until the next submit.
@@ -141,6 +141,13 @@ function OrganizationSearchContent() {
   const query = q.trim()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
+  const scrollEdges = useScrollEdges(scrollContainerRef, {
+    contentRef: scrollContentRef,
+    enabled: query.length > 0,
+  })
+
   const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
     MothershipHandoffStorage.store(
       { message, assistantSearch },
@@ -155,95 +162,45 @@ function OrganizationSearchContent() {
     void setParams({ q: next })
   }
 
-  const renderLayout = (results: ReactNode, docked: boolean) => (
-    <SearchLayout query={q} onSubmit={submit} docked={docked}>
-      {results}
-    </SearchLayout>
-  )
-
-  return query ? (
-    <KnowledgeSearchResults
-      scope={scope}
-      query={query}
-      onSummarize={summarize}
-      renderLayout={renderLayout}
-    />
-  ) : (
-    renderLayout(null, false)
-  )
-}
-
-interface SearchLayoutProps {
-  query: string
-  onSubmit: (draft: string) => void
-  docked: boolean
-  children: ReactNode
-}
-
-function SearchLayout({ query, onSubmit, docked, children }: SearchLayoutProps) {
-  const { organization } = useOrganizationContext()
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const scrollContentRef = useRef<HTMLDivElement>(null)
-  const scrollEdges = useScrollEdges(scrollContainerRef, { contentRef: scrollContentRef })
+  const searching = query.length > 0
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       <div className={PAGE_HEADER_BAR}>
         <div className={HEADER_ACTION_CLUSTER} />
       </div>
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          !docked && 'overflow-y-auto [scrollbar-gutter:stable_both-edges]'
-        )}
-      >
-        <div
-          className={cn(
-            'flex min-h-0 flex-col',
-            docked ? 'flex-1' : 'min-h-full items-center justify-center px-6 pt-[2vh] pb-[22vh]'
-          )}
-        >
-          <div
-            className={cn(
-              'shrink-0',
-              docked
-                ? cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'pt-8')
-                : 'w-full max-w-chat'
-            )}
-          >
-            {!docked && (
-              <h1 className='mb-7 text-balance text-center font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-                Search {organization.name}
-              </h1>
-            )}
-            <SearchField
-              key={query}
-              initialValue={query}
-              onSubmit={onSubmit}
-              docked={docked}
-              focusOnMount
-            />
+      {searching ? (
+        <>
+          <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
+            <SearchField key={q} initialValue={q} onSubmit={submit} docked focusOnMount />
           </div>
           <div
             ref={scrollContainerRef}
             className={cn(
-              docked
-                ? cn(
-                    SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-                    SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-                    scrollFadeClass,
-                    'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'
-                  )
-                : 'w-full max-w-chat'
+              SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+              SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+              scrollFadeClass,
+              'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'
             )}
             {...scrollFadeAttributes(scrollEdges)}
           >
-            <div ref={scrollContentRef} className={docked ? cn(PAGE_COLUMN_CLASS, 'px-8') : 'px-2'}>
-              {children}
+            <div ref={scrollContentRef} className={cn(PAGE_COLUMN_CLASS, 'px-8')}>
+              <KnowledgeSearchResults scope={scope} query={query} onSummarize={summarize} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
+          <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+            <h1 className='mb-7 max-w-chat text-balance text-center font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+              Search {organization.name}
+            </h1>
+            <div className='w-full max-w-chat'>
+              <SearchField key={q} initialValue={q} onSubmit={submit} focusOnMount />
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
