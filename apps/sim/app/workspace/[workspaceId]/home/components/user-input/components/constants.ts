@@ -97,11 +97,6 @@ export const SCROLLER_CLASSES = cn(
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
-export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0'
-export const SEND_BUTTON_ACTIVE =
-  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-export const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
-
 export const SPEECH_RECOGNITION_LANG = 'en-US'
 
 /**

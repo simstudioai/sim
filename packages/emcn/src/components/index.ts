@@ -126,6 +126,11 @@ export {
   type ComboboxOptionGroup,
 } from './combobox/combobox'
 export {
+  ComposerActionButton,
+  type ComposerActionButtonProps,
+  composerActionButtonVariants,
+} from './composer-action-button/composer-action-button'
+export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
