@@ -757,6 +757,32 @@ describe('AgentBlockHandler', () => {
       )
     })
 
+    it('leaves provider-family credentials off a fallback on another provider', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('one'))
+        .mockRejectedValueOnce(new Error('two'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        vertexCredential: 'vertex-secret',
+        bedrockSecretKey: 'bedrock-secret',
+        azureEndpoint: 'https://azure.example.com',
+        fallbackModels: [{ model: 'claude-sonnet-5' }, { model: 'gpt-4o-mini' }],
+      })
+
+      const [, crossProvider] = mockExecuteProviderRequest.mock.calls[1]
+      const [, sameProvider] = mockExecuteProviderRequest.mock.calls[2]
+      expect(crossProvider.vertexCredential).toBeUndefined()
+      expect(crossProvider.bedrockSecretKey).toBeUndefined()
+      expect(crossProvider.azureEndpoint).toBeUndefined()
+      expect(JSON.stringify(crossProvider)).not.toMatch(
+        /vertex-secret|bedrock-secret|azure\.example/
+      )
+      expect(sameProvider.bedrockSecretKey).toBe('bedrock-secret')
+      expect(sameProvider.azureEndpoint).toBe('https://azure.example.com')
+    })
+
     it('ignores a row key the block did not store as a reference', async () => {
       mockExecuteProviderRequest
         .mockRejectedValueOnce(new Error('one'))
@@ -1112,17 +1138,22 @@ describe('AgentBlockHandler', () => {
     it('keeps the fallback name when a routed sim-auto primary fails and a fallback answers', async () => {
       mockExecuteProviderRequest
         .mockRejectedValueOnce(new Error('pool model down'))
-        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+        .mockResolvedValueOnce(providerResponse('gpt-5.4-mini'))
+      const blockLog = openLog()
 
-      const result = (await handler.execute(mockContext, mockBlock, {
+      const result = (await handler.execute({ ...mockContext, blockLogs: [blockLog] }, mockBlock, {
         model: SIM_AUTO_MODEL_ID,
         systemPrompt: 'Be brief.',
         userPrompt: 'Hello!',
-        fallbackModels: [{ model: 'gpt-4o-mini' }],
+        fallbackModels: [{ model: 'gpt-5.4-mini', reasoningEffort: 'low' }],
       })) as { model: string }
 
-      expect(result.model).toBe('gpt-4o-mini')
+      expect(result.model).toBe('gpt-5.4-mini')
       expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      /** The trace names the auto identity, never the pool model that was routed. */
+      expect(blockLog.modelFallbacks).toEqual([SIM_AUTO_MODEL_ID])
+      /** The row's tuning was set against the auto id in the editor, so it applies whatever was routed. */
+      expect(mockExecuteProviderRequest.mock.calls[1][1].reasoningEffort).toBe('low')
       /** The auto identity preamble belongs to the pool model, not a named fallback. */
       const systemText = (request: { messages?: Array<{ role: string; content: string }> }) =>
         (request.messages ?? [])

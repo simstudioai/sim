@@ -170,14 +170,42 @@ function stripAutoPreamble(messages: Message[] | undefined): Message[] | undefin
   })
 }
 
+/**
+ * Block fields that only a provider family reads. A fallback on another provider
+ * never needs them, so they are left off its request rather than handed to a
+ * provider that has no use for a Bedrock secret or a Vertex credential.
+ */
+const PROVIDER_FAMILY_CREDENTIAL_FIELDS = [
+  'azureEndpoint',
+  'azureApiVersion',
+  'vertexProject',
+  'vertexLocation',
+  'vertexCredential',
+  'bedrockAccessKeyId',
+  'bedrockSecretKey',
+  'bedrockRegion',
+] as const satisfies ReadonlyArray<keyof AgentInputs>
+
 /** One model in the order the block tries them; the primary carries the block's own key. */
 interface ModelCandidate extends FallbackModelCandidate {
   isPrimary: boolean
+  /**
+   * What the trace calls this model when it fails. A routed sim-auto primary
+   * shows as the auto identity, since naming the pool model is the leak that
+   * `applyAutoModelLabel` exists to close.
+   */
+  traceName?: string
 }
 
 interface ExecuteAcrossModelsConfig {
   candidates: ModelCandidate[]
   primaryModel: string
+  /**
+   * The model the builder configured, which is what the editor showed the
+   * per-row tuning fields against. Under sim-auto that is the auto id, not the
+   * pool model routed for this run, so a row's value applies whatever was routed.
+   */
+  configuredModel: string
   primaryProviderId: string
   messages: Message[] | undefined
   /** Provider id to hydrated messages; seeded with the primary, filled per fallback provider. */
@@ -523,7 +551,12 @@ export class AgentBlockHandler implements BlockHandler {
         })
       }
       const candidates: ModelCandidate[] = [
-        { model, apiKey: modelInputs.apiKey, isPrimary: true },
+        {
+          model,
+          apiKey: modelInputs.apiKey,
+          isPrimary: true,
+          ...(autoRouting ? { traceName: SIM_AUTO_MODEL_ID } : {}),
+        },
         ...fallbackCandidates.map((candidate) => ({ ...candidate, isPrimary: false })),
       ]
       const {
@@ -533,6 +566,7 @@ export class AgentBlockHandler implements BlockHandler {
       } = await this.executeAcrossModels(ctx, block, {
         candidates,
         primaryModel: model,
+        configuredModel: autoRouting ? SIM_AUTO_MODEL_ID : model,
         primaryProviderId: providerId,
         messages: messagesWithInputFiles,
         hydratedByProvider,
@@ -2534,7 +2568,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (!candidate.isPrimary) {
         const { adjustments, ...tuning } = resolveFallbackTuning(
           candidate,
-          config.primaryModel,
+          config.configuredModel,
           config.modelInputs
         )
         /**
@@ -2552,13 +2586,12 @@ export class AgentBlockHandler implements BlockHandler {
           })
           rowKey = undefined
         }
+        const sameProvider = candidateProviderId === config.primaryProviderId
         inputs = {
-          ...config.modelInputs,
-          apiKey:
-            rowKey ??
-            (candidateProviderId === config.primaryProviderId
-              ? config.modelInputs.apiKey
-              : undefined),
+          ...(sameProvider
+            ? config.modelInputs
+            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS])),
+          apiKey: rowKey ?? (sameProvider ? config.modelInputs.apiKey : undefined),
           previousInteractionId: undefined,
           ...(config.fallbackSystemPrompt !== undefined
             ? { systemPrompt: config.fallbackSystemPrompt }
@@ -2607,7 +2640,7 @@ export class AgentBlockHandler implements BlockHandler {
         return { result, servedModel: candidate.model, resultRegistry }
       } catch (error) {
         lastError = error
-        failedModels.push(candidate.model)
+        failedModels.push(candidate.traceName ?? candidate.model)
         if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
           this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
           throw error
