@@ -35,7 +35,7 @@ describe('workspace file search index task', () => {
   it('uses isolated medium workers with a hard global concurrency and duration cap', () => {
     expect(workspaceFileSearchIndexTask).toMatchObject({
       id: 'workspace-file-search-index',
-      machine: 'medium-1x',
+      machine: 'medium-2x',
       maxDuration: FILE_SEARCH_INDEX_MAX_DURATION_SECONDS,
       retry: { maxAttempts: 3 },
       queue: {

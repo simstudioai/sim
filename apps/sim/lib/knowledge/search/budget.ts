@@ -39,6 +39,18 @@ export class SearchBudget {
     return remaining
   }
 
+  /**
+   * A shorter deadline for one step of the leg, carrying the same leg and cancellation signal.
+   * Spending it is the step's own business: the leg's deadline is untouched and still governs.
+   */
+  capped(milliseconds: number): SearchBudget {
+    return new SearchBudget(
+      this.leg,
+      Math.min(this.deadline, performance.now() + milliseconds),
+      this.signal
+    )
+  }
+
   isTimeout(error: unknown): boolean {
     this.signal?.throwIfAborted()
     if (error instanceof SearchDeadlineError || getPostgresErrorCode(error) === '57014') {

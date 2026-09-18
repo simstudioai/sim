@@ -14,6 +14,7 @@ import {
   FILE_SEARCH_CLEANUP_BATCH_ROWS,
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
+  FILE_SEARCH_CLEANUP_MIN_BATCH_MS,
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
 } from '@/lib/workspace-files/search/constants'
@@ -257,11 +258,13 @@ export async function failFileSearchRevision(
 export async function cleanupFileSearchBuilds(): Promise<number> {
   const deadline = Date.now() + FILE_SEARCH_CLEANUP_BUDGET_MS
   let deleted = 0
-  for (let batch = 0; batch < FILE_SEARCH_CLEANUP_MAX_BATCHES && Date.now() < deadline; batch++) {
+  for (let batch = 0; batch < FILE_SEARCH_CLEANUP_MAX_BATCHES; batch++) {
+    if (deadline - Date.now() < FILE_SEARCH_CLEANUP_MIN_BATCH_MS) break
     const result = await db.transaction(async (tx) => {
-      await configureFileSearchTransaction(tx, {
-        statementTimeout: Math.max(1, deadline - Date.now()),
-      })
+      /** Re-read: acquiring the connection can itself have spent the rest of the budget. */
+      const remainingBudget = deadline - Date.now()
+      if (remainingBudget < FILE_SEARCH_CLEANUP_MIN_BATCH_MS) return null
+      await configureFileSearchTransaction(tx, { statementTimeout: remainingBudget })
       const builds = await tx.execute<{
         id: string
       }>(sql`SELECT id FROM workspace_file_search_build

@@ -161,6 +161,7 @@ async function describeUnacceptedMemberSync(
       memberSyncStatus: knowledgeConnector.memberSyncStatus,
       nextMemberSyncAt: knowledgeConnector.nextMemberSyncAt,
       syncLockToken: knowledgeConnector.syncLockToken,
+      memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
     })
@@ -181,7 +182,14 @@ async function describeUnacceptedMemberSync(
   ) {
     return 'The member sync schedule changed after this run was scheduled'
   }
-  return 'A member sync is already queued or running for this connector'
+  if (row.memberSyncLockToken) {
+    return 'A member sync is already queued or running for this connector'
+  }
+  /**
+   * No checked condition explains the refusal. Naming a cause here instead once hid a connector
+   * that was refused on every attempt for days, because the reason read as ordinary contention.
+   */
+  return 'The connector refused the claim while no lock or status explains it'
 }
 
 /**

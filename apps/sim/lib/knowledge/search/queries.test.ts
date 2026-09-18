@@ -30,6 +30,7 @@ import {
   handleVectorOnlySearch,
   retrieveKnowledgeSearch,
   type SearchParams,
+  VECTOR_PROBE_DOCUMENT_LIMIT,
 } from '@/lib/knowledge/search/queries'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
@@ -57,7 +58,7 @@ describe('retrieval leg budgets', () => {
       vi.spyOn(SearchBudget.prototype, 'remaining').mockImplementation(function (
         this: SearchBudget
       ) {
-        deadlines.set(this.leg, this.deadline)
+        if (!deadlines.has(this.leg)) deadlines.set(this.leg, this.deadline)
         return remaining.call(this)
       })
       const access: UserAccessScope = {
@@ -105,6 +106,18 @@ describe('retrieval leg budgets', () => {
 function render(condition: unknown) {
   return (condition as { toSQL: () => { sql: string; params: unknown[] } }).toSQL()
 }
+
+/** The document probe is the only vector statement that selects ids without ordering them. */
+function isProbeStatement(sql: string) {
+  return sql.includes('AS id FROM') && !sql.includes('ORDER BY')
+}
+
+/** `+ 0` is what keeps the exact ranking off the ANN index, so it also identifies the statement. */
+function isExactRanking(sql: string) {
+  return sql.includes(') + 0 LIMIT')
+}
+
+const statements = () => dbChainMockFns.execute.mock.calls.map(([query]) => render(query))
 
 function renderOne(filters: StructuredFilter[]) {
   const conditions = getStructuredTagFilters(filters, embeddingTable)
@@ -354,6 +367,8 @@ describe('workspace-scoped vector retrieval', () => {
     },
   ]
   let probeRows: Array<{ id: string }>
+  let traversedRows: Array<{ id: string; initial_count?: number }>
+  let exactRows: Array<{ id: string }>
   let failSettings: unknown
   let failCandidates: unknown
 
@@ -361,20 +376,23 @@ describe('workspace-scoped vector retrieval', () => {
     resetDbChainMock()
     getForConnectors.mockReset()
     probeRows = probe
+    traversedRows = candidates
+    exactRows = probe
     failSettings = undefined
     failCandidates = undefined
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
-      if (statement.includes('SELECT scoped_chunk.id')) return probeRows
       if (statement.includes('hnsw.iterative_scan')) {
         if (failSettings) throw failSettings
         return []
       }
       if (statement.includes('AS visible')) {
         if (failCandidates) throw failCandidates
-        return candidates
+        return traversedRows
       }
       if (statement.includes('WITH scored_search_candidates')) return ranked
+      if (isExactRanking(statement)) return exactRows
+      if (statement.includes('AS id FROM')) return probeRows
       return []
     })
   })
@@ -382,8 +400,6 @@ describe('workspace-scoped vector retrieval', () => {
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
-
-  const statements = () => dbChainMockFns.execute.mock.calls.map(([query]) => render(query))
 
   it.each([handleVectorOnlySearch, handleTagAndVectorSearch])(
     'does not acquire a connection or start SQL after the KB retrieval deadline',
@@ -405,30 +421,100 @@ describe('workspace-scoped vector retrieval', () => {
     }
   )
 
-  it('ranks an exhausted visible scope exactly and rechecks access before returning content', async () => {
-    probeRows = ranked
-    queueTableRows(schemaMock.embedding, ranked)
+  it('rescues an underfilled traversal by ranking the permitted set exactly', async () => {
+    traversedRows = ranked
+    probeRows = [{ id: 'near-doc' }, { id: 'far-doc' }]
+    exactRows = ranked
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
-    expect(statements()).toHaveLength(1)
-    expect(statements()[0].sql).not.toContain('<=>')
-    expect(render(dbChainMockFns.orderBy.mock.calls[0][0]).sql).toContain('+ 0')
-    for (const [condition] of dbChainMockFns.where.mock.calls) {
-      expect(
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'inArray' &&
-            node.column === schemaMock.embedding.id &&
-            Array.isArray(node.values) &&
-            node.values.length === 2 &&
-            node.values.includes('near')
-        )
-      ).toBe(true)
-      expect(JSON.stringify(condition)).toContain('required_clause')
-      expect(JSON.stringify(condition)).toContain('aclVerifiedAt')
-    }
+    const exact = statements().find((query) => isExactRanking(query.sql))!
+    expect(exact.sql).not.toContain('CROSS JOIN LATERAL')
+    expect(JSON.stringify(exact)).toContain('near-doc')
+    const probeStatement = statements().find((query) => isProbeStatement(query.sql))!
+    expect(probeStatement.sql).not.toContain('<=>')
+    expect(probeStatement.params).toContain(VECTOR_PROBE_DOCUMENT_LIMIT + 1)
+    expect(JSON.stringify(probeStatement)).toContain('required_clause')
     expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('counts only chunks the search can return when a tag filter decides a document', async () => {
+    traversedRows = ranked
+    probeRows = [{ id: 'near-doc' }]
+    exactRows = ranked
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    await handleTagAndVectorSearch({
+      ...params,
+      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' }],
+    })
+    /**
+     * A document whose only tagged chunk is disabled contributes no candidate, so admitting it
+     * would spend the probe's document bound on a document the ranking then discards.
+     */
+    const probe = JSON.stringify(statements().find((query) => isProbeStatement(query.sql))!)
+    expect(probe).toContain(String(schemaMock.embedding.tag1))
+    expect(probe).toContain(`"left":"${schemaMock.embedding.enabled}","right":true`)
+  })
+
+  it('keeps the tuple budget an order of magnitude above the beam so the scan can iterate', async () => {
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    await handleVectorOnlySearch(params)
+    const settings = statements().find((query) => query.sql.includes('hnsw.iterative_scan'))!
+    const [maxScanTuples, efSearch] = settings.params as string[]
+    /**
+     * `max_scan_tuples` excludes the first beam, so a budget at or below `ef_search` is spent
+     * before `ResumeScanItems` can widen anything and the scan never iterates (pgvector#912).
+     */
+    expect(Number(maxScanTuples)).toBeGreaterThanOrEqual(Number(efSearch) * 10)
+    /** A beam is uninterruptible, so its width is also this leg's cancellation floor. */
+    expect(Number(efSearch)).toBeLessThanOrEqual(400)
+  })
+
+  it('leaves a filled traversal alone instead of probing for an exact ranking', async () => {
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(statements().filter((query) => isProbeStatement(query.sql))).toHaveLength(0)
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
+  })
+
+  it('keeps an underfilled traversal when the permitted set is too large to rank exactly', async () => {
+    traversedRows = ranked
+    probeRows = new Array(VECTOR_PROBE_DOCUMENT_LIMIT + 1).fill({ id: 'doc' })
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
+  })
+
+  it('finishes a scope the probe finds nothing in without ranking anything', async () => {
+    traversedRows = []
+    probeRows = []
+    expect(await handleVectorOnlySearch(params)).toEqual([])
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
+    expect(
+      statements().filter((query) => query.sql.includes('WITH scored_search_candidates'))
+    ).toHaveLength(0)
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('spends only its own share of the leg on a probe that runs long', async () => {
+    const budget = new SearchBudget('vector', performance.now() + 8000)
+    traversedRows = ranked
+    exactRows = ranked
+    const execute = dbChainMockFns.execute.getMockImplementation()!
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (isProbeStatement(statement))
+        throw new Error('canceling statement due to statement timeout', {
+          cause: { code: '57014' },
+        })
+      return execute(query)
+    })
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch({ ...params, budget })).map((row) => row.id)).toEqual([
+      'near',
+      'far',
+    ])
+    expect(budget.timedOut).toBe(false)
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
   })
 
   it('uses compact candidates for a large KB and applies full workspace access before its limit', async () => {
@@ -504,14 +590,13 @@ describe('workspace-scoped vector retrieval', () => {
   })
 
   it('does not turn a broad tag filter into exhaustive full-vector ranking', async () => {
-    queueTableRows(schemaMock.embedding, probe)
     queueTableRows(schemaMock.embedding, ranked)
     const rows = await handleTagAndVectorSearch({
       ...params,
       structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' }],
     })
     expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
-    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
     const candidate = statements().find((query) => query.sql.includes('AS visible'))!
     expect(JSON.stringify(candidate)).toContain('common')
     expect(JSON.stringify(candidate)).toContain(String(schemaMock.embedding.tag1))
@@ -534,7 +619,7 @@ describe('workspace-scoped vector retrieval', () => {
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
 
-  it.each(['vector.probe', 'vector.candidate_search', 'vector.rerank', 'vector.sql'] as const)(
+  it.each(['vector.candidate_search', 'vector.rerank', 'vector.sql'] as const)(
     'reports a %s timeout as partial, not a complete empty search',
     async (failedStage) => {
       const query = SearchBudget.prototype.query
@@ -565,7 +650,6 @@ describe('workspace-scoped vector retrieval', () => {
       run: (executor: SearchExecutor) => PromiseLike<T>
     ) {
       const result = await (query.bind(this) as SearchBudget['query'])(stage, run)
-      if (stage === 'vector.probe') vi.spyOn(performance, 'now').mockReturnValue(30)
       if (stage === 'vector.candidate_search') vi.spyOn(performance, 'now').mockReturnValue(60)
       if (stage === 'vector.rerank') vi.spyOn(performance, 'now').mockReturnValue(80)
       return result
@@ -576,7 +660,7 @@ describe('workspace-scoped vector retrieval', () => {
       statements()
         .filter((query) => query.sql.includes('statement_timeout'))
         .map((query) => query.params[0])
-    ).toEqual(['100', '70', '70', '40', '20'])
+    ).toEqual(['100', '100', '40', '20'])
   })
 
   it('does not convert an unexpected candidate failure into partial retrieval', async () => {
@@ -778,6 +862,7 @@ describe('live repository authorization follows ranked candidates', () => {
   }
 
   const probePages: Array<Array<{ id: string }>> = []
+  const exactPages: Array<Array<{ id: string }>> = []
   const candidatePages: Array<Array<{ id: string; initial_count: number }>> = []
   const rerankPages: Array<Array<ReturnType<typeof candidate>>> = []
   const keywordPages: Array<Array<ReturnType<typeof candidate>>> = []
@@ -791,20 +876,19 @@ describe('live repository authorization follows ranked candidates', () => {
   beforeEach(() => {
     resetDbChainMock()
     probePages.length = 0
+    exactPages.length = 0
     candidatePages.length = 0
     rerankPages.length = 0
     keywordPages.length = 0
-    dbChainMockFns.execute.mockImplementation(async (query) =>
-      render(query).sql.includes('SELECT scoped_chunk.id')
-        ? (probePages.shift() ?? [])
-        : render(query).sql.includes('AS visible')
-          ? (candidatePages.shift() ?? [])
-          : render(query).sql.includes('WITH scored_search_candidates')
-            ? (rerankPages.shift() ?? [])
-            : render(query).sql.includes('WITH visible_keyword_documents')
-              ? (keywordPages.shift() ?? [])
-              : []
-    )
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('AS visible')) return candidatePages.shift() ?? []
+      if (statement.includes('WITH scored_search_candidates')) return rerankPages.shift() ?? []
+      if (statement.includes('WITH visible_keyword_documents')) return keywordPages.shift() ?? []
+      if (isExactRanking(statement)) return exactPages.shift() ?? []
+      if (statement.includes('AS id FROM')) return probePages.shift() ?? []
+      return []
+    })
     getForConnectors.mockReset().mockResolvedValue(allowed)
   })
 
@@ -847,73 +931,58 @@ describe('live repository authorization follows ranked candidates', () => {
     )
   })
 
-  it('finishes empty scopes after the bounded probe without scanning HNSW or calling providers', async () => {
+  it('finishes a scope the probe finds nothing in without ranking or calling providers', async () => {
     probePages.push([])
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([])
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    const probe = render(dbChainMockFns.execute.mock.calls[0][0])
-    expect(probe.sql).toContain('CROSS JOIN LATERAL')
-    expect(probe.params.filter((value) => value === 400)).toHaveLength(2)
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    const probe = statements().find((query) => isProbeStatement(query.sql))!
+    expect(probe.params).toContain(VECTOR_PROBE_DOCUMENT_LIMIT + 1)
+    expect(probe.sql).not.toContain('<=>')
+    expect(JSON.stringify(probe)).toContain('required_clause')
+    expect(
+      statements().filter((query) => query.sql.includes('WITH scored_search_candidates'))
+    ).toHaveLength(0)
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
-  it('reads vectors only for the bounded IDs when a broad scope has few candidates', async () => {
-    probePages.push([candidate('selected', 'allowed-source')])
-    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+  it('ranks the permitted set exactly when the traversal comes back underfilled', async () => {
+    probePages.push([{ id: 'doc-selected' }])
+    exactPages.push([{ id: 'selected' }])
+    queueRerank([candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
       { id: 'selected', content: 'Verified small scope', distance: 0.1 },
     ])
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
       { id: 'selected', content: 'Verified small scope', distance: 0.1 },
     ])
-    const probe = dbChainMockFns.execute.mock.calls[0][0]
-    expect(render(probe).sql).toContain('SELECT scoped_chunk.id')
-    expect(render(probe).sql).not.toContain('<=>')
-    expect(JSON.stringify(probe)).toContain('required_clause')
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0][0],
-        (node) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.embedding.id &&
-          Array.isArray(node.values) &&
-          node.values.length === 1 &&
-          node.values[0] === 'selected'
-      )
-    ).toBe(true)
+    const exact = statements().find((query) => isExactRanking(query.sql))!
+    expect(exact.sql).not.toContain('CROSS JOIN LATERAL')
+    expect(JSON.stringify(exact)).toContain('doc-selected')
     expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
   })
 
-  it.each([199, 200, 399])(
-    'ranks an exhausted scope of %s chunks once without repeating candidate search',
+  it.each([1, 200, 399])(
+    'ranks a permitted set of %s documents exactly without repeating the traversal',
     async (count) => {
-      const probe = Array.from({ length: count }, (_, index) => ({ id: `chunk-${index}` }))
-      probePages.push(probe)
-      queueTableRows(schemaMock.embedding, [candidate('chunk-0', 'allowed-source')])
+      probePages.push(Array.from({ length: count }, (_, index) => ({ id: `doc-${index}` })))
+      exactPages.push([{ id: 'chunk-0' }])
+      queueRerank([candidate('chunk-0', 'allowed-source')])
       queueTableRows(schemaMock.embedding, [
         { id: 'chunk-0', content: 'Authorized passage', distance: 0.1 },
       ])
       const rows = await handleVectorOnlySearch({ ...params, structuredFilters: undefined })
       expect(rows.map((row) => row.id)).toEqual(['chunk-0'])
-      expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
-      expect(
-        hasMockCondition(
-          dbChainMockFns.where.mock.calls[0][0],
-          (node) =>
-            node.type === 'inArray' &&
-            node.column === schemaMock.embedding.id &&
-            Array.isArray(node.values) &&
-            node.values.length === count
-        )
-      ).toBe(true)
-      expect(dbChainMockFns.orderBy).toHaveBeenCalledOnce()
+      expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(1)
+      expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(1)
     }
   )
 
-  it('keeps an underfilled ANN result instead of rescoring the whole projection', async () => {
-    probePages.push(Array.from({ length: 400 }, (_, index) => ({ id: `probe-${index}` })))
+  it('keeps an underfilled traversal when the permitted set is past the probe bound', async () => {
     queueCandidates([{ id: 'selected' }], 1)
+    probePages.push(
+      Array.from({ length: VECTOR_PROBE_DOCUMENT_LIMIT + 1 }, (_, index) => ({
+        id: `doc-${index}`,
+      }))
+    )
     queueRerank([candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
       { id: 'selected', content: 'Verified fallback', distance: 0.1 },
@@ -921,13 +990,12 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
       { id: 'selected', content: 'Verified fallback', distance: 0.1 },
     ])
-    const candidateQuery = dbChainMockFns.execute.mock.calls.find(([query]) =>
-      render(query).sql.includes('AS visible')
-    )![0]
+    const candidateQuery = statements().find((query) => query.sql.includes('AS visible'))!
     /** Widening the scan on underfill is what made this leg exceed its budget on a large corpus. */
-    expect(render(candidateQuery).sql).not.toContain('UNION ALL')
-    expect(render(candidateQuery).sql).not.toContain('filtered_scores')
-    expect(render(candidateQuery).sql).toContain('CROSS JOIN LATERAL')
+    expect(candidateQuery.sql).not.toContain('UNION ALL')
+    expect(candidateQuery.sql).not.toContain('filtered_scores')
+    expect(candidateQuery.sql).toContain('CROSS JOIN LATERAL')
+    expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
     expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
       'github_read_grant'
     )
@@ -1010,10 +1078,13 @@ describe('live repository authorization follows ranked candidates', () => {
     '%s ranks identifiers before verification and loads content under the full predicate',
     async (mode) => {
       const candidates = [candidate('selected', 'allowed-source')]
-      if (mode === 'vector' || mode === 'tag-vector')
-        queueTableRows(schemaMock.embedding, candidates)
+      if (mode === 'vector' || mode === 'tag-vector') {
+        probePages.push([{ id: 'doc-selected' }])
+        exactPages.push([{ id: 'selected' }])
+        queueRerank(candidates)
+      }
       if (mode === 'keyword') keywordPages.push(candidates)
-      else queueTableRows(schemaMock.embedding, candidates)
+      if (mode === 'tags') queueTableRows(schemaMock.embedding, candidates)
       queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
       const rows =
         mode === 'vector'
@@ -1035,23 +1106,19 @@ describe('live repository authorization follows ranked candidates', () => {
         expect(ranking).toContain('ORDER BY keyword_rank DESC, id LIMIT')
         expect(ranking).not.toContain('<=>')
         expect(ranking).not.toContain('"content"')
-      } else {
-        expect(
-          Object.keys(dbChainMockFns.select.mock.calls[mode === 'tags' ? 0 : 1][0]).sort()
-        ).toEqual(
-          [
-            'id',
-            'documentId',
-            'connectorId',
-            'liveAuthorizationSource',
-            ...(mode === 'tags' ? [] : ['distance']),
-          ].sort()
+      } else if (mode === 'tags') {
+        expect(Object.keys(dbChainMockFns.select.mock.calls[0][0]).sort()).toEqual(
+          ['id', 'documentId', 'connectorId', 'liveAuthorizationSource'].sort()
         )
+      } else {
+        const ranking = statements().find((query) => isExactRanking(query.sql))!
+        expect(ranking.sql).toContain('AS id FROM')
+        expect(ranking.sql).not.toContain('"content"')
       }
       const rankingOrder =
-        mode === 'keyword'
-          ? dbChainMockFns.execute.mock.invocationCallOrder[0]
-          : dbChainMockFns.select.mock.invocationCallOrder[0]
+        mode === 'tags'
+          ? dbChainMockFns.select.mock.invocationCallOrder[0]
+          : dbChainMockFns.execute.mock.invocationCallOrder[0]
       expect(rankingOrder).toBeLessThan(getForConnectors.mock.invocationCallOrder[0])
       expect(getForConnectors.mock.invocationCallOrder[0]).toBeLessThan(
         dbChainMockFns.select.mock.invocationCallOrder.at(-1)!
@@ -1080,10 +1147,13 @@ describe('live repository authorization follows ranked candidates', () => {
     async (mode) => {
       getForConnectors.mockResolvedValue(identity)
       const candidates = [{ ...candidate('gmail', 'gmail-source'), installationSource: false }]
-      if (mode === 'vector' || mode === 'tag-vector')
-        queueTableRows(schemaMock.embedding, candidates)
+      if (mode === 'vector' || mode === 'tag-vector') {
+        probePages.push([{ id: 'doc-gmail' }])
+        exactPages.push([{ id: 'gmail' }])
+        queueRerank(candidates)
+      }
       if (mode === 'keyword') keywordPages.push(candidates)
-      else queueTableRows(schemaMock.embedding, candidates)
+      if (mode === 'tags') queueTableRows(schemaMock.embedding, candidates)
       const hydrated = [{ id: 'gmail', content: 'current permitted content' }]
       queueTableRows(schemaMock.embedding, hydrated)
       const searchParams = { ...params, filters: { source: 'gmail' } }
@@ -1111,9 +1181,8 @@ describe('live repository authorization follows ranked candidates', () => {
       const hydration = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])
       expect(hydration).toContain('acl')
       expect(hydration).toContain('knowledgeConnectorMember')
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(
-        mode === 'keyword' ? 1 : mode === 'tags' ? 2 : 3
-      )
+      /** Vector ranking is raw SQL throughout; only hydration reads through the query builder. */
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(mode === 'tags' ? 2 : 1)
     }
   )
 
