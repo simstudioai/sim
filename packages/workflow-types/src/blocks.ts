@@ -54,6 +54,7 @@ export type SubBlockType =
   | 'text'
   | 'router-input'
   | 'table-selector'
+  | 'model-fallback-list'
   | 'column-selector'
   | 'modal'
 

@@ -604,6 +604,7 @@ describe.concurrent('Blocks Module', () => {
         'text',
         'router-input',
         'table-selector',
+        'model-fallback-list',
         'column-selector',
         'filter-builder',
         'sort-builder',
