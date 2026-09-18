@@ -222,6 +222,31 @@ describe('organization Search query navigation', () => {
 })
 
 describe('organization Search header placement', () => {
+  it('tracks result scroll edges after submitting from the centered layout', async () => {
+    await render()
+    await editDraft('Orion')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    const results = container.querySelector('[aria-label="Search results"]')!
+    const scroller = results.closest<HTMLDivElement>('.overflow-y-auto')!
+    Object.defineProperties(scroller, {
+      scrollHeight: { value: 1000 },
+      clientHeight: { value: 400 },
+    })
+    await act(async () => {
+      scroller.scrollTop = 100
+      scroller.dispatchEvent(new Event('scroll'))
+    })
+    expect(scroller.getAttribute('data-scroll-fade-top')).toBe('true')
+    expect(scroller.getAttribute('data-scroll-fade-bottom')).toBe('true')
+    await act(async () => {
+      scroller.scrollTop = 600
+      scroller.dispatchEvent(new Event('scroll'))
+    })
+    expect(scroller.getAttribute('data-scroll-fade-bottom')).toBeNull()
+  })
+
   it.each([
     ['pending', { isPending: true, isFetching: true }],
     ['failed', { isError: true, isPending: false }],
@@ -230,20 +255,27 @@ describe('organization Search header placement', () => {
       'timed out',
       { data: { results: [], retrieval: { status: 'partial', timedOutLegs: ['vector'] } } },
     ],
-  ])('keeps the initial %s search in the centered layout', async (_state, response) => {
+  ])('keeps a submitted %s search at the top', async (_state, response) => {
     mocks.search.mockReturnValue(response)
     await render('?q=Orion')
-    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(container.querySelector('h1')).toBeNull()
     expect(container.querySelector('[aria-label="Search results"]')).toBeNull()
     expect(document.activeElement).toBe(searchInput())
   })
 
-  it('docks only when results arrive without replacing the field or losing a draft', async () => {
+  it('moves to the top on submit and reveals filters after results without losing a draft', async () => {
     const completed = mocks.search(scope, 'Orion')
     mocks.search.mockReturnValue({ isPending: true, isFetching: true })
-    await render('?q=Orion')
+    await render()
+    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    await editDraft('Orion')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(container.querySelector('h1')).toBeNull()
+    expect(container.textContent).toContain('Searching…')
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
     const input = searchInput()
-    const filters = container.querySelector('[aria-label="Search filters"]')
     await editDraft('Unsubmitted draft')
     mocks.search.mockReturnValue(completed)
     await render('?q=Orion')
@@ -251,7 +283,8 @@ describe('organization Search header placement', () => {
     expect(searchInput()).toBe(input)
     expect(input.value).toBe('Unsubmitted draft')
     expect(document.activeElement).toBe(input)
-    expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
+    const filters = container.querySelector('[aria-label="Search filters"]')
+    expect(filters).not.toBeNull()
 
     mocks.search.mockReturnValue({
       data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
@@ -259,9 +292,16 @@ describe('organization Search header placement', () => {
     await render('?q=Orion')
     expect(container.querySelector('h1')).toBeNull()
     expect(searchInput()).toBe(input)
+    expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
 
+    mocks.search.mockReturnValue({ isPending: true, isFetching: true })
     await render('?q=Vega')
-    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(container.querySelector('h1')).toBeNull()
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
     expect(searchInput().value).toBe('Vega')
+
+    await render()
+    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
   })
 })
