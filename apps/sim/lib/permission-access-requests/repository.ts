@@ -1,5 +1,6 @@
 import { permissionAccessRequest, user } from '@sim/db/schema'
-import { and, count, desc, eq, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
+import { escapeLikePattern } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { storedAccessRequestTargetSchema } from '@/lib/permission-access-requests/schemas'
@@ -79,8 +80,21 @@ export async function listAccessRequestRecords(
   executor: DbOrTx,
   where: SQL,
   limit: number,
-  offset: number
+  offset: number,
+  search?: string
 ): Promise<AccessRequestList> {
+  const searchTerm = search?.trim()
+  const pattern = searchTerm ? `%${escapeLikePattern(searchTerm)}%` : undefined
+  const filteredWhere = and(
+    where,
+    pattern
+      ? or(
+          ilike(permissionAccessRequest.targetLabel, pattern),
+          ilike(user.name, pattern),
+          ilike(user.email, pattern)
+        )
+      : undefined
+  )
   const rows = await executor
     .select({
       row: {
@@ -100,14 +114,15 @@ export async function listAccessRequestRecords(
     })
     .from(permissionAccessRequest)
     .innerJoin(user, eq(user.id, permissionAccessRequest.requesterId))
-    .where(where)
+    .where(filteredWhere)
     .orderBy(desc(permissionAccessRequest.createdAt), desc(permissionAccessRequest.id))
     .limit(limit)
     .offset(offset)
   const [aggregate] = await executor
     .select({ total: count() })
     .from(permissionAccessRequest)
-    .where(where)
+    .innerJoin(user, eq(user.id, permissionAccessRequest.requesterId))
+    .where(filteredWhere)
   const total = aggregate?.total ?? 0
   return {
     requests: rows.map(({ row, requester }) => projectAccessRequest(row, requester)),

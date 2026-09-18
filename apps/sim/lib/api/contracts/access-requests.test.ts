@@ -8,10 +8,24 @@ import {
   accessRequestTargetSchema,
   createAccessRequestBodySchema,
   discoverAccessRequestsQuerySchema,
+  listOrganizationAccessRequestsQuerySchema,
   resolveAccessRequestBodySchema,
 } from '@/lib/api/contracts/access-requests'
 
 describe('access request contracts', () => {
+  it('normalizes and bounds organization request search without changing pagination', () => {
+    expect(
+      listOrganizationAccessRequestsQuerySchema.parse({
+        search: '  Tables  ',
+        status: 'pending',
+        offset: '25',
+        limit: '25',
+      })
+    ).toEqual({ search: 'Tables', status: 'pending', offset: 25, limit: 25 })
+    expect(
+      listOrganizationAccessRequestsQuerySchema.safeParse({ search: 'x'.repeat(201) }).success
+    ).toBe(false)
+  })
   it('requires one explicit scope and rejects mixed or empty scope IDs', () => {
     expect(
       accessRequestScopeSchema.safeParse({ kind: 'workspace', workspaceId: 'workspace-1' }).success

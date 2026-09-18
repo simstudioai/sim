@@ -78,9 +78,7 @@ export function AccessControl(props: AccessControlProps) {
         onChange={(value) => void setParams({ 'access-view': value, 'request-id': null })}
       />
       {params['access-view'] === 'requests' ? (
-        <SettingsPanel>
-          <OrganizationAccessRequests organizationId={props.organizationId} />
-        </SettingsPanel>
+        <OrganizationAccessRequests organizationId={props.organizationId} />
       ) : (
         <PermissionGroups {...props} />
       )}
@@ -150,9 +148,6 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
     ...groupIdUrlKeys,
   })
 
-  // Params scoped to the detail sub-view are cleared alongside the group id, so
-  // a tab/search/filter can't linger on the list URL after going back. nuqs
-  // batches these same-tick writes into a single URL update.
   const [, setGroupTab] = useQueryState(groupTabParam.key, {
     ...groupTabParam.parser,
     ...groupTabUrlKeys,
@@ -197,16 +192,13 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
     [organizationWorkspaces]
   )
 
-  const filteredGroups = useMemo(() => {
-    if (!searchTerm.trim()) return permissionGroups
-    const searchLower = searchTerm.toLowerCase()
-    return permissionGroups.filter((g) => g.name.toLowerCase().includes(searchLower))
-  }, [permissionGroups, searchTerm])
-
-  const selectedGroup = useMemo(
-    () => (selectedGroupId ? permissionGroups.find((g) => g.id === selectedGroupId) : undefined),
-    [permissionGroups, selectedGroupId]
-  )
+  const searchLower = searchTerm.trim().toLowerCase()
+  const filteredGroups = searchLower
+    ? permissionGroups.filter((group) => group.name.toLowerCase().includes(searchLower))
+    : permissionGroups
+  const selectedGroup = selectedGroupId
+    ? permissionGroups.find((group) => group.id === selectedGroupId)
+    : undefined
 
   const handleCreatePermissionGroup = async () => {
     if (!newGroupName.trim() || !organizationId) return
@@ -284,7 +276,7 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
 
   if (groupsError) {
     return (
-      <SettingsPanel>
+      <SettingsPanel search={listSearch}>
         <SettingsQueryErrorState
           error={groupsError}
           fallback='Failed to load permission groups'
@@ -392,9 +384,19 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
               </Label>
             </div>
           </ChipModalField>
-          <ChipModalField type='custom' title='Workspaces'>
-            <div className='flex flex-col gap-1.5'>
+          <ChipModalField
+            type='custom'
+            title='Workspaces'
+            hint={
+              newGroupIsDefault
+                ? undefined
+                : "Applies to all members of the selected workspaces. Restrict to specific people later from the group's Members section."
+            }
+          >
+            {(aria) => (
               <WorkspaceSelect
+                {...aria}
+                aria-label='Workspaces'
                 workspaceIds={newGroupWorkspaceIds}
                 onChange={setNewGroupWorkspaceIds}
                 options={workspaceOptions}
@@ -403,13 +405,7 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
                 allowAllWorkspaces={newGroupIsDefault}
                 fullWidth
               />
-              {!newGroupIsDefault && (
-                <p className='text-[var(--text-muted)] text-xs'>
-                  Applies to all members of the selected workspaces. Restrict to specific people
-                  later from the group's Members section.
-                </p>
-              )}
-            </div>
+            )}
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>

@@ -11,8 +11,13 @@ export const accessRequestKeys = {
   lists: () => [...accessRequestKeys.all, 'list'] as const,
   mine: (scope: AccessRequestScope, offset: number, requestId?: string) =>
     [...accessRequestKeys.lists(), 'mine', scope, offset, requestId ?? ''] as const,
-  organization: (organizationId: string, offset: number, status: AccessRequestStatus | 'all') =>
-    [...accessRequestKeys.lists(), 'organization', organizationId, offset, status] as const,
+  organization: (
+    organizationId: string,
+    offset: number,
+    status: AccessRequestStatus | 'all',
+    search = ''
+  ) =>
+    [...accessRequestKeys.lists(), 'organization', organizationId, offset, status, search] as const,
   discoveries: () => [...accessRequestKeys.all, 'discovery'] as const,
   discovery: (query: DiscoverAccessRequestsQuery) =>
     [...accessRequestKeys.discoveries(), query] as const,

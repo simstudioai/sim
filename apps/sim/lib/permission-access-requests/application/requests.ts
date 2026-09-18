@@ -517,6 +517,7 @@ interface OrganizationListInput extends OrganizationInput {
   limit: number
   offset: number
   status?: AccessRequestStatus
+  search?: string
 }
 const organizationScope = (input: OrganizationInput): AccessRequestScope => ({
   kind: 'organization',
@@ -534,7 +535,8 @@ export const listOrganizationAccessRequests = defineAuthorizedAccessRequestUseCa
         input.status ? eq(permissionAccessRequest.status, input.status) : undefined
       )!,
       input.limit,
-      input.offset
+      input.offset,
+      input.search
     ),
 })
 

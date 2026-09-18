@@ -20,5 +20,7 @@ describe('access request URL bounds', () => {
     expect(accessRequestSearchParams.requestId.parse('request-1')).toBe('request-1')
     expect(accessRequestSearchParams.requestId.parse('x'.repeat(129))).toBeNull()
     expect(accessRequestSearchParams.search.parse('x'.repeat(201))).toBeNull()
+    expect(accessReviewSearchParams['request-search'].parse('Tables')).toBe('Tables')
+    expect(accessReviewSearchParams['request-search'].parse('x'.repeat(201))).toBeNull()
   })
 })

@@ -13,7 +13,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipLink, cn, Search, Tooltip } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, cn, Tooltip } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -48,6 +49,7 @@ export interface SettingsHeaderSearch {
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  maxLength?: number
 }
 
 export interface SettingsBackAction {
@@ -110,7 +112,12 @@ function computeSignature(config: SettingsHeaderConfig | null): string {
       action.onPrefetch ? 1 : 0,
     ]),
     search: config.search
-      ? [config.search.value, config.search.placeholder ?? '', config.search.disabled ?? false]
+      ? [
+          config.search.value,
+          config.search.placeholder ?? '',
+          config.search.disabled ?? false,
+          config.search.maxLength ?? null,
+        ]
       : null,
   })
 }
@@ -333,6 +340,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
               value={search.value}
               onChange={(event) => configRef?.current?.search?.onChange(event.target.value)}
               disabled={search.disabled}
+              maxLength={search.maxLength}
               autoComplete='off'
               className='w-full'
             />
