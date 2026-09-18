@@ -616,6 +616,73 @@ describe('AgentBlockHandler', () => {
       expect(blockLog).toMatchObject({ modelFallbacks: ['gpt-4o'] })
     })
 
+    it('holds the fallbacks on a try the executor will replay', async () => {
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+      const blockLog = openLog()
+      blockLog.modelFallbacks = ['stale-from-earlier-run']
+
+      await expect(
+        handler.execute(
+          { ...mockContext, blockLogs: [blockLog] },
+          mockBlock,
+          { ...baseInputs, fallbackModels: [{ model: 'claude-sonnet-5' }] },
+          { nodeId: mockBlock.id, retry: { attempt: 1, maxTries: 3, isFinalTry: false } }
+        )
+      ).rejects.toThrow('overloaded')
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      expect(mockAgentLogger.info).toHaveBeenCalledWith('Fallback models held for the final try', {
+        blockId: mockBlock.id,
+        attempt: 1,
+        maxTries: 3,
+      })
+      expect(mockAgentLogger.warn).not.toHaveBeenCalledWith(
+        'Agent model failed; trying fallback',
+        expect.anything()
+      )
+      expect(blockLog.modelFallbacks).toBeUndefined()
+    })
+
+    it('walks the chain on the final try, and on a block that never retries', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('overloaded'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
+        .mockRejectedValueOnce(new Error('overloaded'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
+      const inputs = { ...baseInputs, fallbackModels: [{ model: 'claude-sonnet-5' }] }
+
+      const onFinalTry = await handler.execute(mockContext, mockBlock, inputs, {
+        nodeId: mockBlock.id,
+        retry: { attempt: 3, maxTries: 3, isFinalTry: true },
+      })
+      const withoutPolicy = await handler.execute(mockContext, mockBlock, inputs, {
+        nodeId: mockBlock.id,
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(4)
+      expect((onFinalTry as { model: string }).model).toBe('claude-sonnet-5')
+      expect((withoutPolicy as { model: string }).model).toBe('claude-sonnet-5')
+      expect(mockAgentLogger.info).not.toHaveBeenCalledWith(
+        'Fallback models held for the final try',
+        expect.anything()
+      )
+    })
+
+    it('says nothing about held fallbacks when none are configured', async () => {
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+
+      await expect(
+        handler.execute(mockContext, mockBlock, baseInputs, {
+          nodeId: mockBlock.id,
+          retry: { attempt: 1, maxTries: 2, isFinalTry: false },
+        })
+      ).rejects.toThrow('overloaded')
+      expect(mockAgentLogger.info).not.toHaveBeenCalledWith(
+        'Fallback models held for the final try',
+        expect.anything()
+      )
+    })
+
     it('never falls back on a deep-research follow-up turn', async () => {
       mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
 

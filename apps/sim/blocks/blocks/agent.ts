@@ -37,7 +37,7 @@ const logger = createLogger('AgentBlock')
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
 const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
 
-const FALLBACK_MODELS_DESCRIPTION = `Ordered models tried in sequence when the request to the selected model fails. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max ${MAX_FALLBACK_MODELS}.`
+const FALLBACK_MODELS_DESCRIPTION = `Ordered models tried in sequence, once each, when the request to the selected model fails; with Retry on fail, after the selected model's tries run out. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max ${MAX_FALLBACK_MODELS}.`
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()

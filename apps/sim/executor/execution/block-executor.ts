@@ -44,6 +44,7 @@ import {
 import {
   type BlockHandler,
   type BlockLog,
+  type BlockRetryAttempt,
   type BlockState,
   type ExecutionContext,
   getNextExecutionOrder,
@@ -277,11 +278,12 @@ export class BlockExecutor {
        * token is drained, so a replay cannot duplicate output the client has
        * already seen.
        */
-      const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, () =>
-        handler.executeWithNode
-          ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
-          : handler.execute(blockCtx, block, resolvedInputs, nodeMetadata)
-      )
+      const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, (retry) => {
+        const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
+        return handler.executeWithNode
+          ? handler.executeWithNode(blockCtx, block, resolvedInputs, invocationMetadata)
+          : handler.execute(blockCtx, block, resolvedInputs, invocationMetadata)
+      })
 
       completedHandlerCost = readTrustedExecutionCost(output)
 
@@ -546,15 +548,20 @@ export class BlockExecutor {
    * Rethrows the final try's error so the caller's catch — and with it the error
    * port — behaves exactly as it does for a block that never retried. Retrying
    * only ever delays the existing outcome; it never changes it.
+   *
+   * Each try is told where it sits in the policy (`BlockRetryAttempt`). The
+   * policy stays here: a handler cannot ask for another try or skip the wait,
+   * it can only hold work for the try after which no other follows, the way the
+   * Agent block keeps its fallback models for the final try.
    */
   private async runHandlerWithRetry<T>(
     ctx: ExecutionContext,
     block: SerializedBlock,
     blockLog: BlockLog | undefined,
-    invoke: () => Promise<T>
+    invoke: (retry: BlockRetryAttempt | undefined) => Promise<T>
   ): Promise<T> {
     const policy = resolveBlockRetryPolicy(block)
-    if (!policy) return invoke()
+    if (!policy) return invoke(undefined)
 
     const shouldAccumulateFunctionCost = block.metadata?.id === BlockType.FUNCTION
     let accumulatedFunctionCost: TrustedExecutionCost | undefined
@@ -563,7 +570,11 @@ export class BlockExecutor {
       for (;;) {
         tries++
         try {
-          const output = await invoke()
+          const output = await invoke({
+            attempt: tries,
+            maxTries: policy.maxTries,
+            isFinalTry: tries >= policy.maxTries,
+          })
           if (!shouldAccumulateFunctionCost || !accumulatedFunctionCost || !isRecordLike(output)) {
             return output
           }

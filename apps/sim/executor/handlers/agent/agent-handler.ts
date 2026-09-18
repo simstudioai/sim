@@ -75,7 +75,13 @@ import type {
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
-import type { BlockHandler, ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
+import type {
+  BlockHandler,
+  BlockNodeMetadata,
+  ExecutionContext,
+  StreamingExecution,
+  UserFile,
+} from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -283,7 +289,8 @@ export class AgentBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: AgentInputs
+    inputs: AgentInputs,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
     ctx.mcpBlockId = block.id
     const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
@@ -483,18 +490,32 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       /**
+       * Retry on fail retries the selected model; the fallbacks join only on the
+       * try after which the executor promises no other. Until then a failure of
+       * the primary is left to escape, so the executor's policy can replay it.
+       *
        * A follow-up turn of a deep-research interaction lives on the primary's
        * provider; another model has none of that conversation, so a green answer
        * from it would be built on a fresh context. Such a request never falls back.
        */
-      const fallbackCandidates = modelInputs.previousInteractionId
-        ? []
-        : normalizeFallbackModels(filteredInputs.fallbackModels).filter(
-            (candidate) => candidate.model.toLowerCase() !== model.toLowerCase()
-          )
-      if (modelInputs.previousInteractionId && filteredInputs.fallbackModels?.length) {
+      const configuredFallbacks = normalizeFallbackModels(filteredInputs.fallbackModels)
+      const retry = nodeMetadata?.retry
+      const fallbacksHeld = retry !== undefined && !retry.isFinalTry
+      const fallbackCandidates =
+        modelInputs.previousInteractionId || fallbacksHeld
+          ? []
+          : configuredFallbacks.filter(
+              (candidate) => candidate.model.toLowerCase() !== model.toLowerCase()
+            )
+      if (configuredFallbacks.length > 0 && modelInputs.previousInteractionId) {
         logger.info('Fallback models skipped for a deep-research follow-up turn', {
           blockId: block.id,
+        })
+      } else if (configuredFallbacks.length > 0 && fallbacksHeld) {
+        logger.info('Fallback models held for the final try', {
+          blockId: block.id,
+          attempt: retry.attempt,
+          maxTries: retry.maxTries,
         })
       }
       const candidates: ModelCandidate[] = [
@@ -2397,8 +2418,9 @@ export class AgentBlockHandler implements BlockHandler {
    *
    * Which model serves the request is decided here, inside one handler
    * invocation. How many invocations the block gets is the executor's retry
-   * policy, which wraps this whole chain: with retry on, every try walks the
-   * chain again from the primary.
+   * policy, and the caller keeps the fallbacks out of the candidate list until
+   * the final try, so with retry on the block runs the primary alone on every
+   * earlier try and walks the whole chain once.
    *
    * Falling through is deliberately as indiscriminate as block retry
    * (`isRetryableBlockError`): a provider error carries no status, so an
@@ -2678,7 +2700,7 @@ export class AgentBlockHandler implements BlockHandler {
    * the executor pushes the entry before running the handler with `endedAt`
    * still empty, which is what tells it apart from earlier runs of the same
    * block in a loop or an earlier retry. An empty list clears the field, since
-   * a retry that succeeds on the primary reuses the entry a failed try wrote.
+   * every try reuses one entry and only the final try can write failed models.
    *
    * A model id can itself come from a resolved reference, so the names are
    * projected through the same secret registry as every other diagnostic and
