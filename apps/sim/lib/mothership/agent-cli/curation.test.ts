@@ -106,6 +106,8 @@ describe('curateBlockDetail', () => {
         type: 'array',
         items: { anyOf: expect.any(Array) },
       })
+      expect(JSON.stringify(field?.valueSchema)).toContain('usageControlExpression')
+      expect(JSON.stringify(field?.valueSchema)).toContain('force')
       expect(field?.toolBinding?.selectionMode).toBe(id === 'agent' ? 'explicit' : 'additive')
       expect(field?.toolBinding?.naming).toContain(
         id === 'agent' ? 'operations[operation].toolId' : 'call_integration_tool'

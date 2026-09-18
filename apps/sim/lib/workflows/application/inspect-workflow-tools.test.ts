@@ -325,13 +325,35 @@ describe('configured workflow tool inspection', () => {
     const result = await inspect()
     expect(result.selected[0]).toMatchObject({
       callableName: 'mcp-server-read',
-      usageControl: 'auto',
+      usageControl: 'force',
     })
     expect(result.selected[0].fixedArgumentNames).toBeUndefined()
     expect(result.selected[1].status).toBe('unavailable')
     expect(result.ambient?.total).toBe(2)
     expect(JSON.stringify(result)).not.toContain('never-return')
   })
+
+  it.each(['<start.mode>', 'none'])(
+    'reports Sim Chat variable mode %s without discovering disabled or unresolved tools',
+    async (usageControlExpression) => {
+      save(
+        'mothership',
+        [
+          {
+            type: 'mcp',
+            usageControl: 'force',
+            usageControlExpression,
+            params: { serverId: 'server', toolName: 'read' },
+          },
+        ],
+        { data: { canonicalModes: { '0:agentToolUsageControl': 'advanced' } } }
+      )
+      expect((await inspect()).selected[0].status).toBe(
+        usageControlExpression === 'none' ? 'disabled' : 'unresolved'
+      )
+      expect(mocks.mcp).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not discover tools from a disabled block', async () => {
     save('mothership', [{ type: 'mcp', params: { serverId: 'server', toolName: 'read' } }], {

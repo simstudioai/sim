@@ -283,26 +283,32 @@ describe('catalog authorization', () => {
   })
 })
 
-it('exposes selected MCP operations without enabling sibling operations', async () => {
-  queueChat('agent')
-  mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
-  mocks.mcp.mockResolvedValue([
-    { name: 'mcp-abc-read', service: 'mcp:mcp-abc', description: 'Read', input_schema: {} },
-    { name: 'mcp-abc-write', service: 'mcp:mcp-abc', description: 'Write', input_schema: {} },
-  ])
-  const result = await readIntegrationCatalog.execute({
-    principal: principal(),
-    input: {
-      ...input,
-      mode: 'agent',
-      workspaceId: 'workspace-1',
-      mcpToolIds: ['mcp-abc-read'],
-      service: 'mcp:mcp-abc',
-    },
-  })
-  expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)
-  expect(result.operations.map((operation) => operation.toolId)).toEqual(['mcp-abc-read'])
-})
+it.each([undefined, 'mcp-abc-write'])(
+  'exposes selected MCP operations without enabling sibling operations (exact lookup: %s)',
+  async (toolId) => {
+    queueChat('agent')
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.mcp.mockResolvedValue([
+      { name: 'mcp-abc-read', service: 'mcp:mcp-abc', description: 'Read', input_schema: {} },
+      { name: 'mcp-abc-write', service: 'mcp:mcp-abc', description: 'Write', input_schema: {} },
+    ])
+    const result = await readIntegrationCatalog.execute({
+      principal: principal(),
+      input: {
+        ...input,
+        mode: 'agent',
+        workspaceId: 'workspace-1',
+        mcpToolIds: ['mcp-abc-read'],
+        service: 'mcp:mcp-abc',
+        ...(toolId ? { toolId } : {}),
+      },
+    })
+    expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)
+    expect(result.operations.map((operation) => operation.toolId)).toEqual(
+      toolId ? [] : ['mcp-abc-read']
+    )
+  }
+)
 it('keeps native discovery available in organization chats with tagged MCP servers', async () => {
   queueChat('agent')
   const result = await readIntegrationCatalog.execute({

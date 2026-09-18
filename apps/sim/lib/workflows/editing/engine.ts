@@ -360,7 +360,7 @@ function applyAgentToolUsageControlModesAfterEdits(
   blocks: Record<string, BlockState> | undefined
 ): void {
   for (const [blockId, block] of Object.entries(blocks ?? {})) {
-    if (block.type !== 'agent') continue
+    if (block.type !== 'agent' && block.type !== 'mothership') continue
     const tools = coerceObjectArray(block.subBlocks?.tools?.value).array
     if (!tools) continue
     const originalTools = coerceObjectArray(

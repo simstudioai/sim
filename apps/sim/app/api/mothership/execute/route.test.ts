@@ -424,6 +424,7 @@ describe('mothership private trace provenance transport', () => {
           mcpTools: [
             {
               type: 'mcp',
+              usageControl: 'force',
               params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'search_transcripts' },
             },
             {
@@ -459,6 +460,7 @@ describe('mothership private trace provenance transport', () => {
       integrationCatalog: {
         mcpServerIds: ['123'],
         mcpToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
+        requiredToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
         mcpExecution: {
           workflowId: 'workflow-1',
           executionId: 'execution-1',

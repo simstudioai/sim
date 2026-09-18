@@ -308,7 +308,7 @@ export function createBlockFromParams(
     if (validatedInputs) {
       updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
       const tools = blockState.subBlocks.tools?.value
-      if (params.type === 'agent' && Array.isArray(tools)) {
+      if ((params.type === 'agent' || params.type === 'mothership') && Array.isArray(tools)) {
         blockState.data = {
           ...blockState.data,
           canonicalModes: applyAgentToolUsageControlModes(tools, blockState.data?.canonicalModes),

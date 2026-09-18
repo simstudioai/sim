@@ -60,14 +60,22 @@ describe('tool binding authoring contract', () => {
   })
 
   it('publishes and validates the narrower Sim Chat MCP contract', () => {
-    const accepted = [mcp, { type: 'mcp-server-advanced', params: { serverId: 'server-2' } }]
+    const accepted = [
+      mcp,
+      { ...mcp, usageControl: 'force' },
+      { ...mcp, usageControlExpression: '<start.mode>' },
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: 'server-2' },
+        usageControlExpression: '<start.mode>',
+      },
+    ]
     expect(getToolBindingAuthoringSchema('mothership')?.safeParse(accepted).success).toBe(true)
     expect(validateToolBindingAuthoring('mothership', accepted)).toBeUndefined()
     for (const tool of [
       integration,
       { type: 'custom-tool', customToolId: 'custom-1' },
-      { ...mcp, usageControl: 'force' },
-      { ...mcp, usageControlExpression: '<start.mode>' },
+      { ...mcp, usageControl: 'sometimes' },
       { ...mcp, params: { ...mcp.params, query: 'fixed' } },
     ]) {
       expect(getToolBindingAuthoringSchema('mothership')?.safeParse([tool]).success).toBe(false)
