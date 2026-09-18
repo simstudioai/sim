@@ -34,6 +34,7 @@ function ActionButton({ icon: Icon, label, onClick, disabled }: ActionButtonProp
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <Button
+          aria-label={label}
           variant='ghost'
           onClick={onClick}
           disabled={disabled}
@@ -129,6 +130,7 @@ export function ResourceActionBar({
                 <Tooltip.Trigger asChild>
                   <DropdownMenuTrigger asChild>
                     <Button
+                      aria-label='Move'
                       variant='ghost'
                       disabled={actionsDisabled}
                       className={ACTION_BUTTON_CLASS}
