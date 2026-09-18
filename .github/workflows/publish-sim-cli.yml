@@ -20,13 +20,6 @@ concurrency:
 
 jobs:
   publish-npm:
-    # Job-level, not on the build step: `bun publish` runs `prepublishOnly`,
-    # which rebuilds `dist` a second time, and that second build is the one
-    # that ships. A build without the token reports nothing. See
-    # docs/cli/usage-data.
-    env:
-      SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
-      SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
@@ -73,8 +66,15 @@ jobs:
         working-directory: packages/sim-cli
         run: bun run type-check
 
+      # The usage-reporting destination is baked into the bundle at build time
+      # (docs/cli/usage-data), so only the two steps that build it get the
+      # token. Every other step, the tests above in particular, runs without
+      # it: a test that runs a real command must never report to production.
       - name: Build package
         working-directory: packages/sim-cli
+        env:
+          SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
+          SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
         run: bun run build
 
       - name: Resolve release channel
@@ -140,11 +140,15 @@ jobs:
             exit 1
           fi
 
+      # `bun publish` runs `prepublishOnly`, which rebuilds `dist`, and that
+      # rebuild is what ships, so it needs the token as well.
       - name: Publish to npm
         working-directory: packages/sim-cli
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
+          SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
+          SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
         run: bun publish --access public --tag "$NPM_TAG" --no-save
 
       - name: Summarize release
