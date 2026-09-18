@@ -364,7 +364,7 @@ export function EnrichmentDetails({
           <div className='flex h-full flex-col px-3.5 pt-3'>
             <div className='flex items-center justify-between'>
               <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
-              <Button variant='ghost' className='p-1!' onClick={onClose} aria-label='Close'>
+              <Button variant='ghost' iconPadding='sm' onClick={onClose} aria-label='Close'>
                 <X className='size-[14px]' />
               </Button>
             </div>

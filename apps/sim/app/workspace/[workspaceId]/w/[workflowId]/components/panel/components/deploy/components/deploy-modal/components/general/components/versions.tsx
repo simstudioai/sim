@@ -330,8 +330,8 @@ export function Versions({
                     <Button
                       aria-label={v.description ? 'Edit description' : 'Add description'}
                       variant='ghost'
+                      iconPadding='sm'
                       className={cn(
-                        'p-1!',
                         !v.description &&
                           'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
                       )}
@@ -359,7 +359,7 @@ export function Versions({
                     <Button
                       aria-label='Version actions'
                       variant='ghost'
-                      className='p-1!'
+                      iconPadding='sm'
                       disabled={isPromotingVersion}
                       onClick={(e) => e.stopPropagation()}
                     >

@@ -238,7 +238,8 @@ export function EnrichmentConfig({
             variant='ghost'
             size='sm'
             onClick={onBack}
-            className='size-7 flex-none p-1!'
+            iconPadding='sm'
+            className='size-7 flex-none'
             aria-label='Back to enrichments'
           >
             <ArrowLeft className='size-[14px]' />
@@ -249,7 +250,8 @@ export function EnrichmentConfig({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='size-7 flex-none p-1!'
+          iconPadding='sm'
+          className='size-7 flex-none'
           aria-label='Close'
         >
           <X className='size-[14px]' />

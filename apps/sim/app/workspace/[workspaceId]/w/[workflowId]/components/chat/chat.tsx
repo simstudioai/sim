@@ -954,7 +954,8 @@ export function Chat() {
               <Button
                 aria-label='Chat actions'
                 variant='ghost'
-                className='-m-1.5 p-1.5!'
+                iconPadding='md'
+                className='-m-1.5'
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className='size-[14px]' />
@@ -996,7 +997,8 @@ export function Chat() {
           <Button
             aria-label='Close chat'
             variant='ghost'
-            className='-m-1.5 p-1.5!'
+            iconPadding='md'
+            className='-m-1.5'
             onClick={handleClose}
           >
             <X className='size-[16px]' />

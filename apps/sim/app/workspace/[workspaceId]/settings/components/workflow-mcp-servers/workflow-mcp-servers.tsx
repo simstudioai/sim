@@ -586,7 +586,8 @@ function ServerDetailView({
                         variant='ghost'
                         aria-label={copiedConfig ? 'Configuration copied' : 'Copy configuration'}
                         onClick={() => handleCopyConfig(server.isPublic, server.name)}
-                        className='-my-1.5 p-1.5!'
+                        iconPadding='md'
+                        className='-my-1.5'
                       >
                         {copiedConfig ? (
                           <Check className='size-[14px]' />
