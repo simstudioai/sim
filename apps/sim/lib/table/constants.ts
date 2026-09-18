@@ -12,6 +12,9 @@ import { env, envNumber } from '@/lib/core/config/env'
  */
 export const MAX_TABLE_BATCH_ITEMS = 100
 
+/** Maximum length of the table identifier stored by a reference column. */
+export const MAX_REFERENCE_TABLE_ID_LENGTH = 128
+
 export const DEFAULT_TABLE_VIEW_NAME = 'Default'
 
 export const TABLE_LIMITS = {

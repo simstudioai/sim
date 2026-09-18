@@ -300,6 +300,8 @@ export const workspaceHostContextSchema = z.object({
       knowledgeMemberAccess: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate administrator mode. */
       knowledgeSourceMirroredAccess: z.boolean().optional(),
+      /** Optional for rolling compatibility with app versions that predate the Reference gate. */
+      referenceColumns: z.boolean().optional(),
     })
     .optional(),
   /** Optional for rolling compatibility with app versions that predate deployment projection. */

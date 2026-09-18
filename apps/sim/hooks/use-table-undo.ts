@@ -391,6 +391,9 @@ export function useTableUndo({
                   ...(action.columnOptions ? { options: action.columnOptions } : {}),
                   ...(action.columnMultiple ? { multiple: true } : {}),
                   ...(action.columnCurrencyCode ? { currencyCode: action.columnCurrencyCode } : {}),
+                  ...(action.columnReferenceTableId
+                    ? { referenceTableId: action.columnReferenceTableId }
+                    : {}),
                   position: action.columnPosition,
                 },
                 {

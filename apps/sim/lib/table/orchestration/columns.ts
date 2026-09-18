@@ -14,6 +14,7 @@ import {
   updateColumnConstraints,
   updateColumnCurrency,
   updateColumnOptions,
+  updateColumnReference,
   updateColumnType,
 } from '@/lib/table/columns/service'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
@@ -42,6 +43,7 @@ export interface PerformUpdateTableColumnParams {
     options?: unknown
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }
   requestId?: string
   expectedWorkspaceId?: string
@@ -114,6 +116,7 @@ export async function performUpdateTableColumn(
   const typedWriteRuns =
     typeChanging ||
     updates.currencyCode !== undefined ||
+    updates.referenceTableId !== undefined ||
     options !== undefined ||
     updates.multiple !== undefined
   const constraintsWriteRuns =
@@ -139,6 +142,21 @@ export async function performUpdateTableColumn(
         'validation'
       )
     }
+  }
+  if (updates.referenceTableId !== undefined && resultingType !== 'reference') {
+    return fail(
+      `Cannot set a reference table on column "${columnName}" of type "${resultingType}"`,
+      'validation'
+    )
+  }
+  if (
+    (updates.options !== undefined || updates.multiple !== undefined) &&
+    resultingType !== 'select'
+  ) {
+    return fail(
+      `Cannot set select metadata on column "${columnName}" of type "${resultingType}"`,
+      'validation'
+    )
   }
   // The rename runs last, so a name already taken would fail after the typed
   // write committed. This is the only rename failure a caller can cause;
@@ -177,6 +195,9 @@ export async function performUpdateTableColumn(
           ...(options !== undefined ? { options } : {}),
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
           ...(updates.currencyCode !== undefined ? { currencyCode: updates.currencyCode } : {}),
+          ...(updates.referenceTableId !== undefined
+            ? { referenceTableId: updates.referenceTableId }
+            : {}),
           // Forwarded so the conversion validates against the constraints this
           // same request is about to set, not the column's current ones.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
@@ -195,6 +216,19 @@ export async function performUpdateTableColumn(
           tableId,
           columnName: columnRef,
           currencyCode: updates.currencyCode,
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...renameWithTypedWrite,
+        },
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
+      )
+    } else if (updates.referenceTableId !== undefined) {
+      updated = await updateColumnReference(
+        {
+          tableId,
+          columnName: columnRef,
+          referenceTableId: updates.referenceTableId,
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,

@@ -70,6 +70,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       return validationErrorResponse(error, 'Invalid request data')
     }
 
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
+
     const msg = rootErrorMessage(error)
     if (
       msg.includes('already exists') ||

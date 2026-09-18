@@ -4700,7 +4700,7 @@ export const QueryUserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}. Reference filter values are row IDs from the target table.',
           },
           limit: {
             type: 'number',
@@ -6053,7 +6053,54 @@ export const TableColumns: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }; type may be string, number, boolean, date, json, select, or ttl. Select (enum) columns also take { options: [names], multiple?: true } — options is required for select. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'Column definition for add_column: { name, type, unique?, position? }. Type may be string, number, currency, boolean, date, json, select, ttl, or reference. Currency optionally takes currencyCode; select takes { options: [names], multiple?: true }; reference requires referenceTableId. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+            properties: {
+              currencyCode: {
+                type: 'string',
+                description:
+                  'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+              },
+              multiple: {
+                type: 'boolean',
+                description:
+                  'Whether a select cell may hold several options (default false). Switching true → false fails if any row has more than one selected.',
+              },
+              name: { type: 'string' },
+              options: {
+                type: 'array',
+                description:
+                  'Choices for a select (enum) column as display names, e.g. ["Open", "Closed"]. Required when creating or converting to select. On update_column this REPLACES the whole list, matched BY NAME — send the full list including options you keep; omitting one deletes it and clears its cells. Max 100.',
+                items: { type: 'string' },
+              },
+              position: { type: 'integer' },
+              referenceTableId: {
+                type: 'string',
+                description:
+                  'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+              },
+              type: {
+                type: 'string',
+                description:
+                  'Column type for add_column: string, number, currency, boolean, date, json, select, ttl, or reference.',
+                enum: [
+                  'string',
+                  'number',
+                  'currency',
+                  'boolean',
+                  'date',
+                  'json',
+                  'select',
+                  'ttl',
+                  'reference',
+                ],
+              },
+              unique: {
+                type: 'boolean',
+                description:
+                  'Set or clear the column unique constraint (update_column; not supported on select columns)',
+              },
+            },
+            required: ['name', 'type'],
           },
           columnName: {
             type: 'string',
@@ -6066,6 +6113,11 @@ export const TableColumns: ToolCatalogEntry = {
               'Array of column names to delete at once (preferred for multi-column delete_column)',
             items: { type: 'string' },
           },
+          currencyCode: {
+            type: 'string',
+            description:
+              'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+          },
           multiple: {
             type: 'boolean',
             description:
@@ -6075,7 +6127,18 @@ export const TableColumns: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type for update_column: string, number, boolean, date, json, select, ttl. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'New column type for update_column: string, number, currency, boolean, date, json, select, ttl, reference. Converting to currency optionally takes currencyCode; converting to reference requires referenceTableId; converting to select requires options and fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+            enum: [
+              'string',
+              'number',
+              'currency',
+              'boolean',
+              'date',
+              'json',
+              'select',
+              'ttl',
+              'reference',
+            ],
           },
           options: {
             type: 'array',
@@ -6087,6 +6150,11 @@ export const TableColumns: ToolCatalogEntry = {
             type: 'string',
             description:
               'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+          },
+          referenceTableId: {
+            type: 'string',
+            description:
+              'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           unique: {
@@ -6254,7 +6322,7 @@ export const TableManage: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; types are string, number, boolean, date, json, select, and ttl. A select (enum) column also requires options (display names) and takes multiple?. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; types are string, number, currency, boolean, date, json, select, ttl, and reference. Currency takes currencyCode?, reference requires referenceTableId, and select requires options (display names) and takes multiple?. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
           },
           tableId: {
             type: 'string',
@@ -6300,12 +6368,12 @@ export const TableRows: ToolCatalogEntry = {
           data: {
             type: 'object',
             description:
-              'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. On insert_row, a missing or null TTL means no expiration. On update_row and update_rows_by_filter, omit the TTL to preserve its current value or set it to null to clear the expiration.',
+              'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. On insert_row, a missing or null TTL means no expiration. On update_row and update_rows_by_filter, omit the TTL to preserve its current value or set it to null to clear the expiration. Reference cells take a row ID from the target table.',
           },
           filter: {
             type: 'object',
             description:
-              'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. Reference filter values are row IDs from the target table.',
           },
           limit: {
             type: 'number',
@@ -6331,14 +6399,14 @@ export const TableRows: ToolCatalogEntry = {
           rows: {
             type: 'array',
             description:
-              'Array of row data objects (required for batch_insert_rows). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; a missing or null TTL means no expiration.',
+              'Array of row data objects (required for batch_insert_rows). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; a missing or null TTL means no expiration. Reference cells take a row ID from the target table.',
             items: { type: 'object' },
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           updates: {
             type: 'array',
             description:
-              "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+              "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; omit a row's TTL key to preserve it or set it to null to clear the expiration. Reference cells take a row ID from the target table.",
             items: {
               type: 'object',
               properties: { data: { type: 'object' }, rowId: { type: 'string' } },
@@ -6348,7 +6416,7 @@ export const TableRows: ToolCatalogEntry = {
           values: {
             type: 'object',
             description:
-              "Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName). For a TTL column, values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; set a row's value to null to clear its expiration, and omit the row from the map to leave it unchanged.",
+              "Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName). For a TTL column, values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; set a row's value to null to clear its expiration, and omit the row from the map to leave it unchanged. Reference cells take a row ID from the target table.",
           },
         },
         required: ['tableId'],
@@ -6674,7 +6742,53 @@ export const UserTable: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }. Type may be string, number, boolean, date, json, select, or ttl. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'Column definition for add_column: { name, type, unique?, position? }. Type may be string, number, currency, boolean, date, json, select, ttl, or reference. Currency optionally takes currencyCode; select takes { options: ["Open", "Closed"], multiple?: true }; reference requires referenceTableId. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+            properties: {
+              currencyCode: {
+                type: 'string',
+                description:
+                  'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+              },
+              multiple: {
+                type: 'boolean',
+                description:
+                  'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+              },
+              name: { type: 'string' },
+              options: {
+                type: 'array',
+                description:
+                  'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
+                items: { type: 'string' },
+              },
+              position: { type: 'integer' },
+              referenceTableId: {
+                type: 'string',
+                description:
+                  'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+              },
+              type: {
+                type: 'string',
+                description:
+                  'Column type for add_column: string, number, currency, boolean, date, json, select, ttl, or reference.',
+                enum: [
+                  'string',
+                  'number',
+                  'currency',
+                  'boolean',
+                  'date',
+                  'json',
+                  'select',
+                  'ttl',
+                  'reference',
+                ],
+              },
+              unique: {
+                type: 'boolean',
+                description: 'Set column unique constraint (optional for update_column)',
+              },
+            },
+            required: ['name', 'type'],
           },
           columnName: {
             type: 'string',
@@ -6687,6 +6801,11 @@ export const UserTable: ToolCatalogEntry = {
               'Array of column names to delete at once (for delete_column). Preferred over columnName when deleting multiple columns.',
             items: { type: 'string' },
           },
+          currencyCode: {
+            type: 'string',
+            description:
+              'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+          },
           cursor: {
             type: 'string',
             description:
@@ -6695,7 +6814,7 @@ export const UserTable: ToolCatalogEntry = {
           data: {
             type: 'object',
             description:
-              'Row data as key-value pairs (required for insert_row, update_row). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. On insert_row, a missing or null TTL means no expiration. On update_row, omit the TTL to preserve its current value or set it to null to clear the expiration.',
+              'Row data as key-value pairs (required for insert_row, update_row). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. On insert_row, a missing or null TTL means no expiration. On update_row, omit the TTL to preserve its current value or set it to null to clear the expiration. Reference cells take a row ID from the target table.',
           },
           dependencies: {
             type: 'object',
@@ -6724,7 +6843,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}. Reference filter values are row IDs from the target table.',
           },
           groupId: {
             type: 'string',
@@ -6813,7 +6932,18 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type (optional for update_column). Types: string, number, boolean, date, json, select, ttl. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'New column type (optional for update_column). Types: string, number, currency, boolean, date, json, select, ttl, reference. Converting to currency optionally takes currencyCode; converting to reference requires referenceTableId; converting to select requires options and fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+            enum: [
+              'string',
+              'number',
+              'currency',
+              'boolean',
+              'date',
+              'json',
+              'select',
+              'ttl',
+              'reference',
+            ],
           },
           options: {
             type: 'array',
@@ -6886,6 +7016,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
           },
+          referenceTableId: {
+            type: 'string',
+            description:
+              'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+          },
           rowId: {
             type: 'string',
             description:
@@ -6900,7 +7035,7 @@ export const UserTable: ToolCatalogEntry = {
           rows: {
             type: 'array',
             description:
-              'Array of row data objects (required for batch_insert_rows). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; a missing or null TTL means no expiration.',
+              'Array of row data objects (required for batch_insert_rows). TTL cells take ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; a missing or null TTL means no expiration. Reference cells take a row ID from the target table.',
             items: { type: 'object' },
           },
           runMode: {
@@ -6912,7 +7047,7 @@ export const UserTable: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. Types are string, number, boolean, date, json, select, and ttl. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
+              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. Types are string, number, currency, boolean, date, json, select, ttl, and reference. Currency optionally takes currencyCode; select takes { options: ["Open", "Closed"], multiple?: true }; reference requires referenceTableId. A table may have at most one ttl column; adding it enables row expiration, accepting ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00.',
           },
           scope: {
             type: 'string',
@@ -6937,7 +7072,7 @@ export const UserTable: ToolCatalogEntry = {
           updates: {
             type: 'array',
             description:
-              "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+              "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; omit a row's TTL key to preserve it or set it to null to clear the expiration. Reference cells take a row ID from the target table.",
             items: {
               type: 'object',
               properties: { data: { type: 'object' }, rowId: { type: 'string' } },
@@ -6947,7 +7082,7 @@ export const UserTable: ToolCatalogEntry = {
           values: {
             type: 'object',
             description:
-              'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName). For a TTL column, values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; set a row\'s value to null to clear its expiration, and omit the row from the map to leave it unchanged.',
+              'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName). For a TTL column, values are ISO timestamp strings with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00); up to 6 fractional second digits are accepted; supplied numeric offsets are preserved, and Z is stored as -00:00; set a row\'s value to null to clear its expiration, and omit the row from the map to leave it unchanged. Reference cells take a row ID from the target table.',
           },
           workflowId: {
             type: 'string',
