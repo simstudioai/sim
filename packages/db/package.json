@@ -21,6 +21,10 @@
       "types": "./timestamps.ts",
       "default": "./timestamps.ts"
     },
+    "./pool-profiles": {
+      "types": "./pool-profiles.ts",
+      "default": "./pool-profiles.ts"
+    },
     "./sso-primary-provider": {
       "types": "./sso-primary-provider.ts",
       "default": "./sso-primary-provider.ts"
