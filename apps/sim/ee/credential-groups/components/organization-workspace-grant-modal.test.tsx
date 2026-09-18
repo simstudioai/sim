@@ -163,11 +163,13 @@ describe('workspace integration grant editor', () => {
   it('connects the integration selector to its required state and explanatory hint', async () => {
     await render({ mode: 'all' })
     const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')!
-    expect(trigger.getAttribute('aria-required')).toBe('true')
-    const hintId = trigger.getAttribute('aria-describedby')!
-    expect(document.getElementById(hintId)?.textContent).toBe(
-      'Includes integrations added in the future.'
-    )
+    expect(trigger.hasAttribute('aria-required')).toBe(false)
+    const description = trigger
+      .getAttribute('aria-describedby')!
+      .split(' ')
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(' ')
+    expect(description).toBe('Includes integrations added in the future. Required.')
   })
 
   it.each(['all', 'selected'] as const)(
