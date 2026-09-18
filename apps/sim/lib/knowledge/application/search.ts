@@ -3,9 +3,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -297,7 +297,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       : undefined
     if (shouldMeter && billingAttribution) {
       const usage = await measureSearchStage('usage_admission', () =>
-        checkAttributedUsageLimits(billingAttribution)
+        checkSearchUsageLimits(billingAttribution)
       )
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(

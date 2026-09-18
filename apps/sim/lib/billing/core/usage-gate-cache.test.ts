@@ -13,9 +13,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
   checkIngestionUsageLimits,
-  INGESTION_USAGE_GATE_TTL_MS,
-  resetIngestionUsageGateCache,
-} from '@/lib/billing/core/ingestion-usage-gate'
+  checkSearchUsageLimits,
+  resetUsageGateCache,
+  USAGE_GATE_TTL_MS,
+} from '@/lib/billing/core/usage-gate-cache'
 
 const ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'member-1',
@@ -31,9 +32,19 @@ const ATTRIBUTION: BillingAttributionSnapshot = {
   payerSubscription: null,
 }
 
+const SUBSCRIPTION: BillingAttributionSnapshot['payerSubscription'] = {
+  id: 'sub-1',
+  referenceId: 'org-1',
+  plan: 'team',
+  status: 'active',
+  seats: 5,
+  periodStart: '2026-09-01T00:00:00.000Z',
+  periodEnd: '2026-10-01T00:00:00.000Z',
+}
+
 describe('checkIngestionUsageLimits', () => {
   beforeEach(() => {
-    resetIngestionUsageGateCache()
+    resetUsageGateCache()
     mockCheck.mockReset().mockResolvedValue({ isExceeded: false })
   })
   afterEach(() => vi.restoreAllMocks())
@@ -68,13 +79,13 @@ describe('checkIngestionUsageLimits', () => {
 
     /** `lru-cache` reads `performance.now()` and debounces it behind a real 1 ms timer. */
     const start = performance.now()
-    vi.spyOn(performance, 'now').mockReturnValue(start + INGESTION_USAGE_GATE_TTL_MS + 1)
+    vi.spyOn(performance, 'now').mockReturnValue(start + USAGE_GATE_TTL_MS + 1)
     await sleep(5)
     expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 
-  it('separates answers by actor, period and payer', async () => {
+  it('separates answers by actor, period, payer and plan', async () => {
     await checkIngestionUsageLimits(ATTRIBUTION)
     await checkIngestionUsageLimits({ ...ATTRIBUTION, actorUserId: 'member-2' })
     await checkIngestionUsageLimits({
@@ -86,13 +97,53 @@ describe('checkIngestionUsageLimits', () => {
       billedAccountUserId: 'owner-2',
       billingEntity: { type: 'user', id: 'owner-2' },
     })
-    expect(mockCheck).toHaveBeenCalledTimes(4)
+    await checkIngestionUsageLimits({ ...ATTRIBUTION, payerSubscription: SUBSCRIPTION })
+    await checkIngestionUsageLimits({
+      ...ATTRIBUTION,
+      payerSubscription: { ...SUBSCRIPTION, plan: 'enterprise' },
+    })
+    expect(mockCheck).toHaveBeenCalledTimes(6)
   })
 
   it('does not cache a failed read', async () => {
     mockCheck.mockRejectedValueOnce(new Error('ledger unavailable'))
     await expect(checkIngestionUsageLimits(ATTRIBUTION)).rejects.toThrow('ledger unavailable')
     await checkIngestionUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('checkSearchUsageLimits', () => {
+  beforeEach(() => {
+    resetUsageGateCache()
+    mockCheck.mockReset().mockResolvedValue({ isExceeded: false })
+  })
+
+  it('reuses an admission across workspaces of the same payer', async () => {
+    await checkSearchUsageLimits(ATTRIBUTION)
+    await checkSearchUsageLimits({ ...ATTRIBUTION, workspaceId: 'workspace-9' })
+    expect(mockCheck).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads a refusal, so a raised limit applies on the next search', async () => {
+    mockCheck.mockResolvedValueOnce({ isExceeded: true, scope: 'payer', message: 'over' })
+    expect((await checkSearchUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+    expect((await checkSearchUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not serve a refusal cached by ingestion', async () => {
+    mockCheck.mockResolvedValueOnce({ isExceeded: true, scope: 'payer', message: 'over' })
+    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+    expect((await checkSearchUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache a failed read', async () => {
+    mockCheck.mockRejectedValueOnce(new Error('ledger unavailable'))
+    await expect(checkSearchUsageLimits(ATTRIBUTION)).rejects.toThrow('ledger unavailable')
+    await checkSearchUsageLimits(ATTRIBUTION)
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 })
