@@ -1,6 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   CAPABILITY_RULES,
@@ -10,18 +9,8 @@ import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertion
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import { getTableQueryAvailability } from '@/lib/table/query-availability'
+import { organizationWorkspaceOperations } from '@/lib/workspaces/application/organization-operations'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
-
-export const organizationWorkspaceOperations = {
-  list: defineOrganizationOperation({
-    id: 'organization.workspaces.list',
-    minimumRole: 'member',
-    capability: 'copilot.use',
-    principalKinds: ['session', 'organization_delegated'],
-    delegationAudience: 'sim:workspaces',
-    delegatedServices: ['copilot'],
-  }),
-} as const
 
 /** Current membership and capability discovery; returned inventory never grants operation access. */
 export const listOrganizationWorkspaces = {

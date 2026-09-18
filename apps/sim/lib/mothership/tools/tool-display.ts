@@ -855,6 +855,7 @@ function cliServiceDisplay(
     )
   const sources = /^cli_search_sources_(list|get|setup|approve|providers)$/.exec(name)
   const retrieval = {
+    cli_workspaces_create: 'workspaces',
     cli_workspaces_list: 'list_workspaces',
     cli_search_query: 'search_workspace',
     cli_search_read: 'read_document',
@@ -881,7 +882,9 @@ function cliServiceDisplay(
             connectorType: cliFlag(args, '--connector-type'),
             approved: cliFlag(args, '--approved') !== 'false',
           }
-        : {},
+        : serviceName === 'workspaces'
+          ? { action: 'create', name: cliFlag(args, '--name') }
+          : {},
   }
 }
 
@@ -899,6 +902,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
+    case 'workspaces': {
+      const workspaceName = stringArg(args, 'name')
+      return `Creating workspace${workspaceName ? `: ${workspaceName}` : ''}`
+    }
     case 'settings': {
       const scope = stringArg(args, 'scope')
       const section = stringArg(args, 'section')

@@ -96,30 +96,33 @@ describe('scoped CLI service adapter', () => {
     })
   })
 
-  it.each(['list_workspaces', 'search_workspace', 'read_document', 'search_sources'] as const)(
-    '%s keeps org chat authority without workspace resolution',
-    async (name) => {
-      const result = await executeAgentCliService(service(name), organization)
-      expect(result.exitCode).toBe(0)
-      expect(JSON.parse(result.stdout).documents[0].citation).toBe('<doc id="1" />')
-      expect(boundary.workspace).not.toHaveBeenCalled()
-      expect(boundary.organization).toHaveBeenCalledWith({
-        principal: expect.objectContaining({
-          subjectUserId: 'actor',
-          organizationId: 'org',
-          resourceScope: { chatId: 'chat' },
-        }),
-      })
-      expect(boundary.route).toHaveBeenCalledWith(
-        name,
-        {},
-        expect.objectContaining({ organizationId: 'org', workspaceId: undefined })
-      )
-      await expect(executeAgentCliService(service(name), workspace)).rejects.toThrow(
-        'organization conversation'
-      )
-    }
-  )
+  it.each([
+    'list_workspaces',
+    'search_workspace',
+    'read_document',
+    'search_sources',
+    'workspaces',
+  ] as const)('%s keeps org chat authority without workspace resolution', async (name) => {
+    const result = await executeAgentCliService(service(name), organization)
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout).documents[0].citation).toBe('<doc id="1" />')
+    expect(boundary.workspace).not.toHaveBeenCalled()
+    expect(boundary.organization).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        subjectUserId: 'actor',
+        organizationId: 'org',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
+    expect(boundary.route).toHaveBeenCalledWith(
+      name,
+      {},
+      expect.objectContaining({ organizationId: 'org', workspaceId: undefined })
+    )
+    await expect(executeAgentCliService(service(name), workspace)).rejects.toThrow(
+      'organization conversation'
+    )
+  })
   it('passes trusted execution metadata through the real sim_cli handler and index branch', async () => {
     const signal = new AbortController().signal
     const result = await executeSimCli(
