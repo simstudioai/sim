@@ -66,6 +66,8 @@ function specFiles(): string[] {
 export interface OperationDoc {
   /** The spec's one-line summary, used as the command's `--help` description. */
   summary?: string
+  /** The spec's longer prose, which the MCP server returns when describing the operation. */
+  description?: string
   /**
    * The operation refuses a workspace API key, per its `description`.
    *
@@ -95,6 +97,11 @@ export async function loadWorkspaceKeyDenialMarkers(): Promise<readonly string[]
     }
   }
   return markers as string[]
+}
+
+/** `POST /api/v2/tables/[tableId]` → the `POST /api/v2/tables/{tableId}` key {@link loadSummaries} uses. */
+export function docPathKey(method: string, contractPath: string): string {
+  return `${method} ${contractPath.replace(/\[([^\]]+)\]/g, '{$1}')}`
 }
 
 /**
@@ -128,6 +135,9 @@ export function loadSummaries(
         const doc: OperationDoc = {}
         if (typeof operation?.summary === 'string') doc.summary = operation.summary
         const description = operation?.description
+        if (typeof description === 'string' && description.trim()) {
+          doc.description = description.trim()
+        }
         if (
           typeof description === 'string' &&
           workspaceKeyDenialMarkers.some((marker) => description.includes(marker))
@@ -169,7 +179,7 @@ function contractModules(): string[] {
     .sort()
 }
 
-interface RouteContract {
+export interface RouteContract {
   method: string
   path: string
   params?: z.ZodType
@@ -179,9 +189,11 @@ interface RouteContract {
   response: { mode: string; schema?: z.ZodType }
 }
 
-interface Operation {
+export interface Operation {
   /** `listTables` — derived from the export name. */
   name: string
+  /** `v2ListTablesContract` — the contract module's export. */
+  exportName: string
   domain: string
   contract: RouteContract
 }
@@ -206,14 +218,15 @@ function pascal(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
-async function collectOperations(): Promise<Operation[]> {
+/** Every v2 route contract, sorted by operation name. */
+export async function collectOperations(): Promise<Operation[]> {
   const operations: Operation[] = []
 
   for (const domain of contractModules()) {
     const mod: Record<string, unknown> = await import(path.join(CONTRACTS_DIR, `${domain}.ts`))
     for (const [exportName, value] of Object.entries(mod)) {
       if (!exportName.endsWith('Contract') || !isRouteContract(value)) continue
-      operations.push({ name: operationName(exportName), domain, contract: value })
+      operations.push({ name: operationName(exportName), exportName, domain, contract: value })
     }
   }
 
@@ -593,9 +606,7 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
     }
     out.push(`    responseMode: '${op.contract.response.mode}',`)
     // OpenAPI writes `{id}` where the contract writes `[id]`.
-    const doc = docs.get(
-      `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
-    )
+    const doc = docs.get(docPathKey(op.contract.method, op.contract.path))
     if (doc?.summary) out.push(`    summary: ${JSON.stringify(doc.summary)},`)
     if (doc?.workspaceKeyUnsupported) out.push(`    workspaceKeyUnsupported: true,`)
     for (const slot of ['query', 'body'] as const) {

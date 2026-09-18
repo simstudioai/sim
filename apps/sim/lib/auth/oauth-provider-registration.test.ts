@@ -6,10 +6,10 @@ import { memoryAdapter } from 'better-auth/adapters/memory'
 import { symmetricEncrypt } from 'better-auth/crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  registerSearchOAuthClientBodySchema,
-  registerSearchOAuthClientResponseSchema,
+  registerOAuthClientBodySchema,
+  registerOAuthClientResponseSchema,
 } from '@/lib/api/contracts/oauth-provider'
-import { OAUTH_SCOPES, OAUTH_SEARCH_SCOPES } from '@/lib/auth/oauth-provider'
+import { OAUTH_PUBLIC_REGISTRATION_SCOPES, OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
 
 const BASE_URL = 'https://sim.test'
 const AUTH_SECRET = 'isolated-oauth-registration-test-secret-123456789'
@@ -42,8 +42,8 @@ function createProvider(database: Record<string, Record<string, unknown>[]>) {
         grantTypes: ['authorization_code', 'refresh_token'],
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        clientRegistrationAllowedScopes: [...OAUTH_SEARCH_SCOPES],
-        clientRegistrationDefaultScopes: [...OAUTH_SEARCH_SCOPES],
+        clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
+        clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
         clientPrivileges: () => false,
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
@@ -51,7 +51,7 @@ function createProvider(database: Record<string, Record<string, unknown>[]>) {
   })
 }
 
-describe('Search registration with the installed OAuth provider', () => {
+describe('MCP client registration with the installed OAuth provider', () => {
   let database: Record<string, Record<string, unknown>[]>
   let provider: ReturnType<typeof createProvider>
 
@@ -70,7 +70,7 @@ describe('Search registration with the installed OAuth provider', () => {
   })
 
   async function register(metadata: object = claudeMetadata) {
-    const body = registerSearchOAuthClientBodySchema.parse(metadata)
+    const body = registerOAuthClientBodySchema.parse(metadata)
     return provider.handler(
       new Request(`${BASE_URL}/api/auth/oauth2/register`, {
         method: 'POST',
@@ -151,7 +151,7 @@ describe('Search registration with the installed OAuth provider', () => {
       })
       expect(response.ok).toBe(true)
       const body = await response.json()
-      expect(registerSearchOAuthClientResponseSchema.parse(body)).toMatchObject({
+      expect(registerOAuthClientResponseSchema.parse(body)).toMatchObject({
         client_name: 'Claude',
         redirect_uris: [REDIRECT_URI],
         token_endpoint_auth_method: 'none',
@@ -170,7 +170,7 @@ describe('Search registration with the installed OAuth provider', () => {
     }
   )
 
-  it('narrows issuer scopes and strips privileged metadata before persistence', async () => {
+  it('keeps registrable issuer scopes and strips privileged metadata before persistence', async () => {
     const response = await register({
       ...claudeMetadata,
       scope: 'api:read api:write search:read offline_access',
@@ -183,7 +183,7 @@ describe('Search registration with the installed OAuth provider', () => {
     expect(response.ok).toBe(true)
     expect(database.oauthClient[0]).toMatchObject({
       public: true,
-      scopes: ['search:read', 'offline_access'],
+      scopes: ['api:read', 'api:write', 'offline_access', 'search:read'],
     })
     expect(database.oauthClient[0].clientSecret).toBeFalsy()
     expect(database.oauthClient[0].skipConsent).toBeFalsy()
@@ -194,7 +194,7 @@ describe('Search registration with the installed OAuth provider', () => {
     'rejects authorization without PKCE or with unregistered scope %s',
     async (scope) => {
       const registered = await register()
-      const client = registerSearchOAuthClientResponseSchema.parse(await registered.json())
+      const client = registerOAuthClientResponseSchema.parse(await registered.json())
       const url = new URL(`${BASE_URL}/api/auth/oauth2/authorize`)
       url.search = new URLSearchParams({
         client_id: client.client_id,
@@ -213,7 +213,7 @@ describe('Search registration with the installed OAuth provider', () => {
 
   it('continues negotiated public clients to sign-in with S256 PKCE', async () => {
     const registered = await register()
-    const client = registerSearchOAuthClientResponseSchema.parse(await registered.json())
+    const client = registerOAuthClientResponseSchema.parse(await registered.json())
     const url = new URL(`${BASE_URL}/api/auth/oauth2/authorize`)
     url.search = new URLSearchParams({
       client_id: client.client_id,
@@ -237,7 +237,7 @@ describe('Search registration with the installed OAuth provider', () => {
         ...claudeMetadata,
         token_endpoint_auth_method: authMethod,
       })
-      const client = registerSearchOAuthClientResponseSchema.parse(await registered.json())
+      const client = registerOAuthClientResponseSchema.parse(await registered.json())
       const cookie = await signIn()
       const code = await authorize(client.client_id, cookie)
       const tokenResponse = await requestToken({
@@ -285,7 +285,7 @@ describe('Search registration with the installed OAuth provider', () => {
     'rejects code exchange with verifier %s',
     async (verifier) => {
       const registered = await register()
-      const client = registerSearchOAuthClientResponseSchema.parse(await registered.json())
+      const client = registerOAuthClientResponseSchema.parse(await registered.json())
       const cookie = await signIn()
       const code = await authorize(client.client_id, cookie)
       const response = await requestToken({

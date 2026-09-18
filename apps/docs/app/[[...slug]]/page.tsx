@@ -125,9 +125,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   // width so the lesson hero/video gets the room (chapters live in-page instead).
   const isAcademy = slug?.[0] === 'academy'
   const isCli = slug?.[0] === 'cli'
+  const isMcp = slug?.[0] === 'mcp'
 
   const rawNeighbours = findNeighbour(source.pageTree, page.url)
-  // Academy, API Reference, and CLI are self-contained sections; keep prev/next
+  // Academy, API Reference, CLI, and MCP are self-contained sections; keep prev/next
   // inside the section instead of spilling into the main documentation tree.
   // Match both the section's pages (`/<slug>/...`) and its index (`/<slug>`).
   const sectionSlug = isApiReference
@@ -136,7 +137,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       ? 'academy'
       : isCli
         ? 'cli'
-        : null
+        : isMcp
+          ? 'mcp'
+          : null
   const inSection = (url?: string) =>
     url != null && (url.includes(`/${sectionSlug}/`) || url.endsWith(`/${sectionSlug}`))
   const neighbours = sectionSlug

@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { narrowSearchOAuthScopes, OAUTH_SEARCH_SCOPES } from '@/lib/auth/oauth-provider'
+import {
+  narrowRegistrationOAuthScopes,
+  OAUTH_PUBLIC_REGISTRATION_SCOPES,
+} from '@/lib/auth/oauth-provider'
 
 /** Reviewed native callbacks; never accept arbitrary executable or custom URI schemes. */
 const NATIVE_MCP_CALLBACKS = new Set(['cursor://anysphere.cursor-mcp/oauth/callback'])
@@ -28,7 +31,7 @@ const redirectUriSchema = z
     }
   }, 'Redirect URIs must use HTTPS, loopback HTTP, or a supported native app callback, without wildcards or fragments')
 
-export const registerSearchOAuthClientBodySchema = z.object({
+export const registerOAuthClientBodySchema = z.object({
   client_name: z.string().trim().min(1).max(128).default('MCP client'),
   redirect_uris: z.array(redirectUriSchema).min(1).max(10),
   /** Better Auth negotiates unauthenticated registration to public clients without secrets. */
@@ -48,19 +51,19 @@ export const registerSearchOAuthClientBodySchema = z.object({
   scope: z
     .string()
     .max(128)
-    .default(OAUTH_SEARCH_SCOPES.join(' '))
+    .default(OAUTH_PUBLIC_REGISTRATION_SCOPES.join(' '))
     .transform((scope, context) => {
-      const granted = narrowSearchOAuthScopes(scope)
+      const granted = narrowRegistrationOAuthScopes(scope)
       if (granted !== null) return granted
       context.addIssue({
         code: 'custom',
-        message: 'Only Sim Search access can be registered automatically',
+        message: 'Only Sim MCP access can be registered automatically',
       })
       return z.NEVER
     }),
 })
 
-export const registerSearchOAuthClientResponseSchema = z.object({
+export const registerOAuthClientResponseSchema = z.object({
   client_id: z.string().min(1).max(255),
   client_name: z.string().min(1).max(128),
   redirect_uris: z.array(redirectUriSchema).min(1).max(10),
@@ -71,15 +74,16 @@ export const registerSearchOAuthClientResponseSchema = z.object({
   client_id_issued_at: z.number().int().nonnegative(),
 })
 
-/** Public RFC 7591 registration is limited to read-only Search clients. */
-export const registerSearchOAuthClientContract = defineRouteContract({
+/**
+ * Public RFC 7591 registration for MCP clients. A registered client holds no
+ * access by itself: every grant is narrowed to its MCP resource and consented to.
+ */
+export const registerOAuthClientContract = defineRouteContract({
   method: 'POST',
   path: '/api/auth/oauth2/register',
-  body: registerSearchOAuthClientBodySchema,
-  response: { mode: 'json', schema: registerSearchOAuthClientResponseSchema },
+  body: registerOAuthClientBodySchema,
+  response: { mode: 'json', schema: registerOAuthClientResponseSchema },
 })
 
-export type RegisterSearchOAuthClientBody = z.input<typeof registerSearchOAuthClientBodySchema>
-export type RegisterSearchOAuthClientResponse = z.output<
-  typeof registerSearchOAuthClientResponseSchema
->
+export type RegisterOAuthClientBody = z.input<typeof registerOAuthClientBodySchema>
+export type RegisterOAuthClientResponse = z.output<typeof registerOAuthClientResponseSchema>

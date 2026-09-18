@@ -1,0 +1,109 @@
+---
+title: Sim MCP
+description: Build, run, and manage everything in your Sim workspace from Claude, Codex, Cursor, and other MCP apps
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+The Sim MCP server gives an AI app the whole Sim API through the
+[Model Context Protocol](https://modelcontextprotocol.io). Your agent can list
+workspaces, run and deploy workflows, query and edit tables, manage files and
+knowledge bases, read run logs, and more. It covers the same operations as the
+[API](/api-reference/getting-started) and the [CLI](/cli).
+
+| Deployment | Server URL |
+| --- | --- |
+| Sim Cloud | `https://mcp.sim.ai/mcp` |
+| Self-hosted | `https://<your-sim-host>/api/mcp`, or your [`SIM_MCP_URL`](/platform/self-hosting/environment-variables) |
+
+The server uses the Streamable HTTP transport. Sign in with OAuth, the default
+in every app below, or send an [API key](/mcp/authentication#api-keys).
+
+## Connect an app
+
+<Tabs items={['Claude Code', 'Claude', 'Codex', 'Cursor', 'VS Code']}>
+  <Tab value="Claude Code">
+    ```bash
+    claude mcp add --transport http sim https://mcp.sim.ai/mcp
+    ```
+
+    Open `/mcp` in Claude Code, select **sim**, and sign in to Sim in the
+    browser.
+  </Tab>
+  <Tab value="Claude">
+    Add `https://mcp.sim.ai/mcp` as a custom connector under **Settings →
+    Connectors**, then connect it and sign in to Sim. For Team or Enterprise,
+    an owner first adds it under **Organization settings → Connectors**. See
+    [Claude's custom connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+  </Tab>
+  <Tab value="Codex">
+    ```bash
+    codex mcp add sim --url https://mcp.sim.ai/mcp
+    ```
+
+    Complete the browser sign-in. To sign in again later, run
+    `codex mcp login sim`.
+  </Tab>
+  <Tab value="Cursor">
+    Add `sim` to `mcpServers` in `~/.cursor/mcp.json`, then enable it in
+    Cursor and sign in to Sim:
+
+    ```json
+    {
+      "mcpServers": {
+        "sim": { "url": "https://mcp.sim.ai/mcp" }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="VS Code">
+    Add `sim` to `.vscode/mcp.json`, then start it and sign in to Sim:
+
+    ```json
+    {
+      "servers": {
+        "sim": { "type": "http", "url": "https://mcp.sim.ai/mcp" }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+Any other app that supports remote MCP servers with OAuth works the same way:
+give it the server URL and choose **Streamable HTTP** if asked.
+
+<Callout type="info">
+  Claude's hosted connectors call your server from Claude's infrastructure, so a
+  self-hosted Sim must be reachable from the internet. A `localhost` URL works
+  only with apps that run on your machine, such as Claude Code, Codex, Cursor,
+  and VS Code.
+</Callout>
+
+## Try it
+
+Ask your app:
+
+- "List my Sim workspaces and the tables in each."
+- "Run the `lead-scoring` workflow with this input and show me the result."
+- "Find failed runs from the last day and explain what went wrong."
+- "Create a table of our open support tickets and add these rows."
+
+The agent finds the right operation, reads its inputs, and calls it. See
+[Tools](/mcp/tools) for how that works.
+
+## What your agent can do
+
+The server acts as you. It sees the workspaces you can see, with your role in
+each, and every call is authorized, rate limited, and logged exactly like the
+same request to the API. Reads leave your resources unchanged, and apps can ask
+you to confirm each change. See [Authentication](/mcp/authentication) to limit
+an app to reads.
+
+## Other Sim MCP surfaces
+
+This server is for operating Sim. Two other MCP features do different jobs:
+
+- [Search MCP](/search/mcp) searches your organization's indexed sources.
+- [MCP deployment](/workflows/deployment/mcp) exposes your own workflows as
+  tools, and [MCP tools](/agents/mcp) connect external servers to Sim agents.

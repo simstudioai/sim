@@ -33,6 +33,8 @@
     "check:openapi": "bun run scripts/check-openapi.ts",
     "generate:cli-api": "bun run scripts/generate-v2-cli-api.ts",
     "check:cli-api": "bun run scripts/generate-v2-cli-api.ts --check",
+    "generate:mcp-operations": "bun run scripts/generate-v2-mcp-operations.ts",
+    "check:mcp-operations": "bun run scripts/generate-v2-mcp-operations.ts --check",
     "generate:cli-docs": "bun run scripts/generate-cli-docs.ts",
     "check:cli-docs": "bun run scripts/generate-cli-docs.ts --check",
     "check:canonical-index": "bun run scripts/check-canonical-index-surface.ts",
