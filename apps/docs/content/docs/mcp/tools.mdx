@@ -1,0 +1,55 @@
+---
+title: Tools
+description: How an agent finds, reads, and calls Sim operations through four tools
+---
+
+The Sim API has more than 200 operations. Instead of one tool per operation,
+which would crowd your app's tool list and your agent's context, the server
+exposes four tools. The agent searches for an operation, reads its inputs, and
+calls it.
+
+| Tool | Does |
+| --- | --- |
+| `search_operations` | Finds operations by keyword (`"table rows"`) or by area (`tables`, `workflows`, `knowledge`, …). Returns each operation's name, method, path, summary, and whether it is read-only. |
+| `describe_operation` | Returns an operation's description and the JSON Schema of its path parameters, query, body, and headers. |
+| `call_read_operation` | Runs a read-only operation, such as `listWorkspaces`, `listTables`, or `getWorkflowRun`. It leaves your resources unchanged. |
+| `call_write_operation` | Runs an operation that creates, changes, runs, or deletes something, such as `createTable`, `executeWorkflow`, or `deleteFile`. |
+
+Reads and writes are separate tools so your app can approve reads once and still
+ask you before each change.
+
+## Calling an operation
+
+Operation names match the [CLI](/cli/reference) and the
+[API reference](/api-reference/getting-started). A call names the operation and
+fills the parts of the request it needs:
+
+```json
+{
+  "operation": "listTableRows",
+  "params": { "tableId": "tbl_8f2c" },
+  "query": { "workspaceId": "ws_91ab", "limit": 50 }
+}
+```
+
+| Field | Holds |
+| --- | --- |
+| `params` | Path parameters, such as `tableId` or `workflowId` |
+| `query` | Query-string parameters; most operations need `workspaceId` |
+| `body` | The JSON request body (write operations only) |
+| `headers` | Headers the operation declares, such as `upload-token` |
+
+The result is the same JSON the API returns, usually `{ "data": … }`. List
+operations page with `limit` and `cursor`. A failed call returns the API's error,
+such as `{ "error": { "code": "NOT_FOUND", "message": "…" } }`, so the agent can
+correct its request.
+
+## Limits
+
+- **Same rules as the API.** Permissions, rate limits, and request validation
+  are the API's own; nothing is looser through MCP.
+- **1 MiB per result.** Page through larger lists with `limit` and `cursor`.
+- **No streaming.** Run a workflow without `stream: true` to wait for its
+  result, or with `async: true` and poll `getWorkflowRun`.
+- **No file bytes.** Downloads, knowledge base exports, and multipart document
+  uploads are not available over MCP; use the [CLI](/cli/files) or the API.

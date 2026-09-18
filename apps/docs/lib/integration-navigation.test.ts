@@ -58,8 +58,8 @@ describe('docs section navigation', () => {
     }
   })
 
-  it('keeps root-tab overview pages in the CLI and Academy navigation', () => {
-    for (const root of ['cli', 'academy']) {
+  it('keeps root-tab overview pages in the CLI, MCP, and Academy navigation', () => {
+    for (const root of ['cli', 'mcp', 'academy']) {
       const folder = folders(source.pageTree.fallback?.children ?? []).find(
         (node) => node.$ref === `${root}/meta.json`
       )

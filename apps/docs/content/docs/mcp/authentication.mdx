@@ -1,0 +1,70 @@
+---
+title: Authentication
+description: Sign in with OAuth, or connect with an API key
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## OAuth
+
+Most apps sign in with OAuth. The first time you connect, your app opens Sim in
+the browser, you sign in, and you approve its access. The app then holds a
+token that renews itself; you do not copy any secret.
+
+The approval screen names the app and what it can do:
+
+| Access | Scope | Allows |
+| --- | --- | --- |
+| Read-only | `api:read` | Reading workspaces, workflows, runs, tables, files, knowledge bases, and logs |
+| Full | `api:write` | Everything above, plus creating, changing, running, deploying, and deleting |
+
+Most apps request full access. To connect an app for reads only, configure it
+to request the `api:read` scope; changes then fail with an insufficient-scope
+error.
+
+Tokens are issued for the Sim MCP server itself. An app cannot take one to
+another service and use it there.
+
+### Revoke access
+
+Open **Settings → General → Authorized apps** in Sim, find the app, and revoke
+it. The app's next request fails, and you can reconnect at any time. Revoking
+does not undo changes the app already made.
+
+## API keys
+
+Apps that cannot sign in through a browser, such as CI jobs and headless
+agents, can send a Sim [API key](/api-reference/authentication) in the
+`X-API-Key` header, or as `Authorization: Bearer <key>`.
+
+```bash
+claude mcp add --transport http sim https://mcp.sim.ai/mcp \
+  --header "X-API-Key: $SIM_API_KEY"
+```
+
+```json title="~/.cursor/mcp.json"
+{
+  "mcpServers": {
+    "sim": {
+      "url": "https://mcp.sim.ai/mcp",
+      "headers": { "X-API-Key": "${env:SIM_API_KEY}" }
+    }
+  }
+}
+```
+
+A personal key acts as you in every workspace you can access. A workspace key
+reaches only its own workspace, and a few account-level operations refuse it;
+`search_operations` marks them `personalCredentialOnly`.
+
+<Callout type="warn">
+  An API key does not expire until you revoke it. Prefer OAuth for any app that
+  can open a browser, and store keys in your app's secret or environment
+  settings rather than in a shared config file.
+</Callout>
+
+## Organization policy
+
+The server follows your organization's access policy. If an administrator turns
+off **OAuth apps** or **personal API keys** for your permission group, requests
+with that credential are refused in the affected workspaces.

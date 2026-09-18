@@ -1,7 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { BetterAuthPlugin } from 'better-auth'
 import { APIError } from 'better-auth/api'
-import { OAUTH_SEARCH_READ_SCOPE } from '@/lib/auth/oauth-provider'
+import { getSimMcpUrl } from '@/lib/api/mcp/urls'
+import {
+  narrowResourceOAuthScopes,
+  OAUTH_SEARCH_READ_SCOPE,
+  type OAuthResourceKind,
+} from '@/lib/auth/oauth-provider'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface OAuthResourceIssuance {
@@ -9,37 +14,59 @@ interface OAuthResourceIssuance {
   verifiedResource?: string | null
 }
 
+/**
+ * An RFC 8707 audience this deployment issues tokens for. `api` is the Sim MCP
+ * server, which serves the Sim API; `search` is an organization's Search server.
+ */
+export interface OAuthResource {
+  kind: OAuthResourceKind
+  url: string
+}
+
 const issuance = new AsyncLocalStorage<OAuthResourceIssuance>()
 const SEARCH_RESOURCE_PATH = /^\/api\/mcp\/search\/organizations\/[A-Za-z0-9_-]{1,128}$/
 
 export class InvalidOAuthResourceError extends Error {
   constructor() {
-    super('The resource must be a canonical Sim Search MCP URL.')
+    super('The resource must be a canonical Sim MCP server URL.')
     this.name = 'InvalidOAuthResourceError'
   }
 }
 
-/** Accepts only organization Search MCP endpoints on this deployment's canonical origin. */
-export function parseOAuthSearchResource(value: string | null): string | null {
+/** Accepts only this deployment's canonical Sim MCP URL and its organization Search endpoints. */
+export function parseOAuthResource(value: string | null): OAuthResource | null {
   if (value === null) return null
-  try {
-    const url = new URL(value)
-    if (
-      value.length > 2048 ||
-      url.href !== value ||
-      url.origin !== new URL(getBaseUrl()).origin ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash ||
-      !SEARCH_RESOURCE_PATH.test(url.pathname)
-    ) {
-      throw new InvalidOAuthResourceError()
-    }
-    return value
-  } catch {
+  if (value === getSimMcpUrl()) return { kind: 'api', url: value }
+  if (!URL.canParse(value)) throw new InvalidOAuthResourceError()
+  const url = new URL(value)
+  if (
+    value.length > 2048 ||
+    url.href !== value ||
+    url.origin !== new URL(getBaseUrl()).origin ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !SEARCH_RESOURCE_PATH.test(url.pathname)
+  ) {
     throw new InvalidOAuthResourceError()
   }
+  return { kind: 'search', url: value }
+}
+
+/**
+ * Whether a grant's scopes belong to its audience: exactly the resource's own
+ * family. An unbound token may carry anything but Search, which is never issued
+ * without its resource.
+ */
+function oauthScopesFitResource(
+  resource: OAuthResource | null,
+  scopes: readonly string[]
+): boolean {
+  if (!resource) return !scopes.includes(OAUTH_SEARCH_READ_SCOPE)
+  return (
+    narrowResourceOAuthScopes(scopes.join(' '), resource.kind)?.split(' ').length === scopes.length
+  )
 }
 
 /** Keeps the token request audience isolated while Better Auth validates the authorization code. */
@@ -66,12 +93,12 @@ export function bindOAuthIssuedResource({
   const query = verificationValue?.query
   const resourceValue =
     query && typeof query === 'object' && 'resource' in query ? query.resource : undefined
-  let resource: string | null
+  let resource: OAuthResource | null
   try {
     if (resourceValue !== undefined && typeof resourceValue !== 'string') {
       throw new InvalidOAuthResourceError()
     }
-    resource = parseOAuthSearchResource(resourceValue ?? null)
+    resource = parseOAuthResource(resourceValue ?? null)
   } catch {
     throw new APIError('BAD_REQUEST', {
       error: 'invalid_target',
@@ -79,21 +106,16 @@ export function bindOAuthIssuedResource({
     })
   }
 
-  if (resource !== (context?.requestedResource ?? null)) {
+  if ((resource?.url ?? null) !== (context?.requestedResource ?? null)) {
     throw new APIError('BAD_REQUEST', {
       error: 'invalid_target',
       error_description: 'The token resource must match the authorization request.',
     })
   }
-  if (
-    resource
-      ? !scopes.includes(OAUTH_SEARCH_READ_SCOPE) ||
-        scopes.some((scope) => scope !== OAUTH_SEARCH_READ_SCOPE && scope !== 'offline_access')
-      : scopes.includes(OAUTH_SEARCH_READ_SCOPE)
-  ) {
+  if (!oauthScopesFitResource(resource, scopes)) {
     throw new APIError('BAD_REQUEST', {
       error: 'invalid_scope',
-      error_description: 'Search access requires its matching resource and search scope.',
+      error_description: 'The granted scopes do not match the token resource.',
     })
   }
   if (resource && !context) {
@@ -102,7 +124,7 @@ export function bindOAuthIssuedResource({
       error_description: 'Resource-bound issuance requires a token request.',
     })
   }
-  if (context) context.verifiedResource = resource
+  if (context) context.verifiedResource = resource?.url ?? null
   return {}
 }
 

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
+import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { APP_ENTRY_PATH, isAppSurfacePath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -335,6 +336,12 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
+
+  const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
+  if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })
+  if (mcpPath && mcpPath !== url.pathname) {
+    return NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
+  }
 
   if (url.pathname.startsWith('/api/')) {
     const policy = resolveApiCorsPolicy(request)

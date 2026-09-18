@@ -1,0 +1,5 @@
+{
+  "title": "MCP",
+  "root": true,
+  "pages": ["---Sim MCP---", "index", "authentication", "tools"]
+}

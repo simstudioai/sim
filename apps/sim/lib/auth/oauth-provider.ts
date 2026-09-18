@@ -21,6 +21,12 @@ export const OAUTH_API_WRITE_SCOPE = 'api:write'
 export const OAUTH_SEARCH_READ_SCOPE = 'search:read'
 
 export const OAUTH_SEARCH_SCOPES = [OAUTH_SEARCH_READ_SCOPE, 'offline_access'] as const
+/** What a token bound to the Sim MCP server may carry: the Sim API, never Search. */
+export const OAUTH_API_SCOPES = [
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  'offline_access',
+] as const
 export const OAUTH_SCOPES = [
   'offline_access',
   OAUTH_API_READ_SCOPE,
@@ -30,20 +36,42 @@ export const OAUTH_SCOPES = [
 
 export type OAuthScope = (typeof OAUTH_SCOPES)[number]
 
+/** The scopes each kind of MCP resource may grant: the Sim API, or Search. */
+export const OAUTH_RESOURCE_SCOPES = { api: OAUTH_API_SCOPES, search: OAUTH_SEARCH_SCOPES } as const
+
+export type OAuthResourceKind = keyof typeof OAUTH_RESOURCE_SCOPES
+
 /**
  * RFC 6749 permits granting fewer scopes than requested. Some MCP clients request
- * every scope advertised by the shared issuer; a Search resource can only grant
- * Search access, and the returned scope always reports that narrower grant.
+ * every scope advertised by the shared issuer; a resource can only grant its own
+ * family, and the returned scope always reports that narrower grant. `null` when
+ * the request names an unknown scope or nothing but `offline_access` from the family.
  */
-export function narrowSearchOAuthScopes(scope: string): string | null {
+export function narrowResourceOAuthScopes(scope: string, kind: OAuthResourceKind): string | null {
   const requested = scope.split(' ').filter(Boolean)
-  if (
-    !requested.includes(OAUTH_SEARCH_READ_SCOPE) ||
-    requested.some((value) => !OAUTH_SCOPES.some((allowed) => allowed === value))
-  ) {
-    return null
-  }
-  return OAUTH_SEARCH_SCOPES.filter((value) => requested.includes(value)).join(' ')
+  if (requested.some((value) => !OAUTH_SCOPES.some((allowed) => allowed === value))) return null
+  const granted = OAUTH_RESOURCE_SCOPES[kind].filter((value) => requested.includes(value))
+  return granted.some((value) => value !== 'offline_access') ? granted.join(' ') : null
+}
+
+/**
+ * What a publicly registered MCP client may be granted. Registration cannot know
+ * which server the client will connect to, so it may hold both families; each
+ * authorization is narrowed to the one family its resource grants.
+ */
+export const OAUTH_PUBLIC_REGISTRATION_SCOPES = [
+  ...OAUTH_API_SCOPES,
+  OAUTH_SEARCH_READ_SCOPE,
+] as const
+
+/** The registrable subset of a client's requested scopes, or `null` when none is registrable. */
+export function narrowRegistrationOAuthScopes(scope: string): string | null {
+  const granted = new Set(
+    (['api', 'search'] as const).flatMap(
+      (kind) => narrowResourceOAuthScopes(scope, kind)?.split(' ') ?? []
+    )
+  )
+  return granted.size > 0 ? [...granted].join(' ') : null
 }
 
 /**

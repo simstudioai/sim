@@ -28,6 +28,7 @@ import {
   type ParseRequestOptions,
   parseRequest,
 } from '@/lib/api/server/validation'
+import { getOAuthAccessTokenAudience } from '@/lib/auth/oauth-access-token'
 import {
   type ApplicationOperation,
   InsufficientScopeError,
@@ -67,7 +68,10 @@ export class V2RouteInfrastructureError extends Error {
  */
 export const v2ApiKeyAuth = {
   authenticate(request: NextRequest) {
-    return authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
+    return authenticateV2ApiKey(
+      readV2CredentialHeaders(request.headers),
+      getOAuthAccessTokenAudience()
+    )
   },
 } as const
 
@@ -446,6 +450,18 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   statusForResult?(result: NoInfer<R>): number
 }
 
+/**
+ * The operation each v2 JSON route handler serves, so another transport for
+ * the same route (the Sim MCP server) can read its policy, such as the OAuth
+ * scope, without restating it. Keys are the module-level handlers.
+ */
+const routeOperations = new WeakMap<object, ApplicationOperation>()
+
+/** The operation a loaded v2 route handler serves, or `null` for a raw route. */
+export function v2RouteOperation(handler: unknown): ApplicationOperation | null {
+  return typeof handler === 'function' ? (routeOperations.get(handler) ?? null) : null
+}
+
 export function defineV2JsonRoute<
   C extends JsonApiRouteContract,
   O extends ApplicationOperation,
@@ -561,5 +577,7 @@ export function defineV2JsonRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  const route: JsonNextRouteHandler = async (request, context) => wrapped(request, context)
+  routeOperations.set(route, options.operation)
+  return route
 }

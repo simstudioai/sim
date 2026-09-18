@@ -17,7 +17,7 @@ import {
 import { withOAuthProviderIssuanceCompensation } from '@/lib/auth/oauth-provider-adapter-guard'
 import {
   InvalidOAuthResourceError,
-  parseOAuthSearchResource,
+  parseOAuthResource,
   withOAuthResourceIssuance,
 } from '@/lib/auth/oauth-resource'
 import {
@@ -66,7 +66,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (grantType !== 'authorization_code' && grantType !== 'refresh_token') {
       return unsupportedGrantResponse(grantType)
     }
-    const resource = parseOAuthSearchResource(parsed.value.form.get('resource'))
+    const resource = parseOAuthResource(parsed.value.form.get('resource'))?.url ?? null
     if (grantType === 'authorization_code') {
       const codeVerifier = parsed.value.form.get('code_verifier')
       if (codeVerifier !== null && !isValidOAuthCodeVerifier(codeVerifier)) {

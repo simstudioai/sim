@@ -103,6 +103,7 @@ export function DocsSidebar() {
             ['Docs', '/introduction'],
             ['API Reference', '/api-reference/getting-started'],
             ['CLI', '/cli'],
+            ['MCP', '/mcp'],
             ['Academy', '/academy'],
           ].map(([label, href]) => (
             <ChipLink key={href} href={href} onNavigate={() => setOpen(false)}>

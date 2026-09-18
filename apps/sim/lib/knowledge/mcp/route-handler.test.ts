@@ -153,7 +153,7 @@ describe('organization MCP request admission', () => {
     const response = await post()
     expect(response.status).toBe(403)
     expect(response.headers.get('WWW-Authenticate')).toContain('error="insufficient_scope"')
-    expect(response.headers.get('WWW-Authenticate')).toContain('scope="search:read offline_access"')
+    expect(response.headers.get('WWW-Authenticate')).toContain('scope="search:read"')
     expect(mocks.index).not.toHaveBeenCalled()
   })
 

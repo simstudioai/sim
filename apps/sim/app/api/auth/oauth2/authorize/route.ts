@@ -5,9 +5,19 @@ import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
+import { isPubliclyRegisteredOAuthClient } from '@/lib/auth/oauth-client-registration'
 import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
-import { narrowSearchOAuthScopes, OAUTH_SEARCH_READ_SCOPE } from '@/lib/auth/oauth-provider'
-import { InvalidOAuthResourceError, parseOAuthSearchResource } from '@/lib/auth/oauth-resource'
+import {
+  narrowResourceOAuthScopes,
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  OAUTH_SEARCH_READ_SCOPE,
+} from '@/lib/auth/oauth-provider'
+import {
+  InvalidOAuthResourceError,
+  type OAuthResource,
+  parseOAuthResource,
+} from '@/lib/auth/oauth-resource'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
@@ -105,25 +115,35 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'The redirect_uri parameter is required.'
       )
     }
-    const scopes = (params.get('scope') ?? '').split(' ').filter(Boolean)
-    let resource: string | null
+    const rawScope = params.get('scope') ?? ''
+    const scopes = rawScope.split(' ').filter(Boolean)
+    const invalidRequest = (description: string) =>
+      oauthAuthorizationErrorResponse(request, 'invalid_request', description)
+    const searchScopeRequired = 'Sim Search requires its server URL and the search:read scope.'
+    let resource: OAuthResource | null
     try {
-      resource = parseOAuthSearchResource(params.get('resource'))
+      resource = parseOAuthResource(params.get('resource'))
     } catch (error) {
       if (!(error instanceof InvalidOAuthResourceError)) throw error
-      return oauthAuthorizationErrorResponse(
-        request,
-        'invalid_request',
-        'The resource must be a Sim Search server URL.'
+      return invalidRequest(error.message)
+    }
+    if (!resource && scopes.includes(OAUTH_SEARCH_READ_SCOPE)) {
+      return invalidRequest(searchScopeRequired)
+    }
+    const narrowedScope = resource ? narrowResourceOAuthScopes(rawScope, resource.kind) : null
+    if (resource && !narrowedScope) {
+      return invalidRequest(
+        resource.kind === 'search'
+          ? searchScopeRequired
+          : 'The Sim MCP server requires the api:read or api:write scope.'
       )
     }
-    const searchScope = resource ? narrowSearchOAuthScopes(params.get('scope') ?? '') : null
-    if ((resource && !searchScope) || (!resource && scopes.includes(OAUTH_SEARCH_READ_SCOPE))) {
-      return oauthAuthorizationErrorResponse(
-        request,
-        'invalid_request',
-        'Sim Search requires its server URL and the search:read scope.'
-      )
+    if (
+      !resource &&
+      scopes.some((scope) => scope === OAUTH_API_READ_SCOPE || scope === OAUTH_API_WRITE_SCOPE) &&
+      (await isPubliclyRegisteredOAuthClient(params.get('client_id') ?? ''))
+    ) {
+      return invalidRequest('This app must request Sim API access for the Sim MCP server URL.')
     }
     if (params.has('request_uri')) {
       return oauthAuthorizationErrorResponse(
@@ -152,9 +172,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
     }
     let providerRequest: Request = request
-    if (searchScope && params.get('scope') !== searchScope) {
+    if (narrowedScope && rawScope !== narrowedScope) {
       const url = new URL(request.url)
-      url.searchParams.set('scope', searchScope)
+      url.searchParams.set('scope', narrowedScope)
       providerRequest = new Request(url, { headers: request.headers })
     }
     const response = await betterAuthGET(providerRequest)

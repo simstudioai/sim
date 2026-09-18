@@ -3,7 +3,10 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ register: vi.fn(), rateLimit: vi.fn() }))
+const mocks = vi.hoisted(() => ({ register: vi.fn(), rateLimit: vi.fn(), markPublic: vi.fn() }))
+vi.mock('@/lib/auth/oauth-client-registration', () => ({
+  markPubliclyRegisteredOAuthClient: mocks.markPublic,
+}))
 vi.mock('better-auth/next-js', () => ({ toNextJsHandler: () => ({ POST: mocks.register }) }))
 vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
@@ -27,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   setEnvFlags({ isAuthDisabled: false })
   mocks.rateLimit.mockResolvedValue(null)
+  mocks.markPublic.mockResolvedValue(undefined)
   mocks.register.mockImplementation(async (req: Request) =>
     Response.json(
       {
@@ -41,7 +45,7 @@ beforeEach(() => {
 })
 
 describe('MCP public client registration', () => {
-  it('registers a bounded public Search client without ambient credentials or privileged metadata', async () => {
+  it('registers a bounded public MCP client without ambient credentials or privileged metadata', async () => {
     const response = await POST(
       request(
         { ...client, skip_consent: true, require_pkce: false, metadata: { elevated: true } },
@@ -57,28 +61,31 @@ describe('MCP public client registration', () => {
       ...client,
       client_id: 'client-1',
       token_endpoint_auth_method: 'none',
-      scope: 'search:read offline_access',
+      scope: 'api:read api:write offline_access search:read',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
     })
     const forwarded: Request = mocks.register.mock.calls[0][0]
+    expect(mocks.markPublic).toHaveBeenCalledWith('client-1')
     expect(forwarded.headers.has('cookie')).toBe(false)
     expect(forwarded.headers.has('authorization')).toBe(false)
     expect(forwarded.headers.get('x-forwarded-for')).toBe('203.0.113.10')
     expect(response.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('returns only registered Search scopes when clients request all issuer scopes', async () => {
-    const response = await POST(
-      request({ ...client, scope: 'offline_access api:read api:write search:read' })
-    )
+  it.each([
+    [
+      'offline_access api:read api:write search:read',
+      'api:read api:write offline_access search:read',
+    ],
+    ['api:read offline_access', 'api:read offline_access'],
+    ['search:read offline_access', 'search:read offline_access'],
+  ])('registers the registrable scope families a client requests: %s', async (scope, granted) => {
+    const response = await POST(request({ ...client, scope }))
     expect(response.status).toBe(201)
-    expect(await response.json()).toMatchObject({ scope: 'search:read offline_access' })
+    expect(await response.json()).toMatchObject({ scope: granted })
     const forwarded: Request = mocks.register.mock.calls[0][0]
-    expect(await forwarded.json()).toMatchObject({
-      scope: 'search:read offline_access',
-      require_pkce: true,
-    })
+    expect(await forwarded.json()).toMatchObject({ scope: granted, require_pkce: true })
   })
 
   it('registers Cursor browser and native callbacks together with PKCE required', async () => {
@@ -131,7 +138,8 @@ describe('MCP public client registration', () => {
   )
 
   it.each([
-    { ...client, scope: 'api:write' },
+    { ...client, scope: 'offline_access' },
+    { ...client, scope: 'openid api:read' },
     { ...client, token_endpoint_auth_method: 'private_key_jwt' },
     { ...client, token_endpoint_auth_method: 'unsupported' },
     { ...client, grant_types: ['client_credentials'] },
@@ -151,6 +159,13 @@ describe('MCP public client registration', () => {
   ])('rejects unsupported or unsafe client metadata: %o', async (body) => {
     expect((await POST(request(body))).status).toBe(400)
     expect(mocks.register).not.toHaveBeenCalled()
+  })
+
+  it('discloses no client ID when the client cannot be marked as publicly registered', async () => {
+    mocks.markPublic.mockRejectedValue(new Error('write failed'))
+    const response = await POST(request())
+    expect(response.status).toBe(500)
+    expect(await response.text()).not.toContain('client-1')
   })
 
   it('admits before reading metadata or creating a client', async () => {

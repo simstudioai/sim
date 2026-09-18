@@ -9,25 +9,20 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
 /**
- * Sections that own a tab, in reading order: the main docs, then the two
+ * Sections that own a tab, in reading order: the main docs, then the three
  * reference surfaces, then Academy. `Documentation` matches by exclusion, so
  * every section listed here is one it must not claim.
  */
-const SECTION_TABS = ['api-reference', 'academy', 'cli'] as const
+const SECTION_TABS = ['api-reference', 'academy', 'cli', 'mcp'] as const
 
 /**
- * Whether a pathname is inside a section, matched by whole path segment.
+ * Whether a pathname is inside a section, matched on its first path segment.
  *
- * A substring test is wrong: `/integrations/clickup` and
- * `/integrations/clickhouse` both contain `/cli`, which lit the CLI tab and
- * unlit Documentation on two existing integration pages.
+ * A substring or suffix test is wrong: `/integrations/clickup` contains `/cli`,
+ * and `/agents/mcp` ends with `/mcp`, and both belong to Documentation.
  */
 function isInSection(pathname: string, section: string): boolean {
-  return (
-    pathname === `/${section}` ||
-    pathname.endsWith(`/${section}`) ||
-    pathname.includes(`/${section}/`)
-  )
+  return pathname === `/${section}` || pathname.startsWith(`/${section}/`)
 }
 
 const NAV_TABS = [
@@ -47,6 +42,12 @@ const NAV_TABS = [
     label: 'CLI',
     href: '/cli',
     match: (p: string) => isInSection(p, 'cli'),
+    external: false,
+  },
+  {
+    label: 'MCP',
+    href: '/mcp',
+    match: (p: string) => isInSection(p, 'mcp'),
     external: false,
   },
   {

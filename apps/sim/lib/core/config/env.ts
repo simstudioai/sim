@@ -485,6 +485,7 @@ export const env = createEnv({
     // Real-time Communication
     SOCKET_SERVER_URL:                     z.string().url().optional(),            // WebSocket server URL for real-time features
     PORT:                                  z.number().optional(),                  // Main application port
+    SIM_MCP_URL:                           z.string().url().optional(),            // Public URL of the Sim MCP server when served on its own host (e.g., https://mcp.sim.ai/mcp); defaults to <NEXT_PUBLIC_APP_URL>/api/mcp
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
     PII_URL:                               z.string().optional(),                  // Presidio PII service base URL serving /analyze + /anonymize (standalone ECS service; default http://localhost:5001 for local dev)
