@@ -370,7 +370,7 @@ describe('workspace-scoped vector retrieval', () => {
         if (failSettings) throw failSettings
         return []
       }
-      if (statement.includes('WITH visible_search_documents')) {
+      if (statement.includes('AS visible')) {
         if (failCandidates) throw failCandidates
         return candidates
       }
@@ -434,9 +434,7 @@ describe('workspace-scoped vector retrieval', () => {
   it('uses compact candidates for a large KB and applies full workspace access before its limit', async () => {
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
-    const candidate = statements().find((query) =>
-      query.sql.includes('WITH visible_search_documents')
-    )!
+    const candidate = statements().find((query) => query.sql.includes('AS visible'))!
     expect(candidate.sql).toContain('CROSS JOIN LATERAL')
     expect(candidate.sql).toContain('LIMIT 1')
     const serialized = JSON.stringify(candidate)
@@ -501,9 +499,7 @@ describe('workspace-scoped vector retrieval', () => {
     const rows = await handleVectorOnlySearch({ ...params, topK: 1 })
 
     expect(rows.map((row) => row.id)).toEqual(['far'])
-    expect(
-      statements().filter((query) => query.sql.includes('WITH visible_search_documents'))
-    ).toHaveLength(1)
+    expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(1)
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
@@ -516,9 +512,7 @@ describe('workspace-scoped vector retrieval', () => {
     })
     expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
     expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
-    const candidate = statements().find((query) =>
-      query.sql.includes('WITH visible_search_documents')
-    )!
+    const candidate = statements().find((query) => query.sql.includes('AS visible'))!
     expect(JSON.stringify(candidate)).toContain('common')
     expect(JSON.stringify(candidate)).toContain(String(schemaMock.embedding.tag1))
     expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain('common')
@@ -534,9 +528,7 @@ describe('workspace-scoped vector retrieval', () => {
     const rows = await handleVectorOnlySearch({ ...params, knowledgeBaseIds })
     expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
     expect(rows.every((row) => row.knowledgeBaseId === 'kb-1')).toBe(true)
-    const candidateQueries = statements().filter((query) =>
-      query.sql.includes('WITH visible_search_documents')
-    )
+    const candidateQueries = statements().filter((query) => query.sql.includes('AS visible'))
     expect(candidateQueries).toHaveLength(1)
     for (const id of knowledgeBaseIds) expect(JSON.stringify(candidateQueries[0])).toContain(id)
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
@@ -616,9 +608,7 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))).toHaveLength(
       1
     )
-    const queries = statements().filter((query) =>
-      query.sql.includes('WITH visible_search_documents')
-    )
+    const queries = statements().filter((query) => query.sql.includes('AS visible'))
     expect(queries).toHaveLength(2)
     expect(JSON.stringify(queries[0])).toBe(JSON.stringify(queries[1]))
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
@@ -807,7 +797,7 @@ describe('live repository authorization follows ranked candidates', () => {
     dbChainMockFns.execute.mockImplementation(async (query) =>
       render(query).sql.includes('SELECT scoped_chunk.id')
         ? (probePages.shift() ?? [])
-        : render(query).sql.includes('WITH visible_search_documents')
+        : render(query).sql.includes('AS visible')
           ? (candidatePages.shift() ?? [])
           : render(query).sql.includes('WITH scored_search_candidates')
             ? (rerankPages.shift() ?? [])
@@ -841,9 +831,8 @@ describe('live repository authorization follows ranked candidates', () => {
     })
     expect(rows.map((row) => row.id)).toEqual(['near'])
     const candidateQuery = dbChainMockFns.execute.mock.calls.find(([query]) =>
-      render(query).sql.includes('WITH visible_search_documents')
+      render(query).sql.includes('AS visible')
     )![0]
-    expect(render(candidateQuery).sql).toContain('MATERIALIZED')
     expect(render(candidateQuery).sql).toContain('CROSS JOIN LATERAL')
     expect(render(candidateQuery).sql).toContain('LIMIT 1')
     expect(JSON.stringify(candidateQuery)).toContain('required_clause')
@@ -922,7 +911,7 @@ describe('live repository authorization follows ranked candidates', () => {
     }
   )
 
-  it('scans the filtered projection when ANN cannot fill its limit', async () => {
+  it('keeps an underfilled ANN result instead of rescoring the whole projection', async () => {
     probePages.push(Array.from({ length: 400 }, (_, index) => ({ id: `probe-${index}` })))
     queueCandidates([{ id: 'selected' }], 1)
     queueRerank([candidate('selected', 'allowed-source')])
@@ -933,12 +922,12 @@ describe('live repository authorization follows ranked candidates', () => {
       { id: 'selected', content: 'Verified fallback', distance: 0.1 },
     ])
     const candidateQuery = dbChainMockFns.execute.mock.calls.find(([query]) =>
-      render(query).sql.includes('WITH visible_search_documents')
+      render(query).sql.includes('AS visible')
     )![0]
-    expect(render(candidateQuery).sql).toContain('UNION ALL')
-    expect(render(candidateQuery).sql).toContain('+ 0')
-    expect(render(candidateQuery).sql).toContain('filtered_scores AS MATERIALIZED')
-    expect(render(candidateQuery).sql).toContain('ORDER BY filtered_scores.distance + 0')
+    /** Widening the scan on underfill is what made this leg exceed its budget on a large corpus. */
+    expect(render(candidateQuery).sql).not.toContain('UNION ALL')
+    expect(render(candidateQuery).sql).not.toContain('filtered_scores')
+    expect(render(candidateQuery).sql).toContain('CROSS JOIN LATERAL')
     expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
       'github_read_grant'
     )

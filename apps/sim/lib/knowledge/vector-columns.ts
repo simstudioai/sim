@@ -58,16 +58,17 @@ export function embeddingVectorValues(
 }
 
 /**
- * Cosine distance between a chunk's vector and the query vector, in the exact
- * form the width's HNSW index was built on.
+ * Cosine distance between a chunk's vector and the query vector, used for the
+ * search layer's exact rerank over an already-bounded candidate set.
  *
- * The 3,072 column is compared through a `halfvec` cast because pgvector
- * indexes `vector` only up to 2,000 dimensions, so its index is on that cast
- * expression. Postgres matches an expression index by the expression, so a
- * plain `<=>` against the column here would silently drop to a sequential scan
- * — and the cast belongs here rather than at each call site precisely because
- * getting it wrong is invisible in the results and only shows up as latency.
- * `packages/db/schema.ts` records what the half-precision comparison costs.
+ * `embedding` carries no ANN index — approximate retrieval runs against the
+ * compact `embedding_search` projection — so this expression is never expected
+ * to match one, and its caller wraps it to keep the planner from trying.
+ *
+ * The 3,072 column keeps its `halfvec` cast: the width that made the cast
+ * necessary is unchanged, and `packages/db/schema.ts` records that the
+ * half-precision comparison moved no distance measurably for the one model
+ * that emits this width.
  */
 export function embeddingDistance(
   dimensions: KbEmbeddingDimensions,

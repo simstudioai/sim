@@ -8,9 +8,17 @@ import {
   type KnowledgeAccessScope,
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
 } from '@/lib/knowledge/access/types'
+
+const diagnostics = vi.hoisted(() => ({ annotate: vi.fn() }))
+vi.mock('@/lib/knowledge/search/diagnostics', () => ({
+  annotateSearchDiagnostics: diagnostics.annotate,
+  measureSearchStage: <T>(_stage: string, run: () => T) => run(),
+}))
+
 import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 
 const identity: KnowledgeAccessScope = { kind: 'user', userId: 'reader', tokens: ['org'] }
+const lastBatchCount = () => diagnostics.annotate.mock.calls.at(-1)?.[0]?.accessBatchCount
 const liveSources = sql`live-sources`
 
 beforeEach(() => {
@@ -98,6 +106,33 @@ describe('knowledgeReadAccessBatches', () => {
     expect(liveSourceConnectorCondition).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(resolve).not.toHaveBeenCalled()
+    /** The free first predicate still reports itself, with no live proof attributed to it. */
+    expect(diagnostics.annotate).toHaveBeenCalledWith({
+      accessBatchCount: 1,
+      liveProofConnectorCount: 0,
+    })
+  })
+
+  it('counts the free first predicate apart from each live-proof batch', async () => {
+    queueTableRows(
+      knowledgeConnector,
+      Array.from({ length: MAX_KNOWLEDGE_ACCESS_CANDIDATES }, (_, index) => ({
+        connectorId: `source-${String(index).padStart(4, '0')}`,
+      }))
+    )
+    queueTableRows(knowledgeConnector, [{ connectorId: 'source-last' }])
+    const provider: KnowledgeAccessProvider = {
+      get: async () => identity,
+      getForConnectors: vi.fn(async () => identity),
+      getForDocuments: async () => identity,
+      liveSourceConnectorCondition: async () => liveSources,
+    }
+    for await (const predicate of knowledgeReadAccessBatches(provider, []))
+      expect(predicate).toBeDefined()
+    expect(lastBatchCount()).toBe(3)
+    expect(diagnostics.annotate.mock.calls.at(-1)?.[0]?.liveProofConnectorCount).toBe(
+      MAX_KNOWLEDGE_ACCESS_CANDIDATES + 1
+    )
   })
 
   it('honors cancellation before returning any predicate', async () => {
