@@ -73,6 +73,24 @@ describe('connector failure diagnostics', () => {
     })
   })
 
+  it.each([
+    ['canceling statement due to statement timeout', 'statement_timeout'],
+    ['canceling statement due to user request', 'user_cancel'],
+  ])('distinguishes cancellations with the same SQLSTATE: %s', (message, databaseReason) => {
+    const error = new DrizzleQueryError(
+      'select private_column from private_source',
+      ['private-value'],
+      Object.assign(new Error(message), { code: '57014', detail: 'private driver detail' })
+    )
+    expect(getConnectorFailureDiagnostic(error)).toEqual({
+      category: 'database',
+      code: '57014',
+      databaseReason,
+      message: 'Database request failed (SQLSTATE 57014).',
+    })
+    expect(JSON.stringify(getConnectorFailureDiagnostic(error))).not.toContain('private')
+  })
+
   it('suppresses query text even when the driver provides no error code', () => {
     expect(
       getConnectorFailureDiagnostic(new DrizzleQueryError('select private', ['private'], null))

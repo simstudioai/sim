@@ -1050,6 +1050,7 @@ export async function executeSync(
        * that would delete a document we have no positive evidence is actually
        * gone, reintroducing the exact risk this whole design exists to avoid.
        */
+      const tombstoneCheckStartedAt = Date.now()
       const hasTombstonedDocs = await db
         .select({ id: document.id })
         .from(document)
@@ -1065,6 +1066,15 @@ export async function executeSync(
         )
         .limit(1)
         .then((rows) => rows.length > 0)
+        .catch((error: unknown) => {
+          logger.error('Connector tombstone check failed', {
+            connectorId,
+            operation: 'document.tombstone-check',
+            elapsedMs: Date.now() - tombstoneCheckStartedAt,
+            diagnostic: getConnectorFailureDiagnostic(error),
+          })
+          throw error
+        })
 
       /**
        * Determine if this sync should be incremental. A `rehydrate` request forces a

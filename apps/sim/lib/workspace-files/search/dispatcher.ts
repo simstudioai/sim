@@ -6,7 +6,11 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getPostgresCancellationReason,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import {
   and,
@@ -65,10 +69,12 @@ async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): 
     })
     return result
   } catch (error) {
+    const databaseReason = getPostgresCancellationReason(error)
     logger.error('Workspace file search dispatch phase failed', {
       phase,
       durationMs: Date.now() - startedAt,
       code: getPostgresErrorCode(error),
+      ...(databaseReason ? { databaseReason } : {}),
       error: truncate(getErrorMessage(error).split('\nparams: ')[0], 500),
     })
     throw error
