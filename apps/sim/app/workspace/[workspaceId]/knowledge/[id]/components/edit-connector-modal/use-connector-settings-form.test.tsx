@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  isConnectorSyncingOrPending: (row: {
+    status: string
+    accessMode?: string
+    memberSyncStatus?: string
+  }) =>
+    ['pending', 'syncing'].includes(row.status) ||
+    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
   useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.settingsPending }),
   useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
 }))
@@ -32,7 +39,10 @@ vi.mock('@/hooks/use-permission-config', () => ({
       ['slack', { oauthAvailable: true, state: 'ready' }],
       ['slack_v2', { oauthAvailable: true, state: 'ready' }],
     ]),
-    oauthServiceAvailability: new Map([['github-repositories', true]]),
+    oauthServiceAvailability: new Map([
+      ['github-repositories', true],
+      ['confluence', true],
+    ]),
     isIntegrationAvailabilityReady: true,
     isIntegrationAvailabilityFetching: false,
     integrationAvailabilityError: null,
@@ -221,6 +231,61 @@ describe('shared connector settings form', () => {
     )
     expect(mocks.applyAccess).not.toHaveBeenCalled()
   })
+
+  it('saves an account replacement and source edits together and retains the draft on rejection', () => {
+    const row = connector({
+      connectorType: 'confluence',
+      accessMode: 'admin',
+      credentialId: 'old-account',
+      sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'] },
+    })
+    render(row, 'replacement')
+    act(() => form.fieldsProps.onWorkspaceCredentialChange('new-account'))
+    act(() => form.fieldsProps.onFieldChange('labelFilter', 'published'))
+    expect(form.canSave).toBe(true)
+    act(() => form.save())
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        access: expect.objectContaining({
+          accessMode: 'admin',
+          credentialId: 'new-account',
+          sourceConfig: expect.objectContaining({ labelFilter: 'published' }),
+        }),
+      }),
+      expect.any(Object)
+    )
+    act(() =>
+      mocks.applyAccess.mock.calls[0][1].onError(new Error('Account cannot access this space'))
+    )
+    expect(form.fieldsProps.workspaceCredentialId).toBe('new-account')
+    expect(form.fieldsProps.sourceConfig.labelFilter).toBe('published')
+    expect(form.canSave).toBe(true)
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it.each(['pending', 'syncing'] as const)(
+    'keeps the account draft while %s and enables Save when idle',
+    (status) => {
+      const row = connector({
+        connectorType: 'confluence',
+        accessMode: 'admin',
+        credentialId: 'old-account',
+        status,
+        sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'] },
+      })
+      render(row, 'syncing')
+      act(() => form.fieldsProps.onWorkspaceCredentialChange('new-account'))
+      expect(form.canSave).toBe(false)
+      expect(form.saveBlockedReason).toBe('Wait for the current sync to finish before saving.')
+      act(() => form.save())
+      expect(mocks.applyAccess).not.toHaveBeenCalled()
+      render({ ...row, status: 'active' }, 'syncing')
+      expect(form.fieldsProps.workspaceCredentialId).toBe('new-account')
+      expect(form.canSave).toBe(true)
+      expect(form.saveBlockedReason).toBeUndefined()
+    }
+  )
 
   it('keeps general knowledge-base listing caps editable and includes their changes on save', () => {
     const sourceConfig = {

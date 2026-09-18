@@ -130,6 +130,13 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
   }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  isConnectorSyncingOrPending: (row: {
+    status: string
+    accessMode?: string
+    memberSyncStatus?: string
+  }) =>
+    ['pending', 'syncing'].includes(row.status) ||
+    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
   useSearchIndex: (
     scope: { workspaceId?: string; organizationId?: string },
     options: { enabled: boolean }
@@ -1367,10 +1374,10 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       (node) => node.textContent?.trim() === replacement.name
     )!
     await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
-    expect(button('Save')).toBeDisabled()
-    expect(button('Change service account')).toBeEnabled()
+    expect(button('Save')).toBeEnabled()
+    expect(document.body.textContent).not.toContain('Change service account')
 
-    await click(button('Change service account'))
+    await click(button('Save'))
 
     expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
       {

@@ -647,3 +647,79 @@ describe('connector access application boundary', () => {
     )
   })
 })
+
+describe('account and settings save', () => {
+  it('validates the replacement with the edited configuration before passing a single mutation', async () => {
+    const sourceConfig = { domain: 'example.atlassian.net', spaceKey: ['ENG'] }
+    mocks.connector.mockResolvedValue({
+      ...row,
+      accessMode: 'admin',
+      connectorType: 'confluence',
+      credentialId: 'old',
+      updatedAt: new Date('2026-09-01'),
+    })
+    mocks.meta.mockReturnValue({
+      name: 'Confluence',
+      auth: { mode: 'oauth', provider: 'confluence' },
+      mirrorsSourceAcls: true,
+    })
+    await updateKnowledgeConnectorAccess.execute({
+      principal,
+      input: {
+        ...input,
+        accessMode: 'admin',
+        credentialId: 'new',
+        sourceConfig,
+        syncIntervalMinutes: 1440,
+      },
+    })
+    expect(mocks.validate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connector: expect.objectContaining({ credentialId: 'new' }),
+        sourceConfig,
+      })
+    )
+    expect(mocks.update).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        target: { accessMode: 'admin', credentialId: 'new' },
+        sourceConfig,
+        syncIntervalMinutes: 1440,
+        expectedUpdatedAt: new Date('2026-09-01'),
+      })
+    )
+  })
+
+  it('leaves both account and settings unchanged when provider validation rejects the replacement', async () => {
+    mocks.connector.mockResolvedValue({ ...row, accessMode: 'admin' })
+    mocks.validate.mockResolvedValue({
+      errorCode: 'validation',
+      message: 'Cannot access this space',
+    })
+    await expect(
+      updateKnowledgeConnectorAccess.execute({
+        principal,
+        input: {
+          ...input,
+          accessMode: 'admin',
+          sourceConfig: { host: 'new.example.test' },
+        },
+      })
+    ).rejects.toThrow('Cannot access this space')
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects combined settings when switching access modes before resolving credentials', async () => {
+    await expect(
+      updateKnowledgeConnectorAccess.execute({
+        principal,
+        input: {
+          ...input,
+          accessMode: 'admin',
+          sourceConfig: { host: 'new.example.test' },
+        },
+      })
+    ).rejects.toThrow('Save source settings separately')
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.token).not.toHaveBeenCalled()
+  })
+})

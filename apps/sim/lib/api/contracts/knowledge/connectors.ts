@@ -58,6 +58,8 @@ export const updateConnectorAccessBodySchema = z.object({
   accessMode: connectorRequestedAccessModeSchema,
   /** Null removes dedicated content ingestion; omission preserves it in members mode. */
   credentialId: z.string().min(1).nullable().optional(),
+  sourceConfig: z.record(z.string(), z.unknown()).optional(),
+  syncIntervalMinutes: z.number().int().min(0).optional(),
 })
 export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 

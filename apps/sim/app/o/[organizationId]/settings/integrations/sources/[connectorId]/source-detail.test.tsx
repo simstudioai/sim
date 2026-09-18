@@ -38,7 +38,8 @@ vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.f
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: mocks.index,
   useConnectorDetail: mocks.detail,
-  isConnectorSyncingOrPending: () => false,
+  isConnectorSyncingOrPending: (row: ConnectorData) =>
+    row.status === 'syncing' || row.status === 'pending',
 }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
@@ -187,6 +188,19 @@ describe('organization source detail navigation', () => {
     expect(button, `Missing ${text}`).toBeTruthy()
     await act(async () => button!.click())
   }
+
+  it('passes live sync status to the form without replacing its settings baseline', async () => {
+    await render('?view=settings')
+    const baseline = mocks.form.mock.lastCall![0].connector
+    mocks.dirty = true
+    mocks.detail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
+    await render('?view=settings')
+    expect(mocks.form.mock.lastCall![0]).toMatchObject({ connector: baseline, syncing: true })
+
+    mocks.detail.mockReturnValue({ data: { ...connector, status: 'active' } })
+    await render('?view=settings')
+    expect(mocks.form.mock.lastCall![0]).toMatchObject({ connector: baseline, syncing: false })
+  })
   it.each(['documents', 'settings', 'history'])(
     'replaces the removed connection with Sources from the %s view',
     async (view) => {
