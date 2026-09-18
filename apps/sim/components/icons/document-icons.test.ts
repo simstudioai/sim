@@ -1,6 +1,7 @@
 /** @vitest-environment node */
+import { DefaultFileIcon, ZipIcon } from '@sim/emcn/icons'
 import { describe, expect, it } from 'vitest'
-import { DefaultFileIcon, getDocumentIcon, ZipIcon } from '@/components/icons/document-icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 
 describe('getDocumentIcon', () => {
   it('uses the zip icon for zip archives by extension or mime type', () => {

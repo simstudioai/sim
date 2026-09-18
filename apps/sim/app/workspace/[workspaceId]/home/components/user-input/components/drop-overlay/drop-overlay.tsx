@@ -1,18 +1,18 @@
 'use client'
 
 import { memo } from 'react'
-import { ImageUp } from '@sim/emcn/icons'
 import {
   AudioIcon,
   CsvIcon,
   DocxIcon,
+  ImageUp,
   JsonIcon,
   MarkdownIcon,
   PdfIcon,
   TxtIcon,
   VideoIcon,
   XlsxIcon,
-} from '@/components/icons/document-icons'
+} from '@sim/emcn/icons'
 
 const DROP_OVERLAY_ICONS = [
   PdfIcon,
