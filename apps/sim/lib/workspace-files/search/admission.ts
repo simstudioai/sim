@@ -1,7 +1,10 @@
 import { DB_POOL_PROFILES } from '@sim/db/pool-profiles'
+import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import {
+  FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
   FILE_SEARCH_QUEUE_MAX_PENDING,
   FILE_SEARCH_QUEUE_TIMEOUT_MS,
+  FILE_SEARCH_STATEMENT_TIMEOUT_MS,
 } from '@/lib/workspace-files/search/constants'
 import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 
@@ -19,13 +22,56 @@ export class FileSearchAdmission {
   private readonly workspaces = new Map<string, Set<Waiter>>()
 
   constructor(
-    private readonly options: { concurrency: number; maxPending: number; timeoutMs: number }
+    private readonly options: {
+      concurrency: number
+      maxPending: number
+      maxPendingPerWorkspace: number
+      timeoutMs: number
+    }
   ) {}
+
+  /**
+   * One caller deadline includes queueing, connection acquisition, and execution.
+   * The lease belongs to the underlying operation, even if its caller stops waiting.
+   */
+  async run<T>(
+    workspaceId: string,
+    operation: (signal: AbortSignal, deadlineAt: number) => Promise<T>,
+    signal?: AbortSignal
+  ): Promise<T> {
+    const deadlineAt = Date.now() + this.options.timeoutMs + FILE_SEARCH_STATEMENT_TIMEOUT_MS
+    try {
+      return await withinDeadline(
+        async (operationSignal) => {
+          const release = await this.acquire(workspaceId, operationSignal)
+          try {
+            operationSignal.throwIfAborted()
+            return await operation(operationSignal, deadlineAt)
+          } finally {
+            release()
+          }
+        },
+        deadlineAt,
+        signal
+      )
+    } catch (error) {
+      signal?.throwIfAborted()
+      if (error instanceof DeadlineExceededError) {
+        throw new WorkspaceFileSearchUnavailableError(
+          'Workspace file search timed out. Retry shortly.'
+        )
+      }
+      throw error
+    }
+  }
 
   async acquire(workspaceId: string, signal?: AbortSignal): Promise<() => void> {
     signal?.throwIfAborted()
     if (this.active < this.options.concurrency) return this.claim()
-    if (this.pending >= this.options.maxPending) {
+    if (
+      this.pending >= this.options.maxPending ||
+      (this.workspaces.get(workspaceId)?.size ?? 0) >= this.options.maxPendingPerWorkspace
+    ) {
       throw new WorkspaceFileSearchUnavailableError('Workspace file search is busy. Retry shortly.')
     }
 
@@ -92,5 +138,6 @@ export class FileSearchAdmission {
 export const fileSearchAdmission = new FileSearchAdmission({
   concurrency: DB_POOL_PROFILES.search.primaryMax,
   maxPending: FILE_SEARCH_QUEUE_MAX_PENDING,
+  maxPendingPerWorkspace: FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
   timeoutMs: FILE_SEARCH_QUEUE_TIMEOUT_MS,
 })

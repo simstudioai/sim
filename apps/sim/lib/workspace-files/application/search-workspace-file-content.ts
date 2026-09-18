@@ -35,14 +35,16 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.searchContent,
   resolveContext: ({ input }: { input: SearchWorkspaceFileContentInput }) =>
     resolveSearchWorkspaceFileContext(input),
-  execute: async ({ principal, input, context }) => {
-    /*
+  execute: async ({ principal, input, context, request }) => {
+    const signal = input.signal ?? request?.signal
+    signal?.throwIfAborted()
+    /**
      * Resolved here rather than at the surface so every caller (the File
      * block, the v2 route) is confined by the same check. A folder tree
      * holding one subtree per user makes this scope the isolation boundary,
      * not a convenience filter.
      */
-    /*
+    /**
      * `!== undefined`, not a length check: an explicitly empty list is a scope
      * that names no folder, which must match nothing. Treating it as "absent"
      * would answer a request for nothing with the whole workspace.
@@ -56,7 +58,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
             includeSubfolders: input.includeSubfolders,
           })
         : undefined
-    input.signal?.throwIfAborted()
+    signal?.throwIfAborted()
 
     try {
       return await searchWorkspaceFileIndex({
@@ -64,7 +66,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
         folderScope,
-        signal: input.signal,
+        signal,
       })
     } catch (error) {
       /**

@@ -7,8 +7,13 @@ describe('FileSearchAdmission', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  function createAdmission(concurrency = 1, maxPending = 3) {
-    return new FileSearchAdmission({ concurrency, maxPending, timeoutMs: 5000 })
+  function createAdmission(concurrency = 1, maxPending = 3, maxPendingPerWorkspace = maxPending) {
+    return new FileSearchAdmission({
+      concurrency,
+      maxPending,
+      maxPendingPerWorkspace,
+      timeoutMs: 5000,
+    })
   }
 
   it('queues a burst without exceeding the active budget and releases each slot once', async () => {
@@ -128,5 +133,80 @@ describe('FileSearchAdmission', () => {
     expect(granted).not.toHaveBeenCalled()
     first()
     await next
+  })
+  it('leaves waiting capacity for another workspace when one burst hits its own cap', async () => {
+    const admission = createAdmission(1, 4, 2)
+    const release = await admission.acquire('hot')
+    const hot = [admission.acquire('hot'), admission.acquire('hot')]
+    await expect(admission.acquire('hot')).rejects.toBeInstanceOf(
+      WorkspaceFileSearchUnavailableError
+    )
+    const quiet = admission.acquire('quiet')
+    release()
+    ;(await hot[0])()
+    ;(await quiet)()
+    ;(await hot[1])()
+    ;(await admission.acquire('hot'))()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['timeout', 'abort'] as const)(
+    'keeps a stalled operation counted after caller %s until the operation settles',
+    async (reason) => {
+      const admission = createAdmission()
+      const controller = new AbortController()
+      const dependency = Promise.withResolvers<void>()
+      const lateWork = vi.fn()
+      const running = admission.run(
+        'a',
+        async (signal) => {
+          await dependency.promise
+          signal.throwIfAborted()
+          lateWork()
+        },
+        controller.signal
+      )
+      const rejected = expect(running).rejects.toThrow(
+        reason === 'timeout' ? /timed out/ : /cancelled/
+      )
+      await vi.advanceTimersByTimeAsync(1)
+      if (reason === 'timeout') await vi.advanceTimersByTimeAsync(15000)
+      else controller.abort(new Error('cancelled'))
+      await rejected
+      const nextWork = vi.fn().mockResolvedValue('done')
+      const next = admission.run('b', nextWork)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(nextWork).not.toHaveBeenCalled()
+      dependency.resolve()
+      await expect(next).resolves.toBe('done')
+      expect(lateWork).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
+  it('releases a lease after an operation throws synchronously', async () => {
+    const admission = createAdmission()
+    await expect(
+      admission.run('a', () => {
+        throw new Error('operation failed')
+      })
+    ).rejects.toThrow('operation failed')
+    await expect(admission.run('b', async () => 'done')).resolves.toBe('done')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not start an operation cancelled while waiting', async () => {
+    const admission = createAdmission()
+    const release = await admission.acquire('a')
+    const controller = new AbortController()
+    const operation = vi.fn()
+    const waiting = expect(admission.run('b', operation, controller.signal)).rejects.toThrow(
+      'cancelled'
+    )
+    controller.abort(new Error('cancelled'))
+    await waiting
+    release()
+    expect(operation).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
