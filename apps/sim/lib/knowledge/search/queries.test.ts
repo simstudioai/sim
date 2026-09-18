@@ -437,6 +437,24 @@ describe('workspace-scoped vector retrieval', () => {
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
+  it('counts only chunks the search can return when a tag filter decides a document', async () => {
+    traversedRows = ranked
+    probeRows = [{ id: 'near-doc' }]
+    exactRows = ranked
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    await handleTagAndVectorSearch({
+      ...params,
+      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' }],
+    })
+    /**
+     * A document whose only tagged chunk is disabled contributes no candidate, so admitting it
+     * would spend the probe's document bound on a document the ranking then discards.
+     */
+    const probe = JSON.stringify(statements().find((query) => isProbeStatement(query.sql))!)
+    expect(probe).toContain(String(schemaMock.embedding.tag1))
+    expect(probe).toContain(`"left":"${schemaMock.embedding.enabled}","right":true`)
+  })
+
   it('keeps the tuple budget an order of magnitude above the beam so the scan can iterate', async () => {
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     await handleVectorOnlySearch(params)

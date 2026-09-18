@@ -91,7 +91,7 @@ describe('API-key KB block fan-out', () => {
       const previousDebug = db.$client.options.debug
       const statements: string[] = []
       db.$client.options.debug = (_connection, query) => {
-        if (statements.length < 250) statements.push(query)
+        if (statements.length < 1000) statements.push(query)
       }
       try {
         const results = await Promise.all(
@@ -124,9 +124,26 @@ describe('API-key KB block fan-out', () => {
           expect(result.rows[0].knowledgeBaseId).toBe(bases[index].id)
           expect(result.rows[0].distance).toBeCloseTo(0)
         }
-        expect(statements.filter((query) => query.includes('statement_timeout'))).toHaveLength(54)
-        expect(statements.filter((query) => query.includes('+ 0'))).toHaveLength(18)
-        expect(statements.some((query) => query.includes('hnsw.iterative_scan'))).toBe(false)
+        const matching = (fragment: string) =>
+          statements.filter((query) => query.includes(fragment))
+        /**
+         * Every statement runs under the leg's deadline: the candidate search reinstates it after
+         * tuning the scan, and the probe, the exact ranking, the rerank and hydration each open
+         * with one of their own.
+         */
+        expect(matching('statement_timeout')).toHaveLength(bases.length * 6)
+        /**
+         * A scope this small leaves the bounded traversal short of its candidate limit, so every
+         * search probes once and rescues once — never a widening retry loop.
+         */
+        expect(matching('hnsw.iterative_scan')).toHaveLength(bases.length)
+        expect(matching('AS visible')).toHaveLength(bases.length)
+        expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
+        expect(matching('scored_search_candidates')).toHaveLength(bases.length)
+        /** The probe enumerates visible documents; it never ranks them. */
+        expect(
+          statements.filter((query) => query.includes('AS id FROM') && !query.includes('ORDER BY'))
+        ).toHaveLength(bases.length)
       } finally {
         db.$client.options.debug = previousDebug
       }

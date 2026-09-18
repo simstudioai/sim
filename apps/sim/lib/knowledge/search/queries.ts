@@ -847,12 +847,16 @@ async function probeVisibleDocuments(
   }
 }
 
-/** Tags live on chunks, so a row qualifies when a chunk it joins to carries them. */
+/**
+ * Tags live on chunks, so a row qualifies when a chunk it joins to carries them — and only a
+ * chunk the search can actually return counts, or a document whose sole match is disabled would
+ * be admitted by a check that ranking then discards.
+ */
 function chunkTagCondition(join: SQL, tagConditions: SQL[]): SQL | undefined {
   if (!tagConditions.length) return undefined
   return sql`EXISTS (
     SELECT 1 FROM ${embedding}
-    WHERE ${and(join, ...tagConditions)}
+    WHERE ${and(join, eq(embedding.enabled, true), ...tagConditions)}
   )`
 }
 
