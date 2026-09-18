@@ -12,7 +12,6 @@ import {
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
-import { isAccessRequestEnabled } from '@/lib/permission-access-requests/settings'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
@@ -20,6 +19,7 @@ import { authorizeOrganizationSettingsSection } from '@/lib/settings/application
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
+import { isAccessRequestEnabled } from '@/ee/access-requests/lib/settings'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
 export type WorkspaceSettingsSectionAccess =

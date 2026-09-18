@@ -5,8 +5,8 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { accessRequestOperations } from '@/lib/permission-access-requests/application/operations'
-import { cancelAccessRequest } from '@/lib/permission-access-requests/application/requests'
+import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
+import { cancelAccessRequest } from '@/ee/access-requests/lib/application/requests'
 
 export const POST = defineInternalJsonRoute({
   contract: cancelAccessRequestContract,

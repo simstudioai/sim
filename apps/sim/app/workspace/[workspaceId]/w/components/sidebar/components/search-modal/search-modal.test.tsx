@@ -68,7 +68,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
   }),
 }))
 
-vi.mock('@/hooks/queries/access-requests', () => ({
+vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
   useDiscoverAccessRequests: () => ({ data: { enabled: false, entries: [] }, isPending: false }),
 }))
 

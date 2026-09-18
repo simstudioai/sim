@@ -28,7 +28,7 @@ const {
 
 vi.mock('next/navigation', () => ({ notFound: mockNotFound, redirect: mockRedirect }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/components/access-requests/permission-access-boundary', () => ({
+vi.mock('@/ee/access-requests/components/permission-access-boundary', () => ({
   PermissionAccessBoundary: vi.fn(() => null),
 }))
 vi.mock('@/lib/settings/application/workspace-section-access', () => ({

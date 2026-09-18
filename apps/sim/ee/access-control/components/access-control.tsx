@@ -18,11 +18,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
-import { OrganizationAccessRequests } from '@/components/access-requests/organization-access-requests'
-import {
-  accessRequestUrlOptions,
-  accessReviewSearchParams,
-} from '@/components/access-requests/search-params'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -54,6 +49,11 @@ import {
   usePermissionGroups,
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
+import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
+import {
+  accessRequestUrlOptions,
+  accessReviewSearchParams,
+} from '@/ee/access-requests/components/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('AccessControl')

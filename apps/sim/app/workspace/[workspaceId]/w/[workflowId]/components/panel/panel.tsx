@@ -27,7 +27,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
-import { RequestAccessModal } from '@/components/access-requests/request-access-action'
 import { VariableIcon } from '@/components/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { requestJson } from '@/lib/api/client/request'
@@ -68,7 +67,8 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
+import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
+import { useDiscoverAccessRequests } from '@/ee/access-requests/hooks/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,

@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { Document } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document'
 import DocumentLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/loading'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 interface DocumentPageProps {
   params: Promise<{

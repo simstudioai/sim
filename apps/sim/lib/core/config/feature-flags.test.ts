@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
 const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
@@ -13,7 +13,6 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
-    PERMISSION_ACCESS_REQUESTS_ENABLED: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
     SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
@@ -335,28 +334,5 @@ describe('table-row-ttl flag', () => {
   it('uses the global AppConfig clause', async () => {
     withAppConfig({ 'table-row-ttl': { enabled: true } })
     expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
-  })
-})
-
-describe('permission access request rollout', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    setEnvFlags({ isAppConfigEnabled: false })
-    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = undefined
-  })
-  afterEach(() => {
-    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = undefined
-  })
-  it('defaults off and can be enabled with the fallback secret', async () => {
-    expect(await isFeatureEnabled('permission-access-requests')).toBe(false)
-    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = true
-    expect(await isFeatureEnabled('permission-access-requests')).toBe(true)
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-  it('uses a global AppConfig rule without organization targeting', async () => {
-    withAppConfig({ 'permission-access-requests': { enabled: false, orgIds: ['org'] } })
-    expect(await isFeatureEnabled('permission-access-requests')).toBe(false)
-    withAppConfig({ 'permission-access-requests': { enabled: true } })
-    expect(await isFeatureEnabled('permission-access-requests')).toBe(true)
   })
 })
