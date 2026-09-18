@@ -3,15 +3,13 @@
  */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import {
-  searchWorkspaceFileIndex,
-  WorkspaceFileSearchUnavailableError,
-} from '@/lib/workspace-files/search/repository'
+import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
 
 /**
  * The shape a failed query really arrives in, captured from PostgreSQL 17
@@ -24,6 +22,7 @@ function driverError(code: string): Error {
 }
 
 describe('searchWorkspaceFileIndex fault mapping', () => {
+  afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     resetDbChainMock()
   })
@@ -97,5 +96,27 @@ describe('searchWorkspaceFileIndex fault mapping', () => {
     expect(guards).toContain('statement_timeout')
     expect(guards).toContain('lock_timeout')
     expect(db.transaction).toHaveBeenCalled()
+  })
+  it('bounds the caller while BEGIN is stalled and does not run late search SQL', async () => {
+    vi.useFakeTimers()
+    const acquired = Promise.withResolvers<void>()
+    let transactionFinished!: Promise<unknown>
+    dbChainMockFns.transaction.mockImplementationOnce((callback) => {
+      transactionFinished = acquired.promise.then(() => callback(db))
+      return transactionFinished
+    })
+    const waiting = expect(
+      searchWorkspaceFileIndex({
+        workspaceId: 'workspace-1',
+        pattern: compileFileSearchPattern('needle', 'exact'),
+        maxResults: 50,
+      })
+    ).rejects.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
+    await vi.advanceTimersByTimeAsync(15000)
+    await waiting
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+    acquired.resolve()
+    await expect(transactionFinished).rejects.toThrow('Operation deadline expired')
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 })

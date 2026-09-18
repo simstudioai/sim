@@ -1100,6 +1100,19 @@ export interface KeywordSearchParams {
  * with `topK` (measured at ~59x the buffer reads on a 20k-chunk base for a term
  * matching every row). Ranking therefore touches no vectors, and only the rows
  * that survive the limit are hydrated.
+ *
+ * The live-scope ranking query runs in three stages: match, authorize, rank. The
+ * visibility predicate carries correlated subqueries — one per connector, one per
+ * search-integration decision — so evaluating it across a base ahead of the query costs a table
+ * pass priced by how many documents the base holds rather than by how many the query matched.
+ * Matching first restricts that predicate to the documents the query actually matched.
+ *
+ * Two details keep that ordering from paying the saving back. Restricting the predicate with
+ * `document.id = ANY (...)` rather than a subquery keeps the narrowed lookup on a bitmap scan,
+ * which prefetches, where a plain `IN (SELECT ...)` plans as an index walk that does not. And
+ * the match stage carries identifiers only: ranking every match rather than every *visible*
+ * match would detoast one text-search vector per match, which on a mid-frequency term costs
+ * more than the pass it replaces.
  */
 export async function executeKeywordSearch(params: KeywordSearchParams): Promise<SearchResult[]> {
   const { knowledgeBaseIds, topK, query, queryVector, structuredFilters, access } = params
@@ -1133,28 +1146,14 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       selectPage: async (limit, offset, excludedSources) => {
         const candidates = await runSearchQuery(params.budget, 'keyword.sql', (executor) =>
           executor.execute<SearchReadCandidate>(sql`
-            WITH visible_keyword_documents AS MATERIALIZED (
-              SELECT ${document.id} AS id FROM ${document}
-              WHERE ${and(
-                inArray(document.knowledgeBaseId, knowledgeBaseIds),
-                ...getDocumentVisibilityConditions(
-                  access,
-                  params.filters,
-                  knowledgeMetadataCandidateAccessCondition(access)
-                ),
-                excludeSearchSources(excludedSources)
-              )}
-            ), scored_keyword_candidates AS MATERIALIZED (
+            WITH matched_keyword_chunks AS MATERIALIZED (
               SELECT ${embeddingKeywordSearch.id} AS id,
-                ${embeddingKeywordSearch.documentId} AS document_id,
-                ${candidateRank} AS keyword_rank
+                ${embeddingKeywordSearch.documentId} AS document_id
               FROM ${embeddingKeywordSearch}
               WHERE ${and(
                 inArray(embeddingKeywordSearch.knowledgeBaseId, knowledgeBaseIds),
                 eq(embeddingKeywordSearch.enabled, true),
                 sql`${embeddingKeywordSearch.contentTsv} @@ ${tsQuery}`,
-                sql`${embeddingKeywordSearch.documentId} IN (SELECT id FROM visible_keyword_documents)`,
-                sql`EXISTS (SELECT 1 FROM visible_keyword_documents)`,
                 tagFilterConditions.length
                   ? sql`EXISTS (
                   SELECT 1 FROM ${embedding} WHERE ${embedding.id} = ${embeddingKeywordSearch.id}
@@ -1162,9 +1161,26 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
                 )`
                   : undefined
               )}
+            ), visible_keyword_documents AS MATERIALIZED (
+              SELECT ${document.id} AS id FROM ${document}
+              WHERE ${and(
+                inArray(document.knowledgeBaseId, knowledgeBaseIds),
+                sql`${document.id} = ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))`,
+                ...getDocumentVisibilityConditions(
+                  access,
+                  params.filters,
+                  knowledgeMetadataCandidateAccessCondition(access)
+                ),
+                excludeSearchSources(excludedSources)
+              )}
             ), ranked_keyword_candidates AS MATERIALIZED (
-              SELECT * FROM scored_keyword_candidates
-              ORDER BY keyword_rank DESC, id LIMIT ${limit} OFFSET ${offset}
+              SELECT matched_keyword_chunks.id, matched_keyword_chunks.document_id,
+                ${candidateRank} AS keyword_rank
+              FROM matched_keyword_chunks INNER JOIN ${embeddingKeywordSearch}
+                ON ${embeddingKeywordSearch.id} = matched_keyword_chunks.id
+              WHERE matched_keyword_chunks.document_id IN (SELECT id FROM visible_keyword_documents)
+              ORDER BY keyword_rank DESC, matched_keyword_chunks.id
+              LIMIT ${limit} OFFSET ${offset}
             )
             SELECT ranked_keyword_candidates.id, ${document.id} AS "documentId",
               ${document.connectorId} AS "connectorId",

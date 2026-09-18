@@ -1,3 +1,4 @@
+import { DB_POOL_PROFILES } from '@sim/db/pool-profiles'
 import { createLogger } from '@sim/logger'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -7,21 +8,6 @@ import { withUtcTimestamps } from './timestamps'
 import { instrumentPoolClient } from './tx-tripwire'
 
 const logger = createLogger('Db')
-
-/**
- * Per-role pool profiles. Starting numbers — validate against real per-role
- * process counts (PgBouncer transaction mode, max_connections=200).
- */
-export const DB_POOL_PROFILES = {
-  web: { primaryMax: 10, replicaMax: 4, appName: 'sim-app' },
-  // 5, not 3 — one run can need 3+ simultaneous connections (parallel queries +
-  // overlapping logging writes); 3 risks intra-run deadlock.
-  trigger: { primaryMax: 5, replicaMax: 2, appName: 'sim-trigger' },
-  realtime: { primaryMax: 5, replicaMax: 3, appName: 'sim-realtime' },
-  // Sub-process pools, selected per call-site via dbFor() — never via SIM_DB_ROLE.
-  cleanup: { primaryMax: 5, replicaMax: 2, appName: 'sim-cleanup' },
-  exec: { primaryMax: 10, replicaMax: 4, appName: 'sim-exec' },
-} as const
 
 /** Roles a whole process runs as (via SIM_DB_ROLE). */
 const PROCESS_ROLES = ['web', 'trigger', 'realtime'] as const
@@ -129,7 +115,8 @@ const processUrlEnvVar = process.env[`DATABASE_URL_${role.toUpperCase()}`]
  * cached per role. Unlike the process-wide `db` (selected by `SIM_DB_ROLE`),
  * these are selected per call-site so a workload running inside an existing
  * process — cleanup jobs in the trigger worker, inline execution log writes in
- * the web server — gets its own connection budget and PgBouncer pool.
+ * the web server — gets its own client connection budget. A separate PgBouncer
+ * server pool additionally requires a distinct database/user pool configuration.
  *
  * Resolves `DATABASE_URL_<ROLE>` with fallback to the URL the process itself
  * resolved (`DATABASE_URL_<PROCESSROLE>`, then base `DATABASE_URL`), so an

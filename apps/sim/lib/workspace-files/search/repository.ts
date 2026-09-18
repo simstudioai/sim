@@ -1,10 +1,11 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import {
   probeFileSearchCandidates,
   readOrderedFileSearchCandidates,
@@ -19,6 +20,7 @@ import {
   FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
   FILE_SEARCH_STATEMENT_TIMEOUT_MS,
 } from '@/lib/workspace-files/search/constants'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   alignToCodePoints,
   type CompiledFileSearchPattern,
@@ -70,18 +72,6 @@ interface SearchWorkspaceFileIndexInput {
 const QUERY_CANCELED = '57014'
 const LOCK_NOT_AVAILABLE = '55P03'
 const INVALID_REGULAR_EXPRESSION = '2201B'
-
-/**
- * The search could not run, for a reason the caller did not cause and cannot fix
- * by changing the query — distinct from {@link FileSearchPatternError}, so a
- * surface reports "try again" rather than blaming the pattern.
- */
-export class WorkspaceFileSearchUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'WorkspaceFileSearchUnavailableError'
-  }
-}
 
 /** Query deadlines cover expensive patterns; lock and transaction faults are retryable. */
 function asFileSearchFault(error: unknown): Error | null {
@@ -237,166 +227,189 @@ export async function searchWorkspaceFileIndex({
    */
   const folderPredicate = folderScope ? buildFolderPredicate(folderScope) : undefined
 
-  try {
-    /** Metadata pages and line reads share one deadline and a consistent revision snapshot. */
-    const { rows, coverageRows } = await db.transaction(
-      async (tx) => {
-        await configureFileSearchTransaction(tx)
+  return fileSearchAdmission.run(
+    workspaceId,
+    async (signal, deadlineAt) => {
+      try {
+        signal.throwIfAborted()
+        /** Metadata pages and line reads share one deadline and a consistent revision snapshot. */
+        const { rows, coverageRows } = await dbFor('search').transaction(
+          async (tx) => {
+            signal?.throwIfAborted()
+            const deadline = Math.min(deadlineAt, Date.now() + FILE_SEARCH_STATEMENT_TIMEOUT_MS)
+            const remainingMs = deadline - Date.now()
+            if (remainingMs <= 0) {
+              throw new WorkspaceFileSearchUnavailableError(
+                'Workspace file search timed out. Retry shortly.'
+              )
+            }
+            await configureFileSearchTransaction(tx, { statementTimeout: remainingMs })
 
-        /** Transaction-owned slots release on completion, cancellation, or connection loss. */
-        for (const [scope, capacity] of [
-          [`workspace:${workspaceId}`, FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
-          ['global', FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY],
-        ] as const) {
-          const slots = await tx.execute(sql`SELECT slot FROM generate_series(1, ${capacity}) slot
+            /** Transaction-owned slots release on completion, cancellation, or connection loss. */
+            for (const [scope, capacity] of [
+              [`workspace:${workspaceId}`, FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
+              ['global', FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY],
+            ] as const) {
+              const slots =
+                await tx.execute(sql`SELECT slot FROM generate_series(1, ${capacity}) slot
             WHERE pg_try_advisory_xact_lock(hashtextextended('workspace-file-search-read:' || ${scope} || ':' || slot::text, 0)) LIMIT 1`)
-          if (!slots.length)
-            throw new WorkspaceFileSearchUnavailableError(
-              'Workspace file search is busy. Retry shortly.'
-            )
-        }
+              if (!slots.length)
+                throw new WorkspaceFileSearchUnavailableError(
+                  'Workspace file search is busy. Retry shortly.'
+                )
+            }
 
-        const deadline = Date.now() + FILE_SEARCH_STATEMENT_TIMEOUT_MS
-        const guardRemainingTime = async () => {
-          signal?.throwIfAborted()
-          const remaining = deadline - Date.now()
-          if (remaining <= 0)
-            throw new WorkspaceFileSearchUnavailableError(
-              'Search timed out. Narrow the query or folder scope.'
-            )
-          await tx.execute(sql`SELECT set_config('statement_timeout', ${`${remaining}ms`}, true)`)
-        }
-        /** Probe without a global sort. Rare queries finish here; broad queries scan files in order. */
-        const probed = await probeFileSearchCandidates(tx, {
-          workspaceId,
-          pattern,
-          folderPredicate,
-        })
-        const broad = probed.length > FILE_SEARCH_CANDIDATE_PROBE_SIZE
-        const matchedRows: SearchRow[] = []
-        let after: { name: string; id: string; lineStart: number } | undefined
-        while (matchedRows.length <= maxResults) {
-          await guardRemainingTime()
-          let candidates = probed
-          if (broad) {
-            candidates = await readOrderedFileSearchCandidates(
-              tx,
-              { workspaceId, pattern, folderPredicate },
-              after
-            )
-          }
-          for (
-            let position = 0;
-            position < candidates.length && matchedRows.length <= maxResults;
-          ) {
-            const first = candidates[position++]
-            const batch = [first]
-            if (first.fragment) {
-              while (
-                position < candidates.length &&
-                candidates[position].buildId === first.buildId &&
-                candidates[position].lineStart === first.lineStart
+            const guardRemainingTime = async () => {
+              signal?.throwIfAborted()
+              const remaining = deadline - Date.now()
+              if (remaining <= 0)
+                throw new WorkspaceFileSearchUnavailableError(
+                  'Search timed out. Narrow the query or folder scope.'
+                )
+              await tx.execute(
+                sql`SELECT set_config('statement_timeout', ${`${remaining}ms`}, true)`
               )
-                position++
-            } else {
-              while (
-                position < candidates.length &&
-                batch.length < FILE_SEARCH_CANDIDATE_PAGE_SIZE &&
-                !candidates[position].fragment
-              )
-                batch.push(candidates[position++])
             }
             await guardRemainingTime()
-            matchedRows.push(
-              ...(await readCandidateLines(tx, batch, pattern, maxResults + 1 - matchedRows.length))
-            )
-          }
-          if (!broad || candidates.length < FILE_SEARCH_CANDIDATE_PAGE_SIZE) break
-          const last = candidates.at(-1)!
-          after = { name: last.fileName, id: last.fileId, lineStart: last.lineStart }
-        }
-        await guardRemainingTime()
-        signal?.throwIfAborted()
-        const coverage = await tx
-          .select({
-            readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NOT NULL)::int`,
-            pendingFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} is null or ${workspaceFileSearchRevision.status} = 'pending' or (${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NULL))::int`,
-            failedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'failed')::int`,
-            skippedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'skipped')::int`,
-            partialFiles: sql<number>`0::int`,
-          })
-          .from(workspaceFiles)
-          .leftJoin(
-            workspaceFileSearchRevision,
-            and(
-              eq(workspaceFileSearchRevision.fileId, workspaceFiles.id),
-              eq(
-                workspaceFileSearchRevision.sourceContentUpdatedAt,
-                workspaceFiles.contentUpdatedAt
+            /** Probe without a global sort. Rare queries finish here; broad queries scan files in order. */
+            const probed = await probeFileSearchCandidates(tx, {
+              workspaceId,
+              pattern,
+              folderPredicate,
+            })
+            const broad = probed.length > FILE_SEARCH_CANDIDATE_PROBE_SIZE
+            const matchedRows: SearchRow[] = []
+            let after: { name: string; id: string; lineStart: number } | undefined
+            while (matchedRows.length <= maxResults) {
+              await guardRemainingTime()
+              let candidates = probed
+              if (broad) {
+                candidates = await readOrderedFileSearchCandidates(
+                  tx,
+                  { workspaceId, pattern, folderPredicate },
+                  after
+                )
+              }
+              for (
+                let position = 0;
+                position < candidates.length && matchedRows.length <= maxResults;
+              ) {
+                const first = candidates[position++]
+                const batch = [first]
+                if (first.fragment) {
+                  while (
+                    position < candidates.length &&
+                    candidates[position].buildId === first.buildId &&
+                    candidates[position].lineStart === first.lineStart
+                  )
+                    position++
+                } else {
+                  while (
+                    position < candidates.length &&
+                    batch.length < FILE_SEARCH_CANDIDATE_PAGE_SIZE &&
+                    !candidates[position].fragment
+                  )
+                    batch.push(candidates[position++])
+                }
+                await guardRemainingTime()
+                matchedRows.push(
+                  ...(await readCandidateLines(
+                    tx,
+                    batch,
+                    pattern,
+                    maxResults + 1 - matchedRows.length
+                  ))
+                )
+              }
+              if (!broad || candidates.length < FILE_SEARCH_CANDIDATE_PAGE_SIZE) break
+              const last = candidates.at(-1)!
+              after = { name: last.fileName, id: last.fileId, lineStart: last.lineStart }
+            }
+            await guardRemainingTime()
+            signal?.throwIfAborted()
+            const coverage = await tx
+              .select({
+                readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NOT NULL)::int`,
+                pendingFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} is null or ${workspaceFileSearchRevision.status} = 'pending' or (${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NULL))::int`,
+                failedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'failed')::int`,
+                skippedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'skipped')::int`,
+                partialFiles: sql<number>`0::int`,
+              })
+              .from(workspaceFiles)
+              .leftJoin(
+                workspaceFileSearchRevision,
+                and(
+                  eq(workspaceFileSearchRevision.fileId, workspaceFiles.id),
+                  eq(
+                    workspaceFileSearchRevision.sourceContentUpdatedAt,
+                    workspaceFiles.contentUpdatedAt
+                  )
+                )
               )
-            )
-          )
-          .where(
-            and(
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt),
-              folderPredicate
-            )
-          )
+              .where(
+                and(
+                  eq(workspaceFiles.workspaceId, workspaceId),
+                  eq(workspaceFiles.context, 'workspace'),
+                  isNull(workspaceFiles.deletedAt),
+                  folderPredicate
+                )
+              )
 
-        return { rows: matchedRows, coverageRows: coverage }
-      },
-      { isolationLevel: 'repeatable read', accessMode: 'read only' }
-    )
+            return { rows: matchedRows, coverageRows: coverage }
+          },
+          { isolationLevel: 'repeatable read', accessMode: 'read only' }
+        )
 
-    signal?.throwIfAborted()
-    const resultRows = rows.slice(0, maxResults)
-    const indexStatus = coverageRows[0] ?? {
-      readyFiles: 0,
-      pendingFiles: 0,
-      failedFiles: 0,
-      skippedFiles: 0,
-      partialFiles: 0,
-    }
-    const sourcesByFileId = new Map<string, WorkspaceFileSearchSource>()
-    for (const row of resultRows) {
-      sourcesByFileId.set(row.fileId, {
-        identity: {
+        signal?.throwIfAborted()
+        const resultRows = rows.slice(0, maxResults)
+        const indexStatus = coverageRows[0] ?? {
+          readyFiles: 0,
+          pendingFiles: 0,
+          failedFiles: 0,
+          skippedFiles: 0,
+          partialFiles: 0,
+        }
+        const sourcesByFileId = new Map<string, WorkspaceFileSearchSource>()
+        for (const row of resultRows) {
+          sourcesByFileId.set(row.fileId, {
+            identity: {
+              fileId: row.fileId,
+              key: row.fileKey,
+              context: 'workspace',
+              contentUpdatedAt: row.contentUpdatedAt,
+            },
+            ownerUserId: row.ownerUserId,
+          })
+        }
+
+        const results = resultRows.map((row) => ({
           fileId: row.fileId,
-          key: row.fileKey,
-          context: 'workspace',
-          contentUpdatedAt: row.contentUpdatedAt,
-        },
-        ownerUserId: row.ownerUserId,
-      })
-    }
-
-    const results = resultRows.map((row) => ({
-      fileId: row.fileId,
-      lineNumber: row.lineNumber,
-      text: createFileSearchPreview(row.content, pattern, undefined, {
-        prefixOmitted: row.prefixOmitted,
-        suffixOmitted: row.suffixOmitted,
-        matchRange:
-          pattern.mode === 'regex'
-            ? toPreviewRange(row.content, row.matchStart, row.matchEnd)
-            : undefined,
-      }),
-    }))
-    signal?.throwIfAborted()
-    return {
-      results,
-      count: results.length,
-      truncated: rows.length > maxResults,
-      complete: indexStatus.pendingFiles === 0 && indexStatus.failedFiles === 0,
-      indexStatus,
-      sources: [...sourcesByFileId.values()],
-    }
-  } catch (error) {
-    signal?.throwIfAborted()
-    const fault = asFileSearchFault(error)
-    if (fault) throw fault
-    throw error
-  }
+          lineNumber: row.lineNumber,
+          text: createFileSearchPreview(row.content, pattern, undefined, {
+            prefixOmitted: row.prefixOmitted,
+            suffixOmitted: row.suffixOmitted,
+            matchRange:
+              pattern.mode === 'regex'
+                ? toPreviewRange(row.content, row.matchStart, row.matchEnd)
+                : undefined,
+          }),
+        }))
+        signal?.throwIfAborted()
+        return {
+          results,
+          count: results.length,
+          truncated: rows.length > maxResults,
+          complete: indexStatus.pendingFiles === 0 && indexStatus.failedFiles === 0,
+          indexStatus,
+          sources: [...sourcesByFileId.values()],
+        }
+      } catch (error) {
+        signal?.throwIfAborted()
+        const fault = asFileSearchFault(error)
+        if (fault) throw fault
+        throw error
+      }
+    },
+    signal
+  )
 }

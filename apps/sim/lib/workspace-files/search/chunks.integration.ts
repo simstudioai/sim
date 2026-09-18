@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { DB_POOL_PROFILES } from '@sim/db/pool-profiles'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
@@ -9,8 +10,15 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildLiteralMatchStart } from '@/lib/workspace-files/search/sql-pattern'
 
-const database = vi.hoisted(() => ({ current: undefined as PostgresJsDatabase | undefined }))
+const database = vi.hoisted(() => ({
+  current: undefined as PostgresJsDatabase | undefined,
+  search: undefined as PostgresJsDatabase | undefined,
+}))
 vi.mock('@sim/db', () => ({
+  dbFor: (role: string) => {
+    if (role !== 'search' || !database.search) throw new Error('Search database not initialized')
+    return database.search
+  },
   get db() {
     if (!database.current) throw new Error('Test database not initialized')
     return database.current
@@ -27,6 +35,8 @@ import {
   FILE_SEARCH_CLEANUP_BATCH_ROWS,
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
+  FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY,
+  FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
 } from '@/lib/workspace-files/search/constants'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
 import {
@@ -67,6 +77,16 @@ describe('chunked workspace file search on PostgreSQL', () => {
     databaseUrl,
     withUtcTimestamps({
       max: 4,
+      prepare: false,
+      fetch_types: false,
+      connection: { search_path: `${schema},public` },
+      onnotice: () => {},
+    })
+  )
+  const searchConnection = postgres(
+    databaseUrl,
+    withUtcTimestamps({
+      max: DB_POOL_PROFILES.search.primaryMax,
       prepare: false,
       fetch_types: false,
       connection: { search_path: `${schema},public` },
@@ -137,7 +157,8 @@ describe('chunked workspace file search on PostgreSQL', () => {
       for (const statement of source.split('--> statement-breakpoint'))
         if (statement.trim()) await connection.unsafe(statement)
     }
-    database.current = drizzle(connection, {
+    database.current = drizzle(connection)
+    database.search = drizzle(searchConnection, {
       logger: {
         logQuery(query, params) {
           if (
@@ -163,7 +184,8 @@ describe('chunked workspace file search on PostgreSQL', () => {
       await connection`DROP SCHEMA ${connection(schema)} CASCADE`
     } finally {
       database.current = undefined
-      await connection.end()
+      database.search = undefined
+      await Promise.all([connection.end(), searchConnection.end()])
     }
   })
 
@@ -475,11 +497,75 @@ describe('chunked workspace file search on PostgreSQL', () => {
     )
   })
 
-  it('releases query admission slots after a busy response', async () => {
+  async function withOccupiedPool(client: postgres.Sql, count: number, run: () => Promise<void>) {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started = 0
+    const transactions: Promise<unknown>[] = []
+    const ready = new Promise<void>((resolve, reject) => {
+      for (let i = 0; i < count; i++) {
+        transactions.push(
+          client
+            .begin(async () => {
+              if (++started === count) resolve()
+              await held
+            })
+            .catch(reject)
+        )
+      }
+    })
+    try {
+      await ready
+      await run()
+    } finally {
+      release()
+      await Promise.all(transactions)
+    }
+  }
+
+  it('searches while every shared application connection is occupied', async () => {
+    await index('needle')
+    await withOccupiedPool(connection, 4, async () => {
+      expect((await search('needle')).results).toHaveLength(1)
+    })
+  })
+
+  it('keeps application queries available while every search connection is occupied', async () => {
+    await withOccupiedPool(searchConnection, DB_POOL_PROFILES.search.primaryMax, async () => {
+      expect((await connection`SELECT 1 AS available`)[0].available).toBe(1)
+    })
+  })
+
+  it('serves a twenty-search workspace burst through the bounded search pool', async () => {
+    await index('needle')
+    const results = await Promise.all(Array.from({ length: 20 }, () => search('needle')))
+    expect(results).toHaveLength(20)
+    for (const result of results) expect(result.results).toHaveLength(1)
+  })
+
+  it('admits a search up to the workspace and global ceilings', async () => {
     const held = await connection.reserve()
     try {
       await held`BEGIN`
-      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:workspace:workspace-1:' || n::text, 0)) FROM generate_series(1, 2) n`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:workspace:workspace-1:' || n::text, 0)) FROM generate_series(1, ${FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY - 1}) n`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:global:' || n::text, 0)) FROM generate_series(1, ${FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY - 1}) n`
+      expect((await search('needle')).results).toEqual([])
+    } finally {
+      await held`ROLLBACK`
+      held.release()
+    }
+  })
+
+  it.each([
+    ['workspace:workspace-1', FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
+    ['global', FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY],
+  ])('releases query admission slots after %s saturation', async (scope, capacity) => {
+    const held = await connection.reserve()
+    try {
+      await held`BEGIN`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:' || ${scope} || ':' || n::text, 0)) FROM generate_series(1, ${capacity}) n`
       await expect(search('needle')).rejects.toThrow('busy')
     } finally {
       await held`ROLLBACK`
