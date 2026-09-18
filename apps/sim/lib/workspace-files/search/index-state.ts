@@ -259,9 +259,11 @@ export async function cleanupFileSearchBuilds(): Promise<number> {
   const deadline = Date.now() + FILE_SEARCH_CLEANUP_BUDGET_MS
   let deleted = 0
   for (let batch = 0; batch < FILE_SEARCH_CLEANUP_MAX_BATCHES; batch++) {
-    const remainingBudget = deadline - Date.now()
-    if (remainingBudget < FILE_SEARCH_CLEANUP_MIN_BATCH_MS) break
+    if (deadline - Date.now() < FILE_SEARCH_CLEANUP_MIN_BATCH_MS) break
     const result = await db.transaction(async (tx) => {
+      /** Re-read: acquiring the connection can itself have spent the rest of the budget. */
+      const remainingBudget = deadline - Date.now()
+      if (remainingBudget < FILE_SEARCH_CLEANUP_MIN_BATCH_MS) return null
       await configureFileSearchTransaction(tx, { statementTimeout: remainingBudget })
       const builds = await tx.execute<{
         id: string

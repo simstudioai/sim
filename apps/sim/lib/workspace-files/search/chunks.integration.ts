@@ -396,6 +396,29 @@ describe('chunked workspace file search on PostgreSQL', () => {
       (await connection`SELECT count(*)::int AS count FROM workspace_file_search_chunk`)[0].count
     ).toBe(1000)
   })
+  it('abandons a batch whose budget was spent acquiring its connection', async () => {
+    const build = (await beginFileSearchBuild(revision))!
+    await connection`INSERT INTO workspace_file_search_chunk (build_id, workspace_id, ordinal, line_start, fragment, content)
+      SELECT ${build.id}, 'workspace-1', n, n + 1, false, 'x' FROM generate_series(0, 999) n`
+    await connection`UPDATE workspace_file_search_build SET expires_at = now() WHERE id = ${build.id}`
+
+    /** Full budget when the batch is admitted, none left once its connection is in hand. */
+    const startedAt = Date.now()
+    const clock = vi
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(startedAt)
+      .mockReturnValueOnce(startedAt)
+      .mockReturnValue(startedAt + FILE_SEARCH_CLEANUP_BUDGET_MS - 1)
+    try {
+      await expect(cleanupFileSearchBuilds()).resolves.toBe(0)
+    } finally {
+      clock.mockRestore()
+    }
+
+    expect(
+      (await connection`SELECT count(*)::int AS count FROM workspace_file_search_chunk`)[0].count
+    ).toBe(1000)
+  })
   it('retires many small builds within one cleanup run', async () => {
     await connection`INSERT INTO workspace_file_search_build (id, file_id, workspace_id, source_content_updated_at, expires_at)
       SELECT 'retired-' || n, 'file-1', 'workspace-1', now(), now() FROM generate_series(1, 100) n`
