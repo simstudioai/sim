@@ -1669,6 +1669,7 @@ export const schemaMock = {
   },
   credentialGroupEnrollment: {
     id: 'credentialGroupEnrollment.id',
+    userId: 'credentialGroupEnrollment.userId',
     credentialGroupId: 'credentialGroupEnrollment.credentialGroupId',
     email: 'credentialGroupEnrollment.email',
     status: 'credentialGroupEnrollment.status',
