@@ -243,6 +243,7 @@ export const CLI_TOOL_TITLES: Record<string, string> = {
   cli_workflows_deps: 'Tracing workflow inputs',
   cli_workflows_api: 'Reading workflow API details',
   cli_workflows_lint: 'Validating workflow',
+  cli_workflows_tools: 'Inspecting workflow tools',
   // Non-CLI copilot worker tools
   cli_help: 'Checking CLI reference',
   sim_cli: 'Running CLI command',

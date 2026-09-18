@@ -19,6 +19,7 @@ export function withToolBindingHints(detail: MothershipBlockDetail): MothershipB
             toolBinding: {
               selectionMode: isMothership ? 'additive' : 'explicit',
               discovery: [
+                'workflows tools <workflowId> --block <blockId>',
                 ...(!isMothership
                   ? [
                       'blocks get <type> --operation <operation>',

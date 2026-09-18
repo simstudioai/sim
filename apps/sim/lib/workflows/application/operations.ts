@@ -83,6 +83,14 @@ export const workflowOperations = {
     capability: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: inspecting saved tool bindings reads workflow content; protected dependencies reauthorize separately
+  inspectTools: defineWorkspaceOperation({
+    id: 'workflows.tools.inspect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: reading a block's declared outputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
   readCopilotBlockOutputs: defineWorkspaceOperation({
     id: 'workflows.copilot.block_outputs.read',
