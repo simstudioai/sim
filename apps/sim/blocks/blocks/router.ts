@@ -1,4 +1,5 @@
 import { ConnectIcon } from '@/components/icons'
+import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -186,6 +187,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
+    getModelFallbackSubBlock(),
     {
       id: 'temperature',
       title: 'Temperature',
@@ -221,6 +223,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number',
       description: 'Response randomness level (low for consistent routing)',
@@ -303,6 +306,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
+    getModelFallbackSubBlock(),
   ],
   tools: {
     access: [
@@ -322,6 +326,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
     routes: { type: 'json', description: 'Route definitions with descriptions' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...MODEL_FALLBACK_INPUTS,
   },
   outputs: {
     context: { type: 'string', description: 'Context used for routing' },

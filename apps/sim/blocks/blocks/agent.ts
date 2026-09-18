@@ -1,10 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
-import {
-  MAX_FALLBACK_MODELS,
-  normalizeFallbackModels,
-} from '@/lib/workflows/blocks/fallback-models'
+import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
+import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -37,7 +35,6 @@ const logger = createLogger('AgentBlock')
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
 const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
 
-const FALLBACK_MODELS_DESCRIPTION = `Ordered models tried in sequence, once each, when the request to the selected model fails; with Retry on fail, after the selected model's tries run out. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max ${MAX_FALLBACK_MODELS}.`
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
@@ -436,13 +433,7 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
       },
     },
-    {
-      id: 'fallbackModels',
-      title: 'Fallback models',
-      type: 'model-fallback-list',
-      mode: 'advanced',
-      description: FALLBACK_MODELS_DESCRIPTION,
-    },
+    getModelFallbackSubBlock(),
   ],
   tools: {
     access: [
@@ -605,7 +596,7 @@ Return ONLY the JSON array.`,
       type: 'boolean',
       description: 'Cache the system prompt and tool definitions on models that support it',
     },
-    fallbackModels: { type: 'json', description: FALLBACK_MODELS_DESCRIPTION },
+    ...MODEL_FALLBACK_INPUTS,
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
   },

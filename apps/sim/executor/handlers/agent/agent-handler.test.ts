@@ -18,6 +18,7 @@ import {
   type Mock,
   vi,
 } from 'vitest'
+import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
 import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
@@ -572,6 +573,8 @@ describe('AgentBlockHandler', () => {
     }
 
     beforeEach(() => {
+      setEnvFlags({ isHosted: false })
+      resetDeploymentShape()
       mockGetProviderFromModel.mockImplementation(providerFor)
       mockValidateModelProvider.mockResolvedValue(undefined)
     })
@@ -621,6 +624,120 @@ describe('AgentBlockHandler', () => {
       )
       expect(blockLog).toMatchObject({ modelFallbacks: ['gpt-4o'] })
     })
+
+    it.each(['flat', 'memory-block'] as const)(
+      'preserves injected %s memories when switching providers',
+      async (shape) => {
+        const history: Message[] = [
+          { role: 'user', content: 'My name is Ada.' },
+          { role: 'assistant', content: 'Hello Ada.' },
+        ]
+        const inputs: AgentInputs = {
+          ...baseInputs,
+          systemPrompt: 'Use the conversation history.',
+          userPrompt: 'What is my name?',
+          memories:
+            shape === 'flat' ? history : { memories: [{ key: 'conversation-1', data: history }] },
+          fallbackModels: [{ model: 'claude-sonnet-5' }],
+        }
+        const original = structuredClone(inputs)
+        mockExecuteProviderRequest
+          .mockRejectedValueOnce(new Error('overloaded'))
+          .mockResolvedValueOnce(providerResponse('claude-sonnet-5', 'Your name is Ada.'))
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+        const expectedMessages = [
+          { role: 'system', content: 'Use the conversation history.' },
+          ...history,
+          { role: 'user', content: 'What is my name?' },
+        ]
+        for (const [, request] of mockExecuteProviderRequest.mock.calls) {
+          expect(request.messages).toEqual(expectedMessages)
+        }
+        expect(mockExecuteProviderRequest.mock.calls[1][0]).toBe('anthropic')
+        expect(inputs).toEqual(original)
+      }
+    )
+
+    it.each([
+      { memoryType: 'conversation', streaming: false },
+      { memoryType: 'conversation', streaming: true },
+      { memoryType: 'sliding_window', streaming: false },
+      { memoryType: 'sliding_window', streaming: true },
+    ] as const)(
+      'preserves $memoryType history through fallback and saves each turn once (streaming=$streaming)',
+      async ({ memoryType, streaming }) => {
+        dbChainMockFns.returning.mockResolvedValue([{ id: 'memory-1' }])
+        const history: Message[] = [
+          { role: 'user', content: 'Hello.' },
+          { role: 'assistant', content: 'How can I help?' },
+          { role: 'user', content: 'My name is Ada.' },
+          { role: 'assistant', content: 'Hello Ada.' },
+        ]
+        queueTableRows(schemaMock.memory, [{ secretProvenanceVersion: null, data: history }])
+        const ctx = { ...mockContext, executionId: 'memory-fallback-execution' }
+        const inputs: AgentInputs = {
+          ...baseInputs,
+          userPrompt: undefined,
+          memoryType,
+          slidingWindowSize: '2',
+          conversationId: 'conversation-1',
+          messages: [
+            { role: 'system', content: 'Use the conversation history.' },
+            { role: 'user', content: 'What is my name?' },
+          ],
+          fallbackModels: [{ model: 'claude-sonnet-5' }],
+        }
+        const original = structuredClone(inputs)
+        if (streaming) {
+          mockExecuteProviderRequest
+            .mockResolvedValueOnce(
+              streamingResponse([], { failBeforeFirstChunk: new Error('overloaded') })
+            )
+            .mockResolvedValueOnce(streamingResponse(['Your name is Ada.']))
+        } else {
+          mockExecuteProviderRequest
+            .mockRejectedValueOnce(new Error('overloaded'))
+            .mockResolvedValueOnce(providerResponse('claude-sonnet-5', 'Your name is Ada.'))
+        }
+
+        const result = await handler.execute(ctx, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+        const currentUserMessage = {
+          role: 'user',
+          content: 'What is my name?',
+          executionId: ctx.executionId,
+        }
+        const expectedMessages = [
+          { role: 'system', content: 'Use the conversation history.' },
+          ...(memoryType === 'sliding_window' ? history.slice(-2) : history),
+          { role: 'user', content: 'What is my name?' },
+        ]
+        for (const [, request] of mockExecuteProviderRequest.mock.calls) {
+          expect(request.messages).toEqual(expectedMessages)
+        }
+        expect(mockExecuteProviderRequest.mock.calls[1][0]).toBe('anthropic')
+        if (streaming) {
+          const streamedResult = result as StreamingExecution
+          expect(await drain(streamedResult.stream)).toEqual(['Your name is Ada.'])
+          expect(streamedResult.onFullContent).toBeTypeOf('function')
+          await streamedResult.onFullContent?.('Your name is Ada.')
+        }
+
+        const memoryWrites = dbChainMockFns.values.mock.calls
+          .map(([row]) => row)
+          .filter((row) => Array.isArray(row.data))
+        expect(memoryWrites.map((row) => row.data)).toEqual([
+          [currentUserMessage],
+          [{ role: 'assistant', content: 'Your name is Ada.' }],
+        ])
+        expect(memoryWrites.every((row) => row.key === inputs.conversationId)).toBe(true)
+        expect(inputs).toEqual(original)
+      }
+    )
 
     it('holds the fallbacks on a try the executor will replay', async () => {
       mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
@@ -755,6 +872,58 @@ describe('AgentBlockHandler', () => {
         'Fallback key variable is not set for this run',
         expect.objectContaining({ model: 'claude-sonnet-5', variable: '{{MISSING_KEY}}' })
       )
+    })
+
+    it.each([
+      { hosted: false, primary: 'gpt-4o', fallback: 'gpt-4o-mini', expectedKey: 'primary-key' },
+      { hosted: true, primary: 'gpt-4o', fallback: 'claude-sonnet-5', expectedKey: undefined },
+    ])(
+      'ignores a hidden row key for $fallback with hosted=$hosted',
+      async ({ hosted, primary, fallback, expectedKey }) => {
+        setEnvFlags({ isHosted: hosted })
+        resetDeploymentShape()
+        mockExecuteProviderRequest
+          .mockRejectedValueOnce(new Error('overloaded'))
+          .mockResolvedValueOnce(providerResponse(fallback))
+        const block = {
+          ...mockBlock,
+          config: {
+            ...mockBlock.config,
+            params: { fallbackModels: [{ model: fallback, apiKey: '{{OLD_KEY}}' }] },
+          },
+        }
+
+        await handler.execute(mockContext, block, {
+          ...baseInputs,
+          model: primary,
+          fallbackModels: [{ model: fallback, apiKey: 'old-row-key' }],
+        })
+
+        expect(mockExecuteProviderRequest.mock.calls[1][1].apiKey).toBe(expectedKey)
+      }
+    )
+
+    it('lets the executor retry a stream startup failure while fallbacks are held', async () => {
+      mockExecuteProviderRequest.mockResolvedValueOnce(
+        streamingResponse([], { failBeforeFirstChunk: new Error('429 at stream start') })
+      )
+
+      await expect(
+        handler.execute(
+          mockContext,
+          mockBlock,
+          {
+            ...baseInputs,
+            stream: true,
+            fallbackModels: [{ model: 'claude-sonnet-5' }],
+          },
+          {
+            nodeId: mockBlock.id,
+            retry: { attempt: 1, maxTries: 3, isFinalTry: false },
+          }
+        )
+      ).rejects.toThrow('429 at stream start')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
     })
 
     it('leaves provider-family credentials off a fallback on another provider', async () => {

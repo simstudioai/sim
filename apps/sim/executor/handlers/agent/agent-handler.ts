@@ -41,8 +41,6 @@ import {
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import {
   type FallbackModelCandidate,
-  isWholeEnvVarReference,
-  normalizeFallbackModels,
   resolveFallbackTuning,
 } from '@/lib/workflows/blocks/fallback-models'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
@@ -84,6 +82,12 @@ import type {
 } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  getModelFallbacks,
+  PROVIDER_FAMILY_CREDENTIAL_FIELDS,
+  recordModelFallbacks,
+  resolveFallbackApiKey,
+} from '@/executor/utils/model-fallbacks'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -170,22 +174,6 @@ function stripAutoPreamble(messages: Message[] | undefined): Message[] | undefin
   })
 }
 
-/**
- * Block fields that only a provider family reads. A fallback on another provider
- * never needs them, so they are left off its request rather than handed to a
- * provider that has no use for a Bedrock secret or a Vertex credential.
- */
-const PROVIDER_FAMILY_CREDENTIAL_FIELDS = [
-  'azureEndpoint',
-  'azureApiVersion',
-  'vertexProject',
-  'vertexLocation',
-  'vertexCredential',
-  'bedrockAccessKeyId',
-  'bedrockSecretKey',
-  'bedrockRegion',
-] as const satisfies ReadonlyArray<keyof AgentInputs>
-
 /** One model in the order the block tries them; the primary carries the block's own key. */
 interface ModelCandidate extends FallbackModelCandidate {
   isPrimary: boolean
@@ -199,6 +187,7 @@ interface ModelCandidate extends FallbackModelCandidate {
 
 interface ExecuteAcrossModelsConfig {
   candidates: ModelCandidate[]
+  retryPrimaryOnStreamStart: boolean
   primaryModel: string
   /**
    * The model the builder configured, which is what the editor showed the
@@ -528,8 +517,11 @@ export class AgentBlockHandler implements BlockHandler {
        * provider; another model has none of that conversation, so a green answer
        * from it would be built on a fresh context. Such a request never falls back.
        */
-      const configuredFallbacks = normalizeFallbackModels(
-        this.keepReferenceRowKeys(ctx, block, filteredInputs.fallbackModels)
+      const configuredFallbacks = getModelFallbacks(
+        ctx,
+        block,
+        filteredInputs.fallbackModels,
+        logger
       )
       const retry = nodeMetadata?.retry
       const fallbacksHeld = retry !== undefined && !retry.isFinalTry
@@ -565,6 +557,8 @@ export class AgentBlockHandler implements BlockHandler {
         resultRegistry: servedRegistry,
       } = await this.executeAcrossModels(ctx, block, {
         candidates,
+        retryPrimaryOnStreamStart:
+          fallbacksHeld && configuredFallbacks.length > 0 && !modelInputs.previousInteractionId,
         primaryModel: model,
         configuredModel: autoRouting ? SIM_AUTO_MODEL_ID : model,
         primaryProviderId: providerId,
@@ -2557,8 +2551,8 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       /**
-       * A fallback's own key wins; without one it may reuse the block's key only
-       * on the primary's provider. Otherwise the provider layer resolves BYOK or
+       * A fallback's own key applies only while its key field is visible. On the
+       * primary's provider it reuses the block's key; otherwise the provider layer resolves BYOK or
        * the platform key, or reports that a key is required, which counts as
        * this candidate failing. A previous interaction id belongs to the primary's
        * provider alone. Tuning is re-resolved against the fallback's own
@@ -2571,27 +2565,19 @@ export class AgentBlockHandler implements BlockHandler {
           config.configuredModel,
           config.modelInputs
         )
-        /**
-         * A row key still in `{{NAME}}` form was never resolved: the variable is
-         * not set for the principal running this workflow. Sending the literal
-         * would only replace a platform or BYOK key with garbage, so it counts
-         * as no key at all.
-         */
-        let rowKey = candidate.apiKey
-        if (rowKey && isWholeEnvVarReference(rowKey)) {
-          logger.warn('Fallback key variable is not set for this run', {
-            blockId: block.id,
-            model: candidate.model,
-            variable: rowKey,
-          })
-          rowKey = undefined
-        }
         const sameProvider = candidateProviderId === config.primaryProviderId
         inputs = {
           ...(sameProvider
             ? config.modelInputs
-            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS])),
-          apiKey: rowKey ?? (sameProvider ? config.modelInputs.apiKey : undefined),
+            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'vertexCredential'])),
+          apiKey: resolveFallbackApiKey({
+            candidate,
+            configuredModel: config.configuredModel,
+            sameProvider,
+            primaryApiKey: config.modelInputs.apiKey,
+            blockId: block.id,
+            logger,
+          }),
           previousInteractionId: undefined,
           ...(config.fallbackSystemPrompt !== undefined
             ? { systemPrompt: config.fallbackSystemPrompt }
@@ -2633,16 +2619,16 @@ export class AgentBlockHandler implements BlockHandler {
           resultRegistry,
           config.providerErrorRegistry
         )
-        if (hasNext && this.isStreamingExecution(result)) {
+        if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
           result = await this.primeStreamingExecution(result as StreamingExecution)
         }
-        this.recordModelFallbacks(ctx, block, failedModels)
+        recordModelFallbacks(ctx, block, failedModels)
         return { result, servedModel: candidate.model, resultRegistry }
       } catch (error) {
         lastError = error
         failedModels.push(candidate.traceName ?? candidate.model)
         if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
-          this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+          recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
           throw error
         }
 
@@ -2682,41 +2668,8 @@ export class AgentBlockHandler implements BlockHandler {
       ctx.errorResolvedSecretTraceRegistry = lastErrorRegistries.error
       ctx.resolvedSecretTraceRegistry = lastErrorRegistries.resolved
     }
-    this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+    recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
     throw lastError
-  }
-
-  /**
-   * Keeps a fallback row's key only when the block stored it as a whole
-   * `{{NAME}}` reference, which is the one form the editor offers, the validator
-   * accepts, and an export preserves. A raw value written through the realtime
-   * subblock op would otherwise reach the provider while the row shows no key
-   * at all; it is dropped here so every surface agrees, and named in a warn so
-   * the builder can find and clear it.
-   */
-  private keepReferenceRowKeys(
-    ctx: ExecutionContext,
-    block: SerializedBlock,
-    rows: AgentInputs['fallbackModels']
-  ): AgentInputs['fallbackModels'] {
-    if (!Array.isArray(rows)) return rows
-    const storedRows: unknown = block.config?.params?.fallbackModels
-    return rows.map((row, index) => {
-      if (!row || typeof row !== 'object' || row.apiKey === undefined) return row
-      const stored = Array.isArray(storedRows) ? storedRows[index] : undefined
-      const storedKey =
-        stored && typeof stored === 'object' ? (stored as { apiKey?: unknown }).apiKey : undefined
-      if (isWholeEnvVarReference(storedKey)) return row
-      logger.warn(
-        'Fallback row key ignored; only an environment variable reference is accepted',
-        projectAgentDiagnosticMetadata(
-          ctx,
-          { blockId: block.id, model: row.model, row: index + 1 },
-          { blockId: block.id, row: index + 1 }
-        )
-      )
-      return { ...row, apiKey: undefined }
-    })
   }
 
   /**
@@ -2781,42 +2734,6 @@ export class AgentBlockHandler implements BlockHandler {
       },
     })
     return { ...result, stream }
-  }
-
-  /**
-   * Writes the models that failed onto the block's open log entry so the trace
-   * can show them beside the model that answered. Handlers get no log handle;
-   * the executor pushes the entry before running the handler with `endedAt`
-   * still empty, which is what tells it apart from earlier runs of the same
-   * block in a loop or an earlier retry. An empty list clears the field, since
-   * every try reuses one entry and only the final try can write failed models.
-   *
-   * A model id can itself come from a resolved reference, so the names are
-   * projected through the same secret registry as every other diagnostic and
-   * left off the log entirely when the projection is not safe.
-   */
-  private recordModelFallbacks(
-    ctx: ExecutionContext,
-    block: SerializedBlock,
-    failedModels: string[]
-  ): void {
-    const logs = ctx.blockLogs ?? []
-    for (let index = logs.length - 1; index >= 0; index--) {
-      const entry = logs[index]
-      if (entry.blockId !== block.id || entry.endedAt !== '') continue
-      if (failedModels.length === 0) {
-        entry.modelFallbacks = undefined
-        return
-      }
-      const registry = ctx.errorResolvedSecretTraceRegistry ?? ctx.resolvedSecretTraceRegistry
-      const projection = projectResolvedSecretDiagnosticContent({ models: failedModels }, registry)
-      const models = projection.safe ? (projection.value as { models?: unknown }).models : undefined
-      entry.modelFallbacks =
-        Array.isArray(models) && models.every((model) => typeof model === 'string')
-          ? [...models]
-          : undefined
-      return
-    }
   }
 
   private buildProviderRequest(config: {

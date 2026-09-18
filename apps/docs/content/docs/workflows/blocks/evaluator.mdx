@@ -32,6 +32,12 @@ The content to score. Usually an earlier output like `<agent.content>`. Structur
 
 The model that does the scoring, defaulting to `claude-sonnet-4-6`. Stronger reasoning models give more consistent scores. Type or pick any supported model. **Temperature** and a **System Prompt** are available under advanced, and on hosted Sim the API key is supplied for you.
 
+### Fallback models
+
+Under **Additional fields**, add up to five models to try in order when a model request fails. With **Retry on fail** enabled, the selected model exhausts its tries first; each fallback is then tried once. Every attempt uses the same content, metrics, and response schema. `<evaluator.model>` reports the model that answered.
+
+Hosted models on hosted Sim use workspace BYOK or platform credentials. On local or self-hosted installations, a fallback on another provider may need a secret selected on its row; same-provider fallbacks reuse the selected model's key. The picker shows supported tuning fields when the selected model's settings cannot be inherited. Auto cannot be a fallback.
+
 ## Outputs
 
 The Evaluator returns a number for each metric, read by the metric's lowercase name:

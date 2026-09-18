@@ -187,6 +187,27 @@ describe('RouterBlockHandler', () => {
     expect(handler.canHandle(nonRouterBlock)).toBe(false)
   })
 
+  it('selects the same legacy destination when a fallback provider answers', async () => {
+    mockExecuteProviderRequest
+      .mockRejectedValueOnce(new Error('overloaded'))
+      .mockResolvedValueOnce({
+        content: 'target-block-1',
+        model: 'claude-sonnet-5',
+        tokens: { input: 10, output: 2, total: 12 },
+        cost: 0.001,
+      })
+    const output = await handler.execute(mockContext, mockBlock, {
+      prompt: 'Pick a destination',
+      model: 'gpt-4o',
+      fallbackModels: [{ model: 'claude-sonnet-5' }],
+    })
+    expect(output).toMatchObject({
+      model: 'claude-sonnet-5',
+      selectedPath: { blockId: 'target-block-1' },
+    })
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+  })
+
   it('should execute router block correctly and select a path', async () => {
     const inputs = {
       prompt: 'Choose the best option.',
@@ -786,6 +807,69 @@ describe('RouterBlockHandler V2', () => {
 
   it('should handle router_v2 blocks', () => {
     expect(handler.canHandle(mockRouterV2Block)).toBe(true)
+  })
+
+  it('preserves route selection and reasoning when an Auto request falls back', async () => {
+    mockExecuteProviderRequest
+      .mockRejectedValueOnce(new Error('overloaded'))
+      .mockResolvedValueOnce({
+        content: '{"route":"route-support","reasoning":"Needs assistance"}',
+        model: 'claude-sonnet-5',
+        tokens: { input: 10, output: 2, total: 12 },
+        cost: { input: 0.0008, output: 0.0002, total: 0.001 },
+      })
+    const output = await handler.execute(mockContext, mockRouterV2Block, {
+      context: 'Help me',
+      model: 'sim-auto',
+      routes: [{ id: 'route-support', title: 'Support', value: 'Needs help' }],
+      fallbackModels: [{ model: 'claude-sonnet-5' }],
+    })
+    expect(output).toMatchObject({
+      model: 'claude-sonnet-5',
+      selectedRoute: 'route-support',
+      reasoning: 'Needs assistance',
+      cost: { total: 0.003 },
+    })
+    expect(mockExecuteProviderRequest.mock.calls[1][1].systemPrompt).toBe(
+      'Generated V2 System Prompt'
+    )
+    expect(mockExecuteProviderRequest.mock.calls[1][1].responseFormat).toEqual(
+      mockExecuteProviderRequest.mock.calls[0][1].responseFormat
+    )
+  })
+
+  it('waits for the final retry before using a Router V2 fallback', async () => {
+    mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+    await expect(
+      handler.execute(
+        mockContext,
+        mockRouterV2Block,
+        {
+          context: 'Help me',
+          model: 'gpt-4o',
+          routes: [{ id: 'route-support', title: 'Support', value: 'Needs help' }],
+          fallbackModels: [{ model: 'claude-sonnet-5' }],
+        },
+        { nodeId: mockRouterV2Block.id, retry: { attempt: 1, maxTries: 2, isFinalTry: false } }
+      )
+    ).rejects.toThrow('overloaded')
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask a fallback to override a NO_MATCH decision', async () => {
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: '{"route":"NO_MATCH","reasoning":"Unrelated"}',
+      model: 'gpt-4o',
+    })
+    await expect(
+      handler.execute(mockContext, mockRouterV2Block, {
+        context: 'Unrelated',
+        model: 'gpt-4o',
+        routes: [{ id: 'route-support', title: 'Support', value: 'Needs help' }],
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      })
+    ).rejects.toThrow('Router could not determine a matching route')
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
   })
 
   it('should execute router V2 and return reasoning', async () => {

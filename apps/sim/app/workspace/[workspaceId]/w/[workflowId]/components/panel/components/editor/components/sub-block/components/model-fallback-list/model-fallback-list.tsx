@@ -1,10 +1,11 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Button, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipDropdown, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   addFallbackRow,
@@ -96,6 +97,8 @@ const FallbackRow = memo(function FallbackRow({
   onMove,
   onRemove,
 }: FallbackRowProps) {
+  /** Credential visibility follows the server-resolved shape, including late hydration. */
+  useDeploymentShape()
   const modelOptions = useMemo(
     (): ComboboxOption[] =>
       viableOptions.map((option) => ({
@@ -105,20 +108,16 @@ const FallbackRow = memo(function FallbackRow({
     [viableOptions, takenModels, row.model]
   )
 
-  const { needsApiKey, tuningFields } = useMemo(() => {
-    if (!row.model) return { needsApiKey: false, tuningFields: [] }
-    return {
-      needsApiKey: fallbackRowNeedsApiKey(row.model, primaryModel),
-      tuningFields: getFallbackTuningKnobsToShow(row.model, primaryModel, primaryTuning).map(
-        (knob) => ({
-          knob,
-          options: (getTuningOptionsForModel(row.model, knob) ?? []).map(
-            (value): ComboboxOption => ({ label: value, value })
-          ),
-        })
-      ),
-    }
-  }, [row.model, primaryModel, primaryTuning])
+  const needsApiKey = fallbackRowNeedsApiKey(row.model, primaryModel)
+  const tuningFields = getFallbackTuningKnobsToShow(row.model, primaryModel, primaryTuning).map(
+    (knob) => ({
+      knob,
+      options: (getTuningOptionsForModel(row.model, knob) ?? []).map((value) => ({
+        label: value,
+        value,
+      })),
+    })
+  )
 
   /** Only a reference is ever shown; anything else that reached the store reads as unset. */
   const apiKeyValue = isWholeEnvVarReference(row.apiKey) ? row.apiKey : ''
@@ -126,38 +125,32 @@ const FallbackRow = memo(function FallbackRow({
   return (
     <div
       data-fallback-row-id={row.id}
-      className='overflow-visible rounded-sm border border-[var(--border-1)]'
+      className='space-y-3 rounded-lg border border-[var(--border)] p-3'
     >
-      <div className='flex items-center justify-between rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
-        <span className='text-[var(--text-tertiary)] text-sm'>{ordinalChoiceLabel(index)}</span>
-        <div className='flex items-center gap-2'>
+      <div className='flex items-center justify-between'>
+        <span className='text-[var(--text-muted)] text-small'>{ordinalChoiceLabel(index)}</span>
+        <div className='flex items-center'>
           {canMove && (
             <>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
+                  <Chip
+                    leftIcon={ChevronUp}
                     onClick={() => onMove(row.id, -1)}
                     disabled={readOnly || index === 0}
-                    className='h-auto p-0'
                     aria-label='Move up'
-                  >
-                    <ChevronUp className='size-[14px]' />
-                  </Button>
+                  />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Move up</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
+                  <Chip
+                    leftIcon={ChevronDown}
                     onClick={() => onMove(row.id, 1)}
                     disabled={readOnly || isLast}
-                    className='h-auto p-0'
                     aria-label='Move down'
-                  >
-                    <ChevronDown className='size-[14px]' />
-                  </Button>
+                  />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Move down</Tooltip.Content>
               </Tooltip.Root>
@@ -165,44 +158,40 @@ const FallbackRow = memo(function FallbackRow({
           )}
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
+              <Chip
+                leftIcon={Trash}
                 onClick={() => onRemove(row.id)}
                 disabled={readOnly}
-                className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
                 aria-label='Remove fallback model'
-              >
-                <Trash className='size-[14px]' />
-              </Button>
+              />
             </Tooltip.Trigger>
             <Tooltip.Content>Remove</Tooltip.Content>
           </Tooltip.Root>
         </div>
       </div>
 
-      <div className='flex flex-col gap-2 px-2.5 pt-1.5 pb-2.5'>
-        <div className='flex flex-col gap-1.5'>
-          <Label>Model</Label>
-          <Combobox
-            options={modelOptions}
-            value={row.model}
-            onChange={(model) => onChangeModel(row.id, model)}
-            placeholder='Select a model'
-            disabled={readOnly}
-            searchable
-            searchPlaceholder='Search models...'
-            maxHeight={240}
-            emptyMessage='No models available'
-          />
-        </div>
+      <div className='flex flex-col gap-3'>
+        <ChipCombobox
+          options={modelOptions}
+          value={row.model}
+          onChange={(model) => onChangeModel(row.id, model)}
+          placeholder='Select a model'
+          aria-label={`${ordinalChoiceLabel(index)} model`}
+          disabled={readOnly}
+          searchable
+          searchPlaceholder='Search models...'
+          maxHeight={240}
+          emptyMessage='No models available'
+        />
         {needsApiKey && (
           <div className='flex flex-col gap-1.5'>
             <Label>API key</Label>
-            <Combobox
+            <ChipCombobox
               options={envVarOptions}
               value={apiKeyValue}
               onChange={(apiKey) => onChangeApiKey(row.id, apiKey)}
               placeholder='Select a secret'
+              aria-label={`${ordinalChoiceLabel(index)} API key`}
               disabled={readOnly}
               searchable
               searchPlaceholder='Search secrets...'
@@ -214,12 +203,14 @@ const FallbackRow = memo(function FallbackRow({
         {tuningFields.map(({ knob, options }) => (
           <div key={knob} className='flex flex-col gap-1.5'>
             <Label>{FALLBACK_TUNING_LABELS[knob]}</Label>
-            <Combobox
+            <ChipDropdown
               options={options}
               value={row[knob] ?? options[0]?.value ?? ''}
               onChange={(value) => onChangeTuning(row.id, knob, value)}
               placeholder={`Select ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
+              aria-label={`${ordinalChoiceLabel(index)} ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               disabled={readOnly}
+              className='w-full'
             />
           </div>
         ))}
@@ -250,6 +241,7 @@ export function ModelFallbackList({
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
   const { navigateToSettings } = useSettingsNavigation()
   const { isModelUsable } = usePermissionConfig()
+  const deploymentShape = useDeploymentShape()
   const providers = useProvidersStore((state) => state.providers)
   const [storeValue, setStoreValue] = useSubBlockValue<FallbackModelEntry[]>(blockId, subBlockId)
   const [primaryModelValue] = useSubBlockValue<string>(blockId, 'model')
@@ -311,7 +303,7 @@ export function ModelFallbackList({
           value: option.id,
           ...(option.icon ? { icon: option.icon } : {}),
         })),
-    [primaryModel, isModelUsable, providers]
+    [primaryModel, isModelUsable, providers, deploymentShape]
   )
 
   const takenModels = useMemo(() => new Set(rows.map((row) => row.model).filter(Boolean)), [rows])
@@ -417,15 +409,15 @@ export function ModelFallbackList({
         />
       ))}
       {!readOnly && (
-        <Button
-          variant='ghost'
+        <Chip
+          variant='outline'
+          leftIcon={Plus}
+          fullWidth
           onClick={handleAdd}
           disabled={rows.length >= MAX_FALLBACK_MODELS}
-          className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
         >
-          <Plus className='size-[14px]' />
           Add fallback model
-        </Button>
+        </Chip>
       )}
     </div>
   )

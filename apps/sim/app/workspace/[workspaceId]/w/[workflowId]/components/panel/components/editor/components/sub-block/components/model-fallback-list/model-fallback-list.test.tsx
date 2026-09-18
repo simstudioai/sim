@@ -1,8 +1,16 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  getDeploymentShape,
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
 
 const { subBlockValues, mockSetValue } = vi.hoisted(() => ({
   subBlockValues: {
@@ -22,7 +30,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  Button: ({
+  Chip: ({
     children,
     disabled,
     'aria-label': ariaLabel,
@@ -35,7 +43,7 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  Combobox: ({
+  ChipCombobox: ({
     options,
     value,
     placeholder,
@@ -49,6 +57,21 @@ vi.mock('@sim/emcn', () => ({
         <span key={option.value} data-disabled={option.disabled ? 'true' : undefined}>
           {option.label}
         </span>
+      ))}
+    </div>
+  ),
+  ChipDropdown: ({
+    options,
+    value,
+    placeholder,
+  }: {
+    options: Array<{ value: string; label: string }>
+    value?: string
+    placeholder?: string
+  }) => (
+    <div data-combobox={placeholder} data-value={value}>
+      {options.map((option) => (
+        <span key={option.value}>{option.label}</span>
       ))}
     </div>
   ),
@@ -102,6 +125,8 @@ vi.mock('@/stores/providers/store', () => ({
 }))
 
 vi.mock('@/blocks/utils', () => ({
+  shouldRequireApiKeyForModel: (model: string) =>
+    model.startsWith('openrouter/') || (model.startsWith('gpt') && !getDeploymentShape().hosted),
   getModelOptions: () => [
     { id: 'claude-sonnet-5', label: 'claude-sonnet-5' },
     { id: 'gpt-5', label: 'gpt-5' },
@@ -117,7 +142,6 @@ vi.mock('@/lib/workflows/blocks/fallback-models', async (importOriginal) => {
     ...actual,
     isViableFallbackModel: (model: string, primary: string) =>
       model !== 'sim-auto' && model !== primary,
-    fallbackRowNeedsApiKey: (model: string) => model.startsWith('openrouter/'),
     getFallbackTuningKnobsToShow: (model: string) => (model === 'gpt-5' ? ['reasoningEffort'] : []),
     getTuningOptionsForModel: (model: string, knob: string) =>
       model === 'gpt-5' && knob === 'reasoningEffort' ? ['auto', 'low', 'high'] : null,
@@ -125,6 +149,16 @@ vi.mock('@/lib/workflows/blocks/fallback-models', async (importOriginal) => {
 })
 
 import { ModelFallbackList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/model-fallback-list/model-fallback-list'
+
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  seedDeploymentShape({ ...resolveDeploymentShape(), hosted: true })
+})
+
+afterEach(() => {
+  resetDeploymentShape()
+  vi.unstubAllGlobals()
+})
 
 function render(extra: Partial<React.ComponentProps<typeof ModelFallbackList>> = {}) {
   return renderToStaticMarkup(
@@ -184,6 +218,27 @@ describe('ModelFallbackList', () => {
     expect(html).toContain('data-value="{{OPENROUTER_API_KEY}}"')
     expect(html).toContain('OPENROUTER_API_KEY')
     expect(html).toContain('Create Secret')
+  })
+
+  it('updates key visibility when hosted context arrives after mount, without rewriting the rows', async () => {
+    seedDeploymentShape({ ...resolveDeploymentShape(), hosted: false })
+    subBlockValues.fallbackModels = [{ id: 'r1', model: 'gpt-5' }]
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => {
+        root.render(<ModelFallbackList blockId='block-1' subBlockId='fallbackModels' />)
+      })
+      expect(container.querySelector('[data-combobox="Select a secret"]')).not.toBeNull()
+
+      await act(async () => {
+        seedDeploymentShape({ ...resolveDeploymentShape(), hosted: true })
+      })
+      expect(container.querySelector('[data-combobox="Select a secret"]')).toBeNull()
+      expect(mockSetValue).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => root.unmount())
+    }
   })
 
   it('shows a tuning field only for the knobs the helper says need one', () => {
