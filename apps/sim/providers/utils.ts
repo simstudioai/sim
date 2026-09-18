@@ -11,7 +11,6 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
@@ -22,6 +21,7 @@ import {
   resolveActiveCanonicalValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
@@ -854,41 +854,15 @@ export async function transformBlockTool(
 
   let toolId: string | null = null
 
-  if ((blockDef.tools?.access?.length || 0) > 1) {
-    const hasOperationSelector = blockDef.subBlocks?.some(
-      (subBlock: SubBlockConfig) => subBlock.id === OPERATION_SUBBLOCK_ID
-    )
-    if (
-      blockDef.tools?.config?.tool &&
-      (selectedOperation ||
-        block.params?.operation ||
-        (!hasOperationSelector && Object.keys(block.params ?? {}).length > 0))
-    ) {
-      try {
-        toolId = blockDef.tools.config.tool({
-          ...block.params,
-          ...(selectedOperation ? { operation: selectedOperation } : {}),
-        })
-        if (!blockDef.tools.access.includes(toolId)) {
-          logger.warn('Block selector returned an unavailable tool', {
-            blockType: block.type,
-            toolId,
-          })
-          return null
-        }
-      } catch (error) {
-        logger.error('Error selecting tool for block', {
-          blockType: block.type,
-          operation: selectedOperation,
-          error,
-        })
-        return null
-      }
-    } else {
-      toolId = blockDef.tools.access[0]
-    }
-  } else {
-    toolId = blockDef.tools?.access?.[0] || null
+  try {
+    toolId = resolveBlockToolId(blockDef, block.params ?? {}, selectedOperation)
+  } catch (error) {
+    logger.error('Error selecting tool for block', {
+      blockType: block.type,
+      operation: selectedOperation,
+      error,
+    })
+    return null
   }
 
   if (!toolId) {

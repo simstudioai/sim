@@ -8,6 +8,7 @@ import { logsQueryCommand } from '@/lib/mothership/agent-cli/engines/query'
 import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import { workflowApiCommand } from '@/lib/mothership/agent-cli/engines/workflow-api'
 import { workflowInputsCommand } from '@/lib/mothership/agent-cli/engines/workflow-inputs'
+import { workflowToolsCommand } from '@/lib/mothership/agent-cli/engines/workflow-tools'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -32,6 +33,7 @@ export const AUGMENTATION_ENGINES: Readonly<Record<string, AgentCliEngine>> = {
   'workflows lint': workflowLintCommand,
   'workflows api': workflowApiCommand,
   'workflows inputs': workflowInputsCommand,
+  'workflows tools': workflowToolsCommand,
 }
 
 /** Runs one engine by the worker's name; an engine that throws yields a failed result, never a throw. */
