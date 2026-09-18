@@ -3,6 +3,8 @@ import { z } from 'zod'
 import type { ApiSchema, HttpMethod } from '@/lib/api/contracts/types'
 import { V2_MCP_OPERATIONS, type V2McpOperationName } from '@/lib/api/mcp/generated/v2-operations'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
+import { v2RouteOperation } from '@/lib/api/server/routes/v2-json-route'
+import { OAUTH_API_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 
 /** Headers the dispatcher owns; a contract declaring one still never takes it from a tool call. */
 const MANAGED_HEADERS: ReadonlySet<string> = new Set([
@@ -13,21 +15,29 @@ const MANAGED_HEADERS: ReadonlySet<string> = new Set([
   'user-agent',
 ])
 
+/** The tool that runs each kind of operation. */
+export const TOOL_NAMES = { read: 'call_read_operation', write: 'call_write_operation' } as const
+type ToolKind = keyof typeof TOOL_NAMES
+
 const REQUEST_SLOTS = ['params', 'query', 'body', 'headers'] as const
 type RequestSlot = (typeof REQUEST_SLOTS)[number]
 type JsonSchema = Record<string, unknown>
 
 /** One catalog row: enough to choose an operation, not to call it. */
-interface McpOperationSummary {
+interface McpOperationEntry {
   operation: V2McpOperationName
   method: HttpMethod
   path: string
   domain: string
   summary: string
-  /** A `GET`: served by the read tool, which only reads. */
-  readOnly: boolean
+  /** The tool that runs it: the read tool only for operations that need nothing beyond read access. */
   /** Refuses workspace API keys; call it with a personal key or an OAuth connection. */
   personalCredentialOnly?: true
+}
+
+interface McpOperationSummary extends McpOperationEntry {
+  /** The tool that runs it: the read tool only for operations that need nothing beyond read access. */
+  tool: (typeof TOOL_NAMES)[ToolKind]
 }
 
 /** Everything needed to call one operation: its documentation plus the JSON Schema of each request slot. */
@@ -42,8 +52,34 @@ export function getMcpOperation(name: V2McpOperationName): V2McpOperation {
   return V2_MCP_OPERATIONS[name]
 }
 
-function isReadOnlyOperation(name: V2McpOperationName): boolean {
-  return getMcpOperation(name).contract.method === 'GET'
+/** Memo of each operation's tool; a failed load is dropped so the next call retries it. */
+const toolKinds = new Map<V2McpOperationName, Promise<ToolKind>>()
+
+/**
+ * Which tool runs an operation, from the OAuth scope its route declares rather
+ * than its HTTP method: a GET can need `api:write` and reach out to another
+ * system, and a POST can be a pure query. Raw routes declare no operation and
+ * all change something, so they run through the write tool.
+ */
+function operationToolKind(name: V2McpOperationName): Promise<ToolKind> {
+  const cached = toolKinds.get(name)
+  if (cached) return cached
+  const kind = getMcpOperation(name)
+    .handler()
+    .then((route): ToolKind => {
+      const scope = v2RouteOperation(route)?.oauthScope
+      return scope && oauthScopeSatisfies([OAUTH_API_READ_SCOPE], scope) ? 'read' : 'write'
+    })
+    .catch((error: unknown) => {
+      toolKinds.delete(name)
+      throw error
+    })
+  toolKinds.set(name, kind)
+  return kind
+}
+
+async function withTool(entry: McpOperationEntry): Promise<McpOperationSummary> {
+  return { ...entry, tool: TOOL_NAMES[await operationToolKind(entry.operation)] }
 }
 
 function isOperationName(name: string): name is V2McpOperationName {
@@ -55,7 +91,7 @@ function domainOf(path: string): string {
   return path.split('/')[3] ?? 'v2'
 }
 
-function summarize(name: V2McpOperationName): McpOperationSummary {
+function summarize(name: V2McpOperationName): McpOperationEntry {
   const { contract, summary, workspaceKeyUnsupported } = getMcpOperation(name)
   return {
     operation: name,
@@ -63,7 +99,6 @@ function summarize(name: V2McpOperationName): McpOperationSummary {
     path: contract.path,
     domain: domainOf(contract.path),
     summary: summary ?? `${contract.method} ${contract.path}`,
-    readOnly: isReadOnlyOperation(name),
     ...(workspaceKeyUnsupported ? { personalCredentialOnly: true } : {}),
   }
 }
@@ -87,17 +122,17 @@ if (!FIRST_DOMAIN) throw new Error('The Sim MCP catalog has no operations')
 export const OPERATION_DOMAINS: [string, ...string[]] = [FIRST_DOMAIN, ...OTHER_DOMAINS]
 
 /**
- * Finds operations by keyword and domain. Every term must appear in the
+ * Ranks operations by keyword and domain. Every term must appear in the
  * operation's name, summary, path, or description; hits in the name rank first.
  */
-export function searchOperations(options: { query?: string; domain?: string; limit: number }): {
-  total: number
-  operations: McpOperationSummary[]
-} {
-  const terms = (options.query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
-  const ranked: Array<{ entry: McpOperationSummary; score: number }> = []
+function rankOperations(
+  query: string | undefined,
+  domain: string | undefined
+): McpOperationEntry[] {
+  const terms = (query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+  const ranked: Array<{ entry: McpOperationEntry; score: number }> = []
   for (const { entry, name, summary, path, description } of SEARCH_ENTRIES) {
-    if (options.domain && entry.domain !== options.domain) continue
+    if (domain && entry.domain !== domain) continue
     let score = 0
     for (const term of terms) {
       const termScore =
@@ -114,9 +149,18 @@ export function searchOperations(options: { query?: string; domain?: string; lim
     if (score > 0 || terms.length === 0) ranked.push({ entry, score })
   }
   ranked.sort((a, b) => b.score - a.score || a.entry.operation.localeCompare(b.entry.operation))
+  return ranked.map(({ entry }) => entry)
+}
+
+export async function searchOperations(options: {
+  query?: string
+  domain?: string
+  limit: number
+}): Promise<{ total: number; operations: McpOperationSummary[] }> {
+  const ranked = rankOperations(options.query, options.domain)
   return {
     total: ranked.length,
-    operations: ranked.slice(0, options.limit).map(({ entry }) => entry),
+    operations: await Promise.all(ranked.slice(0, options.limit).map(withTool)),
   }
 }
 
@@ -143,18 +187,14 @@ function callerHeaderSchema(schema: ApiSchema): JsonSchema | null {
   return { ...json, properties: allowed, ...(required ? { required } : {}) }
 }
 
-/** Contract headers a tool call may set. */
-export function callerHeaderNames(name: V2McpOperationName): string[] {
-  return Object.keys(toRecord(describeOperation(name).input.headers?.properties))
-}
-
 /** Memo over a fixed catalog: at most one entry per operation, never evicted. */
-const descriptions = new Map<V2McpOperationName, McpOperationDescription>()
+const inputs = new Map<V2McpOperationName, McpOperationDescription['input']>()
 
-export function describeOperation(name: V2McpOperationName): McpOperationDescription {
-  const cached = descriptions.get(name)
+/** The JSON Schema of each request slot an operation takes. */
+function describeInput(name: V2McpOperationName): McpOperationDescription['input'] {
+  const cached = inputs.get(name)
   if (cached) return cached
-  const { contract, description } = getMcpOperation(name)
+  const { contract } = getMcpOperation(name)
   const input: McpOperationDescription['input'] = {}
   for (const slot of REQUEST_SLOTS) {
     const schema = contract[slot]
@@ -166,9 +206,24 @@ export function describeOperation(name: V2McpOperationName): McpOperationDescrip
     }
     input[slot] = toJsonSchema(schema)
   }
-  const described = { ...summarize(name), ...(description ? { description } : {}), input }
-  descriptions.set(name, described)
-  return described
+  inputs.set(name, input)
+  return input
+}
+
+/** Contract headers a tool call may set. */
+export function callerHeaderNames(name: V2McpOperationName): string[] {
+  return Object.keys(toRecord(describeInput(name).headers?.properties))
+}
+
+export async function describeOperation(
+  name: V2McpOperationName
+): Promise<McpOperationDescription> {
+  const { description } = getMcpOperation(name)
+  return {
+    ...(await withTool(summarize(name))),
+    ...(description ? { description } : {}),
+    input: describeInput(name),
+  }
 }
 
 /** Catalog names close to an unknown one, found by searching its camelCase words. */
@@ -179,8 +234,8 @@ function suggestOperations(name: string): string[] {
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
   for (let count = words.length; count > 0; count--) {
-    const { operations } = searchOperations({ query: words.slice(0, count).join(' '), limit: 5 })
-    if (operations.length > 0) return operations.map((entry) => entry.operation)
+    const ranked = rankOperations(words.slice(0, count).join(' '), undefined)
+    if (ranked.length > 0) return ranked.slice(0, 5).map((entry) => entry.operation)
   }
   return []
 }
@@ -190,10 +245,10 @@ function suggestOperations(name: string): string[] {
  * the closest names for an unknown one, or the other tool for the wrong kind.
  * `read` and `write` are the read and write tools; `any` is describe_operation.
  */
-export function resolveOperation(
+export async function resolveOperation(
   name: string,
-  tool: 'read' | 'write' | 'any'
-): { operation: V2McpOperationName } | { error: string } {
+  tool: ToolKind | 'any'
+): Promise<{ operation: V2McpOperationName } | { error: string }> {
   if (!isOperationName(name)) {
     const suggestions = suggestOperations(name)
     return {
@@ -202,11 +257,13 @@ export function resolveOperation(
       } Use search_operations to find operations.`,
     }
   }
-  if (tool === 'read' && !isReadOnlyOperation(name)) {
-    return { error: `${name} changes data; run it with call_write_operation.` }
+  if (tool === 'any') return { operation: name }
+  const kind = await operationToolKind(name)
+  if (kind === tool) return { operation: name }
+  return {
+    error:
+      kind === 'write'
+        ? `${name} needs write access; run it with ${TOOL_NAMES.write}.`
+        : `${name} only reads; run it with ${TOOL_NAMES.read}.`,
   }
-  if (tool === 'write' && isReadOnlyOperation(name)) {
-    return { error: `${name} is read-only; run it with call_read_operation.` }
-  }
-  return { operation: name }
 }

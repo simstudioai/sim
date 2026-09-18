@@ -2,9 +2,9 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { v2McpOperations } from '@/lib/api/application/operations'
 import { simMcpContract } from '@/lib/api/contracts/sim-mcp'
-import { getMcpOperation, resolveOperation } from '@/lib/api/mcp/catalog'
+import { getMcpOperation, resolveOperation, TOOL_NAMES } from '@/lib/api/mcp/catalog'
 import { withSimMcpAuthChallenge } from '@/lib/api/mcp/oauth-metadata'
-import { createSimMcpServer, READ_TOOL_NAME, WRITE_TOOL_NAME } from '@/lib/api/mcp/server'
+import { createSimMcpServer } from '@/lib/api/mcp/server'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
 import { parseRequest } from '@/lib/api/server'
 import {
@@ -56,9 +56,12 @@ async function toolCallOperation(
 ): Promise<ApplicationOperation | null> {
   if (message.method !== 'tools/call' || !isPlainRecord(message.params)) return null
   const { name, arguments: args } = message.params
-  if (name !== READ_TOOL_NAME && name !== WRITE_TOOL_NAME) return null
+  if (name !== TOOL_NAMES.read && name !== TOOL_NAMES.write) return null
   if (!isPlainRecord(args) || typeof args.operation !== 'string') return null
-  const resolved = resolveOperation(args.operation, name === READ_TOOL_NAME ? 'read' : 'write')
+  const resolved = await resolveOperation(
+    args.operation,
+    name === TOOL_NAMES.read ? 'read' : 'write'
+  )
   if ('error' in resolved) return null
   const route = await getMcpOperation(resolved.operation).handler()
   return v2RouteOperation(route) ?? v2McpOperations.rawRoute

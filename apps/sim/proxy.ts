@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
+import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { APP_ENTRY_PATH, isAppSurfacePath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -340,7 +341,13 @@ export function proxy(request: NextRequest) {
   const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
   if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })
   if (mcpPath && mcpPath !== url.pathname) {
-    return NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
+    const rewrite = NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
+    if (mcpPath !== SIM_MCP_ROUTE_PATH) return rewrite
+    /** The endpoint keeps the `/api` CORS policy it has on the app host; its metadata sets its own. */
+    const policy = resolveApiCorsPolicy(request)
+    if (request.method === 'OPTIONS') return buildPreflightResponse(policy)
+    applyCorsHeaders(rewrite, policy)
+    return rewrite
   }
 
   if (url.pathname.startsWith('/api/')) {

@@ -10,10 +10,10 @@ calls it.
 
 | Tool | Does |
 | --- | --- |
-| `search_operations` | Finds operations by keyword (`"table rows"`) or by area (`tables`, `workflows`, `knowledge`, …). Returns each operation's name, method, path, summary, and whether it is read-only. |
+| `search_operations` | Finds operations by keyword (`"table rows"`) or by area (`tables`, `workflows`, `knowledge`, …). Returns each operation's name, method, path, summary, and the tool that runs it. |
 | `describe_operation` | Returns an operation's description and the JSON Schema of its path parameters, query, body, and headers. |
-| `call_read_operation` | Runs a read-only operation, such as `listWorkspaces`, `listTables`, or `getWorkflowRun`. It leaves your resources unchanged. |
-| `call_write_operation` | Runs an operation that creates, changes, runs, or deletes something, such as `createTable`, `executeWorkflow`, or `deleteFile`. |
+| `call_read_operation` | Runs an operation that only needs read access, such as `listWorkspaces`, `queryRows`, or `getWorkflowRun`. |
+| `call_write_operation` | Runs an operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as `createTable`, `executeWorkflow`, or `listMcpServerTools`. |
 
 Reads and writes are separate tools so your app can approve reads once and still
 ask you before each change.

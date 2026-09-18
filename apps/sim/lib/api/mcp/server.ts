@@ -7,6 +7,7 @@ import {
   OPERATION_DOMAINS,
   resolveOperation,
   searchOperations,
+  TOOL_NAMES,
 } from '@/lib/api/mcp/catalog'
 import {
   dispatchMcpOperation,
@@ -17,14 +18,11 @@ import { jsonToolResult, toolError } from '@/lib/mcp/tool-result'
 
 const logger = createLogger('SimMcpServer')
 
-export const READ_TOOL_NAME = 'call_read_operation'
-export const WRITE_TOOL_NAME = 'call_write_operation'
-
 const INSTRUCTIONS = `Sim is the AI workspace where teams build, deploy, and manage AI agents. This server exposes the full Sim API: workspaces, workflows and their runs, tables, knowledge bases, files, logs, credentials, deployments, and more.
 
 1. Find an operation with search_operations (keywords, optionally a domain).
 2. Read its input schemas with describe_operation.
-3. Run it with call_read_operation (GET operations, which only read) or call_write_operation (everything else).
+3. Run it with the tool search_operations names: call_read_operation for operations that only read, call_write_operation for everything else.
 
 Most operations take a workspaceId; listWorkspaces returns the workspaces you can use. Put path parameters in params, query-string values in query, and the JSON request body in body. Responses use the Sim API envelope ({ "data": ... }); list operations page with limit and cursor. Streaming options are not supported over MCP.`
 
@@ -94,7 +92,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
     { operation, ...input }: Omit<McpOperationCall, 'operation'> & { operation: string },
     toolSignal: AbortSignal
   ): Promise<CallToolResult> {
-    const resolved = resolveOperation(operation, tool)
+    const resolved = await resolveOperation(operation, tool)
     if ('error' in resolved) return toolError(resolved.error)
     const signal = AbortSignal.any([context.inbound.signal, toolSignal])
     try {
@@ -114,11 +112,11 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
     {
       title: 'Search operations',
       description:
-        'Find Sim API operations by keyword or domain. Returns each operation’s name, HTTP method, path, summary, and whether it is read-only. Call without a query to list a domain.',
+        'Find Sim API operations by keyword or domain. Returns each operation’s name, HTTP method, path, summary, and the tool that runs it. Call without a query to list a domain.',
       inputSchema: searchInput,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },
-    async (input) => jsonToolResult(searchOperations(input))
+    async (input) => jsonToolResult(await searchOperations(input))
   )
 
   server.registerTool(
@@ -131,19 +129,19 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ operation }) => {
-      const resolved = resolveOperation(operation, 'any')
+      const resolved = await resolveOperation(operation, 'any')
       return 'error' in resolved
         ? toolError(resolved.error)
-        : jsonToolResult(describeOperation(resolved.operation))
+        : jsonToolResult(await describeOperation(resolved.operation))
     }
   )
 
   server.registerTool(
-    READ_TOOL_NAME,
+    TOOL_NAMES.read,
     {
       title: 'Read from Sim',
       description:
-        'Run a read-only (GET) Sim API operation, such as listWorkspaces, listTables, or getWorkflowRun. Reads do not change your resources.',
+        'Run a Sim API operation that only reads, such as listWorkspaces, listTables, queryRows, or getWorkflowRun. search_operations says which tool runs each operation.',
       inputSchema: readInput,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },
@@ -151,7 +149,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
   )
 
   server.registerTool(
-    WRITE_TOOL_NAME,
+    TOOL_NAMES.write,
     {
       title: 'Change Sim',
       description:
