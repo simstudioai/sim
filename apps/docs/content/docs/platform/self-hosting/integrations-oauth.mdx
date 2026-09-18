@@ -163,11 +163,14 @@ Expand **Permissions → Repository permissions**. Set **Contents → Access: Re
 
 Expand **Account permissions** and set **Email addresses → Access: Read-only**.
 
+Expand **Organization permissions** and set **Members → Access: Read-only**. Sim uses this to verify that the person connecting an organization installation is an organization owner. Existing installations must approve this permission update; repository read access alone cannot verify ownership.
+
 <Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
 
 | Permission area | Permission | Access |
 |---|---|---|
 | Repository | Contents | Read-only |
+| Organization | Members | Read-only |
 | Repository | Metadata | Read-only |
 | Account | Email addresses | Read-only |
 
