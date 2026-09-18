@@ -187,6 +187,14 @@ describe('connector settings service-account choices', () => {
     })
   }
 
+  it('announces blocked saves without showing persistent helper text', async () => {
+    const reason = 'Wait for the current sync to finish before saving.'
+    await render(confluenceConnectorMeta, { saveBlockedReason: reason })
+    const status = container.querySelector('[role="status"]')
+    expect(status).toHaveClass('sr-only')
+    expect(status).toHaveTextContent(reason)
+  })
+
   async function openAccountChoices() {
     const dropdown = container.querySelector<HTMLElement>('[role="combobox"]')
     if (!dropdown) throw new Error('Missing indexing-account selector')

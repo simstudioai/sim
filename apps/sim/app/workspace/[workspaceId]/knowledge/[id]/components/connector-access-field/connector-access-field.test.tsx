@@ -134,6 +134,15 @@ describe('connection method selection', () => {
     expect(document.querySelector('[role="tooltip"]')).toHaveTextContent(
       'Add a new connection to change the sync method.'
     )
+    await act(async () => {
+      trigger.parentElement!.dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    })
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    expect(trigger.parentElement!.tabIndex).toBe(0)
+    await act(async () => trigger.parentElement!.focus())
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent(
+      'Add a new connection to change the sync method.'
+    )
     expect(onChange).not.toHaveBeenCalled()
   })
 

@@ -91,6 +91,7 @@ export interface ConnectorSettingsFieldsProps {
   hasMaxAccess: boolean
   isSaving: boolean
   error: string | null
+  saveBlockedReason?: string
   access: ConnectorAccessSelection
   onAccessChange: (access: ConnectorAccessSelection) => void
   canAdmin: boolean
@@ -133,6 +134,7 @@ export function ConnectorSettingsFields({
   hasMaxAccess,
   isSaving,
   error,
+  saveBlockedReason,
   access,
   onAccessChange,
   canAdmin,
@@ -463,7 +465,7 @@ export function ConnectorSettingsFields({
             title='Account for browsing'
             hint={
               isSearchIndex
-                ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                ? 'Members sync with their own accounts connected in Integrations.'
                 : undefined
             }
           >
@@ -551,6 +553,9 @@ export function ConnectorSettingsFields({
         </ChipModalField>
       )}
 
+      <p role='status' className='sr-only'>
+        {saveBlockedReason}
+      </p>
       <ChipModalError>{error}</ChipModalError>
     </>
   )

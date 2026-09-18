@@ -1439,7 +1439,7 @@ function ChipModalFooter({
       {primaryAdjacentAction ? renderFooterSlotAction(primaryAdjacentAction) : null}
       {showsDisabledTooltip && primaryAction ? (
         <Tooltip.Root>
-          <Tooltip.Trigger asChild>
+          <Tooltip.Trigger asChild tabIndex={0}>
             <span className='inline-flex cursor-not-allowed'>{primaryChip}</span>
           </Tooltip.Trigger>
           <Tooltip.Content>{primaryAction.disabledTooltip}</Tooltip.Content>
@@ -1649,7 +1649,7 @@ function renderChipConfirmButton(
   if (!confirm.disabledTooltip || !disabled) return chip
   return (
     <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+      <Tooltip.Trigger asChild tabIndex={0}>
         <span className='inline-flex'>{chip}</span>
       </Tooltip.Trigger>
       <Tooltip.Content>{confirm.disabledTooltip}</Tooltip.Content>

@@ -12,7 +12,7 @@ export function connectorSyncFrequencyHint(
     return 'Content and permissions update only when you sync. Documents become unavailable after 24 hours without a successful permission check.'
   }
   if (effectiveConnectorSyncIntervalMinutes(accessMode, syncInterval) === syncInterval) {
-    return 'Permissions are checked on every sync.'
+    return undefined
   }
   return accessMode === 'members' && hasContentCredential
     ? 'Content follows this schedule. Member permissions are checked every hour.'

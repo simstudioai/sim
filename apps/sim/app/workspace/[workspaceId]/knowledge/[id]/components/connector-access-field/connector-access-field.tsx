@@ -168,7 +168,7 @@ export function ConnectorAccessField({
       <div className='flex flex-col gap-2'>
         {slackSetupOnly ? null : lockAccessMode ? (
           <Tooltip.Root>
-            <Tooltip.Trigger asChild>
+            <Tooltip.Trigger asChild tabIndex={0}>
               <span className='inline-flex w-fit cursor-not-allowed'>
                 <ChipDropdown
                   aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
