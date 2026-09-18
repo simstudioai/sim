@@ -207,6 +207,32 @@ describe('mothership private trace provenance transport', () => {
     )
   })
 
+  it.each([true, false, undefined])(
+    'forwards conversation replay opt-in: %s',
+    async (useConversationHistory) => {
+      mockRunHeadlessCopilotLifecycle.mockImplementation(
+        async (payload: Record<string, unknown>) => {
+          expect(payload.useConversationHistory).toBe(useConversationHistory)
+          return successResult()
+        }
+      )
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { ...requestBody, useConversationHistory },
+          {
+            'X-Sim-Mcp-Delegation': 'signed-block',
+            Authorization: 'Bearer internal',
+            'x-sim-billing-attribution': 'billing',
+          },
+          'http://localhost:3000/api/mothership/execute'
+        ),
+        undefined
+      )
+      expect(response.status).toBe(200)
+    }
+  )
+
   it('omits an absent response format from the headless lifecycle payload', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
       expect(payload).not.toHaveProperty('responseFormat')

@@ -116,6 +116,7 @@ const mothershipExecuteMcpToolSchema = z
   .passthrough()
 
 export const mothershipExecuteBodySchema = z.object({
+  useConversationHistory: z.boolean().optional(),
   effort: ChatPayloadSchema.shape.effort,
   modelSelection: ChatPayloadSchema.shape.modelSelection,
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),

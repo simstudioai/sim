@@ -988,6 +988,7 @@ export class MothershipBlockHandler implements BlockHandler {
     const effort = ChatPayloadSchema.shape.effort.parse(inputs.effort ?? 'high')
     const body: Record<string, unknown> = {
       messages,
+      useConversationHistory: true,
       modelSelection,
       effort,
       workspaceId: ctx.workspaceId || '',

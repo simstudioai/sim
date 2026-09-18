@@ -395,7 +395,7 @@ export interface ProtocolMismatch {
 }
 
 /**
- * POST /api/mothership/execute — the one-shot headless surface used by Sim Chat blocks.
+ * POST /api/mothership/execute — headless execution, with optional conversation replay.
  * The caller supplies the conversation and authorized catalog selectors. The worker
  * runs one bounded loop and streams mothership-stream-v1 frames. No skills or CLI;
  * discovery and execution resolve selected operations through Sim.
@@ -404,6 +404,8 @@ export interface ExecuteRequest extends StreamResponseReceipt {
   effort?: ChatRequest["effort"];
   modelSelection?: ModelSelection | undefined;
   messages: ExecuteMessage[];
+  /** Replay stored turns before one new user message (optionally preceded by a system prompt). */
+  useConversationHistory?: boolean | undefined;
   /** JSON schema for structured output; enforced by instruction + caller-side validation. */
   responseFormat?: unknown | undefined;
   userId: string;
