@@ -567,7 +567,7 @@ function DetailCodeSection({
               </span>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={goToPreviousMatch}
                 disabled={matchCount === 0}
                 aria-label='Previous match'
@@ -576,7 +576,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={goToNextMatch}
                 disabled={matchCount === 0}
                 aria-label='Next match'
@@ -585,7 +585,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={closeSearch}
                 aria-label='Close search'
               >
@@ -1045,7 +1045,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
                 aria-label='Copy raw trace'
               >
@@ -1065,7 +1065,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
@@ -1079,7 +1079,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >

@@ -1071,7 +1071,8 @@ function PreviewEditorContent({
             <Button
               aria-label='Close preview'
               variant='ghost'
-              className='shrink-0 p-1!'
+              iconPadding='sm'
+              className='shrink-0'
               onClick={onClose}
             >
               <X className='size-[14px]' />
@@ -1163,7 +1164,8 @@ function PreviewEditorContent({
           <Button
             aria-label='Close preview'
             variant='ghost'
-            className='shrink-0 p-1!'
+            iconPadding='sm'
+            className='shrink-0'
             onClick={onClose}
           >
             <X className='size-[14px]' />
@@ -1516,7 +1518,7 @@ function PreviewEditorContent({
           </span>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToPreviousMatch}
             disabled={matchCount === 0}
             aria-label='Previous match'
@@ -1525,14 +1527,14 @@ function PreviewEditorContent({
           </Button>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToNextMatch}
             disabled={matchCount === 0}
             aria-label='Next match'
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='p-1!' onClick={closeSearch} aria-label='Close search'>
+          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
             <X className='size-[12px]' />
           </Button>
         </div>

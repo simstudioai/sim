@@ -1248,7 +1248,8 @@ export const Terminal = memo(function Terminal() {
                             toggleSort()
                           }}
                           aria-label='Sort by timestamp'
-                          className='-m-1.5 p-1.5!'
+                          iconPadding='md'
+                          className='-m-1.5'
                         >
                           {sortDirection === 'desc' ? (
                             <ArrowDown className='size-[14px]' />
@@ -1270,7 +1271,8 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             aria-label='Component Playground'
-                            className='-m-1.5 p-1.5!'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Palette className='size-[14px]' />
                           </Button>
@@ -1290,7 +1292,8 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleExportConsole}
                             aria-label='Export console CSV'
-                            className='-m-1.5 p-1.5!'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Download className='size-[14px]' />
                           </Button>
@@ -1305,7 +1308,8 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleClearConsole}
                             aria-label='Clear console'
-                            className='-m-1.5 p-1.5!'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Trash className='size-[14px]' />
                           </Button>
@@ -1325,7 +1329,8 @@ export const Terminal = memo(function Terminal() {
                           e.stopPropagation()
                         }}
                         aria-label='Terminal options'
-                        className='-m-1.5 p-1.5!'
+                        iconPadding='md'
+                        className='-m-1.5'
                       >
                         <MoreHorizontal className='size-[14px]' />
                       </Button>

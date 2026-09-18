@@ -341,7 +341,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleCloseSearchClick}
                     aria-label='Close search'
-                    className='-m-1.5 p-1.5!'
+                    iconPadding='md'
+                    className='-m-1.5'
                   >
                     <X className='size-[14px]' />
                   </Button>
@@ -357,7 +358,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleSearchClick}
                     aria-label='Search in output'
-                    className='-m-1.5 p-1.5!'
+                    iconPadding='md'
+                    className='-m-1.5'
                   >
                     <Search className='size-[14px]' />
                   </Button>
@@ -375,7 +377,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       aria-label='Component Playground'
-                      className='-m-1.5 p-1.5!'
+                      iconPadding='md'
+                      className='-m-1.5'
                     >
                       <Palette className='size-[14px]' />
                     </Button>
@@ -393,7 +396,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={handleCopyClick}
                   aria-label='Copy output'
-                  className='-m-1.5 p-1.5!'
+                  iconPadding='md'
+                  className='-m-1.5'
                 >
                   {showCopySuccess ? (
                     <Check className='size-[14px]' />
@@ -414,7 +418,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleExportConsole}
                       aria-label='Export console CSV'
-                      className='-m-1.5 p-1.5!'
+                      iconPadding='md'
+                      className='-m-1.5'
                     >
                       <Download className='size-[14px]' />
                     </Button>
@@ -429,7 +434,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleClearConsole}
                       aria-label='Clear console'
-                      className='-m-1.5 p-1.5!'
+                      iconPadding='md'
+                      className='-m-1.5'
                     >
                       <Trash className='size-[14px]' />
                     </Button>
@@ -446,7 +452,8 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={(e) => e.stopPropagation()}
                   aria-label='Terminal options'
-                  className='-m-1.5 p-1.5!'
+                  iconPadding='md'
+                  className='-m-1.5'
                 >
                   <MoreHorizontal className='size-[14px]' />
                 </Button>
@@ -511,7 +518,8 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToPreviousMatch}
               aria-label='Previous match'
-              className='-m-1.5 p-1.5!'
+              iconPadding='md'
+              className='-m-1.5'
               disabled={matchCount === 0}
             >
               <ArrowUp className='size-[14px]' />
@@ -520,7 +528,8 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToNextMatch}
               aria-label='Next match'
-              className='-m-1.5 p-1.5!'
+              iconPadding='md'
+              className='-m-1.5'
               disabled={matchCount === 0}
             >
               <ArrowDown className='size-[14px]' />
@@ -529,7 +538,8 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={closeOutputSearch}
               aria-label='Close search'
-              className='-m-1.5 p-1.5!'
+              iconPadding='md'
+              className='-m-1.5'
             >
               <X className='size-[14px]' />
             </Button>

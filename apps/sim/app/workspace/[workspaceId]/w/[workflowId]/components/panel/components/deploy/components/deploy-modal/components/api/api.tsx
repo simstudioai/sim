@@ -478,7 +478,8 @@ console.log(limits);`
                 variant='ghost'
                 onClick={() => handleCopy('sync', getSyncCommand())}
                 aria-label='Copy command'
-                className='-my-1.5 p-1.5!'
+                iconPadding='md'
+                className='-my-1.5'
               >
                 {copied.sync ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
@@ -508,7 +509,8 @@ console.log(limits);`
                   variant='ghost'
                   onClick={() => handleCopy('stream', getStreamCommand())}
                   aria-label='Copy command'
-                  className='-my-1.5 p-1.5!'
+                  iconPadding='md'
+                  className='-my-1.5'
                 >
                   {copied.stream ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
@@ -548,7 +550,8 @@ console.log(limits);`
                     variant='ghost'
                     onClick={() => handleCopy('async', getAsyncCommand())}
                     aria-label='Copy command'
-                    className='-my-1.5 p-1.5!'
+                    iconPadding='md'
+                    className='-my-1.5'
                   >
                     {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                   </Button>

@@ -382,7 +382,8 @@ const FilterRuleRow = memo(function FilterRuleRow({
         variant='ghost'
         size='sm'
         onClick={() => onRemove(rule.id)}
-        className='size-7 shrink-0 p-1!'
+        iconPadding='sm'
+        className='size-7 shrink-0'
         aria-label='Remove filter'
       >
         <X className='size-[12px]' />
