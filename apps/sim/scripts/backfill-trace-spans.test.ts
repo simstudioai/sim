@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
 
 const {
+  mockPrimaryRead,
   mockRead,
   mockInfo,
   mockDataRead,
@@ -13,6 +14,7 @@ const {
   mockExternalize,
   mockReplaceReferences,
 } = vi.hoisted(() => ({
+  mockPrimaryRead: vi.fn(),
   mockRead: vi.fn(),
   mockInfo: vi.fn(),
   mockDataRead: vi.fn(),
@@ -23,7 +25,7 @@ const {
 }))
 
 vi.mock('@sim/db', () => {
-  const db = {
+  const execDb = {
     select: () => {
       const query = {
         from: () => query,
@@ -36,7 +38,13 @@ vi.mock('@sim/db', () => {
     },
     transaction: mockTransaction,
   }
-  return { db, dbFor: () => db }
+  return {
+    db: { select: () => ({ from: () => ({ limit: mockPrimaryRead }) }) },
+    dbFor: (role: string) => {
+      if (role !== 'exec') throw new Error(`Unexpected database role: ${role}`)
+      return execDb
+    },
+  }
 })
 
 vi.mock('@sim/logger', () => ({
@@ -58,6 +66,10 @@ import { backfillTraceStorage, parseArgs, runBackfillWorkers } from '@/scripts/b
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mockPrimaryRead.mockImplementation((limit: number) => {
+    if (limit !== 0) throw new Error('Execution payloads must use the execution pool')
+    return Promise.resolve([])
+  })
   mockRead.mockImplementation((limit: number) =>
     limit === 0 ? Promise.resolve([]) : mockDataRead(limit)
   )
@@ -257,7 +269,7 @@ describe('trace backfill', () => {
   it('fails its schema check before uploading anything and preserves the database cause', async () => {
     const cause = new Error('column "size_bytes" does not exist')
     const error = new Error('Failed query', { cause })
-    mockRead.mockRejectedValueOnce(error)
+    mockPrimaryRead.mockRejectedValueOnce(error)
     await expect(backfillTraceStorage(options)).rejects.toBe(error)
     expect(mockDataRead).not.toHaveBeenCalled()
     expect(mockExternalize).not.toHaveBeenCalled()
@@ -266,13 +278,14 @@ describe('trace backfill', () => {
 
   it('check-only performs no uploads, writes, or payload reads', async () => {
     await backfillTraceStorage({ ...options, checkOnly: true })
-    expect(mockRead).toHaveBeenCalledTimes(5)
+    expect(mockPrimaryRead).toHaveBeenCalledExactlyOnceWith(0)
+    expect(mockRead).toHaveBeenCalledTimes(4)
     expect(mockRead.mock.calls.every(([limit]) => limit === 0)).toBe(true)
     expect(mockExternalize).not.toHaveBeenCalled()
     expect(mockTransaction).not.toHaveBeenCalled()
   })
 
-  it('commits a durable pointer and references with the workflow owner', async () => {
+  it('reads and commits logs and references through the execution pool with the workflow owner', async () => {
     mockDataRead
       .mockResolvedValueOnce([candidateMetadata])
       .mockResolvedValueOnce([candidate])
@@ -280,6 +293,10 @@ describe('trace backfill', () => {
     await expect(backfillTraceStorage(options)).resolves.toEqual({
       migrated: 1,
     })
+    expect(mockPrimaryRead).toHaveBeenCalledExactlyOnceWith(0)
+    expect(mockRead).toHaveBeenCalledTimes(7)
+    expect(mockDataRead).toHaveBeenCalledTimes(3)
+    expect(mockTransaction).toHaveBeenCalledOnce()
     expect(mockExternalize).toHaveBeenCalledWith(
       expect.objectContaining({ hasTraceSpans: true, traceSpanCount: 2 }),
       {
@@ -454,19 +471,19 @@ describe('trace backfill', () => {
       .mockResolvedValueOnce([candidate])
       .mockResolvedValueOnce([candidate])
     await backfillTraceStorage(options)
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 0, 100, 1, 1])
+    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 100, 1, 1])
     expect(mockExternalize).toHaveBeenCalledOnce()
   })
 
   it('keeps the candidate page at 100 rows with fifty workers', async () => {
     await backfillTraceStorage({ ...options, concurrency: 50 })
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 0, 100])
+    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 100])
     expect(mockExternalize).not.toHaveBeenCalled()
   })
 
   it('scales the bounded metadata page to feed higher concurrency', async () => {
     await backfillTraceStorage({ ...options, concurrency: 500 })
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 0, 1000])
+    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 1000])
   })
 
   it('does not update the log or start the next candidate after storage fails', async () => {

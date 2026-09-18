@@ -187,11 +187,11 @@ export function parseArgs(argv: string[]): Options {
 /** Validates the metadata schema and SELECT permissions without reading payloads or writing. */
 export async function checkDatabase(): Promise<void> {
   await db.select().from(workspaceFiles).limit(0)
-  await db.select().from(executionLargeValueReferences).limit(0)
   const execDb = dbFor('exec')
+  await execDb.select().from(executionLargeValueReferences).limit(0)
   await execDb.select().from(executionLargeValues).limit(0)
   await execDb.select().from(executionLargeValueDependencies).limit(0)
-  await db
+  await execDb
     .select({
       id: workflowExecutionLogs.id,
       workspaceId: workflowExecutionLogs.workspaceId,
@@ -267,6 +267,7 @@ export async function backfillTraceStorage(
   logger.info('Database schema and read checks passed')
   if (options.checkOnly) return { migrated: 0 }
 
+  const execDb = dbFor('exec')
   let migrated = 0
   let skipped = 0
   let cursor = options.cursor
@@ -344,7 +345,7 @@ export async function backfillTraceStorage(
             )
         : undefined
       const rows = await measure('scan', () =>
-        db
+        execDb
           .select({
             id: workflowExecutionLogs.id,
             startedAt: sql<string>`to_char(${workflowExecutionLogs.startedAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
@@ -365,7 +366,7 @@ export async function backfillTraceStorage(
 
       /** Only sizes leave PostgreSQL until the scheduler reserves payload capacity. */
       const sizes = await measure('size', () =>
-        db
+        execDb
           .select({
             id: workflowExecutionLogs.id,
             payloadBytes: sql<number>`octet_length(${workflowExecutionLogs.executionData}::text)`,
@@ -404,7 +405,7 @@ export async function backfillTraceStorage(
           try {
             /** Reject oversized JSON in SQL before the driver materializes it. */
             const [row] = await measure('read', () =>
-              db
+              execDb
                 .select({
                   id: workflowExecutionLogs.id,
                   workspaceId: workflowExecutionLogs.workspaceId,
@@ -461,7 +462,7 @@ export async function backfillTraceStorage(
             }
 
             await measure('commit', () =>
-              db.transaction(async (tx) => {
+              execDb.transaction(async (tx) => {
                 await tx
                   .update(workflowExecutionLogs)
                   .set({ executionData: slim })
