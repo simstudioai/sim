@@ -12,6 +12,7 @@ import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import {
   knowledgeAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
+  textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
@@ -50,20 +51,53 @@ const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Bound candidate pages retained while live permissions are checked. */
 const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
 /**
- * Bounds a permission-starved graph walk, which returns fewer candidates rather than widening.
- * This approximate iterative-visit threshold excludes pgvector's initial scan; it is not a row limit.
+ * Approximate iterative-visit threshold for a permission-starved graph walk. It excludes
+ * pgvector's initial beam, so it only takes effect once `ResumeScanItems` starts widening.
  *
- * Raising it trades recall for latency far more steeply than its size suggests. Measured on a
- * search index where visibility admitted a tenth of the corpus, visiting four times as many tuples
- * took 5.1s and 9.7s on consecutive identical runs, against ~115ms for the bounded walk — the walk
- * degrades superlinearly with depth, and unpredictably. Re-measure before changing it.
+ * It must therefore stay roughly an order of magnitude above `ef_search`, or the first beam
+ * already exhausts the tuple budget and the scan stops before it can iterate at all — pgvector's
+ * maintainer says as much in pgvector#912. Measured on a production-shaped corpus, the previous
+ * pairing of a 1,000-wide beam against a 1,000-tuple budget returned fewer candidates than a
+ * narrower beam allowed to iterate, and spent longer inside the one uninterruptible beam.
  */
-const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
-const CANDIDATE_HNSW_EF_SEARCH = '1000'
+const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '20000'
+/**
+ * Beam width per iteration. A beam is the granularity of cancellation: pgvector calls
+ * `CHECK_FOR_INTERRUPTS` only while building an index, never inside `hnswgettuple`, so neither
+ * `statement_timeout` nor a cancellation request can interrupt one. A narrower beam that iterates
+ * therefore bounds the leg's uninterruptible floor as well as widening its reach.
+ */
+const CANDIDATE_HNSW_EF_SEARCH = '200'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
 const VECTOR_RERANK_OVERSAMPLING = 32
+/**
+ * The probe's share of the leg. It ranks nothing, so it must never be why the leg misses its
+ * own deadline.
+ *
+ * Its share comes out of what the rescue can claim from the narrowest live budget,
+ * `DIRECT_SEARCH_VECTOR_BUDGET_MS`, before live authorization, hydration and the exact rerank
+ * need the rest.
+ */
+const VECTOR_PROBE_BUDGET_MS = 600
+/**
+ * What one document costs the probe, measured on a corpus shaped like a search index under
+ * comparable cache pressure: the access predicate, evaluated once per document.
+ */
+const VECTOR_PROBE_MICROSECONDS_PER_DOCUMENT = 6
+/**
+ * Documents the probe enumerates before it concludes the permitted set is too large to rank
+ * exactly. Derived so that reaching it is what spends the probe's budget, rather than a separate
+ * number that a change to that budget could silently invalidate.
+ *
+ * It bounds the rescue's second step too: exact ranking of the `halfvec` projection measures at
+ * around half the probe's per-document cost, so a permitted set within this bound is affordable
+ * by construction.
+ */
+export const VECTOR_PROBE_DOCUMENT_LIMIT = Math.round(
+  (VECTOR_PROBE_BUDGET_MS * 1000) / VECTOR_PROBE_MICROSECONDS_PER_DOCUMENT
+)
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -781,10 +815,54 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 /**
- * Bound ANN traversal and rerank a small candidate pool against the original vectors.
- * Nearest-neighbor traversal drives document visibility lookups, avoiding a sort of
- * every visible chunk when the planner underestimates the caller's accessible corpus.
- * An underfilled index scan expands to a filtered scan within the same statement snapshot.
+ * Enumerate the documents the caller may read, stopping once there are more of them than an exact
+ * ranking can afford. The bound is documents examined, not chunks accumulated: the access
+ * predicate is evaluated once per document, and a search index holds only a few chunks per
+ * document, so a chunk-bounded enumeration walks many times more documents than its limit says.
+ *
+ * Returns the document identities, or `null` when the permitted set exceeded that bound or the
+ * probe spent its own deadline finding out — neither is a failure of the leg, which keeps the
+ * candidates it already has.
+ */
+async function probeVisibleDocuments(
+  conditions: (SQL | undefined)[],
+  budget: SearchBudget | undefined
+): Promise<string[] | null> {
+  const probeBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
+  try {
+    const probed = await runSearchQuery(probeBudget, 'vector.probe', (executor) =>
+      executor.execute<{ id: string }>(sql`
+        SELECT ${document.id} AS id FROM ${document}
+        WHERE ${and(...conditions)}
+        LIMIT ${VECTOR_PROBE_DOCUMENT_LIMIT + 1}
+      `)
+    )
+    if (probed.length > VECTOR_PROBE_DOCUMENT_LIMIT) return null
+    return probed.map(({ id }) => id)
+  } catch (error) {
+    if (!budget || !probeBudget?.isTimeout(error)) throw error
+    /** Only the probe's share was spent; the leg's own deadline still governs. */
+    budget.remaining()
+    return null
+  }
+}
+
+/** Tags live on chunks, so a row qualifies when a chunk it joins to carries them. */
+function chunkTagCondition(join: SQL, tagConditions: SQL[]): SQL | undefined {
+  if (!tagConditions.length) return undefined
+  return sql`EXISTS (
+    SELECT 1 FROM ${embedding}
+    WHERE ${and(join, ...tagConditions)}
+  )`
+}
+
+/**
+ * Select a bounded candidate pool and rerank it against the original vectors.
+ *
+ * A bounded ANN traversal fills that pool. When visibility leaves the traversal short of its
+ * limit, a bounded probe decides whether the permitted set is small enough to rank exactly
+ * instead, which recovers the candidates the traversal's post-filter discarded.
+ *
  * Live source authorization and content hydration still run after candidate ranking.
  */
 async function selectVectorResults(params: SearchParams): Promise<SearchResult[]> {
@@ -796,13 +874,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
     ...tagConditions,
     sql`${distance} < ${params.distanceThreshold!}`,
   ]
-  /** Tags live on chunks; apply them before the candidate limit without fetching full vectors. */
-  const candidateTagCondition = tagConditions.length
-    ? sql`EXISTS (
-        SELECT 1 FROM ${embedding}
-        WHERE ${and(eq(embedding.id, embeddingSearch.id), ...tagConditions)}
-      )`
-    : undefined
+  /** Applied before the candidate limit, so the limit never counts rows the tags exclude. */
+  const candidateTagCondition = chunkTagCondition(
+    eq(embedding.id, embeddingSearch.id),
+    tagConditions
+  )
   const accessProvider = params.access.kind === 'user' ? params.accessProvider : undefined
   /** Only live-verified readers may defer source authorization until after candidate ranking. */
   const candidateAccess = accessProvider
@@ -817,6 +893,16 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
     MAX_VECTOR_RERANK_CANDIDATES,
     Math.max(MIN_VECTOR_RERANK_CANDIDATES, params.topK * VECTOR_RERANK_OVERSAMPLING)
   )
+  const documentTagCondition = chunkTagCondition(
+    eq(embedding.documentId, document.id),
+    tagConditions
+  )
+  /**
+   * Candidate selection ignores the page offset — only the rerank pages over the pool — so a
+   * refill reuses the pool it already has. Excluding another source is the only thing that
+   * changes which candidates belong in it, and that resets the offset to zero anyway.
+   */
+  let candidatePool: { excludedKey: string; identities: Array<{ id: string }> } | undefined
   return selectAuthorizedSearchResults({
     leg: 'vector',
     access: params.access,
@@ -836,21 +922,15 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         ...getDocumentVisibilityConditions(params.access, params.filters, candidateAccess),
         excludeSearchSources(excludedSources),
       ]
-      /** Exhausted scopes rank exactly; explicit document IDs retain exhaustive passage ordering. */
-      const exactPage = async (candidateIds?: string[]) => {
+      /** Explicit document IDs are already a bounded scope, and retain exhaustive ordering. */
+      const exactPage = async () => {
         annotateSearchDiagnostics({ vectorRanking: 'exact' })
         const candidates = await runSearchQuery(params.budget, 'vector.exact', (executor) =>
           executor
             .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
             .from(embedding)
             .innerJoin(document, eq(embedding.documentId, document.id))
-            .where(
-              and(
-                ...conditions,
-                ...visibility,
-                candidateIds ? inArray(embedding.id, candidateIds) : undefined
-              )
-            )
+            .where(and(...conditions, ...visibility))
             .orderBy(sql`(${distance}) + 0`, embedding.id)
             .limit(limit)
             .offset(offset)
@@ -858,69 +938,25 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length) return exactPage()
-      /**
-       * Enumerate bounded chunk identities from visible documents. The lateral limit keeps
-       * the probe on document-indexed lookups instead of hashing the entire vector projection.
-       * An exhausted probe fits in the rerank pool and needs only one exact ranking pass.
-       */
-      const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
-        tagConditions.length
-          ? executor
-              .select({ id: embedding.id })
-              .from(embedding)
-              .innerJoin(document, eq(document.id, embedding.documentId))
-              .where(
-                and(
-                  inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds),
-                  ...visibility,
-                  ...tagConditions
-                )
-              )
-              .limit(candidateLimit)
-          : executor.execute<{ id: string }>(sql`
-          SELECT scoped_chunk.id FROM ${document}
-          CROSS JOIN LATERAL (
-            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-            WHERE ${and(
-              eq(embeddingSearch.documentId, document.id),
-              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              eq(embeddingSearch.enabled, true)
-            )}
-            LIMIT ${candidateLimit}
-          ) AS scoped_chunk
-          WHERE ${and(...candidateDocumentVisibility)}
-          LIMIT ${candidateLimit}
-        `)
-      )
-      if (probe.length === 0) return { candidates: [], nextOffset: offset }
-      if (probe.length < candidateLimit) {
-        return exactPage(probe.map((candidate) => candidate.id))
-      }
-      annotateSearchDiagnostics({
-        vectorRanking: 'candidate-rerank',
-        vectorCandidateStorage: 'stored-halfvec',
-        vectorCandidateLimit: candidateLimit,
-        vectorCandidateScan: 'planned',
-        vectorCandidateDimensions: embeddingCandidateDimensions(
-          queryVector.dimensions,
-          queryVector.model
-        ),
-      })
-      /**
-       * The bounded ANN traversal is the whole candidate set. LIMIT keeps document authorization
-       * downstream of the traversal, with a primary-key lookup per candidate.
-       *
-       * An underfilled traversal yields fewer candidates rather than widening the search. Widening
-       * it has no affordable form here: rescoring the projection exhaustively is O(corpus) and a
-       * deeper `hnsw.max_scan_tuples` is worse still. Measured where visibility admitted a tenth of
-       * the corpus, the exhaustive rescan took 1.9s while visiting four times as many tuples took
-       * 5.1s and 9.7s on consecutive identical runs. Both exceed the retrieval budget once the
-       * corpus grows, and a leg that exceeds its budget returns nothing at all, so fewer candidates
-       * strictly beats every widening strategy available.
-       */
-      const identities = await withVectorScanSettings(
-        (executor) =>
-          executor.execute<{ id: string }>(sql`
+      const excludedKey = excludedSources.join('\u0000')
+      if (candidatePool?.excludedKey !== excludedKey) {
+        annotateSearchDiagnostics({
+          vectorRanking: 'candidate-rerank',
+          vectorCandidateStorage: 'stored-halfvec',
+          vectorCandidateLimit: candidateLimit,
+          vectorCandidateScan: 'planned',
+          vectorCandidateDimensions: embeddingCandidateDimensions(
+            queryVector.dimensions,
+            queryVector.model
+          ),
+        })
+        /**
+         * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
+         * authorization downstream of the traversal, with a primary-key lookup per candidate.
+         */
+        const traversed = await withVectorScanSettings(
+          (executor) =>
+            executor.execute<{ id: string }>(sql`
           SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
           CROSS JOIN LATERAL (
             SELECT 1 FROM ${document}
@@ -933,12 +969,59 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           )}
           ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
         `),
-        params.budget
-      )
-      annotateSearchDiagnostics({
-        vectorCandidateCount: identities.length,
-        vectorCandidateScan: identities.length < candidateLimit ? 'underfilled' : 'planned',
-      })
+          params.budget
+        )
+        /**
+         * A full traversal is already the nearest permitted chunks, so nothing else is worth
+         * running. An underfilled one is the signal that visibility removed neighbours the graph
+         * had already chosen: pgvector's HNSW post-filters by construction — it declares no scan
+         * strategies and never reads the scan keys — so a permitted set that is a small share of
+         * the index is discarded after the graph has committed to its neighbours, and widening
+         * the traversal cannot recover them.
+         *
+         * Ranking the permitted set exactly does recover them, while that set is small enough to
+         * afford.
+         */
+        let selected: Array<{ id: string }> = traversed
+        if (traversed.length < candidateLimit) {
+          const visibleDocumentIds = await probeVisibleDocuments(
+            [...candidateDocumentVisibility, documentTagCondition],
+            params.budget
+          )
+          if (visibleDocumentIds) {
+            annotateSearchDiagnostics({
+              vectorRanking: 'exact-candidates',
+              vectorProbeDocumentCount: visibleDocumentIds.length,
+            })
+            /**
+             * `+ 0` keeps the planner off the ANN index, and the probed identities keep the scan
+             * on `embedding_search_document_lookup_idx`, so this reads what the permitted set
+             * costs rather than re-deriving permission across the whole index. Exact ranking also
+             * honours `statement_timeout`, which a traversal cannot.
+             */
+            selected = visibleDocumentIds.length
+              ? await runSearchQuery(params.budget, 'vector.exact_candidates', (executor) =>
+                  executor.execute<{ id: string }>(sql`
+              SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+              WHERE ${and(
+                inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+                eq(embeddingSearch.enabled, true),
+                sql`${embeddingSearch.documentId} = ANY(${textArrayLiteral(visibleDocumentIds)})`,
+                candidateTagCondition
+              )}
+              ORDER BY (${candidateDistance}) + 0 LIMIT ${candidateLimit}
+            `)
+                )
+              : []
+          }
+        }
+        candidatePool = { excludedKey, identities: selected }
+        annotateSearchDiagnostics({
+          vectorCandidateCount: selected.length,
+          vectorCandidateScan: selected.length < candidateLimit ? 'underfilled' : 'planned',
+        })
+      }
+      const { identities } = candidatePool
       if (!identities.length) return { candidates: [], nextOffset: offset }
       /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */
       const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>

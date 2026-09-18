@@ -47,6 +47,7 @@ export type SearchStage =
   | 'vector.settings'
   | 'vector.probe'
   | 'vector.rerank'
+  | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
   | 'source_overview'
@@ -76,7 +77,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'candidate-rerank'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank'
   vectorCandidateStorage?: 'stored-halfvec'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
@@ -86,6 +87,8 @@ export interface SearchDiagnosticMetadata {
   vectorCandidateScan?: 'planned' | 'underfilled'
   vectorBudgetMs?: number
   vectorCandidateLimit?: number
+  /** Visible documents the tractability probe enumerated, capped at its own document limit. */
+  vectorProbeDocumentCount?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number
