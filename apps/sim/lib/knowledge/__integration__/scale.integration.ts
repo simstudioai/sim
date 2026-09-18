@@ -40,6 +40,15 @@ const rows = Number(process.env.KNOWLEDGE_SCALE_DOCUMENTS ?? 250_000)
 const SEED_BATCH_SIZE = 2_000
 const PAGE_SIZE = 500
 const DIMENSIONS = 1536
+/**
+ * `embedding` carries no ANN index in the schema — production serves approximate
+ * retrieval from the `embedding_search` projection, which this fixture does not
+ * populate. The benchmark still measures ANN behaviour over the dense corpus it
+ * seeds directly, so it owns this index rather than borrowing a schema one, and
+ * builds it after the load instead of paying index maintenance on every insert.
+ */
+const BENCHMARK_VECTOR_INDEX = 'embedding_scale_benchmark_hnsw_idx'
+const BENCHMARK_VECTOR_INDEX_DEFINITION = `CREATE INDEX IF NOT EXISTS ${BENCHMARK_VECTOR_INDEX} ON public.embedding USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64')`
 const logger = createLogger('KnowledgeScaleIntegration')
 if (reuseReportFile && statSync(reuseReportFile).size > 16 * 1024 * 1024)
   throw new Error('Retained scale report must be at most 16 MiB')
@@ -386,7 +395,6 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
   it.skipIf(metadataOnly)(
     'stores a bounded dense corpus and measures ACL/tag-filtered vector and hybrid retrieval',
     async () => {
-      let vectorIndexDefinition: string | undefined
       if (bulkSeed) {
         const other = await db
           .select({ id: embedding.id })
@@ -397,13 +405,6 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
           throw new Error(
             'Bulk scale setup requires a database containing only its own fixture chunks'
           )
-        const [index] = await db.execute(
-          sql`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'embedding_vector_hnsw_idx'`
-        )
-        if (typeof index?.indexdef !== 'string')
-          throw new Error('Canonical 1536-dimensional HNSW index is missing')
-        vectorIndexDefinition = index.indexdef
-        await db.execute(sql`DROP INDEX embedding_vector_hnsw_idx`)
       }
       if (!reuseReportFile)
         await measure('seed.vectors', async () => {
@@ -420,20 +421,17 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
             }
           }
         })
-      if (vectorIndexDefinition) {
-        const definition = vectorIndexDefinition
-        await measure('seed.hnswBuild', () =>
-          db.transaction(async (tx) => {
-            await tx.execute(sql`SET LOCAL maintenance_work_mem = '2GB'`)
-            await tx.execute(sql`SET LOCAL max_parallel_maintenance_workers = 2`)
-            await tx.execute(sql.raw(definition))
-          })
-        )
-        const [restored] = await db.execute(
-          sql`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'embedding_vector_hnsw_idx'`
-        )
-        expect(restored.indexdef).toBe(vectorIndexDefinition)
-      }
+      await measure('seed.hnswBuild', () =>
+        db.transaction(async (tx) => {
+          await tx.execute(sql`SET LOCAL maintenance_work_mem = '2GB'`)
+          await tx.execute(sql`SET LOCAL max_parallel_maintenance_workers = 2`)
+          await tx.execute(sql.raw(BENCHMARK_VECTOR_INDEX_DEFINITION))
+        })
+      )
+      const [built] = await db.execute(
+        sql`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = ${BENCHMARK_VECTOR_INDEX}`
+      )
+      expect(built?.indexdef).toEqual(expect.stringContaining('USING hnsw'))
       await db.execute(sql`ANALYZE embedding`)
       await db.execute(sql`ANALYZE document`)
       const [count] = await db.execute(
