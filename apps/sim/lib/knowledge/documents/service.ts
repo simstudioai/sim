@@ -36,7 +36,7 @@ import {
   type BillingAttributionSnapshot,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import { checkIngestionUsageLimits } from '@/lib/billing/core/ingestion-usage-gate'
+import { checkIngestionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   applyStorageUsageDeltasInTx,

@@ -31,7 +31,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.resolveBilling,
   resolveSystemBillingAttribution: mocks.resolveBilling,
-  checkAttributedUsageLimits: mocks.checkUsage,
+}))
+
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkSearchUsageLimits: mocks.checkUsage,
 }))
 
 /** Retrieval defaults are the flag's concern; here the flag is off so the search stays as configured. */
