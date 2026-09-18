@@ -1,10 +1,9 @@
 'use client'
 
 import type React from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { RESOURCE_ACTION_BUTTON_BASE } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar/action-bar-styles'
 
 interface TableActionBarProps {
   /** Number of (row × group) cells the run/stop buttons would target. Drives
@@ -147,22 +146,20 @@ interface ActionIconButtonProps {
 }
 
 /**
- * Tooltip-wrapped icon button sharing the action bar's brand-hover chrome,
- * so the chrome string lives in one place.
+ * Supplies the table action's tooltip around the shared EMCN bulk-action button.
  */
 function ActionIconButton({ label, onClick, disabled, children }: ActionIconButtonProps) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
-          variant='ghost'
+        <BulkActionButton
           onClick={onClick}
           disabled={disabled}
-          className={cn(RESOURCE_ACTION_BUTTON_BASE, 'bg-[var(--surface-5)]')}
+          surface='uniform'
           aria-label={label}
         >
           {children}
-        </Button>
+        </BulkActionButton>
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>{label}</Tooltip.Content>
     </Tooltip.Root>

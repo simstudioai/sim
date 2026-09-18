@@ -1,6 +1,11 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps } from './badge/badge'
 export { Banner } from './banner/banner'
+export {
+  BulkActionButton,
+  type BulkActionButtonProps,
+  bulkActionButtonVariants,
+} from './bulk-action-button/bulk-action-button'
 export { Button, buttonVariants } from './button/button'
 export {
   CalendarDayCell,

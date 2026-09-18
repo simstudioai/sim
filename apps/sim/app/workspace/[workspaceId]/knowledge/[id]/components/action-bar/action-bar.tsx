@@ -1,7 +1,6 @@
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
 import { Ban, Circle, Trash } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { RESOURCE_ACTION_BUTTON_FILLED } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar/action-bar-styles'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 interface ActionBarProps {
@@ -87,15 +86,9 @@ export function ActionBar({
             {showEnableButton && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    aria-label='Enable'
-                    onClick={onEnable}
-                    disabled={isLoading}
-                    className={RESOURCE_ACTION_BUTTON_FILLED}
-                  >
+                  <BulkActionButton aria-label='Enable' onClick={onEnable} disabled={isLoading}>
                     <Circle className='size-[12px]' />
-                  </Button>
+                  </BulkActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Enable</Tooltip.Content>
               </Tooltip.Root>
@@ -104,15 +97,9 @@ export function ActionBar({
             {showDisableButton && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    aria-label='Disable'
-                    onClick={onDisable}
-                    disabled={isLoading}
-                    className={RESOURCE_ACTION_BUTTON_FILLED}
-                  >
+                  <BulkActionButton aria-label='Disable' onClick={onDisable} disabled={isLoading}>
                     <Ban className='size-[12px]' />
-                  </Button>
+                  </BulkActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Disable</Tooltip.Content>
               </Tooltip.Root>
@@ -121,15 +108,9 @@ export function ActionBar({
             {onDelete && canEdit && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    aria-label='Delete'
-                    onClick={onDelete}
-                    disabled={isLoading}
-                    className={RESOURCE_ACTION_BUTTON_FILLED}
-                  >
+                  <BulkActionButton aria-label='Delete' onClick={onDelete} disabled={isLoading}>
                     <Trash className='size-[12px]' />
-                  </Button>
+                  </BulkActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Delete</Tooltip.Content>
               </Tooltip.Root>
