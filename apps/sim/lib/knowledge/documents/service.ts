@@ -103,7 +103,7 @@ import {
   recordUndispatchedDocumentFailure,
 } from '@/lib/knowledge/documents/processing-claim'
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
-import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
+import { documentProcessingRunOptions } from '@/lib/knowledge/documents/processing-lane'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -121,6 +121,7 @@ import {
   ProviderCapacityContinuationExhaustedError,
 } from '@/lib/knowledge/documents/processing-provider-deferral'
 import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
+import { releaseUnclaimedDispatchAttempt } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   documentProcessingOutcomeSelection,
   getDocumentProcessingOutcome,
@@ -1250,7 +1251,7 @@ async function dispatchViaBatchTrigger(
               `knowledgeBaseId:${payload.knowledgeBaseId}`,
               `documentId:${payload.documentId}`,
             ],
-            ...documentProcessingQueueOptions(payload),
+            ...documentProcessingRunOptions(payload),
             region,
           },
         }))
@@ -3459,7 +3460,8 @@ export async function retryDocumentProcessing(
    * window closed for a document created moments ago whose first dispatch is
    * still in flight.
    */
-  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
+  const requestedAt = new Date()
+  const queuedGraceCutoff = new Date(requestedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   const requeued = await db.transaction(async (tx) => {
     const reset = await tx
       .update(document)
@@ -3475,6 +3477,7 @@ export async function retryDocumentProcessing(
         processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
+        processingAttempts: releaseUnclaimedDispatchAttempt(requestedAt),
         chunkCount: 0,
         tokenCount: 0,
         characterCount: 0,

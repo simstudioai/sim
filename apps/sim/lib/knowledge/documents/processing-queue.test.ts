@@ -368,6 +368,23 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     })
   })
 
+  it('expires each queued run before recovery may replace its generation', async () => {
+    markInsideTriggerRun()
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'backfill'
+    )
+
+    const [item] = mockBatchTrigger.mock.calls[0][1]
+    expect(item.options.ttl).toBeGreaterThan(0)
+    expect(item.options.ttl * 1000).toBeLessThan(QUEUED_DISPATCH_GRACE_MS)
+  })
+
   /**
    * The starvation this split exists to prevent: connector backfill must not be
    * able to occupy the queue a person's upload is admitted through.

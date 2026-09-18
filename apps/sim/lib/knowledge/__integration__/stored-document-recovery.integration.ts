@@ -244,6 +244,49 @@ describe('independent recovery of retained connector documents', () => {
     }
   })
 
+  it('replaces expired queued generations without spending the budget, then indexes once', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    const expire = (token: string) =>
+      db
+        .update(document)
+        .set({
+          processingStatus: 'pending',
+          processingCompletedAt: null,
+          processingError: null,
+          processingQueuedAt: old(),
+          processingQueueToken: token,
+        })
+        .where(eq(document.id, file.documentId))
+    let generation = 'old-fixture-generation'
+    await expire(generation)
+    for (let cycle = 0; cycle <= MAX_PROCESSING_ATTEMPTS; cycle++) {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingAttempts).toBe(1)
+      expect(row.processingQueueToken).not.toBe(generation)
+      generation = row.processingQueueToken!
+      await expire(generation)
+    }
+    await db
+      .update(document)
+      .set({ processingQueuedAt: new Date() })
+      .where(eq(document.id, file.documentId))
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
+
+    const events = await eventsFor(ids)
+    expect(events).toHaveLength(MAX_PROCESSING_ATTEMPTS + 1)
+    const before = fixture.embeddingCalls
+    for (const event of events) {
+      expect(
+        await outbox.processOutboxEventById(event.id, knowledgeDocumentProcessingOutboxHandlers)
+      ).toBe('completed')
+    }
+    expect(fixture.embeddingCalls).toBe(before + 1)
+    const [indexed] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
+  })
+
   it('keeps permanent, excluded, paused, fresh, deferred, and expired work out of automatic recovery', async () => {
     const ids = await seed()
     const file = await failedFile(ids)

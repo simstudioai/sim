@@ -3,6 +3,7 @@ import type {
   DocumentProcessingBillingContext,
   DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
+import { QUEUED_DISPATCH_START_DEADLINE_MS } from '@/lib/knowledge/documents/types'
 
 /**
  * Queue backing the interactive lane.
@@ -53,5 +54,37 @@ export function documentProcessingQueueOptions(payload: DocumentProcessingPayloa
         ? INTERACTIVE_PROCESSING_QUEUE_NAME
         : BACKFILL_PROCESSING_QUEUE_NAME,
     concurrencyKey: documentProcessingTenantKey(payload),
+  }
+}
+
+/**
+ * Trigger.dev `ttl` expiring a run unstarted at its generation's start deadline
+ * (queue stamp + {@link QUEUED_DISPATCH_START_DEADLINE_MS}). Trigger.dev counts `ttl`
+ * from enqueue, which for a delayed run is `notBefore`. A generation already past its
+ * deadline gets the one-second minimum; one without a stamp keeps the queue default.
+ */
+export function documentProcessingRunExpiry(
+  payload: Pick<DocumentProcessingPayload, 'processingQueuedAt'>,
+  notBefore?: Date
+): { ttl?: number } {
+  if (!payload.processingQueuedAt) return {}
+  const deadline =
+    new Date(payload.processingQueuedAt).getTime() + QUEUED_DISPATCH_START_DEADLINE_MS
+  const enqueuedAt = Math.max(Date.now(), notBefore?.getTime() ?? 0)
+  return { ttl: Math.max(1, Math.floor((deadline - enqueuedAt) / 1000)) }
+}
+
+/**
+ * Every Trigger.dev option a `knowledge-process-document` dispatch needs: its lane's
+ * per-tenant queue and its start deadline. Dispatch sites use this rather than the
+ * parts so none can enqueue a run that outlives recovery's grace.
+ */
+export function documentProcessingRunOptions(
+  payload: DocumentProcessingPayload,
+  notBefore?: Date
+): { queue: string; concurrencyKey: string; ttl?: number } {
+  return {
+    ...documentProcessingQueueOptions(payload),
+    ...documentProcessingRunExpiry(payload, notBefore),
   }
 }

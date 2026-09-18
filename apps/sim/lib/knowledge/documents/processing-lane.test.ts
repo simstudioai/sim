@@ -1,14 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BACKFILL_PROCESSING_QUEUE_NAME,
   documentProcessingQueueOptions,
+  documentProcessingRunExpiry,
   INTERACTIVE_PROCESSING_QUEUE_NAME,
 } from '@/lib/knowledge/documents/processing-lane'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import { resolveDocumentProcessingLane } from '@/lib/knowledge/documents/processing-payload'
+import {
+  QUEUED_DISPATCH_GRACE_MS,
+  QUEUED_DISPATCH_START_DEADLINE_MS,
+} from '@/lib/knowledge/documents/types'
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -128,5 +133,53 @@ describe('documentProcessingQueueOptions', () => {
         })
       ).concurrencyKey
     )
+  })
+})
+
+describe('documentProcessingRunExpiry', () => {
+  const NOW = new Date('2026-09-18T12:00:00.000Z')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('expires an undelayed run at the start deadline, before recovery may replace it', () => {
+    expect(QUEUED_DISPATCH_START_DEADLINE_MS).toBeLessThan(QUEUED_DISPATCH_GRACE_MS)
+    expect(documentProcessingRunExpiry({ processingQueuedAt: NOW.toISOString() })).toEqual({
+      ttl: QUEUED_DISPATCH_START_DEADLINE_MS / 1000,
+    })
+  })
+
+  it('gives a late relay only the time its generation has left', () => {
+    const stampedAt = new Date(NOW.getTime() - 60 * 60_000)
+    expect(documentProcessingRunExpiry({ processingQueuedAt: stampedAt.toISOString() })).toEqual({
+      ttl: (QUEUED_DISPATCH_START_DEADLINE_MS - 60 * 60_000) / 1000,
+    })
+  })
+
+  it('expires a generation already past its deadline at the minimum', () => {
+    const stampedAt = new Date(NOW.getTime() - QUEUED_DISPATCH_GRACE_MS)
+    expect(documentProcessingRunExpiry({ processingQueuedAt: stampedAt.toISOString() })).toEqual({
+      ttl: 1,
+    })
+  })
+
+  /** Trigger.dev starts a delayed run's TTL when its delay ends, not when it is triggered. */
+  it('counts a delayed run from the end of its delay', () => {
+    const deferredUntil = new Date(NOW.getTime() + 30 * 60_000)
+    expect(
+      documentProcessingRunExpiry(
+        { processingQueuedAt: deferredUntil.toISOString() },
+        deferredUntil
+      )
+    ).toEqual({ ttl: QUEUED_DISPATCH_START_DEADLINE_MS / 1000 })
+  })
+
+  it('leaves a payload without a queue stamp on the queue default', () => {
+    expect(documentProcessingRunExpiry({})).toEqual({})
   })
 })

@@ -1,6 +1,8 @@
 /** @vitest-environment node */
 import {
   dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
   queueTableRows,
   resetDbChainMock as resetDatabaseMock,
   schemaMock,
@@ -641,6 +643,28 @@ describe('content pass checkpoint intent', () => {
       expect(mocks.dispatch).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('resurrecting verified listed documents', () => {
+  it('only writes documents that are actually tombstoned', async () => {
+    sourceBody = { value: '<p>Current content</p>' }
+    await runPass({ access: 'admin' })
+    const resurrect = dbChainMockFns.set.mock.invocationCallOrder.find((_order, index) => {
+      const [values] = dbChainMockFns.set.mock.calls[index]
+      return Object.keys(values).length === 1 && values.deletedAt === null
+    })
+    expect(resurrect).toBeDefined()
+    const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+      (order) => order > resurrect!
+    )
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls[whereIndex][0],
+        (node: MockCondition) =>
+          node.type === 'isNotNull' && node.column === schemaMock.document.deletedAt
+      )
+    ).toBe(true)
+  })
 })
 
 describe('permission refresh through the shared content pass', () => {

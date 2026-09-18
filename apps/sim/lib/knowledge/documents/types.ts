@@ -10,9 +10,9 @@
  * a short-interval connector can still burn several inside one transient
  * outage. A dispatch that provably reached nothing is refunded — see
  * `clearDocumentsQueued` — which refunds each newly claimed dispatch that
- * provably failed before processing began. An accepted dispatch whose remote
- * run never starts still stays charged. Three left too little room for those;
- * five still bounds the spend
+ * provably failed before processing began, and recovery gives back the charge of
+ * a queued generation it replaces unclaimed (`releaseUnclaimedDispatchAttempt`).
+ * Three left too little room for those; five still bounds the spend
  * well inside `RETRY_WINDOW_DAYS`.
  *
  * Reaching it is a dead letter, not a deletion: the document keeps its `failed`
@@ -46,6 +46,15 @@ export const MAX_PROCESSING_ATTEMPTS = 5
  * added to close.
  */
 export const QUEUED_DISPATCH_GRACE_MS = 240 * 60 * 1000
+
+/**
+ * How long after its queue stamp a dispatched processing run may still start; the queue
+ * expires it after that. Kept below {@link QUEUED_DISPATCH_GRACE_MS}, with half an hour
+ * for clock skew, so recovery never replaces a generation whose run could still start.
+ * Without it Trigger.dev holds an unstarted run for fourteen days, and a backlog longer
+ * than the grace had every sweep add a run per waiting document.
+ */
+export const QUEUED_DISPATCH_START_DEADLINE_MS = QUEUED_DISPATCH_GRACE_MS - 30 * 60 * 1000
 
 /** Worst-case wall clock for one processing run across its retry budget. */
 export function worstCaseProcessingMinutes(

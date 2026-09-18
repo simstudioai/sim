@@ -240,7 +240,10 @@ describe('retryDocumentProcessing requeue guard', () => {
       processingQueuedAt: null,
       processingQueueToken: null,
     })
-    expect(reset?.[0]).not.toHaveProperty('processingAttempts')
+    /** A retry never resets the budget; it only releases a replaced unclaimed generation's charge. */
+    expect(
+      (reset?.[0].processingAttempts as { toSQL: () => { sql: string } }).toSQL().sql
+    ).toContain('GREATEST')
   })
 
   it('also requeues a pending document whose dispatch is certainly lost', async () => {

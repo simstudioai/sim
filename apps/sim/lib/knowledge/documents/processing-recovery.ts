@@ -16,7 +16,10 @@ import {
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
-import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  documentProcessingRecoveryCondition,
+  releaseUnclaimedDispatchAttempt,
+} from '@/lib/knowledge/documents/processing-recovery-policy'
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
@@ -230,7 +233,7 @@ async function recoverStoredDocumentBatch(
               processingCompletedAt: null,
               processingError: null,
               processingRecoveryAfter: null,
-              processingAttempts: sql`${document.processingAttempts} + 1`,
+              processingAttempts: sql`${releaseUnclaimedDispatchAttempt(now)} + 1`,
             })
             .where(eq(document.id, doc.id))
           await enqueueOutboxEvent(tx, KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT, payload, {

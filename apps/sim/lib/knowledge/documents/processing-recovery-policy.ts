@@ -1,5 +1,5 @@
 import { document } from '@sim/db/schema'
-import { and, eq, gt, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
@@ -38,4 +38,16 @@ export function documentProcessingRecoveryCondition(
       )
     )
   )
+}
+
+/**
+ * `processingAttempts` with the charge of a replaced, never-claimed queued generation given
+ * back, so the replacement's own charge does not spend the budget on queue wait. Only a
+ * `pending`, stamped, non-deferred row past the queue grace qualifies: no worker claimed it
+ * (a claim sets `processing`, a deferral sets `processingDeferredUntil`), and replacing its
+ * token fences it from ever claiming. Every other row keeps its count.
+ */
+export function releaseUnclaimedDispatchAttempt(now: Date): SQL {
+  const graceCutoff = new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  return sql`CASE WHEN ${document.processingStatus} = 'pending' AND ${document.processingDeferredUntil} IS NULL AND ${document.processingQueuedAt} < ${sql.param(graceCutoff, document.processingQueuedAt)} THEN GREATEST(${document.processingAttempts} - 1, 0) ELSE ${document.processingAttempts} END`
 }

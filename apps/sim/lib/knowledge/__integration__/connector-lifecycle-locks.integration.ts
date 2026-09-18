@@ -259,4 +259,37 @@ describe('source lifecycle KB guards', () => {
       .where(eq(document.id, retryDocumentId))
     expect(unchanged.status).toBe('failed')
   })
+
+  it('moves an expired queued generation charge to its replacement instead of adding one', async () => {
+    const stampedAt = new Date(Date.now() - 24 * 60 * 60_000)
+    await db
+      .update(document)
+      .set({
+        processingStatus: 'pending',
+        processingAttempts: 2,
+        processingQueuedAt: stampedAt,
+        processingQueueToken: 'expired-generation',
+        processingCompletedAt: null,
+      })
+      .where(eq(document.id, retryDocumentId))
+    await run('recover')
+    const [row] = await db
+      .select({
+        status: document.processingStatus,
+        attempts: document.processingAttempts,
+        token: document.processingQueueToken,
+      })
+      .from(document)
+      .where(eq(document.id, retryDocumentId))
+    expect(row).toEqual({ status: 'pending', attempts: 1, token: null })
+  })
+
+  it('keeps the charge of an attempt that reached a worker', async () => {
+    await run('recover')
+    const [row] = await db
+      .select({ attempts: document.processingAttempts })
+      .from(document)
+      .where(eq(document.id, retryDocumentId))
+    expect(row.attempts).toBe(1)
+  })
 })

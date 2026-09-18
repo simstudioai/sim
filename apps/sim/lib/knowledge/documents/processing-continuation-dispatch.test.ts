@@ -19,6 +19,7 @@ import type {
   DocumentProcessingLane,
   DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -72,5 +73,21 @@ describe('dispatchDocumentProcessingContinuation', () => {
       queue: expectedQueue,
       concurrencyKey: 'organization:org-1',
     })
+  })
+
+  /** Trigger.dev starts a delayed run's TTL when the delay ends; the deadline follows the stamp. */
+  it('expires a continuation unstarted before recovery may replace it', async () => {
+    const deferredUntil = new Date(Date.now() + 15 * 60_000)
+    await dispatchDocumentProcessingContinuation(
+      { ...payload('backfill'), processingQueuedAt: deferredUntil.toISOString() },
+      deferredUntil,
+      'continuation-key',
+      true
+    )
+
+    const { ttl } = mockTrigger.mock.calls[0][2]
+    expect(mockTrigger.mock.calls[0][2]).toMatchObject({ delay: deferredUntil })
+    expect(ttl).toBeGreaterThan(0)
+    expect(ttl * 1000).toBeLessThan(QUEUED_DISPATCH_GRACE_MS)
   })
 })

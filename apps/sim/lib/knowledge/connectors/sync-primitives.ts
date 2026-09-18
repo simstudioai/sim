@@ -27,7 +27,10 @@ import {
   persistSkippedRetryHashes,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
-import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  documentProcessingRecoveryCondition,
+  releaseUnclaimedDispatchAttempt,
+} from '@/lib/knowledge/documents/processing-recovery-policy'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -1446,6 +1449,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
             processingDeferredUntil: null,
             processingCompletedAt: null,
             processingError: null,
+            processingAttempts: releaseUnclaimedDispatchAttempt(sweepEvaluatedAt),
             chunkCount: 0,
             tokenCount: 0,
             characterCount: 0,
