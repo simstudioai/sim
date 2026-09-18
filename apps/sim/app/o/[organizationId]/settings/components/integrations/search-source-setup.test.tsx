@@ -988,7 +988,8 @@ describe('member content credentials in real add and edit dialogs', () => {
     await chooseSyncFrequency('Manual only')
     expect(document.body.textContent).toContain('Documents become unavailable after 24 hours')
     await chooseSyncFrequency('Every hour')
-    expect(document.body.textContent).toContain('Permissions are checked on every sync.')
+    expect(document.body.textContent).not.toContain('Documents become unavailable after 24 hours')
+    expect(document.body.textContent).not.toContain('Permissions are checked on every sync.')
   })
 
   it('saves source settings without changing a dedicated indexing account', async () => {

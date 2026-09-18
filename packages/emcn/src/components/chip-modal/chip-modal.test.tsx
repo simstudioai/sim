@@ -341,6 +341,40 @@ describe('ChipModalField file actions', () => {
 describe('ChipModal default actions', () => {
   beforeEach(makeElementsVisible)
 
+  it.each(['save', 'confirm'] as const)(
+    'makes a disabled %s explanation reachable without enabling the action',
+    (variant) => {
+      const onClick = vi.fn()
+      const action = {
+        label: 'Save',
+        disabled: true,
+        disabledTooltip: 'Wait for the current sync to finish before saving.',
+        onClick,
+      }
+      mount(
+        variant === 'confirm' ? (
+          <ChipConfirmModal open onOpenChange={() => {}} title='Save settings' confirm={action} />
+        ) : (
+          <ChipModal open onOpenChange={() => {}} srTitle='Save settings'>
+            <ChipModalHeader onClose={() => {}}>Save settings</ChipModalHeader>
+            <ChipModalFooter onCancel={() => {}} primaryAction={action} />
+          </ChipModal>
+        )
+      )
+
+      const save = buttonByText('Save')
+      const trigger = save.parentElement!
+      expect(save.disabled).toBe(true)
+      expect(trigger.tabIndex).toBe(0)
+      act(() => trigger.focus())
+      expect(document.activeElement).toBe(trigger)
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(action.disabledTooltip)
+      pressEnter(trigger)
+      act(() => save.click())
+      expect(onClick).not.toHaveBeenCalled()
+    }
+  )
+
   it('fails safe to the dismiss decision in a confirmation', () => {
     mount(
       <ChipConfirmModal

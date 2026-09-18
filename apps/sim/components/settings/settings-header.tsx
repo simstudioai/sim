@@ -203,7 +203,7 @@ export function SettingsActionChip({
   if (!action.tooltip) return chip
   return (
     <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+      <Tooltip.Trigger asChild tabIndex={action.disabled ? 0 : undefined}>
         <span className='inline-flex'>{chip}</span>
       </Tooltip.Trigger>
       <Tooltip.Content>{action.tooltip}</Tooltip.Content>

@@ -465,7 +465,7 @@ export function ConnectorSettingsFields({
             title='Account for browsing'
             hint={
               isSearchIndex
-                ? 'Used to browse available content. Each person connects separately from Integrations to sync their Search content.'
+                ? 'Members sync with their own accounts connected in Integrations.'
                 : undefined
             }
           >
@@ -553,11 +553,9 @@ export function ConnectorSettingsFields({
         </ChipModalField>
       )}
 
-      {saveBlockedReason && (
-        <p role='status' className='px-2 text-[var(--text-muted)] text-caption'>
-          {saveBlockedReason}
-        </p>
-      )}
+      <p role='status' className='sr-only'>
+        {saveBlockedReason}
+      </p>
       <ChipModalError>{error}</ChipModalError>
     </>
   )

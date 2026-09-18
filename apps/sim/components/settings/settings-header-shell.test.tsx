@@ -68,6 +68,32 @@ function clickChip(label: string) {
 }
 
 describe('SettingsHeaderShell action routing', () => {
+  it('makes disabled Save explanations keyboard reachable without enabling Save', () => {
+    const onSave = vi.fn()
+    const reason = 'Wait for the current sync to finish before saving.'
+    renderHeader(
+      saveDiscardActions({
+        dirty: true,
+        saving: false,
+        saveDisabled: true,
+        saveTooltip: reason,
+        onSave,
+        onDiscard: vi.fn(),
+      })
+    )
+    const save = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Save'
+    )!
+    const trigger = save.parentElement!
+    expect(save.disabled).toBe(true)
+    expect(trigger.tabIndex).toBe(0)
+    act(() => trigger.focus())
+    expect(document.activeElement).toBe(trigger)
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(reason)
+    act(() => save.click())
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('renders Delete before Discard and Save even though the array lists it last', () => {
     const actions: SettingsAction[] = [
       ...saveDiscardActions({ dirty: true, saving: false, onSave: vi.fn(), onDiscard: vi.fn() }),

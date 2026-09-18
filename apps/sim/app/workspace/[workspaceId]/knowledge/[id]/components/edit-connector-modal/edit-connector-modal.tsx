@@ -108,6 +108,7 @@ export function EditConnectorModal({
             label: form.saving ? 'Saving…' : 'Save',
             onClick: form.save,
             disabled: !form.canSave,
+            disabledTooltip: form.saveBlockedReason,
           }}
         />
       )}
