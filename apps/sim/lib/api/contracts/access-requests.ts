@@ -134,6 +134,7 @@ export type OrganizationAccessRequestDetailParams = z.input<
 export const listOrganizationAccessRequestsQuerySchema = z
   .object({
     ...paginationShape,
+    search: z.string().trim().max(ACCESS_REQUEST_MAX_SEARCH_LENGTH).optional(),
     status: z.enum(ACCESS_REQUEST_STATUSES).optional(),
   })
   .strict()

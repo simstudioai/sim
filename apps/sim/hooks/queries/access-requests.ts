@@ -106,14 +106,20 @@ export function useMyAccessRequests(
 export function useOrganizationAccessRequests(
   organizationId: string,
   offset = 0,
-  status: AccessRequestStatus | 'all' = 'pending'
+  status: AccessRequestStatus | 'all' = 'pending',
+  search = ''
 ) {
   return useQuery({
-    queryKey: accessRequestKeys.organization(organizationId, offset, status),
+    queryKey: accessRequestKeys.organization(organizationId, offset, status, search),
     queryFn: ({ signal }) =>
       requestJson(listOrganizationAccessRequestsContract, {
         params: { id: organizationId },
-        query: { offset, limit: ACCESS_REQUEST_PAGE_SIZE, ...(status === 'all' ? {} : { status }) },
+        query: {
+          offset,
+          limit: ACCESS_REQUEST_PAGE_SIZE,
+          ...(status === 'all' ? {} : { status }),
+          ...(search ? { search } : {}),
+        },
         signal,
       }),
     enabled: Boolean(organizationId),

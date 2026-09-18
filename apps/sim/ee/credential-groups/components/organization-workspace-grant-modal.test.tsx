@@ -160,6 +160,16 @@ describe('workspace integration grant editor', () => {
     })
   })
 
+  it('connects the integration selector to its required state and explanatory hint', async () => {
+    await render({ mode: 'all' })
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')!
+    expect(trigger.getAttribute('aria-required')).toBe('true')
+    const hintId = trigger.getAttribute('aria-describedby')!
+    expect(document.getElementById(hintId)?.textContent).toBe(
+      'Includes integrations added in the future.'
+    )
+  })
+
   it.each(['all', 'selected'] as const)(
     'does not treat clearing the last %s selection as unrestricted access',
     async (mode) => {

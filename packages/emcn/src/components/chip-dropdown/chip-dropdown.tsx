@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type AriaAttributes,
   type ComponentType,
   forwardRef,
   type ReactNode,
@@ -86,6 +87,12 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
    * selected value is dropped from the accessible name.
    */
   'aria-labelledby'?: string
+  /** Required state supplied by the enclosing field. */
+  'aria-required'?: AriaAttributes['aria-required']
+  /** Validation state supplied by the enclosing field. */
+  'aria-invalid'?: AriaAttributes['aria-invalid']
+  /** Hint and error descriptions supplied by the enclosing field. */
+  'aria-describedby'?: AriaAttributes['aria-describedby']
   /** Id for the trigger button. Needed to reference it from `aria-labelledby`. */
   id?: string
 }
@@ -186,6 +193,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       fullWidth,
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
+      'aria-required': ariaRequired,
+      'aria-invalid': ariaInvalid,
+      'aria-describedby': ariaDescribedBy,
       id,
     } = props
 
@@ -325,6 +335,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             disabled={disabled}
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
+            aria-required={ariaRequired}
+            aria-invalid={ariaInvalid}
+            aria-describedby={ariaDescribedBy}
             className={cn(
               chipVariants({ variant, shape, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
@@ -343,6 +356,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
           onOpenAutoFocus={searchable ? (event) => event.preventDefault() : undefined}
           className={cn(
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)] max-w-none',
+            insideModal && 'max-h-[min(240px,var(--radix-popper-available-height,240px))]',
             contentClassName
           )}
         >

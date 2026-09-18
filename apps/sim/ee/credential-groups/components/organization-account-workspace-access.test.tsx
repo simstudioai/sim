@@ -3,6 +3,7 @@
  */
 
 import { act, type ComponentProps, type ReactNode } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type {
@@ -32,6 +33,9 @@ vi.mock('@sim/emcn', () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }))
 vi.mock('@sim/emcn/icons', () => ({ Workspaces: () => null, Plus: () => null }))
+vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+  SettingsPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
+}))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccountWorkspaceAccess: mocks.useAccess,
   useUpdateOrganizationAccountWorkspaceAccess: () => ({
@@ -134,12 +138,18 @@ function setAccess(grants = gmailGrants(['workspace-1']), revision = 3) {
   })
 }
 
-function renderAccess() {
+function renderAccess(searchParams = '') {
   const container = document.createElement('div')
   const root = createRoot(container)
   mountedRoots.push(root)
   const rerender = () =>
-    act(() => root.render(<OrganizationAccountWorkspaceAccess organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <NuqsTestingAdapter searchParams={searchParams} hasMemory>
+          <OrganizationAccountWorkspaceAccess organizationId='org-1' />
+        </NuqsTestingAdapter>
+      )
+    )
   const button = (label: string, scope: ParentNode = container) => {
     const match = [...scope.querySelectorAll('button')].find(
       (candidate) => candidate.textContent === label
@@ -218,7 +228,8 @@ it('adds an explicit All integrations grant', async () => {
 
 it('edits one workspace without changing other workspace grants', async () => {
   setAccess(gmailGrants(['workspace-1', 'workspace-2']))
-  const editor = renderAccess()
+  const editor = renderAccess('?credential-group-workspace=+FINANCE+')
+  expect(editor.rows()).toEqual(['Finance'])
   const finance = editor.container.querySelector('[data-workspace="Finance"]')
   if (!finance) throw new Error('Finance row not found')
   act(() => editor.button('Edit access', finance).click())

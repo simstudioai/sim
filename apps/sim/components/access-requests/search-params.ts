@@ -39,6 +39,7 @@ export const accessRequestSearchParams = {
 export const accessReviewSearchParams = {
   'access-view': parseAsStringLiteral(['groups', 'requests'] as const).withDefault('groups'),
   'request-id': accessRequestIdParser,
+  'request-search': accessRequestSearchParser,
   'request-page': accessRequestPageParser,
   'request-status': parseAsStringLiteral([
     'pending',
@@ -57,5 +58,6 @@ export const accessRequestEntrySearchParams = {
   organizationId: accessRequestIdParser,
   view: parseAsStringLiteral(['requests', 'catalog', 'admin'] as const).withDefault('requests'),
   'request-page': accessReviewSearchParams['request-page'],
+  'request-search': accessReviewSearchParams['request-search'],
   'request-status': accessReviewSearchParams['request-status'],
 } as const

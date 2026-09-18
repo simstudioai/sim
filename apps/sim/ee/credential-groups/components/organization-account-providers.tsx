@@ -12,6 +12,7 @@ import {
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -20,8 +21,13 @@ import {
   type CredentialGroupProvider,
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'
+import {
+  credentialGroupProviderSearchParam,
+  credentialGroupProviderSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -38,6 +44,7 @@ import {
   useRemoveOrganizationAccountMcpProvider,
   useUpdateOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface OrganizationAccountProvidersProps {
   organizationId: string
@@ -50,6 +57,11 @@ export function OrganizationAccountProviders({
   group,
   availableProviders,
 }: OrganizationAccountProvidersProps) {
+  const [searchTerm, setSearchParam] = useQueryState(credentialGroupProviderSearchParam.key, {
+    ...credentialGroupProviderSearchParam.parser,
+    ...credentialGroupProviderSearchUrlKeys,
+  })
+  const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [removing, setRemoving] = useState<OrganizationAccountProviderChoice | null>(null)
   const [slackOpen, setSlackOpen] = useState(false)
@@ -149,6 +161,8 @@ export function OrganizationAccountProviders({
         choice: { kind: 'mcp', connectorId: server.managedConnectorId } as const,
       })),
   ].sort((left, right) => left.name.localeCompare(right.name))
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const visibleRows = rows.filter((row) => row.name.toLowerCase().includes(normalizedSearch))
   const error = update.error ?? addMcp.error ?? removeMcp.error
   const removingName = removing
     ? removing.kind === 'oauth'
@@ -157,7 +171,9 @@ export function OrganizationAccountProviders({
     : ''
 
   return (
-    <div className='flex flex-col gap-7'>
+    <SettingsPanel
+      search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search integrations...' }}
+    >
       <SettingsSection
         label='Integrations'
         action={
@@ -189,7 +205,7 @@ export function OrganizationAccountProviders({
           </p>
         )}
         <div className={RESOURCE_LIST_STACK}>
-          {rows.map(({ id, name, icon: Icon, configure, choice }) => (
+          {visibleRows.map(({ id, name, icon: Icon, configure, choice }) => (
             <SettingsResourceRow
               key={id}
               icon={<Icon aria-hidden />}
@@ -221,9 +237,11 @@ export function OrganizationAccountProviders({
               }
             />
           ))}
-          {!rows.length && (
+          {!visibleRows.length && (
             <SettingsEmptyState variant='inline'>
-              Add an integration to start connecting accounts.
+              {normalizedSearch
+                ? 'No integrations match your search'
+                : 'Add an integration to start connecting accounts.'}
             </SettingsEmptyState>
           )}
         </div>
@@ -295,6 +313,6 @@ export function OrganizationAccountProviders({
           />
         </ChipModal>
       )}
-    </div>
+    </SettingsPanel>
   )
 }
