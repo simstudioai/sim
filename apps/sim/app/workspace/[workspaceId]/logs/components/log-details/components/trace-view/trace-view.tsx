@@ -323,7 +323,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <Button
             type='button'
             variant='ghost'
-            className='size-[14px] shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            className='size-[14px] shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -512,7 +512,7 @@ function DetailCodeSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='size-[10px] text-[var(--text-success)]' />
@@ -533,7 +533,7 @@ function DetailCodeSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='size-[10px]' />
                     </Button>

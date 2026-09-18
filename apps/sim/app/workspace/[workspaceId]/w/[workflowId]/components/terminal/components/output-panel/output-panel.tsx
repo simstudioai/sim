@@ -311,7 +311,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             <Button
               variant='ghost'
               className={cn(
-                'px-2 py-1.5 text-small',
+                'text-small',
                 !showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
               )}
               onClick={handleOutputButtonClick}
@@ -323,7 +323,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               <Button
                 variant='ghost'
                 className={cn(
-                  'px-2 py-1.5 text-small',
+                  'text-small',
                   showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
                 )}
                 onClick={handleInputButtonClick}

@@ -1106,7 +1106,7 @@ export function Chat() {
                     aria-label='Stop generation'
                     onClick={handleStopStreaming}
                     variant='ghost'
-                    className='size-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
+                    className='size-[22px] rounded-full bg-[#383838] p-0 hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                   >
                     <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
@@ -1122,7 +1122,7 @@ export function Chat() {
                       isStreaming
                     }
                     className={cn(
-                      'size-[22px] rounded-full p-0 transition-colors',
+                      'size-[22px] rounded-full p-0',
                       chatMessage.trim() || chatFiles.length > 0
                         ? 'bg-[#383838] hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                         : 'bg-[#808080] dark:bg-[#808080]'

@@ -6,7 +6,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 /** One source of truth for the button chrome, so the three actions read as one control strip. */
 const ACTION_BUTTON_CLASS = cn(
   chipFilledFillTokens,
-  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 hover-hover:bg-[var(--brand-secondary)]'
 )
 
 interface ActionBarProps {

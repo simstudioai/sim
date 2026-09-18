@@ -61,7 +61,7 @@ export function ReplacementControls({
         </span>
         <div className='flex gap-1.5'>
           <Button
-            className='h-8 px-2 text-xs'
+            className='h-8 text-xs'
             variant='default'
             disabled={disabled || isApplying || !canReplaceActive}
             onClick={onReplaceActive}
@@ -69,7 +69,7 @@ export function ReplacementControls({
             Replace
           </Button>
           <Button
-            className='h-8 px-2 text-xs'
+            className='h-8 text-xs'
             variant='active'
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}

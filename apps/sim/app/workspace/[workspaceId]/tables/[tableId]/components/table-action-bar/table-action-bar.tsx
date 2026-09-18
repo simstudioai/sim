@@ -157,7 +157,7 @@ function ActionIconButton({ label, onClick, disabled, children }: ActionIconButt
           variant='ghost'
           onClick={onClick}
           disabled={disabled}
-          className='size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!'
+          className='size-[28px] rounded-lg bg-[var(--surface-5)] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!'
           aria-label={label}
         >
           {children}

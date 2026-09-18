@@ -176,7 +176,7 @@ export const WorkflowOutputSection = memo(
                       e.stopPropagation()
                       handleCopy()
                     }}
-                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     {copied ? (
                       <Check className='size-[10px] text-[var(--text-success)]' />
@@ -197,7 +197,7 @@ export const WorkflowOutputSection = memo(
                       e.stopPropagation()
                       activateSearch()
                     }}
-                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     <Search className='size-[10px]' />
                   </Button>

@@ -25,7 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 
-const SUBMIT_BUTTON_BASE = 'size-[28px] shrink-0 rounded-full border-0 p-0 transition-colors'
+const SUBMIT_BUTTON_BASE = 'size-[28px] shrink-0 rounded-full border-0 p-0'
 const SUBMIT_BUTTON_ACTIVE =
   'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
 const SUBMIT_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
