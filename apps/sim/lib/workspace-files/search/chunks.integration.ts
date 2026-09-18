@@ -27,6 +27,8 @@ import {
   FILE_SEARCH_CLEANUP_BATCH_ROWS,
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
+  FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY,
+  FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
 } from '@/lib/workspace-files/search/constants'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
 import {
@@ -475,11 +477,27 @@ describe('chunked workspace file search on PostgreSQL', () => {
     )
   })
 
-  it('releases query admission slots after a busy response', async () => {
+  it('admits a search up to the workspace and global ceilings', async () => {
     const held = await connection.reserve()
     try {
       await held`BEGIN`
-      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:workspace:workspace-1:' || n::text, 0)) FROM generate_series(1, 2) n`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:workspace:workspace-1:' || n::text, 0)) FROM generate_series(1, ${FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY - 1}) n`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:global:' || n::text, 0)) FROM generate_series(1, ${FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY - 1}) n`
+      expect((await search('needle')).results).toEqual([])
+    } finally {
+      await held`ROLLBACK`
+      held.release()
+    }
+  })
+
+  it.each([
+    ['workspace:workspace-1', FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
+    ['global', FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY],
+  ])('releases query admission slots after %s saturation', async (scope, capacity) => {
+    const held = await connection.reserve()
+    try {
+      await held`BEGIN`
+      await held`SELECT pg_advisory_xact_lock(hashtextextended('workspace-file-search-read:' || ${scope} || ':' || n::text, 0)) FROM generate_series(1, ${capacity}) n`
       await expect(search('needle')).rejects.toThrow('busy')
     } finally {
       await held`ROLLBACK`
