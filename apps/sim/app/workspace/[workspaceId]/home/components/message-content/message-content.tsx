@@ -17,7 +17,6 @@ import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
@@ -889,30 +888,21 @@ export function assistantMessageHasRenderableContent(
   )
 }
 
-/** The transcript already owns an activity indicator, including gaps between calls. */
+/** Only suppress the turn indicator when a tool or agent row is visibly active. */
 export function assistantMessageHasVisibleActivity(
   segments: MessageSegment[],
   isStreaming = false
 ): boolean {
-  return segments.some((segment, index) => {
+  return segments.some((segment) => {
     if (segment.type !== 'agent_group' || !segment.items.some(hasAgentGroupItemContent)) {
       return false
     }
     const tools = collectGroupTools(segment.items)
     if (tools.some((tool) => tool.status === 'executing')) return true
-    if (!isStreaming) return false
-    if (segment.agentName !== 'mothership') {
-      const statusTool = getActivityStatusTool(tools)
-      return (
-        (segment.isOpen || segment.isDelegating) && (!statusTool || statusTool.status === 'success')
-      )
-    }
-    const lastItem = segment.items.at(-1)
+    if (!isStreaming || segment.agentName === 'mothership') return false
+    const statusTool = getActivityStatusTool(tools)
     return (
-      index === segments.length - 1 &&
-      lastItem?.type === 'tool' &&
-      lastItem.data.status === 'success' &&
-      lastItem.data.toolName !== RETIRED_BROWSER_REQUEST_TAKEOVER_ID
+      (segment.isOpen || segment.isDelegating) && (!statusTool || statusTool.status === 'success')
     )
   })
 }
@@ -1094,7 +1084,7 @@ function MessageContentInner({
 
   if (segments.length === 0 && !isLast) return null
 
-  /** Open activity groups own the shimmer through gaps between tool calls. */
+  /** Active tool and agent rows own the shimmer until the turn is waiting again. */
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)

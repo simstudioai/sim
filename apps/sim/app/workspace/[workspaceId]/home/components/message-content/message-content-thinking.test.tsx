@@ -65,6 +65,53 @@ describe('MessageContent shared thinking indicator', () => {
   const thinking = () => container.querySelectorAll('[aria-hidden="false"] svg')
   const groups = () => container.querySelectorAll('[data-agent-group]')
 
+  it.each([undefined, 'main'])(
+    'shows thinking after main tools finish and yields to the next tool (spanId=%s)',
+    (spanId) => {
+      const mainCall = (id: string, status: ToolCallStatus): ContentBlock => ({
+        type: 'tool_call',
+        spanId,
+        toolCall: {
+          id,
+          name: 'sim_cli',
+          status,
+          displayTitle: 'List tables in Alfred',
+          params: {
+            args: ['tables', 'list'],
+            activity: {
+              id: 'inspect',
+              title: 'Inspecting workspace resources',
+              completedTitle: 'Inspected workspace resources',
+            },
+          },
+        },
+      })
+      render([mainCall('first', 'executing')])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(0)
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+
+      const completed = [mainCall('first', 'success')]
+      render(completed)
+      expect(thinking()).toHaveLength(0)
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(1)
+      expect(container.querySelector('[aria-hidden="false"]')?.textContent).toContain('Thinking')
+
+      render([...completed, { type: 'thinking', content: 'Checking the result.', timestamp: 3 }])
+      expect(thinking()).toHaveLength(1)
+      render([...completed, mainCall('next', 'executing')])
+      expect(thinking()).toHaveLength(0)
+
+      const finished = [...completed, mainCall('next', 'success')]
+      render(finished)
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(1)
+      render(finished, false)
+      expect(thinking()).toHaveLength(0)
+    }
+  )
+
   it('shares one indicator across parallel and nested empty agents', () => {
     render([start('workflow'), start('browser'), start('deploy', 'workflow')])
     expect(thinking()).toHaveLength(1)

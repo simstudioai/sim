@@ -1023,9 +1023,9 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
 })
 
 describe('assistantMessageHasVisibleActivity', () => {
-  it('keeps the main tail active between calls but closes it when narration follows', () => {
+  it('leaves the gap after a completed main tool to the turn indicator', () => {
     const blocks = [mainToolCall('finished', 'read')]
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), true)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), true)).toBe(false)
     expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), false)).toBe(false)
     expect(
       assistantMessageHasVisibleActivity(parseBlocks([...blocks, mainText('Done.')]), true)
