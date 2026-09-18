@@ -1,8 +1,70 @@
 /**
  * @vitest-environment node
  */
+
+import {
+  describeError,
+  findCause,
+  getPostgresCancellationReason,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
-import { describeError, findCause, getPostgresErrorCode, toError } from './errors.js'
+
+describe('getPostgresCancellationReason', () => {
+  it.each([
+    ['57014', 'canceling statement due to statement timeout', 'statement_timeout'],
+    ['57014', 'canceling statement due to user request', 'user_cancel'],
+    ['40001', 'canceling statement due to conflict with recovery', 'recovery_conflict'],
+    ['55P03', 'canceling statement due to lock timeout', 'lock_timeout'],
+    ['25P04', 'terminating connection due to transaction timeout', 'transaction_timeout'],
+    ['40P01', 'deadlock detected', 'deadlock'],
+  ])('identifies %s %s through query wrappers', (code, message, reason) => {
+    const driver = Object.assign(new Error(message), { code, detail: 'private driver detail' })
+    const wrapped = new Error('private SQL and bound data', { cause: driver })
+    expect(getPostgresCancellationReason(wrapped)).toBe(reason)
+    expect(getPostgresCancellationReason({ cause: { code, message } })).toBe(reason)
+  })
+
+  it('does not infer a timeout from SQLSTATE alone or expose arbitrary messages', () => {
+    expect(
+      getPostgresCancellationReason({ code: '57014', message: 'private-value' })
+    ).toBeUndefined()
+    expect(
+      getPostgresCancellationReason({
+        code: '23505',
+        message: 'canceling statement due to statement timeout',
+      })
+    ).toBeUndefined()
+    expect(
+      getPostgresCancellationReason({
+        code: '57014',
+        message: 'canceling statement due to statement timeout: private-value',
+      })
+    ).toBeUndefined()
+  })
+
+  it('bounds cyclic and deeply nested causes', () => {
+    const cycle = new Error('cycle')
+    cycle.cause = cycle
+    expect(getPostgresCancellationReason(cycle)).toBeUndefined()
+    let deep = Object.assign(new Error('canceling statement due to statement timeout'), {
+      code: '57014',
+    }) as Error
+    for (let i = 0; i < 11; i++) deep = new Error('wrapper', { cause: deep })
+    expect(getPostgresCancellationReason(deep)).toBeUndefined()
+  })
+
+  it('does not attribute a later cancellation to a different outer driver code', () => {
+    const error = {
+      code: '23505',
+      message: 'private value',
+      cause: { code: '57014', message: 'canceling statement due to statement timeout' },
+    }
+    expect(getPostgresErrorCode(error)).toBe('23505')
+    expect(getPostgresCancellationReason(error)).toBeUndefined()
+  })
+})
 
 describe('toError', () => {
   it('returns the same Error when given an Error', () => {

@@ -32,6 +32,7 @@ const SAFE_REASONS = new Set([
   'internalError',
   'invalid',
   'invalidArgument',
+  'notACalendarUser',
   'notFound',
   'quotaExceeded',
   'rateLimitExceeded',

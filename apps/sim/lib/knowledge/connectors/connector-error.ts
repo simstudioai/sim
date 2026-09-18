@@ -1,4 +1,9 @@
-import { findCause, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  findCause,
+  getPostgresCancellationReason,
+  getPostgresErrorCode,
+  type PostgresCancellationReason,
+} from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { getEmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
@@ -13,6 +18,7 @@ export interface ConnectorFailureDiagnostic {
   message: string
   status?: number
   code?: string
+  databaseReason?: PostgresCancellationReason
   operation?: string
   reasons?: readonly string[]
   reasonState?: ConnectorSourceReasonState
@@ -57,9 +63,11 @@ function classifyFailure(error: unknown): ConnectorFailureDiagnostic | null {
     }
   }
   if (code && /^(?:[0-9][0-9A-Z]|F0|HV|P0|XX)[0-9A-Z]{3}$/.test(code)) {
+    const databaseReason = getPostgresCancellationReason(error)
     return {
       category: 'database',
       code,
+      ...(databaseReason ? { databaseReason } : {}),
       message: `Database request failed (SQLSTATE ${code}).`,
     }
   }

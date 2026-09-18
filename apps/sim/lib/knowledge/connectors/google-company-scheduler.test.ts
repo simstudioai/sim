@@ -222,21 +222,25 @@ describe('durable Google company user scheduling', () => {
     expect(f.saved().cursor!.length).toBeLessThan(2048)
   })
 
-  it.each(['google_calendar', 'google_drive'])(
-    'retains an unresolved %s user and continues other users',
-    async (provider) => {
+  it.each([
+    ['google_calendar', []],
+    ['google_calendar', ['notACalendarUser']],
+    ['google_drive', []],
+  ] as const)(
+    'retains a failed %s user (%j) and continues other users',
+    async (provider, reasons) => {
       mocks.directory.mockResolvedValue({ users: [user('a'), user('z')] })
       const f = fixture(provider)
       f.list.mockRejectedValueOnce(
         provider === 'google_drive'
           ? new GoogleDriveApiError(403, [], 'drive.files.list', false)
-          : new GoogleApiError('calendar.events.list', 403, [], false)
+          : new GoogleApiError('calendar.events.list', 403, reasons, reasons.length > 0)
       )
       await f.step(4)
       expect(f.rows.get('a:content')).toMatchObject({
         complete: false,
         attempts: 1,
-        failure: { status: 403, reasons: [] },
+        failure: { status: 403, reasons },
       })
       expect(f.rows.get('z:content')?.complete).toBe(true)
       expect(f.saved()).toMatchObject({
