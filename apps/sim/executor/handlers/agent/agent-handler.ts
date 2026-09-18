@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
@@ -39,6 +39,10 @@ import {
   selectModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import {
+  normalizeFallbackModels,
+  resolveFallbackTuning,
+} from '@/lib/workflows/blocks/fallback-models'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import {
   getAgentToolUsageControlMode,
@@ -54,6 +58,7 @@ import {
   validateModelProvider,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
+import { isRetryableBlockError } from '@/executor/execution/block-retry'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
@@ -131,11 +136,34 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['thinkingLevel'],
   ['promptCaching'],
   ['previousInteractionId'],
+  ['fallbackModels'],
 ]
 
 interface IndexedToolInput {
   tool: ToolInput
   toolIndex: number
+}
+
+/** One model in the order the block tries them; the primary carries the block's own key. */
+interface ModelCandidate {
+  model: string
+  apiKey?: string
+  isPrimary: boolean
+}
+
+interface ExecuteAcrossModelsConfig {
+  candidates: ModelCandidate[]
+  primaryModel: string
+  primaryProviderId: string
+  messages: Message[] | undefined
+  fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
+  modelInputs: AgentInputs
+  formattedTools: any[]
+  responseFormat: any
+  streaming: boolean
+  settledInputRegistry: ResolvedSecretTraceRegistry | undefined
+  resultRegistry: ResolvedSecretTraceRegistry | undefined
+  providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
 }
 
 interface FormattedAgentTools {
@@ -391,24 +419,6 @@ export class AgentBlockHandler implements BlockHandler {
         skillMetadata,
         fileProjection
       )
-      const messagesWithFiles = await this.hydrateMessageFilesForProvider(
-        ctx,
-        messagesWithInputFiles,
-        providerId,
-        fileProjection.projectedNameByFile,
-        fileProjection.modelBoundInputPaths
-      )
-
-      const providerRequest = this.buildProviderRequest({
-        ctx,
-        providerId,
-        model,
-        messages: messagesWithFiles,
-        inputs: modelInputs,
-        formattedTools: formatted.tools,
-        responseFormat,
-        streaming: streamingConfig.shouldUseStreaming ?? false,
-      })
 
       settlePrivateAgentSelectors()
 
@@ -427,21 +437,39 @@ export class AgentBlockHandler implements BlockHandler {
           })
         }
       }
-      const result = await this.executeProviderRequest(
-        ctx,
-        providerRequest,
-        block,
+
+      const candidates: ModelCandidate[] = [
+        { model, apiKey: modelInputs.apiKey, isPrimary: true },
+        ...normalizeFallbackModels(filteredInputs.fallbackModels)
+          .filter((candidate) => candidate.model.toLowerCase() !== model.toLowerCase())
+          .map((candidate) => ({ ...candidate, isPrimary: false })),
+      ]
+      const { result, servedModel, failedModels } = await this.executeAcrossModels(ctx, block, {
+        candidates,
+        primaryModel: model,
+        primaryProviderId: providerId,
+        messages: messagesWithInputFiles,
+        fileProjection,
+        modelInputs,
+        formattedTools: formatted.tools,
         responseFormat,
+        streaming: streamingConfig.shouldUseStreaming ?? false,
+        settledInputRegistry,
         resultRegistry,
-        providerErrorRegistry
-      )
+        providerErrorRegistry,
+      })
+      if (failedModels.length > 0) this.recordModelFallbacks(ctx, block, failedModels)
       if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
 
       if (autoRouting && autoRouting.billableRoutingCost > 0) {
         this.applyRoutingCost(result, autoRouting.billableRoutingCost)
       }
 
-      if (autoRouting) {
+      /**
+       * A fallback the builder named explicitly is not a pool model, so it keeps
+       * its own name; only the routed pool model hides behind the auto label.
+       */
+      if (autoRouting && servedModel === model) {
         this.applyAutoModelLabel(result, model)
       }
 
@@ -2300,6 +2328,216 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
     return paths
+  }
+
+  /**
+   * Runs the provider request against each candidate in order until one answers.
+   *
+   * Which model serves the request is decided here, inside one handler
+   * invocation. How many invocations the block gets is the executor's retry
+   * policy, which wraps this whole chain: with retry on, every try walks the
+   * chain again from the primary.
+   *
+   * Falling through is deliberately as indiscriminate as block retry
+   * (`isRetryableBlockError`): a provider error carries no status, so an
+   * overloaded upstream cannot be told from any other failure, and a builder who
+   * lists fallbacks wants the block to answer. Only a stop and an explicitly
+   * non-retryable failure end the chain early. The abort signal is checked
+   * before the error itself because `handleExecutionError` rewrites a timeout
+   * into a plain `Error` without a cause, which the predicate would then treat
+   * as replayable.
+   *
+   * Messages are built once by the caller, since building them appends to
+   * memory. Hydration runs per provider, because attachment support and the
+   * inline budget differ, and is cached so two candidates on one provider do
+   * not download the same files twice. A fallback whose provider is
+   * blacklisted, not permitted, or cannot take the attachments is skipped
+   * rather than counted as a failed try.
+   *
+   * When every candidate fails, the last attempted candidate's error is thrown
+   * exactly as it escaped `executeProviderRequest`, so error ports and the
+   * block-level error handling see the shapes they see today.
+   */
+  private async executeAcrossModels(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    config: ExecuteAcrossModelsConfig
+  ): Promise<{
+    result: BlockOutput | StreamingExecution
+    servedModel: string
+    failedModels: string[]
+  }> {
+    const hydratedByProvider = new Map<string, Message[] | undefined>()
+    const failedModels: string[] = []
+    let lastError: unknown
+
+    for (let index = 0; index < config.candidates.length; index++) {
+      const candidate = config.candidates[index]
+      const hasNext = index < config.candidates.length - 1
+
+      let candidateProviderId: string
+      if (candidate.isPrimary) {
+        candidateProviderId = config.primaryProviderId
+      } else {
+        try {
+          candidateProviderId = getProviderFromModel(candidate.model)
+          await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+        } catch (error) {
+          logger.warn(
+            'Fallback model unusable; skipping',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, error: getErrorMessage(error) },
+              { blockId: block.id }
+            )
+          )
+          continue
+        }
+      }
+
+      let messages: Message[] | undefined
+      if (hydratedByProvider.has(candidateProviderId)) {
+        messages = hydratedByProvider.get(candidateProviderId)
+      } else {
+        try {
+          messages = await this.hydrateMessageFilesForProvider(
+            ctx,
+            config.messages,
+            candidateProviderId,
+            config.fileProjection.projectedNameByFile,
+            config.fileProjection.modelBoundInputPaths
+          )
+        } catch (error) {
+          if (candidate.isPrimary) throw error
+          logger.warn(
+            'Fallback model cannot take the attached files; skipping',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, error: getErrorMessage(error) },
+              { blockId: block.id }
+            )
+          )
+          continue
+        }
+        hydratedByProvider.set(candidateProviderId, messages)
+      }
+
+      /**
+       * A fallback's own key wins; without one it may reuse the block's key only
+       * on the primary's provider. Otherwise the provider layer resolves BYOK or
+       * the platform key, or reports that a key is required, which counts as
+       * this candidate failing. A previous interaction id belongs to the primary's
+       * provider alone. Tuning is re-resolved against the fallback's own
+       * capabilities so the request is one its provider accepts.
+       */
+      let inputs: AgentInputs = config.modelInputs
+      if (!candidate.isPrimary) {
+        const { adjustments, ...tuning } = resolveFallbackTuning(
+          candidate,
+          config.primaryModel,
+          config.modelInputs
+        )
+        inputs = {
+          ...config.modelInputs,
+          apiKey:
+            candidate.apiKey ??
+            (candidateProviderId === config.primaryProviderId
+              ? config.modelInputs.apiKey
+              : undefined),
+          previousInteractionId: undefined,
+          ...tuning,
+        }
+        if (adjustments.length > 0) {
+          logger.info(
+            'Fallback model tuning adjusted',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, adjustments },
+              { blockId: block.id, adjustmentCount: adjustments.length }
+            )
+          )
+        }
+      }
+
+      const providerRequest = this.buildProviderRequest({
+        ctx,
+        providerId: candidateProviderId,
+        model: candidate.model,
+        messages,
+        inputs,
+        formattedTools: config.formattedTools,
+        responseFormat: config.responseFormat,
+        streaming: config.streaming,
+      })
+
+      try {
+        const result = await this.executeProviderRequest(
+          ctx,
+          providerRequest,
+          block,
+          config.responseFormat,
+          config.resultRegistry,
+          config.providerErrorRegistry
+        )
+        return { result, servedModel: candidate.model, failedModels }
+      } catch (error) {
+        lastError = error
+        failedModels.push(candidate.model)
+        if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+          this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+          throw error
+        }
+
+        /**
+         * `executeProviderRequest` swapped both registries for its error
+         * projection; the next candidate starts from the settled inputs again.
+         */
+        ctx.errorResolvedSecretTraceRegistry = config.providerErrorRegistry
+        ctx.resolvedSecretTraceRegistry = config.settledInputRegistry
+
+        logger.warn(
+          'Agent model failed; trying fallback',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            {
+              blockId: block.id,
+              failedModel: candidate.model,
+              nextModel: config.candidates[index + 1].model,
+              attempt: index + 1,
+              error: getErrorMessage(error),
+            },
+            { blockId: block.id, attempt: index + 1 }
+          )
+        )
+      }
+    }
+
+    /** Reached only when every candidate after the last failure was skipped. */
+    this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+    throw lastError
+  }
+
+  /**
+   * Writes the models that failed onto the block's open log entry so the trace
+   * can show them beside the model that answered. Handlers get no log handle;
+   * the executor pushes the entry before running the handler with `endedAt`
+   * still empty, which is what tells it apart from earlier runs of the same
+   * block in a loop or an earlier retry.
+   */
+  private recordModelFallbacks(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    failedModels: string[]
+  ): void {
+    if (failedModels.length === 0) return
+    const logs = ctx.blockLogs ?? []
+    for (let index = logs.length - 1; index >= 0; index--) {
+      const entry = logs[index]
+      if (entry.blockId === block.id && entry.endedAt === '') {
+        entry.modelFallbacks = [...failedModels]
+        return
+      }
+    }
   }
 
   private buildProviderRequest(config: {

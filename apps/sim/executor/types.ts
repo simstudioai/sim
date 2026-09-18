@@ -286,6 +286,12 @@ export interface BlockLog {
   errorHandled?: boolean
   /** Total handler tries, present only when the block retried at least once. */
   tries?: number
+  /**
+   * Models that failed before the one that answered, in the order tried.
+   * Present only when an Agent block fell back at least once; under retry the
+   * last try's chain wins, matching `tries`.
+   */
+  modelFallbacks?: string[]
   loopId?: string
   parallelId?: string
   iterationIndex?: number

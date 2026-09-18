@@ -285,6 +285,8 @@ export interface TraceSpan {
   errorHandled?: boolean
   /** Total handler tries, present only when the block retried at least once. */
   tries?: number
+  /** Models that failed before the one that answered; present only when the block fell back. */
+  modelFallbacks?: string[]
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
