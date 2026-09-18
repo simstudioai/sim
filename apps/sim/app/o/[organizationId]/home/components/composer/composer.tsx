@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { Button, Chip, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, Plus } from '@sim/emcn/icons'
+import { ArrowUp, Plus, StopFilled } from '@sim/emcn/icons'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
@@ -137,13 +137,7 @@ export function Composer({
               aria-label='Stop generation'
               className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
             >
-              <svg
-                className='block size-[14px] fill-white dark:fill-black'
-                viewBox='0 0 24 24'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-              </svg>
+              <StopFilled className='block size-[14px] fill-white dark:fill-black' />
             </Button>
           ) : (
             <Button

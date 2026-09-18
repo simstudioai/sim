@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { ArrowUp, Button, cn } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
+import { ArrowUp, StopFilled } from '@sim/emcn/icons'
 import {
   SEND_BUTTON_ACTIVE,
   SEND_BUTTON_BASE,
@@ -30,13 +31,7 @@ export const SendButton = React.memo(function SendButton({
         title='Stop generation'
         aria-label='Stop generation'
       >
-        <svg
-          className='block h-[14px] w-[14px] fill-white dark:fill-black'
-          viewBox='0 0 24 24'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-        </svg>
+        <StopFilled className='block h-[14px] w-[14px] fill-white dark:fill-black' />
       </Button>
     )
   }
