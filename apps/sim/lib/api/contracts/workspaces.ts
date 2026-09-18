@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { nonEmptyIdSchema, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { workspacePermissionUpdatesSchema } from '@/lib/workspaces/permissions/input'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -61,10 +62,7 @@ export const listWorkspacesQuerySchema = z.object({
 
 export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuerySchema>['scope']>
 
-export const createWorkspaceBodySchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  skipDefaultWorkflow: z.boolean().optional().default(false),
-})
+export const createWorkspaceBodySchema = createWorkspaceInputSchema
 
 export const workspaceParamsSchema = z.object({
   id: z.string().min(1),

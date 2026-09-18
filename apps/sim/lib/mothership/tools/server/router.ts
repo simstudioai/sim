@@ -32,6 +32,7 @@ import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/serv
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
 import { listWorkspacesServerTool } from '@/lib/mothership/tools/server/workspace-list'
+import { workspacesServerTool } from '@/lib/mothership/tools/server/workspaces'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -62,6 +63,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,
+  [workspacesServerTool.name]: workspacesServerTool,
   [organizationSearchSourcesServerTool.name]: organizationSearchSourcesServerTool,
   [settingsServerTool.name]: settingsServerTool,
   [openResourceServerTool.name]: openResourceServerTool,

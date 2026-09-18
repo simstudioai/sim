@@ -204,6 +204,25 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 32 + '...'.length)
   })
 
+  it('names workspace creation consistently during dispatch and replay', () => {
+    for (const args of [
+      { args: ['workspaces', 'create', '--name', 'Research'] },
+      {
+        request: {
+          invocation: {
+            kind: 'service',
+            name: 'workspaces',
+            input: { action: 'create', name: 'Research' },
+          },
+        },
+      },
+    ]) {
+      const title = getToolDisplayTitle('cli_workspaces_create', args)
+      expect(title).toBe('Creating workspace: Research')
+      expect(getToolCompletedTitle(title)).toBe('Created workspace: Research')
+    }
+  })
+
   it('falls back to running code for run_function without a title', () => {
     expect(getToolDisplayTitle('run_function')).toBe('Running code')
     expect(getToolDisplayTitle('run_function', { title: 'Crunching numbers' })).toBe(

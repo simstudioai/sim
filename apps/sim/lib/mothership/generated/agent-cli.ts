@@ -46,7 +46,14 @@ export type AgentCliStdoutInvocation = z.infer<typeof AgentCliStdoutInvocation>;
 /** Internal product operations reuse Sim's authorized handlers; public CLI operations stay native. */
 export const AgentCliServiceInvocation = z.object({
   kind: z.literal("service"),
-  name: z.enum(["list_workspaces", "search_workspace", "read_document", "settings", "search_sources"]),
+  name: z.enum([
+    "list_workspaces",
+    "search_workspace",
+    "read_document",
+    "settings",
+    "search_sources",
+    "workspaces",
+  ]),
   input: z.record(z.string(), z.json()),
   inputFiles: z.partialRecord(z.enum(["input", "changes"]), z.string().min(1).max(1000)).optional(),
 });

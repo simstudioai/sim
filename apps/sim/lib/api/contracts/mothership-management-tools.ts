@@ -1,9 +1,22 @@
 import { z } from 'zod'
+import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
 
+export const mothershipWorkspacesInputSchema = z.discriminatedUnion('action', [
+  createWorkspaceInputSchema.extend({ action: z.literal('create') }).strict(),
+])
+
 /** Shared input contracts and availability; permission decisions remain in the domain use cases. */
 export const managementToolContracts = [
+  {
+    id: 'workspaces',
+    route: 'sim',
+    scope: 'organization',
+    description:
+      'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.',
+    inputSchema: mothershipWorkspacesInputSchema,
+  },
   {
     id: 'settings',
     route: 'sim',
