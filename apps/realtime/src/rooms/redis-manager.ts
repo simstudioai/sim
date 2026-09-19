@@ -123,18 +123,23 @@ return 1
 `
 
 /**
- * Ceiling on the JSON length of a single presence field. Every legitimate payload is far
- * below this — a cursor is tens of characters, and the largest handler-bounded selection
- * (two cell refs whose ids cap at 200) stays under 500 — so this never trims real presence.
- * It is a backstop for presence-bearing events whose handler validation is missing or
- * regresses, capping what one socket can park in the shared room hash and fan out to peers.
+ * Ceiling on a single presence field, measured in the UTF-8 bytes Redis actually stores
+ * rather than UTF-16 code units, so a multi-byte payload can't pass a character-based check
+ * and still land several times larger in the room hash.
+ *
+ * The largest legitimate payload is a table cell selection: four ids capped at 200
+ * characters each. Multi-byte characters and JSON escaping can expand those well past
+ * their character count, so the realistic worst case approaches 5 KB — this sits comfortably
+ * above that, and a backstop that could trim real presence would be worse than a loose one.
+ * It bounds what one socket can park in the shared room hash and fan out to every peer when
+ * a presence-bearing event's handler validation is missing or regresses.
  */
-const MAX_PRESENCE_FIELD_LENGTH = 4096
+const MAX_PRESENCE_FIELD_BYTES = 16384
 
 /**
  * Serialize one presence field for the activity script. Returns `''` when there is no
  * update (the script skips the field) and, defensively, when the value exceeds
- * {@link MAX_PRESENCE_FIELD_LENGTH} — dropping just that field rather than the whole
+ * {@link MAX_PRESENCE_FIELD_BYTES} — dropping just that field rather than the whole
  * update, so a single oversized field can't suppress the others or the activity refresh.
  */
 function serializePresenceField(
@@ -144,12 +149,9 @@ function serializePresenceField(
 ): string {
   if (value === undefined) return ''
   const serialized = JSON.stringify(value)
-  if (serialized.length > MAX_PRESENCE_FIELD_LENGTH) {
-    logger.warn('Dropping oversized presence field', {
-      field,
-      socketId,
-      length: serialized.length,
-    })
+  const bytes = Buffer.byteLength(serialized, 'utf8')
+  if (bytes > MAX_PRESENCE_FIELD_BYTES) {
+    logger.warn('Dropping oversized presence field', { field, socketId, bytes })
     return ''
   }
   return serialized
