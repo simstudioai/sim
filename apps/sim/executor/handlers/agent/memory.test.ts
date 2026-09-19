@@ -436,7 +436,7 @@ describe('Memory', () => {
       ).rejects.toThrow('File is not available')
       const otherWorkflow = { ...context, workflowId: 'workflow-2', fileKeys: undefined }
       queueTableRows(schemaMock.memory, [
-        { data: [{ role: 'user', content: 'File', files: [file] }] },
+        { secretProvenanceVersion: null, data: [{ role: 'user', content: 'File', files: [file] }] },
       ])
       await memoryService.fetchMemoryMessages(otherWorkflow, {
         memoryType: 'conversation',

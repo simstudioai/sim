@@ -343,3 +343,21 @@ export function attachFileGet(files: Command): void {
     .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
+    .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
+    )
+}
+
+export function attachFileVersionDownload(versions: Command): void {
+  versions
+    .command('download')
+    .argument('<fileId>', 'File identifier.')
+    .argument('<version>', 'Version number.')
+    .allowExcessArguments(false)
+    .description('Download the content of one version of a file')
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
+    )
+}

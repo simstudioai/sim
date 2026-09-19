@@ -8800,6 +8800,7 @@ export type ReadFileVersionTextQuery = {
 type ReadFileVersionTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean

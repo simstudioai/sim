@@ -114,7 +114,11 @@ async function executeDownloadWorkspaceFileStream({
         })
       : undefined
   await reportWorkspaceFileDelivery(secretProvenance)
-  return streamWorkspaceFileRecord(file, principal, secretProvenance)
+  return streamWorkspaceFileRecord(
+    file,
+    principal,
+    input.includeSecretProvenance ? secretProvenance : undefined
+  )
 }
 
 /**
@@ -149,7 +153,7 @@ export async function streamWorkspaceFileRecord(
       }),
       contentLength: buffer.length,
       contentType,
-      ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
+      ...(secretProvenance ? { secretProvenance } : {}),
     }
   }
 
@@ -162,7 +166,7 @@ export async function streamWorkspaceFileRecord(
     stream: nodeReadableToWebStream(stream),
     contentLength: file.size,
     contentType: file.type || 'application/octet-stream',
-    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
+    ...(secretProvenance ? { secretProvenance } : {}),
   }
 }
 

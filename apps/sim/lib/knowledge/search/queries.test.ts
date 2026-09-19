@@ -48,10 +48,10 @@ import {
   resolveReach,
   retrieveKnowledgeSearch,
   type SearchParams,
+  type SearchResult,
   VECTOR_PROBE_DOCUMENT_LIMIT,
   vectorCandidatePoolLimit,
   visibleDocumentsQuery,
-  type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import { RRF_K } from '@/lib/knowledge/search/recency'

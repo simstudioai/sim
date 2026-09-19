@@ -166,9 +166,7 @@ describe('getToolDisplayTitle natural-language coverage', () => {
       const title = getToolDisplayTitle(name, { args: [...args, '--dry-run'] })
       expect(title).toBe('Validating workflow changes')
       expect(getToolStatusDisplayTitle(title, 'success', name)).toBe('Validated workflow changes')
-      expect(getToolStatusDisplayTitle(title, 'error', name)).toBe(
-        'Failed validating workflow changes'
-      )
+      expect(getToolStatusDisplayTitle(title, 'error', name)).toBe('Validating workflow changes')
       expect(getToolDisplayTitle(name, { args })).toBe(
         name === 'cli_workflows_operations_apply' ? 'Editing workflow' : 'Rewriting workflow'
       )

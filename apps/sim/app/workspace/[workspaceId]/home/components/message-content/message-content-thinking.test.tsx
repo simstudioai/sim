@@ -204,8 +204,8 @@ describe('MessageContent shared thinking indicator', () => {
     (status) => {
       render([start('workflow'), start('browser'), tool('workflow', status)])
       expect(groups()).toHaveLength(1)
-      expect(container.querySelector('[role="status"]')?.textContent).toBe('1 tool call')
-      expect(container.textContent).not.toContain('workflow notes')
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Reading workflow notes')
+      expect(container.textContent).not.toContain('Failed')
       expect(thinking()).toHaveLength(1)
 
       const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
@@ -213,7 +213,7 @@ describe('MessageContent shared thinking indicator', () => {
       act(() => disclosure.click())
       expect(disclosure.getAttribute('aria-expanded')).toBe('true')
       expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
-        'Failed reading workflow notes'
+        'Reading workflow notes'
       )
       expect(thinking()).toHaveLength(1)
     }

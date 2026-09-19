@@ -26,13 +26,13 @@ import {
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
-import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
-import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import {
   type ReferencedWorkspaceFileContext,
   resolveReferencedWorkspaceFileContext,
 } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
+import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 
 export interface ReadWorkspaceFileTextInput {
   /** Workspace the reference is resolved in. */
@@ -123,7 +123,10 @@ async function executeReadWorkspaceFileText({
  */
 export async function extractWorkspaceFileRecordText(
   file: WorkspaceFileRecord,
-  input: Pick<ReadWorkspaceFileTextInput, 'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'>,
+  input: Pick<
+    ReadWorkspaceFileTextInput,
+    'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'
+  >,
   principal: Principal,
   signal?: AbortSignal
 ): Promise<ReadWorkspaceFileTextResult> {

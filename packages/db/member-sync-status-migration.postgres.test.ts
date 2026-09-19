@@ -36,7 +36,7 @@ describe.runIf(Boolean(databaseUrl))('member sync status upgrade in PostgreSQL',
     if (!table) throw new Error('Original member sync log table DDL was not found')
     await sql.unsafe(table)
     migration = await readFile(
-      new URL('./migrations/0356_member_sync_partial_status.sql', import.meta.url),
+      new URL('./migrations/0375_member_sync_partial_status.sql', import.meta.url),
       'utf8'
     )
   })

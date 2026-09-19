@@ -1,13 +1,11 @@
-import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliFlags } from '@/lib/mothership/agent-cli/types'
 import { agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import {
-  parseFileText,
-} from '@/lib/workspace-files/application/read-workspace-file-text'
+import { parseFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
+import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 
 /** Shared representation selection for authorized private file bytes. */
 export async function observePrivateFile(

@@ -5,8 +5,8 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTuningOptionsForModel } from '@/lib/workflows/blocks/fallback-models'
-import { getThinkingLevelsForModel } from '@/providers/models'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import { getThinkingLevelsForModel } from '@/providers/models'
 import { normalizeConditionRouterIds } from './builders'
 
 const {

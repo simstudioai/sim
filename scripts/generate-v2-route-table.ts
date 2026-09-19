@@ -19,7 +19,8 @@ const OUTPUT = path.join(ROOT, 'apps/sim/lib/api/server/routes/v2-route-table.ge
 function routeFiles(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) routeFiles(full, out)
+    // The transport handles concrete routes; catch-all 404s belong to its network fallback.
+    if (entry.isDirectory() && !entry.name.includes('[...')) routeFiles(full, out)
     else if (entry.name === 'route.ts') out.push(full)
   }
   return out

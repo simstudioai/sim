@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, cn, toast } from '@sim/emcn'
+import { ComposerActionButton, toast } from '@sim/emcn'
 import { ArrowUp } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -15,11 +15,6 @@ import {
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
 import { SearchResultsView } from '@/app/o/[organizationId]/search/search-results-view'
-import {
-  SEND_BUTTON_ACTIVE,
-  SEND_BUTTON_BASE,
-  SEND_BUTTON_DISABLED,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useVoiceInput } from '@/hooks/use-voice-input'
@@ -61,16 +56,15 @@ function SearchField({ initialValue, onSubmit }: SearchFieldProps) {
           )
         }
         submitControl={
-          <Button
+          <ComposerActionButton
             type='button'
-            variant='ghost'
             onClick={() => onSubmit(value)}
             disabled={!canSubmit}
             aria-label='Search'
-            className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
+            active={canSubmit}
           >
             <ArrowUp className='block size-[16px] text-white dark:text-black' />
-          </Button>
+          </ComposerActionButton>
         }
       />
       <MicrophonePermissionHelp

@@ -154,7 +154,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       expect(header()?.textContent).toBe('Read first')
       act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
       expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
-        'Failed reading second'
+        'Reading second'
       )
     }
   )
@@ -340,8 +340,8 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
 
   if (agentName === 'mothership') {
     it.each([
-      ['error', 'Failed creating sign-in link'],
-      ['rejected', 'Failed creating sign-in link'],
+      ['error', 'Creating sign-in link'],
+      ['rejected', 'Creating sign-in link'],
       ['success', 'Created sign-in link'],
     ] as const)(
       'renders a singleton %s action directly instead of a count disclosure',
@@ -389,7 +389,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       act(() => container.querySelector<HTMLElement>('[role="button"]')!.click())
       expect(header()?.textContent).toBe(activity.title)
       expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
-        'Failed reading validation'
+        'Reading validation'
       )
     })
 

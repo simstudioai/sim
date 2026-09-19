@@ -22,7 +22,7 @@ function toolCountLabel(tools: ToolCallData[]): string {
 /** Summarize completed actions without describing failed or skipped work as successful. */
 export function getToolActivitySummary(tools: ToolCallData[]): string {
   const statusTool = getActivityStatusTool(tools)
-  if (!statusTool || isFailedTool(statusTool)) return toolCountLabel(tools)
+  if (!statusTool || (tools.length > 1 && isFailedTool(statusTool))) return toolCountLabel(tools)
   const label = getToolStatusDisplayTitle(
     statusTool.displayTitle,
     statusTool.status,
@@ -54,7 +54,6 @@ export function getActiveToolActivityTitle(
   tool: ToolCallData,
   tools: ToolCallData[]
 ): string {
-  if (isFailedTool(tool)) return toolCountLabel(tools)
   return tool.status === ToolCallStatus.executing || tool.status === ToolCallStatus.success
     ? [label, ...getToolActivityInterruptions(tools)].join(' · ')
     : label

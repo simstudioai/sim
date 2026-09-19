@@ -11,10 +11,6 @@ export interface V2RouteEntry {
 
 export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
-    pattern: '/api/v2/{[...segments]}',
-    load: () => import('@/app/api/v2/[[...segments]]/route'),
-  },
-  {
     pattern: '/api/v2/audit-logs',
     load: () => import('@/app/api/v2/audit-logs/route'),
   },
@@ -105,6 +101,26 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/files/{fileId}/unzip',
     load: () => import('@/app/api/v2/files/[fileId]/unzip/route'),
+  },
+  {
+    pattern: '/api/v2/files/{fileId}/versions',
+    load: () => import('@/app/api/v2/files/[fileId]/versions/route'),
+  },
+  {
+    pattern: '/api/v2/files/{fileId}/versions/{version}',
+    load: () => import('@/app/api/v2/files/[fileId]/versions/[version]/route'),
+  },
+  {
+    pattern: '/api/v2/files/{fileId}/versions/{version}/content',
+    load: () => import('@/app/api/v2/files/[fileId]/versions/[version]/content/route'),
+  },
+  {
+    pattern: '/api/v2/files/{fileId}/versions/{version}/revert',
+    load: () => import('@/app/api/v2/files/[fileId]/versions/[version]/revert/route'),
+  },
+  {
+    pattern: '/api/v2/files/{fileId}/versions/{version}/text',
+    load: () => import('@/app/api/v2/files/[fileId]/versions/[version]/text/route'),
   },
   {
     pattern: '/api/v2/files/bulk-delete',

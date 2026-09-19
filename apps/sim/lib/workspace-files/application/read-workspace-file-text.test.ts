@@ -355,7 +355,11 @@ describe('readWorkspaceFileText', () => {
       principal: principals[0],
       input: input({ allowPlainText: true }),
     })
-    expect(mocks.parseBuffer).toHaveBeenCalledWith(Buffer.from('hello there!'), 'txt')
+    expect(mocks.parseBuffer).toHaveBeenCalledWith(
+      Buffer.from('hello there!'),
+      'txt',
+      expect.objectContaining({ contentMode: 'complete', pdfTextMode: 'complete' })
+    )
   })
 
   it('does not decode binary MIME as text when internal plain-text support is enabled', async () => {
@@ -482,7 +486,9 @@ describe('readWorkspaceFileText', () => {
   it('preserves cancellation when an artifact read wraps the error', async () => {
     const controller = new AbortController()
     const reason = new Error('request cancelled during artifact read')
-    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs' }))
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs' })
+    )
     mocks.fetchServable.mockImplementationOnce(async () => {
       controller.abort(reason)
       throw new DocCompileUserError('not ready', { pending: true })

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
-import { ArrowUp, Paperclip, Plus, Search, Slash } from '@sim/emcn/icons'
+import { Chip, ChipDropdown, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
+import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
@@ -14,11 +14,6 @@ import { SearchLevelSelector } from '@/app/o/[organizationId]/home/components/co
 import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
-import {
-  SEND_BUTTON_ACTIVE,
-  SEND_BUTTON_BASE,
-  SEND_BUTTON_DISABLED,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
@@ -266,32 +261,19 @@ export function Composer({
     <SearchLevelSelector value={assistantSearchLevel} onChange={onAssistantSearchLevelChange} />
   )
   const submitControl = isSending ? (
-    <Button
-      type='button'
-      variant='ghost'
-      onClick={onStop}
-      aria-label='Stop generation'
-      className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-    >
-      <svg
-        className='block size-[14px] fill-white dark:fill-black'
-        viewBox='0 0 24 24'
-        xmlns='http://www.w3.org/2000/svg'
-      >
-        <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-      </svg>
-    </Button>
+    <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation' active>
+      <StopFilled className='block size-[14px] fill-white dark:fill-black' />
+    </ComposerActionButton>
   ) : (
-    <Button
+    <ComposerActionButton
       type='button'
-      variant='ghost'
       onClick={submit}
       disabled={!canSubmit}
       aria-label='Send'
-      className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
+      active={canSubmit}
     >
       <ArrowUp className='block size-[16px] text-white dark:text-black' />
-    </Button>
+    </ComposerActionButton>
   )
 
   return (

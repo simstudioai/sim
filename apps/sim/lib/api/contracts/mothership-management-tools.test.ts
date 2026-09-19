@@ -7,6 +7,10 @@ import {
 
 const workspaceId = '6bbd0147-86ae-4e0b-aa32-26c64e61f58d'
 const examples = {
+  workspaces: [
+    { action: 'create', name: 'Research' },
+    { action: 'create', name: 'Research', skipDefaultWorkflow: true },
+  ],
   settings: [
     { action: 'list', scope: 'organization' },
     { action: 'get', scope: 'workspace', workspaceId, section: 'members' },
@@ -62,23 +66,28 @@ describe('management tool provider contract', () => {
         expect(validate({ ...input, unexpected: true })).toBe(false)
       }
     }
-    const settings = managementToolDefinitions[0].actionSchemas
+    const settings = managementToolDefinitions.find((item) => item.id === 'settings')!.actionSchemas
     expect(settings.execute.required).toEqual(expect.arrayContaining(['operation', 'input']))
     expect(settings.list.properties).not.toHaveProperty('operation')
-    expect(managementToolDefinitions[1].actionSchemas.approve.properties?.approved).toMatchObject({
+    expect(
+      managementToolDefinitions.find((item) => item.id === 'search_sources')!.actionSchemas.approve
+        .properties?.approved
+    ).toMatchObject({
       type: 'boolean',
     })
   })
 
   it('keeps action-specific validation at the canonical execution boundary', () => {
-    const settings = managementToolContracts[0].inputSchema
+    const settings = managementToolContracts.find((item) => item.id === 'settings')!.inputSchema
     expect(
       settings.safeParse({ action: 'execute', scope: 'account', section: 'profile' }).success
     ).toBe(false)
     expect(settings.safeParse({ action: 'list', scope: 'account', changes: {} }).success).toBe(
       false
     )
-    const sources = managementToolContracts[1].inputSchema
+    const sources = managementToolContracts.find(
+      (item) => item.id === 'search_sources'
+    )!.inputSchema
     expect(sources.safeParse({ action: 'setup', connectorType: 'google_drive' }).success).toBe(
       false
     )
@@ -86,7 +95,9 @@ describe('management tool provider contract', () => {
   })
 
   it('distinguishes optional list filters from required setup fields', () => {
-    const parameters = managementToolDefinitions[1].parameters
+    const parameters = managementToolDefinitions.find(
+      (item) => item.id === 'search_sources'
+    )!.parameters
     const field = parameters.properties?.connectorType
     expect(field).toMatchObject({
       description:

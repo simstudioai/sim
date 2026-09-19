@@ -90,6 +90,14 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-01-15T12:00:00Z'))
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   mocks.userId = 'reader'
   requests = []
   mocks.request.mockImplementation(
@@ -204,10 +212,10 @@ describe('search refinement with the real query cache and URL state', () => {
     await render({ organizationPage: true, params: '?q=launch' })
     expect(container.querySelector('h1')).toBeNull()
     expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    const input = container.querySelector('input')
+    const input = container.querySelector('textarea')
     await complete(0)
     expect(container.querySelector('h1')).toBeNull()
-    expect(container.querySelector('input')).toBe(input)
+    expect(container.querySelector('textarea')).toBe(input)
     const filters = container.querySelector('[aria-label="Search filters"]')
 
     for (const [label, expectedFilters] of [
@@ -224,9 +232,10 @@ describe('search refinement with the real query cache and URL state', () => {
         query: 'launch',
         topK: 20,
         filters: expectedFilters,
+        topK: 20,
       })
       expect(container.querySelector('h1')).toBeNull()
-      expect(container.querySelector('input')).toBe(input)
+      expect(container.querySelector('textarea')).toBe(input)
       expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
       expect(document.activeElement).toBe(control)
       expect(container.textContent).toContain('Updating results…')

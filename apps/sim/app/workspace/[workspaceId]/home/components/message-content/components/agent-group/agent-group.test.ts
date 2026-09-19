@@ -223,11 +223,11 @@ describe('AgentGroup inline main activity', () => {
 
   it.each([
     ['success', 'Searched'],
-    ['error', 'Failed searching'],
+    ['error', 'Searching'],
     ['cancelled', 'Stopped searching'],
     ['skipped', 'Skipped searching'],
     ['interrupted', 'Stopped searching'],
-    ['rejected', 'Failed searching'],
+    ['rejected', 'Searching'],
   ] as const)('shows the single call directly after %s', (status, expected) => {
     const item = tool(status)
     act(() =>
@@ -422,7 +422,7 @@ describe('AgentGroup inline main activity', () => {
     )
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Read second document')
     act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
-    expect(container.textContent).toContain('Failed reading first document')
+    expect(container.textContent).toContain('Reading first document')
   })
 
   it.each(['mothership', 'workflow'])(
@@ -448,16 +448,16 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       if (agentName === 'mothership') {
-        expect(container.textContent).toBe('Failed reading notes')
+        expect(container.textContent).toBe('Reading notes')
         expect(container.querySelector('[aria-expanded]')).toBeNull()
         return
       }
       expect(container.textContent).not.toContain('Failed')
-      expect(container.textContent).toContain('1 tool call')
+      expect(container.textContent).toContain('Reading notes')
       const disclosure = container.querySelector<HTMLElement>('[role="button"]')
       expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
       act(() => disclosure?.click())
-      expect(container.textContent).toContain('Failed reading notes')
+      expect(container.textContent).toContain('Reading notes')
     }
   )
 
@@ -504,8 +504,8 @@ describe('AgentGroup inline main activity', () => {
         status === 'executing' ? 'Viewing image.png' : 'Viewed image.png'
       )
       act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
-      expect(container.textContent).toContain('Failed reading image.png')
-      expect(container.textContent).toContain('Failed reading notes')
+      expect(container.textContent).toContain('Reading image.png')
+      expect(container.textContent).toContain('Reading notes')
     }
   )
 

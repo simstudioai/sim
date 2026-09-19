@@ -29,8 +29,11 @@ export function SearchResultsView({
   const scope = { kind: 'organization' as const, organizationId: organization.id }
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
-  const scrollEdges = useScrollEdges(scrollContainerRef, { contentRef: scrollContentRef })
   const searching = query.trim().length > 0
+  const scrollEdges = useScrollEdges(scrollContainerRef, {
+    contentRef: scrollContentRef,
+    enabled: searching,
+  })
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       <div className={PAGE_HEADER_BAR} />

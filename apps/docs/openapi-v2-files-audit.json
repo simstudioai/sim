@@ -4809,6 +4809,10 @@
             "type": "string",
             "description": "File name, including its extension."
           },
+          "path": {
+            "type": "string",
+            "description": "Canonical VFS path of the file that was read: `files/…`, or `uploads/<name>` for a Chat upload."
+          },
           "type": {
             "type": "string",
             "description": "Stored MIME type of the source file."
@@ -4888,6 +4892,7 @@
         "required": [
           "fileId",
           "name",
+          "path",
           "type",
           "text",
           "truncated",
