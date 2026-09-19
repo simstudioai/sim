@@ -40,6 +40,16 @@ const buttonVariants = cva(
         tertiary:
           'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
+        /**
+         * Destructive action without a filled surface; stays red on hover.
+         * @example <Button variant='ghost-destructive'>Delete</Button>
+         */
+        'ghost-destructive': 'text-[var(--text-error)] hover-hover:text-[var(--text-error)]',
+        /**
+         * Muted destructive action that turns red on hover.
+         * @example <Button variant='ghost-destructive-muted'>Remove</Button>
+         */
+        'ghost-destructive-muted': 'text-[var(--text-muted)] hover-hover:text-[var(--text-error)]',
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
         'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',

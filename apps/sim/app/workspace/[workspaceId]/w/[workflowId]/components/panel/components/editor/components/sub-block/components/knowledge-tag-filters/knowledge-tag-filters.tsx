@@ -266,13 +266,13 @@ export function KnowledgeTagFilters({
           <span className='sr-only'>Add Filter</span>
         </Button>
         <Button
-          variant='ghost'
+          variant='ghost-destructive'
           onClick={(e) => {
             e.stopPropagation()
             removeFilter(filter.id)
           }}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+          className='h-auto p-0'
         >
           <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Filter</span>
