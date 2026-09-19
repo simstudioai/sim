@@ -20,6 +20,13 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Chip: ({
+    onClick,
+    disabled,
+    'aria-label': label,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' onClick={onClick} disabled={disabled} aria-label={label} />
+  ),
   CODE_LINE_HEIGHT_PX: 21,
   Code: {
     Container: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -70,10 +77,6 @@ vi.mock('react-simple-code-editor', () => ({
       <pre data-testid='code-highlight' dangerouslySetInnerHTML={{ __html: highlight(value) }} />
     </>
   ),
-}))
-
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children }: { children?: ReactNode }) => <button type='button'>{children}</button>,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -252,5 +255,27 @@ describe('Code password masking', () => {
 
     expect(highlighted()).toContain('<mark')
     expect(highlighted()).toContain(SECRET_MATCH)
+  })
+})
+
+describe('Code copy action', () => {
+  it('copies the current value through the shared chip action', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    vi.useFakeTimers()
+    act(() =>
+      root.render(
+        <Code
+          blockId='block-1'
+          subBlockId='privateKey'
+          showCopyButton
+          wandConfig={{ enabled: false, prompt: '' }}
+        />
+      )
+    )
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Copy code"]')!.click())
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(SECRET)
+    act(() => vi.advanceTimersByTime(2000))
+    vi.useRealTimers()
   })
 })
