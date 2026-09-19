@@ -286,15 +286,22 @@ async function insertVersion(
   })
 }
 
+/** The outcome of deleting one version; a deleted version's key is released after commit. */
+export type WorkspaceFileVersionDeletion =
+  | { status: 'deleted'; key: string }
+  | { status: 'not_found' }
+  | { status: 'newest' }
+
 /**
- * Deletes one superseded version, returning its storage key for release after commit, or null when
- * no such superseded version exists. The current version is never deletable: it is the file.
+ * Deletes one superseded version. The newest row is never deleted: it is either the current version
+ * or the last one recorded before bytes a later write has not recorded yet, and removing it would let
+ * the next write reuse its number.
  */
 export async function deleteWorkspaceFileVersionInTx(
   tx: DbTransaction,
   fileId: string,
   version: number
-): Promise<string | null> {
+): Promise<WorkspaceFileVersionDeletion> {
   const [deleted] = await tx
     .delete(workspaceFileVersion)
     .where(
@@ -305,7 +312,13 @@ export async function deleteWorkspaceFileVersionInTx(
       )
     )
     .returning({ key: workspaceFileVersion.key })
-  return deleted?.key ?? null
+  if (deleted) return { status: 'deleted', key: deleted.key }
+  const [kept] = await tx
+    .select({ version: workspaceFileVersion.version })
+    .from(workspaceFileVersion)
+    .where(and(eq(workspaceFileVersion.fileId, fileId), eq(workspaceFileVersion.version, version)))
+    .limit(1)
+  return kept ? { status: 'newest' } : { status: 'not_found' }
 }
 
 /**
@@ -411,7 +424,16 @@ function toSnapshotStatus(status: string | null): WorkspaceFileSecretProvenanceS
   return 'unknown'
 }
 
-function toVersionRecord(row: WorkspaceFileVersionSummaryRow): WorkspaceFileVersionRecord {
+/**
+ * A stored version as readers see it. A row is current only while it still holds the file's bytes;
+ * a newest row a later write has replaced without recording (see {@link implicitCurrentVersion})
+ * reads as superseded from the moment that write landed.
+ */
+function toVersionRecord(
+  row: WorkspaceFileVersionSummaryRow,
+  file: WorkspaceFileVersionSubject
+): WorkspaceFileVersionRecord {
+  const isCurrent = row.supersededAt === null && row.key === file.key
   return {
     fileId: row.fileId,
     version: row.version,
@@ -421,24 +443,35 @@ function toVersionRecord(row: WorkspaceFileVersionSummaryRow): WorkspaceFileVers
     source: row.source,
     authorUserIds: row.authorUserIds,
     restoredFromVersion: row.restoredFromVersion,
-    isCurrent: row.supersededAt === null,
+    isCurrent,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    supersededAt: row.supersededAt,
+    supersededAt: isCurrent ? null : (row.supersededAt ?? contentVersionTime(file)),
   }
 }
 
+function contentVersionTime(file: WorkspaceFileVersionSubject): Date {
+  return file.contentUpdatedAt ?? file.updatedAt
+}
+
 /**
- * Version 1 of a file with no history yet — every file before its first content write. Attributed
- * exactly as {@link recordWorkspaceFileVersionInTx} will materialize it, so the version a reader sees
- * keeps its identity once it becomes a row.
+ * The version a file's current bytes hold while no row records them, for a caller that has found
+ * {@link isVersionHeadCurrent} false. That is version 1 of a file with no history, or the number
+ * after a newest row that describes other bytes — left by a content write that skipped recording,
+ * such as one from a build that predates version history. Numbered and attributed exactly as
+ * {@link recordWorkspaceFileVersionInTx} will materialize it on the next write, so the version a
+ * reader sees keeps its identity once it becomes a row.
  */
-function implicitFirstVersion(file: WorkspaceFileVersionSubject): WorkspaceFileVersionRecord {
-  const contentUpdatedAt = file.contentUpdatedAt ?? file.updatedAt
-  const original = isOriginalUploadContent({ uploadedAt: file.uploadedAt, contentUpdatedAt })
+function implicitCurrentVersion(
+  file: WorkspaceFileVersionSubject,
+  head: WorkspaceFileVersionSummaryRow | undefined
+): WorkspaceFileVersionRecord {
+  const contentUpdatedAt = contentVersionTime(file)
+  const original =
+    !head && isOriginalUploadContent({ uploadedAt: file.uploadedAt, contentUpdatedAt })
   return {
     fileId: file.id,
-    version: 1,
+    version: (head?.version ?? 0) + 1,
     key: file.key,
     size: file.size,
     contentType: file.type,
@@ -462,19 +495,32 @@ export async function queryWorkspaceFileVersions(
   options: { sortOrder: ListSortOrder; limit: number; after?: CursorKey[] }
 ): Promise<{ versions: WorkspaceFileVersionRecord[]; nextKeys: CursorKey[] | null }> {
   const resume = resumeKeyset(VERSION_KEYSET, options.after, options.sortOrder)
-  const rows = await db
-    .select(versionSummaryColumns)
-    .from(workspaceFileVersion)
-    .where(and(eq(workspaceFileVersion.fileId, file.id), resume))
-    .orderBy(...listOrderBy(keysetColumns(VERSION_KEYSET), options.sortOrder))
-    .limit(options.limit + 1)
-  const records = rows.map(toVersionRecord)
+  const [rows, head] = await Promise.all([
+    db
+      .select(versionSummaryColumns)
+      .from(workspaceFileVersion)
+      .where(and(eq(workspaceFileVersion.fileId, file.id), resume))
+      .orderBy(...listOrderBy(keysetColumns(VERSION_KEYSET), options.sortOrder))
+      .limit(options.limit + 1),
+    loadWorkspaceFileVersionHead(file.id),
+  ])
+  const records = rows.map((row) => toVersionRecord(row, file))
   /**
-   * An uncursored page that is empty means the file has no rows, so it lists its implicit version 1.
-   * Any cursor was minted past that version already, so only the first page can carry it.
+   * The implicit current version numbers above every row, so it leads a descending list and ends an
+   * ascending one; a cursor already past it leaves it out. Over-fetching by one row still decides
+   * whether another page follows, since the cut keeps the first `limit` records either way.
    */
-  if (records.length === 0 && !options.after) {
-    records.push(implicitFirstVersion(file))
+  const implicit = isVersionHeadCurrent(head, file) ? null : implicitCurrentVersion(file, head)
+  const resumeAfter = options.after?.[0]
+  if (
+    implicit &&
+    (typeof resumeAfter !== 'number' ||
+      (options.sortOrder === 'desc'
+        ? implicit.version < resumeAfter
+        : implicit.version > resumeAfter))
+  ) {
+    if (options.sortOrder === 'desc') records.unshift(implicit)
+    else records.push(implicit)
   }
   const page = keysetPage(VERSION_KEYSET, records, options.limit)
   return { versions: page.data, nextKeys: page.nextCursorKeys }
@@ -495,28 +541,44 @@ export async function findWorkspaceFileVersionKeys(keys: readonly string[]): Pro
   return new Set(rows.map((row) => row.key))
 }
 
-/** The current version, or the implicit version 1 of a file with no history rows. */
+/** The version holding the file's current bytes, recorded or implicit. */
 export async function getCurrentWorkspaceFileVersion(
   file: WorkspaceFileVersionSubject
 ): Promise<WorkspaceFileVersionRecord> {
   const head = await loadWorkspaceFileVersionHead(file.id)
-  return head ? toVersionRecord(head) : implicitFirstVersion(file)
+  return head && isVersionHeadCurrent(head, file)
+    ? toVersionRecord(head, file)
+    : implicitCurrentVersion(file, head)
 }
 
 /**
  * The current version number of the enclosing query's `workspace_files` row, as a correlated
- * subquery so the row and its number come from one statement's snapshot. Content writes record
- * their version in the transaction that replaces the bytes, so the newest row describes the current
- * content; a file with no rows is on its implicit version 1. Both sides of the correlation
- * are table-qualified because Drizzle renders single-table columns bare, which would bind the outer
- * `id` to this subquery's own table.
+ * subquery so the row and its number come from one statement's snapshot. The newest row numbers
+ * the file's bytes while it still holds them; otherwise the bytes are on the implicit version after
+ * it, and a file with no rows is on version 1 — the numbering {@link implicitCurrentVersion} gives.
+ * Both sides of the correlation are table-qualified because Drizzle renders single-table columns
+ * bare, which would bind the outer columns to this subquery's own table.
  */
 export function currentWorkspaceFileVersionNumberSql() {
-  const versionFileId = sql`${workspaceFileVersion}.${sql.identifier(workspaceFileVersion.fileId.name)}`
-  const outerFileId = sql`${workspaceFiles}.${sql.identifier(workspaceFiles.id.name)}`
-  return sql<number>`coalesce((select max(${workspaceFileVersion.version}) from ${workspaceFileVersion} where ${versionFileId} = ${outerFileId}), 1)`.mapWith(
-    Number
-  )
+  const qualified = (table: typeof workspaceFileVersion | typeof workspaceFiles, name: string) =>
+    sql`${table}.${sql.identifier(name)}`
+  const head = {
+    fileId: qualified(workspaceFileVersion, workspaceFileVersion.fileId.name),
+    version: qualified(workspaceFileVersion, workspaceFileVersion.version.name),
+    key: qualified(workspaceFileVersion, workspaceFileVersion.key.name),
+    supersededAt: qualified(workspaceFileVersion, workspaceFileVersion.supersededAt.name),
+  }
+  const file = {
+    id: qualified(workspaceFiles, workspaceFiles.id.name),
+    key: qualified(workspaceFiles, workspaceFiles.key.name),
+  }
+  const number = sql`case when ${head.supersededAt} is null and ${head.key} = ${file.key} then ${head.version} else ${head.version} + 1 end`
+  return sql<number>`coalesce((
+    select ${number} from ${workspaceFileVersion}
+    where ${head.fileId} = ${file.id}
+    order by ${head.version} desc
+    limit 1
+  ), 1)`.mapWith(Number)
 }
 
 /** One version of a file, or null when it never existed or retention removed it. */
@@ -529,9 +591,9 @@ export async function getWorkspaceFileVersion(
     .from(workspaceFileVersion)
     .where(and(eq(workspaceFileVersion.fileId, file.id), eq(workspaceFileVersion.version, version)))
     .limit(1)
-  if (row) return toVersionRecord(row)
-  if (version !== 1 || (await loadWorkspaceFileVersionHead(file.id))) return null
-  return implicitFirstVersion(file)
+  if (row) return toVersionRecord(row, file)
+  const current = await getCurrentWorkspaceFileVersion(file)
+  return current.version === version ? current : null
 }
 
 /**

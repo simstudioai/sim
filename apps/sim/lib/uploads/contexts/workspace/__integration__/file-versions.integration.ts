@@ -288,14 +288,85 @@ describe('workspace file version history in PostgreSQL', () => {
     )
 
     await expect(deleteWorkspaceFileVersion(fixture.workspaceId, fixture.fileId, 2)).resolves.toBe(
-      false
+      'newest'
     )
     await expect(deleteWorkspaceFileVersion(fixture.workspaceId, fixture.fileId, 1)).resolves.toBe(
-      true
+      'deleted'
+    )
+    await expect(deleteWorkspaceFileVersion(fixture.workspaceId, fixture.fileId, 1)).resolves.toBe(
+      'not_found'
     )
 
     expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([2])
     expect(await objectExists(fixture.firstKey)).toBe(false)
+  })
+
+  it('reads bytes a write left unrecorded as the version its next write records them as', async () => {
+    const fixture = await seedFile('original')
+    const write = { source: 'api', authorUserId: fixture.aliceId } as const
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('second'),
+      undefined,
+      { version: write }
+    )
+    /** A content write that replaced the bytes without recording a version, as a build predating history would. */
+    const unrecordedKey = `${fixture.firstKey}-unrecorded`
+    await db
+      .update(workspaceFiles)
+      .set({ key: unrecordedKey, contentUpdatedAt: new Date() })
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    const file = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+    if (!file) throw new Error('file missing')
+
+    await expect(
+      getWorkspaceFileWithCurrentVersion(fixture.workspaceId, fixture.fileId)
+    ).resolves.toMatchObject({ key: unrecordedKey, currentVersion: 3 })
+    expect(await getCurrentWorkspaceFileVersion(file)).toMatchObject({
+      version: 3,
+      key: unrecordedKey,
+      isCurrent: true,
+    })
+    const listed = await queryWorkspaceFileVersions(file, { sortOrder: 'desc', limit: 10 })
+    expect(listed.versions.map((row) => [row.version, row.isCurrent, row.source])).toEqual([
+      [3, true, 'unknown'],
+      [2, false, 'api'],
+      [1, false, 'upload'],
+    ])
+    expect(listed.versions[1].supersededAt).toEqual(file.contentUpdatedAt)
+
+    const firstPage = await queryWorkspaceFileVersions(file, { sortOrder: 'asc', limit: 2 })
+    expect(firstPage.versions.map((row) => row.version)).toEqual([1, 2])
+    const lastPage = await queryWorkspaceFileVersions(file, {
+      sortOrder: 'asc',
+      limit: 2,
+      after: firstPage.nextKeys ?? undefined,
+    })
+    expect(lastPage.versions.map((row) => row.version)).toEqual([3])
+    expect(lastPage.nextKeys).toBeNull()
+
+    await expect(deleteWorkspaceFileVersion(fixture.workspaceId, fixture.fileId, 2)).resolves.toBe(
+      'newest'
+    )
+
+    const next = await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('fourth'),
+      undefined,
+      { version: write }
+    )
+    expect(next.currentVersion).toBe(4)
+    expect((await versionRows(fixture.fileId)).map((row) => [row.version, row.source])).toEqual([
+      [1, 'upload'],
+      [2, 'api'],
+      [3, 'unknown'],
+      [4, 'api'],
+    ])
+    expect((await versionRows(fixture.fileId))[2].key).toBe(unrecordedKey)
   })
 
   it('never folds deliberate writes, and repoints the head for identical bytes', async () => {

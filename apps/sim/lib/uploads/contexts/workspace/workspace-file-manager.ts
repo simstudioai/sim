@@ -82,6 +82,7 @@ import {
   listWorkspaceFileVersionKeysInTx,
   loadWorkspaceFileVersionHead,
   recordWorkspaceFileVersionInTx,
+  type WorkspaceFileVersionDeletion,
   type WorkspaceFileVersionWrite,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -2097,15 +2098,13 @@ export async function updateWorkspaceFileContent(
 /**
  * Deletes one superseded version of an active workspace file and releases its stored object. The
  * file row is locked so the delete serializes with content writes that supersede or prune history.
- * Returns false when the file has no such superseded version (it never existed, retention removed
- * it, or it is the current version).
  */
 export async function deleteWorkspaceFileVersion(
   workspaceId: string,
   fileId: string,
   version: number
-): Promise<boolean> {
-  const cleanupEventIds = await db.transaction(async (tx) => {
+): Promise<WorkspaceFileVersionDeletion['status']> {
+  const deletion = await db.transaction(async (tx) => {
     const [file] = await tx
       .select({ id: workspaceFiles.id })
       .from(workspaceFiles)
@@ -2113,17 +2112,21 @@ export async function deleteWorkspaceFileVersion(
       .for('update')
       .limit(1)
     if (!file) throw new OrchestrationError('not_found', 'File not found')
-    const key = await deleteWorkspaceFileVersionInTx(tx, fileId, version)
-    return key ? enqueueWorkspaceFileStorageCleanups(tx, [key]) : null
+    const result = await deleteWorkspaceFileVersionInTx(tx, fileId, version)
+    return result.status === 'deleted'
+      ? {
+          status: result.status,
+          cleanupEventIds: await enqueueWorkspaceFileStorageCleanups(tx, [result.key]),
+        }
+      : { status: result.status, cleanupEventIds: [] }
   })
-  if (!cleanupEventIds) return false
 
-  await processWorkspaceFileStorageCleanupsNow(cleanupEventIds, {
+  await processWorkspaceFileStorageCleanupsNow(deletion.cleanupEventIds, {
     workspaceId,
     fileId,
     reason: 'deleted version',
   })
-  return true
+  return deletion.status
 }
 
 /**
