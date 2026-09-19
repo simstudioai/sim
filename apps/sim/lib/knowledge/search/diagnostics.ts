@@ -51,6 +51,9 @@ export type SearchStage =
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
+  | 'keyword.tin'
+  | 'keyword.tin_readiness'
+  | 'keyword.tin_query'
   | 'source_overview'
   | 'source_overview.availability'
   | 'source_overview.providers'
@@ -98,6 +101,13 @@ export interface SearchDiagnosticMetadata {
   permittedDocuments?: 'bounded' | 'unbounded'
   /** Documents in a bounded permitted set. */
   permittedDocumentCount?: number
+  /**
+   * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
+   * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.
+   */
+  keywordRanking?: 'tin' | 'gin'
+  /** Candidates Tin ranked before access was checked on the last keyword page. */
+  keywordTinWindow?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number

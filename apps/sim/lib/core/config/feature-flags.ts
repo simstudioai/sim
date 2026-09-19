@@ -93,6 +93,13 @@ const FEATURE_FLAGS = {
       'KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
+  'knowledge-tin-keyword': {
+    description:
+      'Rank keyword retrieval for members whose permitted set is too large to enumerate through ' +
+      'the Tin text index instead of GIN. Has no effect where the Tin keyword index is absent or ' +
+      'invalid. Off-AppConfig falls back to KNOWLEDGE_TIN_KEYWORD.',
+    fallback: 'KNOWLEDGE_TIN_KEYWORD',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

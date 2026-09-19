@@ -241,6 +241,7 @@ jobs:
           bunx vitest run
           script-migrations/0016_backfill_search_vectors.postgres.test.ts
           script-migrations/0018_repair_workspace_file_content_revision.postgres.test.ts
+          script-migrations/0019_tin_keyword_projection.postgres.test.ts
 
       - name: Verify Search progress, pagination, and outbox scheduling in PostgreSQL
         working-directory: apps/sim

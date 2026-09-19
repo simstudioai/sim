@@ -3478,6 +3478,28 @@ export const embeddingKeywordSearch = pgTable(
   })
 )
 
+/** The Tin index over {@link embeddingKeywordTin}; valid only once the projection is backfilled. */
+export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
+
+/**
+ * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
+ * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
+ * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
+ * the index and stems exactly as the GIN projection does. Access never enters the row, so ACL
+ * changes never rewrite it. Script migration `0019_tin_keyword_projection` installs the extension,
+ * the index, and the embedding and knowledge base triggers that own these rows, and only where
+ * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
+ */
+export const embeddingKeywordTin = pgTable('embedding_keyword_tin', {
+  id: text('id')
+    .primaryKey()
+    .references(() => embedding.id, { onDelete: 'cascade' }),
+  knowledgeBaseId: text('knowledge_base_id').notNull(),
+  documentId: text('document_id').notNull(),
+  enabled: boolean('enabled').notNull(),
+  content: text('content').notNull(),
+})
+
 /**
  * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
  * from content prevents candidate scans from fetching full-precision TOAST values.

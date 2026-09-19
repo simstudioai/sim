@@ -2563,6 +2563,13 @@
       "when": 1789801452516,
       "tag": "0366_member_scope_renewed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1789837174274,
+      "tag": "0367_tin_keyword_projection",
+      "breakpoints": true
     }
   ]
 }
