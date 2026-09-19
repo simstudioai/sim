@@ -208,7 +208,11 @@ describe('ChipSelect menu interactions', () => {
           {
             section: 'Cloud',
             items: [
-              { value: 'gcp', label: <strong>Google Cloud</strong>, searchTerms: ['gcloud'] },
+              {
+                value: 'gcp',
+                label: <strong>Google Cloud</strong>,
+                searchTerms: ['Google Cloud', 'gcloud'],
+              },
             ],
           },
           { section: 'Source', items: [{ value: 'gh', label: 'GitHub' }] },
@@ -216,6 +220,8 @@ describe('ChipSelect menu interactions', () => {
       />
     )
     await key(trigger, 'ArrowDown')
+    changeSearch('cloud')
+    expect(menuItem('Google Cloud').querySelector('strong')).not.toBeNull()
     changeSearch('gcloud')
     expect(menuItem('Google Cloud').querySelector('strong')).not.toBeNull()
     expect(document.querySelector('[role="menu"]')?.textContent).not.toContain('Source')
@@ -241,7 +247,12 @@ describe('ChipSelect menu interactions', () => {
         dropdownWidth={280}
         value=''
         options={[
-          { value: '', label: <span>None</span>, iconElement: <span data-testid='avatar' /> },
+          {
+            value: '',
+            label: <span>None</span>,
+            searchTerms: ['None'],
+            iconElement: <span data-testid='avatar' />,
+          },
         ]}
       />
     )

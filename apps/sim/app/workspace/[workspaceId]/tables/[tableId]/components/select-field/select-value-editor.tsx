@@ -35,6 +35,7 @@ export function SelectValueEditor({
       (column.options ?? []).map((option) => ({
         value: option.id,
         label: <SelectPill option={option} />,
+        searchTerms: [option.name] as const,
       })),
     [column.options]
   )
@@ -67,7 +68,11 @@ export function SelectValueEditor({
   const singleOptions = column.required
     ? options
     : [
-        { value: CLEAR_VALUE, label: <span className='text-[var(--text-muted)]'>None</span> },
+        {
+          value: CLEAR_VALUE,
+          label: <span className='text-[var(--text-muted)]'>None</span>,
+          searchTerms: ['None'] as const,
+        },
         ...options,
       ]
 

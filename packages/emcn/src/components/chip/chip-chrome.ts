@@ -49,14 +49,15 @@ export const chipFieldTextClass =
  */
 export const chipContentGap = 'gap-1.5'
 
+/** Standard chip height, also shared by combobox fields. */
+export const chipHeightClass = 'h-[30px]'
+
 /**
  * Chip pill geometry minus its corner radius — height, centering, gap, padding,
  * text size. `chipVariants` composes this with its `shape` variant so a raw
  * (non-`cn`) consumer never emits two competing radii; everything else reads
  * {@link chipGeometryClass}, which adds the default radius back.
  */
-/** Standard chip height, also shared by combobox fields. */
-export const chipHeightClass = 'h-[30px]'
 export const chipGeometryUnroundedClass = `${chipHeightClass} items-center ${chipContentGap} px-2 text-left text-sm`
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with

@@ -18,12 +18,8 @@ import {
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
-/** A selectable option in a {@link ChipSelect}. */
-export interface ChipSelectOption {
-  label: React.ReactNode
+interface ChipSelectOptionBase {
   value: string
-  /** Additional search-only terms. These are never rendered in the option label. */
-  searchTerms?: readonly string[]
   /** Optional leading icon. */
   icon?: React.ComponentType<{ className?: string }>
   /** Pre-rendered leading element, such as an avatar; takes precedence over `icon`. */
@@ -31,6 +27,20 @@ export interface ChipSelectOption {
   /** Whether this option is non-selectable. */
   disabled?: boolean
 }
+
+/**
+ * A selectable option in a {@link ChipSelect}. Rich labels must supply their
+ * visible text in `searchTerms`, followed by any aliases, so they remain searchable.
+ * Search terms are never rendered. Plain text labels are matched automatically.
+ */
+export type ChipSelectOption = ChipSelectOptionBase &
+  (
+    | { label: string | number; searchTerms?: readonly string[] }
+    | {
+        label: React.ReactNode
+        searchTerms: readonly [string, ...string[]]
+      }
+  )
 
 /** A labeled group of options. When `groups` is set, `options` is ignored. */
 export interface ChipSelectOptionGroup {
