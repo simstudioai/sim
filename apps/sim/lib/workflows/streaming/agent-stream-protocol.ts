@@ -35,6 +35,8 @@ export const AGENT_STREAM_PROTOCOL_HEADER = 'x-sim-stream-protocol' as const
 export const AGENT_STREAM_PROTOCOL_HEADER_LABEL = 'X-Sim-Stream-Protocol' as const
 
 export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
+/** Client keys answer text and retractions by `streamId` when present. */
+export const SCOPED_OUTPUT_STREAM_PROTOCOL_V1 = 'scoped-output-v1' as const
 
 /** Additional capability for structured selected outputs in deployed chats. */
 export const CHAT_OUTPUT_PROTOCOL_V1 = 'chat-outputs-v1' as const
@@ -51,6 +53,8 @@ export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
  */
 export interface ChatStreamChunkFrame {
   blockId: string
+  /** Separates public fields and repeated custom-block invocations. */
+  streamId?: string
   chunk: string
 }
 
@@ -62,13 +66,13 @@ export interface ChatStreamOutputFrame {
 }
 
 /**
- * Negotiated agent-events streams only: the live-streamed answer text for
- * `blockId` belonged to an intermediate turn (tool calls follow). Clients
- * discard the block's accumulated answer text; the final turn re-streams after
- * tools settle.
+ * Retracts answer text from an intermediate turn before tools run.
+ * Negotiated clients discard text keyed by `streamId` when present, otherwise
+ * by `blockId`; the final turn streams after tools settle.
  */
 export interface ChatStreamChunkResetFrame {
   blockId: string
+  streamId?: string
   event: 'chunk_reset'
 }
 
@@ -133,6 +137,7 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
   if (!isRecordLike(value)) return false
   return (
     typeof value.blockId === 'string' &&
+    (value.streamId === undefined || typeof value.streamId === 'string') &&
     typeof value.chunk === 'string' &&
     value.chunk.length > 0 &&
     value.event === undefined
@@ -141,7 +146,11 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
 
 export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkResetFrame {
   if (!isRecordLike(value)) return false
-  return value.event === 'chunk_reset' && typeof value.blockId === 'string'
+  return (
+    value.event === 'chunk_reset' &&
+    typeof value.blockId === 'string' &&
+    (value.streamId === undefined || typeof value.streamId === 'string')
+  )
 }
 
 export function isChatOutputFrame(value: unknown): value is ChatStreamOutputFrame {
@@ -208,6 +217,13 @@ export function clientAcceptsChatOutputProtocol(
   requestHeaders: Headers | { get(name: string): string | null }
 ): boolean {
   return acceptsStreamProtocol(requestHeaders, CHAT_OUTPUT_PROTOCOL_V1)
+}
+
+/** Enables retractions scoped to one public field and invocation, instead of an entire block. */
+export function clientAcceptsScopedOutputStreams(
+  requestHeaders: Headers | { get(name: string): string | null }
+): boolean {
+  return acceptsStreamProtocol(requestHeaders, SCOPED_OUTPUT_STREAM_PROTOCOL_V1)
 }
 
 function acceptsStreamProtocol(

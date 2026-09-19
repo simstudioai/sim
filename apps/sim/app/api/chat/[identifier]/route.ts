@@ -415,7 +415,12 @@ export const POST = withRouteHandler(
                 workflowTriggerType: 'chat',
                 onStream,
                 onBlockComplete: (blockId, data) =>
-                  onBlockComplete(blockId, data.output, data.outputBlockId),
+                  onBlockComplete(
+                    blockId,
+                    data.output,
+                    data.outputBlockId,
+                    data.childWorkflowInstanceId
+                  ),
                 skipLoggingComplete: true,
                 abortSignal,
                 executionMode: 'stream',

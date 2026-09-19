@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import {
@@ -37,6 +38,55 @@ export interface CustomBlockOutput {
   blockId: string
   path: string
   name: string
+  /** Expose the source's answer text while this invocation is running. */
+  streaming?: boolean
+}
+
+interface StreamSourceBlock {
+  type: string
+  subBlocks?: Record<string, unknown>
+}
+
+/** Public streams currently expose only unstructured Agent/Pi answer text. */
+export function isCustomBlockStreamSource(
+  block: StreamSourceBlock | undefined,
+  path: string
+): boolean {
+  if (!block || !['agent', 'pi'].includes(block.type) || path !== 'content') return false
+  const subBlock = block.subBlocks?.responseFormat
+  const responseFormat = isRecordLike(subBlock) ? subBlock.value : subBlock
+  return responseFormat == null || responseFormat === ''
+}
+
+/** Validate against the deployment being published or executed, never the caller's graph. */
+export function assertCustomBlockStreamingOutputs(
+  outputs: readonly CustomBlockOutput[],
+  blocks: Readonly<Record<string, StreamSourceBlock>>
+): void {
+  const sources = new Set<string>()
+  for (const output of outputs) {
+    if (!output.streaming) continue
+    if (outputs.filter((candidate) => candidate.name === output.name).length !== 1) {
+      throw new Error('Each streaming output must have a unique public name')
+    }
+    if (
+      !output.name ||
+      output.name.includes('.') ||
+      output.name.includes('/') ||
+      output.name.trim() !== output.name
+    ) {
+      throw new Error('A streaming output name must be a single output field')
+    }
+    if (!isCustomBlockStreamSource(blocks[output.blockId], output.path)) {
+      throw new Error(
+        `Streaming output "${output.name}" must reference an Agent or Pi content output without a response format`
+      )
+    }
+    if (sources.has(output.blockId)) {
+      throw new Error('Each streaming source can be exposed only once')
+    }
+    sources.add(output.blockId)
+  }
 }
 
 /**
@@ -63,7 +113,7 @@ export interface CustomBlockRow {
   workflowId: string
   /** Source workflow's home workspace name, to disambiguate same-named env copies. */
   workspaceName?: string | null
-  /** Curated exposed outputs; empty/absent exposes the child's whole `result`. */
+  /** Curated public outputs; legacy empty definitions expose no data fields. */
   exposedOutputs?: CustomBlockOutput[]
 }
 
@@ -237,9 +287,8 @@ export function buildCustomBlockConfig(
 }
 
 /**
- * The block's declared outputs. Internal plumbing (child workflow id/name, trace
- * spans) is never exposed. With curated `exposedOutputs`, each becomes its own
- * named output; otherwise the whole child `result` is exposed.
+ * Public outputs contain status fields and publisher-curated data only.
+ * Legacy definitions without curated outputs expose no child data and fail at invocation.
  */
 function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['outputs'] {
   const outputs: BlockConfig['outputs'] = {
@@ -248,12 +297,12 @@ function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['ou
     errorType: { type: 'string', description: 'Machine-readable failure class' },
     errorRef: { type: 'string', description: 'Opaque reference to the failed run' },
   }
-  // No whole-`result` fallback: curation is required at publish, so every
-  // consumer-visible field is one the publisher chose. A legacy row with no
-  // curated outputs advertises no data fields and fails loudly at invocation
-  // rather than silently reverting to exposing the child's raw terminal state.
   for (const out of exposed ?? []) {
-    outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
+    outputs[out.name] = {
+      type: out.streaming ? 'string' : 'json',
+      description: out.streaming ? 'Streaming text output' : `Output: ${out.path}`,
+      ...(out.streaming ? { streaming: true } : {}),
+    }
   }
   return outputs
 }

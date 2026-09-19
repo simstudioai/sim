@@ -98,7 +98,8 @@ async function createController(
       user: 'U123',
       user_team_id: 'T123',
     },
-  }
+  },
+  abortSignal?: AbortSignal
 ) {
   const loggingSession = createLoggingSession()
   const controller = await SlackExecutionStreamController.create({
@@ -110,6 +111,7 @@ async function createController(
     triggerInput,
     config,
     loggingSession: loggingSession as never,
+    abortSignal,
   })
   return { controller, loggingSession }
 }
@@ -124,6 +126,189 @@ describe('SlackExecutionStreamController', () => {
     mockStartSlackAgentStream.mockResolvedValue({
       channel: 'C123',
       ts: '1700000001.000002',
+    })
+  })
+
+  describe('custom block public fields', () => {
+    const config: SlackStreamResponseConfig = {
+      ...BASE_CONFIG,
+      outputConfigs: [
+        { blockId: 'custom', path: 'answer' },
+        { blockId: 'custom', path: 'summary' },
+      ],
+    }
+    const completion = {
+      output: { success: true, answer: 'Live answer', summary: 'Final summary' },
+      executionTime: 10,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      endedAt: '2026-01-01T00:00:00.010Z',
+      executionOrder: 4,
+      childWorkflowInstanceId: 'custom-invocation',
+    }
+
+    it('waits for custom completion, then sends other selected fields without duplicating the answer', async () => {
+      const { controller } = await createController(config)
+      await controller.callbacks.onStream?.({
+        blockId: 'custom',
+        outputPath: 'answer',
+        streamId: 'answer-stream',
+        childWorkflowInstanceId: 'custom-invocation',
+        executionOrder: 4,
+        stream: createByteStream('Live answer'),
+        streamFormat: 'text',
+        execution: { success: true, output: {} },
+      })
+      expect(mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])).toContainEqual({
+        type: 'markdown_text',
+        text: 'Live answer',
+      })
+      expect(mockStopSlackAgentStream).not.toHaveBeenCalled()
+
+      await controller.callbacks.onBlockComplete?.(
+        'custom',
+        'Published block',
+        'custom_block_abc',
+        completion
+      )
+      const chunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
+      expect(chunks.filter((chunk) => chunk.type === 'markdown_text')).toEqual([
+        { type: 'markdown_text', text: 'Live answer' },
+        { type: 'markdown_text', text: 'Final summary' },
+      ])
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(2)
+      controller.assertSucceeded()
+    })
+
+    it('keeps repeated source streams and custom invocations separate', async () => {
+      const { controller } = await createController(config)
+      for (const instance of ['first', 'second']) {
+        for (const iteration of [1, 2]) {
+          await controller.callbacks.onStream?.({
+            blockId: 'custom',
+            outputPath: 'answer',
+            streamId: `${instance}-${iteration}`,
+            childWorkflowInstanceId: instance,
+            executionOrder: 4,
+            stream: createByteStream(`${instance} ${iteration}`),
+            execution: { success: true, output: {} },
+          })
+        }
+        await controller.callbacks.onBlockComplete?.(
+          'custom',
+          'Published block',
+          'custom_block_abc',
+          { ...completion, childWorkflowInstanceId: instance }
+        )
+      }
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(6)
+      const taskIds = mockStartSlackAgentStream.mock.calls.map((call) => call[2][0].id)
+      expect(new Set(taskIds).size).toBe(6)
+      controller.assertSucceeded()
+    })
+
+    it('marks streamed output as failed if the custom block fails after the source ends', async () => {
+      const { controller } = await createController(config)
+      await controller.callbacks.onStream?.({
+        blockId: 'custom',
+        outputPath: 'answer',
+        streamId: 'answer-stream',
+        childWorkflowInstanceId: 'custom-invocation',
+        executionOrder: 4,
+        stream: createByteStream('Partial answer'),
+        execution: { success: true, output: {} },
+      })
+      await controller.finalize({ success: false, output: {}, error: 'Custom block failed' })
+      const tasks = mockAppendSlackAgentStream.mock.calls
+        .flatMap((call) => call[3])
+        .filter((chunk) => chunk.type === 'task_update')
+      expect(tasks.map((task) => task.status)).toEqual(['error'])
+      expect(mockStopSlackAgentStream).toHaveBeenCalledOnce()
+    })
+
+    it('settles an error-port completion as failed even without a success flag', async () => {
+      const { controller } = await createController(config)
+      await controller.callbacks.onStream?.({
+        blockId: 'custom',
+        outputPath: 'answer',
+        streamId: 'answer-stream',
+        childWorkflowInstanceId: 'custom-invocation',
+        executionOrder: 4,
+        stream: createByteStream('Partial answer'),
+        execution: { success: true, output: {} },
+      })
+      await controller.callbacks.onBlockComplete?.(
+        'custom',
+        'Published block',
+        'custom_block_abc',
+        {
+          ...completion,
+          output: { error: 'Custom block execution failed', errorType: 'execution_failed' },
+        }
+      )
+      const tasks = mockAppendSlackAgentStream.mock.calls
+        .flatMap((call) => call[3])
+        .filter((chunk) => chunk.type === 'task_update')
+      expect(tasks.map((task) => task.status)).toEqual(['error'])
+      expect(mockStopSlackAgentStream).toHaveBeenCalledOnce()
+    })
+
+    it('closes a partial message after a delivery failure while still reporting the failure', async () => {
+      const { controller } = await createController(config)
+      mockAppendSlackAgentStream.mockRejectedValueOnce(new Error('Slack unavailable'))
+      await expect(
+        controller.callbacks.onStream?.({
+          blockId: 'custom',
+          outputPath: 'answer',
+          streamId: 'answer-stream',
+          childWorkflowInstanceId: 'custom-invocation',
+          executionOrder: 4,
+          stream: createByteStream('Partial answer'),
+          execution: { success: true, output: {} },
+        })
+      ).rejects.toThrow('Slack unavailable')
+      await controller.finalize({ success: false, output: {} })
+      expect(mockStopSlackAgentStream).toHaveBeenCalledOnce()
+      expect(() => controller.assertSucceeded()).toThrow('Slack unavailable')
+    })
+
+    it('closes an already streamed message when the parent run is cancelled', async () => {
+      const abortController = new AbortController()
+      const { controller } = await createController(config, undefined, abortController.signal)
+      await controller.callbacks.onStream?.({
+        blockId: 'custom',
+        outputPath: 'answer',
+        streamId: 'answer-stream',
+        childWorkflowInstanceId: 'custom-invocation',
+        executionOrder: 4,
+        stream: createByteStream('Partial answer'),
+        execution: { success: true, output: {} },
+      })
+      abortController.abort()
+      await controller.finalize({ success: false, status: 'cancelled', output: {} })
+      expect(mockStopSlackAgentStream).toHaveBeenCalledWith(
+        'xoxb-token',
+        'C123',
+        '1700000001.000002',
+        'processing',
+        undefined
+      )
+      controller.assertSucceeded()
+    })
+
+    it('rejects an unselected public field before opening a Slack message', async () => {
+      const { controller } = await createController(config)
+      await expect(
+        controller.callbacks.onStream?.({
+          blockId: 'custom',
+          outputPath: 'private',
+          streamId: 'answer-stream',
+          childWorkflowInstanceId: 'custom-invocation',
+          executionOrder: 4,
+          stream: createByteStream('Hidden'),
+          execution: { success: true, output: {} },
+        })
+      ).rejects.toThrow('unselected Slack output')
+      expect(mockStartSlackAgentStream).not.toHaveBeenCalled()
     })
   })
 

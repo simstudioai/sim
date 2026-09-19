@@ -58,6 +58,34 @@ describe('custom block entitlement', () => {
   })
 })
 
+describe('custom block streaming publication', () => {
+  const exposedOutputs = [{ blockId: 'agent', path: 'content', name: 'answer', streaming: true }]
+
+  it('rejects a streaming source that the active deployment cannot stream', async () => {
+    queueTableRows(schemaMock.workflow, [{ id: 'wf-1', workspaceId: 'ws-1', isDeployed: true }])
+    loadDeployedWorkflowState.mockResolvedValue({ blocks: { agent: { type: 'api' } } })
+    await expect(publishCustomBlock({ ...publishParams, exposedOutputs })).rejects.toThrow(
+      CustomBlockValidationError
+    )
+    expect(loadDeployedWorkflowState).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('validates updates against the canonical published workflow', async () => {
+    queueTableRows(schemaMock.customBlock, [{ workflowId: 'source-workflow' }])
+    loadDeployedWorkflowState.mockResolvedValue({ blocks: { agent: { type: 'agent' } } })
+    await expect(updateCustomBlock('published-block', { exposedOutputs })).resolves.toBeUndefined()
+    expect(loadDeployedWorkflowState).toHaveBeenCalledWith('source-workflow')
+  })
+
+  it('rejects a stale streaming mapping on update', async () => {
+    queueTableRows(schemaMock.customBlock, [{ workflowId: 'source-workflow' }])
+    loadDeployedWorkflowState.mockResolvedValue({ blocks: {} })
+    await expect(updateCustomBlock('published-block', { exposedOutputs })).rejects.toThrow(
+      CustomBlockValidationError
+    )
+  })
+})
+
 describe('custom block input hydration', () => {
   it('passes the joined source workspace to deployed-state loading', async () => {
     const block = {

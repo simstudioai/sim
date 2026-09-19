@@ -605,7 +605,12 @@ export async function executeWorkflowService(
               runFromBlock,
               onStream,
               onBlockComplete: (blockId, data) =>
-                onBlockComplete(blockId, data.output, data.outputBlockId),
+                onBlockComplete(
+                  blockId,
+                  data.output,
+                  data.outputBlockId,
+                  data.childWorkflowInstanceId
+                ),
               skipLoggingComplete: true,
               includeFileBase64,
               base64MaxBytes,

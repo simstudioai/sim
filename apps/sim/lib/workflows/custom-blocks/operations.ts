@@ -7,6 +7,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
@@ -18,10 +19,27 @@ import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/wor
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-config'
-import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
+import {
+  assertCustomBlockStreamingOutputs,
+  CUSTOM_BLOCK_TYPE_PREFIX,
+  isReservedOutputName,
+} from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
 const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10
+
+async function validateStreamingOutputs(
+  workflowId: string,
+  outputs: readonly CustomBlockOutput[]
+): Promise<void> {
+  if (!outputs.some((output) => output.streaming)) return
+  const deployed = await loadDeployedWorkflowState(workflowId)
+  try {
+    assertCustomBlockStreamingOutputs(outputs, deployed.blocks)
+  } catch (error) {
+    throw new CustomBlockValidationError(getErrorMessage(error))
+  }
+}
 
 /** Whether the deployment permits Custom Blocks surfaces independent of an organization's plan. */
 export function isCustomBlocksDeploymentEnabled(): boolean {
@@ -509,6 +527,8 @@ export async function publishCustomBlock(params: {
     throw new CustomBlockValidationError('You can only publish a workflow from its own workspace')
   }
 
+  await validateStreamingOutputs(workflowId, exposedOutputs)
+
   const id = generateId()
   const type = `${CUSTOM_BLOCK_TYPE_PREFIX}${generateShortId(10).toLowerCase()}`
   const now = new Date()
@@ -607,6 +627,15 @@ export async function updateCustomBlock(
   if (updates.exposedOutputs !== undefined) {
     assertNoReservedOutputNames(updates.exposedOutputs)
     assertCuratedOutputs(updates.exposedOutputs)
+    if (updates.exposedOutputs.some((output) => output.streaming)) {
+      const [published] = await db
+        .select({ workflowId: customBlock.workflowId })
+        .from(customBlock)
+        .where(eq(customBlock.id, id))
+        .limit(1)
+      if (!published) throw new CustomBlockValidationError('Custom block not found')
+      await validateStreamingOutputs(published.workflowId, updates.exposedOutputs)
+    }
   }
   const patch: Partial<typeof customBlock.$inferInsert> = { updatedAt: new Date() }
   if (updates.name !== undefined) patch.name = updates.name
