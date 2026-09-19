@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
+import { toolResultForModel } from '@/lib/copilot/chat/sim-key-redaction'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -243,9 +244,17 @@ export const POST = withRouteHandler((request: NextRequest) =>
             })
           })
         }
+        /**
+         * The response IS the model-facing channel on this lane — Go relays it straight into
+         * the turn — so it carries the same projection the resume lane's
+         * `getToolCallTerminalData` produces, not the raw handler output. Without this,
+         * `generate_api_key`'s freshly minted plaintext key crossed to the model here while
+         * the redaction held on the other lane. Every other tool is returned unchanged.
+         */
+        const modelOutput = toolResultForModel(toolName, projected.output)
         return NextResponse.json({
           success: projected.success,
-          ...(projected.output !== undefined ? { output: projected.output } : {}),
+          ...(modelOutput !== undefined ? { output: modelOutput } : {}),
           ...(projected.error ? { error: projected.error } : {}),
         })
       } catch (err) {
