@@ -68,6 +68,7 @@ export async function executeMemberSyncJob(payload: unknown) {
       unchanged: result.docsUnchanged,
       failed: result.docsFailed,
       observationsAdded: result.observationsAdded,
+      observationsRenewed: result.observationsRenewed,
       observationsRemoved: result.observationsRemoved,
       tombstoned: result.docsTombstoned,
       resurrected: result.docsResurrected,

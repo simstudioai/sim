@@ -6261,6 +6261,8 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
     docsHydratedOnce: integer('docs_hydrated_once').notNull().default(0),
     observationsAdded: integer('observations_added').notNull().default(0),
+    /** Observations kept fresh by per-container renewal rather than relisting. */
+    observationsRenewed: integer('observations_renewed').notNull().default(0),
     observationsRemoved: integer('observations_removed').notNull().default(0),
     docsTombstoned: integer('docs_tombstoned').notNull().default(0),
     docsResurrected: integer('docs_resurrected').notNull().default(0),

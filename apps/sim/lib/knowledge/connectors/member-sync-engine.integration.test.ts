@@ -71,6 +71,7 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   persistSkippedDocuments: vi.fn(async () => []),
   persistSourceDocumentFailures: mocks.persistFailures,
   persistHashOnlyUpdates: vi.fn(async () => []),
+  resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   isTriggerAvailable: () => true,
@@ -117,6 +118,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   loadScopedAccountsCredentialListContext,
@@ -126,7 +128,10 @@ import {
   listingFingerprint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+  SOURCE_CONTENT_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 
 const serviceDocument: ExternalDocument = {
   externalId: 'file-shared',
@@ -858,21 +863,57 @@ describe('member engine with a dedicated content credential', () => {
       scopeRenewalCursor: null,
       scopeRenewalStartedAt: null,
     })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 3 })
+    )
   })
 
-  it('renews every page of scopes before recording the renewal', async () => {
+  it('records renewed observations on the log of a deferred run', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
+    mocks.list.mockRejectedValue(new ProviderCapacityDeferredError('admission_unavailable'))
+    expect((await run()).deferred).toBeDefined()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 2 })
+    )
+  })
+
+  it('gathers scope pages into one pass over the stale observations', async () => {
     const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
     mocks.scopes
       .mockResolvedValueOnce({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
       .mockResolvedValueOnce({ prefixes: ['source:container-b:'] })
     mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
-    expect((await run()).observationsRenewed).toBe(4)
+    expect((await run()).observationsRenewed).toBe(2)
     expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual([undefined, 'page-2'])
     expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes)).toEqual([
-      ['source:container-a:'],
-      ['source:container-b:'],
+      ['source:container-a:', 'source:container-b:'],
     ])
     expect(scopeRenewal()).toMatchObject({ scopeRenewedAt: expect.any(Date) })
+  })
+
+  it('renews a full batch of scopes before reading more, and resumes an unfinished batch', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    const fullBatch = Array.from(
+      { length: MEMBER_SCOPE_RENEWAL_PREFIX_BATCH },
+      (_, index) => `source:container-${index}:`
+    )
+    mocks.scopes
+      .mockResolvedValueOnce({ prefixes: fullBatch, nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prefixes: ['source:container-last:'] })
+    mocks.renew
+      .mockResolvedValueOnce({ renewed: 5, finished: true })
+      .mockResolvedValueOnce({ renewed: 1, finished: false })
+    expect((await run()).observationsRenewed).toBe(6)
+    expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes.length)).toEqual([
+      MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+      1,
+    ])
+    expect(scopeRenewal()).toEqual({
+      scopeRenewalCursor: 'page-2',
+      scopeRenewalStartedAt: expect.any(Date),
+    })
   })
 
   it('does not renew again while the last renewal is recent', async () => {
@@ -894,7 +935,7 @@ describe('member engine with a dedicated content credential', () => {
       contentFresh: true,
       scopeRenewal: { cursor: 'page-7', startedAt: new Date('2026-09-01T00:00:00Z') },
     })
-    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], nextCursor: 'page-8' })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
     mocks.renew.mockResolvedValue({ renewed: 1000, finished: false })
     expect((await run()).observationsRenewed).toBe(1000)
     expect(mocks.scopes.mock.calls[0]?.[2]).toBe('page-7')
@@ -921,6 +962,16 @@ describe('member engine with a dedicated content credential', () => {
       scopeRenewalCursor: null,
       scopeRenewalStartedAt: null,
     })
+  })
+
+  it('stops a scope listing whose cursor does not advance', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.scopes).toHaveBeenCalledTimes(2)
+    expect(mocks.renew).not.toHaveBeenCalled()
+    expect(mocks.observe).toHaveBeenCalled()
   })
 
   it('restarts a pass whose stored cursor expired', async () => {

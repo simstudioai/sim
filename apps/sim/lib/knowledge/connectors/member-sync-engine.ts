@@ -76,6 +76,7 @@ import {
   MEMBER_FULL_RECRAWL_MINUTES,
   MEMBER_SCOPE_RENEW_AFTER_MS,
   MEMBER_SCOPE_RENEWAL_BUDGET_MS,
+  MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
@@ -1039,6 +1040,9 @@ async function renewMemberAccessScopes(input: {
   /** A resumed pass keeps its start, so the watermark never claims more than the whole pass renewed. */
   const passStartedAt = member.scopeRenewalStartedAt ?? now
   let cursor = member.scopeRenewalCursor ?? undefined
+  /** Where the prefixes not yet renewed were read from; an unfinished pass resumes there. */
+  let batchCursor = cursor
+  let pending: string[] = []
   let restartedExpiredCursor = false
   let scopes = 0
   let renewed = 0
@@ -1068,23 +1072,30 @@ async function renewMemberAccessScopes(input: {
         )
           throw error
         cursor = undefined
+        batchCursor = undefined
+        pending = []
         restartedExpiredCursor = true
         continue
       }
+      if (page.nextCursor && page.nextCursor === cursor)
+        throw new Error('Access scope pagination did not advance')
       scopes += page.prefixes.length
+      pending.push(...page.prefixes)
+      cursor = page.nextCursor
+      if (cursor && pending.length < MEMBER_SCOPE_RENEWAL_PREFIX_BATCH) continue
       const renewal = await renewMemberObservationsInScopes({
         connectorId: run.connectorId,
         memberId: member.id,
-        scopePrefixes: page.prefixes,
+        scopePrefixes: pending,
         renewBefore,
         deadlineAt,
         beforeBatch: run.lease.beatIfDue,
         withLease: (fn) => withMemberLease(run, fn),
       })
       renewed += renewal.renewed
-      /** An unfinished page is read again next time, from the cursor that produced it. */
       if (!renewal.finished) break
-      cursor = page.nextCursor
+      pending = []
+      batchCursor = cursor
       if (!cursor) {
         finished = true
         await saveProgress({
@@ -1097,7 +1108,7 @@ async function renewMemberAccessScopes(input: {
     }
     if (!finished)
       await saveProgress({
-        scopeRenewalCursor: cursor ?? null,
+        scopeRenewalCursor: batchCursor ?? null,
         scopeRenewalStartedAt: passStartedAt,
       })
   } catch (error) {
@@ -1626,6 +1637,7 @@ async function completeMemberSync(
         docsUnchanged: result.docsUnchanged,
         docsHydratedOnce: result.docsHydratedOnce,
         observationsAdded: result.observationsAdded,
+        observationsRenewed: result.observationsRenewed,
         observationsRemoved: result.observationsRemoved,
         docsTombstoned: result.docsTombstoned,
         docsResurrected: result.docsResurrected,
@@ -1679,6 +1691,7 @@ async function failMemberSyncLog(runId: string, result: MemberSyncResult, errorM
       docsUnchanged: result.docsUnchanged,
       docsHydratedOnce: result.docsHydratedOnce,
       observationsAdded: result.observationsAdded,
+      observationsRenewed: result.observationsRenewed,
       observationsRemoved: result.observationsRemoved,
       docsTombstoned: result.docsTombstoned,
       docsResurrected: result.docsResurrected,

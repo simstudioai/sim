@@ -731,6 +731,35 @@ describe('persistHashOnlyUpdates', () => {
     ).toEqual({ type: 'update', existingId: 'doc-1' })
   })
 
+  it('writes refreshed source metadata alongside an equivalent content hash', async () => {
+    const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+    const sourceModifiedAt = new Date('2026-09-08T12:00:00Z')
+
+    await persistHashOnlyUpdates(
+      'kb-1',
+      'connector-1',
+      [
+        {
+          existingId: 'doc-1',
+          externalId: 'thread-1',
+          contentHash: 'slack-thread:v5:version:text',
+          sourceMetadata: { sourceUrl: null, sourceModifiedAt, date1: sourceModifiedAt },
+        },
+      ],
+      lease
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      contentHash: 'slack-thread:v5:version:text',
+      sourceUrl: null,
+      sourceModifiedAt,
+      date1: sourceModifiedAt,
+    })
+  })
+
   it('commits live retry hashes when another document is no longer a connector target', async () => {
     const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])

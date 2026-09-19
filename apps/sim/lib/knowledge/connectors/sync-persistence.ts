@@ -435,16 +435,41 @@ export async function persistSkippedDocuments(
   return persisted
 }
 
+/** Source-derived fields that can change without the indexed text changing. */
+export type SourceMetadataFields = Partial<DocumentTags> & {
+  sourceUrl: string | null
+  sourceModifiedAt: Date | null
+}
+
+/** The source-derived fields a refreshed document carries, as a full update writes them. */
+export function resolveSourceMetadataFields(
+  connectorType: string,
+  extDoc: Pick<ExternalDocument, 'sourceUrl' | 'metadata'>,
+  sourceConfig: Record<string, unknown>
+): SourceMetadataFields {
+  return {
+    sourceUrl: extDoc.sourceUrl ?? null,
+    sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+    ...(extDoc.metadata ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig) : {}),
+  }
+}
+
 /**
  * Persists only a new hash for existing documents, leaving indexed content and
  * processing state as they are: a connector-owned retry hash for a skipped
  * refresh, so unchanged listing metadata still re-enters hydration, or the
- * current hash of content that hydration found unchanged under an older one.
+ * current hash of content that hydration found unchanged under an older one,
+ * together with that hydration's source metadata, which can move on its own.
  */
 export async function persistHashOnlyUpdates(
   knowledgeBaseId: string,
   connectorId: string,
-  updates: Array<{ existingId: string; externalId: string; contentHash: string }>,
+  updates: Array<{
+    existingId: string
+    externalId: string
+    contentHash: string
+    sourceMetadata?: SourceMetadataFields
+  }>,
   lease: SyncWriteLease
 ): Promise<string[]> {
   if (updates.length === 0) return []
@@ -461,7 +486,7 @@ export async function persistHashOnlyUpdates(
     for (const update of updates) {
       const persisted = await tx
         .update(document)
-        .set({ contentHash: update.contentHash })
+        .set({ contentHash: update.contentHash, ...update.sourceMetadata })
         .where(connectorDocumentSyncTarget(update.existingId, knowledgeBaseId, connectorId))
         .returning({ id: document.id })
       if (persisted.length === 0) {

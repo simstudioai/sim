@@ -85,6 +85,13 @@ export const MEMBER_SCOPE_RENEW_AFTER_MS = SOURCE_ACL_MAX_AGE_MS / 2
 /** How much of a run one member's scope renewal may use before its listing starts. */
 export const MEMBER_SCOPE_RENEWAL_BUDGET_MS = 10 * 60 * 1000
 
+/**
+ * Container prefixes gathered from the source before one pass over the member's stale
+ * observations renews them, so that pass runs once per this many containers rather than
+ * once per source page.
+ */
+export const MEMBER_SCOPE_RENEWAL_PREFIX_BATCH = 5000
+
 /** Pages applied per member before its durable feed cursor is saved for continuation. */
 export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 25
 

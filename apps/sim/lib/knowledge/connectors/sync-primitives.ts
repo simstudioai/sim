@@ -25,6 +25,8 @@ import {
   type KnowledgeBaseOwner,
   persistHashOnlyUpdates,
   persistSkippedDocuments,
+  resolveSourceMetadataFields,
+  type SourceMetadataFields,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
@@ -1088,6 +1090,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         existingId: string
         externalId: string
         contentHash: string
+        sourceMetadata?: SourceMetadataFields
       }> = []
 
       const contentOps = rawBatch.filter((op) => op.type !== 'skip')
@@ -1166,6 +1169,11 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
                   existingId: op.existingId,
                   externalId: op.extDoc.externalId,
                   contentHash: hydratedHash,
+                  sourceMetadata: resolveSourceMetadataFields(
+                    connector.connectorType,
+                    mergeHydratedDocument(op.extDoc, fullDoc, hydratedHash),
+                    sourceConfig
+                  ),
                 })
               }
               result.docsUnchanged++

@@ -9,6 +9,13 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   triggerAvailable: vi.fn(),
   persistHashes: vi.fn(),
+  sourceMetadata: vi.fn(
+    (_connectorType: string, doc: Pick<ExternalDocument, 'sourceUrl' | 'metadata'>) => ({
+      sourceUrl: doc.sourceUrl ?? null,
+      sourceModifiedAt: null,
+      date1: doc.metadata?.lastActivity,
+    })
+  ),
   dispatch: vi.fn<(documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>>(),
 }))
 
@@ -17,6 +24,7 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   updateDocument: mocks.update,
   persistSkippedDocuments: vi.fn(),
   persistHashOnlyUpdates: mocks.persistHashes,
+  resolveSourceMetadataFields: mocks.sourceMetadata,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   isTriggerAvailable: mocks.triggerAvailable,
@@ -250,13 +258,15 @@ describe('processDocOps unchanged content under a new hash', () => {
     input.hydration.getDocument = vi.fn(async () => ({
       ...sourceDocument('thread'),
       contentHash: hydratedHash,
+      sourceUrl: 'https://source.fixture.test/thread',
+      metadata: { lastActivity: '2026-09-08T12:00:00.000Z' },
     }))
     input.matchContentHash = (candidate, stored) =>
       candidate.split(':').at(-1) === stored.split(':').at(-1) ? 'equivalent' : 'stale'
     return input
   }
 
-  it('advances only the stored hash when the connector finds the same text', async () => {
+  it('advances the stored hash and source metadata when the connector finds the same text', async () => {
     const input = refreshOf('legacy:text-a', 'version:2:text-a')
     await expect(processDocOps(input)).resolves.toBe(true)
     expect(mocks.update).not.toHaveBeenCalled()
@@ -265,7 +275,18 @@ describe('processDocOps unchanged content under a new hash', () => {
     expect(mocks.persistHashes).toHaveBeenCalledWith(
       'knowledge-base',
       'connector',
-      [{ existingId: 'document', externalId: 'thread', contentHash: 'version:2:text-a' }],
+      [
+        {
+          existingId: 'document',
+          externalId: 'thread',
+          contentHash: 'version:2:text-a',
+          sourceMetadata: {
+            sourceUrl: 'https://source.fixture.test/thread',
+            sourceModifiedAt: null,
+            date1: '2026-09-08T12:00:00.000Z',
+          },
+        },
+      ],
       input.lease
     )
   })
