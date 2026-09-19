@@ -18,6 +18,7 @@ import {
   bindConversationRequestContext,
   getConversationBinding,
 } from '@/providers/conversation-history'
+import { isConversationHistoryNotice } from '@/providers/conversation-metadata'
 import { createAgentConversationCompactor } from '@/providers/conversation-summary'
 import {
   applyModelCostPolicy,
@@ -345,7 +346,7 @@ export async function executeProviderRequest(
       await continuePendingConversationCalls(modelSafeRequest, session)
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
-        .find((message) => message.role === 'user')
+        .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
       priorConversationUsage = session.getUsage()
       bindConversationGenerationCompactor(

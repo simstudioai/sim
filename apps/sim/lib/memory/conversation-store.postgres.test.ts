@@ -756,6 +756,39 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     }
   )
 
+  it.each([false, true])(
+    'rejects an oversized API append to legacy storage without committing (existing: %s)',
+    async (existing) => {
+      if (existing) await writeLegacyPrefix()
+      const before =
+        await connection!`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
+      await expect(
+        appendMemoryUseCase.execute({
+          principal: principal(),
+          input: {
+            workspaceId: identity.workspaceId,
+            key: identity.conversationId,
+            data: { role: 'user', content: 'x'.repeat(1024 * 1024) },
+            writeProvenance: provenance,
+          },
+        })
+      ).rejects.toMatchObject({ code: 'payload_too_large' })
+      expect(
+        await connection!`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
+      ).toEqual(before)
+      expect(await connection!`SELECT id FROM memory_item`).toEqual([])
+      if (existing)
+        expect(
+          (
+            await connection!`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+          )[0]
+        ).toEqual({
+          content_hash: hashDurableSecretProvenanceValue(prefix),
+          status: 'exact',
+        })
+    }
+  )
+
   it('rejects an oversized compatibility append before writing any new message rows', async () => {
     const turn = await openAgentMemoryTurn(identity)
     await expect(

@@ -5,6 +5,7 @@ import type {
 import type { Message } from '@/providers/types'
 
 const messageSources = new WeakMap<object, object>()
+const historyNotices = new WeakSet<object>()
 
 const nativeMessages = new WeakMap<object, NativeConversationMessage>()
 const encryptedMessages = new WeakMap<object, string>()
@@ -17,6 +18,15 @@ export function getConversationMessageSource(message: object): object {
 export function retainConversationMessageSource<T extends object>(source: object, target: T): T {
   messageSources.set(target, getConversationMessageSource(source))
   return target
+}
+
+/** Runtime history availability notices are context, never the user's current input. */
+export function markConversationHistoryNotice(message: object): void {
+  historyNotices.add(getConversationMessageSource(message))
+}
+
+export function isConversationHistoryNotice(message: object): boolean {
+  return historyNotices.has(getConversationMessageSource(message))
 }
 
 export function setEncryptedConversationMessage(message: object, encrypted: string): void {

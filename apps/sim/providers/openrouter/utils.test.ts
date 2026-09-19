@@ -88,17 +88,60 @@ describe('OpenRouter model capabilities', () => {
     expect(timeoutSpy).toHaveBeenCalledExactlyOnceWith(5000)
   })
 
-  it('propagates cancellation during metadata retrieval', async () => {
+  it('shares a cold load without letting one cancelled caller abort other callers', async () => {
     const controller = new AbortController()
+    let complete!: (response: unknown) => void
     fetchMock.mockImplementation(
-      (_url, { signal }: { signal: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      () =>
+        new Promise((resolve) => {
+          complete = resolve
         })
     )
     const { getOpenRouterModelCapabilities } = await import('@/providers/openrouter/utils')
     const pending = getOpenRouterModelCapabilities('custom/model', controller.signal)
+    const other = getOpenRouterModelCapabilities('custom/model')
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false)
+    complete({
+      ok: true,
+      json: async () => ({ data: [{ id: 'custom/model', context_length: 8192 }] }),
+    })
+    await expect(other).resolves.toMatchObject({ contextWindow: 8192 })
+  })
+
+  it('serves stale capabilities immediately and retains them if the shared refresh fails', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: [{ id: 'custom/model', context_length: 8192 }] }),
+    })
+    const { getOpenRouterModelCapabilities } = await import('@/providers/openrouter/utils')
+    await expect(getOpenRouterModelCapabilities('custom/model')).resolves.toMatchObject({
+      contextWindow: 8192,
+    })
+    clock.mockReturnValue(400_000)
+    let rejectRefresh!: (error: Error) => void
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRefresh = reject
+        })
+    )
+    await expect(getOpenRouterModelCapabilities('custom/model')).resolves.toMatchObject({
+      contextWindow: 8192,
+    })
+    await expect(getOpenRouterModelCapabilities('custom/model')).resolves.toMatchObject({
+      contextWindow: 8192,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    rejectRefresh(new Error('catalog unavailable'))
+    await vi.waitFor(async () => {
+      expect(await getOpenRouterModelCapabilities('custom/model')).toMatchObject({
+        contextWindow: 8192,
+      })
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

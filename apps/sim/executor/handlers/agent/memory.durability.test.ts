@@ -26,6 +26,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { ExecutionContext } from '@/executor/types'
+import { isConversationHistoryNotice } from '@/providers/conversation-metadata'
 
 const ctx = { workspaceId: 'workspace-1' } as ExecutionContext
 const inputs = { memoryType: 'conversation' as const, conversationId: 'conversation-1' }
@@ -205,8 +206,12 @@ describe('optional Agent memory durability failures', () => {
     const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
       richHistory: true,
     })
-    expect(result).toHaveLength(9)
+    expect(result).toHaveLength(10)
     expect(result.filter((message) => message.role === 'tool')).toHaveLength(4)
+    expect(isConversationHistoryNotice(result.at(-1)!)).toBe(true)
+    expect(result.at(-1)!.content!.length).toBeLessThan(512)
+    expect(result.at(-1)!.content).toContain('agent_memory_read')
+    expect(mocks.append).not.toHaveBeenCalled()
   })
 
   it('bounds scanning when stored items are malformed or excluded', async () => {
@@ -214,6 +219,94 @@ describe('optional Agent memory durability failures', () => {
       items: Array.from({ length: 10 }, () => ({ kind: 'exchange', data: {} })),
       nextBeforeSequence: 1,
     })
+    const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
+      richHistory: true,
+    })
+    expect(result.slice(0, -1)).toEqual(prefix)
+    expect(isConversationHistoryNotice(result.at(-1)!)).toBe(true)
+    expect(mocks.items).toHaveBeenCalledTimes(100)
+  })
+
+  it('does not mistake an oversized page head for the end of retained history', async () => {
+    mocks.items.mockResolvedValue({
+      items: [],
+      unavailableSequence: 10,
+      nextBeforeSequence: 10,
+    })
+    const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
+      richHistory: true,
+    })
+    expect(result).toContainEqual(prefix[0])
+    expect(isConversationHistoryNotice(result.at(-1)!)).toBe(true)
+    expect(mocks.items).toHaveBeenCalledExactlyOnceWith({
+      principal: { kind: 'delegated' },
+      input: {
+        memoryId: options.memoryId,
+        workspaceId: ctx.workspaceId,
+        beforeSequence: undefined,
+        limit: 10,
+        continueAfterByteLimit: true,
+      },
+    })
+  })
+
+  it('keeps the full configured message window before adding the runtime notice', async () => {
+    const recent = { role: 'assistant', content: 'newest answer' }
+    mocks.items
+      .mockResolvedValueOnce({
+        items: [
+          {
+            kind: 'message',
+            appendKey: 'recent',
+            data: recent,
+            provenance: { status: 'exact', entries: [] },
+          },
+        ],
+        nextBeforeSequence: 10,
+      })
+      .mockResolvedValueOnce({ items: [], unavailableSequence: 9, nextBeforeSequence: 9 })
+    const result = await new Memory().fetchMemoryMessages(
+      ctx,
+      { ...inputs, memoryType: 'sliding_window', slidingWindowSize: '1' },
+      undefined,
+      { richHistory: true }
+    )
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual(recent)
+    expect(isConversationHistoryNotice(result[1])).toBe(true)
+    expect(mocks.append).not.toHaveBeenCalled()
+  })
+
+  it('still refuses unsafe retained provenance before returning a truncated history notice', async () => {
+    mocks.items
+      .mockResolvedValueOnce({
+        items: [
+          {
+            kind: 'message',
+            appendKey: 'unsafe',
+            data: { role: 'assistant', content: 'protected result' },
+            provenance: { status: 'unknown' },
+          },
+        ],
+        nextBeforeSequence: 10,
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        unavailableSequence: 9,
+        nextBeforeSequence: 9,
+      })
+    await expect(
+      new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
+    ).rejects.toThrow('Memory content could not be safely projected')
+    expect(mocks.items).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not report truncation when the last page ends at exactly the scan limit', async () => {
+    let pages = 0
+    mocks.items.mockImplementation(async () => ({
+      items: Array.from({ length: 10 }, () => ({ kind: 'exchange', data: {} })),
+      nextBeforeSequence: ++pages < 100 ? 1000 - pages * 10 : undefined,
+    }))
     await expect(
       new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
     ).resolves.toEqual(prefix)

@@ -10,7 +10,10 @@ import {
   inheritConversationGenerationContext,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
-import { retainConversationMessageSource } from '@/providers/conversation-metadata'
+import {
+  markConversationHistoryNotice,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { ProviderRequest } from '@/providers/types'
 
 const state = vi.hoisted(() => ({ enabled: true, historyTokens: 0 }))
@@ -228,6 +231,28 @@ describe('provider generation context boundary', () => {
       prepareConversationGeneration(request(), fixture.protocol, payload)
     ).rejects.toThrow('without its complete assistant call batch')
   })
+
+  it.each(fixtures)(
+    'retains a runtime notice and active $protocol exchanges when required estimates exceed capacity',
+    async (fixture) => {
+      const input = request('small')
+      const notice = { role: 'user', content: 'Some retained history was omitted.' }
+      markConversationHistoryNotice(notice)
+      input.messages!.push(notice)
+      const wireNotice = retainConversationMessageSource(
+        notice,
+        nativeText(fixture, notice.content) as object
+      )
+      const optional = nativeText(fixture, 'Optional older history')
+      const tail = nativeText(fixture, 'Continue from the completed tool results')
+      const items = [fixture.prompt, ...fixture.batch, optional, wireNotice, tail]
+      const payload = { [fixture.key]: items, tools: [{ description: 'x'.repeat(4000) }] }
+      await expect(prepareConversationGeneration(input, fixture.protocol, payload)).resolves.toBe(
+        payload
+      )
+      expect(items).toEqual([fixture.prompt, ...fixture.batch, wireNotice, tail])
+    }
+  )
 
   it.each(fixtures)(
     'sends required $protocol state intact when fixed-input estimates exceed the model capacity',

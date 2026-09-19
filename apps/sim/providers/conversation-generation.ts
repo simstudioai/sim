@@ -16,7 +16,10 @@ import {
   bindConversationRequestContext,
   getConversationRequestContext,
 } from '@/providers/conversation-history'
-import { getConversationMessageSource } from '@/providers/conversation-metadata'
+import {
+  getConversationMessageSource,
+  isConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
 import { getConversationModelLimits } from '@/providers/conversation-model'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderRequest } from '@/providers/types'
@@ -292,7 +295,9 @@ export async function prepareConversationGeneration<T>(
   const context = getGenerationContext(request)
   const currentPrompt =
     context.prompt ??
-    [...(request.messages ?? [])].reverse().find((message) => message.role === 'user')
+    [...(request.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
   let promptIndex = -1
   let newestToolIndex = -1
   let prefixBoundIndex = -1
@@ -339,6 +344,7 @@ export async function prepareConversationGeneration<T>(
       summary,
       required:
         group.role === 'system' ||
+        group.items.some((item) => isRecordLike(item) && isConversationHistoryNotice(item)) ||
         index === promptIndex ||
         index === newestToolIndex ||
         (index === groups.length - 1 && !summary) ||

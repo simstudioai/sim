@@ -96,6 +96,17 @@ interface PlainMemoryWriteInput {
   provenance?: DurableSecretProvenance
 }
 
+/** Both storage versions persist the same admitted snapshot of each new history item. */
+function captureMemoryItem(value: unknown): unknown {
+  const encoded = stringifyBoundedMemoryJson(value, MAX_MEMORY_ITEM_BYTES)
+  if (encoded === undefined)
+    throw new OrchestrationError(
+      'payload_too_large',
+      'Memory item is too large or cannot be serialized'
+    )
+  return JSON.parse(encoded)
+}
+
 /** Creates a legacy conversation once; an existing prefix or durable tail is never overwritten. */
 export async function seedMemoryMessages(input: PlainMemoryWriteInput): Promise<void> {
   await db.transaction(async (tx) => {
@@ -158,6 +169,7 @@ export async function appendMemoryMessages(
       return
     }
 
+    const messages = input.messages.map(captureMemoryItem)
     let previousProvenance: DurableSecretProvenance | undefined
     if (existing && provenance) {
       const [sidecar] = await tx
@@ -179,7 +191,7 @@ export async function appendMemoryMessages(
         id: input.newMemoryId ?? generateId(),
         workspaceId: input.workspaceId,
         key: input.key,
-        data: input.messages,
+        data: messages,
         secretProvenanceVersion: provenance ? 1 : null,
         createdAt: now,
         updatedAt: now,
@@ -187,7 +199,7 @@ export async function appendMemoryMessages(
       .onConflictDoUpdate({
         target: [memory.workspaceId, memory.key],
         set: {
-          data: sql`${memory.data} || ${JSON.stringify(input.messages)}::jsonb`,
+          data: sql`${memory.data} || ${JSON.stringify(messages)}::jsonb`,
           secretProvenanceVersion: provenance ? 1 : (existing?.secretProvenanceVersion ?? null),
           updatedAt: now,
         },
@@ -311,13 +323,7 @@ async function appendConversationItemsInTx(
   const values: (typeof memoryItem.$inferInsert)[] = []
   for (const item of items) {
     if (!item.appendKey) throw new Error('Memory append identity is required')
-    const encoded = stringifyBoundedMemoryJson(item.data, MAX_MEMORY_ITEM_BYTES)
-    if (encoded === undefined)
-      throw new OrchestrationError(
-        'payload_too_large',
-        'Memory item is too large or cannot be serialized'
-      )
-    const data: unknown = JSON.parse(encoded)
+    const data = captureMemoryItem(item.data)
     const contentHash = hashDurableSecretProvenanceValue(data)
     if (!contentHash) throw new Error('Memory item cannot be serialized')
     const provenance = item.provenance

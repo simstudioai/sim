@@ -22,19 +22,16 @@ interface ModelCapabilities {
 }
 
 let modelCapabilitiesCache: Map<string, ModelCapabilities> | null = null
+let capabilitiesRefresh: Promise<void> | undefined
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const MODEL_CAPABILITIES_TIMEOUT_MS = 5000
 
-async function fetchModelCapabilities(
-  signal?: AbortSignal
-): Promise<Map<string, ModelCapabilities>> {
+async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities> | undefined> {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS)])
-        : AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS),
+      signal: AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS),
     })
 
     if (!response.ok) {
@@ -42,7 +39,7 @@ async function fetchModelCapabilities(
       logger.warn('Failed to fetch OpenRouter model capabilities', {
         status: response.status,
       })
-      return new Map()
+      return undefined
     }
 
     const data = await response.json()
@@ -70,17 +67,16 @@ async function fetchModelCapabilities(
 
     return capabilities
   } catch (error) {
-    if (signal?.aborted) throw error
     logger.error('Error fetching OpenRouter model capabilities', {
       error: toError(error).message,
     })
-    return new Map()
+    return undefined
   }
 }
 
 /**
  * Gets capabilities for a specific OpenRouter model.
- * Fetches from API if cache is stale or empty.
+ * Shares cold loads; stale entries remain usable while one bounded refresh runs.
  */
 export async function getOpenRouterModelCapabilities(
   modelId: string,
@@ -90,13 +86,30 @@ export async function getOpenRouterModelCapabilities(
   const now = Date.now()
 
   if (!modelCapabilitiesCache || now - cacheTimestamp > CACHE_TTL_MS) {
-    modelCapabilitiesCache = await fetchModelCapabilities(signal)
-    cacheTimestamp = now
+    capabilitiesRefresh ??= fetchModelCapabilities()
+      .then((capabilities) => {
+        modelCapabilitiesCache = capabilities ?? modelCapabilitiesCache ?? new Map()
+        cacheTimestamp = Date.now()
+      })
+      .finally(() => {
+        capabilitiesRefresh = undefined
+      })
+    if (!modelCapabilitiesCache) {
+      const refresh = capabilitiesRefresh
+      if (signal) {
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => reject(signal.reason)
+          signal.addEventListener('abort', abort, { once: true })
+          refresh.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+          if (signal.aborted) abort()
+        })
+      } else await refresh
+    }
   }
 
   signal?.throwIfAborted()
   const normalizedId = modelId.replace(/^openrouter\//i, '')
-  return modelCapabilitiesCache.get(normalizedId) ?? null
+  return modelCapabilitiesCache?.get(normalizedId) ?? null
 }
 
 export async function supportsNativeStructuredOutputs(modelId: string): Promise<boolean> {

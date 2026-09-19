@@ -35,6 +35,70 @@ describe('convertBedrockRequestHistory', () => {
     ).toThrow('no matching legacy function call')
   })
 
+  it.each([
+    { name: 'missing ID', result: { role: 'tool', content: 'result' } },
+    {
+      name: 'tool name used as an ID',
+      result: { role: 'tool', name: 'lookup', content: 'result' },
+    },
+    {
+      name: 'unknown ID',
+      result: { role: 'tool', tool_call_id: 'unknown', content: 'result' },
+    },
+  ] satisfies { name: string; result: Message }[])(
+    'rejects a modern result with $name instead of inventing a matching call',
+    ({ result }) => {
+      expect(() =>
+        convertBedrockRequestHistory({
+          model: 'bedrock/claude',
+          messages: [
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                { id: 'lookup', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+              ],
+            },
+            result,
+          ],
+        })
+      ).toThrow('no matching unresolved assistant tool call')
+    }
+  )
+
+  it.each([
+    { name: 'orphan', prefix: [] },
+    {
+      name: 'intervening user message',
+      prefix: [{ role: 'user', content: 'Another turn' }],
+    },
+    {
+      name: 'duplicate result',
+      prefix: [{ role: 'tool', tool_call_id: 'call-1', content: 'first result' }],
+    },
+  ] satisfies { name: string; prefix: Message[] }[])(
+    'rejects an invalid modern result: $name',
+    ({ name, prefix }) => {
+      const assistant: Message = {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+        ],
+      }
+      expect(() =>
+        convertBedrockRequestHistory({
+          model: 'bedrock/claude',
+          messages: [
+            ...(name === 'orphan' ? [] : [assistant]),
+            ...prefix,
+            { role: 'tool', tool_call_id: 'call-1', content: 'result' },
+          ],
+        })
+      ).toThrow('no matching unresolved assistant tool call')
+    }
+  )
+
   it('keeps parallel calls together and groups their results in the following user message', () => {
     const result = convertBedrockRequestHistory({
       model: 'bedrock/claude',

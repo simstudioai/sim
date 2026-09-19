@@ -7,7 +7,6 @@ import type {
 import { isRecordLike } from '@sim/utils/object'
 import { renderConversationExecutionRecord } from '@/lib/memory/execution-record'
 import { buildBedrockMessageContent } from '@/providers/attachments'
-import { generateToolUseId } from '@/providers/bedrock/utils'
 import {
   getNativeConversationMessage,
   getNativeConversationPrefixHash,
@@ -67,7 +66,7 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
     }
 
     if (message.role === 'function' || message.role === 'tool') {
-      let toolUseId = message.tool_call_id || message.name || generateToolUseId('tool')
+      let toolUseId = message.tool_call_id
       if (message.role === 'function') {
         if (!pendingLegacyCall || pendingLegacyCall.name !== message.name) {
           throw new Error('Bedrock function result has no matching legacy function call')
@@ -75,15 +74,30 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
         toolUseId = pendingLegacyCall.id
         pendingLegacyCall = undefined
       }
+      const previous = messages.at(-1)
+      const resultGroup =
+        previous?.role === 'user' &&
+        previous.content?.length &&
+        previous.content.every((item) => 'toolResult' in item)
+          ? previous
+          : undefined
+      const assistant = resultGroup ? messages.at(-2) : previous
+      if (
+        !toolUseId ||
+        assistant?.role !== 'assistant' ||
+        !assistant.content?.some((item) => item.toolUse?.toolUseId === toolUseId) ||
+        resultGroup?.content?.some((item) => item.toolResult?.toolUseId === toolUseId)
+      ) {
+        throw new Error('Bedrock tool result has no matching unresolved assistant tool call')
+      }
       const block: ContentBlock = {
         toolResult: {
           toolUseId,
           content: [{ text: message.content ?? '' }],
         },
       }
-      const previous = messages.at(-1)
-      if (previous?.role === 'user' && previous.content?.every((item) => 'toolResult' in item)) {
-        previous.content.push(block)
+      if (resultGroup?.content) {
+        resultGroup.content.push(block)
       } else {
         messages.push({ role: 'user', content: [block] })
       }

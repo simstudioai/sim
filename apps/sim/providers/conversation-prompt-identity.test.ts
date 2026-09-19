@@ -12,6 +12,8 @@ import {
 import {
   copyNativeConversationMessage,
   getConversationMessageSource,
+  isConversationHistoryNotice,
+  markConversationHistoryNotice,
 } from '@/providers/conversation-metadata'
 import { convertToGeminiFormat } from '@/providers/google/utils'
 import { buildResponsesInputFromMessages } from '@/providers/openai/utils'
@@ -68,6 +70,53 @@ const file: UserFile = {
 }
 
 describe('current prompt identity through native history conversion', () => {
+  it.each(protocols)(
+    'distinguishes notice-only $protocol context from a notice following actual input',
+    async ({ protocol, key, convert }) => {
+      for (const withPrompt of [false, true]) {
+        const prompt: Message = { role: 'user', content: 'Actual current input' }
+        const notice: Message = { role: 'user', content: 'Some retained history was omitted.' }
+        markConversationHistoryNotice(notice)
+        const source = [...(withPrompt ? [prompt] : []), notice]
+        const request: ProviderRequest = {
+          model: 'gpt-4.1-mini',
+          maxTokens: 100,
+          messages: source,
+        }
+        const messages = convert(request)
+        await expect(
+          prepareConversationGeneration(request, protocol, { [key]: messages })
+        ).resolves.toBeDefined()
+        expect(messages.map(getConversationMessageSource)).toEqual(source)
+      }
+    }
+  )
+
+  it.each(protocols)(
+    'retains a bounded runtime notice through $protocol conversion without new input',
+    async ({ protocol, key, convert }) => {
+      const notice: Message = {
+        role: 'user',
+        content: 'Some retained history was omitted. Read earlier records if needed.',
+      }
+      markConversationHistoryNotice(notice)
+      const copied = structuredClone(notice)
+      copyNativeConversationMessage(notice, copied)
+      const tail: Message = { role: 'assistant', content: 'Previous final response' }
+      const request: ProviderRequest = {
+        model: 'gpt-4.1-mini',
+        maxTokens: 100,
+        messages: [{ role: 'assistant', content: 'Optional older answer' }, copied, tail],
+      }
+      const messages = convert(request)
+      await prepareConversationGeneration(request, protocol, { [key]: messages })
+      expect(messages.map(getConversationMessageSource)).toEqual([notice, tail])
+      expect(isConversationHistoryNotice(messages[0])).toBe(true)
+      expect(isConversationHistoryNotice(structuredClone(notice))).toBe(false)
+      expect(Object.keys(copied)).toEqual(['role', 'content'])
+    }
+  )
+
   it.each(protocols)(
     'retains only the bound duplicate through $protocol conversion',
     async ({ protocol, key, convert }) => {

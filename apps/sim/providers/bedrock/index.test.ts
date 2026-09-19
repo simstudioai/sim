@@ -120,6 +120,16 @@ describe('bedrockProvider credential handling', () => {
     )
   })
 
+  it('rejects an orphan tool result before sending a memory-disabled request', async () => {
+    await expect(
+      bedrockProvider.executeRequest({
+        ...baseRequest,
+        messages: [{ role: 'tool', tool_call_id: 'orphan', content: 'result' }],
+      })
+    ).rejects.toThrow('no matching unresolved assistant tool call')
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
   it('throws when only bedrockAccessKeyId is provided', async () => {
     await expect(
       bedrockProvider.executeRequest({

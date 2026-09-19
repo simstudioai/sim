@@ -36,6 +36,8 @@ import { VariableResolver } from '@/executor/variables/resolver'
 import { executeProviderRequest } from '@/providers'
 import {
   getEncryptedConversationMessage,
+  isConversationHistoryNotice,
+  markConversationHistoryNotice,
   setEncryptedConversationMessage,
 } from '@/providers/conversation-metadata'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
@@ -363,6 +365,91 @@ describe('AgentBlockHandler', () => {
     }
 
     afterEach(() => vi.restoreAllMocks())
+
+    it('keeps a runtime history notice separate from system configuration and persisted inputs', async () => {
+      const notice: Message = { role: 'user', content: 'Some retained history was omitted.' }
+      markConversationHistoryNotice(notice)
+      const session = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      mockOpenAgentTurnSession.mockResolvedValue(session)
+      vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([notice])
+      const append = vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+      const seed = vi.spyOn(agentMemory.memoryService, 'seedMemory').mockResolvedValue()
+
+      await handler.execute(
+        { ...mockContext, executionId: 'execution-1' },
+        mockBlock,
+        { ...inputs, messages: undefined, userPrompt: undefined, systemPrompt: 'Follow my rules.' },
+        { nodeId: 'agent-node', executionOrder: 3 }
+      )
+
+      const [, request] = mockExecuteProviderRequest.mock.calls[0]
+      expect(request.messages).toEqual([{ role: 'system', content: 'Follow my rules.' }, notice])
+      expect(isConversationHistoryNotice(request.messages[1])).toBe(true)
+      expect(append).not.toHaveBeenCalled()
+      expect(seed).not.toHaveBeenCalled()
+    })
+
+    it.each([false, true])(
+      'attaches files only to an actual retained user message (available: %s)',
+      async (hasUserMessage) => {
+        const notice: Message = { role: 'user', content: 'Some retained history was omitted.' }
+        markConversationHistoryNotice(notice)
+        mockGetProviderFromModel.mockReturnValue('openai')
+        mockOpenAgentTurnSession.mockResolvedValue({
+          turnId: 'turn-1',
+          memoryId: 'memory-1',
+          finalize: vi.fn(),
+          getFinalResponse: vi.fn(),
+          getFinalAssistantContent: vi.fn(),
+        })
+        vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([
+          ...(hasUserMessage ? [{ role: 'user', content: 'Analyze this file' }] : []),
+          notice,
+        ])
+        const execution = handler.execute(
+          { ...mockContext, executionId: 'execution-1' },
+          mockBlock,
+          {
+            ...inputs,
+            messages: undefined,
+            userPrompt: undefined,
+            files: [
+              {
+                id: 'file-1',
+                key: 'workspace/ws-1/example.png',
+                name: 'example.png',
+                url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+                size: 128,
+                type: 'image/png',
+                base64: 'aW1hZ2U=',
+              },
+            ],
+          },
+          { nodeId: 'agent-node', executionOrder: 3 }
+        )
+        if (!hasUserMessage) {
+          await expect(execution).rejects.toThrow(
+            'Files require at least one user message in the agent prompt'
+          )
+          expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+          return
+        }
+        await execution
+        const [, request] = mockExecuteProviderRequest.mock.calls[0]
+        expect(request.messages[0]).toMatchObject({
+          content: 'Analyze this file',
+          files: [expect.objectContaining({ id: 'file-1' })],
+        })
+        expect(request.messages[1]).toEqual(notice)
+        expect(request.messages[1].files).toBeUndefined()
+      }
+    )
 
     it('shares one turn across fallback and preserves private history metadata', async () => {
       const session = {

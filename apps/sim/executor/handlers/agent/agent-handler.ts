@@ -112,7 +112,10 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
-import { copyNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  copyNativeConversationMessage,
+  isConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
 import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
@@ -1579,9 +1582,11 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     /** Persist the complete turn before provider hydration adds bytes or transient handles. */
-    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)
+    const lastUserMessage = messages
+      .filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
     const attachedUserMessage = messagesWithFiles
-      ?.filter((message) => message.role === 'user')
+      ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       .at(-1)
     const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
       model === lastUserMessage && attachedUserMessage?.files
@@ -1636,7 +1641,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     let lastUserMessageIndex = -1
     for (let index = messages.length - 1; index >= 0; index--) {
-      if (messages[index].role === 'user') {
+      if (messages[index].role === 'user' && !isConversationHistoryNotice(messages[index])) {
         lastUserMessageIndex = index
         break
       }

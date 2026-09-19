@@ -50,7 +50,12 @@ import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { ExecutionContext, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import * as conversationGeneration from '@/providers/conversation-generation'
 import { captureProviderConversationStep } from '@/providers/conversation-history'
+import {
+  isConversationHistoryNotice,
+  markConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
@@ -150,6 +155,28 @@ describe('executeProviderRequest — durable Agent continuation', () => {
     const { executionParams } = prepareToolExecution(configuredTool, { key: id }, request, id)
     return executeProviderTool(configuredTool.id, executionParams)
   }
+
+  it.each([undefined, { role: 'user', content: 'Actual current input' }])(
+    'does not bind a runtime history notice instead of current input %j',
+    async (currentInput) => {
+      const notice = { role: 'user', content: 'Some retained history was omitted.' }
+      markConversationHistoryNotice(notice)
+      const bindPrompt = vi.spyOn(conversationGeneration, 'bindConversationGenerationPrompt')
+      try {
+        await executeProviderRequest(
+          'openai',
+          { ...initialRequest, messages: [...(currentInput ? [currentInput] : []), notice] },
+          { agentConversation: new AgentTurnStateMachine({ save: vi.fn() }) }
+        )
+        expect(bindPrompt).toHaveBeenCalledWith(expect.anything(), currentInput)
+        const request = mockExecuteRequest.mock.calls[0][0] as ProviderRequest
+        expect(isConversationHistoryNotice(request.messages!.at(-1)!)).toBe(true)
+        expect(Object.keys(request.messages!.at(-1)!)).toEqual(['role', 'content'])
+      } finally {
+        bindPrompt.mockRestore()
+      }
+    }
+  )
 
   it('carries completed work and usage to fallback without dispatching the tool again', async () => {
     const session = new AgentTurnStateMachine({ save: vi.fn() })

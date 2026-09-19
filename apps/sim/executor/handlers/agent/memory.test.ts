@@ -65,6 +65,22 @@ describe('Memory', () => {
 
     afterEach(() => vi.restoreAllMocks())
 
+    it('keeps the plain compatibility view when rich capture is disabled', async () => {
+      const prefix: Message[] = [{ role: 'user', content: 'Previous question' }]
+      const tail: Message[] = [{ role: 'assistant', content: 'Previous answer' }]
+      queueTableRows(schemaMock.memory, [
+        { id: 'memory-1', storageVersion: 2, data: prefix, secretProvenanceVersion: null },
+      ])
+      const readPlain = vi.spyOn(conversationStore, 'readPlainMemoryTail').mockResolvedValue({
+        messages: tail,
+        provenance: { status: 'exact', entries: [] },
+      })
+      await expect(
+        memoryService.fetchMemoryMessages(ctx, inputs, undefined, { richHistory: false })
+      ).resolves.toEqual([...prefix, ...tail])
+      expect(readPlain).toHaveBeenCalledWith('memory-1', 'workspace-1')
+    })
+
     function rejectRead(error: Error) {
       vi.spyOn(
         memoryService as unknown as { fetchMemory: () => Promise<unknown> },

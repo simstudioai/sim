@@ -114,3 +114,49 @@ describe('untracked legacy appends', () => {
     )
   })
 })
+
+describe('bounded legacy appends', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each([
+    { existing: false, content: 'x'.repeat(1024 * 1024) },
+    { existing: true, content: 'x'.repeat(1024 * 1024) },
+    { existing: false, content: '\u0000'.repeat(200000) },
+    { existing: true, content: '\u0000'.repeat(200000) },
+  ])(
+    'rejects an oversized new message before any legacy mutation (existing: $existing)',
+    async ({ existing, content }) => {
+      queueTableRows(
+        memory,
+        existing
+          ? [{ id: identity.memoryId, data: [], storageVersion: 1, secretProvenanceVersion: null }]
+          : []
+      )
+      await expect(writers.ordinary({ role: 'user', content })).rejects.toMatchObject({
+        code: 'payload_too_large',
+      })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
+
+  it('admits only new messages and leaves an existing oversized prefix untouched', async () => {
+    const prefix = [{ role: 'user', content: 'x'.repeat(2 * 1024 * 1024) }]
+    queueTableRows(memory, [
+      { id: identity.memoryId, data: prefix, storageVersion: 1, secretProvenanceVersion: null },
+    ])
+    const get = vi.fn(() => 'UNADMITTED')
+    const message = new Proxy({ role: 'user', content: 'new message' }, { get })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: identity.memoryId }])
+    await writers.ordinary(message)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [{ role: 'user', content: 'new message' }],
+      })
+    )
+    expect(get).not.toHaveBeenCalled()
+  })
+})
