@@ -89,6 +89,10 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
           { text: 'Invite', field: 'attendees', core: true },
           { text: 'to event', field: 'eventId', core: true },
         ],
+        respond: [
+          { text: 'Respond', field: 'responseStatus', core: true },
+          { text: 'to event', field: 'eventId', core: true },
+        ],
         freebusy: [
           { text: 'Check free/busy for', field: 'calendarIds', core: true },
           { text: ', starting', field: 'timeMin' },
@@ -138,6 +142,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'List Calendars', id: 'list_calendars' },
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
         { label: 'Invite Attendees', id: 'invite' },
+        { label: 'Respond to Invitation (RSVP)', id: 'respond' },
         { label: 'Check Free/Busy', id: 'freebusy' },
         { label: 'Create Calendar', id: 'create_calendar' },
         { label: 'Update Calendar', id: 'update_calendar' },
@@ -415,7 +420,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Event ID',
       condition: {
         field: 'operation',
-        value: ['get', 'update', 'delete', 'move', 'instances', 'invite'],
+        value: ['get', 'update', 'delete', 'move', 'instances', 'invite', 'respond'],
       },
       required: true,
     },
@@ -616,6 +621,28 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'Add to existing attendees', id: 'false' },
         { label: 'Replace all attendees', id: 'true' },
       ],
+    },
+
+    {
+      id: 'responseStatus',
+      title: 'Response',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'respond' },
+      required: true,
+      options: [
+        { label: 'Yes (accept)', id: 'accepted' },
+        { label: 'No (decline)', id: 'declined' },
+        { label: 'Maybe (tentative)', id: 'tentative' },
+      ],
+      value: () => 'accepted',
+    },
+    {
+      id: 'comment',
+      title: 'Response Note',
+      type: 'short-input',
+      placeholder: 'Running 5 minutes late',
+      condition: { field: 'operation', value: 'respond' },
+      mode: 'advanced',
     },
 
     {
@@ -820,7 +847,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'dropdown',
       condition: {
         field: 'operation',
-        value: ['create', 'update', 'delete', 'move', 'quick_add', 'invite'],
+        value: ['create', 'update', 'delete', 'move', 'quick_add', 'invite', 'respond'],
       },
       options: [
         { label: 'All attendees', id: 'all' },
@@ -842,6 +869,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'google_calendar_list_calendars',
       'google_calendar_quick_add',
       'google_calendar_invite',
+      'google_calendar_respond',
       'google_calendar_freebusy',
       'google_calendar_create_calendar',
       'google_calendar_update_calendar',
@@ -874,6 +902,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'google_calendar_quick_add'
           case 'invite':
             return 'google_calendar_invite'
+          case 'respond':
+            return 'google_calendar_respond'
           case 'freebusy':
             return 'google_calendar_freebusy'
           case 'create_calendar':
@@ -950,7 +980,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         }
 
         if (
-          ['create', 'update', 'delete', 'move', 'quick_add', 'invite'].includes(operation) &&
+          ['create', 'update', 'delete', 'move', 'quick_add', 'invite', 'respond'].includes(
+            operation
+          ) &&
           !processedParams.sendUpdates
         ) {
           processedParams.sendUpdates = 'all'
@@ -1014,6 +1046,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
     replaceExisting: { type: 'string', description: 'Replace existing attendees' },
 
+    responseStatus: {
+      type: 'string',
+      description: 'RSVP response (accepted, declined, or tentative)',
+    },
+    comment: { type: 'string', description: 'Note included with the RSVP response' },
+
     sendUpdates: { type: 'string', description: 'Send email notifications' },
   },
   outputs: {
@@ -1046,6 +1084,7 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
       'google_calendar_list_calendars_v2',
       'google_calendar_quick_add_v2',
       'google_calendar_invite_v2',
+      'google_calendar_respond_v2',
       'google_calendar_freebusy_v2',
       'google_calendar_create_calendar_v2',
       'google_calendar_update_calendar_v2',
@@ -1079,6 +1118,8 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
     attendees: { type: 'json', description: 'Event attendees' },
     creator: { type: 'json', description: 'Event creator' },
     organizer: { type: 'json', description: 'Event organizer' },
+    responseStatus: { type: 'string', description: 'Your RSVP response (respond operation)' },
+    comment: { type: 'string', description: 'Your RSVP note (respond operation)' },
     events: { type: 'json', description: 'List of events (list operation)' },
     eventId: { type: 'string', description: 'Deleted event ID' },
     deleted: { type: 'boolean', description: 'Whether deletion/removal was successful' },
@@ -1196,6 +1237,12 @@ export const GoogleCalendarBlockMeta = {
       description: 'Add attendees to an existing Google Calendar event and notify them.',
       content:
         '# Invite Attendees to an Event\n\nAdd people to an event without recreating it.\n\n## Steps\n1. Obtain the event ID (use List Events to find it if needed).\n2. Collect the attendee emails to add as a comma-separated list.\n3. Run Invite Attendees with Replace Existing set to `Add to existing attendees` (unless asked to replace the whole list).\n4. Set Send Email Notifications to `all`.\n\n## Output\nConfirm the added attendees and the resulting full attendee list, with the event link.',
+    },
+    {
+      name: 'rsvp-to-event',
+      description: 'Accept, decline, or tentatively accept a Google Calendar invitation.',
+      content:
+        '# RSVP to an Event\n\nChange your own response to an invitation without touching the guest list.\n\n## Steps\n1. Find the event with List Events over the right time window. List Events returns each occurrence of a recurring meeting with its own ID, so use that ID to respond to one occurrence only; the series ID (recurringEventId) changes your response for every occurrence.\n2. Run Respond to Invitation (RSVP) with Response set to `Yes (accept)`, `No (decline)`, or `Maybe (tentative)`, and an optional note.\n3. Do not use Update Event or Invite Attendees to RSVP; they edit the guest list, not your response.\n\n## Output\nConfirm the event title, the occurrence start time, and the confirmed response returned by the tool.',
     },
   ],
 } as const satisfies BlockMeta
