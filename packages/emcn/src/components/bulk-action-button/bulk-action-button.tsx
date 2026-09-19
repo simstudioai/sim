@@ -18,7 +18,8 @@ export const bulkActionButtonVariants = cva(
   }
 )
 
-export interface BulkActionButtonProps extends Omit<ButtonProps, 'variant' | 'size'> {
+export interface BulkActionButtonProps
+  extends Omit<ButtonProps, 'variant' | 'size' | 'iconPadding' | 'iconSize'> {
   /** Accessible name for the icon action; tooltip content is supplied separately. */
   'aria-label': string
   /**
