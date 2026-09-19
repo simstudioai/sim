@@ -2068,7 +2068,7 @@
       "get": {
         "operationId": "getFile",
         "summary": "Get File Metadata",
-        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.",
+        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts. A file rewritten continuously while it is read returns `409`; retry.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -2144,6 +2144,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

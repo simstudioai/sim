@@ -59,18 +59,29 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   execute: executeReadWorkspaceFileMetadata,
 })
 
+/** Reads of a record a concurrent write keeps replacing before the version is reported as a conflict. */
+const CURRENT_VERSION_READ_ATTEMPTS = 3
+
 /**
  * The same read plus the current version number, for the public metadata surface. Kept separate so
  * the many internal callers of {@link readWorkspaceFileMetadata} pay no extra query. The number is
  * resolved from the returned record's own storage key, so it always identifies the content that
- * record describes.
+ * record describes; a record whose bytes a concurrent write already replaced is read again, and a
+ * file rewritten on every attempt answers a retryable conflict rather than a mismatched version.
  */
 export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
   resolveContext: ({ input }: { input: ReadWorkspaceFileMetadataInput }) =>
     resolveActiveWorkspaceFileContext(input),
   async execute(args): Promise<ReadWorkspaceFileMetadataWithVersionResult> {
-    const result = await executeReadWorkspaceFileMetadata(args)
-    return { ...result, currentVersion: await getWorkspaceFileVersionNumberForRecord(result.file) }
+    for (let attempt = 0; attempt < CURRENT_VERSION_READ_ATTEMPTS; attempt++) {
+      const result = await executeReadWorkspaceFileMetadata(args)
+      const currentVersion = await getWorkspaceFileVersionNumberForRecord(result.file)
+      if (currentVersion !== null) return { ...result, currentVersion }
+    }
+    throw new OrchestrationError(
+      'conflict',
+      'The file changed while it was being read; retry the request'
+    )
   },
 })

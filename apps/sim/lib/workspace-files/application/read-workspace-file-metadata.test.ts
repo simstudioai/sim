@@ -189,4 +189,30 @@ describe('readWorkspaceFileMetadataWithVersion', () => {
     ).resolves.toEqual({ file, share, currentVersion: 4 })
     expect(mocks.getVersionNumberForRecord).toHaveBeenCalledWith(file)
   })
+
+  it('re-reads a record whose bytes a concurrent write already replaced', async () => {
+    const rewritten = { ...file, key: 'workspace/ws/data-2.csv' }
+    mocks.getWorkspaceFile.mockResolvedValueOnce(file).mockResolvedValueOnce(rewritten)
+    mocks.getVersionNumberForRecord.mockResolvedValueOnce(null).mockResolvedValueOnce(5)
+
+    await expect(
+      readWorkspaceFileMetadataWithVersion.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).resolves.toEqual({ file: rewritten, share, currentVersion: 5 })
+  })
+
+  it('answers a retryable conflict when every read is already stale', async () => {
+    mocks.getWorkspaceFile.mockResolvedValue(file)
+    mocks.getVersionNumberForRecord.mockResolvedValue(null)
+
+    await expect(
+      readWorkspaceFileMetadataWithVersion.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.getVersionNumberForRecord).toHaveBeenCalledTimes(3)
+  })
 })

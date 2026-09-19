@@ -848,8 +848,8 @@ const declaredRoutes = [
       operationId: 'getFile',
       summary: 'Get File Metadata',
       description:
-        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.',
-      errors: RESOURCE_ERRORS,
+        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts. A file rewritten continuously while it is read returns `409`; retry.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'File metadata and public-share state.' },
     }),
     {

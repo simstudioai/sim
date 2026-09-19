@@ -498,21 +498,21 @@ export async function getCurrentWorkspaceFileVersion(
 }
 
 /**
- * The version number of the content a file record describes. Matched by the record's storage key, so
- * it stays exact even if a write committed after the record was read: that record's key still names
- * its own version row. A key with no row is either a file with no history (implicit version 1) or
- * bytes a collaborative write replaced within the same version, which keeps the head's number.
+ * The version number of the content a file record describes, matched by the record's storage key so
+ * it stays exact even if a write committed after the record was read. Returns null when the record
+ * is stale in a way its key cannot answer — a later write replaced those bytes within their version
+ * and released the key — so the caller re-reads the record rather than guess.
  */
 export async function getWorkspaceFileVersionNumberForRecord(
   file: Pick<WorkspaceFileVersionSubject, 'id' | 'key'>
-): Promise<number> {
+): Promise<number | null> {
   const [row] = await db
     .select({ version: workspaceFileVersion.version })
     .from(workspaceFileVersion)
     .where(and(eq(workspaceFileVersion.fileId, file.id), eq(workspaceFileVersion.key, file.key)))
     .limit(1)
   if (row) return row.version
-  return (await loadWorkspaceFileVersionHead(file.id))?.version ?? 1
+  return (await loadWorkspaceFileVersionHead(file.id)) ? null : 1
 }
 
 /** One version of a file, or null when it never existed or retention removed it. */

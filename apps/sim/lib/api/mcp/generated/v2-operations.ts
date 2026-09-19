@@ -1035,7 +1035,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetFileContract,
     summary: 'Get File Metadata',
     description:
-      'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.',
+      'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts. A file rewritten continuously while it is read returns `409`; retry.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/[fileId]/metadata/route').then((route) => route.GET),
   },
   getFileShare: {

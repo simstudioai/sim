@@ -271,6 +271,34 @@ describe('workspace file version history in PostgreSQL', () => {
     expect(await objectExists(fixture.firstKey)).toBe(false)
   })
 
+  it('reports a stale record as unresolvable once a coalesced write released its key', async () => {
+    const fixture = await seedFile('original')
+    const write = { source: 'collab', authorUserId: fixture.aliceId } as const
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('draft one'),
+      undefined,
+      { version: write }
+    )
+    const stale = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+    if (!stale) throw new Error('file missing')
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('draft two'),
+      undefined,
+      { version: write }
+    )
+    const fresh = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+    if (!fresh) throw new Error('file missing')
+
+    expect(await getWorkspaceFileVersionNumberForRecord(stale)).toBeNull()
+    expect(await getWorkspaceFileVersionNumberForRecord(fresh)).toBe(2)
+  })
+
   it('never folds deliberate writes, and repoints the head for identical bytes', async () => {
     const fixture = await seedFile('original')
     const write = { source: 'api', authorUserId: fixture.aliceId } as const
