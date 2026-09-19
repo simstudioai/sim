@@ -239,18 +239,19 @@ describe('ChipSelect menu interactions', () => {
         aria-labelledby='status'
         showSelectedCheck
         dropdownWidth={280}
-        value='ready'
+        value=''
         options={[
-          { value: 'ready', label: <span>Ready</span>, iconElement: <span data-testid='avatar' /> },
+          { value: '', label: <span>None</span>, iconElement: <span data-testid='avatar' /> },
         ]}
       />
     )
     expect(ref.current).toBe(trigger)
+    expect(trigger.textContent).toBe('None')
     expect(trigger.getAttribute('aria-labelledby')).toBe('status')
     await key(trigger, 'ArrowDown')
     expect(document.querySelector('[role="menu"]')?.getAttribute('style')).toContain('width: 280px')
-    expect(menuItem('Ready').querySelector('[data-testid="avatar"]')).not.toBeNull()
-    expect(menuItem('Ready').querySelector('svg')).not.toBeNull()
+    expect(menuItem('None').querySelector('[data-testid="avatar"]')).not.toBeNull()
+    expect(menuItem('None').querySelector('svg')).not.toBeNull()
   })
 
   it('keeps an empty selection distinct from All when no reset row is offered', async () => {

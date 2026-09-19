@@ -55,11 +55,6 @@ export function SelectValueEditor({
         }}
         options={options}
         showAllOption={false}
-        // In multiple mode ChipSelect ignores `placeholder` and renders
-        // `allLabel` when nothing is selected — which would read as if every
-        // option were chosen. There is no "All" entry here, so this is the
-        // empty label.
-        allOptionLabel='Select options'
         align={align}
         fullWidth={fullWidth}
         dropdownWidth='content'
