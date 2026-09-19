@@ -900,12 +900,16 @@ export async function runCleanupSoftDeletes(
     chatCleanup = await prepareChatCleanup([...doomedChatIds], label)
   }
 
+  const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
+  /**
+   * Only files whose current object is gone are committed to the purge, so a file whose object
+   * deletion failed keeps its history for the retry instead of losing it ahead of its own delete.
+   */
   await releaseExpiredWorkspaceFileVersions(
     cleanupDb,
-    fileScope.multiContextRows.filter((row) => row.context === 'workspace').map((row) => row.id),
+    fileCleanup.multiContextRows.filter((row) => row.context === 'workspace').map((row) => row.id),
     retentionDate
   )
-  const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
   if (budgets && fileCleanup.filesFailed) throw new Error('File storage cleanup failed')
 
   let totalDeleted = 0

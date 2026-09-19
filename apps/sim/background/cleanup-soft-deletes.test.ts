@@ -129,17 +129,24 @@ describe('cleanup soft deletes', () => {
     })
   })
 
-  it('releases the version history of expired workspace files before purging their objects', async () => {
+  it('releases version history only for files whose current object was deleted', async () => {
     mockSelectRowsByIdChunks
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
-          id: 'file-1',
-          key: 'workspace/ws-1/file-1',
+          id: 'file-purged',
+          key: 'workspace/ws-1/file-purged',
           workspaceId: 'ws-1',
           context: 'workspace',
           sizeBytes: 5,
+        },
+        {
+          id: 'file-failed',
+          key: 'workspace/ws-1/file-failed',
+          workspaceId: 'ws-1',
+          context: 'workspace',
+          sizeBytes: 4,
         },
         {
           id: 'chat-file',
@@ -149,16 +156,20 @@ describe('cleanup soft deletes', () => {
           sizeBytes: 3,
         },
       ])
+    mockDeleteFiles.mockResolvedValueOnce({
+      deleted: 1,
+      failed: [{ key: 'workspace/ws-1/file-failed', error: 'storage unavailable' }],
+    })
 
     await runCleanupSoftDeletes(basePayload)
 
     expect(mockReleaseExpiredWorkspaceFileVersions).toHaveBeenCalledWith(
       expect.anything(),
-      ['file-1'],
+      ['file-purged'],
       expect.any(Date)
     )
-    expect(mockReleaseExpiredWorkspaceFileVersions.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeleteFiles.mock.invocationCallOrder[0]
+    expect(mockDeleteFiles.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReleaseExpiredWorkspaceFileVersions.mock.invocationCallOrder[0]
     )
   })
 

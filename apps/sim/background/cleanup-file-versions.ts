@@ -8,7 +8,7 @@ import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { DEFAULT_DELETE_CHUNK_SIZE } from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
-import { StorageService } from '@/lib/uploads'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   FILE_VERSION_RETENTION_KEEP_LATEST,
   MAX_SUPERSEDED_FILE_VERSIONS,
@@ -85,7 +85,6 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
   const ranked = cleanupDb
     .select({
       id: workspaceFileVersion.id,
-      key: workspaceFileVersion.key,
       supersededAt: workspaceFileVersion.supersededAt,
       rank: sql<number>`row_number() over (partition by ${workspaceFileVersion.fileId} order by ${workspaceFileVersion.version} desc)`.as(
         'rank'
@@ -101,7 +100,7 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
     .as('ranked')
 
   return cleanupDb
-    .select({ id: ranked.id, key: ranked.key })
+    .select({ id: ranked.id })
     .from(ranked)
     .where(
       and(
@@ -113,39 +112,34 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
 }
 
 /**
- * Deletes the stored objects first and only then the rows whose objects are gone, so a failed
- * delete leaves its row — and the next run retries it — instead of orphaning the object.
+ * Deletes the expired version rows and enqueues their stored objects on the storage-cleanup outbox
+ * in the same transaction, so a row never outlives its release and every released object is
+ * deleted durably — the outbox retries failures and treats an already-missing object as done.
  */
-async function deleteVersions(rows: Array<{ id: string; key: string }>, label: string) {
-  const failedKeys = new Set<string>()
-  for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
-    const deletion = await StorageService.deleteFiles(
-      batch.map((row) => row.key),
-      'workspace'
-    )
-    for (const { key, error } of deletion.failed) {
-      failedKeys.add(key)
-      logger.error(`[${label}] Failed to delete file version object ${key}`, { error })
-    }
-  }
-  const removable = rows.filter((row) => !failedKeys.has(row.key))
+async function deleteVersions(rows: Array<{ id: string }>) {
   let deleted = 0
-  for (const batch of chunkArray(removable, DEFAULT_DELETE_CHUNK_SIZE)) {
-    const removed = await cleanupDb
-      .delete(workspaceFileVersion)
-      .where(
-        and(
-          inArray(
-            workspaceFileVersion.id,
-            batch.map((row) => row.id)
-          ),
-          isNotNull(workspaceFileVersion.supersededAt)
+  for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
+    deleted += await cleanupDb.transaction(async (tx) => {
+      const removed = await tx
+        .delete(workspaceFileVersion)
+        .where(
+          and(
+            inArray(
+              workspaceFileVersion.id,
+              batch.map((row) => row.id)
+            ),
+            isNotNull(workspaceFileVersion.supersededAt)
+          )
         )
+        .returning({ key: workspaceFileVersion.key })
+      await enqueueWorkspaceFileStorageCleanups(
+        tx,
+        removed.map((row) => row.key)
       )
-      .returning({ id: workspaceFileVersion.id })
-    deleted += removed.length
+      return removed.length
+    })
   }
-  return { deleted, failed: rows.length - removable.length }
+  return deleted
 }
 
 export async function runCleanupFileVersions(payload: CleanupJobPayload): Promise<void> {
@@ -163,25 +157,21 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
   )
 
   let deleted = 0
-  let failed = 0
   for (const group of chunkArray(workspaceIds, WORKSPACES_PER_QUERY)) {
     const candidates = await selectCandidateFileIds(group, cutoff, maxSuperseded)
     for (const fileIds of chunkArray(candidates, FILES_PER_QUERY)) {
       for (let batch = 0; batch < MAX_BATCHES_PER_CHUNK; batch++) {
         const expired = await selectExpiredVersions(fileIds, cutoff, maxSuperseded)
         if (expired.length === 0) break
-        const result = await deleteVersions(expired, label)
-        deleted += result.deleted
-        failed += result.failed
-        if (expired.length < VERSIONS_PER_BATCH || result.deleted === 0) break
+        const removed = await deleteVersions(expired)
+        deleted += removed
+        if (expired.length < VERSIONS_PER_BATCH || removed === 0) break
       }
     }
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
-  logger.info(
-    `[${label}] File version cleanup: ${deleted} deleted, ${failed} failed in ${elapsed}s`
-  )
+  logger.info(`[${label}] File version cleanup: ${deleted} released in ${elapsed}s`)
 }
 
 export const cleanupFileVersionsTask = task({

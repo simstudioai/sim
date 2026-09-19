@@ -14,7 +14,7 @@ import {
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -434,9 +434,15 @@ describe('workspace file version history in PostgreSQL', () => {
     const events = await db
       .select({ id: outboxEvent.id, payload: outboxEvent.payload })
       .from(outboxEvent)
-      .where(eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT))
-    const enqueuedKeys = events.map((event) => (event.payload as { key: string }).key)
-    expect(enqueuedKeys).toEqual(expect.arrayContaining(releasedKeys))
+      .where(
+        and(
+          eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT),
+          inArray(sql<string>`${outboxEvent.payload}::jsonb ->> 'key'`, releasedKeys)
+        )
+      )
+    expect(events.map((event) => (event.payload as { key: string }).key).sort()).toEqual(
+      [...releasedKeys].sort()
+    )
     await db.delete(outboxEvent).where(
       inArray(
         outboxEvent.id,
@@ -464,6 +470,10 @@ describe('workspace file version history in PostgreSQL', () => {
         sql`${workspaceFileVersion.fileId} = ${fixture.fileId} AND ${workspaceFileVersion.supersededAt} IS NOT NULL`
       )
 
+    const prunedKeys = (await versionRows(fixture.fileId))
+      .filter((row) => row.version <= 3)
+      .map((row) => row.key)
+
     await runCleanupFileVersions({
       plan: 'pro',
       workspaceIds: [fixture.workspaceId],
@@ -474,5 +484,21 @@ describe('workspace file version history in PostgreSQL', () => {
     const rows = await versionRows(fixture.fileId)
     expect(rows.map((row) => row.version)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
     expect(rows.at(-1)?.supersededAt).toBeNull()
+    const events = await db
+      .select({ id: outboxEvent.id })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT),
+          inArray(sql<string>`${outboxEvent.payload}::jsonb ->> 'key'`, prunedKeys)
+        )
+      )
+    expect(events).toHaveLength(prunedKeys.length)
+    await db.delete(outboxEvent).where(
+      inArray(
+        outboxEvent.id,
+        events.map((event) => event.id)
+      )
+    )
   })
 })
