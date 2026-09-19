@@ -148,6 +148,7 @@ export {
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
+export { FieldCard, type FieldCardProps } from './field-card/field-card'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
