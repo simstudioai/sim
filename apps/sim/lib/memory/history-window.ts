@@ -1,5 +1,5 @@
 import { MEMORY } from '@/lib/memory/constants'
-import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
+import { getConversationTokenCount } from '@/lib/memory/context-tokens'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { Message } from '@/providers/types'
 
@@ -48,7 +48,7 @@ export function selectConversationTokenWindow<T extends Message>(
     const tokens = group.reduce(
       (total, message) =>
         total +
-        getAccurateTokenCount(
+        getConversationTokenCount(
           groups
             ? JSON.stringify({
                 role: message.role,

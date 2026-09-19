@@ -28,6 +28,10 @@ import {
   isResponsesEndpoint,
 } from '@/providers/azure-openai/utils'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -209,7 +213,7 @@ async function executeChatCompletionsRequest(
         stream_options: { include_usage: true },
       }
       const streamResponse = await azureOpenAI.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -258,7 +262,7 @@ async function executeChatCompletionsRequest(
     let usedForcedTools: string[] = []
 
     let currentResponse = (await azureOpenAI.chat.completions.create(
-      payload,
+      await prepareConversationGeneration(request, 'chat-completions', payload),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )) as ChatCompletion
     if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -512,7 +516,7 @@ async function executeChatCompletionsRequest(
 
       const nextModelStartTime = Date.now()
       currentResponse = (await azureOpenAI.chat.completions.create(
-        nextPayload,
+        await prepareConversationGeneration(request, 'chat-completions', nextPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -578,10 +582,10 @@ async function executeChatCompletionsRequest(
       const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
       const synthesisStartTime = Date.now()
       const synthesisResponse = (await azureOpenAI.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...synthesisPayload,
           messages: currentMessages,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
       if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
@@ -694,7 +698,7 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 
@@ -778,7 +782,7 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
 
       return executeChatCompletionsRequest(
-        { ...request, apiKey },
+        request,
         baseUrl,
         azureApiVersion,
         deploymentName,
@@ -793,22 +797,19 @@ export const azureOpenAIProvider: ProviderConfig = {
       const deploymentName = request.model.replace(/^azure\//i, '')
 
       // Use the URL as-is since it's already complete
-      return executeResponsesProviderRequest(
-        { ...request, apiKey },
-        {
-          providerId: 'azure-openai',
-          providerLabel: 'Azure OpenAI',
-          modelName: deploymentName,
-          endpoint: azureEndpoint,
-          headers: {
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'responses=v1',
-            'api-key': apiKey,
-          },
-          logger,
-          fetch: pinnedFetch,
-        }
-      )
+      return executeResponsesProviderRequest(request, {
+        providerId: 'azure-openai',
+        providerLabel: 'Azure OpenAI',
+        modelName: deploymentName,
+        endpoint: azureEndpoint,
+        headers: {
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'responses=v1',
+          'api-key': apiKey,
+        },
+        logger,
+        fetch: pinnedFetch,
+      })
     }
 
     // Default: base URL provided, construct the responses API URL
@@ -818,21 +819,18 @@ export const azureOpenAIProvider: ProviderConfig = {
     const deploymentName = request.model.replace(/^azure\//i, '')
     const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
 
-    return executeResponsesProviderRequest(
-      { ...request, apiKey },
-      {
-        providerId: 'azure-openai',
-        providerLabel: 'Azure OpenAI',
-        modelName: deploymentName,
-        endpoint: apiUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'responses=v1',
-          'api-key': apiKey,
-        },
-        logger,
-        fetch: pinnedFetch,
-      }
-    )
+    return executeResponsesProviderRequest(request, {
+      providerId: 'azure-openai',
+      providerLabel: 'Azure OpenAI',
+      modelName: deploymentName,
+      endpoint: apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'responses=v1',
+        'api-key': apiKey,
+      },
+      logger,
+      fetch: pinnedFetch,
+    })
   },
 }

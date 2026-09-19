@@ -70,6 +70,41 @@ describe('optional Agent memory durability failures', () => {
     ).resolves.toEqual([])
   })
 
+  it('defers rich conversation selection until the actual provider context is known', async () => {
+    const history = [
+      { role: 'user', content: 'x'.repeat(140_000) },
+      { role: 'assistant', content: 'recent answer' },
+    ]
+    mocks.prefix.mockResolvedValue({
+      id: options.memoryId,
+      storageVersion: 2,
+      data: history,
+      secretProvenanceVersion: 1,
+      provenanceContentHash: hashDurableSecretProvenanceValue(history),
+      provenanceStatus: 'exact',
+      provenanceEntries: [],
+    })
+    const memory = new Memory()
+    await expect(
+      memory.fetchMemoryMessages(ctx, { ...inputs, model: 'gpt-4o' }, undefined, {
+        richHistory: true,
+      })
+    ).resolves.toEqual(history)
+    await expect(
+      memory.fetchMemoryMessages(
+        ctx,
+        {
+          ...inputs,
+          memoryType: 'sliding_window_tokens',
+          slidingWindowTokens: '100',
+          model: 'gpt-4o',
+        },
+        undefined,
+        { richHistory: true }
+      )
+    ).resolves.toEqual([history[1]])
+  })
+
   it('never rereads a replacement key after the original conversation disappears', async () => {
     mocks.prefix.mockResolvedValue(undefined)
     await expect(

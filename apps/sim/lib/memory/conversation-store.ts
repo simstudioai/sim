@@ -616,10 +616,19 @@ export async function openAgentMemoryTurn(
     if (!conversation) throw new OrchestrationError('not_found', 'Conversation no longer exists')
     await tx.update(memory).set({ storageVersion: 2 }).where(eq(memory.id, conversation.id))
     const [existing] = await tx
-      .select()
+      .select({
+        id: agentMemoryTurn.id,
+        revision: agentMemoryTurn.revision,
+        stateBytes: sql<number>`coalesce(octet_length(${agentMemoryTurn.encryptedState}), 0)`,
+        encryptedState: sql<
+          string | null
+        >`CASE WHEN octet_length(${agentMemoryTurn.encryptedState}) <= ${MAX_TURN_STATE_BYTES} THEN ${agentMemoryTurn.encryptedState} ELSE NULL END`,
+      })
       .from(agentMemoryTurn)
       .where(turnIdentityPredicate(identity, conversation.id))
       .limit(1)
+    if (existing && existing.stateBytes > MAX_TURN_STATE_BYTES)
+      throw new OrchestrationError('payload_too_large', 'Agent memory checkpoint is too large')
     if (existing)
       return {
         memoryId: conversation.id,

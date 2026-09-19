@@ -21,7 +21,7 @@ export function bindConversationRequestContext(
 }
 
 /** Bound requests retain their owner when stream callbacks outlive or cross an ambient context. */
-function getConversationRequestContext(
+export function getConversationRequestContext(
   request: ProviderRequest
 ): ProviderRuntimeContext | undefined {
   return requestContexts.get(request) ?? getProviderRuntimeContext()

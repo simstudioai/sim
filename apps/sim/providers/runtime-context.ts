@@ -10,6 +10,10 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import type { AgentConversationSession } from '@/lib/memory/conversation-types'
 import {
+  AGENT_MEMORY_RETRIEVAL_TOOL_ID,
+  type AgentMemoryRetrievalBinding,
+} from '@/lib/memory/retrieval-tool-types'
+import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
 } from '@/executor/constants'
@@ -22,6 +26,8 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
   agentConversation?: AgentConversationSession
+  agentMemoryContext?: { historyTokens?: number }
+  agentMemoryRetrieval?: AgentMemoryRetrievalBinding
   conversationProvider?: { providerId: ProviderId; binding: string }
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted server execution context inherited by model-emitted tool calls. */
@@ -130,7 +136,14 @@ export async function executeProviderTool(
       : undefined
   const session = runtimeContext?.agentConversation
   runtimeContext?.executionContext?.abortSignal?.throwIfAborted()
-  const recorded = invocationId ? await session?.getReplayResult(invocationId) : undefined
+  const executionToolId = runtimeContext?.toolIdByWireId?.get(toolId) ?? toolId
+  const memoryRetrieval =
+    executionToolId === AGENT_MEMORY_RETRIEVAL_TOOL_ID &&
+    toolId === runtimeContext?.agentMemoryRetrieval?.tool.id
+      ? runtimeContext?.agentMemoryRetrieval
+      : undefined
+  const recorded =
+    invocationId && !memoryRetrieval ? await session?.getReplayResult(invocationId) : undefined
   if (recorded) {
     if (
       runtimeContext?.resolvedSecretTraceRegistry &&
@@ -161,13 +174,17 @@ export async function executeProviderTool(
           },
         }
       : recorded.rawResponse
-    return { rawResponse, modelResponse: recorded.modelResponse }
+    return {
+      rawResponse,
+      modelResponse:
+        session?.getRecordedResult?.(invocationId!)?.modelResponse ?? recorded.modelResponse,
+    }
   }
   const recordResult = async (
     result: ProviderToolExecutionResult
   ): Promise<ProviderToolExecutionResult> => {
     try {
-      if (session && invocationId)
+      if (session && invocationId) {
         await session.recordToolResult({
           invocationId,
           ...result,
@@ -180,12 +197,15 @@ export async function executeProviderTool(
               }
             : {}),
         })
+        const retained = session.getRecordedResult?.(invocationId)
+        if (retained && !memoryRetrieval)
+          return { ...result, modelResponse: retained.modelResponse }
+      }
     } catch {
       logger.warn('Agent tool result durability unavailable')
     }
     return result
   }
-  const executionToolId = runtimeContext?.toolIdByWireId?.get(toolId) ?? toolId
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
@@ -206,11 +226,13 @@ export async function executeProviderTool(
 
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext
-    const result = await executeTool(executionToolId, params, {
-      ...options,
-      ...(executionContext ? { executionContext } : {}),
-      resolvedSecretTraceRegistry: toolCallRegistry,
-    })
+    const result = memoryRetrieval
+      ? await memoryRetrieval.execute(params)
+      : await executeTool(executionToolId, params, {
+          ...options,
+          ...(executionContext ? { executionContext } : {}),
+          resolvedSecretTraceRegistry: toolCallRegistry,
+        })
     accumulateFailedFunctionToolCost(
       executionToolId,
       result,

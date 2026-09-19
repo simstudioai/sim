@@ -105,7 +105,12 @@ export async function decryptMemoryCheckpoint(encrypted: string): Promise<unknow
   const { decrypted } = await decryptSecret(encrypted, { logFailure: false })
   if (Buffer.byteLength(decrypted, 'utf8') > MAX_MEMORY_CHECKPOINT_BYTES)
     throw new Error('Memory checkpoint exceeds its byte limit')
-  const envelope: unknown = JSON.parse(decrypted)
+  return restoreMemoryCheckpoint(JSON.parse(decrypted))
+}
+
+/** Decodes the same bounded byte envelope inside an already encrypted memory artifact. */
+export function restoreMemoryCheckpoint(encoded: unknown): unknown {
+  const envelope: unknown = structuredClone(encoded)
   if (
     !isRecordLike(envelope) ||
     envelope.version !== 1 ||

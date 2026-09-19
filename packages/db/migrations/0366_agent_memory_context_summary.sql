@@ -1,0 +1,1 @@
+ALTER TABLE "memory" ADD COLUMN "encrypted_context_summary" text;

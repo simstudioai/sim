@@ -26,6 +26,17 @@ import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/appli
 
 const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 1_000
 const MAX_MEMORY_LIST_LIMIT = 1_000
+const MEMORY_READ_COLUMNS = {
+  id: memory.id,
+  workspaceId: memory.workspaceId,
+  key: memory.key,
+  data: memory.data,
+  storageVersion: memory.storageVersion,
+  secretProvenanceVersion: memory.secretProvenanceVersion,
+  createdAt: memory.createdAt,
+  updatedAt: memory.updatedAt,
+  deletedAt: memory.deletedAt,
+}
 
 export interface MemoryRecord {
   id: string
@@ -218,7 +229,7 @@ export const listMemoriesUseCase = defineAuthorizedWorkspaceUseCase({
     const conditions = [isNull(memory.deletedAt), eq(memory.workspaceId, context.workspaceId)]
     if (input.query) conditions.push(like(memory.key, `%${input.query}%`))
     const records = await db
-      .select()
+      .select(MEMORY_READ_COLUMNS)
       .from(memory)
       .where(and(...conditions))
       .orderBy(memory.createdAt)
@@ -240,7 +251,7 @@ export const readMemoryUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
     const records = await db
-      .select()
+      .select(MEMORY_READ_COLUMNS)
       .from(memory)
       .where(
         and(
@@ -313,7 +324,7 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
 
     input.signal?.throwIfAborted()
     const records = await db
-      .select()
+      .select(MEMORY_READ_COLUMNS)
       .from(memory)
       .where(
         and(

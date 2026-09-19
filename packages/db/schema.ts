@@ -2836,6 +2836,8 @@ export const memory = pgTable(
     data: jsonb('data').notNull(),
     /** Version 2 keeps data as an immutable prefix and appends ordered memory items. */
     storageVersion: integer('storage_version').notNull().default(1),
+    /** One replaceable derived context summary; never part of the public message projection. */
+    encryptedContextSummary: text('encrypted_context_summary'),
     /** NULL is a legacy/untracked record; version 1 requires a fresh private sidecar. */
     secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -7,6 +7,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -168,11 +172,11 @@ export const nvidiaProvider: ProviderConfig = {
         logger.info('Using streaming response for NVIDIA NIM request (no tools)')
 
         const streamResponse = await nvidia.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
             stream_options: { include_usage: true },
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -221,7 +225,7 @@ export const nvidiaProvider: ProviderConfig = {
       let usedForcedTools: string[] = []
 
       let currentResponse = await nvidia.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -481,7 +485,7 @@ export const nvidiaProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await nvidia.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -558,7 +562,7 @@ export const nvidiaProvider: ProviderConfig = {
 
             const finalModelStartTime = Date.now()
             currentResponse = await nvidia.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
             if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -617,7 +621,7 @@ export const nvidiaProvider: ProviderConfig = {
         }
 
         currentResponse = await nvidia.chat.completions.create(
-          finalPayload,
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -735,7 +739,11 @@ export const nvidiaProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

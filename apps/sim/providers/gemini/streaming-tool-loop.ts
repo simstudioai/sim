@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Live Gemini streaming tool loop.
  *
@@ -308,14 +309,16 @@ export function createGeminiStreamingToolLoopStream(
                 )
 
             const modelStart = Date.now()
-            const streamGenerator = await ai.models.generateContentStream({
-              model,
-              contents,
-              config: {
-                ...turnConfig,
-                abortSignal: loopAbortController.signal,
-              },
-            })
+            const streamGenerator = await ai.models.generateContentStream(
+              await prepareConversationGeneration(request, 'gemini', {
+                model,
+                contents,
+                config: {
+                  ...turnConfig,
+                  abortSignal: loopAbortController.signal,
+                },
+              })
+            )
 
             const drained = await drainGeminiTurn(
               streamGenerator,

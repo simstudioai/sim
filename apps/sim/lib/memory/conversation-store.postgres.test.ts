@@ -93,6 +93,7 @@ const identity: AgentMemoryTurnIdentity = {
   conversationId: 'conversation-1',
 }
 const provenance = { status: 'exact', entries: [] } as const
+const journalReads: string[] = []
 const prefix = [
   { role: 'user', content: 'legacy question' },
   { role: 'assistant', content: 'legacy answer' },
@@ -150,7 +151,14 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
   beforeAll(async () => {
     if (!connection) return
     await connection`CREATE SCHEMA ${connection(schemaName)}`
-    database.current = drizzle(connection)
+    database.current = drizzle(connection, {
+      logger: {
+        logQuery(query) {
+          if (query.startsWith('select ') && query.includes('agent_memory_turn'))
+            journalReads.push(query)
+        },
+      },
+    })
     await connection.unsafe(`
       CREATE TABLE workflow (id text PRIMARY KEY);
       CREATE TABLE execution_large_values (key text PRIMARY KEY, workspace_id text NOT NULL, owner_execution_id text NOT NULL, deleted_at timestamp);
@@ -171,14 +179,17 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       );
       INSERT INTO workflow (id) VALUES ('workflow-1');
     `)
-    const migration = await readFile(
-      new URL('../../../../packages/db/migrations/0365_durable_agent_memory.sql', import.meta.url),
-      'utf8'
-    )
-    await connection.unsafe(migration.replaceAll('"public".', `"${schemaName}".`))
+    for (const name of ['0365_durable_agent_memory', '0366_agent_memory_context_summary']) {
+      const migration = await readFile(
+        new URL(`../../../../packages/db/migrations/${name}.sql`, import.meta.url),
+        'utf8'
+      )
+      await connection.unsafe(migration.replaceAll('"public".', `"${schemaName}".`))
+    }
   })
   beforeEach(async () => {
     if (connection) await connection`DELETE FROM memory`
+    journalReads.length = 0
   })
   afterAll(async () => {
     if (!connection) return
@@ -584,6 +595,18 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         { richHistory: true }
       )
     ).resolves.toEqual([latest])
+  })
+
+  it('refuses oversized saved ciphertext before admitting a recovery checkpoint', async () => {
+    const turn = await openAgentMemoryTurn(identity)
+    await connection!`UPDATE agent_memory_turn SET encrypted_state = repeat('oversized-ciphertext', 300000) WHERE id = ${turn.turnId}`
+    await expect(openAgentMemoryTurn(identity)).rejects.toMatchObject({ code: 'payload_too_large' })
+    expect(journalReads.at(-1)).toContain('CASE WHEN octet_length(')
+    expect(journalReads.at(-1)).toContain('ELSE NULL END')
+    expect(
+      (await connection!`SELECT revision FROM agent_memory_turn WHERE id = ${turn.turnId}`)[0]
+        .revision
+    ).toBe(0)
   })
 
   it('drops stale native inputs after deletion and inputs bound to another execution', async () => {

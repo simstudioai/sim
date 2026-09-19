@@ -8,6 +8,10 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
 import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -133,10 +137,10 @@ export const cerebrasProvider: ProviderConfig = {
         logger.info('Using streaming response for Cerebras request (no tools)')
 
         const streamResponse: any = await client.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -180,7 +184,7 @@ export const cerebrasProvider: ProviderConfig = {
       const initialCallTime = Date.now()
 
       let currentResponse = (await client.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as CerebrasResponse
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -443,7 +447,7 @@ export const cerebrasProvider: ProviderConfig = {
             finalPayload.tool_choice = 'none'
 
             currentResponse = (await client.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )) as CerebrasResponse
             if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -496,7 +500,7 @@ export const cerebrasProvider: ProviderConfig = {
 
             const nextModelStartTime = Date.now()
             currentResponse = (await client.chat.completions.create(
-              nextPayload,
+              await prepareConversationGeneration(request, 'chat-completions', nextPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )) as CerebrasResponse
             if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -542,11 +546,11 @@ export const cerebrasProvider: ProviderConfig = {
 
           const finalModelStartTime = Date.now()
           currentResponse = (await client.chat.completions.create(
-            {
+            await prepareConversationGeneration(request, 'chat-completions', {
               ...payload,
               messages: currentMessages,
               tool_choice: 'none',
-            },
+            }),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )) as CerebrasResponse
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -668,7 +672,11 @@ export const cerebrasProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

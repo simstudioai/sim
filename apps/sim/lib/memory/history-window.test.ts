@@ -60,6 +60,13 @@ describe('conversation history windows', () => {
     expect(selectConversationTokenWindow([...user, ...final], 6)).toEqual(final)
   })
 
+  it('bounds token work for large legacy text while retaining the newest complete group', () => {
+    const large: Message[] = [{ role: 'user', content: 'x'.repeat(140_000) }]
+    expect(selectConversationTokenWindow([...large, ...final], 100)).toEqual(final)
+    expect(selectConversationTokenWindow([...final, ...large], 100)).toEqual(large)
+    expect(selectConversationContextWindow([...large, ...final], 'small')).toEqual(final)
+  })
+
   it('budgets call arguments and never retains half a parallel batch', () => {
     const groups = [user, exchange('batch'), final]
     expect(selectConversationTokenWindow(groups.flat(), 80, undefined, groups)).toEqual(final)

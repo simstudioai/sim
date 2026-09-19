@@ -16,6 +16,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
@@ -1147,11 +1148,13 @@ export async function executeGeminiRequest(
     if (shouldStream) {
       logger.info('Handling Gemini streaming response')
 
-      const streamGenerator = await ai.models.generateContentStream({
-        model,
-        contents,
-        config: geminiConfig,
-      })
+      const streamGenerator = await ai.models.generateContentStream(
+        await prepareConversationGeneration(request, 'gemini', {
+          model,
+          contents,
+          config: geminiConfig,
+        })
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       const streamingResult = createStreamingResult(
@@ -1199,7 +1202,13 @@ export async function executeGeminiRequest(
     }
 
     // Non-streaming request
-    const response = await ai.models.generateContent({ model, contents, config: geminiConfig })
+    const response = await ai.models.generateContent(
+      await prepareConversationGeneration(request, 'gemini', {
+        model,
+        contents,
+        config: geminiConfig,
+      })
+    )
     if (!extractAllFunctionCallParts(response.candidates?.[0]).length) {
       await captureProviderConversationStep(
         request,
@@ -1247,11 +1256,13 @@ export async function executeGeminiRequest(
       }
 
       const finalStartTime = Date.now()
-      const finalResponse = await ai.models.generateContent({
-        model,
-        contents: currentState.contents,
-        config: finalConfig,
-      })
+      const finalResponse = await ai.models.generateContent(
+        await prepareConversationGeneration(request, 'gemini', {
+          model,
+          contents: currentState.contents,
+          config: finalConfig,
+        })
+      )
       if (!extractAllFunctionCallParts(finalResponse.candidates?.[0]).length) {
         await captureProviderConversationStep(
           request,
@@ -1364,11 +1375,13 @@ export async function executeGeminiRequest(
 
         /** Resolve the final turn, then project its settled answer when streaming was requested. */
         const nextModelStartTime = Date.now()
-        const nextResponse = await ai.models.generateContent({
-          model,
-          contents: state.contents,
-          config: nextConfig,
-        })
+        const nextResponse = await ai.models.generateContent(
+          await prepareConversationGeneration(request, 'gemini', {
+            model,
+            contents: state.contents,
+            config: nextConfig,
+          })
+        )
         if (!extractAllFunctionCallParts(nextResponse.candidates?.[0]).length) {
           await captureProviderConversationStep(
             request,

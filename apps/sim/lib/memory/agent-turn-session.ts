@@ -13,7 +13,7 @@ import {
   importDurableSecretProvenance,
   normalizeDurableSecretProvenanceEntries,
 } from '@/lib/execution/durable-secret-provenance'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -23,6 +23,7 @@ import {
   storeAgentMemoryArtifactUseCase,
 } from '@/lib/memory/application/agent-turns'
 import { MEMORY_DELEGATION_AUDIENCE } from '@/lib/memory/application/authorization'
+import { getMemoryArtifactHandle } from '@/lib/memory/artifact-handle'
 import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import {
   decryptMemoryCheckpoint,
@@ -40,6 +41,7 @@ import type {
   ConversationStep,
   ConversationToolResult,
 } from '@/lib/memory/conversation-types'
+import { AgentTurnJournal } from '@/lib/memory/turn-journal'
 import { AgentTurnStateMachine, renderConversationStep } from '@/lib/memory/turn-state'
 import type { ExecutionContext } from '@/executor/types'
 import {
@@ -92,6 +94,22 @@ function validState(value: unknown): value is AgentTurnState {
       !value.final.model)
   )
     return false
+  if (value.contextUsage !== undefined) {
+    const usage = value.contextUsage
+    if (
+      !isRecordLike(usage) ||
+      !isRecordLike(usage.tokens) ||
+      !isRecordLike(usage.cost) ||
+      !validNumber(usage.tokens.input) ||
+      !validNumber(usage.tokens.output) ||
+      (usage.tokens.cacheRead !== undefined && !validNumber(usage.tokens.cacheRead)) ||
+      (usage.tokens.cacheWrite !== undefined && !validNumber(usage.tokens.cacheWrite)) ||
+      !['input', 'output', 'total', 'toolCost'].every((key) =>
+        validNumber((usage.cost as Record<string, unknown>)[key])
+      )
+    )
+      return false
+  }
   const stepIds = new Set<string>()
   const invocationIds = new Set<string>()
   return value.steps.every((step) => {
@@ -212,6 +230,41 @@ function validState(value: unknown): value is AgentTurnState {
     }
     return true
   })
+}
+
+/** The immutable artifact retains the full result; all model continuations use this bounded view. */
+function compactArtifactResult(
+  result: ConversationToolResult,
+  ref: LargeValueRef
+): ConversationToolResult {
+  const preview = truncate(
+    JSON.stringify(result.modelResponse),
+    MAX_ARTIFACT_PREVIEW_CHARS,
+    '… [remaining tool result retained in the conversation artifact]'
+  )
+  const originalCost = isRecordLike(result.rawResponse.output.cost)
+    ? result.rawResponse.output.cost.total
+    : undefined
+  const modelResponse = {
+    success: result.modelResponse.success,
+    output: { memoryArtifact: { id: getMemoryArtifactHandle(ref.key!) }, preview },
+    ...(result.modelResponse.error
+      ? { error: 'Tool execution failed; details retained in the conversation artifact.' }
+      : {}),
+  }
+  return {
+    ...result,
+    artifact: ref,
+    modelResponse,
+    rawResponse: {
+      ...modelResponse,
+      success: result.rawResponse.success,
+      output: {
+        ...modelResponse.output,
+        ...(validNumber(originalCost) ? { cost: { total: originalCost } } : {}),
+      },
+    },
+  }
 }
 
 export class AgentTurnSession extends AgentTurnStateMachine {
@@ -358,6 +411,8 @@ export async function openAgentTurnSession(
     })
   let record: AgentMemoryTurnRecord | undefined
   let state: AgentTurnState | undefined
+  let journal: AgentTurnJournal | undefined
+  let restoringJournal = false
   let degraded = false
   const degrade = () => {
     if (!degraded)
@@ -372,18 +427,54 @@ export async function openAgentTurnSession(
       principal: await principal(),
       input: identity,
     })
+    journal = new AgentTurnJournal(
+      { identity: key, memoryId: record.memoryId, turnId: record.turnId },
+      {
+        async store(value) {
+          const stored = await storeAgentMemoryArtifactUseCase.execute({
+            principal: await principal(),
+            input: {
+              workspaceId: identity.workspaceId,
+              workflowId: identity.workflowId,
+              executionId: identity.executionId,
+              memoryId: record!.memoryId,
+              value,
+            },
+          })
+          return stored?.ref
+        },
+        async read(ref) {
+          return readAgentMemoryArtifactUseCase.execute({
+            principal: await principal(),
+            input: { workspaceId: identity.workspaceId, memoryId: record!.memoryId, ref },
+          })
+        },
+        compactResult: compactArtifactResult,
+        unavailable() {
+          logger.warn('Agent memory recorded result payload unavailable')
+        },
+      }
+    )
     if (record.encryptedState) {
       const restored = await decryptMemoryCheckpoint(record.encryptedState)
       if (
         !isRecordLike(restored) ||
         restored.identity !== key ||
-        restored.memoryId !== record.memoryId ||
-        !validState(restored.state)
+        restored.memoryId !== record.memoryId
       )
         throw new Error('Invalid Agent checkpoint binding')
-      state = restored.state
+      restoringJournal = isRecordLike(restored.state) && restored.state.version === 2
+      const restoredState = restoringJournal
+        ? await journal.restore(restored.state)
+        : restored.state
+      if (!validState(restoredState)) throw new Error('Invalid Agent checkpoint state')
+      state = restoredState
     }
-  } catch {
+  } catch (error) {
+    if (restoringJournal || (isRecordLike(error) && error.code === 'payload_too_large'))
+      throw Object.assign(new Error('Agent invocation journal could not be safely restored'), {
+        retryable: false,
+      })
     degrade()
   }
 
@@ -461,6 +552,8 @@ export async function openAgentTurnSession(
           }
           requiresArtifact ||=
             stringifyBoundedMemoryJson(prepared, MEMORY.MAX_MESSAGE_CONTENT_BYTES) === undefined
+          requiresArtifact ||=
+            JSON.stringify(prepared.modelResponse).length > MAX_ARTIFACT_PREVIEW_CHARS
           if (requiresArtifact) {
             if (!record) throw new Error('Memory artifact storage unavailable')
             const stored = await storeAgentMemoryArtifactUseCase.execute({
@@ -474,29 +567,7 @@ export async function openAgentTurnSession(
               },
             })
             if (!stored) throw new Error('Memory artifact storage unavailable')
-            const preview = truncate(
-              JSON.stringify(prepared.modelResponse),
-              MAX_ARTIFACT_PREVIEW_CHARS,
-              '… [remaining tool result retained in the conversation artifact]'
-            )
-            prepared.artifact = stored.ref
-            const originalCost = isRecordLike(prepared.rawResponse.output.cost)
-              ? prepared.rawResponse.output.cost.total
-              : undefined
-            prepared.modelResponse = {
-              success: prepared.modelResponse.success,
-              output: { memoryArtifact: stored.ref, preview },
-              ...(prepared.modelResponse.error
-                ? { error: 'Tool execution failed; details retained in the conversation artifact.' }
-                : {}),
-            }
-            prepared.rawResponse = {
-              ...prepared.modelResponse,
-              output: {
-                ...prepared.modelResponse.output,
-                ...(validNumber(originalCost) ? { cost: { total: originalCost } } : {}),
-              },
-            }
+            return compactArtifactResult(prepared, stored.ref)
           }
           return prepared
         } catch {
@@ -539,22 +610,8 @@ export async function openAgentTurnSession(
         }
       },
       async save(snapshot: AgentTurnState, completed?: ConversationStep) {
-        if (!record || degraded) return
+        if (!record || !journal || degraded) return
         try {
-          for (const step of snapshot.steps) {
-            for (const result of step.results) {
-              if (result.artifact)
-                result.rawResponse = {
-                  ...result.modelResponse,
-                  output: {
-                    ...result.modelResponse.output,
-                    ...(result.rawResponse.output.cost
-                      ? { cost: result.rawResponse.output.cost }
-                      : {}),
-                  },
-                }
-            }
-          }
           const items: ConversationItemInput[] = []
           if (snapshot.final?.content.trim()) {
             const message = { role: 'assistant' as const, content: snapshot.final.content }
@@ -606,7 +663,7 @@ export async function openAgentTurnSession(
                   role: 'user',
                   content: JSON.stringify({
                     type: 'untrusted_prior_tool_execution',
-                    artifact: stored.ref,
+                    artifact: { id: getMemoryArtifactHandle(stored.ref.key!) },
                     preview: truncate(
                       JSON.stringify(messages),
                       MAX_ARTIFACT_PREVIEW_CHARS,
@@ -632,7 +689,7 @@ export async function openAgentTurnSession(
           const encryptedState = await encryptMemoryCheckpoint({
             identity: key,
             memoryId: record.memoryId,
-            state: snapshot,
+            state: await journal.checkpoint(snapshot),
           })
           const saved = await saveAgentMemoryTurnUseCase.execute({
             principal: await principal(),
@@ -677,7 +734,7 @@ export async function openAgentTurnSession(
         return {
           ...result,
           rawResponse: { ...result.rawResponse, ...restored.rawResponse },
-          modelResponse: { ...result.modelResponse, ...restored.modelResponse },
+          modelResponse: result.modelResponse,
           provenance: result.provenance,
         }
       } catch {

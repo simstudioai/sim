@@ -7,6 +7,7 @@ const mockSend = vi.fn()
 const capturedRequestHistories = vi.hoisted(() => [] as unknown[])
 
 vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
   captureProviderConversationStep: vi.fn(
     (
       _request: unknown,

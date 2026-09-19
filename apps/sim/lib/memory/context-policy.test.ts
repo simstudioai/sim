@@ -1,0 +1,125 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import {
+  AgentContextLimitError,
+  getConversationHistoryTokenBudget,
+  selectConversationContextGroups,
+} from '@/lib/memory/context-policy'
+
+const budget = { contextWindow: 32_000, fixedTokens: 1000, outputTokens: 2000 }
+
+describe('Agent context selection', () => {
+  it('keeps required input and the newest intact history within a deliberate history budget', () => {
+    expect(
+      selectConversationContextGroups(
+        [
+          { value: 'old', tokens: 10_000 },
+          { value: 'recent', tokens: 10_000 },
+          { value: 'input', tokens: 1000, required: true },
+          { value: 'parallel batch', tokens: 2000, required: true },
+        ],
+        budget
+      )
+    ).toEqual(['recent', 'input', 'parallel batch'])
+  })
+
+  it('uses the smaller model remaining capacity after all fixed inputs and output reserve', () => {
+    expect(
+      selectConversationContextGroups(
+        [
+          { value: 'old', tokens: 1000 },
+          { value: 'recent', tokens: 1000 },
+          { value: 'input', tokens: 1000, required: true },
+        ],
+        { contextWindow: 5000, fixedTokens: 1000, outputTokens: 1000 }
+      )
+    ).toEqual(['recent', 'input'])
+  })
+
+  it('does not split a parallel group or skip a missing segment to revive older history', () => {
+    expect(
+      selectConversationContextGroups(
+        [
+          { value: 'old', tokens: 1 },
+          { value: 'large complete batch', tokens: 2000 },
+          { value: 'recent', tokens: 1000 },
+          { value: 'input', tokens: 100, required: true },
+        ],
+        { ...budget, historyTokens: 1500 }
+      )
+    ).toEqual(['recent', 'input'])
+  })
+
+  it('retains required native state even above the optional history target', () => {
+    expect(
+      selectConversationContextGroups(
+        [{ value: 'native prefix', tokens: 20_000, required: true }],
+        { ...budget, historyTokens: 1000 }
+      )
+    ).toEqual(['native prefix'])
+  })
+
+  it('refuses an oversized required request before generation without marking it retryable', () => {
+    try {
+      selectConversationContextGroups(
+        [{ value: 'required batch', tokens: 30_000, required: true }],
+        budget
+      )
+      expect.fail('Expected context refusal')
+    } catch (error) {
+      expect(error).toBeInstanceOf(AgentContextLimitError)
+      expect(error).toMatchObject({ retryable: false })
+    }
+  })
+
+  it('permits an empty optional history budget without dropping the current request', () => {
+    expect(
+      selectConversationContextGroups(
+        [
+          { value: 'history', tokens: 1 },
+          { value: 'input', tokens: 10, required: true },
+        ],
+        { ...budget, historyTokens: 0 }
+      )
+    ).toEqual(['input'])
+  })
+
+  it('keeps a bounded summary before spending the remaining history budget on recent raw groups', () => {
+    expect(
+      selectConversationContextGroups(
+        [
+          { value: 'summary', tokens: 400, summary: true },
+          { value: 'old raw history', tokens: 400 },
+          { value: 'recent raw history', tokens: 600 },
+          { value: 'current input', tokens: 100, required: true },
+        ],
+        { ...budget, historyTokens: 1000 }
+      )
+    ).toEqual(['summary', 'recent raw history', 'current input'])
+  })
+
+  it('never displaces required state with a summary exceeding the remaining hard capacity', () => {
+    const groups = [
+      { value: 'summary', tokens: 500, summary: true },
+      { value: 'recent', tokens: 100 },
+      { value: 'required', tokens: 27_600, required: true },
+    ]
+    const options = { ...budget, fixedTokens: 100, outputTokens: 1000 }
+    expect(getConversationHistoryTokenBudget(groups, options)).toBe(100)
+    expect(selectConversationContextGroups(groups, options)).toEqual(['recent', 'required'])
+  })
+
+  it('does not mutate native groups or their ordering', () => {
+    const native = Object.freeze([{ id: 'call' }, { id: 'result' }])
+    const groups = Object.freeze([{ value: native, tokens: 50, required: true }])
+    expect(selectConversationContextGroups(groups, budget)[0]).toBe(native)
+  })
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])('rejects invalid budget %s', (value) => {
+    expect(() => selectConversationContextGroups([], { ...budget, historyTokens: value })).toThrow(
+      AgentContextLimitError
+    )
+  })
+})

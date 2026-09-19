@@ -7,6 +7,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -160,7 +164,7 @@ export const mistralProvider: ProviderConfig = {
           stream: true,
         }
         const streamResponse = await mistral.chat.completions.create(
-          streamingParams,
+          await prepareConversationGeneration(request, 'chat-completions', streamingParams),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -233,7 +237,7 @@ export const mistralProvider: ProviderConfig = {
       }
 
       let currentResponse = await mistral.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -482,7 +486,7 @@ export const mistralProvider: ProviderConfig = {
         const nextModelStartTime = Date.now()
 
         currentResponse = await mistral.chat.completions.create(
-          nextPayload,
+          await prepareConversationGeneration(request, 'chat-completions', nextPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -538,10 +542,10 @@ export const mistralProvider: ProviderConfig = {
           const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
           const synthesisStartTime = Date.now()
           const synthesisResponse = await mistral.chat.completions.create(
-            {
+            await prepareConversationGeneration(request, 'chat-completions', {
               ...synthesisPayload,
               messages: currentMessages,
-            },
+            }),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
@@ -655,7 +659,11 @@ export const mistralProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

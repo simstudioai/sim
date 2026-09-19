@@ -6,6 +6,7 @@ import { dbChainMockFns, encryptionMock, encryptionMockFns, resetDbChainMock } f
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { getMemoryArtifactHandle } from '@/lib/memory/artifact-handle'
 
 const { storeLargeValue, materializeLargeValueRef } = vi.hoisted(() => ({
   storeLargeValue: vi.fn(),
@@ -18,6 +19,7 @@ import {
   MAX_MEMORY_ARTIFACT_BYTES,
   MAX_MEMORY_ARTIFACT_STORED_BYTES,
   readMemoryArtifact,
+  readMemoryArtifactByHandle,
   storeMemoryArtifact,
 } from '@/lib/memory/artifacts'
 
@@ -140,6 +142,49 @@ describe('encrypted memory artifacts', () => {
     expect(eq).toHaveBeenCalledWith(memoryArtifact.key, ref.key)
     expect(materializeLargeValueRef).not.toHaveBeenCalled()
     expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('rejects model-supplied storage keys without querying or downloading', async () => {
+    expect(await readMemoryArtifactByHandle({ ...scope, artifactId: ref.key! })).toBeUndefined()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(materializeLargeValueRef).not.toHaveBeenCalled()
+  })
+
+  it('conceals a handle owned by another or deleted memory before storage access', async () => {
+    const artifactId = getMemoryArtifactHandle(ref.key!)
+    expect(artifactId).toMatch(/^[a-f0-9]{64}$/)
+    expect(artifactId).not.toContain('execution')
+    expect(await readMemoryArtifactByHandle({ ...scope, artifactId })).toBeUndefined()
+    expect(eq).toHaveBeenCalledWith(memory.id, scope.memoryId)
+    expect(eq).toHaveBeenCalledWith(memory.workspaceId, scope.workspaceId)
+    expect(isNull).toHaveBeenCalledWith(memory.deletedAt)
+    expect(materializeLargeValueRef).not.toHaveBeenCalled()
+  })
+
+  it('resolves an opaque handle using its canonical owned key and metadata', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ key: ref.key }]).mockResolvedValueOnce([
+      {
+        key: ref.key,
+        size: 500,
+        workflowId: identity.workflowId,
+        executionId: identity.executionId,
+      },
+    ])
+    expect(
+      await readMemoryArtifactByHandle({ ...scope, artifactId: getMemoryArtifactHandle(ref.key!) })
+    ).toEqual({ success: true })
+    expect(materializeLargeValueRef).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: ref.id,
+        key: ref.key,
+        size: 500,
+        executionId: identity.executionId,
+      }),
+      expect.objectContaining({
+        workspaceId: scope.workspaceId,
+        maxBytes: MAX_MEMORY_ARTIFACT_STORED_BYTES,
+      })
+    )
   })
 
   it('uses canonical size and execution metadata and bounds the encrypted download', async () => {

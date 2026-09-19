@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Live Bedrock ConverseStream tool loop.
  *
@@ -313,13 +314,15 @@ export function createBedrockStreamingToolLoopStream(
             : undefined
 
           const modelStart = Date.now()
-          const command = new ConverseStreamCommand({
-            modelId,
-            messages: currentMessages,
-            system: system && system.length > 0 ? system : undefined,
-            inferenceConfig,
-            toolConfig,
-          })
+          const command = new ConverseStreamCommand(
+            await prepareConversationGeneration(request, 'bedrock', {
+              modelId,
+              messages: currentMessages,
+              system: system && system.length > 0 ? system : undefined,
+              inferenceConfig,
+              toolConfig,
+            })
+          )
 
           const streamResponse = await client.send(command, {
             abortSignal: loopAbortController.signal,

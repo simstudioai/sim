@@ -14,6 +14,7 @@ import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import type { Message, ProviderId } from '@/providers/types'
 
 export interface AgentTurnStateWriter {
+  /** Payloads are immutable; writers must not mutate this structural snapshot. */
   save(state: AgentTurnState, completed?: ConversationStep): Promise<void>
   prepareStep?(step: ConversationStep): Promise<ConversationStep>
   prepareResult?(result: ConversationToolResult): Promise<ConversationToolResult>
@@ -137,7 +138,19 @@ export class AgentTurnStateMachine implements AgentConversationSession {
         }
       }
     }
+    if (this.state.contextUsage) addUsageTotals(total, this.state.contextUsage)
     return total
+  }
+
+  async recordContextUsage(usage: ConversationUsageTotal): Promise<void> {
+    const total: ConversationUsageTotal = {
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      cost: { input: 0, output: 0, total: 0, toolCost: 0 },
+    }
+    if (this.state.contextUsage) addUsageTotals(total, this.state.contextUsage)
+    addUsageTotals(total, usage)
+    this.state.contextUsage = total
+    await this.save()
   }
 
   getMessages(providerId: ProviderId, model: string, binding: string): Message[] {
@@ -166,8 +179,12 @@ export class AgentTurnStateMachine implements AgentConversationSession {
   }
 
   protected async save(completed?: ConversationStep): Promise<void> {
-    const state = structuredClone(this.state)
-    const exchange = completed ? structuredClone(completed) : undefined
+    const state: AgentTurnState = {
+      ...this.state,
+      steps: this.state.steps.map((step) => ({ ...step, results: [...step.results] })),
+      ...(this.state.final ? { final: { ...this.state.final } } : {}),
+    }
+    const exchange = completed ? state.steps.find((step) => step.id === completed.id) : undefined
     this.writes = this.writes.then(() => this.writer.save(state, exchange))
     await this.writes
   }
@@ -206,7 +223,10 @@ export function renderConversationStep(
         content: JSON.stringify(
           result?.modelResponse.success
             ? result.modelResponse.output
-            : { error: result?.modelResponse.error ?? 'Tool execution failed' }
+            : {
+                ...(result?.artifact ? { ...result.modelResponse.output, success: false } : {}),
+                error: result?.modelResponse.error ?? 'Tool execution failed',
+              }
         ),
       }
     }),
@@ -215,4 +235,17 @@ export function renderConversationStep(
     return [renderConversationExecutionRecord(messages)]
   if (native) setNativeConversationMessage(assistant, native)
   return messages
+}
+
+function addUsageTotals(target: ConversationUsageTotal, source: ConversationUsageTotal): void {
+  target.tokens.input += source.tokens.input
+  target.tokens.output += source.tokens.output
+  target.tokens.cacheRead = (target.tokens.cacheRead ?? 0) + (source.tokens.cacheRead ?? 0)
+  target.tokens.cacheWrite =
+    (target.tokens.cacheWrite ?? 0) +
+    (source.tokens.cacheWrite ??
+      source.tokens.cacheWrites?.reduce((sum, write) => sum + write.tokens, 0) ??
+      0)
+  for (const key of ['input', 'output', 'total', 'toolCost'] as const)
+    target.cost[key] += source.cost[key]
 }

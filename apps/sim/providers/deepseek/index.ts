@@ -6,6 +6,10 @@ import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -218,11 +222,11 @@ export const deepseekProvider: ProviderConfig = {
         logger.info('Using streaming response for DeepSeek request (no tools)')
 
         const streamResponse = await deepseek.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
             stream_options: { include_usage: true },
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -279,7 +283,7 @@ export const deepseekProvider: ProviderConfig = {
       let usedForcedTools: string[] = []
 
       let currentResponse = await deepseek.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -571,7 +575,7 @@ export const deepseekProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await deepseek.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -670,7 +674,11 @@ export const deepseekProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
       throw new ProviderError(toError(error).message, {

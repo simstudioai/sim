@@ -14,6 +14,7 @@ const { mockExecuteTool, mockCapture, mockRecordError } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
   captureProviderConversationStep: mockCapture,
   recordProviderConversationToolError: mockRecordError,
 }))

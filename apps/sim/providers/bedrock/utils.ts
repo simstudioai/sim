@@ -6,6 +6,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
+import { GEO_PROFILE_PREFIX_PATTERN, getBedrockBaseModelId } from '@/providers/bedrock/model-id'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -246,18 +247,6 @@ const US_GEO_PROFILE_MODEL_IDS = new Set([
   'openai.gpt-5.6-terra',
   'openai.gpt-5.6-luna',
 ])
-
-/** Cross-region inference profile prefixes Bedrock prepends to a base model ID. */
-const GEO_PROFILE_PREFIX_PATTERN = /^(us-gov|us|eu|apac|au|ca|jp|global)\./
-
-/**
- * Strips Sim's `bedrock/` namespace and any cross-region inference prefix,
- * leaving the bare `<vendor>.<model>` ID that capability checks key off.
- */
-export function getBedrockBaseModelId(modelId: string): string {
-  const withoutNamespace = modelId.replace(/^bedrock\//i, '')
-  return withoutNamespace.replace(GEO_PROFILE_PREFIX_PATTERN, '')
-}
 
 /**
  * Whether the model accepts `status` on a `toolResult` content block.

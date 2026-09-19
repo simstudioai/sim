@@ -28,8 +28,9 @@ vi.mock('@/tools', () => ({ executeTool: mocks.execute }))
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { durableSecretProvenanceFromRegistry } from '@/lib/execution/durable-secret-provenance'
 import { openAgentTurnSession } from '@/lib/memory/agent-turn-session'
-import { decryptMemoryCheckpoint, encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
+import { encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import type { AgentTurnState } from '@/lib/memory/conversation-types'
+import { createJournalArtifactFixture } from '@/lib/memory/journal.test-helpers'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { continuePendingConversationCalls } from '@/providers/conversation-continuation'
@@ -37,6 +38,8 @@ import { getConfiguredConversationToolBinding } from '@/providers/conversation-h
 import { executeProviderTool, runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import { registerProviderToolModelInputRegistry } from '@/providers/tool-input-provenance'
 import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
+
+const artifacts = createJournalArtifactFixture()
 
 const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
 const secret = 'private-derived-token-abc'
@@ -124,6 +127,9 @@ async function restore(encryptedState: string) {
 describe('durable Agent replay provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    artifacts.values.clear()
+    mocks.storeArtifact.mockImplementation(artifacts.store)
+    mocks.readArtifact.mockImplementation(artifacts.read)
     mocks.open.mockResolvedValue({
       memoryId: 'memory-1',
       turnId: 'turn-1',
@@ -170,7 +176,7 @@ describe('durable Agent replay provenance', () => {
     expect(
       JSON.stringify(mocks.save.mock.calls.flatMap(([call]) => call.input.items))
     ).not.toContain(secret)
-    const completed = (await decryptMemoryCheckpoint(encryptedState)) as { state: AgentTurnState }
+    const completed = (await artifacts.inspect(encryptedState)) as { state: AgentTurnState }
     const replay = await runWithProviderRuntimeContext(
       { agentConversation: session, resolvedSecretTraceRegistry: registry },
       () =>
@@ -185,7 +191,7 @@ describe('durable Agent replay provenance', () => {
 
   it('rejects foreign-workspace result provenance before pending tool dispatch', async () => {
     const { encryptedState } = await checkpointWithPendingCall()
-    const envelope = (await decryptMemoryCheckpoint(encryptedState)) as { state: AgentTurnState }
+    const envelope = (await artifacts.inspect(encryptedState)) as { state: AgentTurnState }
     const provenance = envelope.state.steps[0].results[0].provenance!
     if (provenance.status !== 'exact') throw new Error('Expected tracked fixture')
     provenance.entries[0].sourceWorkspaceId = 'foreign-workspace'
@@ -217,7 +223,7 @@ describe('durable Agent replay provenance', () => {
     'binds personal provenance only to its actual user (same user: %s)',
     async (sameUser) => {
       const { encryptedState } = await checkpointWithPendingCall()
-      const envelope = (await decryptMemoryCheckpoint(encryptedState)) as { state: AgentTurnState }
+      const envelope = (await artifacts.inspect(encryptedState)) as { state: AgentTurnState }
       const provenance = envelope.state.steps[0].results[0].provenance!
       if (provenance.status !== 'exact') throw new Error('Expected tracked fixture')
       provenance.entries[0].sourceWorkspaceId = undefined
@@ -272,7 +278,8 @@ describe('durable Agent replay provenance', () => {
     mocks.readArtifact.mockResolvedValue(result)
     await session.recordToolResult(result)
     expect(session.getRecordedResult(invocationId)?.rawResponse.output.text).toBeUndefined()
-    expect(JSON.stringify(session.getRecordedResult(invocationId)).length).toBeLessThan(2000)
+    expect(JSON.stringify(session.getRecordedResult(invocationId)).length).toBeLessThan(18_000)
+    expect(JSON.stringify(session.getRecordedResult(invocationId))).not.toContain('x'.repeat(9000))
     expect(session.getUsage().cost.toolCost).toBe(0.02)
     expect((await session.getReplayResult(invocationId))?.rawResponse).toEqual(rawResponse)
   })
@@ -328,7 +335,7 @@ describe('durable Agent replay provenance', () => {
     ],
   ] as const)('discards a checkpoint with %s', async (_name, mutate) => {
     const { encryptedState } = await checkpointWithPendingCall()
-    const envelope = (await decryptMemoryCheckpoint(encryptedState)) as { state: AgentTurnState }
+    const envelope = (await artifacts.inspect(encryptedState)) as { state: AgentTurnState }
     mutate(envelope.state)
     const { session } = await restore(await encryptMemoryCheckpoint(envelope))
     expect(session.getPendingCalls()).toEqual([])

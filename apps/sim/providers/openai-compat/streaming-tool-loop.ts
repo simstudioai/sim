@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Shared OpenAI Chat Completions streaming tool loop.
  *
@@ -167,7 +168,11 @@ export function createOpenAICompatStreamingToolLoopStream(
           }
 
           const stream = await createStream(
-            turnPayload as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+            await prepareConversationGeneration(
+              request,
+              'chat-completions',
+              turnPayload as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
+            ),
             streamOpts
           )
 

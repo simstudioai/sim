@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  *
- * Uses a disposable schema in a local PostgreSQL database. From apps/sim, run:
- * `MEMORY_PROVENANCE_TEST_DATABASE_URL=postgresql://user@127.0.0.1:5432/postgres bun run test lib/memory/message-provenance.postgres.test.ts`
+ * Uses a disposable schema in the isolated local memory test database.
+ * Set MEMORY_PROVENANCE_TEST_DATABASE_URL before running this suite from apps/sim.
  */
+import { readFile } from 'node:fs/promises'
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -17,6 +18,10 @@ const { database } = vi.hoisted(() => ({
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
 vi.mock('@sim/db', () => ({
+  dbFor: () => {
+    if (!database.current) throw new Error('PostgreSQL test database is not initialized')
+    return database.current
+  },
   db: {
     select: (...args: unknown[]) => {
       if (!database.current) throw new Error('PostgreSQL test database is not initialized')
@@ -27,6 +32,9 @@ vi.mock('@sim/db', () => ({
       return Reflect.apply(database.current.transaction, database.current, args)
     },
   },
+}))
+vi.mock('@/lib/internal/principals/executor', () => ({
+  createExecutorPrincipalFromExecutionContext: async () => principal(),
 }))
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: async (value: string) => ({ decrypted: value.replace('cipher-', 'secret-') }),
@@ -54,8 +62,14 @@ import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const databaseUrl = process.env.MEMORY_PROVENANCE_TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Memory provenance PostgreSQL tests require a local database')
+if (databaseUrl) {
+  const location = new URL(databaseUrl)
+  if (
+    location.hostname !== '127.0.0.1' ||
+    location.port !== '5433' ||
+    location.pathname !== '/sim_durable_memory_e2e'
+  )
+    throw new Error('Memory provenance tests require the isolated local test database')
 }
 const schemaName = `memory_provenance_${generateId().replaceAll('-', '')}`
 const connection = databaseUrl
@@ -152,6 +166,8 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     database.current = drizzle(connection)
     await connection.unsafe(`
+      CREATE TABLE workflow (id text PRIMARY KEY);
+      CREATE TABLE execution_large_values (key text PRIMARY KEY);
       CREATE TABLE memory (
         id text PRIMARY KEY, workspace_id text NOT NULL, key text NOT NULL, data jsonb NOT NULL,
         secret_provenance_version integer, created_at timestamp NOT NULL DEFAULT now(),
@@ -172,6 +188,13 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
       CREATE TRIGGER memory_demote BEFORE UPDATE OF data ON memory FOR EACH ROW
         WHEN(OLD.data IS DISTINCT FROM NEW.data) EXECUTE FUNCTION demote_memory();
     `)
+    for (const name of ['0365_durable_agent_memory', '0366_agent_memory_context_summary']) {
+      const migration = await readFile(
+        new URL(`../../../../packages/db/migrations/${name}.sql`, import.meta.url),
+        'utf8'
+      )
+      await connection.unsafe(migration.replaceAll('"public".', `"${schemaName}".`))
+    }
   })
 
   afterAll(async () => {

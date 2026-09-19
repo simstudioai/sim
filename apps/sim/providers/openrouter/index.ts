@@ -10,6 +10,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -183,7 +187,7 @@ export const openRouterProvider: ProviderConfig = {
           stream_options: { include_usage: true },
         }
         const streamResponse = await client.chat.completions.create(
-          streamingParams,
+          await prepareConversationGeneration(request, 'chat-completions', streamingParams),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -232,7 +236,7 @@ export const openRouterProvider: ProviderConfig = {
       let usedForcedTools: string[] = []
 
       let currentResponse = await client.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -482,7 +486,7 @@ export const openRouterProvider: ProviderConfig = {
 
         const nextModelStartTime = Date.now()
         currentResponse = await client.chat.completions.create(
-          nextPayload,
+          await prepareConversationGeneration(request, 'chat-completions', nextPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -548,7 +552,7 @@ export const openRouterProvider: ProviderConfig = {
 
           const finalStartTime = Date.now()
           const finalResponse = await client.chat.completions.create(
-            finalPayload,
+            await prepareConversationGeneration(request, 'chat-completions', finalPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -610,7 +614,7 @@ export const openRouterProvider: ProviderConfig = {
 
         const finalStartTime = Date.now()
         const finalResponse = await client.chat.completions.create(
-          finalPayload,
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -729,7 +733,11 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       logger.error('Error in OpenRouter request:', errorDetails)
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

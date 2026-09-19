@@ -141,7 +141,9 @@ export class Memory {
 
     switch (inputs.memoryType) {
       case 'conversation':
-        messages = selectConversationContextWindow(stored.messages, inputs.model, stored.groups)
+        messages = options.richHistory
+          ? stored.messages
+          : selectConversationContextWindow(stored.messages, inputs.model, stored.groups)
         break
 
       case 'sliding_window': {

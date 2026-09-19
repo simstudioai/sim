@@ -1,12 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
-import { decryptMemoryCheckpoint, projectableMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
+import { decryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import type { AgentConversationSession } from '@/lib/memory/conversation-types'
 import { renderConversationExecutionRecord } from '@/lib/memory/execution-record'
-import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
 import { isChatCompletionsEndpoint } from '@/providers/azure-openai/utils'
 import { getConfiguredConversationToolBinding } from '@/providers/conversation-history'
 import {
@@ -16,14 +14,12 @@ import {
   setNativeConversationMessage,
 } from '@/providers/conversation-metadata'
 import { providerHistoryProtocols, requiresNativeToolHistory } from '@/providers/history-adapters'
-import { getMaxOutputTokensForModel, PROVIDER_DEFINITIONS } from '@/providers/models'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
 
 const logger = createLogger('AgentMemoryContinuation')
-const CONVERSATION_PROTOCOLS = [...new Set(Object.values(providerHistoryProtocols))]
 
 /** Pending calls have no recorded outcome: retrying them deliberately provides at-least-once effects. */
 export async function continuePendingConversationCalls(
@@ -188,121 +184,4 @@ export async function restoreConversationNativeMessages(
     } else restored.push(...group)
   }
   return restored
-}
-
-function conversationGroupTokens(request: ProviderRequest, group: Message[]): number {
-  let count = getAccurateTokenCount(JSON.stringify(group), request.model)
-  for (const message of group) {
-    for (const protocol of CONVERSATION_PROTOCOLS) {
-      const native = getNativeConversationMessage(message, protocol)
-      if (native === undefined) continue
-      try {
-        count += getAccurateTokenCount(
-          JSON.stringify(projectableMemoryCheckpoint(native)),
-          request.model
-        )
-      } catch {
-        return Number.POSITIVE_INFINITY
-      }
-      break
-    }
-    for (const file of message.files ?? []) count += Math.ceil((file.size ?? 0) / 3)
-  }
-  return count
-}
-
-function compactConversationGroup(
-  request: ProviderRequest,
-  group: Message[],
-  budget: number
-): Message[] | undefined {
-  const toolExchange = Boolean(group[0].tool_calls?.length)
-  for (let length = 2048; length >= 128; length = Math.floor(length / 2)) {
-    const compact: Message[] = toolExchange
-      ? [renderConversationExecutionRecord(group, length)]
-      : [
-          {
-            role: group[0].role,
-            content: truncate(group[0].content ?? '', length, '… [history shortened]'),
-          },
-        ]
-    if (conversationGroupTokens(request, compact) <= budget) return compact
-  }
-  if (!toolExchange) return undefined
-  const compact: Message[] = [
-    {
-      role: 'user',
-      content:
-        'Prior tools have recorded outcomes. Their execution details were omitted to fit this model.',
-    },
-  ]
-  return conversationGroupTokens(request, compact) <= budget ? compact : undefined
-}
-
-export function budgetConversationMessages(
-  request: ProviderRequest,
-  messages: Message[],
-  requiredMessages: readonly Message[] = []
-): Message[] {
-  const definition = Object.values(PROVIDER_DEFINITIONS)
-    .flatMap((provider) => provider.models)
-    .find((model) => model.id.toLowerCase() === request.model.toLowerCase())
-  const contextWindow = definition?.contextWindow ?? 32_000
-  const fixed = getAccurateTokenCount(
-    JSON.stringify({
-      systemPrompt: request.systemPrompt,
-      context: request.context,
-      tools: request.tools?.map((tool) => ({
-        id: tool.id,
-        description: tool.description,
-        parameters: tool.parameters,
-      })),
-      responseFormat: request.responseFormat,
-    }),
-    request.model
-  )
-  const modelOutputLimit = getMaxOutputTokensForModel(request.model)
-  const reservedOutput =
-    request.thinkingLevel && request.thinkingLevel !== 'none'
-      ? Math.max(request.maxTokens ?? 0, modelOutputLimit)
-      : (request.maxTokens ?? modelOutputLimit)
-  let budget = Math.max(0, Math.floor(contextWindow * 0.9) - fixed - reservedOutput)
-  const groups = groupConversationMessages(messages)
-  const required = new Set(requiredMessages)
-  const selected = new Map<number, Message[]>()
-  let lastRequiredIndex = -1
-  for (let index = 0; index < groups.length; index++) {
-    const group = groups[index]
-    if (!group.some((message) => required.has(message) || message.role === 'system')) continue
-    selected.set(index, group)
-    lastRequiredIndex = index
-    budget -= conversationGroupTokens(request, group)
-  }
-  for (let index = groups.length - 1; index >= 0 && budget > 0; index--) {
-    if (selected.has(index)) continue
-    const group = groups[index]
-    const count = conversationGroupTokens(request, group)
-    if (count <= budget) {
-      selected.set(index, group)
-      budget -= count
-      continue
-    }
-    if (index > lastRequiredIndex) {
-      const compact = compactConversationGroup(request, group, budget)
-      if (compact) {
-        selected.set(index, compact)
-        budget -= conversationGroupTokens(request, compact)
-      }
-    }
-    break
-  }
-  const result = [...selected.entries()]
-    .sort(([left], [right]) => left - right)
-    .flatMap(([, group]) => group)
-  logger.info('Agent memory request history selected', {
-    model: request.model,
-    messages: result.length,
-    bytes: Buffer.byteLength(JSON.stringify(result)),
-  })
-  return result
 }

@@ -26,13 +26,16 @@ vi.mock('@/providers/utils', () => ({
   supportsReasoningEffort: () => false,
 }))
 
-const { mockExecuteProviderTool, mockCaptureStep, mockRecordToolError } = vi.hoisted(() => ({
-  mockExecuteProviderTool: vi.fn(),
-  mockCaptureStep: vi.fn(),
-  mockRecordToolError: vi.fn(),
-}))
+const { mockExecuteProviderTool, mockCaptureStep, mockRecordToolError, mockConversationContext } =
+  vi.hoisted(() => ({
+    mockExecuteProviderTool: vi.fn(),
+    mockCaptureStep: vi.fn(),
+    mockRecordToolError: vi.fn(),
+    mockConversationContext: vi.fn(),
+  }))
 
 vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: mockConversationContext,
   isProviderConversationCaptureEnabled: vi.fn().mockReturnValue(false),
   captureProviderConversationStep: mockCaptureStep,
   recordProviderConversationToolError: mockRecordToolError,
@@ -81,6 +84,7 @@ describe('OpenAI non-streaming response status handling', () => {
     vi.clearAllMocks()
     mockCaptureStep.mockReset()
     mockRecordToolError.mockReset()
+    mockConversationContext.mockReset()
     const response = { success: true, output: { results: [] } }
     mockExecuteProviderTool.mockResolvedValue({ rawResponse: response, modelResponse: response })
   })
@@ -103,6 +107,16 @@ describe('OpenAI non-streaming response status handling', () => {
   const TOOL_REQUEST: Partial<ProviderRequest> = {
     tools: [{ id: 'exa_search', name: 'exa_search', description: 'search', params: {} }],
   }
+
+  it('refuses oversized required context before sending and preserves its nonretryable classification', async () => {
+    mockConversationContext.mockReturnValue({ agentConversation: {} })
+    const fetchMock = vi.fn()
+    await expect(run(fetchMock, { maxTokens: 10_000_000 })).rejects.toMatchObject({
+      name: 'AgentContextLimitError',
+      retryable: false,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 
   it('awaits assistant capture before dispatching tools and captures the final response', async () => {
     const order: string[] = []

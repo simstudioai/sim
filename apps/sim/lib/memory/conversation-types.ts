@@ -69,6 +69,7 @@ export interface ConversationUsageTotal {
 export interface AgentTurnState {
   version: 1
   steps: ConversationStep[]
+  contextUsage?: ConversationUsageTotal
   final?: { content: string; model: string }
 }
 
@@ -91,8 +92,10 @@ export interface AgentConversationSession {
   getFinalAssistantContent(): string | undefined
   readonly memoryId?: string
   getUsage(): ConversationUsageTotal
+  recordContextUsage?(usage: ConversationUsageTotal): Promise<void>
   captureStep(step: CapturedConversationStep): Promise<void>
   resolveInvocationId(providerCallId: string | undefined, toolId: string): string | undefined
+  getRecordedResult?(invocationId: string): ConversationToolResult | undefined
   getReplayResult(invocationId: string): Promise<ConversationToolResult | undefined>
   restoreProvenance?(registry: ResolvedSecretTraceRegistry): Promise<void>
   recordToolResult(result: ConversationToolResult): Promise<void>

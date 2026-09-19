@@ -7,6 +7,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -147,7 +151,7 @@ export const xAIProvider: ProviderConfig = {
         : { ...basePayload, stream: true, stream_options: { include_usage: true } }
 
       const streamResponse = await xai.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -215,7 +219,7 @@ export const xAIProvider: ProviderConfig = {
       }
 
       let currentResponse = await xai.chat.completions.create(
-        initialPayload,
+        await prepareConversationGeneration(request, 'chat-completions', initialPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -504,7 +508,7 @@ export const xAIProvider: ProviderConfig = {
           const nextModelStartTime = Date.now()
 
           currentResponse = await xai.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -577,7 +581,7 @@ export const xAIProvider: ProviderConfig = {
                 }
             const finalStartTime = Date.now()
             const finalResponse = await xai.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
             if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -713,7 +717,11 @@ export const xAIProvider: ProviderConfig = {
         hasResponseFormat: !!request.responseFormat,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

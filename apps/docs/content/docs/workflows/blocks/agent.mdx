@@ -64,15 +64,19 @@ When durable tool history is enabled for your workspace, memory also keeps the a
 
 Tool calls and their results are selected together, including parallel calls. They do not each use another slot in a message-count window, but their arguments and results still consume input tokens. Use a token window when the amount of recalled context matters more than the number of messages. Windowing changes what the model receives, not what is stored.
 
-Large results are retained separately with a bounded preview in history. A preview can omit details: storing the full result does not mean the model can see it, and there is no automatic retrieval of omitted content or conversation summarization. Sim also budgets recalled history for the selected primary or fallback model, leaving room for instructions, tools, attachments, and output. These limits do not cap the total tokens used by a run; new tool results can grow context during its tool loop.
+Large results are retained separately, with their first 8,000 characters in model context and a notice when the result is truncated. The built-in `agent_memory_read` tool lets the agent search retained history and read omitted result details in small pages. It can only read the current conversation. When exact details matter, ask the agent to check the original result instead of relying on its preview.
 
-The Memory API and Memory block still return plain conversation messages. Internal tool history and retry state are not added to their `data` responses.
+Sim normally targets up to 16,000 estimated tokens of recalled history, subject to your memory window and the model's available context. Large or difficult-to-tokenize content uses a conservative estimate. It checks the input before every model generation, including generations after tool calls and on fallback models, leaving room for instructions, tool definitions, attachments, and output. The current request and required tool exchanges stay intact. If they cannot fit, the Agent stops with a context-limit error. This limits context per generation, not the total tokens used across a run.
+
+When a generation would omit older history, Sim can create a concise summary while keeping recent exchanges, including during long tool loops. Summaries can omit details and do not replace the stored conversation. Generating one uses an additional model call whose tokens and cost are included in the Agent's usage; a cached summary can be reused when its source history is unchanged. If summarization is unavailable, the Agent continues with bounded history selection.
+
+The Memory API and Memory block still return plain conversation messages. Internal tool history, retry state, and cached summaries are not added to their `data` responses.
 
 #### Retries and fallbacks
 
 With durable tool history enabled, retries and fallback models continue the same Agent invocation using recorded tool results. For example, if a tool returns an order number and final generation fails, the fallback receives that result without calling the tool again. A new workflow execution or loop iteration is a separate invocation.
 
-A call whose outcome was not recorded can execute again, including when an external action succeeded just before a failure. Use tools that safely handle repeated requests for actions that must not happen twice. If durable history is disabled or persistence is unavailable, saved-progress recovery is not guaranteed. This does not restart crashed workflows, override cancellation, or retry failures marked nonretryable. A failure after streaming output has started is not restarted on another model.
+A recorded terminal outcome is kept even when its stored details become unavailable; the Agent does not repeat that action merely to recover the missing details. A call whose outcome was not recorded can execute again, including when an external action succeeded just before a failure. Use tools that safely handle repeated requests for actions that must not happen twice. If durable history is disabled or persistence is unavailable, saved-progress recovery is not guaranteed. This does not restart crashed workflows, override cancellation, or retry failures marked nonretryable. A failure after streaming output has started is not restarted on another model.
 
 ### Response Format
 

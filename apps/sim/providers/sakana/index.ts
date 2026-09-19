@@ -7,6 +7,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -148,11 +152,11 @@ export const sakanaProvider: ProviderConfig = {
         logger.info('Using streaming response for Sakana request (no tools)')
 
         const streamResponse = await sakana.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
             stream_options: { include_usage: true },
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -201,7 +205,7 @@ export const sakanaProvider: ProviderConfig = {
       let usedForcedTools: string[] = []
 
       let currentResponse = await sakana.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -465,7 +469,7 @@ export const sakanaProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await sakana.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -542,7 +546,7 @@ export const sakanaProvider: ProviderConfig = {
 
             const finalModelStartTime = Date.now()
             currentResponse = await sakana.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
             if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -603,7 +607,7 @@ export const sakanaProvider: ProviderConfig = {
         }
 
         currentResponse = await sakana.chat.completions.create(
-          finalPayload,
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -721,7 +725,11 @@ export const sakanaProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

@@ -3,23 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
 vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
   getConfiguredConversationToolBinding: vi.fn(),
 }))
 vi.mock('@/providers/runtime-context', () => ({ executeProviderTool: vi.fn() }))
 vi.mock('@/providers/utils', () => ({ prepareToolExecution: vi.fn() }))
-vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: { openai: { models: [{ id: 'model-a', contextWindow: 1000 }] } },
-  getMaxOutputTokensForModel: vi.fn().mockReturnValue(4096),
-}))
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (text: string) => text.length,
-}))
 
 import { encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
-import { renderConversationExecutionRecord } from '@/lib/memory/execution-record'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import {
-  budgetConversationMessages,
   continuePendingConversationCalls,
   restoreConversationNativeMessages,
 } from '@/providers/conversation-continuation'
@@ -27,9 +19,7 @@ import { getConfiguredConversationToolBinding } from '@/providers/conversation-h
 import {
   getNativeConversationMessage,
   setEncryptedConversationMessage,
-  setNativeConversationMessage,
 } from '@/providers/conversation-metadata'
-import { getMaxOutputTokensForModel } from '@/providers/models'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { Message, ProviderRequest } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
@@ -49,7 +39,7 @@ function toolGroup(content = 'result'): Message[] {
   ]
 }
 
-describe('durable conversation restoration and budgeting', () => {
+describe('durable conversation restoration and continuation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(prepareToolExecution).mockReturnValue({ executionParams: {}, toolParams: {} })
@@ -223,82 +213,5 @@ describe('durable conversation restoration and budgeting', () => {
       { azureEndpoint: endpoint }
     )
     expect(getNativeConversationMessage(messages[0], protocol)).toEqual(native.value)
-  })
-
-  it('reserves the current user message before selecting complete tool exchanges', () => {
-    const required: Message = { role: 'user', content: 'Complete my task' }
-    const old: Message = { role: 'assistant', content: 'x'.repeat(600) }
-    const group = toolGroup('recent result')
-    expect(budgetConversationMessages(request, [old, required, ...group], [required])).toEqual([
-      required,
-      ...group,
-    ])
-  })
-
-  it.each([undefined, 'high'] as const)(
-    'reserves provider output headroom with thinking %s',
-    (thinkingLevel) => {
-      vi.mocked(getMaxOutputTokensForModel).mockReturnValueOnce(700)
-      const required: Message = { role: 'user', content: 'Complete my task' }
-      const old: Message = { role: 'assistant', content: 'x'.repeat(300) }
-      expect(
-        budgetConversationMessages(
-          { ...request, maxTokens: thinkingLevel ? 100 : undefined, thinkingLevel },
-          [old, required],
-          [required]
-        )
-      ).toEqual([required])
-    }
-  )
-
-  it('counts opaque native reasoning and replaces an oversized newest batch with bounded progress', () => {
-    const required: Message = { role: 'user', content: 'Complete my task' }
-    const group = toolGroup()
-    setNativeConversationMessage(group[0], {
-      protocol: 'responses',
-      providerId: 'openai',
-      model: 'model-a',
-      binding: 'binding-a',
-      value: [{ type: 'reasoning', encrypted_content: 'private-signature'.repeat(1000) }],
-    })
-    const selected = budgetConversationMessages(request, [required, ...group], [required])
-    expect(selected[0]).toBe(required)
-    expect(selected).toHaveLength(2)
-    expect(selected[1].role).toBe('user')
-    expect(selected[1].content).toContain('recorded outcomes')
-    expect(JSON.stringify(selected)).not.toContain('private-signature')
-    expect(JSON.stringify(selected).length).toBeLessThan(800)
-  })
-
-  it('does not admit a full oversized batch when no history group has been selected yet', () => {
-    const group = toolGroup('x'.repeat(5000))
-    const selected = budgetConversationMessages(request, group)
-    expect(JSON.stringify(selected).length).toBeLessThan(800)
-    expect(selected[0].content).toContain('recorded outcomes')
-    expect(selected.some((message) => message.role === 'tool')).toBe(false)
-  })
-
-  it('shortens an existing portable record without wrapping it in a second execution record', () => {
-    const required: Message = { role: 'user', content: 'Complete my task' }
-    const receipt = renderConversationExecutionRecord(toolGroup('x'.repeat(5000)))
-    const selected = budgetConversationMessages(request, [required, receipt], [required])
-    expect(selected).toHaveLength(2)
-    expect(selected[1].content).toMatch(/^\{"type":"untrusted_prior_tool_execution"/)
-    expect(selected[1].content?.match(/untrusted_prior_tool_execution/g)).toHaveLength(1)
-  })
-
-  it('does not describe ordinary assistant text as a completed tool execution', () => {
-    const required: Message = { role: 'user', content: 'Complete my task' }
-    const assistant: Message = { role: 'assistant', content: 'x'.repeat(5000) }
-    const selected = budgetConversationMessages(request, [required, assistant], [required])
-    expect(selected[1].role).toBe('assistant')
-    expect(selected[1].content).not.toContain('tool')
-  })
-
-  it('preserves an already oversized required input and does not add history on top of it', () => {
-    const required: Message = { role: 'user', content: 'x'.repeat(1500) }
-    expect(budgetConversationMessages(request, [required, ...toolGroup()], [required])).toEqual([
-      required,
-    ])
   })
 })

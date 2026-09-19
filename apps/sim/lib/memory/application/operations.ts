@@ -52,4 +52,10 @@ export const memoryOperations = {
   storeArtifact: writeOperation('memory.artifact.store'),
   // permission-group-exempt: the executor's own per-run store; no group key names it, and refusing would fail runs the group allows
   readArtifact: readOperation('memory.artifact.read'),
+  // permission-group-exempt: the executor's own per-run store; no group key names it
+  retrieve: readOperation('memory.retrieve'),
+  // permission-group-exempt: the executor's derived conversation context cache has no separate capability
+  readSummary: readOperation('memory.summary.read'),
+  // permission-group-exempt: the executor's derived conversation context cache has no separate capability
+  saveSummary: writeOperation('memory.summary.save'),
 } as const

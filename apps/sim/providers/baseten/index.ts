@@ -12,6 +12,10 @@ import {
   supportsNativeStructuredOutputs,
 } from '@/providers/baseten/utils'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -168,7 +172,7 @@ export const basetenProvider: ProviderConfig = {
           stream_options: { include_usage: true },
         }
         const streamResponse = await client.chat.completions.create(
-          streamingParams,
+          await prepareConversationGeneration(request, 'chat-completions', streamingParams),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -217,7 +221,7 @@ export const basetenProvider: ProviderConfig = {
       let usedForcedTools: string[] = []
 
       let currentResponse = await client.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -461,7 +465,7 @@ export const basetenProvider: ProviderConfig = {
 
         const nextModelStartTime = Date.now()
         currentResponse = await client.chat.completions.create(
-          nextPayload,
+          await prepareConversationGeneration(request, 'chat-completions', nextPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -527,7 +531,7 @@ export const basetenProvider: ProviderConfig = {
 
           const finalStartTime = Date.now()
           const finalResponse = await client.chat.completions.create(
-            finalPayload,
+            await prepareConversationGeneration(request, 'chat-completions', finalPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -589,7 +593,7 @@ export const basetenProvider: ProviderConfig = {
 
         const finalStartTime = Date.now()
         const finalResponse = await client.chat.completions.create(
-          finalPayload,
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
         if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -708,7 +712,11 @@ export const basetenProvider: ProviderConfig = {
       }
 
       logger.error('Error in Baseten request:', errorDetails)
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

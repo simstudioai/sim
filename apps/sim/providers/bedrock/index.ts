@@ -18,18 +18,22 @@ import { isRecordLike } from '@sim/utils/object'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { getBedrockBaseModelId } from '@/providers/bedrock/model-id'
 import { convertBedrockRequestHistory } from '@/providers/bedrock/request-history'
 import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
   generateToolUseId,
-  getBedrockBaseModelId,
   getBedrockInferenceProfileId,
   supportsToolResultStatus,
   toBedrockConversationUsage,
 } from '@/providers/bedrock/utils'
 import { getCachedProviderClient } from '@/providers/client-cache'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
 import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
@@ -415,13 +419,15 @@ export const bedrockProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      const command = new ConverseStreamCommand({
-        modelId: bedrockModelId,
-        messages,
-        system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-        inferenceConfig,
-        outputConfig,
-      })
+      const command = new ConverseStreamCommand(
+        await prepareConversationGeneration(request, 'bedrock', {
+          modelId: bedrockModelId,
+          messages,
+          system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
+          inferenceConfig,
+          outputConfig,
+        })
+      )
 
       const streamResponse = await client.send(
         command,
@@ -504,14 +510,16 @@ export const bedrockProvider: ProviderConfig = {
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      const command = new ConverseCommand({
-        modelId: bedrockModelId,
-        messages,
-        system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-        inferenceConfig,
-        outputConfig,
-        toolConfig,
-      })
+      const command = new ConverseCommand(
+        await prepareConversationGeneration(request, 'bedrock', {
+          modelId: bedrockModelId,
+          messages,
+          system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
+          inferenceConfig,
+          outputConfig,
+          toolConfig,
+        })
+      )
 
       let currentResponse = await client.send(
         command,
@@ -825,15 +833,17 @@ export const bedrockProvider: ProviderConfig = {
 
         const nextModelStartTime = Date.now()
 
-        const nextCommand = new ConverseCommand({
-          modelId: bedrockModelId,
-          messages: currentMessages,
-          system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig,
-          toolConfig: bedrockTools?.length
-            ? { tools: bedrockTools, toolChoice: nextToolChoice }
-            : undefined,
-        })
+        const nextCommand = new ConverseCommand(
+          await prepareConversationGeneration(request, 'bedrock', {
+            modelId: bedrockModelId,
+            messages: currentMessages,
+            system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
+            inferenceConfig,
+            toolConfig: bedrockTools?.length
+              ? { tools: bedrockTools, toolChoice: nextToolChoice }
+              : undefined,
+          })
+        )
 
         currentResponse = await client.send(
           nextCommand,
@@ -901,16 +911,18 @@ export const bedrockProvider: ProviderConfig = {
 
         const structuredOutputStartTime = Date.now()
 
-        const structuredOutputCommand = new ConverseCommand({
-          modelId: bedrockModelId,
-          messages: currentMessages,
-          system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig,
-          toolConfig: {
-            tools: [structuredOutputTool],
-            toolChoice: { tool: { name: structuredOutputToolName } },
-          },
-        })
+        const structuredOutputCommand = new ConverseCommand(
+          await prepareConversationGeneration(request, 'bedrock', {
+            modelId: bedrockModelId,
+            messages: currentMessages,
+            system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
+            inferenceConfig,
+            toolConfig: {
+              tools: [structuredOutputTool],
+              toolChoice: { tool: { name: structuredOutputToolName } },
+            },
+          })
+        )
 
         const structuredResponse = await client.send(
           structuredOutputCommand,
@@ -1046,7 +1058,11 @@ export const bedrockProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

@@ -7,6 +7,10 @@ import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   isProviderConversationCaptureEnabled,
   recordProviderConversationToolError,
@@ -434,7 +438,7 @@ export async function executeResponsesProviderRequest(
       return await fetchImpl(config.endpoint, {
         method: 'POST',
         headers: config.headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify(await prepareConversationGeneration(request, 'responses', payload)),
         signal: abortSignal,
       })
     } catch (error) {
@@ -953,7 +957,7 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 

@@ -20,6 +20,8 @@ import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { type AgentTurnSession, openAgentTurnSession } from '@/lib/memory/agent-turn-session'
+import { MEMORY } from '@/lib/memory/constants'
+import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 import {
   type AutoMediaKind,
   type AutoRoutingResult,
@@ -2827,6 +2829,7 @@ export class AgentBlockHandler implements BlockHandler {
       config
 
     const validMessages = this.validateMessages(messages)
+    const configuredHistoryTokens = Number(inputs.slidingWindowTokens)
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
@@ -2857,6 +2860,12 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       executionId: ctx.executionId,
       stream: streaming,
+      memoryHistoryTokens:
+        inputs.memoryType === 'sliding_window_tokens'
+          ? Number.isFinite(configuredHistoryTokens) && configuredHistoryTokens > 0
+            ? Math.floor(configuredHistoryTokens)
+            : MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+          : undefined,
       messages: messages?.map((message) => {
         const { executionId, ...providerMessage } = message
         copyNativeConversationMessage(message, providerMessage)
@@ -2919,6 +2928,12 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
+      const agentMemoryRetrieval = agentConversation?.memoryId
+        ? createAgentMemoryRetrievalTool({
+            executionContext: ctx,
+            memoryId: agentConversation.memoryId,
+          })
+        : undefined
 
       const response = await executeProviderRequest(
         providerId,
@@ -2927,7 +2942,9 @@ export class AgentBlockHandler implements BlockHandler {
           systemPrompt:
             'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
           context: 'context' in providerRequest ? providerRequest.context : undefined,
-          tools: providerRequest.tools,
+          tools: agentMemoryRetrieval
+            ? [...(providerRequest.tools ?? []), agentMemoryRetrieval.tool]
+            : providerRequest.tools,
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
           apiKey: finalApiKey,
@@ -2969,6 +2986,10 @@ export class AgentBlockHandler implements BlockHandler {
           resolvedSecretTraceRegistry: modelRuntimeRegistry,
           executionContext: ctx,
           agentConversation,
+          agentMemoryRetrieval,
+          agentMemoryContext: agentConversation
+            ? { historyTokens: providerRequest.memoryHistoryTokens }
+            : undefined,
         }
       )
 

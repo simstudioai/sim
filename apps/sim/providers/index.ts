@@ -7,14 +7,18 @@ import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
 import {
-  budgetConversationMessages,
   continuePendingConversationCalls,
   restoreConversationNativeMessages,
 } from '@/providers/conversation-continuation'
 import {
+  bindConversationGenerationCompactor,
+  bindConversationGenerationPrompt,
+} from '@/providers/conversation-generation'
+import {
   bindConversationRequestContext,
   getConversationBinding,
 } from '@/providers/conversation-history'
+import { createAgentConversationCompactor } from '@/providers/conversation-summary'
 import {
   applyModelCostPolicy,
   applySegmentCostPolicy,
@@ -338,25 +342,40 @@ export async function executeProviderRequest(
         if (registry) await session.restoreProvenance?.(registry)
       }
       await continuePendingConversationCalls(modelSafeRequest, session)
-      priorConversationUsage = session.getUsage()
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
         .find((message) => message.role === 'user')
+      bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
+      priorConversationUsage = session.getUsage()
+      bindConversationGenerationCompactor(
+        modelSafeRequest,
+        createAgentConversationCompactor(
+          modelSafeRequest,
+          requestRuntimeContext,
+          currentUserMessage,
+          async (summaryRequest) => {
+            const summary = await executeProviderRequest(providerId, summaryRequest, {
+              resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
+              executionContext: requestRuntimeContext.executionContext,
+            })
+            if (isStreamingExecution(summary) || isReadableStream(summary))
+              throw new Error('Conversation summary did not return a settled response')
+            return summary
+          },
+          (usage) => addPriorConversationUsage(priorConversationUsage!, usage)
+        )
+      )
       const history = [
         ...(modelSafeRequest.messages ?? []),
         ...session.getMessages(providerId as ProviderId, modelSafeRequest.model, binding),
       ]
-      modelSafeRequest.messages = budgetConversationMessages(
-        modelSafeRequest,
-        await restoreConversationNativeMessages(
-          history,
-          providerId as ProviderId,
-          modelSafeRequest.model,
-          binding,
-          session.memoryId,
-          modelSafeRequest
-        ),
-        currentUserMessage ? [currentUserMessage] : []
+      modelSafeRequest.messages = await restoreConversationNativeMessages(
+        history,
+        providerId as ProviderId,
+        modelSafeRequest.model,
+        binding,
+        session.memoryId,
+        modelSafeRequest
       )
     }
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)

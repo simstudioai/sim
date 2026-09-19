@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Live Anthropic streaming tool loop.
  *
@@ -204,7 +205,10 @@ export function createAnthropicStreamingToolLoopStream(
           }
 
           const modelStart = Date.now()
-          const messageStream = anthropic.messages.stream(turnPayload, streamOptions)
+          const messageStream = anthropic.messages.stream(
+            await prepareConversationGeneration(request, 'anthropic', turnPayload),
+            streamOptions
+          )
           activeMessageStream = messageStream
 
           const textChunks: string[] = []

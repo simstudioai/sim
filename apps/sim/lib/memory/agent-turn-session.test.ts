@@ -27,7 +27,9 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: reda
 vi.mock('@/tools', () => ({ executeTool }))
 
 import { openAgentTurnSession } from '@/lib/memory/agent-turn-session'
-import { decryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
+import { decryptMemoryCheckpoint, encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
+import { createJournalArtifactFixture } from '@/lib/memory/journal.test-helpers'
+import type { AgentTurnJournalState } from '@/lib/memory/turn-journal'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getNativeConversationMessage } from '@/providers/conversation-metadata'
@@ -74,9 +76,14 @@ function redactFixture(value: unknown): unknown {
   return value
 }
 
+const artifacts = createJournalArtifactFixture()
+
 describe('durable Agent session', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    artifacts.values.clear()
+    storeArtifact.mockImplementation(artifacts.store)
+    readArtifact.mockImplementation(artifacts.read)
     flag.mockResolvedValue(true)
     open.mockResolvedValue({
       memoryId: 'memory-1',
@@ -133,7 +140,7 @@ describe('durable Agent session', () => {
     )
     expect(checkpoint).toMatchObject({
       memoryId: 'memory-1',
-      state: { version: 1, steps: [{ results: expect.any(Array) }] },
+      state: { version: 2, steps: [{ ref: expect.any(Object), results: expect.any(Array) }] },
     })
   })
 
@@ -167,7 +174,7 @@ describe('durable Agent session', () => {
         data: { role: 'assistant', content },
       }),
     ])
-    expect(await decryptMemoryCheckpoint(finalSave.encryptedState)).toMatchObject({
+    expect(await artifacts.inspect(finalSave.encryptedState)).toMatchObject({
       state: { final: { content, model: 'model-a' } },
     })
   })
@@ -187,7 +194,7 @@ describe('durable Agent session', () => {
     expect(save).toHaveBeenCalledTimes(1)
     const requestSave = save.mock.calls[0][0].input
     expect(requestSave.items[0].data).toEqual({ role: 'assistant', content: '{{TOKEN}} [EMAIL]' })
-    expect(await decryptMemoryCheckpoint(requestSave.encryptedState)).toMatchObject({
+    expect(await artifacts.inspect(requestSave.encryptedState)).toMatchObject({
       state: { final: { content: '{{TOKEN}} [EMAIL]', model: 'model-a' } },
     })
     expect(JSON.stringify(requestSave.items)).not.toContain('private-key-value')
@@ -201,9 +208,10 @@ describe('durable Agent session', () => {
       await session!.finalize(content, 'model-a')
       expect(save).toHaveBeenCalledTimes(1)
       expect(save.mock.calls[0][0].input.items).toEqual([])
-      expect(
-        await decryptMemoryCheckpoint(save.mock.calls[0][0].input.encryptedState)
-      ).toHaveProperty('state.final.content', content)
+      expect(await artifacts.inspect(save.mock.calls[0][0].input.encryptedState)).toHaveProperty(
+        'state.final.content',
+        content
+      )
     }
   )
 
@@ -335,7 +343,7 @@ describe('durable Agent session', () => {
     }
     readArtifact.mockResolvedValue(result)
     await session!.recordToolResult(result)
-    expect(storeArtifact).toHaveBeenCalledTimes(1)
+    expect(storeArtifact).toHaveBeenCalledTimes(2)
     const messages = JSON.stringify(session!.getMessages('openai', 'model-a', 'binding-a'))
     expect(messages.length).toBeLessThan(10000)
     expect(messages).toContain('test-receipt')
@@ -382,7 +390,7 @@ describe('durable Agent session', () => {
       rawResponse: response,
       modelResponse: response,
     })
-    expect(storeArtifact).toHaveBeenCalledOnce()
+    expect(storeArtifact).toHaveBeenCalledTimes(2)
     const messages = JSON.stringify(session!.getMessages('openai', 'model-a', 'binding-a'))
     expect(messages).toContain('[EMAIL]')
     expect(messages).not.toContain('person@example.test')
@@ -397,11 +405,11 @@ describe('durable Agent session', () => {
   ])(
     'bounds an oversized terminal result when its artifact is unavailable ($size bytes)',
     async ({ size, success, failsStorage }) => {
-      if (failsStorage) storeArtifact.mockRejectedValue(new Error('artifact storage unavailable'))
-      else storeArtifact.mockResolvedValue(undefined)
       const session = await openAgentTurnSession(input())
       await session!.captureStep(step())
       const invocationId = session!.getPendingCalls()[0].invocationId
+      if (failsStorage) storeArtifact.mockRejectedValue(new Error('artifact storage unavailable'))
+      else storeArtifact.mockResolvedValue(undefined)
       const response = {
         success,
         output: { text: 'large-result-value'.repeat(Math.ceil(size / 18)), cost: { total: 0.25 } },
@@ -472,5 +480,161 @@ describe('durable Agent session', () => {
     const replacement = await openAgentTurnSession(input(2))
     expect(replacement!.getPendingCalls()).toEqual([])
     expect(replacement!.getMessages('openai', 'model-a', 'binding-a')).toEqual([])
+  })
+
+  it('writes payloads once while a long invocation grows beyond the old snapshot byte limit', async () => {
+    const session = (await openAgentTurnSession(input()))!
+    for (let index = 0; index < 50; index++) {
+      const captured = step()
+      captured.native.value[0].encrypted_content = 'private-native-payload'.repeat(5500)
+      await session.captureStep(captured)
+      const response = { success: true, output: { text: 'result-value'.repeat(300) } }
+      await session.recordToolResult({
+        invocationId: session.getPendingCalls()[0].invocationId,
+        rawResponse: response,
+        modelResponse: response,
+      })
+    }
+    expect(save).toHaveBeenCalledTimes(100)
+    expect(storeArtifact).toHaveBeenCalledTimes(100)
+    const totalPayloadBytes = [...artifacts.values.values()].reduce<number>(
+      (total, value) => total + Buffer.byteLength(JSON.stringify(value)),
+      0
+    )
+    expect(totalPayloadBytes).toBeGreaterThan(2 * 1024 * 1024)
+    expect(totalPayloadBytes).toBeLessThan(8 * 1024 * 1024)
+    const encryptedState: string = save.mock.calls.at(-1)![0].input.encryptedState
+    expect(Buffer.byteLength(encryptedState)).toBeLessThan(120_000)
+    const manifest = JSON.stringify(await decryptMemoryCheckpoint(encryptedState))
+    expect(manifest).not.toContain('private-native-payload')
+    expect(manifest).not.toContain('result-value')
+
+    open.mockResolvedValue({
+      memoryId: 'memory-1',
+      turnId: 'turn-1',
+      revision: 100,
+      encryptedState,
+    })
+    const restored = (await openAgentTurnSession(input()))!
+    expect(restored.getPendingCalls()).toEqual([])
+    expect(restored.getMessages('openai', 'model-a', 'binding-a')).toHaveLength(100)
+  })
+
+  it.each([false, true])(
+    'preserves terminal sibling identity and cost after restart (missing payload: %s)',
+    async (missingPayload) => {
+      const session = (await openAgentTurnSession(input()))!
+      const captured = step()
+      captured.calls.push({ ...captured.calls[0], providerCallId: 'wire-2' })
+      await session.captureStep(captured)
+      const calls = session.getPendingCalls()
+      const response = {
+        success: false,
+        output: { cost: { total: 0.25 } },
+        error: 'Terminal error',
+      }
+      await session.recordToolResult({
+        invocationId: calls[0].invocationId,
+        rawResponse: response,
+        modelResponse: response,
+      })
+      const encryptedState = save.mock.calls.at(-1)![0].input.encryptedState
+      if (missingPayload) {
+        const envelope = (await decryptMemoryCheckpoint(encryptedState)) as {
+          state: AgentTurnJournalState
+        }
+        artifacts.values.delete(envelope.state.steps[0].results[0].ref.key!)
+      }
+      open.mockResolvedValue({
+        memoryId: 'memory-1',
+        turnId: 'turn-1',
+        revision: 2,
+        encryptedState,
+      })
+      const restored = (await openAgentTurnSession(input()))!
+      expect(restored.getPendingCalls()).toEqual([calls[1]])
+      expect((await restored.getReplayResult(calls[0].invocationId))?.rawResponse.success).toBe(
+        false
+      )
+      expect(restored.getUsage().cost.toolCost).toBe(0.25)
+      const complete = { success: true, output: { done: true } }
+      await restored.recordToolResult({
+        invocationId: calls[1].invocationId,
+        rawResponse: complete,
+        modelResponse: complete,
+      })
+      expect(restored.getPendingCalls()).toEqual([])
+      expect(storeArtifact).toHaveBeenCalledTimes(3)
+      expect(save.mock.calls.at(-1)![0].input).toMatchObject({
+        expectedRevision: 2,
+        items: [expect.objectContaining({ kind: 'exchange' })],
+      })
+    }
+  )
+
+  it('refuses to restart tool dispatch when a journal step payload is missing', async () => {
+    const session = (await openAgentTurnSession(input()))!
+    await session.captureStep(step())
+    const encryptedState = save.mock.calls.at(-1)![0].input.encryptedState
+    artifacts.values.clear()
+    open.mockResolvedValue({ memoryId: 'memory-1', turnId: 'turn-1', revision: 1, encryptedState })
+    await expect(openAgentTurnSession(input())).rejects.toMatchObject({ retryable: false })
+  })
+
+  it('fails closed when the repository refuses an oversized saved checkpoint', async () => {
+    open.mockRejectedValue(
+      Object.assign(new Error('Checkpoint too large'), { code: 'payload_too_large' })
+    )
+    await expect(openAgentTurnSession(input())).rejects.toMatchObject({ retryable: false })
+    expect(save).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
+  })
+
+  it('reads a legacy checkpoint and upgrades it to a compact journal without losing usage or results', async () => {
+    const session = (await openAgentTurnSession(input()))!
+    await session.captureStep(step())
+    const response = { success: true, output: { done: true, cost: { total: 0.25 } } }
+    const invocationId = session.getPendingCalls()[0].invocationId
+    await session.recordToolResult({ invocationId, rawResponse: response, modelResponse: response })
+    const legacy = await artifacts.inspect(save.mock.calls.at(-1)![0].input.encryptedState)
+    open.mockResolvedValue({
+      memoryId: 'memory-1',
+      turnId: 'turn-1',
+      revision: 2,
+      encryptedState: await encryptMemoryCheckpoint(legacy),
+    })
+    const restored = (await openAgentTurnSession(input()))!
+    expect((await restored.getReplayResult(invocationId))?.rawResponse).toEqual(response)
+    await restored.recordContextUsage({
+      tokens: { input: 10, output: 2, cacheRead: 3 },
+      cost: { input: 0.01, output: 0.02, toolCost: 0, total: 0.03 },
+    })
+    const checkpoint = await decryptMemoryCheckpoint(
+      save.mock.calls.at(-1)![0].input.encryptedState
+    )
+    expect(checkpoint).toMatchObject({
+      state: { version: 2, contextUsage: { tokens: { input: 10 } } },
+    })
+    expect(restored.getUsage().cost.total).toBe(0.28)
+    expect(restored.getMessages('openai', 'model-a', 'binding-a')).toHaveLength(2)
+  })
+
+  it('bounds model-visible results below the storage threshold and reuses their artifact for the journal', async () => {
+    const session = (await openAgentTurnSession(input()))!
+    await session.captureStep(step())
+    const response = { success: true, output: { text: 'large-model-value'.repeat(1200) } }
+    const invocationId = session.getPendingCalls()[0].invocationId
+    await session.recordToolResult({ invocationId, rawResponse: response, modelResponse: response })
+    expect(storeArtifact).toHaveBeenCalledTimes(2)
+    const encryptedState = save.mock.calls.at(-1)![0].input.encryptedState
+    open.mockResolvedValue({ memoryId: 'memory-1', turnId: 'turn-1', revision: 2, encryptedState })
+    const restored = (await openAgentTurnSession(input()))!
+    const replayed = (await restored.getReplayResult(invocationId))!
+    expect(replayed.rawResponse).toEqual(response)
+    expect(JSON.stringify(replayed.modelResponse).length).toBeLessThan(8500)
+    expect(JSON.stringify(replayed.modelResponse)).not.toContain('execution/workspace-1')
+    expect(replayed.modelResponse.output.memoryArtifact).toEqual({
+      id: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
   })
 })

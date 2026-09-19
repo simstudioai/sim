@@ -1,6 +1,6 @@
 import { dbFor } from '@sim/db'
 import { executionLargeValues, memory, memoryArtifact } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   collectLargeValueReferenceKeys,
@@ -33,6 +33,30 @@ export interface ReadMemoryArtifactInput extends MemoryArtifactScope {
 export interface StoredMemoryArtifact {
   ref: LargeValueRef
   preview: string
+}
+
+/** Resolves only an artifact owned by the original active conversation in this workspace. */
+export async function readMemoryArtifactByHandle(
+  input: MemoryArtifactScope & { artifactId: string }
+): Promise<unknown> {
+  if (!/^[a-f0-9]{64}$/.test(input.artifactId)) return undefined
+  const [owner] = await dbFor('exec')
+    .select({ key: memoryArtifact.key })
+    .from(memoryArtifact)
+    .innerJoin(memory, eq(memory.id, memoryArtifact.memoryId))
+    .where(
+      and(
+        activeMemoryPredicate(input),
+        eq(sql`encode(sha256(convert_to(${memoryArtifact.key}, 'UTF8')), 'hex')`, input.artifactId)
+      )
+    )
+    .limit(1)
+  const id = owner?.key.match(/\/large-value-(lv_[A-Za-z0-9_-]{12})\.json$/)?.[1]
+  if (!id) return undefined
+  return readMemoryArtifact({
+    ...input,
+    ref: { __simLargeValueRef: true, version: 1, id, kind: 'object', size: 1, key: owner.key },
+  })
 }
 
 function activeMemoryPredicate(scope: MemoryArtifactScope) {

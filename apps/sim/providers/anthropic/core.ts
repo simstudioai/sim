@@ -21,6 +21,10 @@ import {
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -506,10 +510,10 @@ export async function executeAnthropicProviderRequest(
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     const streamResponse = await anthropic.messages.create(
-      {
+      await prepareConversationGeneration(request, 'anthropic', {
         ...payload,
         stream: true,
-      } as Anthropic.Messages.MessageCreateParamsStreaming,
+      } as Anthropic.Messages.MessageCreateParamsStreaming),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )
 
@@ -569,7 +573,11 @@ export async function executeAnthropicProviderRequest(
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
+    let currentResponse = await createMessage(
+      anthropic,
+      await prepareConversationGeneration(request, 'anthropic', payload),
+      request.abortSignal
+    )
     await captureProviderConversationStep(
       request,
       'anthropic',
@@ -883,7 +891,11 @@ export async function executeAnthropicProviderRequest(
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
+        currentResponse = await createMessage(
+          anthropic,
+          await prepareConversationGeneration(request, 'anthropic', nextPayload),
+          request.abortSignal
+        )
 
         await captureProviderConversationStep(
           request,
@@ -980,7 +992,7 @@ export async function executeAnthropicProviderRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 

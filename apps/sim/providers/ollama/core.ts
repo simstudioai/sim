@@ -11,6 +11,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -182,7 +186,7 @@ export async function executeOllamaProviderRequest(
         stream_options: { include_usage: true },
       }
       const streamResponse = await ollama.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -233,7 +237,7 @@ export async function executeOllamaProviderRequest(
     const initialCallTime = Date.now()
 
     let currentResponse = await ollama.chat.completions.create(
-      payload,
+      await prepareConversationGeneration(request, 'chat-completions', payload),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )
     if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -474,7 +478,7 @@ export async function executeOllamaProviderRequest(
       const nextModelStartTime = Date.now()
 
       currentResponse = await ollama.chat.completions.create(
-        nextPayload,
+        await prepareConversationGeneration(request, 'chat-completions', nextPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -540,7 +544,7 @@ export async function executeOllamaProviderRequest(
 
       const finalStartTime = Date.now()
       const finalResponse = await ollama.chat.completions.create(
-        finalPayload,
+        await prepareConversationGeneration(request, 'chat-completions', finalPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
@@ -588,10 +592,10 @@ export async function executeOllamaProviderRequest(
       const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
       const synthesisStartTime = Date.now()
       const synthesisResponse = await ollama.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...synthesisPayload,
           messages: currentMessages,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
@@ -719,7 +723,7 @@ export async function executeOllamaProviderRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 

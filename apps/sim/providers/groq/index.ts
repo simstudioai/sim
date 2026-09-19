@@ -11,6 +11,10 @@ import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
@@ -218,10 +222,10 @@ export const groqProvider: ProviderConfig = {
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
       const streamResponse = await groq.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...payload,
           stream: true,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -279,7 +283,7 @@ export const groqProvider: ProviderConfig = {
       const initialCallTime = Date.now()
 
       let currentResponse = await groq.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -531,7 +535,7 @@ export const groqProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await groq.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
@@ -613,7 +617,11 @@ export const groqProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
       throw new ProviderError(toError(error).message, {

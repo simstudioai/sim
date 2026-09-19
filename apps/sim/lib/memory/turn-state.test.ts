@@ -43,6 +43,9 @@ describe('Agent invocation continuation', () => {
       rawResponse: response,
       modelResponse: response,
     })
+    expect(save.mock.calls[0][0].steps[0].results).toEqual([])
+    expect(save.mock.calls[1][0].steps[0].results).toHaveLength(1)
+    expect(save.mock.calls[2][0].steps[0].native).toBe(save.mock.calls[0][0].steps[0].native)
     const messages = session.getMessages('openai', 'model-a', 'binding-a')
     expect(messages.map((message) => message.tool_call_id)).toEqual([undefined, 'wire-1', 'wire-2'])
     expect(save.mock.calls[2][1].calls).toHaveLength(2)
@@ -164,5 +167,64 @@ describe('Agent invocation continuation', () => {
     expect(session.getUsage().tokens).toEqual({ input: 3, output: 4, cacheRead: 5, cacheWrite: 13 })
     expect(new AgentTurnStateMachine({ save: async () => {} }).getPendingCalls()).toEqual([])
     expect(new AgentTurnStateMachine({ save: async () => {} }).getUsage().cost.total).toBe(0)
+  })
+
+  it('accounts for derived context usage without introducing conversation history', async () => {
+    const save = vi.fn().mockResolvedValue(undefined)
+    const session = new AgentTurnStateMachine({ save })
+    const usage = {
+      tokens: {
+        input: 5,
+        output: 2,
+        cacheRead: 1,
+        cacheWrites: [{ tokens: 3, inputRateMultiplier: 1.25 }],
+      },
+      cost: { input: 0.01, output: 0.02, total: 0.03, toolCost: 0 },
+    }
+    await session.recordContextUsage(usage)
+    await session.recordContextUsage(usage)
+    expect(session.getUsage()).toEqual({
+      tokens: { input: 10, output: 4, cacheRead: 2, cacheWrite: 6 },
+      cost: { input: 0.02, output: 0.04, total: 0.06, toolCost: 0 },
+    })
+    expect(save.mock.calls[0][0].contextUsage.tokens.input).toBe(5)
+    expect(session.getMessages('openai', 'model-a', 'binding-a')).toEqual([])
+    expect(session.getFinalResponse()).toBeUndefined()
+  })
+
+  it('keeps an artifact receipt discoverable when a recorded tool failed', async () => {
+    const session = new AgentTurnStateMachine({ save: async () => {} })
+    await session.captureStep(batch(['wire-1']))
+    const invocationId = session.getPendingCalls()[0].invocationId
+    const modelOutput = {
+      memoryArtifact: { id: 'a'.repeat(64) },
+      preview: 'Validation failed; remaining details are retained in the artifact.',
+    }
+    await session.recordToolResult({
+      invocationId,
+      rawResponse: {
+        success: false,
+        output: { privateDetail: 'raw-only-detail' },
+        error: 'Private error',
+      },
+      modelResponse: { success: false, output: modelOutput, error: 'Tool execution failed' },
+      artifact: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_abcdefghijkl',
+        kind: 'object',
+        size: 20000,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json',
+      },
+    })
+    const messages = session.getMessages('openai', 'model-a', 'binding-a')
+    expect(JSON.parse(messages[1].content!)).toEqual({
+      ...modelOutput,
+      success: false,
+      error: 'Tool execution failed',
+    })
+    expect(JSON.stringify(messages)).not.toContain('raw-only-detail')
+    expect(JSON.stringify(messages)).not.toContain('Private error')
+    expect(JSON.stringify(messages)).not.toContain('execution/workspace-1')
   })
 })
