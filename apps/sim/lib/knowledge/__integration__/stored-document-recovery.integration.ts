@@ -17,9 +17,21 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const fixture = vi.hoisted(() => ({ root: '', embeddingCalls: 0 }))
+const fixture = vi.hoisted(() => ({
+  root: '',
+  embeddingCalls: 0,
+  queueEnabled: false,
+  listRuns: vi.fn(),
+}))
+vi.mock('@/lib/core/config/trigger-runtime', () => ({
+  isInsideTriggerRun: () => fixture.queueEnabled,
+}))
+vi.mock('@trigger.dev/sdk', async (original) => ({
+  ...(await original<typeof import('@trigger.dev/sdk')>()),
+  runs: { list: fixture.listRuns },
+}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixture.root
@@ -52,6 +64,7 @@ import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
+import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
@@ -60,6 +73,7 @@ import {
 } from '@/lib/knowledge/documents/processing-recovery'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
+import type { SyncResult } from '@/connectors/types'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const old = () => new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS - 60_000)
@@ -119,6 +133,11 @@ async function failedFile(
   return file
 }
 
+afterEach(() => {
+  fixture.queueEnabled = false
+  fixture.listRuns.mockReset()
+})
+
 beforeAll(() => {
   fixture.root = mkdtempSync(path.join(tmpdir(), 'sim-stored-recovery-'))
 })
@@ -137,7 +156,107 @@ afterAll(async () => {
   await db.$client.end()
 })
 
+async function recoverFixture(
+  ids: ReturnType<typeof createKnowledgeAclFixtureIds>,
+  mode: 'independent' | 'connector'
+) {
+  if (mode === 'independent') return recoverKnowledgeDocumentProcessing()
+  const result: SyncResult = {
+    docsAdded: 0,
+    docsUpdated: 0,
+    docsDeleted: 0,
+    docsUnchanged: 0,
+    docsSkipped: 0,
+    docsFailed: 0,
+    processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+  }
+  await sweepStuckDocuments({
+    connectorId: ids.connectorId,
+    knowledgeBaseId: ids.knowledgeBaseId,
+    syncStartedAt: new Date(),
+    retryCutoff: new Date(Date.now() - 7 * 24 * 60 * 60_000),
+    billingAttribution: await resolveSystemBillingAttribution(ids.workspaceId),
+    result,
+    lease: createContentSyncLease(ids.connectorId, ids.lockId),
+  })
+  return result.processingDispatch.requested
+}
+
 describe('independent recovery of retained connector documents', () => {
+  it.each(['independent', 'connector'] as const)(
+    '%s recovery preserves a job queued beyond the grace period',
+    async (mode) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      await db
+        .update(document)
+        .set({ processingStatus: 'pending' })
+        .where(eq(document.id, file.documentId))
+      fixture.queueEnabled = true
+      fixture.listRuns.mockResolvedValue({ data: [{ id: 'run-queued', status: 'QUEUED' }] })
+      expect(await recoverFixture(ids, mode)).toBe(0)
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingAttempts).toBe(1)
+      expect(row.processingQueueToken).toBe('old-fixture-generation')
+      expect(row.processingRecoveryAfter).not.toBeNull()
+      expect(await eventsFor(ids)).toHaveLength(0)
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'paused' })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    }
+  )
+
+  it.each(['independent', 'connector'] as const)(
+    '%s recovery rechecks the generation after its remote lookup',
+    async (mode) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      fixture.queueEnabled = true
+      fixture.listRuns.mockImplementation(async () => {
+        await db
+          .update(document)
+          .set({ processingQueueToken: 'replacement-generation' })
+          .where(eq(document.id, file.documentId))
+        return { data: [] }
+      })
+      expect(await recoverFixture(ids, mode)).toBe(0)
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingAttempts).toBe(1)
+      expect(row.processingQueueToken).toBe('replacement-generation')
+      expect(await eventsFor(ids)).toHaveLength(0)
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'paused' })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    }
+  )
+
+  it.each(['pending', 'processing'])(
+    'does not replace an aged %s outbox continuation',
+    async (status) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      const token = generateId()
+      await db
+        .update(document)
+        .set({ processingQueueToken: token })
+        .where(eq(document.id, file.documentId))
+      await db.insert(outboxEvent).values({
+        id: token,
+        eventType: 'knowledge.document.processing.resume',
+        payload: { knowledgeBaseId: ids.knowledgeBaseId, documentId: file.documentId },
+        status,
+        availableAt: old(),
+      })
+      expect(await recoverFixture(ids, 'independent')).toBe(0)
+      expect(await recoverFixture(ids, 'connector')).toBe(0)
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingAttempts).toBe(1)
+      expect(row.processingQueueToken).toBe(token)
+    }
+  )
+
   it('uses the organization owner and preserves Search visibility during source backoff', async () => {
     const ids = await seed()
     await db.insert(member).values({

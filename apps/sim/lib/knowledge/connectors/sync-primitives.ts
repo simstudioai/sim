@@ -9,7 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
@@ -28,6 +28,10 @@ import {
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  documentRecoveryGenerationCondition,
+  filterAbandonedDocumentProcessing,
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -1336,6 +1340,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
       fileSize: document.fileSize,
       mimeType: document.mimeType,
       processingStatus: document.processingStatus,
+      processingQueueToken: document.processingQueueToken,
       processingQueuedAt: document.processingQueuedAt,
       processingStartedAt: document.processingStartedAt,
       processingDeferredUntil: document.processingDeferredUntil,
@@ -1361,7 +1366,8 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
       asc(document.id)
     )
     .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
-  const stuckDocs = sweepCandidates.filter(
+  const abandoned = await filterAbandonedDocumentProcessing(sweepCandidates)
+  const stuckDocs = abandoned.filter(
     (row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
       isDocumentProcessingStatus(row.processingStatus)
   )
@@ -1402,6 +1408,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
           fileSize: document.fileSize,
           mimeType: document.mimeType,
           processingStatus: document.processingStatus,
+          processingQueueToken: document.processingQueueToken,
           processingQueuedAt: document.processingQueuedAt,
           processingStartedAt: document.processingStartedAt,
           processingDeferredUntil: document.processingDeferredUntil,
@@ -1412,6 +1419,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         .where(
           and(
             inArray(document.id, stuckDocIds),
+            or(...stuckDocs.map(documentRecoveryGenerationCondition)),
             eq(document.connectorId, connectorId),
             documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
             lt(document.uploadedAt, syncStartedAt)

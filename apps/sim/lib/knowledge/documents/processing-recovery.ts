@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
@@ -17,6 +17,10 @@ import {
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  documentRecoveryGenerationCondition,
+  filterAbandonedDocumentProcessing,
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
@@ -29,7 +33,7 @@ const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 /**
  * Re-admits bounded, abandoned connector documents from our retained bytes, independently
  * of source sync schedules and credentials. The generation, attempt and outbox event commit
- * together; no provider call or source lease is needed. Paused/deleted sources stay paused.
+ * together; no source-provider call or source lease is needed. Paused/deleted sources stay paused.
  */
 export async function recoverKnowledgeDocumentProcessing(now = new Date()): Promise<number> {
   const deadlineAt = Date.now() + RECOVERY_RUNTIME_MS
@@ -78,6 +82,10 @@ async function recoverStoredDocumentBatch(
     return tx
       .select({
         id: document.id,
+        processingQueueToken: document.processingQueueToken,
+        processingQueuedAt: document.processingQueuedAt,
+        processingStartedAt: document.processingStartedAt,
+        uploadedAt: document.uploadedAt,
         knowledgeBaseId: document.knowledgeBaseId,
         connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
@@ -107,9 +115,11 @@ async function recoverStoredDocumentBatch(
   signal.throwIfAborted()
   if (candidates.length === 0) return 0
 
+  const abandoned = await filterAbandonedDocumentProcessing(candidates, signal)
+  for (const candidate of candidates) attemptedConnectors.add(candidate.connectorId)
   let recovered = 0
   const groups = new Map<string, typeof candidates>()
-  for (const candidate of candidates) {
+  for (const candidate of abandoned) {
     const group = groups.get(candidate.knowledgeBaseId) ?? []
     group.push(candidate)
     groups.set(candidate.knowledgeBaseId, group)
@@ -117,7 +127,6 @@ async function recoverStoredDocumentBatch(
   for (const [knowledgeBaseId, group] of groups) {
     if (Date.now() >= deadlineAt) break
     const connectorIds = [...new Set(group.map((row) => row.connectorId))]
-    for (const connectorId of connectorIds) attemptedConnectors.add(connectorId)
     const owner = group[0]
     let ownerVerified = false
     try {
@@ -188,7 +197,8 @@ async function recoverStoredDocumentBatch(
                 document.connectorId,
                 connectors.map((row) => row.id)
               ),
-              documentProcessingRecoveryCondition(now)
+              documentProcessingRecoveryCondition(now),
+              or(...group.map(documentRecoveryGenerationCondition))
             )
           )
           .orderBy(asc(document.id))

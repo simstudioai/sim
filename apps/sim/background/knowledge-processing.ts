@@ -58,7 +58,7 @@ export async function runDocumentProcessing(
   logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
 
   try {
-    await processDocumentAsync(
+    const result = await processDocumentAsync(
       knowledgeBaseId,
       documentId,
       docData,
@@ -90,10 +90,11 @@ export async function runDocumentProcessing(
       }
     )
 
-    logger.info(`[${requestId}] Successfully processed document: ${docData.filename}`)
+    logger.info(`[${requestId}] Document processing finished`, { documentId, ...result })
 
     return {
-      success: true,
+      success: result.outcome === 'indexed',
+      ...result,
       documentId,
       filename: docData.filename,
       processingTime: Date.now() - startedAt,
