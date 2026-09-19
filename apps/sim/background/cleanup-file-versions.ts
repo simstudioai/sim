@@ -80,7 +80,12 @@ async function selectCandidateFileIds(
  * Superseded versions of the given files past retention: older than the cutoff or beyond the plan's
  * count, but never among the newest {@link KEEP_SUPERSEDED} superseded versions of a file.
  */
-function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: number) {
+function selectExpiredVersions(
+  fileIds: string[],
+  cutoff: Date,
+  maxSuperseded: number,
+  batchSize: number
+) {
   const ranked = cleanupDb
     .select({
       id: workspaceFileVersion.id,
@@ -107,7 +112,7 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
         or(lt(ranked.supersededAt, cutoff), gt(ranked.rank, maxSuperseded))
       )
     )
-    .limit(DEFAULT_DELETE_CHUNK_SIZE)
+    .limit(batchSize)
 }
 
 /**
@@ -166,11 +171,12 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
         attempted < MAX_VERSIONS_PER_RUN
       ) {
         batches++
-        const expired = await selectExpiredVersions(fileIds, cutoff, maxSuperseded)
+        const batchSize = Math.min(DEFAULT_DELETE_CHUNK_SIZE, MAX_VERSIONS_PER_RUN - attempted)
+        const expired = await selectExpiredVersions(fileIds, cutoff, maxSuperseded, batchSize)
         attempted += expired.length
         const removed = expired.length > 0 ? await deleteVersions(expired) : 0
         deleted += removed
-        exhausted = expired.length < DEFAULT_DELETE_CHUNK_SIZE || removed === 0
+        exhausted = expired.length < batchSize || removed === 0
       }
       if (!exhausted) break
     }
