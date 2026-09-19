@@ -32,16 +32,15 @@ vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({ resolveServable
 vi.mock('@/lib/file-parsers', () => ({ parseBuffer: vi.fn(), isSupportedFileType: vi.fn() }))
 
 import {
-  FILE_SEARCH_CHUNK_BYTES,
   FILE_SEARCH_CLEANUP_BATCH_ROWS,
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
-  FILE_SEARCH_INSERT_BATCH_BYTES,
-  FILE_SEARCH_INSERT_BATCH_ROWS,
+  FILE_SEARCH_INSERT_BATCH_TRIGRAM_KEYS,
   FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY,
   FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
 } from '@/lib/workspace-files/search/constants'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
+import { iterateFileSearchBatches } from '@/lib/workspace-files/search/index-batches'
 import {
   iterateFileSearchChunks,
   planFileSearchIndex,
@@ -142,14 +141,8 @@ describe('chunked workspace file search on PostgreSQL', () => {
     expect(build).not.toBeNull()
     const plan = planFileSearchIndex({ text, partial: false }, signal)
     const chunks = [...iterateFileSearchChunks(plan, signal)]
-    const batchRows = Math.min(
-      FILE_SEARCH_INSERT_BATCH_ROWS,
-      Math.floor(FILE_SEARCH_INSERT_BATCH_BYTES / FILE_SEARCH_CHUNK_BYTES)
-    )
-    for (let offset = 0; offset < chunks.length; offset += batchRows)
-      expect(
-        await appendFileSearchChunks(build!, chunks.slice(offset, offset + batchRows), signal)
-      ).toBe(true)
+    for (const batch of iterateFileSearchBatches(chunks, signal))
+      expect(await appendFileSearchChunks(build!, batch, signal)).toBe(true)
     expect(
       await publishFileSearchBuild(
         build!,
@@ -302,6 +295,43 @@ describe('chunked workspace file search on PostgreSQL', () => {
       )
     ).toBe(true)
     expect((await search('needle')).results).toMatchObject([{ fileId: 'file-1', lineNumber: 1 }])
+  })
+
+  it('bounds native GIN posting work and keeps dense-file exact and regex line results', async () => {
+    const lines = Array.from(
+      { length: 1200 },
+      (_, i) => `dependency-${i}: sha512-${createHash('sha512').update(String(i)).digest('base64')}`
+    )
+    const text = lines.join('\n')
+    const plan = planFileSearchIndex({ text, partial: false }, signal)
+    const chunks = [...iterateFileSearchChunks(plan, signal)]
+    const build = (await beginFileSearchBuild(revision))!
+    await expect(appendFileSearchChunks(build, chunks.slice(0, 16), signal)).rejects.toThrow(
+      'insert batch exceeds its budget'
+    )
+    for (const batch of iterateFileSearchBatches(chunks, signal)) {
+      const [{ keys }] = await connection`SELECT sum(cardinality(show_trgm(content)))::int AS keys
+        FROM (VALUES ${connection(batch.map((c) => [c.content]))}) AS chunk(content)`
+      expect(keys).toBeLessThanOrEqual(FILE_SEARCH_INSERT_BATCH_TRIGRAM_KEYS)
+      expect(await appendFileSearchChunks(build, batch, signal)).toBe(true)
+    }
+    expect((await search('dependency-1199')).results).toEqual([])
+    expect(
+      await publishFileSearchBuild(
+        build,
+        {
+          status: 'ready',
+          chunkCount: chunks.length,
+          lineCount: plan.lineCount,
+          indexedBytes: plan.indexedBytes,
+        },
+        signal
+      )
+    ).toBe(true)
+    expect((await search(lines[1199])).results).toMatchObject([{ lineNumber: 1200 }])
+    expect(
+      (await search('^dependency-1199: sha512-[A-Za-z0-9+/]+=*$', 'regex')).results
+    ).toMatchObject([{ lineNumber: 1200 }])
   })
 
   it('packs a million short lines without a million rows and bounds every stored value', async () => {

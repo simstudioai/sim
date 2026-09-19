@@ -5,12 +5,11 @@ import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
-  FILE_SEARCH_INSERT_BATCH_BYTES,
-  FILE_SEARCH_INSERT_BATCH_ROWS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
   FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
 import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+import { iterateFileSearchBatches } from '@/lib/workspace-files/search/index-batches'
 import {
   estimateTrigramKeys,
   type FileSearchChunk,
@@ -46,7 +45,7 @@ function parseRevision(payload: WorkspaceFileSearchIndexPayload): FileSearchRevi
 
 /**
  * Appends one batch and records slow ones, including a batch a statement timeout cancels, with the
- * trigram key load that drives direct GIN insert cost. Keys are estimated only for slow batches.
+ * trigram key load that drives direct GIN insert cost. Logging never includes the indexed text.
  */
 async function appendTimedBatch(
   build: FileSearchBuild,
@@ -107,25 +106,12 @@ export async function indexWorkspaceFileForSearch(
       return
     }
     const plan = planFileSearchIndex(extracted, signal)
-    let batch: FileSearchChunk[] = []
-    let batchBytes = 0
     let chunkCount = 0
-    for (const chunk of iterateFileSearchChunks(plan, signal)) {
-      const chunkBytes = Buffer.byteLength(chunk.content, 'utf8')
-      if (
-        batch.length &&
-        (batch.length >= FILE_SEARCH_INSERT_BATCH_ROWS ||
-          batchBytes + chunkBytes > FILE_SEARCH_INSERT_BATCH_BYTES)
-      ) {
-        if (!(await appendTimedBatch(build, batch, batchBytes, signal))) return
-        batch = []
-        batchBytes = 0
-      }
-      batch.push(chunk)
-      batchBytes += chunkBytes
-      chunkCount++
+    for (const batch of iterateFileSearchBatches(iterateFileSearchChunks(plan, signal), signal)) {
+      const batchBytes = batch.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.content), 0)
+      if (!(await appendTimedBatch(build, batch, batchBytes, signal))) return
+      chunkCount += batch.length
     }
-    if (!(await appendTimedBatch(build, batch, batchBytes, signal))) return
     const published = await publishFileSearchBuild(
       build,
       { status: 'ready', chunkCount, lineCount: plan.lineCount, indexedBytes: plan.indexedBytes },
