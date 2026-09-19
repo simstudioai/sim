@@ -63,7 +63,12 @@ describe('file search chunk packing', () => {
       'an SVG embedding a data URI',
       `<svg><title>sheet</title><image href="data:image/jpeg;base64,${'/9j/4AAQ'.repeat(8000)}"/></svg>`,
     ],
-    ['base64 wrapped into lines at the minimum run length', `${'aB3'.repeat(86)}\n`.repeat(500)],
+    ['space-separated runs at the minimum run length', `${'aB3'.repeat(86)} `.repeat(500)],
+    ['base64 wrapped at 76 columns', `${'aB3d'.repeat(19)}\n`.repeat(2000)],
+    [
+      'a PEM-style block wrapped at 64 columns with CRLF',
+      `-----BEGIN DATA-----\r\n${`${'Qk9z'.repeat(16)}\r\n`.repeat(2000)}-----END DATA-----\r\n`,
+    ],
   ])('excludes %s before producing any chunks', (_, text) => {
     expect(() => planFileSearchIndex({ text, partial: false }, signal)).toThrow('encoded_content')
   })
@@ -76,7 +81,9 @@ describe('file search chunk packing', () => {
       'a lockfile whose integrity hashes are short runs',
       `"pkg": ["pkg@1.0.0", "", {}, "sha512-${'Ab1+'.repeat(22)}=="],\n\n`.repeat(2000),
     ],
-    ['base64 wrapped into lines just short of the run length', `${'aB3'.repeat(85)}\n`.repeat(500)],
+    ['space-separated runs just short of the run length', `${'aB3'.repeat(85)} `.repeat(500)],
+    ['one short token per line', `${'aB3d'.repeat(10)}\n`.repeat(5000)],
+    ['lines that each end in a long hash', `checksum ${'aB3d'.repeat(19)}\n`.repeat(2000)],
     ['an unwrapped DNA sequence', `>chr1\n${'ACGT'.repeat(20_000)}\n`],
     ['a hex digest dump', `${'deadbeef0123'.repeat(5000)}\n`],
     [

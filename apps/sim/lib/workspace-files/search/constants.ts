@@ -25,6 +25,11 @@ export const FILE_SEARCH_MAX_EXTRACTED_BYTES = 25 * 1024 * 1024
  * rare trigrams, which makes its direct GIN insert far slower than ordinary text.
  */
 export const FILE_SEARCH_ENCODED_RUN_MIN_CHARS = 256
+/**
+ * A run continues across a line break when it fills a line at least this wide, so base64 wrapped
+ * at the usual 64 or 76 columns (MIME, PEM, Python's `encodebytes`) counts as one payload.
+ */
+export const FILE_SEARCH_ENCODED_WRAP_MIN_CHARS = 60
 /** Text is excluded when encoded runs are at least this share of it... */
 export const FILE_SEARCH_ENCODED_EXCLUSION_RATIO = 0.5
 /** ...and span more than a few chunks, so a small config carrying one signature stays searchable. */

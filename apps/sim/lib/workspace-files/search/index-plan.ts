@@ -5,6 +5,7 @@ import {
   FILE_SEARCH_ENCODED_EXCLUSION_MIN_BYTES,
   FILE_SEARCH_ENCODED_EXCLUSION_RATIO,
   FILE_SEARCH_ENCODED_RUN_MIN_CHARS,
+  FILE_SEARCH_ENCODED_WRAP_MIN_CHARS,
   FILE_SEARCH_MAX_EXTRACTED_BYTES,
 } from '@/lib/workspace-files/search/constants'
 import type { ExtractedIndexText } from '@/lib/workspace-files/search/extract'
@@ -19,11 +20,15 @@ const TRIGRAM_WORD = /[\p{L}\p{N}]+/gu
 /**
  * Bytes inside long base64 runs, in one linear pass. A run counts only when it mixes upper case,
  * lower case, and digits, as real base64 does; single-case runs such as hex digests or DNA
- * sequences are searchable text with few distinct trigrams. Runs are ASCII, so chars are bytes.
+ * sequences are searchable text with few distinct trigrams. A run that fills whole lines of at
+ * least the wrap width continues across line breaks, so wrapped base64 counts as one payload while
+ * a hash inside a line still ends with it. Runs are ASCII, so chars are bytes.
  */
 function countEncodedBytes(text: string): number {
   let encoded = 0
   let run = 0
+  let runFillsLines = false
+  let lineChars = 0
   let upper = false
   let lower = false
   let digit = false
@@ -38,12 +43,18 @@ function countEncodedBytes(text: string): number {
     const isLower = code >= 97 && code <= 122
     const isDigit = code >= 48 && code <= 57
     if (isUpper || isLower || isDigit || code === 43 || code === 47) {
+      if (run === 0) runFillsLines = lineChars === 0
       run++
+      lineChars++
       upper ||= isUpper
       lower ||= isLower
       digit ||= isDigit
-    } else {
+    } else if (code === 10) {
+      if (!(run > 0 && runFillsLines && lineChars >= FILE_SEARCH_ENCODED_WRAP_MIN_CHARS)) endRun()
+      lineChars = 0
+    } else if (code !== 13 || text.charCodeAt(i + 1) !== 10) {
       endRun()
+      lineChars++
     }
   }
   endRun()
