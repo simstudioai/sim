@@ -5,15 +5,16 @@ import {
   Badge,
   Button,
   Code,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
   calculateGutterWidth,
-  cn,
   getCodeEditorProps,
   highlight,
   Input,
   Label,
   languages,
+  OverflowText,
 } from '@sim/emcn'
 import { Plus, Trash, X } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
@@ -81,67 +82,6 @@ const STRINGS = {
     array: '[\n  1, 2, 3\n]',
   },
   emptyState: 'No variables yet',
-}
-
-interface VariableHeaderProps {
-  variable: Variable
-  index: number
-  isCollapsed: boolean
-  onToggleCollapse: () => void
-  onRemove: () => void
-  readOnly: boolean
-}
-
-function VariableHeader({
-  variable,
-  index,
-  isCollapsed,
-  onToggleCollapse,
-  onRemove,
-  readOnly,
-}: VariableHeaderProps) {
-  function handleHeaderKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onToggleCollapse()
-    }
-  }
-
-  return (
-    <div
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={onToggleCollapse}
-      onKeyDown={handleHeaderKeyDown}
-      role='button'
-      tabIndex={0}
-      aria-expanded={!isCollapsed}
-      aria-controls={`variable-content-${variable.id}`}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {variable.name || `Variable ${index + 1}`}
-        </span>
-        {variable.name && (
-          <Badge variant='type' size='sm'>
-            {variable.type}
-          </Badge>
-        )}
-      </div>
-      <Button
-        variant='ghost-destructive'
-        onClick={(e) => {
-          e.stopPropagation()
-          onRemove()
-        }}
-        className='h-auto p-0'
-        disabled={readOnly}
-        aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
-      >
-        <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
-        <span className='sr-only'>Delete Variable</span>
-      </Button>
-    </div>
-  )
 }
 
 interface VariableValueInputProps {
@@ -491,69 +431,81 @@ export function Variables({ readOnly = false }: VariablesProps) {
           <div className='h-full overflow-y-auto overflow-x-hidden'>
             <div className='w-full max-w-full space-y-2 overflow-hidden'>
               {workflowVariables.map((variable, index) => (
-                <div
+                <CollapsibleCard
                   key={variable.id}
-                  className={cn(
-                    'rounded-sm border border-[var(--border-1)] bg-[var(--surface-1)]',
-                    (collapsedById[variable.id] ?? false) ? 'overflow-hidden' : 'overflow-visible'
-                  )}
-                >
-                  <VariableHeader
-                    variable={variable}
-                    index={index}
-                    isCollapsed={collapsedById[variable.id] ?? false}
-                    onToggleCollapse={() => toggleCollapsed(variable.id)}
-                    onRemove={() => handleRemoveVariable(variable.id)}
-                    readOnly={readOnly}
-                  />
-
-                  {!(collapsedById[variable.id] ?? false) && (
-                    <div
-                      id={`variable-content-${variable.id}`}
-                      className='flex flex-col gap-1.5 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'
+                  className='bg-[var(--surface-1)]'
+                  title={
+                    <span className='flex min-w-0 items-center gap-2'>
+                      <OverflowText
+                        label={variable.name || `Variable ${index + 1}`}
+                        focusTarget='nearest-interactive'
+                      />
+                      {variable.name && (
+                        <Badge variant='type' size='sm'>
+                          {variable.type}
+                        </Badge>
+                      )}
+                    </span>
+                  }
+                  collapsed={collapsedById[variable.id] ?? false}
+                  onToggleCollapse={() => toggleCollapsed(variable.id)}
+                  contentProps={{ id: `variable-content-${variable.id}`, className: 'gap-1.5' }}
+                  actions={
+                    <Button
+                      variant='ghost-destructive'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveVariable(variable.id)
+                      }}
+                      className='h-auto p-0'
+                      disabled={readOnly}
+                      aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
                     >
-                      <div className='flex flex-col gap-1'>
-                        <Label className='text-small'>{STRINGS.labels.name}</Label>
-                        <Input
-                          name='name'
-                          autoComplete='off'
-                          value={localNames[variable.id] ?? variable.name}
-                          onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
-                          onBlur={() => handleVariableNameBlur(variable.id)}
-                          onKeyDown={handleVariableNameKeyDown}
-                          placeholder={STRINGS.placeholders.name}
-                          disabled={readOnly}
-                        />
-                        {nameErrors[variable.id] && (
-                          <p className='text-[var(--text-error)] text-xs' role='alert'>
-                            {nameErrors[variable.id]}
-                          </p>
-                        )}
-                      </div>
+                      <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
+                      <span className='sr-only'>Delete Variable</span>
+                    </Button>
+                  }
+                >
+                  <div className='flex flex-col gap-1'>
+                    <Label className='text-small'>{STRINGS.labels.name}</Label>
+                    <Input
+                      name='name'
+                      autoComplete='off'
+                      value={localNames[variable.id] ?? variable.name}
+                      onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
+                      onBlur={() => handleVariableNameBlur(variable.id)}
+                      onKeyDown={handleVariableNameKeyDown}
+                      placeholder={STRINGS.placeholders.name}
+                      disabled={readOnly}
+                    />
+                    {nameErrors[variable.id] && (
+                      <p className='text-[var(--text-error)] text-xs' role='alert'>
+                        {nameErrors[variable.id]}
+                      </p>
+                    )}
+                  </div>
 
-                      <div className='space-y-1'>
-                        <Label className='text-small'>{STRINGS.labels.type}</Label>
-                        <Combobox
-                          options={TYPE_OPTIONS}
-                          value={variable.type}
-                          onChange={(value) => handleUpdateVariable(variable.id, 'type', value)}
-                          disabled={readOnly}
-                        />
-                      </div>
+                  <div className='space-y-1'>
+                    <Label className='text-small'>{STRINGS.labels.type}</Label>
+                    <Combobox
+                      options={TYPE_OPTIONS}
+                      value={variable.type}
+                      onChange={(value) => handleUpdateVariable(variable.id, 'type', value)}
+                      disabled={readOnly}
+                    />
+                  </div>
 
-                      <div className='space-y-1'>
-                        <Label className='text-small'>{STRINGS.labels.value}</Label>
-                        <div className='relative'>
-                          <VariableValueInput
-                            variable={variable}
-                            onUpdate={handleUpdateVariable}
-                            readOnly={readOnly}
-                          />
-                        </div>
-                      </div>
+                  <div className='space-y-1'>
+                    <Label className='text-small'>{STRINGS.labels.value}</Label>
+                    <div className='relative'>
+                      <VariableValueInput
+                        variable={variable}
+                        onUpdate={handleUpdateVariable}
+                        readOnly={readOnly}
+                      />
                     </div>
-                  )}
-                </div>
+                  </div>
+                </CollapsibleCard>
               ))}
             </div>
           </div>
