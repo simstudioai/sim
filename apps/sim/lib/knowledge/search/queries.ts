@@ -844,6 +844,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
  * the candidates it already has.
  */
 async function probeVisibleDocuments(
+  knowledgeBaseIds: string[],
   conditions: (SQL | undefined)[],
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined,
@@ -853,7 +854,7 @@ async function probeVisibleDocuments(
   try {
     const probed = await runSearchQuery(probeBudget, stage, (executor) =>
       executor.execute<PermittedDocument & { saturated: boolean }>(
-        visibleDocumentsQuery(conditions, access)
+        visibleDocumentsQuery(knowledgeBaseIds, conditions, access)
       )
     )
     /** The saturation sentinel is only ever emitted alone. */
@@ -870,19 +871,22 @@ async function probeVisibleDocuments(
 /**
  * The probe's SQL, returning at most one row past the document limit.
  *
- * A user scope first materializes the documents its tokens reach, read through
- * `doc_acl_gin_idx` alone, then applies the base, state, and full access conditions to those rows
- * in memory; the set is aliased as `document` so the shared conditions bind to it unchanged.
- * Handed the combined predicate instead, PostgreSQL misjudges the token overlap as unselective
- * and intersects it with base-wide indexes that read the whole search index. The reach is
+ * A user scope first materializes the documents its tokens reach in these bases, read through
+ * `doc_acl_gin_idx` alone, then applies the state and full access conditions to those rows in
+ * memory; the set is aliased as `document` so the shared conditions bind to it unchanged. Handed
+ * the combined predicate instead, PostgreSQL misjudges the token overlap as unselective and
+ * intersects it with base-wide indexes that read the whole search index.
+ *
+ * The index is global and every caller holds the baseline tokens every tenant's org-wide, public,
+ * and uploaded documents carry, so the reach must be counted inside these bases or those
+ * documents alone would saturate it. The base check is applied outside an `OFFSET 0` fence so it
+ * filters the index's rows instead of replacing the index with a base-wide scan. The reach is
  * counted before any row is materialized, so a caller whose tokens reach past the limit pays only
- * for the count: the set is already unbounded, and neither the rows nor the per-document checks
- * are read. When the tokens reach more documents than the limit, a
- * `saturated` sentinel row reports the set as unbounded: the reachable documents in other bases
- * could otherwise hide ones in these. Resolved scopes hold base-wide tokens, so they filter
- * directly.
+ * for the count, and a `saturated` sentinel row then reports the set as unbounded. Resolved scopes
+ * hold base-wide tokens, so they filter directly.
  */
 export function visibleDocumentsQuery(
+  knowledgeBaseIds: string[],
   conditions: (SQL | undefined)[],
   access: KnowledgeAccessScope
 ): SQL {
@@ -898,13 +902,21 @@ export function visibleDocumentsQuery(
   /** Exactly `doc_acl_gin_idx`'s predicate, so both the count and the rows read that index alone. */
   const reached = sql`${document.deletedAt} IS NULL AND ${knowledgeAclOverlapCondition(access)}`
   const underLimit = sql`(SELECT n FROM reach) < ${limit}`
+  const inBases = inArray(document.knowledgeBaseId, knowledgeBaseIds)
   return sql`
     WITH reach AS MATERIALIZED (
       SELECT count(*) AS n FROM (
-        SELECT 1 FROM ${document} WHERE ${reached} LIMIT ${limit}
+        SELECT 1 FROM (
+          SELECT ${document.knowledgeBaseId} FROM ${document} WHERE ${reached} OFFSET 0
+        ) AS ${document}
+        WHERE ${inBases}
+        LIMIT ${limit}
       ) AS reached
     ), reachable AS MATERIALIZED (
-      SELECT * FROM ${document} WHERE ${underLimit} AND ${reached}
+      SELECT * FROM (
+        SELECT * FROM ${document} WHERE ${underLimit} AND ${reached} OFFSET 0
+      ) AS ${document}
+      WHERE ${inBases}
     )
     (
       SELECT ${document.id} AS id, ${document.connectorId} AS "connectorId", false AS saturated
@@ -954,6 +966,7 @@ export async function resolvePermittedDocuments(params: {
   let documents: PermittedDocument[] | null
   try {
     documents = await probeVisibleDocuments(
+      params.knowledgeBaseIds,
       candidateDocumentConditions(
         params.knowledgeBaseIds,
         params.access,
@@ -1168,6 +1181,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            */
           if (selected.length < candidateLimit && params.permitted?.kind !== 'unbounded') {
             const visibleDocuments = await probeVisibleDocuments(
+              params.knowledgeBaseIds,
               [...candidateDocumentVisibility, documentTagCondition],
               params.access,
               params.budget,

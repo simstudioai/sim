@@ -1502,12 +1502,22 @@ describe('permitted-document planner', () => {
   })
 
   it('reads a user scope through its reachable documents and reports saturation', () => {
-    const userSql = render(visibleDocumentsQuery([], reader)).sql
+    const user = render(visibleDocumentsQuery(['org-index'], [], reader))
+    const userSql = user.sql
     expect(userSql).toContain('WITH reach AS MATERIALIZED')
     expect(userSql).toContain('reachable AS MATERIALIZED')
     expect(userSql).toContain('FROM reachable AS')
     expect(userSql).toContain('AS saturated')
-    const workspaceSql = render(visibleDocumentsQuery([], workspace)).sql
+    /**
+     * Baseline tokens reach every tenant's org-wide, public, and uploaded documents, so both the
+     * count and the rows are confined to the requested bases, outside the fence around the index.
+     */
+    const [reach, reachable] = userSql.split('reachable AS MATERIALIZED')
+    for (const cte of [reach, reachable.split('FROM reachable AS')[0]]) {
+      expect(cte).toMatch(/OFFSET 0\s*\) AS \?\s*WHERE \?/)
+    }
+    expect(JSON.stringify(user.params)).toContain('org-index')
+    const workspaceSql = render(visibleDocumentsQuery(['org-index'], [], workspace)).sql
     expect(workspaceSql).not.toContain('reachable')
     expect(workspaceSql).toContain('AS saturated')
   })
