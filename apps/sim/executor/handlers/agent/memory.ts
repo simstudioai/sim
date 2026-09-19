@@ -29,6 +29,7 @@ import {
   readPlainMemoryTail,
   seedMemoryMessages,
 } from '@/lib/memory/conversation-store'
+import { parseConversationHistoryGroup } from '@/lib/memory/history-group'
 import {
   markConversationExchangeGroup,
   selectConversationContextWindow,
@@ -744,21 +745,8 @@ export class Memory {
           encryptedNative =
             typeof item.data.encryptedNative === 'string' ? item.data.encryptedNative : undefined
         }
-        const valid = values.every(
-          (value) =>
-            isPlainRecord(value) &&
-            ['system', 'user', 'assistant', 'tool', 'function'].includes(String(value.role)) &&
-            (typeof value.content === 'string' ||
-              (value.role === 'assistant' &&
-                value.content === null &&
-                (Array.isArray(value.tool_calls) ||
-                  (isPlainRecord(value.function_call) &&
-                    typeof value.function_call.name === 'string' &&
-                    value.function_call.name.length > 0 &&
-                    typeof value.function_call.arguments === 'string'))))
-        )
-        if (!valid || values.length === 0) continue
-        const group = values as Message[]
+        const group = parseConversationHistoryGroup(values)
+        if (!group) continue
         const groupBytes =
           Buffer.byteLength(JSON.stringify(item.data), 'utf8') +
           Buffer.byteLength(JSON.stringify(item.provenance), 'utf8')

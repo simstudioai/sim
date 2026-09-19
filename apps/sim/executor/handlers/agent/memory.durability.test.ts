@@ -208,6 +208,42 @@ describe('optional Agent memory durability failures', () => {
     }
   )
 
+  it.each(['missing', 'mismatched', 'intervening', 'duplicate', 'orphan'])(
+    'omits a %s legacy result group before provider conversion',
+    async (failure) => {
+      const call = {
+        role: 'assistant',
+        content: null,
+        function_call: { name: 'lookup', arguments: '{}' },
+      }
+      const result = { role: 'function', name: 'lookup', content: 'Saved result' }
+      const messages =
+        failure === 'missing'
+          ? [call]
+          : failure === 'mismatched'
+            ? [call, { ...result, name: 'different' }]
+            : failure === 'intervening'
+              ? [call, { role: 'user', content: 'interruption' }, result]
+              : failure === 'duplicate'
+                ? [call, result, result]
+                : [result]
+      mocks.items.mockResolvedValue({
+        items: [
+          {
+            kind: 'exchange',
+            appendKey: 'step:1',
+            turnId: 'previous-turn',
+            data: { version: 1, messages },
+            provenance: { status: 'exact', entries: [] },
+          },
+        ],
+      })
+      await expect(
+        new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
+      ).resolves.toEqual(prefix)
+    }
+  )
+
   it('drops optional scoped appends when storage fails without retrying an unscoped write', async () => {
     mocks.append.mockRejectedValue(storageFailure())
     await expect(
