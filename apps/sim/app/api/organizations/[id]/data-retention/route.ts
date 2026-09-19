@@ -25,6 +25,7 @@ function enterpriseDefaults(): OrganizationRetentionValues {
     logRetentionHours: CLEANUP_CONFIG['cleanup-logs'].defaults.enterprise,
     softDeleteRetentionHours: CLEANUP_CONFIG['cleanup-soft-deletes'].defaults.enterprise,
     taskCleanupHours: CLEANUP_CONFIG['cleanup-tasks'].defaults.enterprise,
+    fileVersionRetentionHours: CLEANUP_CONFIG['cleanup-file-versions'].defaults.enterprise,
     piiRedaction: null,
     retentionOverrides: null,
   }
@@ -37,6 +38,7 @@ function normalizeConfigured(
     logRetentionHours: settings?.logRetentionHours ?? null,
     softDeleteRetentionHours: settings?.softDeleteRetentionHours ?? null,
     taskCleanupHours: settings?.taskCleanupHours ?? null,
+    fileVersionRetentionHours: settings?.fileVersionRetentionHours ?? null,
     piiRedaction: settings?.piiRedaction?.rules
       ? {
           rules: settings.piiRedaction.rules.map((rule) => ({
@@ -191,6 +193,9 @@ export const PUT = withRouteHandler(
     }
     if (body.taskCleanupHours !== undefined) {
       merged.taskCleanupHours = body.taskCleanupHours
+    }
+    if (body.fileVersionRetentionHours !== undefined) {
+      merged.fileVersionRetentionHours = body.fileVersionRetentionHours
     }
     if (body.piiRedaction !== undefined) {
       merged.piiRedaction = body.piiRedaction

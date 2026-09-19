@@ -2553,15 +2553,29 @@
     {
       "idx": 365,
       "version": "7",
-      "when": 1789782013242,
-      "tag": "0365_durable_agent_memory",
+      "when": 1789780463212,
+      "tag": "0365_workspace_file_versions",
       "breakpoints": true
     },
     {
       "idx": 366,
       "version": "7",
-      "when": 1789840461315,
-      "tag": "0366_agent_memory_context_summary",
+      "when": 1789801452516,
+      "tag": "0366_member_scope_renewed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1789837174274,
+      "tag": "0367_tin_keyword_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1789842468472,
+      "tag": "0368_durable_agent_memory",
       "breakpoints": true
     }
   ]

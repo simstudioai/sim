@@ -16,6 +16,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     AGENT_MEMORY_HISTORY: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
+    KNOWLEDGE_TIN_KEYWORD: undefined as boolean | undefined,
     SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
   },
 }))
@@ -146,6 +147,7 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
+    envRef.KNOWLEDGE_TIN_KEYWORD = undefined
     envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
 
@@ -179,6 +181,19 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
       envRef.SLACK_SEARCH_SHARED_APP = true
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+    })
+  })
+
+  describe('knowledge-tin-keyword flag', () => {
+    it('is a global switch', async () => {
+      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(false)
+      envRef.KNOWLEDGE_TIN_KEYWORD = true
+      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
+    })
+
+    it('follows an AppConfig global rule', async () => {
+      withAppConfig({ 'knowledge-tin-keyword': { enabled: true } })
+      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
     })
   })
 

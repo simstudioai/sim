@@ -1,5 +1,5 @@
 {
-  "id": "2de7311b-56e2-431f-ab6f-9581a3021c01",
+  "id": "6c3ac487-9a6a-4984-8732-57a76bab5c42",
   "prevId": "8715613a-2152-4f34-95b1-876050ac4aec",
   "version": "7",
   "dialect": "postgresql",
@@ -291,168 +291,6 @@
           "tableFrom": "account",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_memory_turn": {
-      "name": "agent_memory_turn",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "memory_id": {
-          "name": "memory_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_id": {
-          "name": "block_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "node_id": {
-          "name": "node_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_order": {
-          "name": "execution_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "encrypted_state": {
-          "name": "encrypted_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "agent_memory_turn_invocation_unique": {
-          "name": "agent_memory_turn_invocation_unique",
-          "columns": [
-            {
-              "expression": "memory_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "execution_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "block_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "node_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "execution_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_memory_turn_workflow_idx": {
-          "name": "agent_memory_turn_workflow_idx",
-          "columns": [
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "agent_memory_turn_memory_id_memory_id_fk": {
-          "name": "agent_memory_turn_memory_id_memory_id_fk",
-          "tableFrom": "agent_memory_turn",
-          "tableTo": "memory",
-          "columnsFrom": ["memory_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_memory_turn_workflow_id_workflow_id_fk": {
-          "name": "agent_memory_turn_workflow_id_workflow_id_fk",
-          "tableFrom": "agent_memory_turn",
-          "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -11720,13 +11558,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "storage_version": {
-          "name": "storage_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
         "secret_provenance_version": {
           "name": "secret_provenance_version",
           "type": "integer",
@@ -11844,225 +11675,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.memory_artifact": {
-      "name": "memory_artifact",
-      "schema": "",
-      "columns": {
-        "memory_id": {
-          "name": "memory_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "memory_artifact_key_idx": {
-          "name": "memory_artifact_key_idx",
-          "columns": [
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "memory_artifact_memory_id_memory_id_fk": {
-          "name": "memory_artifact_memory_id_memory_id_fk",
-          "tableFrom": "memory_artifact",
-          "tableTo": "memory",
-          "columnsFrom": ["memory_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "memory_artifact_key_execution_large_values_key_fk": {
-          "name": "memory_artifact_key_execution_large_values_key_fk",
-          "tableFrom": "memory_artifact",
-          "tableTo": "execution_large_values",
-          "columnsFrom": ["key"],
-          "columnsTo": ["key"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "memory_artifact_memory_id_key_pk": {
-          "name": "memory_artifact_memory_id_key_pk",
-          "columns": ["memory_id", "key"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.memory_item": {
-      "name": "memory_item",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "memory_id": {
-          "name": "memory_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sequence": {
-          "name": "sequence",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "memory_item_sequence_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "9223372036854775807",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "append_key": {
-          "name": "append_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "turn_id": {
-          "name": "turn_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data": {
-          "name": "data",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance_status": {
-          "name": "provenance_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance_entries": {
-          "name": "provenance_entries",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "memory_item_append_unique": {
-          "name": "memory_item_append_unique",
-          "columns": [
-            {
-              "expression": "memory_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "append_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "memory_item_sequence_idx": {
-          "name": "memory_item_sequence_idx",
-          "columns": [
-            {
-              "expression": "memory_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sequence",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "memory_item_memory_id_memory_id_fk": {
-          "name": "memory_item_memory_id_memory_id_fk",
-          "tableFrom": "memory_item",
-          "tableTo": "memory",
-          "columnsFrom": ["memory_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "memory_item_kind_check": {
-          "name": "memory_item_kind_check",
-          "value": "\"memory_item\".\"kind\" IN ('message', 'exchange')"
-        },
-        "memory_item_provenance_status_check": {
-          "name": "memory_item_provenance_status_check",
-          "value": "\"memory_item\".\"provenance_status\" IN ('exact', 'unknown')"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.memory_secret_provenance": {
@@ -26635,6 +26247,224 @@
       },
       "isRLSEnabled": false
     },
+    "public.workspace_file_version": {
+      "name": "workspace_file_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "workspace_file_version_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_user_ids": {
+          "name": "author_user_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "restored_from_version": {
+          "name": "restored_from_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_provenance_status": {
+          "name": "secret_provenance_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_provenance_entries": {
+          "name": "secret_provenance_entries",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_file_version_file_version_unique": {
+          "name": "workspace_file_version_file_version_unique",
+          "columns": [
+            {
+              "expression": "file_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_version_key_unique": {
+          "name": "workspace_file_version_key_unique",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_version_workspace_id_idx": {
+          "name": "workspace_file_version_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_version_workspace_superseded_idx": {
+          "name": "workspace_file_version_workspace_superseded_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "superseded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"workspace_file_version\".\"superseded_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_file_version_file_id_workspace_files_id_fk": {
+          "name": "workspace_file_version_file_id_workspace_files_id_fk",
+          "tableFrom": "workspace_file_version",
+          "tableTo": "workspace_files",
+          "columnsFrom": ["file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_file_version_workspace_id_workspace_id_fk": {
+          "name": "workspace_file_version_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_file_version",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_file_version_provenance_status_check": {
+          "name": "workspace_file_version_provenance_status_check",
+          "value": "\"workspace_file_version\".\"secret_provenance_status\" IS NULL OR \"workspace_file_version\".\"secret_provenance_status\" IN ('exact', 'unknown', 'unrecorded')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.workspace_files": {
       "name": "workspace_files",
       "schema": "",
@@ -28107,6 +27937,11 @@
       "name": "workspace_file_search_index_status",
       "schema": "public",
       "values": ["pending", "ready", "skipped", "failed"]
+    },
+    "public.workspace_file_version_source": {
+      "name": "workspace_file_version_source",
+      "schema": "public",
+      "values": ["upload", "user", "api", "copilot", "workflow", "collab", "revert", "unknown"]
     },
     "public.workspace_fork_promote_direction": {
       "name": "workspace_fork_promote_direction",

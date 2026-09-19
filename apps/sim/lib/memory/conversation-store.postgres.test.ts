@@ -179,7 +179,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       );
       INSERT INTO workflow (id) VALUES ('workflow-1');
     `)
-    for (const name of ['0365_durable_agent_memory', '0366_agent_memory_context_summary']) {
+    for (const name of ['0368_durable_agent_memory']) {
       const migration = await readFile(
         new URL(`../../../../packages/db/migrations/${name}.sql`, import.meta.url),
         'utf8'

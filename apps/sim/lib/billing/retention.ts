@@ -124,6 +124,7 @@ export type RetentionHoursKey =
   | 'logRetentionHours'
   | 'softDeleteRetentionHours'
   | 'taskCleanupHours'
+  | 'fileVersionRetentionHours'
 
 interface PiiRedactionRulesLike {
   rules?: Array<{ workspaceId?: string | null }> | null

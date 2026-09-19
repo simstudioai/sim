@@ -125,7 +125,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
         updated_at timestamp NOT NULL DEFAULT now()
       );
     `)
-    for (const name of ['0365_durable_agent_memory', '0366_agent_memory_context_summary']) {
+    for (const name of ['0368_durable_agent_memory']) {
       const migration = await readFile(
         new URL(`../../../../packages/db/migrations/${name}.sql`, import.meta.url),
         'utf8'

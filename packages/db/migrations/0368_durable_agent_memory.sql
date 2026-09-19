@@ -35,6 +35,7 @@ CREATE TABLE "memory_item" (
 );
 --> statement-breakpoint
 ALTER TABLE "memory" ADD COLUMN "storage_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "memory" ADD COLUMN "encrypted_context_summary" text;--> statement-breakpoint
 ALTER TABLE "agent_memory_turn" ADD CONSTRAINT "agent_memory_turn_memory_id_memory_id_fk" FOREIGN KEY ("memory_id") REFERENCES "public"."memory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_memory_turn" ADD CONSTRAINT "agent_memory_turn_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "memory_artifact" ADD CONSTRAINT "memory_artifact_memory_id_memory_id_fk" FOREIGN KEY ("memory_id") REFERENCES "public"."memory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

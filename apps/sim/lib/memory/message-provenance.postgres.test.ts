@@ -188,7 +188,7 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
       CREATE TRIGGER memory_demote BEFORE UPDATE OF data ON memory FOR EACH ROW
         WHEN(OLD.data IS DISTINCT FROM NEW.data) EXECUTE FUNCTION demote_memory();
     `)
-    for (const name of ['0365_durable_agent_memory', '0366_agent_memory_context_summary']) {
+    for (const name of ['0368_durable_agent_memory']) {
       const migration = await readFile(
         new URL(`../../../../packages/db/migrations/${name}.sql`, import.meta.url),
         'utf8'
