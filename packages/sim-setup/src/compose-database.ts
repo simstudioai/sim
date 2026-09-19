@@ -33,11 +33,11 @@ export interface PostgresPasswordChoice {
 }
 
 /**
- * Characters that `.env` would reinterpret — whitespace, comments, quotes,
- * escapes, and Compose's `$` interpolation — so a value containing one cannot
- * be written unquoted and read back unchanged.
+ * A password the wizard can persist verbatim: Compose interpolates it unescaped
+ * into `DATABASE_URL`, and `.env` reinterprets whitespace, comments, quotes and
+ * `$`, so only URL-unreserved characters survive both unchanged.
  */
-const DOTENV_UNSAFE = /[\s#'"\\$]/
+const PERSISTABLE_PASSWORD = /^[A-Za-z0-9._~-]+$/
 
 interface ChooseOptions {
   /** The shell environment, whose `POSTGRES_PASSWORD` Compose interpolates over `.env`. */
@@ -88,12 +88,12 @@ export function choosePostgresPassword(
       ]
     )
   }
-  if (DOTENV_UNSAFE.test(shellValue)) {
+  if (!PERSISTABLE_PASSWORD.test(shellValue)) {
     throw new SetupError(
-      'POSTGRES_PASSWORD is exported only in the shell, and contains characters .env cannot store verbatim.',
+      'POSTGRES_PASSWORD is exported only in the shell, and contains characters that cannot be stored in .env and embedded in DATABASE_URL unchanged.',
       [
-        'add it to .env yourself, quoted, so later runs without the export still use it',
-        'new installs: use a value from openssl rand -hex 24',
+        'use only letters, digits and . _ ~ - (for a new install: openssl rand -hex 24)',
+        'or add it to .env yourself if you have confirmed it works in a connection URL',
       ]
     )
   }
@@ -179,7 +179,11 @@ export function reportPostgresPasswordChoice(
   )
 }
 
-/** The Postgres role Compose initializes, which the shell overrides over `.env` like any variable. */
+/**
+ * The Postgres role Compose initializes from `${POSTGRES_USER:-postgres}`. A shell
+ * export overrides `.env` even when empty, and an empty value takes the default.
+ */
 export function postgresUser(envFileValue: string | undefined): string {
-  return process.env.POSTGRES_USER || envFileValue || 'postgres'
+  const shellUser = process.env.POSTGRES_USER
+  return shellUser === undefined ? envFileValue || 'postgres' : shellUser || 'postgres'
 }

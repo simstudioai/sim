@@ -93,17 +93,32 @@ describe('choosePostgresPassword', () => {
     }
   })
 
-  it.each(['pa ss', 'pass#word', 'pa"ss', "pa'ss", 'pa\\ss', 'pa$ss'])(
-    'refuses to persist %s, which .env cannot store verbatim',
-    (value) => {
-      expect(() =>
-        choosePostgresPassword(undefined, 'sim-abc', {
-          shell: { POSTGRES_PASSWORD: value },
-          hasDatabaseVolume: () => false,
-        })
-      ).toThrow(/cannot store verbatim/)
-    }
-  )
+  it.each([
+    'pa ss',
+    'pass#word',
+    'pa"ss',
+    "pa'ss",
+    'pa\\ss',
+    'pa$ss',
+    'pa/ss',
+    'pa?ss',
+    'pa%ss',
+    'pa@ss',
+    'pa:ss',
+  ])('refuses to persist %s, which .env or DATABASE_URL would change', (value) => {
+    expect(() =>
+      choosePostgresPassword(undefined, 'sim-abc', {
+        shell: { POSTGRES_PASSWORD: value },
+        hasDatabaseVolume: () => false,
+      })
+    ).toThrow(SetupError)
+  })
+
+  it('persists a shell password made of URL-unreserved characters', () => {
+    expect(
+      choosePostgresPassword(undefined, 'sim-abc', { shell: { POSTGRES_PASSWORD: 'Ab9._~-z' } })
+    ).toEqual({ value: 'Ab9._~-z', source: 'environment' })
+  })
 
   it('reads the process environment by default', () => {
     vi.stubEnv('POSTGRES_PASSWORD', 'from-process')
@@ -114,10 +129,12 @@ describe('choosePostgresPassword', () => {
 })
 
 describe('postgresUser', () => {
-  it('prefers the shell, then .env, then the image default', () => {
+  it('follows Compose: a shell export wins even when empty, then .env, then the default', () => {
     vi.stubEnv('POSTGRES_USER', 'from-shell')
     expect(postgresUser('from-env-file')).toBe('from-shell')
     vi.stubEnv('POSTGRES_USER', '')
+    expect(postgresUser('from-env-file')).toBe('postgres')
+    vi.stubEnv('POSTGRES_USER', undefined)
     expect(postgresUser('from-env-file')).toBe('from-env-file')
     expect(postgresUser(undefined)).toBe('postgres')
   })
