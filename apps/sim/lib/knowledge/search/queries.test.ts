@@ -1529,11 +1529,55 @@ describe('permitted-document planner', () => {
     probeRows = [...rows]
     const permitted = await resolvePermittedDocuments({
       knowledgeBaseIds: ['org-index'],
-      access: reader,
+      access: { ...reader, tokens: [`u:resolves-${kind}@example.com`] },
     })
     expect(permitted.kind).toBe(kind)
     if (permitted.kind === 'bounded')
       expect(permitted.documents).toEqual([{ id: 'doc-a', connectorId: null }])
+  })
+
+  describe('saturated reach', () => {
+    const scope = (name: string): UserAccessScope => ({
+      ...reader,
+      tokens: [`u:${name}@example.com`],
+    })
+    const resolve = (access: UserAccessScope, knowledgeBaseIds = ['org-index']) =>
+      resolvePermittedDocuments({ knowledgeBaseIds, access })
+    const probes = () => statements().filter((query) => isProbeStatement(query.sql)).length
+
+    it('is remembered, so a broad caller skips the probe on the next search', async () => {
+      probeRows = [{ id: null, connectorId: null, saturated: true }]
+      const broad = scope('broad')
+      expect((await resolve(broad)).kind).toBe('unbounded')
+      expect((await resolve({ ...broad, tokens: [...broad.tokens].reverse() })).kind).toBe(
+        'unbounded'
+      )
+      expect(probes()).toBe(1)
+    })
+
+    it('is remembered per set of bases and tokens', async () => {
+      probeRows = [{ id: null, connectorId: null, saturated: true }]
+      await resolve(scope('per-key'))
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      expect((await resolve(scope('per-key'), ['other-index'])).kind).toBe('bounded')
+      expect((await resolve(scope('per-key-other'))).kind).toBe('bounded')
+      expect(probes()).toBe(3)
+    })
+
+    it('is not inferred from a bounded set or a probe that ran out of time', async () => {
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      await resolve(scope('bounded'))
+      await resolve(scope('bounded'))
+      expect(probes()).toBe(2)
+      const budget = new SearchBudget('vector', performance.now() - 1)
+      await resolvePermittedDocuments({
+        knowledgeBaseIds: ['org-index'],
+        access: scope('timed-out'),
+        budget,
+      })
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      expect((await resolve(scope('timed-out'))).kind).toBe('bounded')
+    })
   })
 
   it('reports an exhausted vector budget as unbounded instead of failing both legs', async () => {

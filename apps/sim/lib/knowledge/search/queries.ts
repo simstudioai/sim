@@ -7,8 +7,10 @@ import {
   knowledgeConnector,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import {
   knowledgeAccessCondition,
   knowledgeAclOverlapCondition,
@@ -833,15 +835,21 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   return selectVectorResults(params)
 }
 
+type ProbeOutcome =
+  | { kind: 'documents'; documents: PermittedDocument[] }
+  /** The caller reads more documents than an exact ranking can afford. */
+  | { kind: 'saturated' }
+  /** The probe spent its own deadline before finding out. */
+  | { kind: 'timed_out' }
+
 /**
  * Enumerate the documents the caller may read, stopping once there are more of them than an exact
  * ranking can afford. The bound is documents examined, not chunks accumulated: the access
  * predicate is evaluated once per document, and a search index holds only a few chunks per
  * document, so a chunk-bounded enumeration walks many times more documents than its limit says.
  *
- * Returns the documents with their sources, or `null` when the permitted set exceeded that bound
- * or the probe spent its own deadline finding out — neither is a failure of the leg, which keeps
- * the candidates it already has.
+ * Neither saturation nor a timeout is a failure of the leg, which keeps the candidates it
+ * already has.
  */
 async function probeVisibleDocuments(
   knowledgeBaseIds: string[],
@@ -849,7 +857,7 @@ async function probeVisibleDocuments(
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined,
   stage: 'vector.probe' | 'permitted_documents'
-): Promise<PermittedDocument[] | null> {
+): Promise<ProbeOutcome> {
   const probeBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
   try {
     const probed = await runSearchQuery(probeBudget, stage, (executor) =>
@@ -858,13 +866,18 @@ async function probeVisibleDocuments(
       )
     )
     /** The saturation sentinel is only ever emitted alone. */
-    if (probed.length > VECTOR_PROBE_DOCUMENT_LIMIT || probed[0]?.saturated) return null
-    return probed.map(({ id, connectorId }) => ({ id, connectorId }))
+    if (probed.length > VECTOR_PROBE_DOCUMENT_LIMIT || probed[0]?.saturated) {
+      return { kind: 'saturated' }
+    }
+    return {
+      kind: 'documents',
+      documents: probed.map(({ id, connectorId }) => ({ id, connectorId })),
+    }
   } catch (error) {
     if (!budget || !probeBudget?.isTimeout(error)) throw error
     /** Only the probe's share was spent; the leg's own deadline still governs. */
     budget.remaining()
-    return null
+    return { kind: 'timed_out' }
   }
 }
 
@@ -950,6 +963,24 @@ export type PermittedDocuments =
   | { kind: 'unbounded' }
 
 /**
+ * How long a caller's saturated reach is remembered. Reach counts the documents a caller's tokens
+ * touch in the bases, which moves slowly, and an unbounded set only means the legs search the
+ * index with the full access predicate, so a stale answer costs speed, never access.
+ */
+const SATURATED_REACH_TTL_MS = 5 * 60 * 1000
+
+const saturatedReach = new LRUCache<string, true>({ max: 10_000, ttl: SATURATED_REACH_TTL_MS })
+
+/** Reach depends only on the bases and the caller's tokens; filters narrow the set, not the reach. */
+function reachKey(
+  knowledgeBaseIds: readonly string[],
+  access: KnowledgeAccessScope
+): string | null {
+  if (access.kind !== 'user') return null
+  return `${[...knowledgeBaseIds].sort().join(',')}:${sha256Hex([...access.tokens].sort().join('\n'))}`
+}
+
+/**
  * Resolve the permitted set with the candidate predicate both legs apply, so restricting a leg
  * to it never admits a document the leg would otherwise refuse. Tag filters stay chunk-level in
  * each leg; the set is the document-level superset they narrow.
@@ -963,30 +994,37 @@ export async function resolvePermittedDocuments(params: {
   filters?: WorkspaceSearchFilters
   budget?: SearchBudget
 }): Promise<PermittedDocuments> {
-  let documents: PermittedDocument[] | null
-  try {
-    documents = await probeVisibleDocuments(
-      params.knowledgeBaseIds,
-      candidateDocumentConditions(
+  const key = reachKey(params.knowledgeBaseIds, params.access)
+  let probe: ProbeOutcome
+  if (key && saturatedReach.get(key)) {
+    probe = { kind: 'saturated' }
+  } else {
+    try {
+      probe = await probeVisibleDocuments(
         params.knowledgeBaseIds,
+        candidateDocumentConditions(
+          params.knowledgeBaseIds,
+          params.access,
+          params.filters,
+          knowledgeMetadataCandidateAccessCondition(params.access)
+        ),
         params.access,
-        params.filters,
-        knowledgeMetadataCandidateAccessCondition(params.access)
-      ),
-      params.access,
-      params.budget,
-      'permitted_documents'
-    )
-  } catch (error) {
-    if (!params.budget?.isTimeout(error)) throw error
-    documents = null
+        params.budget,
+        'permitted_documents'
+      )
+    } catch (error) {
+      if (!params.budget?.isTimeout(error)) throw error
+      probe = { kind: 'timed_out' }
+    }
+    if (key && probe.kind === 'saturated') saturatedReach.set(key, true)
   }
-  const permitted: PermittedDocuments = documents
-    ? { kind: 'bounded', documents }
-    : { kind: 'unbounded' }
+  const permitted: PermittedDocuments =
+    probe.kind === 'documents'
+      ? { kind: 'bounded', documents: probe.documents }
+      : { kind: 'unbounded' }
   annotateSearchDiagnostics({
     permittedDocuments: permitted.kind,
-    ...(documents ? { permittedDocumentCount: documents.length } : {}),
+    ...(probe.kind === 'documents' ? { permittedDocumentCount: probe.documents.length } : {}),
   })
   return permitted
 }
@@ -1180,16 +1218,16 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * afford. An `unbounded` permitted set already proved it is not, so the probe is skipped.
            */
           if (selected.length < candidateLimit && params.permitted?.kind !== 'unbounded') {
-            const visibleDocuments = await probeVisibleDocuments(
+            const probe = await probeVisibleDocuments(
               params.knowledgeBaseIds,
               [...candidateDocumentVisibility, documentTagCondition],
               params.access,
               params.budget,
               'vector.probe'
             )
-            if (visibleDocuments) {
-              annotateSearchDiagnostics({ vectorProbeDocumentCount: visibleDocuments.length })
-              selected = await rankPermittedExactly(visibleDocuments.map(({ id }) => id))
+            if (probe.kind === 'documents') {
+              annotateSearchDiagnostics({ vectorProbeDocumentCount: probe.documents.length })
+              selected = await rankPermittedExactly(probe.documents.map(({ id }) => id))
             }
           }
         }
