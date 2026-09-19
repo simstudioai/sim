@@ -38,6 +38,7 @@ import {
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
+  getWorkspaceFileVersionNumberForRecord,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -227,6 +228,8 @@ describe('workspace file version history in PostgreSQL', () => {
     const after = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
     if (!after) throw new Error('file missing')
     expect((await getCurrentWorkspaceFileVersion(after)).version).toBe(2)
+    expect(await getWorkspaceFileVersionNumberForRecord(before)).toBe(1)
+    expect(await getWorkspaceFileVersionNumberForRecord(after)).toBe(2)
   })
 
   it('does not keep an empty shell as a version of its own', async () => {

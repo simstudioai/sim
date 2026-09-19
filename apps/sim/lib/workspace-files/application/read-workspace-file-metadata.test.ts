@@ -8,11 +8,11 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceFile: vi.fn(),
   getShareForResource: vi.fn(),
   resolvePermission: vi.fn(),
-  getCurrentVersion: vi.fn(),
+  getVersionNumberForRecord: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
-  getCurrentWorkspaceFileVersion: mocks.getCurrentVersion,
+  getWorkspaceFileVersionNumberForRecord: mocks.getVersionNumberForRecord,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -177,19 +177,16 @@ describe('readWorkspaceFileMetadataWithVersion', () => {
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 
-  it('pairs the version number with the stored object the returned record describes', async () => {
-    const rewritten = { ...file, key: 'workspace/ws/data-2.csv', size: 50 }
-    mocks.getWorkspaceFile.mockResolvedValueOnce(file).mockResolvedValueOnce(rewritten)
-    mocks.getCurrentVersion
-      .mockResolvedValueOnce({ version: 2, key: rewritten.key })
-      .mockResolvedValueOnce({ version: 2, key: rewritten.key })
+  it('reports the version of the stored object the returned record describes', async () => {
+    mocks.getWorkspaceFile.mockResolvedValueOnce(file)
+    mocks.getVersionNumberForRecord.mockResolvedValueOnce(4)
 
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal,
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
-    ).resolves.toEqual({ file: rewritten, share, currentVersion: 2 })
-    expect(mocks.getWorkspaceFile).toHaveBeenCalledTimes(2)
+    ).resolves.toEqual({ file, share, currentVersion: 4 })
+    expect(mocks.getVersionNumberForRecord).toHaveBeenCalledWith(file)
   })
 })

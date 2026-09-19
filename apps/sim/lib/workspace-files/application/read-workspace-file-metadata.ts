@@ -7,7 +7,7 @@ import {
   getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getCurrentWorkspaceFileVersion } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { getWorkspaceFileVersionNumberForRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -59,28 +59,18 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   execute: executeReadWorkspaceFileMetadata,
 })
 
-/** Attempts to read a file record and version head that describe the same stored object. */
-const CURRENT_VERSION_READ_ATTEMPTS = 3
-
 /**
  * The same read plus the current version number, for the public metadata surface. Kept separate so
- * the many internal callers of {@link readWorkspaceFileMetadata} pay no extra query.
- *
- * The file row and the version head are separate reads, so a content write committing between them
- * would pair the old key and size with the new number; the read repeats until both describe the
- * same stored object.
+ * the many internal callers of {@link readWorkspaceFileMetadata} pay no extra query. The number is
+ * resolved from the returned record's own storage key, so it always identifies the content that
+ * record describes.
  */
 export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
   resolveContext: ({ input }: { input: ReadWorkspaceFileMetadataInput }) =>
     resolveActiveWorkspaceFileContext(input),
   async execute(args): Promise<ReadWorkspaceFileMetadataWithVersionResult> {
-    for (let attempt = 1; ; attempt++) {
-      const result = await executeReadWorkspaceFileMetadata(args)
-      const current = await getCurrentWorkspaceFileVersion(result.file)
-      if (current.key === result.file.key || attempt === CURRENT_VERSION_READ_ATTEMPTS) {
-        return { ...result, currentVersion: current.version }
-      }
-    }
+    const result = await executeReadWorkspaceFileMetadata(args)
+    return { ...result, currentVersion: await getWorkspaceFileVersionNumberForRecord(result.file) }
   },
 })
