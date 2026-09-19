@@ -80,7 +80,7 @@ function FieldDisclosure({ expanded, children, ...props }: FieldDisclosureProps)
         variant='ghost'
         size={null}
         aria-expanded={expanded}
-        className='gap-1.5 whitespace-nowrap p-0 text-small'
+        className='gap-1.5 whitespace-nowrap p-0 text-small focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
       >
         {children}
         <ChevronDown
