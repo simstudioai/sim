@@ -101,7 +101,11 @@ export async function runConnectorContentPass(input: ContentPassInput) {
   }
   let checkpoint = readListingCheckpoint(input.connector.listingCheckpoint, input.fingerprint)
   /** A Full resync must revisit documents before an ordinary listing's saved cursor. */
-  if (!checkpoint || (input.forceRehydrate && !checkpoint.forceRehydrate)) {
+  if (
+    !checkpoint ||
+    (input.forceRehydrate && !checkpoint.forceRehydrate) ||
+    (input.fullSync && !checkpoint.fullSync)
+  ) {
     checkpoint = await withLease(async (tx) => {
       const next = beginListingCheckpoint({
         fingerprint: input.fingerprint,

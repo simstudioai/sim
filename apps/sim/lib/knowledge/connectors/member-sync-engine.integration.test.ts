@@ -357,6 +357,7 @@ describe('member engine with a dedicated content credential', () => {
         subjectToken: 's:google-drive:-:different-person',
         memberSyncedThrough: null,
         lastCompleteListingAt: null,
+        scopeRenewedAt: null,
         listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
         changeCursor: null,
         nextAttemptAt: expect.any(Date),
@@ -704,6 +705,7 @@ describe('member engine with a dedicated content credential', () => {
         status: 'suspended',
         memberSyncedThrough: null,
         lastCompleteListingAt: null,
+        scopeRenewedAt: null,
         listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
       })
     )

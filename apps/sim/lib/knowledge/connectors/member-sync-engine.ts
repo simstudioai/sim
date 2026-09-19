@@ -778,6 +778,7 @@ async function reconcileMembership(
                     memberSyncedThrough: null,
                     lastCompleteListingAt: null,
                     lastListedCount: null,
+                    scopeRenewedAt: null,
                   }
                 : {}),
               updatedAt: now,
@@ -985,6 +986,7 @@ async function recordMemberFailure(
               changeCursor: null,
               memberSyncedThrough: null,
               lastCompleteListingAt: null,
+              scopeRenewedAt: null,
             }
           : {}),
         consecutiveFailures: failures,
