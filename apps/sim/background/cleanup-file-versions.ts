@@ -9,7 +9,6 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { DEFAULT_DELETE_CHUNK_SIZE } from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import { deleteWorkspaceStorageObjects } from '@/lib/cleanup/storage-delete'
-import { isUsingCloudStorage } from '@/lib/uploads'
 import {
   FILE_VERSION_RETENTION_KEEP_LATEST,
   MAX_SUPERSEDED_FILE_VERSIONS,
@@ -115,16 +114,13 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
 
 /**
  * Deletes the stored objects first and only then the rows whose objects are gone, so a failed
- * delete leaves its row — and the next run retries it — instead of orphaning the object. Without
- * cloud storage the objects are left in place, as the soft-delete purge leaves them.
+ * delete leaves its row — and the next run retries it — instead of orphaning the object.
  */
 async function deleteVersions(rows: Array<{ id: string; key: string }>, label: string) {
-  const failedKeys = isUsingCloudStorage()
-    ? await deleteWorkspaceStorageObjects(
-        rows.map((row) => row.key),
-        label
-      )
-    : new Set<string>()
+  const failedKeys = await deleteWorkspaceStorageObjects(
+    rows.map((row) => row.key),
+    label
+  )
   const removable = rows.filter((row) => !failedKeys.has(row.key))
   let deleted = 0
   for (const batch of chunkArray(removable, DEFAULT_DELETE_CHUNK_SIZE)) {

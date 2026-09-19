@@ -231,21 +231,36 @@ const VERSION_OBJECT_FILE_CHUNK_SIZE = 100
  * Deletes the stored objects of every earlier version of the workspace files about to be purged,
  * before their version rows cascade away with the file. A file whose version objects could not all
  * be deleted is withheld from this purge, so its rows survive for the next run instead of leaving
- * those objects unreferenced.
+ * those objects unreferenced. Each chunk re-reads which files are still deleted past the cutoff
+ * right before deleting, so a file restored since selection keeps its history; the file-row delete
+ * re-checks the same condition, so it skips that file too.
  */
 async function cleanupWorkspaceFileVersionStorage(
   rows: WorkspaceFileScope['multiContextRows'],
+  retentionDate: Date,
   label: string
 ): Promise<{ rows: WorkspaceFileScope['multiContextRows']; failed: number }> {
   const workspaceRows = rows.filter((row) => row.context === 'workspace')
-  if (workspaceRows.length === 0 || !isUsingCloudStorage()) return { rows, failed: 0 }
+  if (workspaceRows.length === 0) return { rows, failed: 0 }
 
   const currentKeyByFileId = new Map(workspaceRows.map((row) => [row.id, row.key]))
   const withheldFileIds = new Set<string>()
-  for (const fileIds of chunkArray(
+  for (const selectedFileIds of chunkArray(
     [...currentKeyByFileId.keys()],
     VERSION_OBJECT_FILE_CHUNK_SIZE
   )) {
+    const stillExpired = await cleanupDb
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(workspaceFiles.id, selectedFileIds),
+          isNotNull(workspaceFiles.deletedAt),
+          lt(workspaceFiles.deletedAt, retentionDate)
+        )
+      )
+    const fileIds = stillExpired.map((file) => file.id)
+    if (fileIds.length === 0) continue
     const versions = await cleanupDb
       .select({ fileId: workspaceFileVersion.fileId, key: workspaceFileVersion.key })
       .from(workspaceFileVersion)
@@ -944,7 +959,11 @@ export async function runCleanupSoftDeletes(
     chatCleanup = await prepareChatCleanup([...doomedChatIds], label)
   }
 
-  const versionCleanup = await cleanupWorkspaceFileVersionStorage(fileScope.multiContextRows, label)
+  const versionCleanup = await cleanupWorkspaceFileVersionStorage(
+    fileScope.multiContextRows,
+    retentionDate,
+    label
+  )
   if (budgets && versionCleanup.failed) throw new Error('File version storage cleanup failed')
   const fileCleanup = await cleanupWorkspaceFileStorage({
     ...fileScope,

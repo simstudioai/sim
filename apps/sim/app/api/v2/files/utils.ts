@@ -5,7 +5,11 @@ import { buildFolderPath } from '@/lib/folders/paths'
 import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
+import {
+  findUserEmailsByIds,
+  getUserEmailsByIds,
+  requireResolvedUserEmail,
+} from '@/lib/users/queries'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Shared serialization for the v2 files surface. */
@@ -85,7 +89,7 @@ function serializeV2FileVersion(
 export async function toV2FileVersions(
   records: WorkspaceFileVersionRecord[]
 ): Promise<V2FileVersion[]> {
-  const emailByUserId = await getUserEmailsByIds(records.flatMap((record) => record.authorUserIds))
+  const emailByUserId = await findUserEmailsByIds(records.flatMap((record) => record.authorUserIds))
   return records.map((record) => serializeV2FileVersion(record, emailByUserId))
 }
 

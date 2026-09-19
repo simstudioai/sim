@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceFile: vi.fn(),
   getShareForResource: vi.fn(),
   resolvePermission: vi.fn(),
+  getCurrentVersion: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  getCurrentWorkspaceFileVersion: mocks.getCurrentVersion,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -25,7 +30,10 @@ vi.mock('@/lib/public-shares/share-manager', () => ({
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import {
+  readWorkspaceFileMetadata,
+  readWorkspaceFileMetadataWithVersion,
+} from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 const canonical = {
   fileId: 'file-1',
@@ -156,5 +164,32 @@ describe('readWorkspaceFileMetadata', () => {
         input: { fileId: 'file-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+describe('readWorkspaceFileMetadataWithVersion', () => {
+  const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.loadContext.mockResolvedValue(canonical)
+    mocks.getShareForResource.mockResolvedValue(share)
+    mocks.resolvePermission.mockResolvedValue('admin')
+  })
+
+  it('pairs the version number with the stored object the returned record describes', async () => {
+    const rewritten = { ...file, key: 'workspace/ws/data-2.csv', size: 50 }
+    mocks.getWorkspaceFile.mockResolvedValueOnce(file).mockResolvedValueOnce(rewritten)
+    mocks.getCurrentVersion
+      .mockResolvedValueOnce({ version: 2, key: rewritten.key })
+      .mockResolvedValueOnce({ version: 2, key: rewritten.key })
+
+    await expect(
+      readWorkspaceFileMetadataWithVersion.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).resolves.toEqual({ file: rewritten, share, currentVersion: 2 })
+    expect(mocks.getWorkspaceFile).toHaveBeenCalledTimes(2)
   })
 })

@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { access, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import {
   organization,
   user,
@@ -54,7 +54,7 @@ describe('workspace file version history in PostgreSQL', () => {
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
     await rm(fixtureStorage.root, { recursive: true, force: true })
-    await db.$client.end()
+    await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
   })
 
   async function seedFile(content: string) {

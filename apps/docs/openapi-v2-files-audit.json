@@ -868,7 +868,7 @@
       "get": {
         "operationId": "listFileVersions",
         "summary": "List File Versions",
-        "description": "List the recorded versions of a file, newest first by default. Every content write records a version; collaborative edits and repeated workflow writes by one author within ten minutes fold into one. Renames and moves are not versions. Retention removes old versions by plan, always keeping the newest ten, so version numbers can have gaps.\n\nOAuth scope: `api:read`.",
+        "description": "List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not, and collaborative edits or repeated workflow writes by one author within ten minutes fold into one. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten and removes older versions by plan, so numbers can have gaps.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.versions.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -4547,8 +4547,8 @@
           },
           "version": {
             "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Version number, increasing by one per recorded version. Numbers are never reused, so a gap means retention removed that version.",
             "examples": [3]
           },
@@ -4557,8 +4557,9 @@
             "description": "Whether this version holds the current content of the file."
           },
           "size": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
+            "maximum": 9007199254740991,
             "description": "Size in bytes of the stored content of this version."
           },
           "contentType": {
@@ -4602,8 +4603,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
+                "minimum": 1,
+                "maximum": 2147483647
               },
               {
                 "type": "null"
@@ -4750,8 +4751,8 @@
           },
           "version": {
             "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Version number that was deleted."
           },
           "deleted": {
@@ -4872,8 +4873,8 @@
           },
           "version": {
             "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Version the text was extracted from."
           }
         },
@@ -5316,8 +5317,8 @@
           },
           "currentVersion": {
             "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since."
           }
         },

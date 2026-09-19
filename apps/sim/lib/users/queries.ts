@@ -123,6 +123,25 @@ export async function getUserEmailsByIds(userIds: readonly string[]): Promise<Ma
   return emailByUserId
 }
 
+/**
+ * Resolves user IDs to current email addresses, omitting users that no longer exist. For
+ * attribution that legitimately outlives an account, such as the authors of a file version.
+ */
+export async function findUserEmailsByIds(
+  userIds: readonly string[]
+): Promise<Map<string, string>> {
+  const uniqueIds = Array.from(new Set(userIds))
+  if (uniqueIds.length === 0) return new Map()
+  if (uniqueIds.length > MAX_USER_EMAIL_BATCH) {
+    throw new Error(`Cannot resolve more than ${MAX_USER_EMAIL_BATCH} user emails at once`)
+  }
+  const rows = await db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(inArray(user.id, uniqueIds))
+  return new Map(rows.map((row) => [row.id, row.email]))
+}
+
 /** Returns one previously resolved email or throws on an incomplete projection. */
 export function requireResolvedUserEmail(
   emailByUserId: ReadonlyMap<string, string>,

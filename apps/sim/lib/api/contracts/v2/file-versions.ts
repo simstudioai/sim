@@ -21,9 +21,9 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 
 /**
- * v2 file version history contracts. Every content write — an upload, an API or editor save, a
- * Sim edit, a workflow write, a revert — records a version; collaborative edits and repeated
- * workflow writes from one author fold into one version per ten-minute window. Renames and moves
+ * v2 file version history contracts. Every content write that changes the bytes — an upload, an
+ * API or editor save, a Sim edit, a workflow write, a revert — records a version; collaborative
+ * edits and repeated workflow writes from one author fold into one version per ten-minute window. Renames and moves
  * are metadata changes and never create versions, so every version reads under the file's
  * current name.
  */
@@ -48,16 +48,17 @@ export const v2FileVersionAuthorSchema = z
 export const v2FileVersionSchema = z
   .object({
     fileId: z.string().describe('File this version belongs to.'),
-    version: z
-      .number()
-      .int()
-      .positive()
+    version: versionNumberSchema
       .describe(
         'Version number, increasing by one per recorded version. Numbers are never reused, so a gap means retention removed that version.'
       )
       .meta({ examples: [3] }),
     isCurrent: z.boolean().describe('Whether this version holds the current content of the file.'),
-    size: z.number().nonnegative().describe('Size in bytes of the stored content of this version.'),
+    size: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Size in bytes of the stored content of this version.'),
     contentType: z.string().describe('MIME type of the stored content of this version.'),
     source: v2FileVersionSourceSchema,
     authors: z
@@ -65,10 +66,7 @@ export const v2FileVersionSchema = z
       .describe(
         'Users who wrote this version, in order of first contribution. Empty for actorless writers such as workspace API keys. A collaborative version lists every editor in its window.'
       ),
-    restoredFromVersion: z
-      .number()
-      .int()
-      .positive()
+    restoredFromVersion: versionNumberSchema
       .nullable()
       .describe('For a `revert` version, the version whose content it restored; otherwise null.'),
     createdAt: z
@@ -116,7 +114,7 @@ export type V2ListFileVersionsQuery = z.output<typeof v2ListFileVersionsQuerySch
 
 export const v2FileVersionTextSchema = v2FileTextSchema
   .extend({
-    version: z.number().int().positive().describe('Version the text was extracted from.'),
+    version: versionNumberSchema.describe('Version the text was extracted from.'),
   })
   .meta({
     id: 'V2FileVersionText',
@@ -207,7 +205,7 @@ export const v2DownloadFileVersionContract = defineRouteContract({
 export const v2DeleteFileVersionResultSchema = z
   .object({
     fileId: z.string().describe('File whose version was deleted.'),
-    version: z.number().int().positive().describe('Version number that was deleted.'),
+    version: versionNumberSchema.describe('Version number that was deleted.'),
     deleted: z.literal(true).describe('Always true: the version and its stored content are gone.'),
   })
   .strict()

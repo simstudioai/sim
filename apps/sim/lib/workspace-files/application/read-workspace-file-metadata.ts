@@ -59,17 +59,28 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   execute: executeReadWorkspaceFileMetadata,
 })
 
+/** Reads a content write can race before the file record and version head agree. */
+const CURRENT_VERSION_READ_ATTEMPTS = 3
+
 /**
  * The same read plus the current version number, for the public metadata surface. Kept separate so
  * the many internal callers of {@link readWorkspaceFileMetadata} pay no extra query.
+ *
+ * The file row and the version head are separate reads, so a content write committing between them
+ * would pair the old key and size with the new number; the read repeats until both describe the
+ * same stored object.
  */
 export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
   resolveContext: ({ input }: { input: ReadWorkspaceFileMetadataInput }) =>
     resolveActiveWorkspaceFileContext(input),
   async execute(args): Promise<ReadWorkspaceFileMetadataWithVersionResult> {
-    const result = await executeReadWorkspaceFileMetadata(args)
-    const current = await getCurrentWorkspaceFileVersion(result.file)
-    return { ...result, currentVersion: current.version }
+    for (let attempt = 1; ; attempt++) {
+      const result = await executeReadWorkspaceFileMetadata(args)
+      const current = await getCurrentWorkspaceFileVersion(result.file)
+      if (current.key === result.file.key || attempt === CURRENT_VERSION_READ_ATTEMPTS) {
+        return { ...result, currentVersion: current.version }
+      }
+    }
   },
 })
