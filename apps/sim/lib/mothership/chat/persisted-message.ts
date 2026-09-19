@@ -97,9 +97,9 @@ export interface PersistedMessage {
 }
 
 /**
- * Drop persisted tool outputs, keeping `success` and `error`. The one narrow
- * UI-state exceptions are bounded retrieval citations and a browser takeover's user-authored instruction, which
- * restores its answered question recap after reload. Other outputs are never
+ * Drop persisted tool outputs, keeping `success` and `error`. Bounded UI-state
+ * exceptions preserve retrieval citations, watch-to-task identity, and the
+ * browser takeover's answered question recap. Other outputs are never
  * rendered or replayed to the model (the upstream service owns conversation
  * memory), so storing them only bloats
  * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
@@ -119,6 +119,15 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
     const citations = result.success ? compactRetrievalCitations(toolCall.name, output) : undefined
+    const taskId =
+      result.success && toolCall.name === 'watch' && isPlainRecord(output)
+        ? output.taskId
+        : undefined
+    const watchReceipt =
+      typeof taskId === 'string' && taskId.length > 0 && taskId.length <= 128
+        ? { taskId }
+        : undefined
+    if (watchReceipt && isPlainRecord(output) && Object.keys(output).length === 1) return block
     const userInstruction =
       toolCall.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && isPlainRecord(output)
         ? output.userInstruction
@@ -136,6 +145,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const strippedResult: { success: boolean; output?: unknown; error?: string } = {
       success: result.success,
       ...(citations ? { output: citations } : {}),
+      ...(watchReceipt ? { output: watchReceipt } : {}),
       ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
     }
     if (result.error !== undefined) strippedResult.error = result.error

@@ -7,7 +7,6 @@ import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -237,9 +236,8 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
     })
-    const [attachmentResult, integrationTools, billingAttribution] = await Promise.all([
+    const [attachmentResult, billingAttribution] = await Promise.all([
       fetchAttachments(),
-      buildIntegrationToolSchemas(userId, undefined, ws.id),
       resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
     ])
     const { attachments, context, storedAttachments } = attachmentResult
@@ -261,7 +259,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       chatId,
       messageId: userMessageId,
       ...(context.length > 0 ? { context } : {}),
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
     }
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {

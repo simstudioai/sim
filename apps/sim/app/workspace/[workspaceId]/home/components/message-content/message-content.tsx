@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { isPlainRecord } from '@sim/utils/object'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
@@ -33,7 +34,7 @@ import {
 import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill'
+import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
@@ -613,10 +614,23 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
 }
 
 export function parseBlocks(blocks: ContentBlock[], isStreaming = false): MessageSegment[] {
+  const watches = new Set(
+    blocks.flatMap((block) => (block.type === 'task' && block.task ? [block.task.taskId] : []))
+  )
+  /** The durable watch row replaces its registration receipt, not other calls or failed attempts. */
+  const visibleBlocks = blocks.filter((block) => {
+    const tool = block.toolCall
+    if (block.type !== 'tool_call' || tool?.name !== 'watch' || tool.status !== 'success')
+      return true
+    const output = tool.result?.output
+    return (
+      !isPlainRecord(output) || typeof output.taskId !== 'string' || !watches.has(output.taskId)
+    )
+  })
   return groupByActivity(
     blocks.some((block) => Boolean(block.spanId))
-      ? parseBlocksWithSpanTree(blocks)
-      : parseBlocksLegacy(blocks),
+      ? parseBlocksWithSpanTree(visibleBlocks)
+      : parseBlocksLegacy(visibleBlocks),
     isStreaming
   )
 }
@@ -1179,7 +1193,7 @@ function MessageContentInner({
                 </div>
               )
             case 'task':
-              return <TaskPill key={`task-${segment.task.taskId}`} task={segment.task} />
+              return <WatchActivity key={`task-${segment.task.taskId}`} task={segment.task} />
             // The stopped row renders in the tail region below, in the
             // shimmer's place — a stop while the shimmer is visible must read
             // as an in-place replacement, not the shimmer vanishing from the

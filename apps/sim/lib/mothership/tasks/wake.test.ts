@@ -11,6 +11,7 @@ const {
   mockPublishStatusChanged,
   mockCheckWorkspaceAccess,
   mockAuthorizeTaskWake,
+  mockBuildIntegrationToolSchemas,
 } = vi.hoisted(() => ({
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockAppendCopilotChatMessages: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockPublishStatusChanged: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockAuthorizeTaskWake: vi.fn(),
+  mockBuildIntegrationToolSchemas: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/tasks/application/prepare-wake', () => ({
@@ -26,12 +28,13 @@ vi.mock('@/lib/mothership/tasks/application/prepare-wake', () => ({
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: vi.fn().mockResolvedValue({}),
+  resolveOrganizationBillingAttribution: vi.fn().mockResolvedValue({}),
 }))
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: vi.fn().mockResolvedValue([]),
+  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
 }))
 vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
@@ -47,7 +50,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 
-import { runWakeTurn } from './wake'
+import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
+import { runWakeTurn } from '@/lib/mothership/tasks/wake'
 
 const WAKE = {
   taskId: '22222222-2222-4222-8222-222222222222',
@@ -64,6 +68,9 @@ const WAKE = {
 describe('copilot task wake', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockBuildIntegrationToolSchemas.mockResolvedValue([
+      { name: 'gmail_search_v2', input_schema: { type: 'object' } },
+    ])
     mockAuthorizeTaskWake.mockResolvedValue(undefined)
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
     mockAcquirePendingChatStream.mockResolvedValue(true)
@@ -73,6 +80,41 @@ describe('copilot task wake', () => {
       contentBlocks: [],
     })
   })
+
+  it.each(['workspace', 'organization'])(
+    'sends a valid %s wake without eagerly loading integration schemas',
+    async (scope) => {
+      const chatId = '44444444-4444-4444-8444-444444444444'
+      const wake = {
+        ...WAKE,
+        chatId,
+        workspaceId: scope === 'workspace' ? '55555555-5555-4555-8555-555555555555' : undefined,
+        organizationId: scope === 'organization' ? 'organization-1' : undefined,
+      }
+      await runWakeTurn(wake)
+
+      expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledOnce()
+      const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+      expect(ChatPayloadSchema.parse(payload)).toMatchObject({
+        message: WAKE.message,
+        messageId: WAKE.runId,
+        chatId,
+        origin: 'task',
+        ...(scope === 'workspace'
+          ? { workspaceId: wake.workspaceId }
+          : { organizationId: wake.organizationId, mode: 'agent' }),
+      })
+      expect(payload).not.toHaveProperty('integrationTools')
+      expect(mockBuildIntegrationToolSchemas).not.toHaveBeenCalled()
+      expect(options).toMatchObject({ interactive: false, autoExecuteTools: true })
+      if (scope === 'organization') {
+        expect(payload).not.toHaveProperty('workspaceId')
+        expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+      }
+      expect(mockAppendCopilotChatMessages).toHaveBeenCalledOnce()
+      expect(mockReleasePendingChatStream).toHaveBeenCalledWith(chatId, WAKE.runId)
+    }
+  )
 
   it('runs the headless turn under the reserved run id, persists both messages with the task origin, and announces it', async () => {
     await runWakeTurn(WAKE)

@@ -219,6 +219,22 @@ describe('MessageContent shared thinking indicator', () => {
     }
   )
 
+  it('keeps interrupted subagent details visible with neutral styling and no active shimmer', () => {
+    const error = 'Subagent interrupted during run recovery.'
+    render(
+      [{ ...start('task'), subagentName: 'Build wakeups and delivery', endedAt: 2, error }],
+      false
+    )
+    expect(container.textContent).toContain('Build wakeups and delivery')
+    const detail = Array.from(container.querySelectorAll('p')).find(
+      (node) => node.textContent === error
+    )
+    expect(detail).toBeDefined()
+    expect(detail?.className).toContain('--text-tertiary')
+    expect(container.innerHTML).not.toContain('--text-error')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+  })
+
   it('keeps thinking hidden while prose streams and finishes revealing', () => {
     const blocks: ContentBlock[] = [
       start('browser'),
