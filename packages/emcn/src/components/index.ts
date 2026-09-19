@@ -4,7 +4,6 @@ export { Banner } from './banner/banner'
 export {
   BulkActionButton,
   type BulkActionButtonProps,
-  bulkActionButtonVariants,
 } from './bulk-action-button/bulk-action-button'
 export { Button, buttonVariants } from './button/button'
 export {
@@ -35,6 +34,7 @@ export {
   chipFilledSurfaceTokens,
   chipGeometryClass,
   chipGeometryUnroundedClass,
+  chipHeightClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
@@ -55,11 +55,6 @@ export {
   type ChipCopyInputProps,
 } from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
-export {
-  ChipDropdown,
-  type ChipDropdownOption,
-  type ChipDropdownProps,
-} from './chip-dropdown/chip-dropdown'
 export {
   ChipEmailsInput,
   type ChipEmailsInputProps,

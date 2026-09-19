@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
+import { ChipInput, cn, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -134,7 +134,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                   <div className='flex items-center justify-between'>
                     <Label htmlFor='email'>Email</Label>
                   </div>
-                  <Input
+                  <ChipInput
                     id='email'
                     name='email'
                     placeholder='Enter your email'
@@ -144,9 +144,8 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     autoCorrect='off'
                     value={email}
                     onChange={handleEmailChange}
-                    className={cn(
-                      hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                    )}
+                    className='h-[34px]'
+                    error={Boolean(hasEmailError)}
                   />
                   {hasEmailError && (
                     <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>

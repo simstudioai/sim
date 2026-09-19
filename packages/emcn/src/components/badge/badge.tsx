@@ -21,7 +21,6 @@ const badgeVariants = cva('inline-flex items-center focus:outline-hidden transit
       purple: `${STATUS_BASE} bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)]`,
       orange: `${STATUS_BASE} bg-[var(--badge-orange-bg)] text-[var(--badge-orange-text)]`,
       amber: `${STATUS_BASE} bg-[var(--badge-amber-bg)] text-[var(--badge-amber-text)]`,
-      teal: `${STATUS_BASE} bg-[var(--badge-teal-bg)] text-[var(--badge-teal-text)]`,
       cyan: `${STATUS_BASE} bg-[var(--badge-cyan-bg)] text-[var(--badge-cyan-text)]`,
       pink: `${STATUS_BASE} bg-[var(--badge-pink-bg)] text-[var(--badge-pink-text)]`,
       'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
@@ -29,7 +28,6 @@ const badgeVariants = cva('inline-flex items-center focus:outline-hidden transit
     size: {
       sm: 'px-[7px] py-[1px] text-xs',
       md: 'px-[9px] py-0.5 text-caption',
-      lg: 'px-[9px] py-[2.25px] text-caption',
     },
   },
   defaultVariants: {
@@ -48,7 +46,6 @@ const STATUS_VARIANTS = [
   'purple',
   'orange',
   'amber',
-  'teal',
   'cyan',
   'pink',
   'gray-secondary',
@@ -58,14 +55,12 @@ const STATUS_VARIANTS = [
 const DOT_SIZES: Record<string, string> = {
   sm: 'size-[5px]',
   md: 'size-1.5',
-  lg: 'size-1.5',
 }
 
 /** Icon sizes corresponding to badge size variants */
 const ICON_SIZES: Record<string, string> = {
   sm: 'size-2.5',
   md: 'size-3',
-  lg: 'size-3',
 }
 
 export interface BadgeProps
@@ -84,7 +79,7 @@ export interface BadgeProps
  * Supports two categories of variants:
  * - **Bordered**: `default`, `outline`, `type` - traditional badges with borders
  * - **Status colors**: `green`, `red`, `gray`, `blue`, `blue-secondary`, `purple`,
- *   `orange`, `amber`, `teal`, `cyan`, `pink`, `gray-secondary` - borderless colored badges
+ *   `orange`, `amber`, `cyan`, `pink`, `gray-secondary` - borderless colored badges
  *
  * Status color variants can display a dot indicator via the `dot` prop.
  * All variants support an optional `icon` prop for leading icons.

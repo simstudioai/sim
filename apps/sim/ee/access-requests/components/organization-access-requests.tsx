@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipInput, ChipSwitch, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipInput, ChipSelect, ChipSwitch, ChipTag, toast } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -101,7 +101,11 @@ export function OrganizationAccessRequests({
       <SettingsSection
         label='Requests'
         action={
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
+            className='w-auto max-w-none'
             value={params['request-status']}
             onChange={(value) =>
               void setParams({

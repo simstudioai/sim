@@ -1,4 +1,4 @@
-import { Chip, ChipDropdown, cn } from '@sim/emcn'
+import { Chip, ChipSelect, cn } from '@sim/emcn'
 import { Building, MoreHorizontal, Plus } from '@sim/emcn/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
@@ -47,11 +47,14 @@ export function EnterpriseMenuPreview({ layout = 'menu' }: EnterpriseMenuPreview
                 image={null}
                 status=''
                 roleControl={
-                  <ChipDropdown
+                  <ChipSelect
+                    showSelectedCheck
+                    modal={false}
+                    className='w-auto max-w-none'
                     value={member.role}
                     options={[{ value: member.role, label: member.role }]}
                     disabled={member.role === 'Owner'}
-                    matchTriggerWidth={false}
+                    dropdownWidth='content'
                   />
                 }
                 menu={<MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
+import { Chip, ChipLink, ChipSelect, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
@@ -193,14 +193,16 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             </Chip>
           ) : oauthService ? (
             connectOptions.length > 1 ? (
-              <ChipDropdown
+              <ChipSelect
+                modal={false}
+                className='w-auto max-w-none'
                 variant='primary'
                 leftIcon={Plus}
                 placeholder='Add to Sim'
                 showSelectedCheck={false}
                 options={connectOptions}
                 onChange={handleSelectConnectOption}
-                matchTriggerWidth={false}
+                dropdownWidth='content'
               />
             ) : oauthAvailable ? (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>

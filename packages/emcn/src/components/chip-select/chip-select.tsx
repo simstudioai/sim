@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown } from '../../icons'
+import { Check, ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
 import { chipIconSlotClass } from '../chip/chip-chrome'
@@ -15,42 +15,45 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '../dropdown-menu/dropdown-menu'
+import { InsideModalContext } from '../modal/modal'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
-/** A selectable option in a {@link ChipSelect}. */
-export interface ChipSelectOption {
-  label: string
+interface ChipSelectOptionBase {
   value: string
-  /** Additional search-only terms. These are never rendered in the option label. */
-  searchTerms?: readonly string[]
   /** Optional leading icon. */
   icon?: React.ComponentType<{ className?: string }>
+  /** Pre-rendered leading element, such as an avatar; takes precedence over `icon`. */
+  iconElement?: React.ReactNode
   /** Whether this option is non-selectable. */
   disabled?: boolean
 }
+
+/**
+ * A selectable option in a {@link ChipSelect}. Rich labels must supply their
+ * visible text in `searchTerms`, followed by any aliases, so they remain searchable.
+ * Search terms are never rendered. Plain text labels are matched automatically.
+ */
+export type ChipSelectOption = ChipSelectOptionBase &
+  (
+    | { label: string | number; searchTerms?: readonly string[] }
+    | {
+        label: React.ReactNode
+        searchTerms: readonly [string, ...string[]]
+      }
+  )
 
 /** A labeled group of options. When `groups` is set, `options` is ignored. */
 export interface ChipSelectOptionGroup {
   /** Optional section header rendered above the group. */
   section?: string
-  items: ChipSelectOption[]
+  items: readonly ChipSelectOption[]
 }
 
-export interface ChipSelectProps {
+interface ChipSelectBaseProps {
   /** Options in display order. Ignored when `groups` is provided. */
-  options?: ChipSelectOption[]
+  options?: readonly ChipSelectOption[]
   /** Grouped options with optional section headers. */
-  groups?: ChipSelectOptionGroup[]
-  /** Selected value (single-select mode). */
-  value?: string
-  /** Called with the next value when an option is chosen (single-select). */
-  onChange?: (value: string) => void
-  /** Enable multi-select: options render as checkbox rows and the menu stays open. */
-  multiSelect?: boolean
-  /** Selected values (multi-select mode). */
-  multiSelectValues?: string[]
-  /** Called with the next values when a checkbox toggles (multi-select). */
-  onMultiSelectChange?: (values: string[]) => void
+  groups?: readonly ChipSelectOptionGroup[]
   /** Trigger text when nothing is selected. */
   placeholder?: string
   /** Overrides the computed trigger label (e.g. a custom "N selected" string). */
@@ -72,9 +75,9 @@ export interface ChipSelectProps {
    * use inside form fields. Defaults to a content-width chip (toolbar filters).
    */
   fullWidth?: boolean
-  /** Menu width — 'trigger' matches the trigger, a number is px; defaults to a 160px min. */
-  dropdownWidth?: 'trigger' | number
-  /** Max height of the menu in px (defaults to the menu's 240px). */
+  /** Menu width: trigger width, intrinsic content width, or pixels; defaults to a 160px minimum. */
+  dropdownWidth?: 'trigger' | 'content' | number
+  /** Max menu height in pixels; modal menus are constrained to the available space. */
   maxHeight?: number
   /**
    * Keep the menu below its trigger and shrink it to the remaining viewport
@@ -86,6 +89,13 @@ export interface ChipSelectProps {
   className?: string
   /** Forwarded to the menu content. */
   contentClassName?: string
+  /** A filled form/filter control, or a primary action with a menu. */
+  variant?: 'filled' | 'primary'
+  /** Optional leading trigger icon. */
+  leftIcon?: React.ComponentType<{ className?: string }>
+  /** Trigger id, also usable in `aria-labelledby`. */
+  id?: string
+  'aria-labelledby'?: string
   /** Accessible label for the trigger. */
   'aria-label'?: string
   /** Marks the trigger as required. */
@@ -104,11 +114,36 @@ export interface ChipSelectProps {
   modal?: boolean
 }
 
+/** Single selection closes the menu and reports one value. */
+interface ChipSelectSingleProps extends ChipSelectBaseProps {
+  multiSelect?: false
+  value?: string
+  onChange?: (value: string) => void
+  multiSelectValues?: never
+  onMultiSelectChange?: never
+  /** Show a trailing check on the selected row. Defaults to false. */
+  showSelectedCheck?: boolean
+}
+
+/** Multiple selection uses checkbox rows and keeps the menu open. */
+interface ChipSelectMultiProps extends ChipSelectBaseProps {
+  multiSelect: true
+  multiSelectValues?: readonly string[]
+  onMultiSelectChange?: (values: string[]) => void
+  value?: never
+  onChange?: never
+  showSelectedCheck?: never
+}
+
+export type ChipSelectProps = ChipSelectSingleProps | ChipSelectMultiProps
+
 /** Matches an option label or one of its search-only aliases. */
 export function chipSelectOptionMatchesSearch(option: ChipSelectOption, query: string): boolean {
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return true
-  return [option.label, ...(option.searchTerms ?? [])].some((term) =>
+  const label =
+    typeof option.label === 'string' || typeof option.label === 'number' ? String(option.label) : ''
+  return [label, ...(option.searchTerms ?? [])].some((term) =>
     term.trim().toLowerCase().includes(normalizedQuery)
   )
 }
@@ -133,40 +168,65 @@ export function chipSelectOptionMatchesSearch(option: ChipSelectOption, query: s
  * />
  * ```
  */
-export function ChipSelect({
-  options,
-  groups,
-  value,
-  onChange,
-  multiSelect = false,
-  multiSelectValues,
-  onMultiSelectChange,
-  placeholder = 'Select...',
-  displayLabel,
-  disabled = false,
-  searchable = false,
-  searchPlaceholder = 'Search...',
-  showAllOption = false,
-  allOptionLabel = 'All',
-  align = 'end',
-  fullWidth = false,
-  dropdownWidth,
-  maxHeight,
-  stayBelow = false,
-  className,
-  contentClassName,
-  'aria-label': ariaLabel,
-  'aria-required': ariaRequired,
-  'aria-invalid': ariaInvalid,
-  'aria-describedby': ariaDescribedBy,
-  modal,
-}: ChipSelectProps) {
+export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(function ChipSelect(
+  {
+    options,
+    groups,
+    value,
+    onChange,
+    multiSelect = false,
+    multiSelectValues,
+    onMultiSelectChange,
+    placeholder = 'Select...',
+    displayLabel,
+    disabled = false,
+    searchable = false,
+    searchPlaceholder = 'Search...',
+    showAllOption = false,
+    allOptionLabel = 'All',
+    align = 'end',
+    fullWidth = false,
+    dropdownWidth,
+    maxHeight,
+    stayBelow = false,
+    className,
+    contentClassName,
+    variant = 'filled',
+    leftIcon: LeftIcon,
+    id,
+    showSelectedCheck = false,
+    'aria-labelledby': ariaLabelledBy,
+    'aria-label': ariaLabel,
+    'aria-required': ariaRequired,
+    'aria-invalid': ariaInvalid,
+    'aria-describedby': ariaDescribedBy,
+    modal,
+  },
+  ref
+) {
+  const insideModal = React.useContext(InsideModalContext)
+  const fieldStateId = React.useId()
+  const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
+  const fieldState = [
+    (ariaRequired === true || ariaRequired === 'true') && 'Required.',
+    ariaInvalid && ariaInvalid !== 'false' && 'Invalid selection.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const describedBy = [ariaDescribedBy, fieldState && fieldStateId].filter(Boolean).join(' ')
+  const inverse = variant === 'primary'
+  const isPlaceholder = !multiSelect && value == null && displayLabel == null
+  const labelClass = cn(
+    'flex-1 text-sm',
+    !inverse && 'text-[var(--text-body)]',
+    isPlaceholder && !inverse && 'text-[var(--text-muted)]'
+  )
 
   const selectedValues = multiSelectValues ?? []
 
   /** Normalized sections — either the provided groups or a single anonymous group. */
-  const sections = React.useMemo<ChipSelectOptionGroup[]>(
+  const sections = React.useMemo<readonly ChipSelectOptionGroup[]>(
     () => groups ?? [{ items: options ?? [] }],
     [groups, options]
   )
@@ -181,7 +241,7 @@ export function ChipSelect({
       }
       return `${selectedValues.length} selected`
     }
-    if (value == null || value === '') return placeholder
+    if (value == null) return placeholder
     return allOptions.find((o) => o.value === value)?.label ?? placeholder
   }, [multiSelect, selectedValues, showAllOption, allOptionLabel, placeholder, value, allOptions])
 
@@ -211,10 +271,13 @@ export function ChipSelect({
   const contentStyle: React.CSSProperties = {}
   if (dropdownWidth === 'trigger') contentStyle.width = 'var(--radix-dropdown-menu-trigger-width)'
   else if (typeof dropdownWidth === 'number') contentStyle.width = dropdownWidth
-  if (dropdownWidth != null) contentStyle.maxWidth = 'none'
+  if (dropdownWidth === 'trigger' || typeof dropdownWidth === 'number')
+    contentStyle.maxWidth = 'none'
   if (stayBelow) {
     const preferredMaxHeight = typeof maxHeight === 'number' ? `${maxHeight}px` : '240px'
     contentStyle.maxHeight = `min(${preferredMaxHeight}, var(--radix-dropdown-menu-content-available-height))`
+  } else if (insideModal) {
+    contentStyle.maxHeight = `min(${maxHeight ?? 240}px, var(--radix-dropdown-menu-content-available-height))`
   } else if (typeof maxHeight === 'number') {
     contentStyle.maxHeight = maxHeight
   }
@@ -232,7 +295,8 @@ export function ChipSelect({
             toggleValue(opt.value)
           }}
         >
-          {Icon ? <Icon className='mr-2 size-[14px] text-[var(--text-icon)]' /> : null}
+          {opt.iconElement ??
+            (Icon ? <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' /> : null)}
           {opt.label}
         </DropdownMenuCheckboxItem>
       )
@@ -243,8 +307,15 @@ export function ChipSelect({
         disabled={opt.disabled}
         onSelect={() => onChange?.(opt.value)}
       >
-        {Icon ? <Icon /> : null}
-        <DropdownMenuItemLabel label={opt.label} />
+        {opt.iconElement ?? (Icon ? <Icon /> : null)}
+        {typeof opt.label === 'string' || typeof opt.label === 'number' ? (
+          <DropdownMenuItemLabel label={String(opt.label)} />
+        ) : (
+          <span className={cn(overflowTextClipClass, 'flex-1')}>{opt.label}</span>
+        )}
+        {showSelectedCheck && value === opt.value ? (
+          <Check className='ml-auto! size-[16px]!' />
+        ) : null}
       </DropdownMenuItem>
     )
   }
@@ -252,54 +323,72 @@ export function ChipSelect({
   return (
     <DropdownMenu
       modal={modal}
-      onOpenChange={(open) => {
-        if (!open) setQuery('')
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setQuery('')
       }}
     >
       <DropdownMenuTrigger asChild>
         <button
+          ref={ref}
+          id={id}
           type='button'
           disabled={disabled}
           aria-label={ariaLabel}
-          aria-required={ariaRequired}
-          aria-invalid={ariaInvalid}
-          aria-describedby={ariaDescribedBy}
+          aria-labelledby={ariaLabelledBy}
+          aria-describedby={describedBy || undefined}
           className={cn(
-            chipVariants({ variant: 'filled', fullWidth }),
-            TRIGGER_BORDER_CLASS,
+            chipVariants({ variant, fullWidth }),
+            !inverse && TRIGGER_BORDER_CLASS,
             fullWidth ? 'justify-between' : 'w-fit max-w-[240px]',
             className
           )}
         >
+          {LeftIcon ? (
+            <LeftIcon className={cn(chipIconSlotClass, !inverse && 'text-[var(--text-icon)]')} />
+          ) : null}
           {typeof visibleLabel === 'string' || typeof visibleLabel === 'number' ? (
             <OverflowText
               label={String(visibleLabel)}
-              className='flex-1 text-[var(--text-body)]'
+              className={labelClass}
               focusTarget='nearest-interactive'
             />
           ) : (
-            <span className={cn(overflowTextClipClass, 'flex-1 text-[var(--text-body)]')}>
-              {visibleLabel}
-            </span>
+            <span className={cn(overflowTextClipClass, labelClass)}>{visibleLabel}</span>
           )}
-          <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+          <span
+            aria-hidden
+            className={cn(chipIconSlotClass, !inverse && 'text-[var(--text-icon)]')}
+          >
             <ChevronDown className='size-[14px]' />
           </span>
         </button>
       </DropdownMenuTrigger>
+      {fieldState ? (
+        <span id={fieldStateId} className='sr-only'>
+          {fieldState}
+        </span>
+      ) : null}
       <DropdownMenuContent
         align={align}
         side={stayBelow ? 'bottom' : undefined}
         avoidCollisions={stayBelow ? false : undefined}
         onOpenAutoFocus={searchable ? (e) => e.preventDefault() : undefined}
         style={contentStyle}
-        className={cn('min-w-[160px]', contentClassName)}
+        className={cn(
+          dropdownWidth !== 'trigger' && dropdownWidth !== 'content' && 'min-w-[160px]',
+          contentClassName
+        )}
       >
         {searchable ? (
           <DropdownMenuSearchInput
             placeholder={searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setOpen(false)
+            }}
           />
         ) : null}
 
@@ -330,4 +419,6 @@ export function ChipSelect({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})
+
+ChipSelect.displayName = 'ChipSelect'

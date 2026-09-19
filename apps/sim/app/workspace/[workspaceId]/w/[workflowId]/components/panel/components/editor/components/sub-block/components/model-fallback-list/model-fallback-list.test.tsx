@@ -60,7 +60,7 @@ vi.mock('@sim/emcn', () => ({
       ))}
     </div>
   ),
-  ChipDropdown: ({
+  ChipSelect: ({
     options,
     value,
     placeholder,

@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import {
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -152,7 +152,11 @@ export function SandboxCreateModal({
             />
 
             <ChipModalField type='custom' title='Language'>
-              <ChipDropdown
+              <ChipSelect
+                showSelectedCheck
+                dropdownWidth='trigger'
+                modal={false}
+                className='w-auto max-w-none'
                 value={draft.language}
                 onChange={(language) =>
                   setDraft((prev) => ({ ...prev, language: language as SandboxLanguage }))

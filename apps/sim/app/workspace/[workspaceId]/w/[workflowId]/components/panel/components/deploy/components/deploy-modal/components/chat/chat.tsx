@@ -7,13 +7,13 @@ import {
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
+  ChipTextarea,
   cn,
   Input,
   Label,
   Loader,
   Skeleton,
   Switch,
-  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { Check, TriangleAlert } from '@sim/emcn/icons'
@@ -449,14 +449,14 @@ export function ChatDeploy({
             >
               Welcome message
             </Label>
-            <Textarea
+            <ChipTextarea
               id='welcomeMessage'
               placeholder='Enter a welcome message for your chat'
               value={formData.welcomeMessage}
               onChange={(e) => updateField('welcomeMessage', e.target.value)}
               rows={3}
               disabled={chatSubmitting}
-              className='min-h-[80px] resize-none'
+              className='min-h-[80px]'
             />
             <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
               This message will be displayed when users first open the chat

@@ -7,16 +7,13 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { chipGeometryClass } from '@sim/emcn/components/chip/chip-chrome'
 import { describe, expect, it } from 'vitest'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
 
 const APP_ROOT = join(__dirname, '../../..')
 
 const globalsCss = readFileSync(join(APP_ROOT, 'app/_styles/globals.css'), 'utf8')
-const chipChrome = readFileSync(
-  join(APP_ROOT, '../../packages/emcn/src/components/chip/chip-chrome.ts'),
-  'utf8'
-)
 
 /**
  * The type scale moved into the `@theme` block when the v4 upgrade removed
@@ -85,7 +82,7 @@ describe('email type scale mirrors the globals.css @theme scale', () => {
   it('sm is Tailwind stock 14px — the size text-sm resolves to in chip chrome', () => {
     expect(typography.fontSize.sm).toBe('14px')
     expect(tailwindFontSize.sm).toBeUndefined()
-    expect(chipChrome).toContain('text-sm')
+    expect(chipGeometryClass).toContain('text-sm')
   })
 
   it('display is deliberately off-scale — the platform has no headline numeral', () => {
@@ -101,18 +98,9 @@ describe('email geometry mirrors the platform', () => {
   })
 
   it('the CTA transcribes chipGeometryClass', () => {
-    // chipGeometryClass composes the unrounded geometry with the default radius,
-    // so the transcription reads both halves rather than one literal.
-    expect(chipChrome).toMatch(
-      /chipGeometryClass = `\$\{chipGeometryUnroundedClass\} \$\{chipRadiusClass\}`/
-    )
-    const unrounded = chipChrome.match(/chipGeometryUnroundedClass = `([^`]+)`/)?.[1]
-    const radius = chipChrome.match(/chipRadiusClass = '([^']+)'/)?.[1]
-    expect(unrounded).toBeDefined()
-    expect(radius).toBeDefined()
-    const geometry = `${unrounded} ${radius}`
+    // Read the composed token so splitting shared constants cannot hide drift.
     for (const token of ['h-[30px]', 'rounded-lg', 'px-2', 'text-sm']) {
-      expect(geometry).toContain(token)
+      expect(chipGeometryClass).toContain(token)
     }
 
     expect(baseStyles.button.lineHeight).toBe('30px')

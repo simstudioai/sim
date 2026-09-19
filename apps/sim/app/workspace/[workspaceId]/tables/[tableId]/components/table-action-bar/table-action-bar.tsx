@@ -152,12 +152,7 @@ function ActionIconButton({ label, onClick, disabled, children }: ActionIconButt
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <BulkActionButton
-          onClick={onClick}
-          disabled={disabled}
-          surface='uniform'
-          aria-label={label}
-        >
+        <BulkActionButton onClick={onClick} disabled={disabled} aria-label={label}>
           {children}
         </BulkActionButton>
       </Tooltip.Trigger>

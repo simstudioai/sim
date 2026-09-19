@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { ChipInput, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -68,7 +68,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
       >
         <div className='space-y-2'>
           <Label htmlFor='email'>Work Email</Label>
-          <Input
+          <ChipInput
             id='email'
             name='email'
             required
@@ -82,7 +82,8 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
               setEmail(e.target.value)
               setError(null)
             }}
-            className={cn(error && 'border-[var(--text-error)] focus:border-[var(--text-error)]')}
+            className='h-[34px]'
+            error={Boolean(error)}
           />
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
         </div>

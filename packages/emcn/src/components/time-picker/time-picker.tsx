@@ -39,16 +39,12 @@ const timePickerVariants = cva(
   'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
   {
     variants: {
-      variant: {
-        default: '',
-      },
       size: {
         default: 'py-1.5 text-sm',
         sm: 'py-[5px] text-caption',
       },
     },
     defaultVariants: {
-      variant: 'default',
       size: 'default',
     },
   }
@@ -117,7 +113,6 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
   (
     {
       className,
-      variant,
       size,
       value,
       onChange,
@@ -227,7 +222,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               tabIndex={disabled ? -1 : 0}
               aria-disabled={disabled}
               className={cn(
-                timePickerVariants({ variant, size }),
+                timePickerVariants({ size }),
                 'relative cursor-pointer items-center justify-between',
                 disabled && 'cursor-not-allowed opacity-50',
                 className

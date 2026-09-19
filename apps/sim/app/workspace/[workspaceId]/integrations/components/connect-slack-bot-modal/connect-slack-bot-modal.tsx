@@ -4,10 +4,10 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Chip,
-  ChipDropdown,
-  type ChipDropdownOption,
   ChipInput,
   ChipModalField,
+  ChipSelect,
+  type ChipSelectOption,
   SecretInput,
   Wizard,
 } from '@sim/emcn'
@@ -50,7 +50,7 @@ const CUSTOM_BOT_CAPABILITIES = [
 
 const ALL_CAPABILITIES = new Set(CUSTOM_BOT_CAPABILITIES.map((capability) => capability.id))
 
-const CAPABILITY_OPTIONS: ChipDropdownOption[] = CUSTOM_BOT_CAPABILITIES.map((capability) => ({
+const CAPABILITY_OPTIONS: ChipSelectOption[] = CUSTOM_BOT_CAPABILITIES.map((capability) => ({
   value: capability.id,
   label: capability.label,
 }))
@@ -404,13 +404,16 @@ function StepConfigure({
               : undefined
           }
         >
-          <ChipDropdown
-            multiple
+          <ChipSelect
+            placeholder='No additional permissions'
+            dropdownWidth='trigger'
+            modal={false}
+            multiSelect
             fullWidth
-            value={capabilityIds}
-            onChange={onCapabilityIdsChange}
+            multiSelectValues={capabilityIds}
+            onMultiSelectChange={onCapabilityIdsChange}
             options={CAPABILITY_OPTIONS}
-            allLabel='No additional permissions'
+            allOptionLabel='No additional permissions'
             showAllOption={false}
           />
         </ChipModalField>
