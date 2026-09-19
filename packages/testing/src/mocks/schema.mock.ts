@@ -770,7 +770,6 @@ export const schemaMock = {
     sizeBytes: 'workspaceFileVersion.sizeBytes',
     contentType: 'workspaceFileVersion.contentType',
     contentHash: 'workspaceFileVersion.contentHash',
-    contentUpdatedAt: 'workspaceFileVersion.contentUpdatedAt',
     supersededAt: 'workspaceFileVersion.supersededAt',
     source: 'workspaceFileVersion.source',
     authorUserIds: 'workspaceFileVersion.authorUserIds',

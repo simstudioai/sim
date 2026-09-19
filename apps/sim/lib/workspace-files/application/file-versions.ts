@@ -343,12 +343,20 @@ export const deleteWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
         `Version ${target.version} is the current version and cannot be deleted; revert to another version first`
       )
     }
-    const deleted = await deleteStoredWorkspaceFileVersion(
+    const deletion = await deleteStoredWorkspaceFileVersion(
       context.workspaceId,
       context.fileId,
       target.version
     )
-    if (!deleted) throw new OrchestrationError('not_found', `Version ${target.version} not found`)
+    if (deletion === 'not_found') {
+      throw new OrchestrationError('not_found', `Version ${target.version} not found`)
+    }
+    if (deletion === 'newest') {
+      throw new OrchestrationError(
+        'conflict',
+        `Version ${target.version} is the newest recorded version and cannot be deleted`
+      )
+    }
     return { file, version: target.version }
   },
   projectAudit: ({ result }) => ({

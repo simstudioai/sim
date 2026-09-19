@@ -317,7 +317,7 @@ describe('file version use cases', () => {
 
   describe('deleteWorkspaceFileVersion', () => {
     it('deletes a superseded version and audits it', async () => {
-      mocks.deleteStored.mockResolvedValueOnce(true)
+      mocks.deleteStored.mockResolvedValueOnce('deleted')
 
       const result = await deleteWorkspaceFileVersion.execute({
         principal,
@@ -344,8 +344,20 @@ describe('file version use cases', () => {
       expect(mocks.deleteStored).not.toHaveBeenCalled()
     })
 
+    it('refuses to delete the newest recorded version, whose number the next write would reuse', async () => {
+      mocks.deleteStored.mockResolvedValueOnce('newest')
+
+      await expect(
+        deleteWorkspaceFileVersion.execute({
+          principal,
+          input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', version: 2 },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    })
+
     it('answers 404 when the version disappeared before the delete committed', async () => {
-      mocks.deleteStored.mockResolvedValueOnce(false)
+      mocks.deleteStored.mockResolvedValueOnce('not_found')
 
       await expect(
         deleteWorkspaceFileVersion.execute({
