@@ -25,19 +25,12 @@ export function composeFileRequiresPostgresPassword(composeFile: string): boolea
 }
 
 /** Where a chosen `POSTGRES_PASSWORD` came from. */
-export type PostgresPasswordSource = 'environment' | 'generated' | 'legacy'
+export type PostgresPasswordSource = 'generated' | 'legacy'
 
 export interface PostgresPasswordChoice {
   value: string
   source: PostgresPasswordSource
 }
-
-/**
- * A password the wizard can persist verbatim: Compose interpolates it unescaped
- * into `DATABASE_URL`, and `.env` reinterprets whitespace, comments, quotes and
- * `$`, so only URL-unreserved characters survive both unchanged.
- */
-const PERSISTABLE_PASSWORD = /^[A-Za-z0-9._~-]+$/
 
 interface ChooseOptions {
   /** The shell environment, whose `POSTGRES_PASSWORD` Compose interpolates over `.env`. */
@@ -47,18 +40,18 @@ interface ChooseOptions {
 
 /**
  * Picks the `POSTGRES_PASSWORD` to write to a Compose install's `.env`, or null
- * when `.env` already has the right one. The production Compose file requires
- * the variable, and the value must match what the data volume was created with —
+ * when nothing should be written. The production Compose file requires the
+ * variable, and the value must match what the data volume was created with —
  * Postgres ignores `POSTGRES_PASSWORD` on an existing data directory, so a
  * wrong value locks the app out of its own database:
  *
- * - A value exported in the shell is what Compose is using. It is persisted when
- *   `.env` has none, so a later run without the export does not fall back to a
- *   guess. An empty export, one that differs from `.env`, or one `.env` cannot
- *   hold verbatim is refused: which value the volume was created with cannot be
- *   known, and either silent choice can lock the app out.
- * - With no value anywhere, an existing volume was created with the legacy
- *   password, and a project with no volume yet gets a generated one.
+ * - A value exported in the shell is the operator's to manage: Compose
+ *   interpolates it over `.env`, so nothing is written. An empty export is
+ *   refused, because Compose would use the empty value and refuse to start
+ *   however good the one in `.env` is.
+ * - Otherwise a value in `.env` stands, an existing volume was created with the
+ *   legacy password the file used to default to, and a project with no volume
+ *   yet gets a generated one.
  */
 export function choosePostgresPassword(
   envFileValue: string | undefined,
@@ -66,38 +59,16 @@ export function choosePostgresPassword(
   { shell = process.env, hasDatabaseVolume = composeDatabaseVolumeExists }: ChooseOptions = {}
 ): PostgresPasswordChoice | null {
   const shellValue = shell.POSTGRES_PASSWORD
-  if (shellValue === undefined) {
-    if (envFileValue) return null
-    return hasDatabaseVolume(project)
-      ? { value: LEGACY_POSTGRES_PASSWORD, source: 'legacy' }
-      : { value: generateSecret(), source: 'generated' }
-  }
   if (shellValue === '') {
     throw new SetupError(
       'POSTGRES_PASSWORD is exported but empty, and Compose uses it over .env.',
       ['unset it (unset POSTGRES_PASSWORD) so the value in .env applies']
     )
   }
-  if (envFileValue) {
-    if (envFileValue === shellValue) return null
-    throw new SetupError(
-      'POSTGRES_PASSWORD in the shell differs from the one in .env, so it is unclear which one the database was created with.',
-      [
-        'unset the exported POSTGRES_PASSWORD if .env holds the database password',
-        'or set the exported value in .env if that is the database password',
-      ]
-    )
-  }
-  if (!PERSISTABLE_PASSWORD.test(shellValue)) {
-    throw new SetupError(
-      'POSTGRES_PASSWORD is exported only in the shell, and contains characters that cannot be stored in .env and embedded in DATABASE_URL unchanged.',
-      [
-        'use only letters, digits and . _ ~ - (for a new install: openssl rand -hex 24)',
-        'or add it to .env yourself if you have confirmed it works in a connection URL',
-      ]
-    )
-  }
-  return { value: shellValue, source: 'environment' }
+  if (shellValue !== undefined || envFileValue) return null
+  return hasDatabaseVolume(project)
+    ? { value: LEGACY_POSTGRES_PASSWORD, source: 'legacy' }
+    : { value: generateSecret(), source: 'generated' }
 }
 
 /** Whether a Compose project already has a Postgres data volume, found by Compose's own labels. */
@@ -159,10 +130,6 @@ export function reportPostgresPasswordChoice(
   choice: PostgresPasswordChoice,
   { compose, user, envPath }: { compose: string; user: string; envPath: string }
 ): void {
-  if (choice.source === 'environment') {
-    p.log.step(`Saved POSTGRES_PASSWORD from the shell environment to ${envPath}`)
-    return
-  }
   if (choice.source === 'generated') {
     p.log.step(`Generated POSTGRES_PASSWORD in ${envPath}`)
     return
