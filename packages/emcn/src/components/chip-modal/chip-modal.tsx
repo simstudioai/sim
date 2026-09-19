@@ -734,6 +734,8 @@ export interface ChipModalFieldAria {
 
 interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   type: 'custom'
+  /** Associates the field label with the custom control's existing ID. */
+  htmlFor?: string
   /**
    * Whether Enter in a nested plain single-line input should trigger the
    * footer's default primary action. Set `false` when the custom control owns
@@ -788,7 +790,10 @@ function ChipModalField(props: ChipModalFieldProps) {
     props.type === 'file' ||
     props.type === 'emails'
   const label = (
-    <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
+    <Label
+      htmlFor={props.type === 'custom' ? props.htmlFor : associatesLabel ? id : undefined}
+      className='pl-0.5 text-[var(--text-muted)]'
+    >
       {title}
       {required && (
         <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
