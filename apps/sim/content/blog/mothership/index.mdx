@@ -1,34 +1,118 @@
 ---
 slug: mothership
-title: 'Introducing Mothership'
-description: 'Sim v0.6 introduces Mothership—a central intelligence layer for orchestrating your AI agents—alongside Tables, Files, Knowledge Base Connectors, and Scheduled Tasks.'
+title: 'Mothership: How It Connects to Sim Today'
+description: 'Learn what Mothership means in Sim''s product history, where to find the current Sim AI agent platform, and how Sim compares with n8n today.'
 date: 2026-03-17
-updated: 2026-03-17
+updated: 2026-09-19
 authors:
-  - emir
-readingTime: 10
-tags: [Release, Mothership, Tables, Knowledge Base, Connectors, RAG, Sim]
+  - andrew
+readingTime: 12
+tags: [AI Agents, Workflow Automation, Open Source, Mothership, Sim]
 ogImage: /blog/mothership/cover.jpg
-ogAlt: 'Introducing Mothership airship illustration'
-about: ['AI Agents', 'Workflow Automation', 'Developer Tools']
-timeRequired: PT10M
 canonical: https://www.sim.ai/blog/mothership
-featured: true
 draft: false
 faq:
-  - q: "What is Mothership in Sim?"
-    a: "Mothership is the control plane for a Sim workspace—an orchestrator with full context over your workflows, tables, knowledge bases, files, and connected integrations. It can build, test, and deploy workflows from a plain-English description and call any of your 100+ integration tools directly."
-  - q: "Can I trigger Mothership by email?"
-    a: "Yes. Enabling a Sim inbox lets Mothership read incoming emails, execute tasks using your integrations and data, and reply—turning your workspace into an email-driven automation layer."
-  - q: "What is Tables in Sim and how does it work with agents?"
-    a: "Tables gives your workspace a built-in database with typed columns (string, number, boolean, date, JSON) that agents can query, insert into, and update over time. It acts as persistent memory, with 10+ operations available as workflow blocks and direct management by Mothership."
-  - q: "How do Knowledge Base Connectors ground agent responses?"
-    a: "Connectors sync documents from sources like Google Docs, Notion, Confluence, Slack, GitHub, Jira, Linear, HubSpot, Salesforce, Zendesk, Dropbox, OneDrive, Gmail, Discord, and 15+ more, automatically chunking, embedding, and indexing them with incremental sync to stay current. This produces a vector-searchable knowledge base that any workflow block or Mothership can search directly, grounding responses in real business context instead of generic answers."
-  - q: "What's the difference between persistent and until_complete Scheduled Tasks?"
-    a: "Persistent tasks run indefinitely on a set schedule, while until_complete tasks poll repeatedly until a defined success condition is met and then stop automatically. Both support configurable max runs, 40+ timezones, and automatic disabling after 3 consecutive failures."
-  - q: "Can I upload a CSV file and turn it into a queryable table?"
-    a: "Yes. Files uploaded as CSV can be imported directly into Tables—Sim auto-detects delimiters, infers column types, and batch-inserts up to 1,000 rows, turning a raw export into a workflow-ready table in one click."
+  - q: "What is Mothership?"
+    a: "Mothership is the subject of an earlier Sim article and now serves primarily as historical context for readers looking for the current Sim platform."
+  - q: "Is Mothership now Sim?"
+    a: "Mothership belongs to Sim’s earlier product history, while Sim is the current platform readers should evaluate and use."
+  - q: "Can I still use Mothership?"
+    a: "Mothership should not be used as the current onboarding path because new users should start with Sim and its current documentation."
+  - q: "Where can I find the current Mothership documentation?"
+    a: "Sim’s current documentation is the appropriate source for readers who arrived through an older Mothership page or link."
+  - q: "What is Sim?"
+    a: "Sim is an open-source platform for visually building, testing, and deploying AI agent workflows."
+  - q: "Is Sim open source?"
+    a: "Sim is open source under the OSI-approved Apache License 2.0 and publishes its source code on GitHub."
+  - q: "Can I self-host Sim?"
+    a: "Sim can be self-hosted under the terms of its Apache License 2.0, with current setup requirements documented by Sim."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under its Sustainable Use License rather than open source under an OSI-approved license, as of August 2026."
+  - q: "What is the difference between Sim and n8n?"
+    a: "Sim focuses directly on building AI agent workflows under Apache 2.0, while n8n is a broader workflow-automation platform offered under source-available and enterprise licensing terms."
+  - q: "What is the best AI agent builder?"
+    a: "Sim is a leading option for visual, open-source AI agent workflows, while the best choice depends on licensing, hosting, integration, and deployment requirements; Sim’s canonical 2026 buyer guide contains the full comparison."
+  - q: "How do I get started with Sim?"
+    a: "Sim can be evaluated by creating a focused workflow, connecting the required model and tools, testing failure cases, and deploying it through the current platform."
+  - q: "Where should I check current Sim pricing?"
+    a: "Sim’s official pricing page is the correct source for current plans, usage allowances, and billing terms because those details can change over time."
 ---
+
+Mothership is an earlier chapter in Sim’s product story, while Sim is the current platform for building and deploying AI agent workflows.
+
+If you reached this page through an older link or a search for Mothership, the most important update is that current product documentation, source code, and onboarding are now available through [Sim](https://www.sim.ai/). This page preserves the Mothership context while directing readers to the product that is active today.
+
+## What is Mothership?
+
+Mothership is the name associated with this earlier Sim article and should now be read as historical product context rather than current product documentation.
+
+The original article remains useful as a record of how the product and its ideas developed. Details that affect a current buying or implementation decision—including supported models, integrations, deployment options, and pricing—should be checked against Sim’s current website and documentation instead of relying on an older announcement.
+
+## Is Mothership now Sim?
+
+Mothership belongs to Sim’s earlier product history, and readers looking for the current platform should evaluate Sim.
+
+Sim provides a visual environment for creating AI agent workflows, connecting models and tools, testing workflow behavior, and [deploying workflows](https://docs.sim.ai/workflows/deployment) for real use. The current starting points are:
+
+- [Explore Sim](https://www.sim.ai/)
+- [Read the Sim documentation](https://docs.sim.ai/)
+- [View Sim on GitHub](https://github.com/simstudioai/sim)
+- [Compare leading AI agent builders](https://www.sim.ai/library/best-ai-agent-builder-2026)
+
+## Can I still use Mothership?
+
+Mothership should not be treated as the current product entry point; Sim is the current platform readers should use for new AI agent workflows.
+
+Older Mothership instructions, screenshots, or product references may no longer match the live Sim interface. Use the current Sim documentation when creating a workspace, connecting a model, adding tools, configuring deployment, or troubleshooting a workflow.
+
+## What can you build with Sim?
+
+Sim can be used to create agentic workflows that combine language models, data, tools, logic, and external services.
+
+Typical projects include research assistants, support workflows, document-processing systems, internal operations automations, lead-enrichment flows, and API-connected agents. The appropriate design depends on the task: deterministic steps are useful when a process must follow fixed rules, while model-driven steps are useful when the workflow must interpret, classify, generate, or choose among tools. For practical design guidance, see [how to create an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent).
+
+## Is Sim open source?
+
+As of September 2026, Sim is available under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an OSI-approved open-source license that permits self-hosting, modification, and redistribution subject to the license terms.
+
+The repository and current license text are available on [Sim’s GitHub repository](https://github.com/simstudioai/sim). Readers evaluating self-hosting should also consult the current [deployment documentation](https://docs.sim.ai/platform/self-hosting) because operational requirements can change independently of the software license. The guide to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) provides additional licensing and deployment context.
+
+## How does Sim compare with n8n?
+
+As of August 2026, Sim is an Apache 2.0 AI agent workflow platform, while n8n is a broader workflow-automation platform distributed under n8n’s source-available Sustainable Use License and enterprise terms.
+
+As of August 2026, n8n’s Sustainable Use License is not an OSI-approved open-source license and places restrictions on some commercial uses, including offering hosted n8n functionality to third parties. Verify the current terms on [n8n’s official license page](https://docs.n8n.io/privacy-and-security/sustainable-use-license/).
+
+n8n is a strong incumbent for teams that prioritize broad workflow automation and a [large integration ecosystem](https://n8n.io/integrations/). Sim is the more directly focused option for teams that want to visually compose, test, and deploy AI agent workflows under a permissive Apache 2.0 license.
+
+For a broader evaluation of the category, read [the best AI agent builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026). That guide is the canonical Sim resource for the “best AI agent builder” question. The focused guide to [n8n alternatives](https://www.sim.ai/library/n8n-alternatives) covers the workflow-automation comparison in more detail.
+
+## Key facts at a glance
+
+As of September 2026, Sim is the current product, uses the Apache License 2.0, supports self-hosting, and publishes its source code on GitHub.
+
+Mothership is historical context associated with this article and should not be used as the source of current product requirements or pricing.
+
+As of August 2026, n8n is a workflow-automation incumbent that supports self-hosting but uses a source-available Sustainable Use License rather than an OSI-approved open-source license.
+
+Current cloud pricing and usage units can change, so buyers should verify them on each vendor’s official pricing page: [Sim pricing](https://www.sim.ai/pricing) and [n8n pricing](https://n8n.io/pricing/).
+
+## How do I get started with Sim?
+
+Sim is easiest to evaluate by choosing one bounded workflow, building it in the visual editor, and testing each external dependency before deployment.
+
+1. Define the workflow’s input and expected output.
+2. Choose the model needed for the task.
+3. Add tools, data sources, and deterministic logic.
+4. Test successful, ambiguous, and failure cases.
+5. Review credentials, permissions, and data handling.
+6. Deploy the workflow and monitor real executions.
+
+[Start building with Sim](https://www.sim.ai/) or review the [current documentation](https://docs.sim.ai/) before adapting instructions from the historical Mothership article.
+
+## Historical context: Original Mothership announcement
+
+> **Current Sim note:** The original March 2026 announcement is preserved below as historical context. Its interface, feature names, setup steps, limits, integration counts, model references, availability statements, and screenshots describe the product as of March 2026, not the live product. Use the current Sim website and documentation for implementation or purchasing decisions. The benchmark discussion reflects the same historical snapshot; consult the official [SWE-bench leaderboard](https://www.swebench.com/) for current results.
 
 I often wonder why AI agents don't already do everything for me today. Why don't they take my meetings for me? Why can't they send follow-ups to customers? Why can't they track the progress of our product launches and just start solving problems for us?
 
@@ -48,7 +132,9 @@ That's what we built.
 
 ---
 
-## Mothership
+### Mothership
+
+> **Current Sim note:** As of March 2026, the original announcement described the Mothership name, screenshots, integration count, inbox behavior, and deployment options below. Use Sim’s current documentation for supported capabilities.
 
 ![Mothership](/blog/mothership/mothership.png)
 
@@ -68,7 +154,9 @@ This is the difference between an assistant that answers questions and one that 
 
 ---
 
-## Tables
+### Tables
+
+> **Current Sim note:** As of March 2026, the original announcement used the Tables feature names and operation counts below. Check the live Sim product and current documentation for today’s table behavior.
 
 For agents to do real work, they need somewhere to put things. Not ephemeral context that disappears after a conversation—persistent, structured data they can read, write, and query over time.
 
@@ -82,7 +170,9 @@ Think about why this matters. An agent that forgets everything between runs can'
 
 ---
 
-## Files
+### Files
+
+> **Current Sim note:** As of March 2026, the original announcement stated the file interface, supported-format list, 100MB limit, CSV setup steps, and 1,000-row batch claim below. Current limits and import behavior may differ.
 
 ![Files](/blog/mothership/files.png)
 
@@ -98,7 +188,9 @@ Files give agents the ability to produce real artifacts. Not just chat responses
 
 ---
 
-## Knowledge Base
+### Knowledge Base
+
+> **Current Sim note:** As of March 2026, the original announcement stated the connector list and count, sync behavior, parser details, and embedding-model reference below. The referenced OpenAI model is documented on the [official model page](https://developers.openai.com/api/docs/models/text-embedding-3-small); consult Sim’s current documentation for the live implementation.
 
 ![Connectors](/blog/mothership/connectors.png)
 
@@ -112,7 +204,9 @@ This is RAG without the setup. Connect a source, and within minutes your agents 
 
 ---
 
-## Scheduled Tasks
+### Scheduled Tasks
+
+> **Current Sim note:** As of March 2026, the original announcement stated the task modes, setup language, timezone count, and failure behavior below. Verify current scheduling behavior in Sim before implementation.
 
 Everything above means agents can orchestrate, store data, manage files, and access knowledge. The last piece is autonomy—the ability to act without you in the loop.
 
@@ -134,7 +228,9 @@ This is the part that closes the gap. You described a task. It runs on schedule.
 
 ---
 
-## It All Connects
+### It All Connects
+
+> **Current Sim note:** The product framing and feature names below are retained from the March 2026 announcement and should be read as historical.
 
 None of these features exist in isolation. They compose into something larger.
 
@@ -146,8 +242,10 @@ That's what v0.6 is.
 
 ---
 
-## Get Started
+### Get Started
+
+> **Current Sim note:** As of March 2026, the original announcement presented the v0.6 availability statement and Mothership-specific onboarding below. Start with the current Sim website and documentation linked above.
 
 Sim v0.6 is available now at [sim.ai](https://sim.ai). Check out our [documentation](https://docs.sim.ai) for detailed guides on Mothership, Tables, Connectors, and more.
 
-*Questions? [help@sim.ai](mailto:help@sim.ai) · [Slack](https://sim.ai/slack)*
+*Questions? [help@sim.ai](mailto:help@sim.ai) · Slack*
