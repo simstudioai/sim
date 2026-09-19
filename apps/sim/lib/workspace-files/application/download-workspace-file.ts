@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
@@ -72,11 +73,7 @@ export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
 
 function resolveRenderedArtifact(
   file: DownloadWorkspaceFileResult['file'],
-  filePrincipal: AuthorizedWorkspaceUseCaseContext<
-    typeof fileOperations.download,
-    DownloadWorkspaceFileInput,
-    ActiveWorkspaceFileContext
-  >['principal']
+  filePrincipal: Principal
 ) {
   return resolveRenderedWorkspaceArtifact(file, filePrincipal, {
     maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
@@ -95,7 +92,17 @@ async function executeDownloadWorkspaceFileStream({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return streamWorkspaceFileRecord(file, principal)
+}
 
+/**
+ * Streams the bytes a record points at. Version downloads pass a record whose key, size, and type
+ * describe a previous version, so both surfaces serve through one path.
+ */
+export async function streamWorkspaceFileRecord(
+  file: DownloadWorkspaceFileResult['file'],
+  principal: Principal
+): Promise<DownloadWorkspaceFileStreamResult> {
   /**
    * AI-generated docs store their generation SOURCE as the primary file and keep
    * the rendered binary in a separate artifact store, so streaming `file.key`

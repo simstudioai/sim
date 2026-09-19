@@ -1088,6 +1088,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'version', path: 'currentVersion' },
       // v2 returns the share under `share` (null when unshared), and its flag
       // is `isActive`.
       { header: 'shared', path: 'share.isActive', format: 'bool' },
@@ -1116,6 +1117,57 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files restore',
     renamedFrom: ['files restore create'],
     describe: 'Restore an archived file',
+  },
+  /**
+   * Version history. The deriver files `/versions/[version]/text` under a `text`
+   * group and `/revert` under a lone `create`; both belong beside the list. The
+   * single-version read is `describe`, matching `files describe`, because `get`
+   * already means downloading content one level up (`files get`, and the
+   * hand-written `files versions download`).
+   */
+  listFileVersions: {
+    command: 'files versions list',
+    describe: 'List the recorded versions of a file',
+    columns: [
+      { header: 'version' },
+      { header: 'current', path: 'isCurrent', format: 'bool' },
+      { header: 'source' },
+      { header: 'size', format: 'bytes' },
+      { header: 'authors', format: 'count' },
+      { header: 'created', path: 'createdAt', format: 'timestamp' },
+      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+    ],
+  },
+  getFileVersion: {
+    command: 'files versions describe',
+    describe: 'Show the metadata of one version of a file',
+    fields: [
+      { header: 'file', path: 'fileId' },
+      { header: 'version' },
+      { header: 'current', path: 'isCurrent', format: 'bool' },
+      { header: 'source' },
+      { header: 'restored from', path: 'restoredFromVersion' },
+      { header: 'size', format: 'bytes' },
+      { header: 'type', path: 'contentType' },
+      { header: 'authors', format: 'count' },
+      { header: 'created', path: 'createdAt', format: 'timestamp' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+    ],
+  },
+  readFileVersionText: {
+    command: 'files versions read',
+    describe: 'Read the text content of one version of a file',
+  },
+  /** No confirm: a revert writes the old content as a new version, so what it replaces stays revertible. */
+  revertFileVersion: {
+    command: 'files versions revert',
+    describe: 'Make a previous version of a file current again',
+  },
+  deleteFileVersion: {
+    command: 'files versions delete',
+    describe: 'Permanently delete a previous version of a file',
+    confirm: 'This permanently deletes the version and its stored content.',
   },
   // Left to derive, the folder restore lands under `files restore` and turns
   // that leaf back into a group holding a lone `create` — the exact shape the

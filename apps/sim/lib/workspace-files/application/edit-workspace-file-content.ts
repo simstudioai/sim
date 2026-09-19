@@ -16,6 +16,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import {
@@ -180,6 +181,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           content,
           file.type,
           {
+            version: resolveWorkspaceFileVersionWrite(principal),
             expectedUpdatedAt: file.contentUpdatedAt,
             secretProvenancePolicy: input.secretProvenance
               ? { mode: 'replace' as const, provenance: input.secretProvenance }

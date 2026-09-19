@@ -1104,6 +1104,7 @@ describe('destructive operations are gated', () => {
     'restoreTableFolder',
     'restoreWorkflow',
     'resumeWorkflow',
+    'revertFileVersion',
     'rollbackWorkflow',
     'runRowEnrichment',
     'createTableDispatch',

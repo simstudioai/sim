@@ -181,11 +181,12 @@ describe('knowledge and files request-slice strictness', () => {
    * download, and permanent delete. It falls when two routes become one: 106 →
    * 105 when the archived knowledge-base list folded into `GET /knowledge` as
    * `scope=archived`, 105 → 108 with the file content-search query and the
-   * in-place content edit's query and body, and 108 → 109 with the knowledge
-   * base export query.
+   * in-place content edit's query and body, 108 → 109 with the knowledge
+   * base export query, and 109 → 116 with the file version list, get, text,
+   * download, revert, and delete queries and the revert body.
    */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(109)
+    expect(slices.length).toBe(116)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

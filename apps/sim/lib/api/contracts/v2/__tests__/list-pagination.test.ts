@@ -52,6 +52,7 @@ const PAGED_LISTS = [
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
+  'GET /api/v2/files/[fileId]/versions',
   'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors',
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
@@ -178,6 +179,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     /** Decides whether `folderPath` covers one folder or its whole subtree. */
     'recursive',
   ],
+  'GET /api/v2/files/[fileId]/versions': ['sortBy', 'sortOrder'],
   'GET /api/v2/knowledge': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
@@ -287,6 +289,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/files/[fileId]/versions': ['fileId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['knowledgeBaseId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
     'knowledgeBaseId',
@@ -320,6 +323,10 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
  * correctness gain.
  */
 const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/files/[fileId]/versions': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one file, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
   'GET /api/v2/audit-logs': {
     organizationId:
       'Asserted scope, not a filter: an account belongs to at most one organization, so naming it and omitting it select the same sequence. The resolved id is decided inside the application use case, so the route cannot stamp it without resolving an authorization decision itself.',
