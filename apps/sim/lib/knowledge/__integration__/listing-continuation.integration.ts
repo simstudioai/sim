@@ -166,6 +166,94 @@ describe('durable source and member cycles in PostgreSQL', () => {
     })
   }
 
+  it('restores rediscovered tombstones without rewriting already-live documents during resurrection', async () => {
+    const connectorId = generateId()
+    const runId = generateId()
+    const [connector] = await db
+      .insert(knowledgeConnector)
+      .values({
+        id: connectorId,
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorType: 'google_drive',
+        status: 'syncing',
+        syncLockToken: runId,
+        accessMode: 'admin',
+        sourceConfig: {},
+      })
+      .returning()
+    const deletedAt = new Date(Date.now() - 60_000)
+    const documents = ['live', 'tombstoned'].map(sourceDoc)
+    await db.insert(document).values(
+      documents.map((item) => ({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorId,
+        externalId: item.externalId,
+        filename: item.title,
+        fileUrl: '',
+        storageKey: `kb/${item.externalId}.txt`,
+        fileSize: 10,
+        mimeType: item.mimeType,
+        contentHash: item.contentHash,
+        processingStatus: 'completed',
+        deletedAt: item.externalId === 'tombstoned' ? deletedAt : null,
+      }))
+    )
+    let liveVersionBeforeResurrection: string | undefined
+    const syncResult = result()
+    const pass = await runConnectorContentPass({
+      connectorId,
+      connector,
+      connectorConfig: {
+        ...CONNECTOR_REGISTRY.google_drive,
+        listDocuments: async () => ({ documents, hasMore: false }),
+      },
+      sourceConfig: {},
+      syncContext: {},
+      kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+      billingAttribution: billing,
+      result: syncResult,
+      lease: createContentSyncLease(connectorId, runId),
+      leaseKind: 'content',
+      runId,
+      fingerprint: listingFingerprint({ source: 'resurrection' }),
+      documentAccess: 'admin',
+      getAccessToken: async () => 'fixture',
+      hydration: { getDocument: async () => null },
+      forceRehydrate: false,
+      deadlineAt: Date.now() + 60_000,
+      onPage: async () => {
+        const rows = await db
+          .select({
+            externalId: document.externalId,
+            deletedAt: document.deletedAt,
+            version: sql<string>`xmin::text`,
+          })
+          .from(document)
+          .where(eq(document.connectorId, connectorId))
+        liveVersionBeforeResurrection = rows.find((row) => row.externalId === 'live')!.version
+        expect(rows.find((row) => row.externalId === 'tombstoned')!.deletedAt).toEqual(deletedAt)
+        return undefined
+      },
+    })
+    const rows = await db
+      .select({
+        externalId: document.externalId,
+        deletedAt: document.deletedAt,
+        version: sql<string>`xmin::text`,
+      })
+      .from(document)
+      .where(eq(document.connectorId, connectorId))
+    expect(pass.complete).toBe(true)
+    expect(syncResult).toEqual({ ...result(), docsUnchanged: 2 })
+    expect(rows).toHaveLength(2)
+    expect(rows.every((row) => row.deletedAt === null)).toBe(true)
+    expect(liveVersionBeforeResurrection).toBeDefined()
+    expect(rows.find((row) => row.externalId === 'live')!.version).toBe(
+      liveVersionBeforeResurrection
+    )
+  })
+
   it('refreshes verified existing permissions while repairing changed bodies, without indexing discoveries or reconciling absence', async () => {
     const connectorId = generateId()
     const runId = generateId()
