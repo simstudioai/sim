@@ -963,14 +963,6 @@ export type PermittedDocuments =
   | { kind: 'unbounded' }
 
 /**
- * Resolve the permitted set with the candidate predicate both legs apply, so restricting a leg
- * to it never admits a document the leg would otherwise refuse. Tag filters stay chunk-level in
- * each leg; the set is the document-level superset they narrow.
- *
- * It runs ahead of both legs on the vector leg's budget, so exhausting that budget here reports
- * `unbounded` and marks the vector leg timed out rather than failing the keyword leg with it.
- */
-/**
  * How long a caller's saturated reach is remembered. Reach counts the documents a caller's tokens
  * touch in the bases, which moves slowly, and an unbounded set only means the legs search the
  * index with the full access predicate, so a stale answer costs speed, never access.
@@ -988,6 +980,14 @@ function reachKey(
   return `${[...knowledgeBaseIds].sort().join(',')}:${sha256Hex([...access.tokens].sort().join('\n'))}`
 }
 
+/**
+ * Resolve the permitted set with the candidate predicate both legs apply, so restricting a leg
+ * to it never admits a document the leg would otherwise refuse. Tag filters stay chunk-level in
+ * each leg; the set is the document-level superset they narrow.
+ *
+ * It runs ahead of both legs on the vector leg's budget, so exhausting that budget here reports
+ * `unbounded` and marks the vector leg timed out rather than failing the keyword leg with it.
+ */
 export async function resolvePermittedDocuments(params: {
   knowledgeBaseIds: string[]
   access: KnowledgeAccessScope
