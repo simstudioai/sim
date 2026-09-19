@@ -27,6 +27,7 @@ it('forwards resize events and retains content and refs while closed', () => {
   try {
     act(() => root.render(render(true)))
     const panel = ref.current!
+    expect(panel.hasAttribute('inert')).toBe(false)
     const input = panel.querySelector('input')!
     const handle = container.querySelector('[role="separator"]')!
     expect(handle.getAttribute('aria-label')).toBe('Resize details')
@@ -36,11 +37,13 @@ it('forwards resize events and retains content and refs while closed', () => {
     expect(resize.mock.calls[0][0].clientX).toBe(240)
 
     act(() => root.render(render(false)))
+    expect(panel.hasAttribute('inert')).toBe(true)
     expect(ref.current).toBe(panel)
     expect(panel.querySelector('input')).toBe(input)
     expect(input.value).toBe('Retained query')
     expect(container.querySelector('[role="separator"]')).toBeNull()
     act(() => root.render(render(true)))
+    expect(panel.hasAttribute('inert')).toBe(false)
     expect(panel.querySelector('input')).toBe(input)
     expect(container.querySelector('[role="separator"]')).not.toBeNull()
   } finally {

@@ -2,7 +2,7 @@ import { type CSSProperties, forwardRef, type HTMLAttributes, type MouseEventHan
 import { cn } from '../../lib/cn'
 
 export interface DetailsPanelProps extends HTMLAttributes<HTMLDivElement> {
-  /** Slide the panel into view without unmounting its content. */
+  /** Slide the panel into view; closed content stays mounted but inert. */
   open: boolean
   /** Controlled width, including responsive CSS expressions such as clamp(). */
   width: NonNullable<CSSProperties['width']>
@@ -42,6 +42,7 @@ export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
         <div
           {...props}
           ref={ref}
+          inert={!open || props.inert}
           className={cn(
             'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
             open ? 'translate-x-0' : 'translate-x-full',
