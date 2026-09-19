@@ -265,4 +265,8 @@ export {
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
+export {
+  UploadPreviewButton,
+  type UploadPreviewButtonProps,
+} from './upload-preview-button/upload-preview-button'
 export { Wizard } from './wizard/wizard'

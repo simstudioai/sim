@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
-import { ImageUp as ImageIcon, X } from '@sim/emcn/icons'
+import { Button, ChipInput, cn, Label, toast, UploadPreviewButton } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'
@@ -288,17 +288,13 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
             >
               <div className='flex items-center gap-4'>
                 <DropZone onDrop={logoUpload.handleFileDrop}>
-                  <button
-                    type='button'
+                  <UploadPreviewButton
                     onClick={logoUpload.handleThumbnailClick}
-                    disabled={logoUpload.isUploading}
+                    loading={logoUpload.isUploading}
                     aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
                     title={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
-                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
-                    {logoUpload.isUploading ? (
-                      <Loader className='size-5 text-[var(--text-muted)]' animate />
-                    ) : logoUpload.previewUrl ? (
+                    {logoUpload.previewUrl ? (
                       <Image
                         src={logoUpload.previewUrl}
                         alt='Logo'
@@ -307,10 +303,8 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                         className='object-contain p-1'
                         unoptimized
                       />
-                    ) : (
-                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                    )}
-                  </button>
+                    ) : null}
+                  </UploadPreviewButton>
                 </DropZone>
                 {logoUpload.previewUrl && (
                   <Button
@@ -339,17 +333,14 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
             >
               <div className='flex items-center gap-4'>
                 <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
-                  <button
-                    type='button'
+                  <UploadPreviewButton
                     onClick={wordmarkUpload.handleThumbnailClick}
-                    disabled={wordmarkUpload.isUploading}
+                    loading={wordmarkUpload.isUploading}
                     aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
                     title={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
-                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    className='w-full'
                   >
-                    {wordmarkUpload.isUploading ? (
-                      <Loader className='size-5 text-[var(--text-muted)]' animate />
-                    ) : wordmarkUpload.previewUrl ? (
+                    {wordmarkUpload.previewUrl ? (
                       <Image
                         src={wordmarkUpload.previewUrl}
                         alt='Wordmark'
@@ -358,10 +349,8 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                         className='object-contain p-2'
                         unoptimized
                       />
-                    ) : (
-                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                    )}
-                  </button>
+                    ) : null}
+                  </UploadPreviewButton>
                 </DropZone>
                 {wordmarkUpload.previewUrl && (
                   <Button
