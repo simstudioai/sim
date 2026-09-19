@@ -26,13 +26,15 @@ export interface DetailsPanelProps extends HTMLAttributes<HTMLDivElement> {
 export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
   ({ open, width, onResizeStart, resizeLabel, className, style, children, ...props }, ref) => {
     const cssWidth = typeof width === 'number' ? `${width}px` : width
+    const widthStyle = { '--details-panel-width': cssWidth } as CSSProperties
+    const { width: _styleWidth, ...panelStyle } = style ?? {}
 
     return (
       <>
         {open && (
           <div
-            className='absolute top-0 bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
-            style={{ right: `calc(${cssWidth} - 4px)` }}
+            className='absolute top-0 right-[calc(var(--details-panel-width)-4px)] bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
+            style={widthStyle}
             onMouseDown={onResizeStart}
             role='separator'
             aria-label={resizeLabel}
@@ -44,11 +46,11 @@ export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
           ref={ref}
           inert={!open || props.inert}
           className={cn(
-            'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
+            'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] w-[var(--details-panel-width)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
             open ? 'translate-x-0' : 'translate-x-full',
             className
           )}
-          style={{ ...style, width }}
+          style={{ ...panelStyle, ...widthStyle }}
         >
           {children}
         </div>
