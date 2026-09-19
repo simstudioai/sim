@@ -38,7 +38,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   if (data.headers.length === 0) {
     return (
       <div className='flex h-full items-center justify-center p-6'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
+        <p className='text-[var(--text-muted)] text-small'>No data to display</p>
       </div>
     )
   }
