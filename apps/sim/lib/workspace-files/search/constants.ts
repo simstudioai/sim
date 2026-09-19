@@ -61,8 +61,13 @@ export const FILE_SEARCH_CLEANUP_MIN_BATCH_MS =
   FILE_SEARCH_CLEANUP_BUDGET_MS / FILE_SEARCH_CLEANUP_MAX_BATCHES
 export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
-/** Direct GIN writes perform index work in each insert, so transactions use smaller byte batches. */
+/** Bounds the text payload independently of its index work. */
 export const FILE_SEARCH_INSERT_BATCH_BYTES = 128 * 1024
+/**
+ * Sum of each chunk's distinct trigram keys, bounding direct GIN posting updates per insert.
+ * A single 8 KiB chunk may exceed this target slightly due to word padding and is written alone.
+ */
+export const FILE_SEARCH_INSERT_BATCH_TRIGRAM_KEYS = 8 * 1024
 /** Batches at least this slow are logged with their estimated trigram key count. */
 export const FILE_SEARCH_SLOW_INSERT_BATCH_MS = 2000
 
