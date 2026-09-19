@@ -90,7 +90,11 @@ import {
   KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   recoverKnowledgeDocumentProcessing,
 } from '@/lib/knowledge/documents/processing-recovery'
-import { processDocumentAsync, retryDocumentProcessing } from '@/lib/knowledge/documents/service'
+import {
+  processDocumentAsync,
+  processDocumentsWithQueue,
+  retryDocumentProcessing,
+} from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -176,6 +180,66 @@ afterAll(async () => {
 })
 
 describe('independent recovery of retained connector documents', () => {
+  it.each(['manual', 'redelivery'])(
+    'respects a concurrent liveness cooldown before %s replacement',
+    async (path) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      await db
+        .update(document)
+        .set({ processingStatus: 'pending' })
+        .where(eq(document.id, file.documentId))
+      const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+      const protectedUntil = new Date(Date.now() + 60_000)
+      fixture.useTrigger = true
+      fixture.batchTrigger.mockResolvedValue({ batchId: 'fixture-batch' })
+      fixture.listRuns.mockImplementation(async () => {
+        await db
+          .update(document)
+          .set({ processingRecoveryAfter: protectedUntil })
+          .where(eq(document.id, file.documentId))
+        return { data: [], hasNextPage: () => false }
+      })
+      const billing = await resolveSystemBillingAttribution(ids.workspaceId)
+      const docData = {
+        documentId: file.documentId,
+        filename: original.filename,
+        fileUrl: original.fileUrl,
+        fileSize: original.fileSize,
+        mimeType: original.mimeType,
+      }
+      if (path === 'manual') {
+        const result = await retryDocumentProcessing(
+          ids.knowledgeBaseId,
+          file.documentId,
+          docData,
+          generateId(),
+          billing
+        )
+        expect(result.message).toContain('already queued')
+      } else {
+        const result = await processDocumentsWithQueue(
+          [docData],
+          ids.knowledgeBaseId,
+          {},
+          generateId(),
+          billing,
+          'interactive'
+        )
+        expect(result).toMatchObject({ accepted: 0, failed: 1 })
+      }
+      expect(fixture.batchTrigger).not.toHaveBeenCalled()
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingQueueToken).toBe(original.processingQueueToken)
+      expect(row.processingAttempts).toBe(1)
+      expect(row.processingRecoveryAfter).toEqual(protectedUntil)
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'paused' })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    }
+  )
+
   it.each([null, 'abandoned-generation'])(
     'redelivers an abandoned upload with token %s without spending another admission',
     async (processingQueueToken) => {

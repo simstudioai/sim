@@ -34,6 +34,7 @@ const OBSERVED_DOCUMENT = {
   processingStartedAt: null,
   processingDeferredUntil: null,
   processingCompletedAt: new Date(0),
+  processingRecoveryAfter: null,
 }
 
 const DOC_DATA = {

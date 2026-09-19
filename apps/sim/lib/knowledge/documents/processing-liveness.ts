@@ -45,6 +45,7 @@ export const processingSnapshotColumns = {
   processingStartedAt: document.processingStartedAt,
   processingDeferredUntil: document.processingDeferredUntil,
   processingCompletedAt: document.processingCompletedAt,
+  processingRecoveryAfter: document.processingRecoveryAfter,
 }
 
 export type DocumentProcessingSnapshot = Pick<
@@ -52,7 +53,7 @@ export type DocumentProcessingSnapshot = Pick<
   keyof typeof processingSnapshotColumns
 >
 
-/** A claim or continuation installed during the external lookup must win over recovery. */
+/** A claim, continuation or protection cooldown installed during lookup must win over recovery. */
 export function documentProcessingSnapshotCondition(snapshot: DocumentProcessingSnapshot) {
   return and(
     eq(document.id, snapshot.id),
@@ -61,7 +62,8 @@ export function documentProcessingSnapshotCondition(snapshot: DocumentProcessing
     sql`${document.processingQueuedAt} IS NOT DISTINCT FROM ${sql.param(snapshot.processingQueuedAt, document.processingQueuedAt)}`,
     sql`${document.processingStartedAt} IS NOT DISTINCT FROM ${sql.param(snapshot.processingStartedAt, document.processingStartedAt)}`,
     sql`${document.processingDeferredUntil} IS NOT DISTINCT FROM ${sql.param(snapshot.processingDeferredUntil, document.processingDeferredUntil)}`,
-    sql`${document.processingCompletedAt} IS NOT DISTINCT FROM ${sql.param(snapshot.processingCompletedAt, document.processingCompletedAt)}`
+    sql`${document.processingCompletedAt} IS NOT DISTINCT FROM ${sql.param(snapshot.processingCompletedAt, document.processingCompletedAt)}`,
+    sql`${document.processingRecoveryAfter} IS NOT DISTINCT FROM ${sql.param(snapshot.processingRecoveryAfter, document.processingRecoveryAfter)}`
   )
 }
 
