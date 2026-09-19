@@ -11,10 +11,6 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import {
-  CHIP_FIELD_INPUT,
-  CHIP_FIELD_SHELL,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -81,30 +77,31 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
   return (
     <div className='flex flex-col gap-1.5'>
       <Label>{label}</Label>
-      <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
-        <div
-          className={cn(
-            'size-[16px] shrink-0 rounded-sm border border-[var(--border-1)]',
-            !showColor && 'bg-[var(--surface-3)]'
-          )}
-          style={showColor ? { backgroundColor: value } : undefined}
-        />
-        <input
-          value={value}
-          onChange={(e) => {
-            let v = e.target.value.trim()
-            if (v && !v.startsWith('#')) {
-              v = `#${v}`
-            }
-            v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
-            onChange(v.slice(0, 7))
-          }}
-          onFocus={(e) => e.target.select()}
-          placeholder={placeholder}
-          maxLength={7}
-          className={cn(CHIP_FIELD_INPUT, 'font-mono')}
-        />
-      </div>
+      <ChipInput
+        error={!isValidHex}
+        startAdornment={
+          <div
+            className={cn(
+              'size-[16px] shrink-0 rounded-sm border border-[var(--border-1)]',
+              !showColor && 'bg-[var(--surface-3)]'
+            )}
+            style={showColor ? { backgroundColor: value } : undefined}
+          />
+        }
+        value={value}
+        onChange={(e) => {
+          let v = e.target.value.trim()
+          if (v && !v.startsWith('#')) {
+            v = `#${v}`
+          }
+          v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+          onChange(v.slice(0, 7))
+        }}
+        onFocus={(e) => e.target.select()}
+        placeholder={placeholder}
+        maxLength={7}
+        inputClassName='font-mono'
+      />
       {!isValidHex && (
         <p className='text-[var(--text-error)] text-caption'>
           Must be a valid hex color (e.g. #33c482)

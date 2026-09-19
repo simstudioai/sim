@@ -16,10 +16,6 @@ import {
 import { Eye, EyeOff, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  CHIP_FIELD_INPUT,
-  CHIP_FIELD_SHELL,
-} from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
@@ -432,34 +428,37 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               tabIndex={-1}
               readOnly
             />
-            <div className={CHIP_FIELD_SHELL}>
-              <input
-                aria-label='API Key'
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKeyInput}
-                onChange={(e) => {
-                  setApiKeyInput(e.target.value)
-                  if (error) setError(null)
-                }}
-                placeholder={editingMeta?.placeholder}
-                className={CHIP_FIELD_INPUT}
-                name='byok_api_key'
-                autoComplete='off'
-                autoCorrect='off'
-                autoCapitalize='off'
-                data-lpignore='true'
-                data-form-type='other'
-              />
-              <Button
-                variant='quiet'
-                size='icon'
-                className='shrink-0'
-                onClick={() => setShowApiKey(!showApiKey)}
-                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-              >
-                {showApiKey ? <EyeOff className='size-[13px]' /> : <Eye className='size-[13px]' />}
-              </Button>
-            </div>
+            <ChipInput
+              aria-label='API Key'
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKeyInput}
+              onChange={(e) => {
+                setApiKeyInput(e.target.value)
+                if (error) setError(null)
+              }}
+              placeholder={editingMeta?.placeholder}
+              name='byok_api_key'
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+              endAdornment={
+                <Button
+                  variant='quiet'
+                  size='icon'
+                  className='shrink-0'
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                >
+                  {showApiKey ? (
+                    <EyeOff className='size-[13px]' />
+                  ) : (
+                    <Eye className='size-[13px]' />
+                  )}
+                </Button>
+              }
+            />
           </ChipModalField>
           {props.multiKey && (
             <ChipModalField
