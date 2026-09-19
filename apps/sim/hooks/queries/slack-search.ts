@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ConfigureSlackSearchBody,
+  type ConnectCustomSlackSearchBody,
   configureSlackSearchContract,
+  connectCustomSlackSearchContract,
   listSlackSearchContract,
   prepareSlackSearchContract,
   removeSlackSearchContract,
@@ -15,18 +17,10 @@ import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
 } from '@/lib/slack-search/manifest'
+import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 export const SLACK_SEARCH_STALE_TIME = 30_000
-export const slackSearchKeys = {
-  all: ['slack-search'] as const,
-  lists: () => [...slackSearchKeys.all, 'list'] as const,
-  list: (organizationId?: string) => [...slackSearchKeys.lists(), organizationId ?? ''] as const,
-  manifests: () => [...slackSearchKeys.all, 'manifest'] as const,
-  organizationManifests: (organizationId: string) =>
-    [...slackSearchKeys.manifests(), organizationId] as const,
-  manifest: (organizationId: string, name: string) =>
-    [...slackSearchKeys.organizationManifests(organizationId), name] as const,
-}
 
 export function useSlackSearchManifest(organizationId: string, name = SLACK_SEARCH_DEFAULT_NAME) {
   return useQuery({
@@ -45,6 +39,25 @@ export function useStartSlackSearchOAuth() {
   return useMutation({
     mutationFn: (body: StartSlackSearchOAuthBody) =>
       requestJson(startSlackSearchOAuthContract, { body }),
+  })
+}
+
+export function useConnectCustomSlackSearch() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ConnectCustomSlackSearchBody) =>
+      requestJson(connectCustomSlackSearchContract, { body }),
+    onSuccess: async (_result, input) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: slackSearchKeys.list(input.organizationId) }),
+        client.invalidateQueries({
+          queryKey: slackSearchKeys.organizationManifests(input.organizationId),
+        }),
+        client.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(input.organizationId),
+        }),
+      ])
+    },
   })
 }
 

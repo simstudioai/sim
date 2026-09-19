@@ -24,10 +24,10 @@ import {
   useRevokeOrganizationAccountEnrollment,
   useUpdateOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
-import { slackSearchKeys } from '@/hooks/queries/slack-search'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { selectorKeys, selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
+import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 describe('personal account disconnect', () => {
   it.each([true, false])(
