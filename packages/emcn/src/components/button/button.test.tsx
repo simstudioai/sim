@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-// biome-ignore assist/source/organizeImports: Follow documented core/external/UI order; the sorter groups @sim/emcn and react-dom as generic packages.
+/** biome-ignore assist/source/organizeImports: Preserve the documented core/external/UI import order. */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Button } from '@sim/emcn'
