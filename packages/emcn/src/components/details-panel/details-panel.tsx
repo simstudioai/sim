@@ -33,7 +33,7 @@ export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
       <>
         {open && (
           <div
-            className='absolute top-0 right-[calc(var(--details-panel-width)-4px)] bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
+            className='absolute top-0 right-[calc(var(--details-panel-width)_-_4px)] bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
             style={widthStyle}
             onMouseDown={onResizeStart}
             role='separator'
