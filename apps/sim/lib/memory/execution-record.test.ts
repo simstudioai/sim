@@ -85,6 +85,19 @@ describe('portable execution records', () => {
     expect(JSON.parse(record.content!).notice).toBe('execution record shortened')
   })
 
+  it('bounds every default execution record without altering the canonical messages', () => {
+    const messages: Message[] = Array.from({ length: 30 }, (_, index) => ({
+      role: 'tool',
+      tool_call_id: `call-${index}`,
+      content: 'retained result '.repeat(1000),
+    }))
+    const original = structuredClone(messages)
+    const record = renderConversationExecutionRecord(messages)
+    expect(record.content!.length).toBeLessThanOrEqual(4096)
+    expect(record.content).toContain('execution record shortened')
+    expect(messages).toEqual(original)
+  })
+
   it('uses the same bounded format for protocol and context-size constraints', () => {
     const messages: Message[] = [{ role: 'tool', content: 'x'.repeat(10000) }]
     const record = renderConversationExecutionRecord(messages, 256)

@@ -126,6 +126,29 @@ describe('optional Agent memory durability failures', () => {
     expect(mocks.append).toHaveBeenCalledOnce()
   })
 
+  it('propagates an append identity conflict instead of treating different content as saved', async () => {
+    const failure = new OrchestrationError('conflict', 'Memory append identity was already used')
+    mocks.append.mockRejectedValue(failure)
+    await expect(
+      new Memory().appendToMemory(
+        ctx,
+        inputs,
+        { role: 'user', content: 'changed question' },
+        options
+      )
+    ).rejects.toBe(failure)
+    expect(mocks.append).toHaveBeenCalledExactlyOnceWith({
+      principal: { kind: 'delegated' },
+      input: {
+        ...options,
+        workspaceId: ctx.workspaceId,
+        conversationId: inputs.conversationId,
+        data: { role: 'user', content: 'changed question' },
+        provenance: undefined,
+      },
+    })
+  })
+
   it('preserves authorization failures on reads and appends', async () => {
     const failure = new OrchestrationError('forbidden', 'Denied')
     mocks.prefix.mockRejectedValue(failure)

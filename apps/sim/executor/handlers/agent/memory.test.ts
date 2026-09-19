@@ -88,7 +88,7 @@ describe('Memory', () => {
       }
     )
 
-    it.each(['forbidden', 'unauthorized', 'validation'] as const)(
+    it.each(['forbidden', 'unauthorized', 'validation', 'conflict'] as const)(
       'propagates application %s failures even for optional rich history',
       async (code) => {
         const error = new OrchestrationError(code, 'Memory access refused')

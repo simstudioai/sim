@@ -276,6 +276,50 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     expect(tail.provenance).toEqual(provenance)
   })
 
+  it('explicitly invalidates tracked legacy provenance after an untracked append', async () => {
+    await writeLegacyPrefix()
+    const untracked = { role: 'user', content: 'untracked append' }
+    await appendMemoryMessages({
+      workspaceId: identity.workspaceId,
+      key: identity.conversationId,
+      messages: [untracked],
+    })
+    const [stored] =
+      await connection!`SELECT data, secret_provenance_version FROM memory WHERE id = 'legacy-memory'`
+    expect(stored.secret_provenance_version).toBe(1)
+    expect(stored.data).toEqual([...prefix, untracked])
+    expect(
+      (
+        await connection!`SELECT content_hash, status, entries FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+      )[0]
+    ).toEqual({
+      content_hash: hashDurableSecretProvenanceValue(stored.data),
+      status: 'unknown',
+      entries: [],
+    })
+    const tracked = { role: 'assistant', content: 'later tracked append' }
+    await appendMemoryMessages({
+      workspaceId: identity.workspaceId,
+      key: identity.conversationId,
+      messages: [tracked],
+      provenance,
+    })
+    expect(
+      (
+        await connection!`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+      )[0]
+    ).toEqual({
+      content_hash: hashDurableSecretProvenanceValue([...prefix, untracked, tracked]),
+      status: 'unknown',
+    })
+    await expect(
+      new Memory().fetchMemoryMessages({ workspaceId: identity.workspaceId } as ExecutionContext, {
+        memoryType: 'conversation',
+        conversationId: identity.conversationId,
+      })
+    ).rejects.toThrow('Memory content could not be safely projected')
+  })
+
   it('freezes the legacy prefix and keeps exchanges out of native/plain API history', async () => {
     await writeLegacyPrefix()
     const turn = await openAgentMemoryTurn(identity)

@@ -95,7 +95,7 @@ function copyMemoryMessageMetadata(source: Message, target: Message): void {
 /** Optional durability tolerates storage-engine failures; application identity and projection failures propagate. */
 function isOptionalMemoryStorageFailure(error: unknown): boolean {
   if (error instanceof OrchestrationError)
-    return error.code === 'not_found' || error.code === 'conflict' || error.code === 'internal'
+    return error.code === 'not_found' || error.code === 'internal'
   const code = getPostgresErrorCode(error)
   return Boolean(
     (code &&

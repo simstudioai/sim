@@ -51,7 +51,7 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
         while (sourceMessages[index + 1]?.role === 'tool') group.push(sourceMessages[++index])
         messages.push({
           role: 'user',
-          content: [{ text: renderConversationExecutionRecord(group, 4096).content ?? '' }],
+          content: [{ text: renderConversationExecutionRecord(group).content ?? '' }],
         })
         continue
       }

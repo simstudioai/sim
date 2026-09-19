@@ -238,6 +238,35 @@ describe('encrypted memory artifacts', () => {
     expect(materializeLargeValueRef).not.toHaveBeenCalled()
   })
 
+  it('preserves the shared materializer unavailable-result contract without attempting decryption', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        key: ref.key,
+        size: 500,
+        workflowId: identity.workflowId,
+        executionId: identity.executionId,
+      },
+    ])
+    materializeLargeValueRef.mockResolvedValueOnce(undefined)
+    expect(await readMemoryArtifact({ ...scope, ref })).toBeUndefined()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('does not swallow errors that escape the materialization boundary', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        key: ref.key,
+        size: 500,
+        workflowId: identity.workflowId,
+        executionId: identity.executionId,
+      },
+    ])
+    const error = new Error('Materialization access check failed')
+    materializeLargeValueRef.mockRejectedValueOnce(error)
+    await expect(readMemoryArtifact({ ...scope, ref })).rejects.toBe(error)
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
   it.each(['ciphertext', 'json'])(
     'treats corrupt %s as an unavailable artifact',
     async (failure) => {

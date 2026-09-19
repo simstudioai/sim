@@ -49,10 +49,11 @@ export function selectConversationTokenWindow<T extends Message>(
       (total, message) =>
         total +
         getConversationTokenCount(
-          groups
+          groups || message.tool_calls?.length || message.function_call || message.tool_call_id
             ? JSON.stringify({
                 role: message.role,
                 content: message.content,
+                function_call: message.function_call,
                 tool_calls: message.tool_calls,
                 tool_call_id: message.tool_call_id,
                 name: message.name,

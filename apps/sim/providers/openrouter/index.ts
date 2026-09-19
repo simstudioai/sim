@@ -10,11 +10,13 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  bindConversationGenerationContextWindow,
   isConversationContextError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
   captureProviderConversationStep,
+  getConversationRequestContext,
   recordProviderConversationToolError,
   recordProviderConversationUsage,
 } from '@/providers/conversation-history'
@@ -28,6 +30,7 @@ import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
+  getOpenRouterModelCapabilities,
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -109,6 +112,12 @@ export const openRouterProvider: ProviderConfig = {
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for OpenRouter')
+    }
+
+    if (getConversationRequestContext(request)?.agentConversation) {
+      const capabilities = await getOpenRouterModelCapabilities(request.model, request.abortSignal)
+      if (capabilities?.contextWindow)
+        bindConversationGenerationContextWindow(request, capabilities.contextWindow)
     }
 
     const client = new OpenAI({

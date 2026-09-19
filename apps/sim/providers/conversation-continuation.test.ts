@@ -173,6 +173,24 @@ describe('durable conversation restoration and continuation', () => {
     }
   )
 
+  it('bounds incompatible provider history without modifying the recorded arguments or outcomes', async () => {
+    const messages = toolGroup('retained result '.repeat(1000))
+    messages[0].tool_calls![0].function.arguments = JSON.stringify({
+      value: 'original argument '.repeat(1000),
+    })
+    const original = structuredClone(messages)
+    const restored = await restoreConversationNativeMessages(
+      messages,
+      'anthropic',
+      'model-a',
+      'binding-a'
+    )
+    expect(restored).toHaveLength(1)
+    expect(restored[0].content!.length).toBeLessThanOrEqual(4096)
+    expect(restored[0].content).toContain('execution record shortened')
+    expect(messages).toEqual(original)
+  })
+
   it('applies the same compatibility policy to current invocation and persisted exchanges', async () => {
     const session = await pendingSession()
     const call = session.getPendingCalls()[0]

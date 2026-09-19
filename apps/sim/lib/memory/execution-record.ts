@@ -1,26 +1,25 @@
 import { truncate } from '@sim/utils/string'
 import type { Message } from '@/providers/types'
 
-/** A text-only representation for exchanges that cannot be replayed as protocol tool messages. */
+/** Bounded model context for exchanges that cannot be replayed as protocol tool messages. */
 export function renderConversationExecutionRecord(
   messages: readonly Message[],
-  maxCharacters?: number
+  maxCharacters = 4096
 ): Message {
-  const bounded = maxCharacters !== undefined
   let shortened = false
   const field = (value: string, limit: number): string => {
-    if (!bounded || value.length <= limit) return value
+    if (value.length <= limit) return value
     shortened = true
     return truncate(value, limit)
   }
   const take = <T>(values: readonly T[], limit: number): readonly T[] => {
-    if (!bounded || values.length <= limit) return values
+    if (values.length <= limit) return values
     shortened = true
     return values.slice(0, limit)
   }
   const recordedMessages = take(messages, 21).map((message) => ({
     role: message.role,
-    content: bounded ? field(message.content ?? '', 512) : message.content,
+    content: message.content === null ? null : field(message.content ?? '', 512),
     ...(message.name ? { name: field(message.name, 64) } : {}),
     ...(message.tool_call_id ? { callId: field(message.tool_call_id, 64) } : {}),
     ...(message.function_call
@@ -47,11 +46,11 @@ export function renderConversationExecutionRecord(
     messages: recordedMessages,
     ...(shortened ? { notice: 'execution record shortened' } : {}),
   })
-  const suffix = bounded ? truncate('… [execution record shortened]', maxCharacters, '') : ''
+  const suffix = truncate('… [execution record shortened]', maxCharacters, '')
   return {
     role: 'user',
     content:
-      bounded && record.length > maxCharacters
+      record.length > maxCharacters
         ? truncate(record, Math.max(0, maxCharacters - suffix.length), suffix)
         : record,
   }

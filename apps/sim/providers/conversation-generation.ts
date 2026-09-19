@@ -43,6 +43,7 @@ type ConversationGenerationCompactor = (options: {
 }) => Promise<Message | undefined>
 
 interface GenerationContext {
+  contextWindow?: number
   prompt?: Message
   summary?: Message
   compact?: ConversationGenerationCompactor
@@ -71,6 +72,15 @@ export function bindConversationGenerationSummary(
   summary: Message
 ): void {
   getGenerationContext(request).summary = summary
+}
+
+/** Runtime catalog limits are trusted request metadata, never fields on the provider wire payload. */
+export function bindConversationGenerationContextWindow(
+  request: ProviderRequest,
+  contextWindow: number
+): void {
+  if (Number.isFinite(contextWindow) && contextWindow > 0)
+    getGenerationContext(request).contextWindow = contextWindow
 }
 
 /** The callback reads safe canonical history itself; native payloads never cross this boundary. */
@@ -337,7 +347,7 @@ export async function prepareConversationGeneration<T>(
     }
   })
   const budget = {
-    contextWindow: modelLimits.contextWindow,
+    contextWindow: context.contextWindow ?? modelLimits.contextWindow,
     fixedTokens: tokenCount(omit(payload, [key]), request.model),
     outputTokens: outputTokens(request, payload),
     historyTokens: runtime.agentMemoryContext?.historyTokens,

@@ -346,6 +346,74 @@ describe('executeProviderRequest — durable Agent continuation', () => {
     expect(result.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
   })
 
+  it.each(['empty', 'cancelled', 'failed'])(
+    'retains prior usage when a %s stream never calls onFullContent',
+    async (exit) => {
+      const session = new AgentTurnStateMachine(
+        { save: vi.fn() },
+        {
+          version: 1,
+          steps: [
+            {
+              id: 'previous-step',
+              assistant: { role: 'assistant', content: 'Partial answer' },
+              calls: [],
+              results: [],
+              usage: { input: 7, output: 3 },
+              cost: { input: 0.4, output: 0.6, total: 1 },
+            },
+          ],
+        }
+      )
+      mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'test-byok', isBYOK: true })
+      const output: NormalizedBlockOutput = { content: '' }
+      const writeUsage = () => {
+        output.tokens = { input: 2, output: 1, cacheRead: 4, total: 7 }
+        output.cost = { input: 2, output: 3, toolCost: 0.25, total: 5.25 }
+      }
+      const onFullContent = vi.fn()
+      const streaming: StreamingExecution = {
+        stream: new ReadableStream(
+          {
+            pull(controller) {
+              writeUsage()
+              if (exit === 'failed') controller.error(new Error('stream interrupted'))
+              else controller.close()
+            },
+            cancel: writeUsage,
+          },
+          { highWaterMark: 0 }
+        ),
+        onFullContent,
+        execution: {
+          success: true,
+          logs: [],
+          metadata: { startTime: '', duration: 0 },
+          output,
+        },
+      }
+      mockExecuteRequest.mockResolvedValueOnce(streaming)
+      const result = (await executeProviderRequest(
+        'openai',
+        { ...initialRequest, workspaceId: 'workspace-1', stream: true },
+        { agentConversation: session }
+      )) as StreamingExecution
+
+      expect(output.tokens).toMatchObject({ input: 7, output: 3, total: 10 })
+      expect(output.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+      if (exit === 'cancelled') await result.stream.cancel()
+      else if (exit === 'failed')
+        await expect(result.stream.getReader().read()).rejects.toThrow('stream interrupted')
+      else await expect(result.stream.getReader().read()).resolves.toMatchObject({ done: true })
+
+      expect(output.tokens).toMatchObject({ input: 9, output: 4, cacheRead: 4, total: 17 })
+      expect(output.cost).toMatchObject({ input: 0.4, output: 0.6, toolCost: 0.25, total: 1.25 })
+      expect({ ...output }.cost).toMatchObject({ total: 1.25 })
+      expect(output.cost).toMatchObject({ total: 1.25 })
+      expect(onFullContent).not.toHaveBeenCalled()
+    }
+  )
+
   it('does not replay pending tools after cancellation', async () => {
     const session = new AgentTurnStateMachine({ save: vi.fn() })
     mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {

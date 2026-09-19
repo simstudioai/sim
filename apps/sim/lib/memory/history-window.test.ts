@@ -96,6 +96,36 @@ describe('conversation history windows', () => {
     expect(selectConversationTokenWindow(pending.flat(), 1, undefined, pending)).toEqual(groups[1])
   })
 
+  it.each(['tool_calls', 'function_call'] as const)(
+    'counts legacy ungrouped %s arguments without changing plain-message token semantics',
+    (field) => {
+      const call = { name: 'lookup', arguments: JSON.stringify({ input: 'x'.repeat(1000) }) }
+      const assistant: Message = {
+        role: 'assistant',
+        content: '',
+        ...(field === 'tool_calls'
+          ? { tool_calls: [{ id: 'call', type: 'function' as const, function: call }] }
+          : { function_call: call }),
+      }
+      expect(selectConversationTokenWindow([assistant, ...final], 100)).toEqual(final)
+      expect(selectConversationTokenWindow([...user, ...final], 6)).toEqual(final)
+    }
+  )
+
+  it('counts legacy function arguments inside explicitly grouped history too', () => {
+    const group: Message[] = [
+      {
+        role: 'assistant',
+        content: '',
+        function_call: { name: 'lookup', arguments: JSON.stringify({ input: 'x'.repeat(1000) }) },
+      },
+      { role: 'function', name: 'lookup', content: 'result' },
+    ]
+    expect(
+      selectConversationTokenWindow([...group, ...final], 200, undefined, [group, final])
+    ).toEqual(final)
+  })
+
   it('applies model context bounds to complete groups', () => {
     const groups = [user, exchange('batch'), final]
     expect(selectConversationContextWindow(groups.flat(), 'small', groups)).toEqual(final)

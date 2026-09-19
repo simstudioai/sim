@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import {
   bindConversationGenerationCompactor,
+  bindConversationGenerationContextWindow,
   bindConversationGenerationPrompt,
   bindConversationGenerationSummary,
   inheritConversationGenerationContext,
@@ -277,6 +278,26 @@ describe('provider generation context boundary', () => {
       expect(input).not.toContain(optional)
       expect(JSON.stringify(batch)).toBe(originalBatch)
       for (const member of batch) expect(input).toContain(member)
+    }
+  )
+
+  it.each([
+    { contextWindow: 300, retained: false },
+    { contextWindow: 4000, retained: true },
+  ])(
+    'uses a bound runtime context window of $contextWindow without leaking metadata',
+    async ({ contextWindow, retained }) => {
+      state.historyTokens = 2000
+      const input = request('small')
+      bindConversationGenerationContextWindow(input, contextWindow)
+      const copied = inheritConversationGenerationContext(input, { ...input })
+      const optional = nativeText(fixtures[0], 'optional'.repeat(100))
+      const payload = { messages: [optional, fixtures[0].prompt] }
+      await prepareConversationGeneration(copied, 'chat-completions', payload)
+      expect(payload.messages.includes(optional)).toBe(retained)
+      expect(payload.messages).toContain(fixtures[0].prompt)
+      expect(Object.keys(payload)).toEqual(['messages'])
+      expect(Object.keys(copied)).not.toContain('contextWindow')
     }
   )
 

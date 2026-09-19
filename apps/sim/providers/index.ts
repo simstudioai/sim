@@ -420,29 +420,38 @@ export async function executeProviderRequest(
     projectStreamingExecutionToolIdentities(response, toolIdentities)
     if (priorConversationUsage) {
       const prior = priorConversationUsage
-      const onFullContent = response.onFullContent
-      let usageApplied = false
-      response.onFullContent = async (content) => {
-        await onFullContent?.(content)
-        if (usageApplied) return
-        usageApplied = true
-        const output = response.execution.output
+      const output = response.execution.output
+      let currentTokens = output.tokens
+      const costProperty = Object.getOwnPropertyDescriptor(output, 'cost')
+      let currentCost = output.cost
+      const projectUsage = () => {
         const projected = {
-          content,
-          model: sanitizedRequest.model,
-          tokens: output.tokens,
-          cost: output.cost,
+          tokens: currentTokens,
+          cost: costProperty?.get ? (costProperty.get.call(output) as ModelCost) : currentCost,
         }
         addPriorConversationUsage(projected, prior)
-        output.tokens = projected.tokens
-        /** Cost is already policy-projected; replace the accessor instead of applying policy twice. */
-        Object.defineProperty(output, 'cost', {
-          value: projected.cost,
-          writable: true,
+        return projected
+      }
+      /** Read-time totals survive cancellation and preserve the provider's late usage writes. */
+      Object.defineProperties(output, {
+        tokens: {
+          get: () => projectUsage().tokens,
+          set: (value: ProviderResponse['tokens']) => {
+            currentTokens = value
+          },
           configurable: true,
           enumerable: true,
-        })
-      }
+        },
+        cost: {
+          get: () => projectUsage().cost,
+          set: (value: ModelCost | undefined) => {
+            if (costProperty?.set) costProperty.set.call(output, value)
+            else currentCost = value
+          },
+          configurable: true,
+          enumerable: true,
+        },
+      })
     }
     return response
   }

@@ -1,7 +1,8 @@
 /** @vitest-environment node */
-import { memory, memoryItem } from '@sim/db/schema'
+import { memory, memoryItem, memorySecretProvenance } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import {
   appendAgentMemoryMessage,
   appendMemoryMessages,
@@ -63,5 +64,53 @@ describe('bounded conversation item writes', () => {
       expect.objectContaining({ data: { role: 'user', content: 'admitted' } }),
     ])
     expect(get).not.toHaveBeenCalled()
+  })
+})
+
+describe('untracked legacy appends', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('binds explicit unknown provenance to the updated JSON without declaring prior secrets public', async () => {
+    const prefix = [{ role: 'user', content: 'tracked content' }]
+    const message = { role: 'user', content: 'untracked append' }
+    const data = [...prefix, message]
+    queueTableRows(memory, [
+      { id: identity.memoryId, data: prefix, storageVersion: 1, secretProvenanceVersion: 1 },
+    ])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: identity.memoryId, data }])
+      .mockResolvedValueOnce([{ id: identity.memoryId }])
+    await writers.ordinary(message)
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(memorySecretProvenance)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memoryId: identity.memoryId,
+        contentHash: hashDurableSecretProvenanceValue(data),
+        status: 'unknown',
+        entries: [],
+      })
+    )
+    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ secretProvenanceVersion: 1 }),
+      })
+    )
+  })
+
+  it('keeps wholly untracked legacy conversations on their existing compatibility path', async () => {
+    queueTableRows(memory, [
+      { id: identity.memoryId, data: [], storageVersion: 1, secretProvenanceVersion: null },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: identity.memoryId, data: [] }])
+    await writers.ordinary({ role: 'user', content: 'public' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalledWith(memorySecretProvenance)
+    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ secretProvenanceVersion: null }),
+      })
+    )
   })
 })

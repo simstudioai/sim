@@ -12,21 +12,29 @@ const logger = createLogger('OpenRouterUtils')
 interface OpenRouterModelData {
   id: string
   supported_parameters?: string[]
+  context_length?: number
 }
 
 interface ModelCapabilities {
   supportsStructuredOutputs: boolean
   supportsTools: boolean
+  contextWindow?: number
 }
 
 let modelCapabilitiesCache: Map<string, ModelCapabilities> | null = null
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const MODEL_CAPABILITIES_TIMEOUT_MS = 5000
 
-async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>> {
+async function fetchModelCapabilities(
+  signal?: AbortSignal
+): Promise<Map<string, ModelCapabilities>> {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS)])
+        : AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS),
     })
 
     if (!response.ok) {
@@ -45,6 +53,11 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
       capabilities.set(model.id, {
         supportsStructuredOutputs: supportedParams.includes('structured_outputs'),
         supportsTools: supportedParams.includes('tools'),
+        ...(typeof model.context_length === 'number' &&
+        Number.isFinite(model.context_length) &&
+        model.context_length > 0
+          ? { contextWindow: model.context_length }
+          : {}),
       })
     }
 
@@ -57,6 +70,7 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
 
     return capabilities
   } catch (error) {
+    if (signal?.aborted) throw error
     logger.error('Error fetching OpenRouter model capabilities', {
       error: toError(error).message,
     })
@@ -69,15 +83,18 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
  * Fetches from API if cache is stale or empty.
  */
 export async function getOpenRouterModelCapabilities(
-  modelId: string
+  modelId: string,
+  signal?: AbortSignal
 ): Promise<ModelCapabilities | null> {
+  signal?.throwIfAborted()
   const now = Date.now()
 
   if (!modelCapabilitiesCache || now - cacheTimestamp > CACHE_TTL_MS) {
-    modelCapabilitiesCache = await fetchModelCapabilities()
+    modelCapabilitiesCache = await fetchModelCapabilities(signal)
     cacheTimestamp = now
   }
 
+  signal?.throwIfAborted()
   const normalizedId = modelId.replace(/^openrouter\//i, '')
   return modelCapabilitiesCache.get(normalizedId) ?? null
 }

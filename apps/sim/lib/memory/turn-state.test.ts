@@ -1,7 +1,11 @@
 /** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentTurnState, CapturedConversationStep } from '@/lib/memory/conversation-types'
-import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
+import type {
+  AgentTurnState,
+  CapturedConversationStep,
+  ConversationStep,
+} from '@/lib/memory/conversation-types'
+import { AgentTurnStateMachine, renderConversationStep } from '@/lib/memory/turn-state'
 import { getNativeConversationMessage } from '@/providers/conversation-metadata'
 
 function batch(ids: Array<string | undefined> = ['wire-1', 'wire-2']): CapturedConversationStep {
@@ -191,6 +195,43 @@ describe('Agent invocation continuation', () => {
     expect(session.getMessages('openai', 'model-a', 'binding-a')).toEqual([])
     expect(session.getFinalResponse()).toBeUndefined()
   })
+
+  it.each(['malformed arguments', 'unavailable history'])(
+    'bounds portable execution context for %s with a visible shortening notice',
+    (reason) => {
+      const step: ConversationStep = {
+        id: 'step',
+        assistant: { role: 'assistant', content: 'assistant text '.repeat(1000) },
+        calls: [
+          {
+            invocationId: 'invocation',
+            providerCallId: 'wire',
+            toolId: 'lookup',
+            arguments:
+              reason === 'malformed arguments'
+                ? 'invalid '.repeat(2000)
+                : JSON.stringify({ query: 'x'.repeat(20_000) }),
+          },
+        ],
+        results: [
+          {
+            invocationId: 'invocation',
+            rawResponse: { success: true, output: { private: 'raw-only' } },
+            modelResponse: { success: true, output: { value: 'result '.repeat(2000) } },
+          },
+        ],
+        ...(reason === 'unavailable history' ? { historyUnavailable: true } : {}),
+      }
+      const original = structuredClone(step)
+      const [message] = renderConversationStep(step)
+      expect(message.role).toBe('user')
+      expect(message.content!.length).toBeLessThanOrEqual(4096)
+      expect(message.content).toContain('execution record shortened')
+      expect(message.content).toContain('wire')
+      expect(message.content).not.toContain('raw-only')
+      expect(step).toEqual(original)
+    }
+  )
 
   it('preserves projected failure details without an artifact during continuation', async () => {
     const session = new AgentTurnStateMachine({ save: async () => {} })

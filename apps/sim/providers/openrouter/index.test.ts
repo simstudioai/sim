@@ -4,6 +4,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockConversationContext,
+  mockCapabilities,
   mockRecordUsage,
   mockCapture,
   mockCreate,
@@ -13,6 +15,8 @@ const {
   mockCheckForced,
   mockCreateStream,
 } = vi.hoisted(() => ({
+  mockConversationContext: vi.fn(),
+  mockCapabilities: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCapture: vi.fn(),
   mockCreate: vi.fn(),
@@ -37,7 +41,7 @@ vi.mock('openai', () => ({
 }))
 
 vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
+  getConversationRequestContext: mockConversationContext,
   captureProviderConversationStep: mockCapture,
   recordProviderConversationUsage: mockRecordUsage,
   recordProviderConversationToolError: vi.fn(),
@@ -48,6 +52,8 @@ vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 10 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 vi.mock('@/providers/models', () => ({
+  PROVIDER_DEFINITIONS: {},
+  getMaxOutputTokensForModel: () => 100,
   getProviderFileAttachment: vi
     .fn()
     .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
@@ -62,6 +68,7 @@ vi.mock('@/providers/attachments', () => ({
 
 vi.mock('@/providers/openrouter/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNative,
+  getOpenRouterModelCapabilities: mockCapabilities,
   createReadableStreamFromOpenAIStream: mockCreateStream,
   checkForForcedToolUsage: mockCheckForced,
 }))
@@ -156,6 +163,8 @@ const baseRequest: ProviderRequest = {
 describe('openRouterProvider.executeRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockConversationContext.mockReturnValue(undefined)
+    mockCapabilities.mockResolvedValue(null)
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockSupportsNative.mockResolvedValue(false)
@@ -163,6 +172,39 @@ describe('openRouterProvider.executeRequest', () => {
       new ReadableStream({ start: (controller) => controller.close() })
     )
   })
+
+  it.each([
+    { contextWindow: 512, historySize: 2000, retained: false },
+    { contextWindow: 128_000, historySize: 35_000, retained: true },
+  ])(
+    'budgets dynamic context $contextWindow from the existing capability cache',
+    async ({ contextWindow, historySize, retained }) => {
+      mockConversationContext.mockReturnValue({
+        agentConversation: {},
+        agentMemoryContext: { historyTokens: 64_000 },
+      })
+      mockCapabilities.mockResolvedValue({ contextWindow })
+      mockCreate.mockResolvedValueOnce(textResponse('done'))
+      const prior = { role: 'user' as const, content: 'x'.repeat(historySize) }
+      const prompt = { role: 'user' as const, content: 'Current task' }
+      const controller = new AbortController()
+      await openRouterProvider.executeRequest({
+        ...baseRequest,
+        model: 'openrouter/custom-model',
+        messages: [prior, prompt],
+        maxTokens: 32,
+        abortSignal: controller.signal,
+      })
+      expect(mockCapabilities).toHaveBeenCalledExactlyOnceWith(
+        'openrouter/custom-model',
+        controller.signal
+      )
+      const payload = mockCreate.mock.calls[0][0]
+      expect(payload.messages.includes(prior)).toBe(retained)
+      expect(payload.messages).toContain(prompt)
+      expect(payload).not.toHaveProperty('contextWindow')
+    }
+  )
 
   it.each([false, true])(
     'keeps capped decisions unexecuted and accounts usage when synthesis failure is %s',

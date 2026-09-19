@@ -208,6 +208,8 @@ export async function appendMemoryMessages(
             ? 'merge-provenance-limit'
             : undefined
       )
+    } else if (existing?.secretProvenanceVersion === 1) {
+      await replaceMemorySecretProvenanceInTx(tx, written.id, written.data, { status: 'unknown' })
     }
   })
 }
