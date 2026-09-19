@@ -647,12 +647,7 @@ export function FieldFormat({
           animated
           actions={
             <>
-              <Button
-                variant='ghost'
-                onClick={addField}
-                disabled={isReadOnly}
-                className='h-auto p-0'
-              >
+              <Button variant='ghost' onClick={addField} disabled={isReadOnly} size='icon'>
                 <Plus className='size-[14px]' />
                 <span className='sr-only'>Add {title}</span>
               </Button>
@@ -660,7 +655,8 @@ export function FieldFormat({
                 variant='ghost-destructive'
                 onClick={() => removeField(field.id)}
                 disabled={isReadOnly}
-                className='h-auto p-0 hover-hover:opacity-90'
+                size='icon'
+                className='hover-hover:opacity-90'
               >
                 <Trash className='size-[14px]' />
                 <span className='sr-only'>Delete Field</span>
