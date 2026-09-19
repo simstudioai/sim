@@ -81,6 +81,7 @@ export async function deferConnectorSync(input: {
               docsListed: input.result.docsListed,
               docsHydratedOnce: input.result.docsHydratedOnce,
               observationsAdded: input.result.observationsAdded,
+              observationsRenewed: input.result.observationsRenewed,
               observationsRemoved: input.result.observationsRemoved,
               docsTombstoned: input.result.docsTombstoned,
               docsResurrected: input.result.docsResurrected,

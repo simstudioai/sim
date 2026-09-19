@@ -6013,6 +6013,18 @@ export const knowledgeConnectorMember = pgTable(
     /** Authorization watermark: complete nonsuspect full listing or completely drained change feed. */
     memberSyncedThrough: timestamp('member_synced_through'),
     /**
+     * When every observation under the containers the source still grants this member
+     * was last renewed, for connectors that grant access per container; NULL until the
+     * first renewal completes.
+     */
+    scopeRenewedAt: timestamp('scope_renewed_at'),
+    /**
+     * Where an unfinished scope renewal resumes in the source's container listing,
+     * and when that renewal pass began; both NULL when no pass is in progress.
+     */
+    scopeRenewalCursor: text('scope_renewal_cursor'),
+    scopeRenewalStartedAt: timestamp('scope_renewal_started_at'),
+    /**
      * Where the member's change feed resumes. Opened just before a full listing
      * and stored once that listing lands, so every later run reads the feed
      * instead of relisting; NULL when the connector has no feed or the feed
@@ -6249,6 +6261,8 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
     docsHydratedOnce: integer('docs_hydrated_once').notNull().default(0),
     observationsAdded: integer('observations_added').notNull().default(0),
+    /** Observations kept fresh by per-container renewal rather than relisting. */
+    observationsRenewed: integer('observations_renewed').notNull().default(0),
     observationsRemoved: integer('observations_removed').notNull().default(0),
     docsTombstoned: integer('docs_tombstoned').notNull().default(0),
     docsResurrected: integer('docs_resurrected').notNull().default(0),
