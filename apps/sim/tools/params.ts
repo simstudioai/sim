@@ -659,6 +659,7 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'mcp-dynamic-args',
   'variables-input',
   'messages-input',
+  'model-fallback-list',
   'router-input',
   'text',
 ])

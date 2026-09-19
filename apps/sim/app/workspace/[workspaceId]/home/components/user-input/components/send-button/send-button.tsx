@@ -1,12 +1,8 @@
 'use client'
 
 import React from 'react'
-import { ArrowUp, Button, cn } from '@sim/emcn'
-import {
-  SEND_BUTTON_ACTIVE,
-  SEND_BUTTON_BASE,
-  SEND_BUTTON_DISABLED,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { ComposerActionButton } from '@sim/emcn'
+import { ArrowUp, StopFilled } from '@sim/emcn/icons'
 
 interface SendButtonProps {
   isSending: boolean
@@ -23,32 +19,23 @@ export const SendButton = React.memo(function SendButton({
 }: SendButtonProps) {
   if (isSending) {
     return (
-      <Button
+      <ComposerActionButton
         onClick={onStopGeneration}
-        variant='ghost'
-        className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
         title='Stop generation'
         aria-label='Stop generation'
       >
-        <svg
-          className='block h-[14px] w-[14px] fill-white dark:fill-black'
-          viewBox='0 0 24 24'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-        </svg>
-      </Button>
+        <StopFilled className='block h-[14px] w-[14px] fill-white dark:fill-black' />
+      </ComposerActionButton>
     )
   }
   return (
-    <Button
+    <ComposerActionButton
       onClick={onSubmit}
       aria-label='Send message'
-      variant='ghost'
       disabled={!canSubmit}
-      className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
+      active={canSubmit}
     >
       <ArrowUp className='block h-[16px] w-[16px] text-white dark:text-black' />
-    </Button>
+    </ComposerActionButton>
   )
 })

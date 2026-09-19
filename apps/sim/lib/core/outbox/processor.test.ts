@@ -37,7 +37,7 @@ vi.mock('@/lib/mothership/inbox/cleanup-outbox', () => ({ inboxCleanupOutboxHand
 vi.mock('@/lib/organizations/resource-cleanup', () => ({
   organizationResourceCleanupOutboxHandlers: {},
 }))
-vi.mock('@/lib/permission-access-requests/notifications', () => ({
+vi.mock('@/ee/access-requests/lib/notifications', () => ({
   permissionAccessRequestOutboxHandlers: {},
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({

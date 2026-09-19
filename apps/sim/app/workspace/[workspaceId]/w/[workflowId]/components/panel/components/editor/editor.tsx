@@ -607,6 +607,7 @@ export function Editor() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label='Open workflow'
                                   type='button'
                                   variant='ghost'
                                   onClick={handleOpenChildWorkflow}

@@ -15,6 +15,7 @@ import {
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
   FILE_SEARCH_CLEANUP_MIN_BATCH_MS,
+  FILE_SEARCH_INDEX_TRANSACTION_LIMITS,
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
 } from '@/lib/workspace-files/search/constants'
@@ -90,7 +91,7 @@ export async function beginFileSearchBuild(
   dispatchToken?: string
 ): Promise<FileSearchBuild | null> {
   return db.transaction(async (tx) => {
-    await configureFileSearchTransaction(tx)
+    await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     if (!(await lockCurrentFile(tx, revision))) return null
     const [observed] = await tx
       .select({
@@ -154,7 +155,7 @@ export async function appendFileSearchChunks(
     throw new Error('File search insert batch exceeds its budget')
   }
   return db.transaction(async (tx) => {
-    await configureFileSearchTransaction(tx)
+    await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     if (!(await lockBuild(tx, build))) return false
     signal.throwIfAborted()
     await tx
@@ -177,7 +178,7 @@ export async function publishFileSearchBuild(
   signal: AbortSignal
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
-    await configureFileSearchTransaction(tx)
+    await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     signal.throwIfAborted()
     if (!(await lockCurrentFile(tx, build)) || !(await lockBuild(tx, build))) return false
     if (publication.status === 'ready') {
@@ -216,7 +217,7 @@ export async function failFileSearchRevision(
   dispatchToken?: string
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    await configureFileSearchTransaction(tx)
+    await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     if (!(await lockCurrentFile(tx, revision))) return
     const [state] = await tx
       .select()

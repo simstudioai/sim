@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
+import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
+import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -31,6 +34,7 @@ const logger = createLogger('AgentBlock')
 
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
 const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
+
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
@@ -429,6 +433,7 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
       },
     },
+    getModelFallbackSubBlock(),
   ],
   tools: {
     access: [
@@ -448,7 +453,12 @@ Return ONLY the JSON array.`,
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
-        const baseParams = normalizedFiles ? { ...params, files: normalizedFiles } : params
+        const withFiles = normalizedFiles ? { ...params, files: normalizedFiles } : params
+        const fallbackModels = normalizeFallbackModels(params.fallbackModels)
+        const baseParams =
+          fallbackModels.length > 0
+            ? { ...withFiles, fallbackModels }
+            : omit(withFiles, ['fallbackModels'])
 
         // If tools array is provided, handle tool usage control
         if (params.tools && Array.isArray(params.tools)) {
@@ -586,6 +596,7 @@ Return ONLY the JSON array.`,
       type: 'boolean',
       description: 'Cache the system prompt and tool definitions on models that support it',
     },
+    ...MODEL_FALLBACK_INPUTS,
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
   },

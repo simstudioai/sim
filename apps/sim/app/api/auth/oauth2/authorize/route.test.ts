@@ -27,8 +27,12 @@ const mocks = vi.hoisted(() => ({
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
   getCanonicalScopes: vi.fn(),
+  isPubliclyRegistered: vi.fn(),
 }))
 
+vi.mock('@/lib/auth/oauth-client-registration', () => ({
+  isPubliclyRegisteredOAuthClient: mocks.isPubliclyRegistered,
+}))
 vi.mock('better-auth/next-js', () => ({
   toNextJsHandler: () => ({ GET: mocks.betterAuthGET }),
 }))
@@ -96,6 +100,7 @@ describe('OAuth2 authorize route', () => {
     resetDbChainMock()
     setEnvFlags({ isAuthDisabled: false })
     mocks.getBaseUrl.mockReturnValue(BASE_URL)
+    mocks.isPubliclyRegistered.mockResolvedValue(false)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -180,6 +185,79 @@ describe('OAuth2 authorize route', () => {
       req.nextUrl.searchParams.get('resource')
     )
     expect(req.nextUrl.searchParams.get('scope')).toContain('api:write')
+  })
+
+  it('binds a publicly registered client Sim API grant to the Sim MCP server', async () => {
+    mocks.isPubliclyRegistered.mockResolvedValue(true)
+    const unbound = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'api:write offline_access',
+      })
+    )
+    expect(unbound.status).toBe(400)
+    expect(mocks.isPubliclyRegistered).toHaveBeenCalledWith('mcp-client')
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+
+    const bound = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'api:write offline_access',
+        resource: `${BASE_URL}/api/mcp`,
+      })
+    )
+    expect(bound.status).toBe(302)
+  })
+
+  it('lets an operator-created client request the Sim API without a resource', async () => {
+    const response = await GET(
+      request({
+        client_id: 'sim-cli',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'api:write offline_access',
+      })
+    )
+    expect(response.status).toBe(302)
+    expect(mocks.isPubliclyRegistered).toHaveBeenCalledWith('sim-cli')
+  })
+
+  it('narrows issuer-wide scope requests to the Sim API for the Sim MCP server', async () => {
+    const req = request({
+      client_id: 'mcp-client',
+      response_type: 'code',
+      redirect_uri: 'https://client.example/callback',
+      scope: 'offline_access api:read api:write search:read',
+      resource: `${BASE_URL}/api/mcp`,
+    })
+    expect((await GET(req)).status).toBe(302)
+    const forwarded: Request = mocks.betterAuthGET.mock.calls[0][0]
+    expect(new URL(forwarded.url).searchParams.get('scope')).toBe(
+      'api:read api:write offline_access'
+    )
+    expect(new URL(forwarded.url).searchParams.get('resource')).toBe(`${BASE_URL}/api/mcp`)
+  })
+
+  it.each([
+    { scope: 'search:read offline_access', resource: `${BASE_URL}/api/mcp` },
+    { scope: 'offline_access', resource: `${BASE_URL}/api/mcp` },
+    { scope: 'api:read unknown', resource: `${BASE_URL}/api/mcp` },
+    { scope: 'api:read', resource: `${BASE_URL}/api/mcp/` },
+  ])('refuses Sim MCP grants without Sim API scope: %o', async (params) => {
+    const response = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        ...params,
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
   it('forwards a provider request without entering the connector flow', async () => {

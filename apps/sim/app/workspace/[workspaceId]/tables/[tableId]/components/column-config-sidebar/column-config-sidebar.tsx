@@ -269,7 +269,8 @@ function ColumnConfigBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='size-7 p-1!'
+          iconPadding='sm'
+          className='size-7'
           aria-label='Close'
         >
           <X className='size-[14px]' />

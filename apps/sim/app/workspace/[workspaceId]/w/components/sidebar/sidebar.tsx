@@ -39,7 +39,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { useWorkspaceAccessRequestFeatures } from '@/components/access-requests/permission-access-boundary'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
@@ -119,6 +118,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
@@ -1646,6 +1646,7 @@ export const Sidebar = memo(function Sidebar() {
                                 <Tooltip.Trigger asChild>
                                   <DropdownMenuTrigger asChild>
                                     <Button
+                                      aria-label='More actions'
                                       variant='quiet'
                                       size='icon'
                                       disabled={!permissionsLoading && !canEdit}
@@ -1686,6 +1687,9 @@ export const Sidebar = memo(function Sidebar() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label={
+                                    isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'
+                                  }
                                   variant='quiet'
                                   size='icon'
                                   onClick={handleCreateWorkflow}

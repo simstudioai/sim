@@ -20,12 +20,12 @@ import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/docum
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
 import { inboxCleanupOutboxHandlers } from '@/lib/mothership/inbox/cleanup-outbox'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
-import { permissionAccessRequestOutboxHandlers } from '@/lib/permission-access-requests/notifications'
 import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
+import { permissionAccessRequestOutboxHandlers } from '@/ee/access-requests/lib/notifications'
 import { forkContentOutboxHandlers } from '@/ee/workspace-forking/application/content-outbox'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 

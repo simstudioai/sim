@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Badge, Button, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, Paperclip, X } from '@sim/emcn/icons'
+import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -222,6 +222,7 @@ export const ChatInput: React.FC<{
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label='Attach files'
                     variant='quiet'
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachedFiles.length >= 15}
@@ -257,13 +258,7 @@ export const ChatInput: React.FC<{
                   className='size-[28px] rounded-full p-0'
                   aria-label='Stop generation'
                 >
-                  <svg
-                    className='block size-[14px] fill-current'
-                    viewBox='0 0 24 24'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-                  </svg>
+                  <StopFilled className='block size-[14px] fill-current' />
                 </Button>
               ) : (
                 <Button

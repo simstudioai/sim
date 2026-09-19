@@ -3,14 +3,14 @@ import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSearchParamsCache, createSerializer } from 'nuqs/server'
-import { AccessRequestsLoading } from '@/components/access-requests/access-requests-loading'
-import { MyAccessRequests } from '@/components/access-requests/my-access-requests'
-import { OrganizationAccessRequests } from '@/components/access-requests/organization-access-requests'
-import { accessRequestEntrySearchParams } from '@/components/access-requests/search-params'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { getSession } from '@/lib/auth'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
+import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
+import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
+import { accessRequestEntrySearchParams } from '@/ee/access-requests/components/search-params'
 
 export const metadata: Metadata = {
   title: 'Access requests',

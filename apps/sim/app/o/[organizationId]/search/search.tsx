@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  ComposerActionButton,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ArrowUp, Search } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -24,11 +30,6 @@ import {
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useVoiceInput } from '@/hooks/use-voice-input'
-
-const SUBMIT_BUTTON_BASE = 'size-[28px] shrink-0 rounded-full border-0 p-0 transition-colors'
-const SUBMIT_BUTTON_ACTIVE =
-  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-const SUBMIT_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 interface SearchFieldProps {
   initialValue: string
@@ -98,19 +99,16 @@ function SearchField({
             onToggle={voice.toggleListening}
           />
         )}
-        <Button
+        <ComposerActionButton
           type='button'
-          variant='ghost'
           onClick={() => onSubmit(value)}
           disabled={!canSubmit}
           aria-label='Search'
-          className={cn(
-            SUBMIT_BUTTON_BASE,
-            canSubmit ? SUBMIT_BUTTON_ACTIVE : SUBMIT_BUTTON_DISABLED
-          )}
+          active={canSubmit}
+          className='shrink-0'
         >
           <ArrowUp className='block size-[16px] text-white dark:text-black' />
-        </Button>
+        </ComposerActionButton>
       </div>
       <MicrophonePermissionHelp
         open={voice.permissionHelpOpen}

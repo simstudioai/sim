@@ -28,6 +28,7 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
+  | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
   | 'usage_recording'
@@ -89,6 +90,14 @@ export interface SearchDiagnosticMetadata {
   vectorCandidateLimit?: number
   /** Visible documents the tractability probe enumerated, capped at its own document limit. */
   vectorProbeDocumentCount?: number
+  /**
+   * Whether a user-scoped search resolved its permitted documents before retrieval: `bounded`
+   * ranks inside that set, `unbounded` means it exceeded the probe's limit and both legs search
+   * the index with the access predicate applied per candidate.
+   */
+  permittedDocuments?: 'bounded' | 'unbounded'
+  /** Documents in a bounded permitted set. */
+  permittedDocumentCount?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number

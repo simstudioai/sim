@@ -9,6 +9,7 @@ import {
   ChipLink,
   ChipModalField,
   type ComboboxOption,
+  Tooltip,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -159,22 +160,27 @@ export function ConnectorAccessField({
       hint={
         canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
-          : lockAccessMode
-            ? 'Add a new connection to change the sync method.'
-            : value.accessMode === 'workspace'
-              ? 'Everyone in this workspace can search these documents.'
-              : undefined
+          : value.accessMode === 'workspace'
+            ? 'Everyone in this workspace can search these documents.'
+            : undefined
       }
     >
       <div className='flex flex-col gap-2'>
         {slackSetupOnly ? null : lockAccessMode ? (
-          <ChipDropdown
-            aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
-            value={value.accessMode}
-            options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
-            disabled
-            className='w-fit'
-          />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild tabIndex={0}>
+              <span className='inline-flex w-fit cursor-not-allowed'>
+                <ChipDropdown
+                  aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
+                  value={value.accessMode}
+                  options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
+                  disabled
+                  className='pointer-events-none w-fit'
+                />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Add a new connection to change the sync method.</Tooltip.Content>
+          </Tooltip.Root>
         ) : showModeSelector ? (
           <ChipButtonGroup
             value={value.accessMode}

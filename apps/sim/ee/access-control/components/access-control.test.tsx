@@ -32,7 +32,7 @@ vi.mock('nuqs', () => ({
   useQueryState: () => [null, vi.fn()],
   useQueryStates: () => [{ 'access-view': 'groups' }, vi.fn()],
 }))
-vi.mock('@/components/access-requests/organization-access-requests', () => ({
+vi.mock('@/ee/access-requests/components/organization-access-requests', () => ({
   OrganizationAccessRequests: () => null,
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({

@@ -50,10 +50,10 @@ import {
   OAUTH_ACCESS_TOKEN_PREFIX,
   OAUTH_ACCESS_TOKEN_TTL_SECONDS,
   OAUTH_CODE_TTL_SECONDS,
+  OAUTH_PUBLIC_REGISTRATION_SCOPES,
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_REFRESH_TOKEN_TTL_SECONDS,
   OAUTH_SCOPES,
-  OAUTH_SEARCH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
 import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
@@ -1288,7 +1288,10 @@ export const auth = betterAuth({
      * earlier rotation. This is an OAuth API-authorization surface, not an
      * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
      * ID-token semantics out of the advertised protocol. Public registration
-     * is limited to read-only Search clients; other clients are operator-created.
+     * serves MCP clients: a registered client may request the Sim API and
+     * Search families, every grant is consented to, and a grant bound to an MCP
+     * resource is narrowed to the family that resource allows (see
+     * `oauth-resource.ts`). First-party clients are operator-created.
      */
     ...(!isAuthDisabled
       ? [
@@ -1306,8 +1309,8 @@ export const auth = betterAuth({
             allowPublicClientPrelogin: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,
-            clientRegistrationAllowedScopes: [...OAUTH_SEARCH_SCOPES],
-            clientRegistrationDefaultScopes: [...OAUTH_SEARCH_SCOPES],
+            clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
+            clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
             customTokenResponseFields: bindOAuthIssuedResource,
             /**
              * Client-management endpoints remain operator-only. Public registration

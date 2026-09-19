@@ -187,6 +187,14 @@ describe('connector settings service-account choices', () => {
     })
   }
 
+  it('announces blocked saves without showing persistent helper text', async () => {
+    const reason = 'Wait for the current sync to finish before saving.'
+    await render(confluenceConnectorMeta, { saveBlockedReason: reason })
+    const status = container.querySelector('[role="status"]')
+    expect(status).toHaveClass('sr-only')
+    expect(status).toHaveTextContent(reason)
+  })
+
   async function openAccountChoices() {
     const dropdown = container.querySelector<HTMLElement>('[role="combobox"]')
     if (!dropdown) throw new Error('Missing indexing-account selector')
@@ -338,7 +346,7 @@ describe('connector settings service-account choices', () => {
   it.each([true, false])(
     'locks the sync method only for Search settings (%s)',
     async (isSearchIndex) => {
-      await render(confluenceConnectorMeta, { isSearchIndex })
+      await render(confluenceConnectorMeta, { isSearchIndex, needsWorkspaceCredential: false })
       expect(mocks.accessField).toHaveBeenLastCalledWith(
         expect.objectContaining({ lockAccessMode: isSearchIndex })
       )
@@ -499,6 +507,35 @@ describe('connector settings service-account choices', () => {
         },
       })
     )
+  })
+
+  it('browses spaces with the draft replacement account without a separate save action', async () => {
+    mocks.renderConfigFields = true
+    mocks.credentials = [
+      {
+        id: 'replacement',
+        name: 'Updated account',
+        provider: 'confluence',
+        type: 'service_account',
+      },
+    ]
+    await render(confluenceConnectorMeta, {
+      credentialId: 'previous',
+      workspaceCredentialId: 'replacement',
+      accessModeChanged: false,
+      sourceConfig: { domain: 'https://example.atlassian.net', spaceKey: ['ENG'] },
+      isFieldVisible: (field) => field.id === 'spaceSelector',
+    })
+
+    expect(mocks.selectorOptions).toHaveBeenLastCalledWith(
+      'confluence.spaces',
+      expect.objectContaining({
+        context: expect.objectContaining({ oauthCredential: 'replacement' }),
+      })
+    )
+    expect(mocks.accessField).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('Change service account')
+    expect(container.textContent).not.toContain('Cancel')
   })
 
   it.each([

@@ -119,7 +119,7 @@ describe('knowledge processing worker', () => {
       }
       return value
     })
-    mockProcessDocumentAsync.mockResolvedValue(undefined)
+    mockProcessDocumentAsync.mockResolvedValue({ outcome: 'indexed' })
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
   })
@@ -127,6 +127,27 @@ describe('knowledge processing worker', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
+
+  it('reports indexed only when the document service committed the index', async () => {
+    expect(await runDocumentProcessing(WORKSPACE_PAYLOAD)).toMatchObject({
+      success: true,
+      outcome: 'indexed',
+      documentId: WORKSPACE_PAYLOAD.documentId,
+    })
+  })
+
+  it.each(['unavailable', 'not_claimed', 'superseded'] as const)(
+    'reports a harmless %s skip without turning it into a task failure or an indexed success',
+    async (reason) => {
+      mockProcessDocumentAsync.mockResolvedValue({ outcome: 'skipped', reason })
+      expect(await runDocumentProcessing(WORKSPACE_PAYLOAD)).toMatchObject({
+        success: false,
+        outcome: 'skipped',
+        reason,
+      })
+      expect(mockTrigger).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects workspace work without attribution before document processing starts', async () => {
     await expect(

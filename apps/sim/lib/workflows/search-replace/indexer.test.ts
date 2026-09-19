@@ -1384,6 +1384,11 @@ describe('indexWorkflowSearchMatches', () => {
           type: 'input-mapping',
           value: { childInput: 'mapped visible value' },
         },
+        fallbackModels: {
+          id: 'fallbackModels',
+          type: 'model-fallback-list',
+          value: [{ id: 'row-1', model: 'fallback-visible-model', apiKey: '{{HIDDEN_KEY_REF}}' }],
+        },
       },
     }
     const blockConfigs = {
@@ -1396,6 +1401,7 @@ describe('indexWorkflowSearchMatches', () => {
           { id: 'skills', title: 'Skills', type: 'skill-input' },
           { id: 'runAt', title: 'Run At', type: 'time-input' },
           { id: 'mapping', title: 'Input Mapping', type: 'input-mapping' },
+          { id: 'fallbackModels', title: 'Fallback models', type: 'model-fallback-list' },
         ],
       },
     }
@@ -1430,7 +1436,28 @@ describe('indexWorkflowSearchMatches', () => {
       mode: 'text',
       blockConfigs,
     }).filter((match) => match.blockId === 'structured-1')
+    const fallbackMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'fallback-visible',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
 
+    expect(fallbackMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'fallbackModels',
+        valuePath: [0, 'model'],
+        searchText: 'fallback-visible-model',
+      }),
+    ])
+    /** A row key is a `{{VAR}}` reference; text search must never offer to rewrite it. */
+    const keyMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'HIDDEN_KEY_REF',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    expect(keyMatches).toEqual([])
     expect(containsMatches).toEqual([
       expect.objectContaining({
         subBlockId: 'filters',

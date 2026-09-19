@@ -23,6 +23,12 @@ const mocks = vi.hoisted(() => ({
   rewriteAcls: vi.fn(),
 }))
 
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    google_drive: { configFields: [], permissionScopedListing: { capFieldIds: [] } },
+  },
+}))
+
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   rewriteConnectorAcls: mocks.rewriteAcls,
 }))
@@ -99,6 +105,7 @@ const WORKSPACE_CONNECTOR = {
   status: 'active',
   syncLockToken: null,
   memberSyncLockToken: null,
+  updatedAt: new Date('2026-09-01T00:00:00Z'),
 }
 
 const MEMBERS_CONNECTOR = {
@@ -486,7 +493,7 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
   })
 
   it('changes a workspace credential without the lease, drops the watermark, and queues a full sync', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [
+    dbChainMockFns.limit.mockResolvedValue([
       { ...WORKSPACE_CONNECTOR, lastSyncAt: new Date('2026-08-01T00:00:00Z') },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([
@@ -525,6 +532,68 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(mocks.revoke).not.toHaveBeenCalled()
   })
 
+  it('commits the replacement account and source settings in one write', async () => {
+    const sourceConfig = { folderId: ['f-2'] }
+    dbChainMockFns.limit.mockResolvedValue([WORKSPACE_CONNECTOR])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...WORKSPACE_CONNECTOR, credentialId: 'cred-2', sourceConfig, syncIntervalMinutes: 1440 },
+    ])
+    const outcome = await performUpdateKnowledgeConnectorAccess({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      target: { accessMode: 'workspace', credentialId: 'cred-2' },
+      sourceConfig,
+      syncIntervalMinutes: 1440,
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({ success: true, changed: true })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(setCallWith('credentialId')).toMatchObject({
+      credentialId: 'cred-2',
+      sourceConfig,
+      syncIntervalMinutes: 1440,
+      lastSyncAt: null,
+      listingCheckpoint: null,
+      directoryCheckpoint: null,
+    })
+    expect(mocks.dispatchSync).toHaveBeenCalledOnce()
+  })
+
+  it('rejects the complete save if a sync starts during validation', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'syncing' }])
+    const outcome = await performUpdateKnowledgeConnectorAccess({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      target: { accessMode: 'workspace', credentialId: 'cred-2' },
+      sourceConfig: { folderId: ['f-2'] },
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.dispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('keeps a committed account replacement successful when sync dispatch fails', async () => {
+    dbChainMockFns.limit.mockResolvedValue([WORKSPACE_CONNECTOR])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...WORKSPACE_CONNECTOR, credentialId: 'cred-2' },
+    ])
+    mocks.dispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
+
+    expect(outcome).toMatchObject({
+      success: true,
+      changed: true,
+      connector: { credentialId: 'cred-2' },
+    })
+    expect(setCallWith('credentialId')).toMatchObject({ nextSyncAt: expect.any(Date) })
+    expect(mocks.dispatchSync).toHaveBeenCalledOnce()
+  })
+
   it('refuses a credential change while a sync owns the connector', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
     queueTableRows(schemaMock.knowledgeConnector, [
@@ -543,7 +612,7 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
   })
 
   it('changes the credential of a paused connector without queuing a sync', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
+    dbChainMockFns.limit.mockResolvedValue([{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { ...WORKSPACE_CONNECTOR, status: 'paused', credentialId: 'cred-2' },
     ])
@@ -576,7 +645,7 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
         listingCheckpoint: { pageToken: 'old-listing' },
         directoryCheckpoint: { pageToken: 'old-directory' },
       }
-      queueTableRows(schemaMock.knowledgeConnector, [disabled])
+      dbChainMockFns.limit.mockResolvedValue([disabled])
       dbChainMockFns.returning.mockResolvedValueOnce([
         { ...disabled, credentialId: 'cred-2', lastSyncAt: null },
       ])
@@ -603,16 +672,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
         updatedAt: expect.any(Date),
       })
       const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-      expect(
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'inArray' &&
-            node.column === schemaMock.knowledgeConnector.status &&
-            Array.isArray(node.values) &&
-            node.values.includes('disabled')
-        )
-      ).toBe(true)
       for (const [column, value] of [
         [schemaMock.knowledgeConnector.id, 'c-1'],
         [schemaMock.knowledgeConnector.knowledgeBaseId, 'kb-1'],
@@ -662,7 +721,7 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       error: 'Sync already in progress',
       errorCode: 'conflict',
     })
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.dispatchSync).not.toHaveBeenCalled()
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })

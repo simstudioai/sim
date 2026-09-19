@@ -80,6 +80,14 @@ vi.mock('@sim/emcn', () => ({
     <button {...props}>{children}</button>
   ),
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
+  ComposerActionButton: ({
+    children,
+    size: _size,
+    active: _active,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; active?: boolean }) => (
+    <button {...props}>{children}</button>
+  ),
   Input: ({
     ref,
     className: _className,

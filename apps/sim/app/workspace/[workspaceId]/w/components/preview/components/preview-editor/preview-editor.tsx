@@ -1068,7 +1068,13 @@ function PreviewEditorContent({
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
-            <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+            <Button
+              aria-label='Close preview'
+              variant='ghost'
+              iconPadding='sm'
+              className='shrink-0'
+              onClick={onClose}
+            >
               <X className='size-[14px]' />
             </Button>
           )}
@@ -1155,7 +1161,13 @@ function PreviewEditorContent({
           className='flex-1 text-[var(--text-primary)] text-sm'
         />
         {onClose && (
-          <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+          <Button
+            aria-label='Close preview'
+            variant='ghost'
+            iconPadding='sm'
+            className='shrink-0'
+            onClick={onClose}
+          >
             <X className='size-[14px]' />
           </Button>
         )}
@@ -1224,6 +1236,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1246,6 +1259,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1296,6 +1310,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1318,6 +1333,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1374,6 +1390,11 @@ function PreviewEditorContent({
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
+                              aria-label={
+                                isExecutionMode && onDrillDown
+                                  ? 'Expand workflow'
+                                  : 'Open in new tab'
+                              }
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
@@ -1497,7 +1518,7 @@ function PreviewEditorContent({
           </span>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToPreviousMatch}
             disabled={matchCount === 0}
             aria-label='Previous match'
@@ -1506,14 +1527,14 @@ function PreviewEditorContent({
           </Button>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToNextMatch}
             disabled={matchCount === 0}
             aria-label='Next match'
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='p-1!' onClick={closeSearch} aria-label='Close search'>
+          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
             <X className='size-[12px]' />
           </Button>
         </div>

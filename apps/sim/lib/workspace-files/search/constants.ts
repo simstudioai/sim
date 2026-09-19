@@ -46,7 +46,15 @@ export const FILE_SEARCH_CLEANUP_MIN_BATCH_MS =
   FILE_SEARCH_CLEANUP_BUDGET_MS / FILE_SEARCH_CLEANUP_MAX_BATCHES
 export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
-export const FILE_SEARCH_INSERT_BATCH_BYTES = 1024 * 1024
+/** Direct GIN writes perform index work in each insert, so transactions use smaller byte batches. */
+export const FILE_SEARCH_INSERT_BATCH_BYTES = 128 * 1024
+
+/** Index writes allow statement cancellation before the outer transaction terminates its session. */
+export const FILE_SEARCH_INDEX_TRANSACTION_LIMITS = {
+  statementTimeout: 10 * 1000,
+  lockTimeout: 5 * 1000,
+  transactionTimeout: 30 * 1000,
+} as const
 
 export const FILE_SEARCH_INDEX_GLOBAL_CONCURRENCY = 10
 export const FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING = 2

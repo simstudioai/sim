@@ -242,10 +242,11 @@ export function GeneralDeploy({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label='See preview'
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='size-[14px]' />
                     </Button>

@@ -243,24 +243,14 @@ export function TableFilter({
         ))}
 
         <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={handleAdd}
-            className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-          >
+          <Button variant='ghost' size='sm' onClick={handleAdd} className='px-2 text-xs'>
             <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
           {!autoApply && (
             <div className='flex items-center gap-1.5'>
               {filter !== null && (
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={handleClear}
-                  className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-                >
+                <Button variant='ghost' size='sm' onClick={handleClear} className='px-2 text-xs'>
                   Clear filters
                 </Button>
               )}
@@ -392,7 +382,8 @@ const FilterRuleRow = memo(function FilterRuleRow({
         variant='ghost'
         size='sm'
         onClick={() => onRemove(rule.id)}
-        className='size-7 shrink-0 p-1!'
+        iconPadding='sm'
+        className='size-7 shrink-0'
         aria-label='Remove filter'
       >
         <X className='size-[12px]' />

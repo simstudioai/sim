@@ -2,8 +2,7 @@
 
 import type { ComponentType } from 'react'
 import {
-  Button,
-  chipFilledFillTokens,
+  BulkActionButton,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +15,6 @@ import { Download } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
-/** Shared chrome for every action button, so the bar reads as one control strip. */
-const ACTION_BUTTON_CLASS = cn(
-  chipFilledFillTokens,
-  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-)
-
 interface ActionButtonProps {
   icon: ComponentType<{ className?: string }>
   label: string
@@ -33,14 +26,9 @@ function ActionButton({ icon: Icon, label, onClick, disabled }: ActionButtonProp
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
-          variant='ghost'
-          onClick={onClick}
-          disabled={disabled}
-          className={ACTION_BUTTON_CLASS}
-        >
+        <BulkActionButton aria-label={label} onClick={onClick} disabled={disabled}>
           <Icon className='size-[12px]' />
-        </Button>
+        </BulkActionButton>
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>{label}</Tooltip.Content>
     </Tooltip.Root>
@@ -128,13 +116,9 @@ export function ResourceActionBar({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      disabled={actionsDisabled}
-                      className={ACTION_BUTTON_CLASS}
-                    >
+                    <BulkActionButton aria-label='Move' disabled={actionsDisabled}>
                       <Folder className='size-[12px]' />
-                    </Button>
+                    </BulkActionButton>
                   </DropdownMenuTrigger>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Move</Tooltip.Content>

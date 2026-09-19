@@ -2,14 +2,17 @@
  * @vitest-environment node
  */
 import { createEnvMock } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({ NEXT_PUBLIC_APP_URL: 'https://app.sim.test' })
+  createEnvMock({
+    NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
+    SIM_MCP_URL: 'https://mcp.sim.test/mcp',
+  })
 )
 
-import { resolveApiCorsPolicy } from '@/proxy'
+import { proxy, resolveApiCorsPolicy } from '@/proxy'
 
 const EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
@@ -213,5 +216,39 @@ describe('resolveApiCorsPolicy', () => {
         expect(policy.credentials).toBe(false)
       }
     }
+  })
+})
+
+describe('proxy on the dedicated MCP host', () => {
+  function mcpRequest(pathname: string, method = 'POST') {
+    return new NextRequest(`https://mcp.sim.test${pathname}`, {
+      method,
+      headers: { host: 'mcp.sim.test', origin: 'https://app.sim.test' },
+    })
+  }
+
+  it('answers the endpoint preflight with the API CORS policy', () => {
+    const response = proxy(mcpRequest('/mcp', 'OPTIONS'))
+    expect(response.status).toBe(204)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://app.sim.test')
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization')
+  })
+
+  it('rewrites the endpoint to the MCP route with the same CORS headers', () => {
+    const response = proxy(mcpRequest('/mcp'))
+    expect(response.headers.get('x-middleware-rewrite')).toBe('https://mcp.sim.test/api/mcp')
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://app.sim.test')
+  })
+
+  it('leaves the metadata rewrite to its own wildcard CORS', () => {
+    const response = proxy(mcpRequest('/.well-known/oauth-protected-resource/mcp', 'GET'))
+    expect(response.headers.get('x-middleware-rewrite')).toBe(
+      'https://mcp.sim.test/.well-known/oauth-protected-resource/api/mcp'
+    )
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+  })
+
+  it('serves nothing else on the MCP host', () => {
+    expect(proxy(mcpRequest('/login', 'GET')).status).toBe(404)
   })
 })

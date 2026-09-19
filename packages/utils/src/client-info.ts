@@ -27,8 +27,11 @@
 
 export const CLIENT_INFO_HEADER = 'x-sim-client-info'
 
-/** The official Sim clients, as they name themselves on the wire. */
-export const SIM_SURFACES = ['web', 'desktop', 'cli', 'sdk-js', 'sdk-python'] as const
+/**
+ * The official Sim clients, as they name themselves on the wire. `mcp` is the
+ * Sim MCP server, which declares itself on each v2 request it dispatches.
+ */
+export const SIM_SURFACES = ['web', 'desktop', 'cli', 'sdk-js', 'sdk-python', 'mcp'] as const
 
 export type SimSurface = (typeof SIM_SURFACES)[number]
 

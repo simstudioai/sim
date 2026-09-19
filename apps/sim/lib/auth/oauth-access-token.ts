@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthClient, user } from '@sim/db/schema'
@@ -74,6 +75,30 @@ export interface OAuthAccessTokenOptions {
   resource?: string
   /** Search MCP also accepts existing full-API grants; Search-only tokens still need an audience. */
   allowUnboundApiTokens?: boolean
+}
+
+const audience = new AsyncLocalStorage<OAuthAccessTokenOptions>()
+
+/**
+ * Runs `work` with v2 bearer tokens verified against `options` rather than the
+ * unbound API audience.
+ *
+ * The Sim MCP server dispatches each tool call to its v2 route handler
+ * in-process, and those handlers authenticate the request themselves. This is
+ * how they accept a token bound to the MCP server — the same audience the MCP
+ * endpoint already verified — without the REST API accepting MCP tokens from
+ * anyone else. Only server code can set it; no request input reaches it.
+ */
+export function withOAuthAccessTokenAudience<T>(
+  options: OAuthAccessTokenOptions,
+  work: () => Promise<T>
+): Promise<T> {
+  return audience.run(options, work)
+}
+
+/** The audience set by {@link withOAuthAccessTokenAudience}, or the unbound API audience. */
+export function getOAuthAccessTokenAudience(): OAuthAccessTokenOptions {
+  return audience.getStore() ?? {}
 }
 
 /**

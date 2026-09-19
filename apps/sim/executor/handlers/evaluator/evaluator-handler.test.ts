@@ -160,6 +160,53 @@ describe('EvaluatorBlockHandler', () => {
     apiKey: 'test-api-key',
   }
 
+  it('preserves metric scores and Auto routing cost when a fallback answers', async () => {
+    mockGetProviderFromModel.mockImplementation((model: string) =>
+      model.startsWith('claude') ? 'anthropic' : 'fireworks'
+    )
+    mockExecuteProviderRequest
+      .mockRejectedValueOnce(new Error('overloaded'))
+      .mockResolvedValueOnce({
+        content: '{"score1":7}',
+        model: 'claude-sonnet-5',
+        tokens: { input: 12, output: 3, total: 15 },
+        cost: { input: 0.003, output: 0.001, total: 0.004 },
+      })
+    const output = await handler.execute(mockContext, mockBlock, {
+      ...admissionInputs,
+      model: 'sim-auto',
+      fallbackModels: [{ model: 'claude-sonnet-5' }],
+    })
+    expect(output).toMatchObject({
+      content: admissionInputs.content,
+      model: 'claude-sonnet-5',
+      score1: 7,
+      tokens: { total: 15 },
+      cost: { total: 0.006 },
+    })
+    const first = mockExecuteProviderRequest.mock.calls[0][1]
+    const fallback = mockExecuteProviderRequest.mock.calls[1][1]
+    expect(fallback.responseFormat).toEqual(first.responseFormat)
+    expect(fallback.systemPrompt).not.toContain('Sim auto system preamble')
+    expect(fallback.apiKey).toBeUndefined()
+  })
+
+  it('forwards retry metadata so fallbacks wait for the final primary attempt', async () => {
+    mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+    await expect(
+      handler.execute(
+        mockContext,
+        mockBlock,
+        {
+          ...admissionInputs,
+          fallbackModels: [{ model: 'claude-sonnet-5' }],
+        },
+        { nodeId: mockBlock.id, retry: { attempt: 1, maxTries: 2, isFinalTry: false } }
+      )
+    ).rejects.toThrow('overloaded')
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses to reach the provider without an execution subject', async () => {
     mockContext.userId = undefined
 

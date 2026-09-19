@@ -804,7 +804,7 @@ describe('performUpdateKnowledgeConnector', () => {
     })
   })
 
-  it('reports a queue failure and leaves the source sync due for retry', async () => {
+  it('returns the committed settings and leaves the source sync due when dispatch fails', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'conn-1',
@@ -833,9 +833,8 @@ describe('performUpdateKnowledgeConnector', () => {
     })
 
     expect(outcome).toMatchObject({
-      success: false,
-      errorCode: 'internal',
-      error: 'queue unavailable',
+      success: true,
+      connector: { id: 'conn-1' },
     })
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(

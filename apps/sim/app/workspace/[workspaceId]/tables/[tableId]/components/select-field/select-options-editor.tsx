@@ -78,7 +78,8 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
             variant='ghost'
             size='sm'
             onClick={() => remove(option.id)}
-            className='size-7 shrink-0 p-1!'
+            iconPadding='sm'
+            className='size-7 shrink-0'
             aria-label={`Remove ${option.name || 'option'}`}
           >
             <X className='size-[12px]' />

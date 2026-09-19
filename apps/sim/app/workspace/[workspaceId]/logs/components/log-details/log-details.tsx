@@ -169,13 +169,14 @@ export const WorkflowOutputSection = memo(
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label={copied ? 'Copied' : 'Copy'}
                     type='button'
                     variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       handleCopy()
                     }}
-                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     {copied ? (
                       <Check className='size-[10px] text-[var(--text-success)]' />
@@ -189,13 +190,14 @@ export const WorkflowOutputSection = memo(
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
+                    aria-label='Search'
                     type='button'
                     variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       activateSearch()
                     }}
-                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     <Search className='size-[10px]' />
                   </Button>
@@ -231,7 +233,7 @@ export const WorkflowOutputSection = memo(
             </span>
             <Button
               variant='ghost'
-              className='p-1!'
+              iconPadding='sm'
               onClick={goToPreviousMatch}
               disabled={matchCount === 0}
               aria-label='Previous match'
@@ -240,7 +242,7 @@ export const WorkflowOutputSection = memo(
             </Button>
             <Button
               variant='ghost'
-              className='p-1!'
+              iconPadding='sm'
               onClick={goToNextMatch}
               disabled={matchCount === 0}
               aria-label='Next match'
@@ -249,7 +251,7 @@ export const WorkflowOutputSection = memo(
             </Button>
             <Button
               variant='ghost'
-              className='p-1!'
+              iconPadding='sm'
               onClick={closeSearch}
               aria-label='Close search'
             >
@@ -836,7 +838,7 @@ export const LogDetails = memo(function LogDetails({
                       <Tooltip.Trigger asChild>
                         <Button
                           variant='ghost'
-                          className='p-1!'
+                          iconPadding='sm'
                           onClick={() => onRetryExecution?.()}
                           disabled={isRetryPending}
                           aria-label='Retry execution'
@@ -849,7 +851,7 @@ export const LogDetails = memo(function LogDetails({
                   )}
                 <Button
                   variant='ghost'
-                  className='p-1!'
+                  iconPadding='sm'
                   onClick={() => hasPrev && onNavigatePrev?.()}
                   disabled={!hasPrev}
                   aria-label='Previous log'
@@ -858,14 +860,14 @@ export const LogDetails = memo(function LogDetails({
                 </Button>
                 <Button
                   variant='ghost'
-                  className='p-1!'
+                  iconPadding='sm'
                   onClick={() => hasNext && onNavigateNext?.()}
                   disabled={!hasNext}
                   aria-label='Next log'
                 >
                   <ChevronUp className='size-[14px] rotate-180' />
                 </Button>
-                <Button variant='ghost' className='p-1!' onClick={onClose} aria-label='Close'>
+                <Button variant='ghost' iconPadding='sm' onClick={onClose} aria-label='Close'>
                   <X className='size-[14px]' />
                 </Button>
               </div>

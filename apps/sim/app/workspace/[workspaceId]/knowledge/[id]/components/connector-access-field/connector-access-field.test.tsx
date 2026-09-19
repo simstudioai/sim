@@ -98,7 +98,8 @@ describe('connection method selection', () => {
       isAvailabilityReady: false,
     })
     expect(container.textContent).not.toContain('This connection method is not available')
-    expect(container.querySelector('[aria-label="Sync using: Service account"]')).toBeDisabled()
+    expect(container.textContent).toContain('Service account')
+    expect(container.querySelector('[role="combobox"]')).toBeNull()
   })
 
   it('shows a real unavailable method after availability finishes loading', async () => {
@@ -119,15 +120,29 @@ describe('connection method selection', () => {
     { mode: 'admin', label: 'Service account' },
   ] as const)('shows a locked $mode method without allowing changes', async ({ mode, label }) => {
     await render({ value: { accessMode: mode }, lockAccessMode: true })
-    const dropdown = container.querySelector<HTMLButtonElement>(
-      `[aria-label="Sync using: ${label}"]`
-    )
-    expect(dropdown).toBeDisabled()
-    expect(dropdown).toHaveTextContent(label)
-    expect(container.textContent).toContain('Add a new connection to change the sync method.')
+    expect(container.textContent).toContain(label)
+    expect(container.textContent).not.toContain('Add a new connection')
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()
-    await act(async () => dropdown!.click())
-    expect(document.querySelector('[role="menu"]')).toBeNull()
+    const trigger = container.querySelector('button')!
+    expect(trigger).toBeDisabled()
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    await act(async () => {
+      trigger.parentElement!.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 200, clientY: 200 })
+      )
+    })
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent(
+      'Add a new connection to change the sync method.'
+    )
+    await act(async () => {
+      trigger.parentElement!.dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    })
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    expect(trigger.parentElement!.tabIndex).toBe(0)
+    await act(async () => trigger.parentElement!.focus())
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent(
+      'Add a new connection to change the sync method.'
+    )
     expect(onChange).not.toHaveBeenCalled()
   })
 

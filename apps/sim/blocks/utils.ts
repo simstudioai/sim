@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { SimAutoIcon } from '@/components/icons'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
@@ -137,7 +138,12 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
   return shouldShow ? { field: 'model', value: model } : { field: 'model', value: model, not: true }
 }
 
-function shouldRequireApiKeyForModel(model: string): boolean {
+/**
+ * Whether the block must show an API Key field for `model` on this deployment:
+ * false for hosted models on hosted Sim (BYOK or the platform key serve them),
+ * for providers with their own credential fields, and for local servers.
+ */
+export function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
@@ -276,6 +282,31 @@ export function getCohereRerankerApiKeyCondition() {
       and: { field: 'rerankerEnabled', value: true },
     }
   }
+}
+
+/**
+ * Whether `model` can only run with credentials that live on the block beyond an
+ * API key: a Vertex OAuth credential, Bedrock AWS keys, or an Azure endpoint,
+ * unless the deployment supplies them server-side (the same env flags that hide
+ * those fields). The fields render only while the block's own `model` is in
+ * that provider family, so nothing outside the family can inherit them.
+ */
+export function requiresProviderFamilyCredentials(model: string): boolean {
+  return providerRequiresFamilyCredentials(findProviderFromModel(model.trim()))
+}
+
+/**
+ * The provider-keyed half of {@link requiresProviderFamilyCredentials}, for a
+ * caller that has already resolved the provider and must not pay for a second
+ * catalog scan.
+ */
+export function providerRequiresFamilyCredentials(provider: string | null | undefined): boolean {
+  if (provider === 'vertex') return true
+  if (provider === 'bedrock') return !isTruthy(getEnv('NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS'))
+  if (provider === 'azure-openai' || provider === 'azure-anthropic') {
+    return !getDeploymentShape().azureConfigured
+  }
+  return false
 }
 
 function getModelProviderCondition(...providerIds: ProviderId[]) {

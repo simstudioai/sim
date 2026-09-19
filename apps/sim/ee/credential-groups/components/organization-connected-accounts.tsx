@@ -2,7 +2,10 @@
 
 import { Chip, ChipSwitch } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
-import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
 import { OrganizationAccountWorkspaceAccess } from '@/ee/credential-groups/components/organization-account-workspace-access'
@@ -36,9 +39,9 @@ export function OrganizationConnectedAccounts({
       />
     )
   if (!accounts.data)
-    return <p className='text-[var(--text-muted)] text-caption'>Loading Credential Groups…</p>
+    return <SettingsEmptyState variant='inline'>Loading Credential Groups…</SettingsEmptyState>
   if (!accounts.data.canManage)
-    return <p className='text-small'>An organization admin manages Credential Groups.</p>
+    return <SettingsEmptyState>An organization admin manages Credential Groups.</SettingsEmptyState>
   const group = accounts.data.credentialGroup
   if (!group)
     return (
@@ -59,9 +62,10 @@ export function OrganizationConnectedAccounts({
       </div>
     )
   return (
-    <div className='flex flex-col gap-6'>
+    <div className='flex flex-col gap-7'>
       <div>
         <ChipSwitch
+          aria-label='Credential Groups views'
           value={tab}
           onChange={(value) => void setView({ tab: value })}
           options={[

@@ -10,7 +10,10 @@
  */
 import { randomBytes } from 'crypto'
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGenerateSecureToken } = vi.hoisted(() => ({ mockGenerateSecureToken: vi.fn() }))
+vi.mock('@sim/security/tokens', () => ({ generateSecureToken: mockGenerateSecureToken }))
 
 beforeAll(() => {
   setEnv({ API_ENCRYPTION_KEY: undefined })
@@ -21,6 +24,7 @@ afterAll(resetEnvMock)
 import {
   decryptApiKey,
   encryptApiKey,
+  generateApiKey,
   hashApiKey,
   isEncryptedApiKeyFormat,
   isLegacyApiKeyFormat,
@@ -84,5 +88,13 @@ describe('api-key format helpers', () => {
   it('treats sim_ prefix as the legacy format', () => {
     expect(isLegacyApiKeyFormat('sim_abc')).toBe(true)
     expect(isEncryptedApiKeyFormat('sim_abc')).toBe(false)
+  })
+})
+
+describe('generateApiKey', () => {
+  it('never issues a legacy key that reads as an OAuth access token', () => {
+    mockGenerateSecureToken.mockReturnValueOnce('oat_collision').mockReturnValueOnce('plain_token')
+    expect(generateApiKey()).toBe('sim_plain_token')
+    expect(mockGenerateSecureToken).toHaveBeenCalledTimes(2)
   })
 })

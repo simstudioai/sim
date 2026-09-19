@@ -45,6 +45,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   /** Shared MCP protocol factory validates the owner and JSON-RPC envelope before SDK dispatch. */
   'apps/sim/app/api/mcp/search/[workspaceId]/route.ts',
   'apps/sim/app/api/mcp/search/organizations/[organizationId]/route.ts',
+  'apps/sim/app/api/mcp/route.ts',
   // SCIM discovery documents (RFC 7644 section 4). Each serves a fixed document
   // describing what this server implements and accepts no params, query, or body,
   // so there is no input to validate and no contract to bind. They are deliberately

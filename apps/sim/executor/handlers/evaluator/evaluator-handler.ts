@@ -9,9 +9,9 @@ import {
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
-import { executeBlockProviderRequest } from '@/executor/utils/provider-request'
+import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type {
@@ -38,7 +38,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const evaluatorConfig = {
       model: inputs.model || EVALUATOR.DEFAULT_MODEL,
@@ -142,6 +143,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         'Evaluate the content and provide scores for each metric as JSON.'
     }
 
+    const fallbackSystemPrompt = systemPromptObj.systemPrompt
     let model = evaluatorConfig.model
     let autoRouting: AutoRoutingResult | null = null
     if (isAutoModel(model)) {
@@ -213,7 +215,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const result = await executeBlockProviderRequest({
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: evaluatorConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt,
+        retry: nodeMetadata?.retry,
         ctx,
         providerId,
         request: providerRequest,
@@ -237,7 +244,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       return {
         content: inputs.content,
-        model: autoRouting ? SIM_AUTO_MODEL_ID : result.model,
+        model: autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: inputTokens,
           output: outputTokens,

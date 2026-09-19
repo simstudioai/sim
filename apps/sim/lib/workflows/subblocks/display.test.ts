@@ -14,6 +14,7 @@ vi.mock('@/blocks', () => ({
 import {
   getDisplayValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFilterFieldLabel,
   resolveFolderPathLabel,
   resolveSandboxLabel,
@@ -184,6 +185,26 @@ describe('resolveSkillsLabel', () => {
 
   it('never renders raw skill ids', () => {
     expect(resolveSkillsLabel(skillInput, [{ skillId: 'sk-unknown' }], [])).toBeNull()
+  })
+})
+
+describe('resolveFallbackModelsLabel', () => {
+  const fallbackList = { id: 'fallbackModels', type: 'model-fallback-list' } as SubBlockConfig
+
+  it('lists the models in order and never the row keys', () => {
+    expect(
+      resolveFallbackModelsLabel(fallbackList, [
+        { id: 'a', model: 'gpt-5' },
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+        { id: 'c', model: 'gemini-3.6-flash' },
+      ])
+    ).toBe('gpt-5, openrouter/x +1')
+  })
+
+  it('returns null for other subblocks and for an empty or model-less list', () => {
+    expect(resolveFallbackModelsLabel(skillInput, [{ model: 'gpt-5' }])).toBeNull()
+    expect(resolveFallbackModelsLabel(fallbackList, [])).toBeNull()
+    expect(resolveFallbackModelsLabel(fallbackList, [{ id: 'a', model: '' }])).toBeNull()
   })
 })
 

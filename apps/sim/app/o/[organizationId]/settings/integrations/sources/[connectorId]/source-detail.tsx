@@ -425,6 +425,7 @@ function SourceSettingsForm({
 }: SourceSettingsFormProps) {
   const form = useConnectorSettingsForm({
     connector: baseline,
+    syncing: isConnectorSyncingOrPending(connector),
     scope,
     knowledgeBaseId: connector.knowledgeBaseId,
     isSearchIndex: true,
@@ -444,6 +445,7 @@ function SourceSettingsForm({
         dirty: form.dirty,
         saving: form.saving,
         saveDisabled: !form.canSave,
+        saveTooltip: form.saveBlockedReason,
         onSave: form.save,
         onDiscard,
       })}

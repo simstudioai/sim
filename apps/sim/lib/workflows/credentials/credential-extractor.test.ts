@@ -102,6 +102,43 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitizedValue('oauth-input', 'cred-123')).toBeNull()
   })
 
+  it('keeps fallback models and only whole env-var-referenced row keys', () => {
+    expect(
+      sanitizedValue('model-fallback-list', [
+        { id: 'a', model: 'gpt-5' },
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+        { id: 'c', model: 'openrouter/y', apiKey: 'sk-raw-secret' },
+        { id: 'd', model: 'openrouter/z', apiKey: '{{A}} sk-raw {{B}}' },
+        'not-a-row',
+      ])
+    ).toEqual([
+      { id: 'a', model: 'gpt-5' },
+      { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+      { id: 'c', model: 'openrouter/y' },
+      { id: 'd', model: 'openrouter/z' },
+      'not-a-row',
+    ])
+    expect(sanitizedValue('model-fallback-list', 'opaque')).toBe('opaque')
+  })
+
+  it('drops even referenced fallback row keys when env vars are not preserved', () => {
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'model-fallback-list' }],
+      outputs: {},
+    } as never)
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('model-fallback-list', [
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+      ]),
+      { preserveEnvVars: false, redactOpaqueCredentialInputs: true }
+    )
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      { id: 'b', model: 'openrouter/x' },
+    ])
+  })
+
   it('leaves an ordinary field untouched', () => {
     expect(sanitizedValue('short-input', 'plain text')).toBe('plain text')
   })

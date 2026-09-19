@@ -1,4 +1,5 @@
 import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
+import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
 import type { UserFile } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -32,8 +33,8 @@ export interface AgentInputs {
   // Deep research multi-turn
   previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
-  temperature?: string
-  maxTokens?: string
+  temperature?: string | number
+  maxTokens?: string | number
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string
@@ -48,6 +49,8 @@ export interface AgentInputs {
   thinkingLevel?: string
   promptCaching?: boolean
   files?: unknown
+  /** Ordered models tried when the request to `model` fails; see `normalizeFallbackModels`. */
+  fallbackModels?: Array<Partial<FallbackModelEntry> & { model: string }>
 }
 
 /**

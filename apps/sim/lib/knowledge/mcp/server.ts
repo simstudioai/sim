@@ -25,6 +25,7 @@ import {
   type SearchMcpActivityInput,
 } from '@/lib/knowledge/mcp/activity'
 import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
+import { toolError } from '@/lib/mcp/tool-result'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -43,10 +44,6 @@ interface KnowledgeMcpContext {
   request: NextRequest
   auth: V2ApiKeyAuthContext
   searchIndexId: string | null
-}
-
-function toolError(message: string): CallToolResult {
-  return { isError: true, content: [{ type: 'text', text: message }] }
 }
 
 function projectResult(value: unknown, registry: ResolvedSecretTraceRegistry): CallToolResult {

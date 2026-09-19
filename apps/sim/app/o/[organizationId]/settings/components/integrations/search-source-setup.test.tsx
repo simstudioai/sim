@@ -130,6 +130,13 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
   }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  isConnectorSyncingOrPending: (row: {
+    status: string
+    accessMode?: string
+    memberSyncStatus?: string
+  }) =>
+    ['pending', 'syncing'].includes(row.status) ||
+    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
   useSearchIndex: (
     scope: { workspaceId?: string; organizationId?: string },
     options: { enabled: boolean }
@@ -981,7 +988,8 @@ describe('member content credentials in real add and edit dialogs', () => {
     await chooseSyncFrequency('Manual only')
     expect(document.body.textContent).toContain('Documents become unavailable after 24 hours')
     await chooseSyncFrequency('Every hour')
-    expect(document.body.textContent).toContain('Permissions are checked on every sync.')
+    expect(document.body.textContent).not.toContain('Documents become unavailable after 24 hours')
+    expect(document.body.textContent).not.toContain('Permissions are checked on every sync.')
   })
 
   it('saves source settings without changing a dedicated indexing account', async () => {
@@ -1367,10 +1375,10 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       (node) => node.textContent?.trim() === replacement.name
     )!
     await act(async () => option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
-    expect(button('Save')).toBeDisabled()
-    expect(button('Change service account')).toBeEnabled()
+    expect(button('Save')).toBeEnabled()
+    expect(document.body.textContent).not.toContain('Change service account')
 
-    await click(button('Change service account'))
+    await click(button('Save'))
 
     expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
       {

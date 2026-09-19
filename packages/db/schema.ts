@@ -2547,11 +2547,11 @@ export const workspaceFileSearchChunk = pgTable(
       table.lineStart,
       table.ordinal
     ),
-    contentIdx: index('workspace_file_search_chunk_content_idx').using(
-      'gin',
-      table.workspaceId.asc().op('text_ops'),
-      table.content.asc().op('gin_trgm_ops')
-    ),
+    /** Bounded chunk writes must not inherit accumulated pending-list cleanup from other files. */
+    contentIdx: index('workspace_file_search_chunk_content_idx')
+      .using('gin', table.workspaceId.asc().op('text_ops'), table.content.asc().op('gin_trgm_ops'))
+      .with({ fastupdate: 'off' })
+      .concurrently(),
     contentSize: check(
       'workspace_file_search_chunk_content_size',
       sql`octet_length(${table.content}) <= 8192`

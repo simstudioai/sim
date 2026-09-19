@@ -24,6 +24,7 @@ import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/u
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   type ConnectorData,
+  isConnectorSyncingOrPending,
   useUpdateConnector,
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
@@ -122,6 +123,7 @@ interface UseConnectorSettingsFormOptions {
   isSearchIndex?: boolean
   connector: ConnectorData
   onSaved: (connector: ConnectorData) => void
+  syncing?: boolean
 }
 
 /** Editable connector settings shared by the source page and knowledge-base modal. */
@@ -131,6 +133,7 @@ export function useConnectorSettingsForm({
   isSearchIndex = false,
   connector,
   onSaved,
+  syncing = isConnectorSyncingOrPending(connector),
 }: UseConnectorSettingsFormOptions) {
   const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
 
@@ -263,6 +266,8 @@ export function useConnectorSettingsForm({
       workspaceCredentialId !== connector.credentialId) ||
     (access.accessMode === 'members' &&
       contentCredentialId !== (connector.accessMode === 'members' ? connector.credentialId : null))
+  const accountChanged =
+    accessDirty && !accessModeChanged && isContentEngineAccessMode(access.accessMode)
   /** Exposes credential selection for mode changes and administrator credential recovery. */
   const needsWorkspaceCredential =
     connectorConfig?.auth.mode === 'oauth' &&
@@ -272,7 +277,8 @@ export function useConnectorSettingsForm({
   const missingAdminField =
     accessDirty && access.accessMode === 'admin'
       ? connectorConfig?.configFields.find((field) => {
-          const value = connector.sourceConfig[field.id]
+          const config = accessModeChanged ? connector.sourceConfig : resolveSourceConfig()
+          const value = config[field.canonicalParamId ?? field.id]
           return (
             !field.required &&
             isConnectorFieldRequired(field, connectorConfig, 'admin') &&
@@ -328,7 +334,10 @@ export function useConnectorSettingsForm({
     if (
       !searchSettingsAllowed ||
       !settingsComplete ||
-      accessDirty ||
+      (accessDirty && !accountChanged) ||
+      (accountChanged && !accessComplete) ||
+      syncing ||
+      isSaving ||
       (showGitLabPermissions && !permissionsComplete)
     )
       return
@@ -365,6 +374,26 @@ export function useConnectorSettingsForm({
       updates.sourceConfig = next
     }
 
+    if (accountChanged) {
+      updateAccess(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          access: {
+            accessMode: access.accessMode,
+            credentialId: workspaceCredentialId ?? connector.credentialId,
+            sourceConfig: updates.sourceConfig,
+            syncIntervalMinutes: updates.syncIntervalMinutes,
+          },
+        },
+        {
+          onSuccess: onSaved,
+          onError: (err) => setError(err.message),
+        }
+      )
+      return
+    }
+
     if (Object.keys(updates).length === 0) {
       onSaved(connector)
       return
@@ -386,6 +415,12 @@ export function useConnectorSettingsForm({
   }, [
     access.accessMode,
     accessDirty,
+    accountChanged,
+    accessComplete,
+    syncing,
+    isSaving,
+    updateAccess,
+    workspaceCredentialId,
     canonicalModes,
     connector,
     connectorConfig,
@@ -453,6 +488,11 @@ export function useConnectorSettingsForm({
     setContentCredentialId(connector.accessMode === 'members' ? connector.credentialId : null)
   }, [connector])
 
+  const saveBlockedReason =
+    syncing && (hasChanges || accountChanged)
+      ? 'Wait for the current sync to finish before saving.'
+      : undefined
+
   const fieldsProps: ConnectorSettingsFieldsProps = {
     gitlabPermissions: showGitLabPermissions ? gitlabPermissions : undefined,
     availability: {
@@ -479,6 +519,7 @@ export function useConnectorSettingsForm({
     hasMaxAccess,
     isSaving,
     error: error ?? searchSetupError,
+    saveBlockedReason,
     access,
     onAccessChange: setAccess,
     canAdmin,
@@ -508,9 +549,11 @@ export function useConnectorSettingsForm({
     docsUrl,
     dirty: hasChanges || accessDirty,
     saving: isSaving,
+    saveBlockedReason,
     canSave:
-      hasChanges &&
-      !accessDirty &&
+      (hasChanges || accountChanged) &&
+      (!accessDirty || (accountChanged && accessComplete)) &&
+      !syncing &&
       !isSaving &&
       searchSettingsAllowed &&
       Boolean(settingsComplete) &&

@@ -4,6 +4,7 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import {
   Badge,
   Button,
+  ComposerActionButton,
   cn,
   Input,
   Popover,
@@ -135,6 +136,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
       )}
 
       <Button
+        aria-label='Remove file'
         variant='ghost'
         onClick={(event) => {
           event.stopPropagation()
@@ -950,8 +952,10 @@ export function Chat() {
           <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
+                aria-label='Chat actions'
                 variant='ghost'
-                className='-m-1.5 p-1.5!'
+                iconPadding='md'
+                className='-m-1.5'
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className='size-[14px]' />
@@ -990,7 +994,13 @@ export function Chat() {
           </Popover>
 
           {/* Close button */}
-          <Button variant='ghost' className='-m-1.5 p-1.5!' onClick={handleClose}>
+          <Button
+            aria-label='Close chat'
+            variant='ghost'
+            iconPadding='md'
+            className='-m-1.5'
+            onClick={handleClose}
+          >
             <X className='size-[16px]' />
           </Button>
         </div>
@@ -1095,32 +1105,28 @@ export function Chat() {
                 </Tooltip.Root>
 
                 {isStreaming ? (
-                  <Button
+                  <ComposerActionButton
+                    aria-label='Stop generation'
                     onClick={handleStopStreaming}
-                    variant='ghost'
-                    className='size-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
+                    size='sm'
                   >
                     <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
-                  </Button>
+                  </ComposerActionButton>
                 ) : (
-                  <Button
+                  <ComposerActionButton
+                    aria-label='Send message'
                     onClick={handleSendMessage}
-                    variant='ghost'
+                    size='sm'
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||
                       isExecuting ||
                       isStreaming
                     }
-                    className={cn(
-                      'size-[22px] rounded-full p-0 transition-colors',
-                      chatMessage.trim() || chatFiles.length > 0
-                        ? 'bg-[#383838] hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
-                        : 'bg-[#808080] dark:bg-[#808080]'
-                    )}
+                    active={!!(chatMessage.trim() || chatFiles.length > 0)}
                   >
                     <ArrowUp className='size-3.5 text-white dark:text-black' />
-                  </Button>
+                  </ComposerActionButton>
                 )}
               </div>
             </div>

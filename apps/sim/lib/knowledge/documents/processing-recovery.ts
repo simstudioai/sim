@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
@@ -17,6 +17,12 @@ import {
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
@@ -29,7 +35,7 @@ const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 /**
  * Re-admits bounded, abandoned connector documents from our retained bytes, independently
  * of source sync schedules and credentials. The generation, attempt and outbox event commit
- * together; no provider call or source lease is needed. Paused/deleted sources stay paused.
+ * together; no source-provider call or source lease is needed. Paused/deleted sources stay paused.
  */
 export async function recoverKnowledgeDocumentProcessing(now = new Date()): Promise<number> {
   const deadlineAt = Date.now() + RECOVERY_RUNTIME_MS
@@ -69,7 +75,7 @@ async function recoverStoredDocumentBatch(
   limit: number
 ): Promise<number> {
   /** Discovery does not claim work. Ownership is rechecked under lifecycle locks below. */
-  const candidates = await db.transaction(async (tx) => {
+  const observedCandidates = await db.transaction(async (tx) => {
     signal.throwIfAborted()
     await tx.execute(
       sql`SELECT set_config('statement_timeout', '5000', true), set_config('lock_timeout', '1000', true)`
@@ -77,7 +83,7 @@ async function recoverStoredDocumentBatch(
     signal.throwIfAborted()
     return tx
       .select({
-        id: document.id,
+        ...processingSnapshotColumns,
         knowledgeBaseId: document.knowledgeBaseId,
         connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
@@ -102,9 +108,11 @@ async function recoverStoredDocumentBatch(
         )
       )
       .orderBy(asc(document.uploadedAt), asc(document.id))
-      .limit(limit)
+      .limit(Math.min(limit, DOCUMENT_LIVENESS_BATCH_SIZE))
   })
   signal.throwIfAborted()
+  for (const candidate of observedCandidates) attemptedConnectors.add(candidate.connectorId)
+  const candidates = await findAbandonedDocumentProcessing(observedCandidates, signal)
   if (candidates.length === 0) return 0
 
   let recovered = 0
@@ -117,7 +125,6 @@ async function recoverStoredDocumentBatch(
   for (const [knowledgeBaseId, group] of groups) {
     if (Date.now() >= deadlineAt) break
     const connectorIds = [...new Set(group.map((row) => row.connectorId))]
-    for (const connectorId of connectorIds) attemptedConnectors.add(connectorId)
     const owner = group[0]
     let ownerVerified = false
     try {
@@ -183,6 +190,7 @@ async function recoverStoredDocumentBatch(
                 document.id,
                 group.map((row) => row.id)
               ),
+              or(...group.map(documentProcessingSnapshotCondition)),
               eq(document.knowledgeBaseId, knowledgeBaseId),
               inArray(
                 document.connectorId,

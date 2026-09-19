@@ -203,6 +203,7 @@ export function AddDocumentsModal({
                         <>
                           {isFailed && (
                             <Button
+                              aria-label='Retry upload'
                               type='button'
                               variant='ghost'
                               className='size-4 p-0'
@@ -213,6 +214,7 @@ export function AddDocumentsModal({
                             </Button>
                           )}
                           <Button
+                            aria-label='Remove file'
                             type='button'
                             variant='ghost'
                             className='size-4 p-0'

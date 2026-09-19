@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef } from 'react'
-import { Button, Chip, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, Plus } from '@sim/emcn/icons'
+import { Chip, ComposerActionButton, cn, Tooltip } from '@sim/emcn'
+import { ArrowUp, Plus, StopFilled } from '@sim/emcn/icons'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
@@ -13,11 +13,6 @@ import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workfl
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
-
-const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
-const SEND_BUTTON_ACTIVE =
-  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 interface ComposerProps {
   value: string
@@ -130,35 +125,19 @@ export function Composer({
             />
           )}
           {isSending ? (
-            <Button
-              type='button'
-              variant='ghost'
-              onClick={onStop}
-              aria-label='Stop generation'
-              className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-            >
-              <svg
-                className='block size-[14px] fill-white dark:fill-black'
-                viewBox='0 0 24 24'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-              </svg>
-            </Button>
+            <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation'>
+              <StopFilled className='block size-[14px] fill-white dark:fill-black' />
+            </ComposerActionButton>
           ) : (
-            <Button
+            <ComposerActionButton
               type='button'
-              variant='ghost'
               onClick={submit}
               disabled={!canSubmit}
               aria-label='Send'
-              className={cn(
-                SEND_BUTTON_BASE,
-                canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED
-              )}
+              active={canSubmit}
             >
               <ArrowUp className='block size-[16px] text-white dark:text-black' />
-            </Button>
+            </ComposerActionButton>
           )}
         </div>
       </div>

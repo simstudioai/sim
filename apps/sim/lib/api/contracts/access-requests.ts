@@ -1,22 +1,22 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
 import {
   ACCESS_REQUEST_MAX_ID_LENGTH,
   ACCESS_REQUEST_MAX_OFFSET,
   ACCESS_REQUEST_MAX_SEARCH_LENGTH,
-} from '@/lib/permission-access-requests/constants'
+} from '@/ee/access-requests/lib/constants'
 import {
   storedAccessRequestDecisionSchema,
   storedAccessRequestPolicyChangeSchema,
   storedAccessRequestPolicyValueSchema,
   storedAccessRequestTargetSchema,
-} from '@/lib/permission-access-requests/schemas'
+} from '@/ee/access-requests/lib/schemas'
 import {
   ACCESS_REQUEST_TARGET_KINDS,
   type AccessRequestScope as DomainAccessRequestScope,
-} from '@/lib/permission-groups/access-requests/targets'
-import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
+} from '@/ee/access-requests/lib/targets'
 
 export const ACCESS_REQUEST_STATUSES = [
   'pending',
@@ -134,6 +134,7 @@ export type OrganizationAccessRequestDetailParams = z.input<
 export const listOrganizationAccessRequestsQuerySchema = z
   .object({
     ...paginationShape,
+    search: z.string().trim().max(ACCESS_REQUEST_MAX_SEARCH_LENGTH).optional(),
     status: z.enum(ACCESS_REQUEST_STATUSES).optional(),
   })
   .strict()

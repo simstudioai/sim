@@ -30,6 +30,7 @@ import {
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
   lockCredentialGroupOption,
+  performUpdateKnowledgeConnector,
 } from '@/lib/knowledge/orchestration/connectors'
 import {
   classifyKnowledgeFailure,
@@ -193,6 +194,9 @@ export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOp
   knowledgeBase: { id: string; name: string; workspaceId?: string; organizationId?: string }
   connectorId: string
   target: ConnectorAccessTarget
+  sourceConfig?: Record<string, unknown>
+  syncIntervalMinutes?: number
+  expectedUpdatedAt?: Date
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
 }
 
@@ -238,7 +242,18 @@ export async function performUpdateKnowledgeConnectorAccess(
       ? target.binding.credentialGroupOptionId === existing.credentialGroupOptionId &&
         (target.credentialId ?? null) === existing.credentialId
       : target.credentialId === existing.credentialId)
-  if (unchanged) {
+  const settingsChanged =
+    params.sourceConfig !== undefined || params.syncIntervalMinutes !== undefined
+  if (
+    settingsChanged &&
+    (target.accessMode === 'members' || target.accessMode !== existing.accessMode)
+  ) {
+    return fail(
+      'Save source settings separately when changing the connection method.',
+      'validation'
+    )
+  }
+  if (unchanged && !settingsChanged) {
     /**
      * Re-applying the current binding on a connector whose member sync was
      * disabled is how it is re-enabled: the next run reconciles members from
@@ -275,51 +290,19 @@ export async function performUpdateKnowledgeConnectorAccess(
     return { success: true, connector, changed: false }
   }
 
-  /**
-   * Staying in the same credential-backed mode with a different credential
-   * moves no document's visibility, so the lease is not taken. It does change
-   * what the source shows: the new credential may see a different corpus, and
-   * only a full listing reconciles that, so the incremental watermark is
-   * dropped and a sync queued unless the source is paused or disabled. The
-   * write refuses while a sync owns the row, whose terminal write would
-   * otherwise put the watermark straight back.
-   */
   if (target.accessMode !== 'members' && target.accessMode === existing.accessMode) {
-    const now = new Date()
-    const [updated] = await db
-      .update(knowledgeConnector)
-      .set({
+    const outcome = await performUpdateKnowledgeConnector({
+      ...params,
+      knowledgeBase: { ...kb, workspaceId: kb.workspaceId ?? null },
+      expectedUpdatedAt: params.expectedUpdatedAt ?? existing.updatedAt,
+      updates: {
         credentialId: target.credentialId,
-        lastSyncAt: null,
-        listingCheckpoint: null,
-        directoryCheckpoint: null,
-        nextSyncAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, kb.id),
-          inArray(knowledgeConnector.status, [...SWITCHABLE_CONNECTOR_STATUSES, 'disabled']),
-          eq(knowledgeConnector.status, existing.status),
-          isNull(knowledgeConnector.syncLockToken),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-      .returning()
-    if (!updated) {
-      const current = await getKnowledgeConnector(kb.id, connectorId)
-      return current
-        ? fail('Sync already in progress', 'conflict')
-        : fail('Connector not found', 'not_found')
-    }
-    logger.info(`[${requestId}] Changed the credential of connector ${connectorId}`)
-    const { encryptedApiKey: _secret, ...connector } = updated
-    if (existing.status !== 'paused' && existing.status !== 'disabled') {
-      await dispatchContentSyncBestEffort(connectorId, params, requestId, now)
-    }
-    return { success: true, connector, changed: true }
+        sourceConfig: params.sourceConfig,
+        syncIntervalMinutes: params.syncIntervalMinutes,
+      },
+      recordSemanticAudit: false,
+    })
+    return outcome.success ? { ...outcome, changed: true } : outcome
   }
 
   const switchId = generateId()

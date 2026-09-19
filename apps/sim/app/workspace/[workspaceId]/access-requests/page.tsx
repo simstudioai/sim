@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { AccessRequestsLoading } from '@/components/access-requests/access-requests-loading'
-import { MyAccessRequests } from '@/components/access-requests/my-access-requests'
+import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
+import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
 
 export const metadata: Metadata = { title: 'My access requests' }
 

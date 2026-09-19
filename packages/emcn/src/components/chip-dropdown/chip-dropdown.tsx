@@ -1,10 +1,12 @@
 'use client'
 
 import {
+  type AriaAttributes,
   type ComponentType,
   forwardRef,
   type ReactNode,
   useContext,
+  useId,
   useMemo,
   useState,
 } from 'react'
@@ -86,6 +88,12 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
    * selected value is dropped from the accessible name.
    */
   'aria-labelledby'?: string
+  /** Required state announced through the menu button's accessible description. */
+  'aria-required'?: AriaAttributes['aria-required']
+  /** Validation state announced through the menu button's accessible description. */
+  'aria-invalid'?: AriaAttributes['aria-invalid']
+  /** Hint and error descriptions supplied by the enclosing field. */
+  'aria-describedby'?: AriaAttributes['aria-describedby']
   /** Id for the trigger button. Needed to reference it from `aria-labelledby`. */
   id?: string
 }
@@ -186,8 +194,20 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       fullWidth,
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
+      'aria-required': ariaRequired,
+      'aria-invalid': ariaInvalid,
+      'aria-describedby': ariaDescribedBy,
       id,
     } = props
+
+    const fieldStateId = useId()
+    const fieldState = [
+      (ariaRequired === true || ariaRequired === 'true') && 'Required.',
+      ariaInvalid && ariaInvalid !== 'false' && 'Invalid selection.',
+    ]
+      .filter(Boolean)
+      .join(' ')
+    const describedBy = [ariaDescribedBy, fieldState && fieldStateId].filter(Boolean).join(' ')
 
     const isMultiple = props.multiple === true
     const selectedValues = useMemo<string[]>(
@@ -325,6 +345,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             disabled={disabled}
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
+            aria-describedby={describedBy || undefined}
             className={cn(
               chipVariants({ variant, shape, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
@@ -338,11 +359,17 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             </span>
           </button>
         </DropdownMenuTrigger>
+        {fieldState && (
+          <span id={fieldStateId} className='sr-only'>
+            {fieldState}
+          </span>
+        )}
         <DropdownMenuContent
           align={align}
           onOpenAutoFocus={searchable ? (event) => event.preventDefault() : undefined}
           className={cn(
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)] max-w-none',
+            insideModal && 'max-h-[min(240px,var(--radix-popper-available-height,240px))]',
             contentClassName
           )}
         >

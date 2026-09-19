@@ -77,7 +77,7 @@
     "app/workspace/[workspaceId]/access-requests/page.tsx": {
       "modules": 45,
       "gateways": {
-        "apps/sim/components/access-requests/my-access-requests.tsx": 43
+        "apps/sim/ee/access-requests/components/my-access-requests.tsx": 43
       }
     },
     "app/workspace/[workspaceId]/chat/[chatId]/error.tsx": {

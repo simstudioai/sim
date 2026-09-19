@@ -72,7 +72,7 @@ export function ChatMessageContainer({
           <Button
             onClick={scrollToBottom}
             size='sm'
-            className='gap-1 rounded-full px-3 py-1 shadow-medium'
+            className='gap-1 rounded-full px-3 shadow-medium'
           >
             <ArrowDown className='size-3.5' />
             <span className='sr-only'>Scroll to bottom</span>

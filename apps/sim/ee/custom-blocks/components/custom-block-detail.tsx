@@ -523,6 +523,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
             <div className='flex items-center gap-4'>
               <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
                 <button
+                  aria-label={iconUrl ? 'Change icon' : 'Upload icon'}
                   type='button'
                   onClick={iconUpload.handleThumbnailClick}
                   disabled={iconUpload.isUploading || !canManageBlock}

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
@@ -39,6 +39,10 @@ import {
   selectModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import {
+  type FallbackModelCandidate,
+  resolveFallbackTuning,
+} from '@/lib/workflows/blocks/fallback-models'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import {
   getAgentToolUsageControlMode,
@@ -54,6 +58,7 @@ import {
   validateModelProvider,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
+import { isRetryableBlockError } from '@/executor/execution/block-retry'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
@@ -68,9 +73,21 @@ import type {
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
-import type { BlockHandler, ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
+import type {
+  BlockHandler,
+  BlockNodeMetadata,
+  ExecutionContext,
+  StreamingExecution,
+  UserFile,
+} from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  getModelFallbacks,
+  PROVIDER_FAMILY_CREDENTIAL_FIELDS,
+  recordModelFallbacks,
+  resolveFallbackApiKey,
+} from '@/executor/utils/model-fallbacks'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -131,11 +148,71 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['thinkingLevel'],
   ['promptCaching'],
   ['previousInteractionId'],
+  ['fallbackModels'],
 ]
 
 interface IndexedToolInput {
   tool: ToolInput
   toolIndex: number
+}
+
+/**
+ * Removes the sim-auto identity preamble from the system messages built for a
+ * routed primary. A fallback the builder named is not a pool model, so it must
+ * not be told to hide which model it is. Messages are built once per block run
+ * (building them appends to memory), which is why this strips rather than
+ * rebuilds.
+ */
+function stripAutoPreamble(messages: Message[] | undefined): Message[] | undefined {
+  if (!messages) return messages
+  const prefix = `${SIM_AUTO_SYSTEM_PREAMBLE}\n\n`
+  return messages.flatMap((message) => {
+    if (message.role !== 'system' || typeof message.content !== 'string') return [message]
+    if (message.content === SIM_AUTO_SYSTEM_PREAMBLE) return []
+    if (!message.content.startsWith(prefix)) return [message]
+    return [{ ...message, content: message.content.slice(prefix.length) }]
+  })
+}
+
+/** One model in the order the block tries them; the primary carries the block's own key. */
+interface ModelCandidate extends FallbackModelCandidate {
+  isPrimary: boolean
+  /**
+   * What the trace calls this model when it fails. A routed sim-auto primary
+   * shows as the auto identity, since naming the pool model is the leak that
+   * `applyAutoModelLabel` exists to close.
+   */
+  traceName?: string
+}
+
+interface ExecuteAcrossModelsConfig {
+  candidates: ModelCandidate[]
+  retryPrimaryOnStreamStart: boolean
+  primaryModel: string
+  /**
+   * The model the builder configured, which is what the editor showed the
+   * per-row tuning fields against. Under sim-auto that is the auto id, not the
+   * pool model routed for this run, so a row's value applies whatever was routed.
+   */
+  configuredModel: string
+  primaryProviderId: string
+  messages: Message[] | undefined
+  /** Provider id to hydrated messages; seeded with the primary, filled per fallback provider. */
+  hydratedByProvider: Map<string, Message[] | undefined>
+  fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
+  modelInputs: AgentInputs
+  /**
+   * The system prompt without the sim-auto identity preamble, present only when
+   * the primary was auto-routed: a fallback the builder named is not a pool
+   * model and must not be told to hide which model it is.
+   */
+  fallbackSystemPrompt?: string
+  formattedTools: ProviderToolConfig[]
+  responseFormat: any
+  streaming: boolean
+  settledInputRegistry: ResolvedSecretTraceRegistry | undefined
+  resultRegistry: ResolvedSecretTraceRegistry | undefined
+  providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
 }
 
 interface FormattedAgentTools {
@@ -229,7 +306,8 @@ export class AgentBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: AgentInputs
+    inputs: AgentInputs,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
     ctx.mcpBlockId = block.id
     const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
@@ -304,6 +382,8 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
+      /** The system prompt as the model may see it, before any auto-routing preamble joins it. */
+      const projectedSystemPrompt = modelInputs.systemPrompt
       const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
@@ -391,24 +471,24 @@ export class AgentBlockHandler implements BlockHandler {
         skillMetadata,
         fileProjection
       )
-      const messagesWithFiles = await this.hydrateMessageFilesForProvider(
-        ctx,
-        messagesWithInputFiles,
-        providerId,
-        fileProjection.projectedNameByFile,
-        fileProjection.modelBoundInputPaths
-      )
-
-      const providerRequest = this.buildProviderRequest({
-        ctx,
-        providerId,
-        model,
-        messages: messagesWithFiles,
-        inputs: modelInputs,
-        formattedTools: formatted.tools,
-        responseFormat,
-        streaming: streamingConfig.shouldUseStreaming ?? false,
-      })
+      /**
+       * The primary hydrates before the registries settle and fork, as it always
+       * has: hydration imports file provenance into the live registry, and the
+       * result fork below must carry it. Fallbacks on another provider hydrate
+       * inside the chain and re-fork there.
+       */
+      const hydratedByProvider = new Map<string, Message[] | undefined>([
+        [
+          providerId,
+          await this.hydrateMessageFilesForProvider(
+            ctx,
+            messagesWithInputFiles,
+            providerId,
+            fileProjection.projectedNameByFile,
+            fileProjection.modelBoundInputPaths
+          ),
+        ],
+      ])
 
       settlePrivateAgentSelectors()
 
@@ -427,21 +507,84 @@ export class AgentBlockHandler implements BlockHandler {
           })
         }
       }
-      const result = await this.executeProviderRequest(
+
+      /**
+       * Retry on fail retries the selected model; the fallbacks join only on the
+       * try after which the executor promises no other. Until then a failure of
+       * the primary is left to escape, so the executor's policy can replay it.
+       *
+       * A follow-up turn of a deep-research interaction lives on the primary's
+       * provider; another model has none of that conversation, so a green answer
+       * from it would be built on a fresh context. Such a request never falls back.
+       */
+      const configuredFallbacks = getModelFallbacks(
         ctx,
-        providerRequest,
         block,
-        responseFormat,
-        resultRegistry,
-        providerErrorRegistry
+        filteredInputs.fallbackModels,
+        logger
       )
-      if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
+      const retry = nodeMetadata?.retry
+      const fallbacksHeld = retry !== undefined && !retry.isFinalTry
+      const fallbackCandidates =
+        modelInputs.previousInteractionId || fallbacksHeld
+          ? []
+          : configuredFallbacks.filter(
+              (candidate) => candidate.model.toLowerCase() !== model.toLowerCase()
+            )
+      if (configuredFallbacks.length > 0 && modelInputs.previousInteractionId) {
+        logger.info('Fallback models skipped for a deep-research follow-up turn', {
+          blockId: block.id,
+        })
+      } else if (configuredFallbacks.length > 0 && fallbacksHeld) {
+        logger.info('Fallback models held for the final try', {
+          blockId: block.id,
+          attempt: retry.attempt,
+          maxTries: retry.maxTries,
+        })
+      }
+      const candidates: ModelCandidate[] = [
+        {
+          model,
+          apiKey: modelInputs.apiKey,
+          isPrimary: true,
+          ...(autoRouting ? { traceName: SIM_AUTO_MODEL_ID } : {}),
+        },
+        ...fallbackCandidates.map((candidate) => ({ ...candidate, isPrimary: false })),
+      ]
+      const {
+        result,
+        servedModel,
+        resultRegistry: servedRegistry,
+      } = await this.executeAcrossModels(ctx, block, {
+        candidates,
+        retryPrimaryOnStreamStart:
+          fallbacksHeld && configuredFallbacks.length > 0 && !modelInputs.previousInteractionId,
+        primaryModel: model,
+        configuredModel: autoRouting ? SIM_AUTO_MODEL_ID : model,
+        primaryProviderId: providerId,
+        messages: messagesWithInputFiles,
+        hydratedByProvider,
+        fileProjection,
+        modelInputs,
+        fallbackSystemPrompt: autoRouting ? projectedSystemPrompt : undefined,
+        formattedTools: formatted.tools,
+        responseFormat,
+        streaming: streamingConfig.shouldUseStreaming ?? false,
+        settledInputRegistry,
+        resultRegistry,
+        providerErrorRegistry,
+      })
+      if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
 
       if (autoRouting && autoRouting.billableRoutingCost > 0) {
         this.applyRoutingCost(result, autoRouting.billableRoutingCost)
       }
 
-      if (autoRouting) {
+      /**
+       * A fallback the builder named explicitly is not a pool model, so it keeps
+       * its own name; only the routed pool model hides behind the auto label.
+       */
+      if (autoRouting && servedModel === model) {
         this.applyAutoModelLabel(result, model)
       }
 
@@ -2300,6 +2443,297 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
     return paths
+  }
+
+  /**
+   * Runs the provider request against each candidate in order until one answers.
+   *
+   * Which model serves the request is decided here, inside one handler
+   * invocation. How many invocations the block gets is the executor's retry
+   * policy, and the caller keeps the fallbacks out of the candidate list until
+   * the final try, so with retry on the block runs the primary alone on every
+   * earlier try and walks the whole chain once.
+   *
+   * Falling through is deliberately as indiscriminate as block retry
+   * (`isRetryableBlockError`): a provider error carries no status, so an
+   * overloaded upstream cannot be told from any other failure, and a builder who
+   * lists fallbacks wants the block to answer. Only a stop and an explicitly
+   * non-retryable failure end the chain early. The abort signal is checked
+   * before the error itself because `handleExecutionError` rewrites a timeout
+   * into a plain `Error` without a cause, which the predicate would then treat
+   * as replayable.
+   *
+   * Messages are built once by the caller, since building them appends to
+   * memory. Hydration runs per provider, because attachment support and the
+   * inline budget differ, and is cached so two candidates on one provider do
+   * not download the same files twice. A fallback whose provider is
+   * blacklisted, not permitted, or cannot take the attachments is skipped
+   * rather than counted as a failed try.
+   *
+   * A streaming candidate is accepted only once its first chunk has arrived
+   * (`primeStreamingExecution`), so a startup failure inside the stream still
+   * falls through; that wait is skipped when no candidate follows, which keeps
+   * blocks without fallbacks on today's path.
+   *
+   * When every candidate fails, the last attempted candidate's error is thrown
+   * exactly as it escaped `executeProviderRequest`, with the registries that
+   * call installed for its projection, so error ports and the block-level
+   * error handling see the shapes they see today. The models that failed are
+   * written to the block log on every exit, cleared as well as set, because
+   * block retry reuses one log entry across tries.
+   */
+  private async executeAcrossModels(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    config: ExecuteAcrossModelsConfig
+  ): Promise<{
+    result: BlockOutput | StreamingExecution
+    servedModel: string
+    resultRegistry: ResolvedSecretTraceRegistry | undefined
+  }> {
+    const { hydratedByProvider } = config
+    let resultRegistry = config.resultRegistry
+    const failedModels: string[] = []
+    let lastError: unknown
+    let lastErrorRegistries:
+      | {
+          error: ResolvedSecretTraceRegistry | undefined
+          resolved: ResolvedSecretTraceRegistry | undefined
+        }
+      | undefined
+
+    for (let index = 0; index < config.candidates.length; index++) {
+      const candidate = config.candidates[index]
+      const hasNext = index < config.candidates.length - 1
+
+      /** A run stopped while a candidate was being skipped must not start another. */
+      if (!candidate.isPrimary && ctx.abortSignal?.aborted) break
+
+      let candidateProviderId: string
+      if (candidate.isPrimary) {
+        candidateProviderId = config.primaryProviderId
+      } else {
+        try {
+          candidateProviderId = getProviderFromModel(candidate.model)
+          await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+        } catch (error) {
+          this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
+          continue
+        }
+      }
+
+      let messages: Message[] | undefined
+      if (hydratedByProvider.has(candidateProviderId)) {
+        messages = hydratedByProvider.get(candidateProviderId)
+      } else {
+        try {
+          messages = await this.hydrateMessageFilesForProvider(
+            ctx,
+            config.messages,
+            candidateProviderId,
+            config.fileProjection.projectedNameByFile,
+            config.fileProjection.modelBoundInputPaths
+          )
+        } catch (error) {
+          if (candidate.isPrimary) throw error
+          this.warnFallbackSkipped(
+            ctx,
+            block,
+            candidate.model,
+            'cannot take the attached files',
+            error
+          )
+          continue
+        }
+        hydratedByProvider.set(candidateProviderId, messages)
+        /** Hydration imported this provider's file provenance; the result fork must carry it. */
+        resultRegistry = config.settledInputRegistry?.forkForInputPaths([])
+      }
+
+      /**
+       * A fallback's own key applies only while its key field is visible. On the
+       * primary's provider it reuses the block's key; otherwise the provider layer resolves BYOK or
+       * the platform key, or reports that a key is required, which counts as
+       * this candidate failing. A previous interaction id belongs to the primary's
+       * provider alone. Tuning is re-resolved against the fallback's own
+       * capabilities so the request is one its provider accepts.
+       */
+      let inputs: AgentInputs = config.modelInputs
+      if (!candidate.isPrimary) {
+        const { adjustments, ...tuning } = resolveFallbackTuning(
+          candidate,
+          config.configuredModel,
+          config.modelInputs
+        )
+        const sameProvider = candidateProviderId === config.primaryProviderId
+        inputs = {
+          ...(sameProvider
+            ? config.modelInputs
+            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'vertexCredential'])),
+          apiKey: resolveFallbackApiKey({
+            candidate,
+            configuredModel: config.configuredModel,
+            sameProvider,
+            primaryApiKey: config.modelInputs.apiKey,
+            blockId: block.id,
+            logger,
+          }),
+          previousInteractionId: undefined,
+          ...(config.fallbackSystemPrompt !== undefined
+            ? { systemPrompt: config.fallbackSystemPrompt }
+            : {}),
+          ...tuning,
+        }
+        if (adjustments.length > 0) {
+          logger.info(
+            'Fallback model tuning adjusted',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, adjustments },
+              { blockId: block.id, adjustmentCount: adjustments.length }
+            )
+          )
+        }
+      }
+
+      const providerRequest = this.buildProviderRequest({
+        ctx,
+        providerId: candidateProviderId,
+        model: candidate.model,
+        messages:
+          !candidate.isPrimary && config.fallbackSystemPrompt !== undefined
+            ? stripAutoPreamble(messages)
+            : messages,
+        inputs,
+        formattedTools: config.formattedTools,
+        responseFormat: config.responseFormat,
+        streaming: config.streaming,
+      })
+
+      try {
+        let result = await this.executeProviderRequest(
+          ctx,
+          providerRequest,
+          block,
+          config.responseFormat,
+          resultRegistry,
+          config.providerErrorRegistry
+        )
+        if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
+          result = await this.primeStreamingExecution(result as StreamingExecution)
+        }
+        recordModelFallbacks(ctx, block, failedModels)
+        return { result, servedModel: candidate.model, resultRegistry }
+      } catch (error) {
+        lastError = error
+        failedModels.push(candidate.traceName ?? candidate.model)
+        if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+          recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+          throw error
+        }
+
+        /**
+         * `executeProviderRequest` installed the failed attempt's error
+         * registry, which is the only one that knows secrets a tool call
+         * activated; the warn is projected against it before the next candidate
+         * starts from the settled inputs again. The pair is kept so a rethrow
+         * after every remaining candidate was skipped projects the same way.
+         */
+        const errorRegistry = ctx.errorResolvedSecretTraceRegistry
+        const diagnosticCtx = errorRegistry
+          ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
+          : ctx
+        logger.warn(
+          'Agent model failed; trying fallback',
+          projectAgentDiagnosticMetadata(
+            diagnosticCtx,
+            {
+              blockId: block.id,
+              failedModel: candidate.model,
+              nextModel: config.candidates[index + 1].model,
+              candidate: index + 1,
+              error: getErrorMessage(error),
+            },
+            { blockId: block.id, candidate: index + 1 }
+          )
+        )
+        lastErrorRegistries = { error: errorRegistry, resolved: ctx.resolvedSecretTraceRegistry }
+        ctx.errorResolvedSecretTraceRegistry = config.providerErrorRegistry
+        ctx.resolvedSecretTraceRegistry = config.settledInputRegistry
+      }
+    }
+
+    /** Reached only when every candidate after the last failure was skipped. */
+    if (lastErrorRegistries) {
+      ctx.errorResolvedSecretTraceRegistry = lastErrorRegistries.error
+      ctx.resolvedSecretTraceRegistry = lastErrorRegistries.resolved
+    }
+    recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+    throw lastError
+  }
+
+  /**
+   * Warns that a fallback candidate was passed over, projected like every other
+   * diagnostic so a model id resolved from a reference never reaches the log.
+   * A skipped candidate is not a failed try: it never appears in `modelFallbacks`.
+   */
+  private warnFallbackSkipped(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    model: string,
+    reason: 'unusable' | 'cannot take the attached files',
+    error: unknown
+  ): void {
+    logger.warn(
+      `Fallback model ${reason}; skipping`,
+      projectAgentDiagnosticMetadata(
+        ctx,
+        { blockId: block.id, model, error: getErrorMessage(error) },
+        { blockId: block.id }
+      )
+    )
+  }
+
+  /**
+   * Waits for a streaming candidate's first chunk before accepting it.
+   *
+   * With tools attached, providers open the stream first and issue the initial
+   * upstream request inside it, so a 429 at startup would otherwise surface
+   * only when the executor drains the stream, past every fallback. Reading one
+   * chunk moves that failure back inside the candidate loop; the chunk is
+   * re-emitted at the head of the returned stream, and nothing has reached the
+   * client yet, so the next candidate cannot duplicate output. A stream that
+   * fails after its first chunk stays a stream failure, as it is today.
+   */
+  private async primeStreamingExecution(result: StreamingExecution): Promise<StreamingExecution> {
+    const reader = result.stream.getReader()
+    const first = await reader.read()
+    /**
+     * A stream that closes before its first chunk answered nothing; with another
+     * candidate waiting that is a startup failure to fall through from, not an
+     * empty answer to return. The last candidate is never primed, so a block
+     * without fallbacks still returns such a stream as it always has.
+     */
+    if (first.done) {
+      throw new Error('Provider stream closed before its first chunk')
+    }
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(first.value)
+      },
+      async pull(controller) {
+        const next = await reader.read()
+        if (next.done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(next.value)
+      },
+      cancel(reason) {
+        return reader.cancel(reason)
+      },
+    })
+    return { ...result, stream }
   }
 
   private buildProviderRequest(config: {

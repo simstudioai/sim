@@ -194,6 +194,8 @@ export interface UpdateKnowledgeConnectorAccessInput {
   accessMode: ConnectorAccessMode
   /** Workspace mode: the credential the connector syncs as from now on. */
   credentialId?: string | null
+  sourceConfig?: Record<string, unknown>
+  syncIntervalMinutes?: number
   source?: KnowledgeOperationSource
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
@@ -243,6 +245,15 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
     const previousConfig = connector.sourceConfig as Record<string, unknown>
+    if (
+      (input.sourceConfig !== undefined || input.syncIntervalMinutes !== undefined) &&
+      (input.accessMode === 'members' || input.accessMode !== connector.accessMode)
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Save source settings separately when changing the connection method.'
+      )
+    }
     const sourceConfig = await prepareGitHubInstallationSource({
       principal,
       requestId,
@@ -256,7 +267,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       isSearchIndex: context.knowledgeBase.isSearchIndex === true,
       accessMode: input.accessMode,
       actingUserId,
-      sourceConfig: previousConfig,
+      sourceConfig: input.sourceConfig ?? previousConfig,
       previousConfig,
     })
 
@@ -351,6 +362,9 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       knowledgeBase: { id: context.knowledgeBaseId, name: context.knowledgeBase.name, ...owner },
       connectorId: context.connectorId,
       target,
+      sourceConfig: input.sourceConfig === undefined ? undefined : sourceConfig,
+      syncIntervalMinutes: input.syncIntervalMinutes,
+      expectedUpdatedAt: connector.updatedAt,
       resolveBillingAttribution: () =>
         (owner.workspaceId ? input.resolveBillingAttribution?.(owner.workspaceId) : undefined) ??
         resolveKnowledgeBillingAttribution(principal, context),
@@ -369,13 +383,18 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           resourceType: AuditResourceType.CONNECTOR,
           resourceId: result.connector.id,
           resourceName: result.connector.connectorType,
-          description: `Switched connector access to ${input.accessMode} mode for knowledge base "${context.knowledgeBase.name}"`,
+          description: `Updated connector connection for knowledge base "${context.knowledgeBase.name}"`,
           metadata: {
             source: input.source,
             knowledgeBaseId: context.knowledgeBaseId,
             knowledgeBaseName: context.knowledgeBase.name,
             connectorType: result.connector.connectorType,
-            updatedFields: ['accessMode'],
+            updatedFields: [
+              'accessMode',
+              ...(input.credentialId !== undefined ? ['credentialId'] : []),
+              ...(input.sourceConfig !== undefined ? ['sourceConfig'] : []),
+              ...(input.syncIntervalMinutes !== undefined ? ['syncIntervalMinutes'] : []),
+            ],
             accessMode: input.accessMode,
           },
         }

@@ -4966,6 +4966,7 @@ const SUBBLOCK_TYPE_TO_SEMANTIC: Record<string, string> = {
   'oauth-input': 'string',
   code: 'string',
   'file-upload': 'string',
+  'model-fallback-list': 'json',
   text: 'string',
 }
 

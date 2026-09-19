@@ -407,6 +407,7 @@ export function DocumentTagsModal({
                   </span>
                   <div className='flex shrink-0 items-center gap-1'>
                     <Button
+                      aria-label='Remove tag'
                       variant='ghost'
                       onClick={(e) => {
                         e.stopPropagation()

@@ -133,11 +133,12 @@ describe('organization provider configuration UI', () => {
     mcpServers: NonNullable<OrganizationAccountsSettings['credentialGroup']>['mcpServers'] = [
       { ...provider, enabled: true },
     ],
-    options: NonNullable<OrganizationAccountsSettings['credentialGroup']>['options'] = []
+    options: NonNullable<OrganizationAccountsSettings['credentialGroup']>['options'] = [],
+    searchParams = ''
   ) {
     await act(async () =>
       root.render(
-        <NuqsTestingAdapter hasMemory>
+        <NuqsTestingAdapter hasMemory searchParams={searchParams}>
           <OrganizationAccountProviders
             organizationId='org-1'
             group={{ ...group, mcpServers, options }}
@@ -155,6 +156,24 @@ describe('organization provider configuration UI', () => {
     expect(button?.disabled).toBe(false)
     await act(async () => button?.click())
   }
+
+  it('filters integrations without dropping hidden providers from configuration updates', async () => {
+    await render([], [gmail, github], '?credential-group-provider=+GMAIL+')
+    expect(container.textContent).toContain('Gmail')
+    expect(container.textContent).not.toContain('GitHub')
+    await clickButton('Update configurations')
+    expect(
+      mocks.update.mock.calls[0][0].update.options.map(
+        (option: { provider: string }) => option.provider
+      )
+    ).toEqual(['gmail', 'github-repositories'])
+  })
+
+  it('distinguishes an integration search miss from an unconfigured group', async () => {
+    await render([], [gmail], '?credential-group-provider=missing')
+    expect(container.textContent).toContain('No integrations match your search')
+    expect(container.textContent).not.toContain('Add an integration to start connecting accounts.')
+  })
   async function fill(labelText: string, value: string) {
     const label = Array.from(document.querySelectorAll('label')).find((node) =>
       node.textContent?.startsWith(labelText)

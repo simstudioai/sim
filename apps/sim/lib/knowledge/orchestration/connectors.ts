@@ -659,6 +659,8 @@ export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperatio
   knowledgeBase: ConnectorKnowledgeBase
   connectorId: string
   updates: {
+    /** An authorized access operation has already validated this replacement. */
+    credentialId?: string | null
     sourceConfig?: Record<string, unknown>
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
@@ -759,9 +761,15 @@ export async function performUpdateKnowledgeConnector(
    * so allowing it would silently discard the change. Refusing is the only
    * answer that is honest about either.
    */
+  const credentialChanged =
+    updates.credentialId !== undefined && updates.credentialId !== existing.credentialId
+  if (updates.credentialId !== undefined && existing.accessMode === 'members') {
+    return fail('Member account changes require the access operation', 'validation')
+  }
   const membershipOnly = Boolean(
     params.permissionChange &&
       !params.permissionChange.requiresContentSync &&
+      !credentialChanged &&
       updates.sourceConfig === undefined &&
       updates.syncIntervalMinutes === undefined &&
       updates.status === undefined
@@ -780,7 +788,8 @@ export async function performUpdateKnowledgeConnector(
    */
   if (
     existing.status === 'pending' &&
-    (updates.sourceConfig !== undefined ||
+    (credentialChanged ||
+      updates.sourceConfig !== undefined ||
       updates.syncIntervalMinutes !== undefined ||
       params.permissionChange?.requiresContentSync)
   ) {
@@ -869,7 +878,9 @@ export async function performUpdateKnowledgeConnector(
 
   const resultingStatus = updates.status ?? existing.status
   const shouldDispatchSourceSync =
-    (updates.sourceConfig !== undefined || params.permissionChange?.requiresContentSync === true) &&
+    (credentialChanged ||
+      updates.sourceConfig !== undefined ||
+      params.permissionChange?.requiresContentSync === true) &&
     resultingStatus !== 'paused' &&
     resultingStatus !== 'disabled'
   /**
@@ -896,6 +907,13 @@ export async function performUpdateKnowledgeConnector(
   const updateTimestamp = new Date()
   const values: Partial<typeof knowledgeConnector.$inferInsert> = {
     updatedAt: updateTimestamp,
+  }
+  if (credentialChanged) {
+    values.credentialId = updates.credentialId
+    values.lastSyncAt = null
+    values.listingCheckpoint = null
+    values.directoryCheckpoint = null
+    values.nextSyncAt = updateTimestamp
   }
   if (params.permissionChange?.encryptedApiKey)
     values.encryptedApiKey = params.permissionChange.encryptedApiKey
@@ -966,7 +984,11 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.deletedAt),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
-    if (sourceConfigToStore !== undefined || params.permissionChange)
+    if (credentialChanged) {
+      updateConditions.push(isNull(knowledgeConnector.syncLockToken))
+      updateConditions.push(eq(knowledgeConnector.accessMode, existing.accessMode))
+    }
+    if (credentialChanged || sourceConfigToStore !== undefined || params.permissionChange)
       updateConditions.push(eq(knowledgeConnector.updatedAt, existing.updatedAt))
     if (syncsPerMember) {
       updateConditions.push(eq(knowledgeConnector.memberSyncStatus, existing.memberSyncStatus))
@@ -1051,10 +1073,12 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      return classifyKnowledgeFailure(
-        error,
-        requestId,
-        `Dispatch source-change member sync for connector ${connectorId}`
+      logger.error(
+        `[${requestId}] Saved connector; member sync remains due after dispatch failed`,
+        {
+          connectorId,
+          error,
+        }
       )
     }
   }
@@ -1068,11 +1092,10 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      return classifyKnowledgeFailure(
+      logger.error(`[${requestId}] Saved connector; sync remains due after dispatch failed`, {
+        connectorId,
         error,
-        requestId,
-        `Dispatch source-change sync for connector ${connectorId}`
-      )
+      })
     }
   }
 

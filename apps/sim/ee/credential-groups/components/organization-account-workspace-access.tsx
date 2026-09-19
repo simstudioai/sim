@@ -4,22 +4,26 @@ import { useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
 import { Plus, Workspaces } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { OrganizationWorkspaceGrantModal } from '@/ee/credential-groups/components/organization-workspace-grant-modal'
+import { credentialGroupWorkspaceSearchParam } from '@/ee/credential-groups/search-params'
 import {
   useOrganizationAccountWorkspaceAccess,
   useUpdateOrganizationAccountWorkspaceAccess,
 } from '@/hooks/queries/organization-accounts'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 type Grant = WorkspaceAccess['grants'][number]
 type GrantEditor =
@@ -34,31 +38,44 @@ export function OrganizationAccountWorkspaceAccess({
   organizationId,
 }: OrganizationAccountWorkspaceAccessProps) {
   const access = useOrganizationAccountWorkspaceAccess(organizationId)
-  if (access.error)
-    return (
-      <SettingsQueryErrorState
-        error={access.error}
-        fallback='Could not load workspace access'
-        isRetrying={access.isFetching}
-        onRetry={() => void access.refetch()}
-      />
-    )
-  if (!access.data)
-    return <p className='text-[var(--text-muted)] text-caption'>Loading workspace access…</p>
+  const [searchTerm, setSearchParam] = useQueryState(credentialGroupWorkspaceSearchParam.key, {
+    ...credentialGroupWorkspaceSearchParam.parser,
+    history: 'replace',
+    clearOnDefault: true,
+  })
+  const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   return (
-    <WorkspaceAccessForm
-      key={organizationId}
-      organizationId={organizationId}
-      access={access.data}
-    />
+    <SettingsPanel
+      search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search workspaces...' }}
+    >
+      {access.error ? (
+        <SettingsQueryErrorState
+          error={access.error}
+          fallback='Could not load workspace access'
+          isRetrying={access.isFetching}
+          onRetry={() => void access.refetch()}
+          variant='inline'
+        />
+      ) : !access.data ? (
+        <SettingsEmptyState variant='inline'>Loading workspace access…</SettingsEmptyState>
+      ) : (
+        <WorkspaceAccessForm
+          key={organizationId}
+          organizationId={organizationId}
+          access={access.data}
+          searchTerm={searchTerm}
+        />
+      )}
+    </SettingsPanel>
   )
 }
 
 interface WorkspaceAccessFormProps extends OrganizationAccountWorkspaceAccessProps {
   access: WorkspaceAccess
+  searchTerm: string
 }
 
-function WorkspaceAccessForm({ organizationId, access }: WorkspaceAccessFormProps) {
+function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAccessFormProps) {
   const update = useUpdateOrganizationAccountWorkspaceAccess()
   const [editor, setEditor] = useState<GrantEditor | null>(null)
   const byId = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
@@ -76,6 +93,10 @@ function WorkspaceAccessForm({ organizationId, access }: WorkspaceAccessFormProp
     }
   }
   const allowedWorkspaces = access.workspaces.filter((workspace) => grantsById.has(workspace.id))
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const visibleWorkspaces = allowedWorkspaces.filter((workspace) =>
+    workspace.name.toLowerCase().includes(normalizedSearch)
+  )
   const availableWorkspaces = access.workspaces.filter((workspace) => !grantsById.has(workspace.id))
 
   const save = async (grants: WorkspaceAccess['grants'], revision: number) => {
@@ -135,11 +156,13 @@ function WorkspaceAccessForm({ organizationId, access }: WorkspaceAccessFormProp
             {update.error.message}
           </p>
         )}
-        {!allowedWorkspaces.length ? (
-          <SettingsEmptyState variant='inline'>No workspaces have access</SettingsEmptyState>
+        {!visibleWorkspaces.length ? (
+          <SettingsEmptyState variant='inline'>
+            {normalizedSearch ? 'No workspaces match your search' : 'No workspaces have access'}
+          </SettingsEmptyState>
         ) : (
           <div className={RESOURCE_LIST_STACK}>
-            {allowedWorkspaces.map((workspace) => {
+            {visibleWorkspaces.map((workspace) => {
               const grant = grantsById.get(workspace.id)!
               return (
                 <SettingsResourceRow
