@@ -129,7 +129,7 @@ export function FilterRuleRow({
 
   const renderActions = () => (
     <>
-      <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
+      <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} size='icon'>
         <Plus className='size-[14px]' />
         <span className='sr-only'>Add Condition</span>
       </Button>
@@ -137,7 +137,7 @@ export function FilterRuleRow({
         variant='ghost-destructive'
         onClick={() => onRemove(rule.id)}
         disabled={isReadOnly}
-        className='h-auto p-0'
+        size='icon'
       >
         <Trash className='size-[14px]' />
         <span className='sr-only'>Delete Condition</span>

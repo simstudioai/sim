@@ -457,7 +457,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
                         e.stopPropagation()
                         handleRemoveVariable(variable.id)
                       }}
-                      className='h-auto p-0'
+                      size='icon'
                       disabled={readOnly}
                       aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
                     >
