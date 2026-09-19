@@ -35,3 +35,12 @@ export interface ScriptMigration {
    */
   up(sql: Sql): Promise<void>
 }
+
+/**
+ * Thrown by `up` to leave the migration unrecorded without failing the upgrade,
+ * so the next upgrade runs it again: for work this database refuses today but
+ * may accept later, such as an extension the migration role may not yet create.
+ */
+export class ScriptMigrationDeferred extends Error {
+  override name = 'ScriptMigrationDeferred'
+}

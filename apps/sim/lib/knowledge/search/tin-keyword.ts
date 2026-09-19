@@ -33,7 +33,10 @@ const indexReadiness = new LRUCache<'index', boolean, SearchBudget | undefined>(
   },
 })
 
-/** Only organization search indexes are projected; `is_search_index` is fixed at creation. */
+/**
+ * Only organization search indexes are projected. `is_search_index` is only ever turned on, when a
+ * legacy base is adopted, so a stale answer just keeps that base on the GIN projection for one TTL.
+ */
 const searchIndexBases = new LRUCache<string, boolean>({
   max: 10_000,
   ttl: SEARCH_INDEX_TTL_MS,
