@@ -24,7 +24,11 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
-import { Memory } from '@/executor/handlers/agent/memory'
+import {
+  getMemoryMessageAppendKey,
+  getMemoryMessageTurnId,
+  Memory,
+} from '@/executor/handlers/agent/memory'
 import type { ExecutionContext } from '@/executor/types'
 import { isConversationHistoryNotice } from '@/providers/conversation-metadata'
 
@@ -118,6 +122,91 @@ describe('optional Agent memory durability failures', () => {
     expect(mocks.prefix.mock.calls[0][0].input.memoryId).toBe(options.memoryId)
     expect(mocks.items).not.toHaveBeenCalled()
   })
+
+  it('retains current-turn input identity while excluding checkpoint-owned exchanges', async () => {
+    const input = { role: 'user', content: 'Current input' }
+    const prompt = { role: 'user', content: 'Current user prompt' }
+    mocks.items.mockResolvedValue({
+      items: [
+        {
+          kind: 'exchange',
+          appendKey: 'step:1',
+          turnId: options.turnId,
+          data: { version: 1, messages: [{ role: 'assistant', content: 'Checkpoint response' }] },
+          provenance: { status: 'exact', entries: [] },
+        },
+        ...[
+          { appendKey: 'user-prompt', data: prompt },
+          { appendKey: 'seed:0', data: input },
+        ].map((item) => ({
+          ...item,
+          kind: 'message',
+          turnId: options.turnId,
+          provenance: { status: 'exact', entries: [] },
+        })),
+      ],
+    })
+    const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
+      richHistory: true,
+      excludeTurnId: options.turnId,
+    })
+    expect(result).toEqual([...prefix, input, prompt])
+    expect(result.slice(1).map(getMemoryMessageTurnId)).toEqual([options.turnId, options.turnId])
+    expect(result.slice(1).map(getMemoryMessageAppendKey)).toEqual(['seed:0', 'user-prompt'])
+    expect(mocks.append).not.toHaveBeenCalled()
+  })
+
+  it('preserves a complete legacy function exchange with null assistant content', async () => {
+    const exchange = [
+      { role: 'assistant', content: null, function_call: { name: 'lookup', arguments: '{}' } },
+      { role: 'function', name: 'lookup', content: 'Saved result' },
+    ]
+    mocks.items.mockResolvedValue({
+      items: [
+        {
+          kind: 'exchange',
+          appendKey: 'step:1',
+          turnId: 'previous-turn',
+          data: { version: 1, messages: exchange },
+          provenance: { status: 'exact', entries: [] },
+        },
+      ],
+    })
+    await expect(
+      new Memory().fetchMemoryMessages(
+        ctx,
+        { ...inputs, memoryType: 'sliding_window', slidingWindowSize: '1' },
+        undefined,
+        { richHistory: true }
+      )
+    ).resolves.toEqual([...prefix, ...exchange])
+  })
+
+  it.each([{ name: '', arguments: '{}' }, { name: 'lookup', arguments: 1 }, { arguments: '{}' }])(
+    'omits an invalid legacy function exchange: %j',
+    async (functionCall) => {
+      mocks.items.mockResolvedValue({
+        items: [
+          {
+            kind: 'exchange',
+            appendKey: 'step:1',
+            turnId: 'previous-turn',
+            data: {
+              version: 1,
+              messages: [
+                { role: 'assistant', content: null, function_call: functionCall },
+                { role: 'function', name: 'lookup', content: 'Saved result' },
+              ],
+            },
+            provenance: { status: 'exact', entries: [] },
+          },
+        ],
+      })
+      await expect(
+        new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
+      ).resolves.toEqual(prefix)
+    }
+  )
 
   it('drops optional scoped appends when storage fails without retrying an unscoped write', async () => {
     mocks.append.mockRejectedValue(storageFailure())

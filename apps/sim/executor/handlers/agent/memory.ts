@@ -751,7 +751,11 @@ export class Memory {
             (typeof value.content === 'string' ||
               (value.role === 'assistant' &&
                 value.content === null &&
-                Array.isArray(value.tool_calls)))
+                (Array.isArray(value.tool_calls) ||
+                  (isPlainRecord(value.function_call) &&
+                    typeof value.function_call.name === 'string' &&
+                    value.function_call.name.length > 0 &&
+                    typeof value.function_call.arguments === 'string'))))
         )
         if (!valid || values.length === 0) continue
         const group = values as Message[]
