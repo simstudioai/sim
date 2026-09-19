@@ -3,6 +3,10 @@ import type { SVGProps } from 'react'
 /**
  * Circled stop icon for stopped activity.
  * @param props - SVG properties including className and accessibility attributes.
+ * @example
+ * import { CircleStop } from '@sim/emcn/icons'
+ *
+ * <CircleStop className='size-[16px] text-[var(--text-icon)]' />
  */
 export function CircleStop(props: SVGProps<SVGSVGElement>) {
   return (
