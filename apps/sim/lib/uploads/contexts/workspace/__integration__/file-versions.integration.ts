@@ -1,6 +1,6 @@
 /** Real PostgreSQL transactions and local object storage for workspace file version history. */
 import { mkdtempSync } from 'node:fs'
-import { access, rm } from 'node:fs/promises'
+import { access, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db, dbFor } from '@sim/db'
@@ -39,6 +39,7 @@ import {
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
+  getWorkspaceFileVersion,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -314,9 +315,17 @@ describe('workspace file version history in PostgreSQL', () => {
     )
     /** A content write that replaced the bytes without recording a version, as a build predating history would. */
     const unrecordedKey = `${fixture.firstKey}-unrecorded`
+    const unrecordedContent = 'third, never recorded'
+    const unrecordedPath = path.join(fixtureStorage.root, unrecordedKey)
+    await mkdir(path.dirname(unrecordedPath), { recursive: true })
+    await writeFile(unrecordedPath, unrecordedContent)
     await db
       .update(workspaceFiles)
-      .set({ key: unrecordedKey, contentUpdatedAt: new Date() })
+      .set({
+        key: unrecordedKey,
+        sizeBytes: Buffer.byteLength(unrecordedContent),
+        contentUpdatedAt: new Date(),
+      })
       .where(eq(workspaceFiles.id, fixture.fileId))
     const file = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
     if (!file) throw new Error('file missing')
@@ -330,6 +339,7 @@ describe('workspace file version history in PostgreSQL', () => {
       isCurrent: true,
     })
     const listed = await queryWorkspaceFileVersions(file, { sortOrder: 'desc', limit: 10 })
+    expect(listed.versions[0].size).toBe(Buffer.byteLength(unrecordedContent))
     expect(listed.versions.map((row) => [row.version, row.isCurrent, row.source])).toEqual([
       [3, true, 'unknown'],
       [2, false, 'api'],
@@ -366,7 +376,34 @@ describe('workspace file version history in PostgreSQL', () => {
       [3, 'unknown'],
       [4, 'api'],
     ])
-    expect((await versionRows(fixture.fileId))[2].key).toBe(unrecordedKey)
+    const materialized = (await versionRows(fixture.fileId))[2]
+    expect(materialized.key).toBe(unrecordedKey)
+    expect(materialized.sizeBytes).toBe(Buffer.byteLength(unrecordedContent))
+    expect(await readVersionBytes(fixture.workspaceId, fixture.fileId, materialized.key)).toBe(
+      unrecordedContent
+    )
+  })
+
+  it('reads versions against the file as committed, not a record loaded before a write', async () => {
+    const fixture = await seedFile('original')
+    const stale = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+    if (!stale) throw new Error('file missing')
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('second'),
+      undefined,
+      { version: { source: 'api', authorUserId: fixture.aliceId } }
+    )
+
+    const listed = await queryWorkspaceFileVersions(stale, { sortOrder: 'desc', limit: 10 })
+    expect(listed.versions.map((row) => [row.version, row.isCurrent])).toEqual([
+      [2, true],
+      [1, false],
+    ])
+    expect((await getCurrentWorkspaceFileVersion(stale)).version).toBe(2)
+    await expect(getWorkspaceFileVersion(stale, 3)).resolves.toBeNull()
   })
 
   it('never folds deliberate writes, and repoints the head for identical bytes', async () => {

@@ -447,7 +447,7 @@ const declaredRoutes = [
       operationId: 'listFileVersions',
       summary: 'List File Versions',
       description:
-        'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into the current version while it is under ten minutes old and written in the last five. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten, so numbers can have gaps.',
+        'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into a version under ten minutes old and written in the last five. Renames and moves are not versions. Retention removes older versions by age and plan but keeps the newest ten, so numbers can have gaps.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of file versions.' },
     }),
