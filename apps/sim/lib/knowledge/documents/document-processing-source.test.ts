@@ -1460,11 +1460,46 @@ describe('processDocumentAsync write guards', () => {
     expect(schedule).not.toHaveBeenCalled()
   })
 
+  it('reports an unavailable document without parsing or indexing it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    expect(
+      await processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        BILLING_ATTRIBUTION
+      )
+    ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+  })
+
+  it('reports discarded output when the generation changes before the index commit', async () => {
+    armProviderSource()
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([])
+    expect(
+      await processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        BILLING_ATTRIBUTION
+      )
+    ).toEqual({ outcome: 'skipped', reason: 'superseded' })
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
+  })
+
   it('does not parse or reschedule a superseded provider continuation', async () => {
     armProviderSource()
     dbChainMockFns.returning.mockResolvedValueOnce([])
     const schedule = vi.fn()
-    await processDocumentAsync(
+    const result = await processDocumentAsync(
       'knowledge-base-1',
       'document-1',
       PERSISTED_CONTEXT,
@@ -1477,6 +1512,7 @@ describe('processDocumentAsync write guards', () => {
         scheduleProviderContinuation: schedule,
       }
     )
+    expect(result).toEqual({ outcome: 'skipped', reason: 'not_claimed' })
     expect(mockProcessDocument).not.toHaveBeenCalled()
     expect(schedule).not.toHaveBeenCalled()
   })

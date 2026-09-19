@@ -1448,6 +1448,22 @@ function queueGenerationConditions(
 }
 
 /**
+ * Who the processor reads a document's source file as. Always the actor, not
+ * the payer: authorizing as the KB owner would let a writer ingest an internal
+ * file only the owner can read. A connector-owned row was written by the sync
+ * from bytes it fetched, not from a caller-supplied URL, so it is read as the
+ * system: in members mode the row stays hidden until the sync materializes who
+ * observed it, and the actor's own scope would deny the read.
+ */
+function sourceFileAccessFor(connectorId: string | null, actorUserId: string): SourceFileAccess {
+  return { userId: actorUserId, knowledgeAccess: connectorId ? SYSTEM_ACCESS_SCOPE : undefined }
+}
+
+export type DocumentProcessingResult =
+  | { outcome: 'indexed' }
+  | { outcome: 'skipped'; reason: 'unavailable' | 'not_claimed' | 'superseded' }
+
+/**
  * Parses, embeds, and indexes one document.
  *
  * @param indexingPassId - Identifies the indexing pass this call belongs to,
@@ -1461,18 +1477,6 @@ function queueGenerationConditions(
  * invocation against the document's retry budget. Direct callers omit it and
  * therefore cannot refund an attempt they never charged.
  */
-/**
- * Who the processor reads a document's source file as. Always the actor, not
- * the payer: authorizing as the KB owner would let a writer ingest an internal
- * file only the owner can read. A connector-owned row was written by the sync
- * from bytes it fetched, not from a caller-supplied URL, so it is read as the
- * system: in members mode the row stays hidden until the sync materializes who
- * observed it, and the actor's own scope would deny the read.
- */
-function sourceFileAccessFor(connectorId: string | null, actorUserId: string): SourceFileAccess {
-  return { userId: actorUserId, knowledgeAccess: connectorId ? SYSTEM_ACCESS_SCOPE : undefined }
-}
-
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -1486,7 +1490,7 @@ export async function processDocumentAsync(
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
   indexingPassId?: string,
   attemptContext?: DocumentProcessingAttemptContext
-): Promise<void> {
+): Promise<DocumentProcessingResult> {
   const startTime = Date.now()
   const processingStartedAt = new Date()
   let processingFilename = docData.filename
@@ -1570,12 +1574,12 @@ export async function processDocumentAsync(
             documentConnectorIsActive()
           )
         )
-      return
+      return { outcome: 'skipped', reason: 'unavailable' }
     }
 
     const ctx = contextRows[0]
     processingFilename = ctx.filename
-    await withResourceOutboundScope(ctx, async () => {
+    return await withResourceOutboundScope(ctx, async (): Promise<DocumentProcessingResult> => {
       const persistedDocData = {
         filename: ctx.filename,
         fileUrl: ctx.fileUrl,
@@ -1645,7 +1649,7 @@ export async function processDocumentAsync(
         logger.info(
           `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
         )
-        return
+        return { outcome: 'skipped', reason: 'not_claimed' }
       }
 
       attemptContext?.onClaimed?.()
@@ -2003,7 +2007,7 @@ export async function processDocumentAsync(
 
       if (!processingCommitted) {
         logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
-        return
+        return { outcome: 'skipped', reason: 'superseded' }
       }
 
       const processingTime = Date.now() - startTime
@@ -2074,6 +2078,7 @@ export async function processDocumentAsync(
           logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
         }
       }
+      return { outcome: 'indexed' }
     })
   } catch (error) {
     const processingTime = Date.now() - startTime
