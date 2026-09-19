@@ -145,6 +145,8 @@ async function supersedeVersionInTx(tx: DbTransaction, versionId: string, now: D
 }
 
 interface RecordWorkspaceFileVersionParams {
+  /** The workspace the write was scoped to; the file row's column is nullable for other contexts. */
+  workspaceId: string
   /** Head row loaded before the file row was updated. */
   head: WorkspaceFileVersionRow | undefined
   /** The file row as it was before this write (locked). */
@@ -198,7 +200,7 @@ export async function recordWorkspaceFileVersionInTx(
       .values({
         id: generateId(),
         fileId: previous.id,
-        workspaceId: next.workspaceId as string,
+        workspaceId: params.workspaceId,
         version: (head?.version ?? 0) + 1,
         ...contentColumns(previous, params.previousProvenance),
         contentHash: null,
@@ -248,13 +250,13 @@ export async function recordWorkspaceFileVersionInTx(
 /** Inserts the new current version described by a write. */
 async function insertVersion(
   tx: DbTransaction,
-  { next, nextProvenance, contentHash, write, now }: RecordWorkspaceFileVersionParams,
+  { workspaceId, next, nextProvenance, contentHash, write, now }: RecordWorkspaceFileVersionParams,
   version: number
 ): Promise<void> {
   await tx.insert(workspaceFileVersion).values({
     id: generateId(),
     fileId: next.id,
-    workspaceId: next.workspaceId as string,
+    workspaceId,
     version,
     ...contentColumns(next, nextProvenance),
     contentHash,
@@ -334,6 +336,14 @@ export interface WorkspaceFileVersionRecord {
   secretProvenance: WorkspaceFileSecretProvenanceSnapshot
 }
 
+/** Reads a stored status back, treating anything unrecognized as unknown so a revert fails closed. */
+function toSnapshotStatus(status: string | null): WorkspaceFileSecretProvenanceSnapshot['status'] {
+  if (status === null || status === 'exact' || status === 'unknown' || status === 'unrecorded') {
+    return status
+  }
+  return 'unknown'
+}
+
 function toVersionRecord(row: WorkspaceFileVersionRow): WorkspaceFileVersionRecord {
   return {
     fileId: row.fileId,
@@ -349,7 +359,7 @@ function toVersionRecord(row: WorkspaceFileVersionRow): WorkspaceFileVersionReco
     updatedAt: row.updatedAt,
     supersededAt: row.supersededAt,
     secretProvenance: {
-      status: row.secretProvenanceStatus as WorkspaceFileSecretProvenanceSnapshot['status'],
+      status: toSnapshotStatus(row.secretProvenanceStatus),
       entries: row.secretProvenanceEntries,
     },
   }

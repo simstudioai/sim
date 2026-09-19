@@ -1971,6 +1971,7 @@ export async function updateWorkspaceFileContent(
             ? currentFile.secretProvenanceVersion
             : 1
         const recorded = await recordWorkspaceFileVersionInTx(tx, {
+          workspaceId,
           head: versionHead,
           previous: currentFile,
           previousProvenance,
