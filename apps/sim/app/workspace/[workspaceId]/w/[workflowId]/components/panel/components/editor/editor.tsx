@@ -1,11 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import {
+  Button,
+  DashedDividerLine,
+  FieldDisclosure,
+  FieldDivider,
+  Loader,
+  Tooltip,
+} from '@sim/emcn'
 import {
   BookOpen,
   Check,
-  ChevronDown,
   ChevronUp,
   Lock,
   Pencil,
@@ -743,22 +749,14 @@ export function Editor() {
                     })}
 
                     {hasAdditionalFields && canEditBlock && (
-                      <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                        <DashedDividerLine className='flex-1' />
-                        <button
-                          type='button'
-                          onClick={handleToggleAdditionalFields}
-                          className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
-                        >
-                          {displayAdvancedOptions
-                            ? 'Hide additional fields'
-                            : 'Show additional fields'}
-                          <ChevronDown
-                            className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                        <DashedDividerLine className='flex-1' />
-                      </div>
+                      <FieldDisclosure
+                        expanded={displayAdvancedOptions}
+                        onClick={handleToggleAdditionalFields}
+                      >
+                        {displayAdvancedOptions
+                          ? 'Hide additional fields'
+                          : 'Show additional fields'}
+                      </FieldDisclosure>
                     )}
                     {hasAdditionalFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>

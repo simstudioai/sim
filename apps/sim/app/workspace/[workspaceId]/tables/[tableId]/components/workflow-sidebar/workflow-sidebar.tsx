@@ -7,7 +7,7 @@ import {
   ChipInput,
   type ComboboxOptionGroup,
   cn,
-  DashedDividerLine,
+  FieldDisclosure,
   FieldDivider,
   Label,
   Loader,
@@ -16,7 +16,7 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
+import { ArrowLeft, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
@@ -838,23 +838,9 @@ export function WorkflowSidebarBody({
             )}
             {selectedWorkflowId && (
               <>
-                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                  <DashedDividerLine className='flex-1' />
-                  <button
-                    type='button'
-                    onClick={() => setShowAdvanced((v) => !v)}
-                    className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
-                  >
-                    {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
-                    <ChevronDown
-                      className={cn(
-                        'size-[14px] transition-transform duration-200',
-                        showAdvanced && 'rotate-180'
-                      )}
-                    />
-                  </button>
-                  <DashedDividerLine className='flex-1' />
-                </div>
+                <FieldDisclosure expanded={showAdvanced} onClick={() => setShowAdvanced((v) => !v)}>
+                  {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
+                </FieldDisclosure>
                 {showAdvanced && (
                   <>
                     <InputMappingSection
