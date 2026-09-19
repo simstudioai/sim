@@ -461,7 +461,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
             {tab.attention && !tab.active && (
               <span
                 className={cn(
-                  'size-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]',
+                  'size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]',
                   tab.pinned && 'absolute right-1 bottom-1'
                 )}
                 aria-label='Background activity'
