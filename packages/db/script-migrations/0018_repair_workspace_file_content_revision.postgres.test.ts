@@ -53,31 +53,24 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
       content_updated_at timestamp NOT NULL, status text NOT NULL,
       entries jsonb NOT NULL DEFAULT '[]', updated_at timestamp NOT NULL DEFAULT now()
     )`
-    await sql`CREATE TABLE workspace_file_search_index (
-      file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
-      status text NOT NULL DEFAULT 'pending', partial boolean NOT NULL DEFAULT false,
-      failure_reason text, line_count integer NOT NULL DEFAULT 0,
-      indexed_bytes integer NOT NULL DEFAULT 0, dispatched_at timestamp,
-      created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(),
-      PRIMARY KEY (file_id, source_content_updated_at)
-    )`
-    await sql`CREATE TABLE workspace_file_search_segment (
-      file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
-      line_number integer NOT NULL, segment_number integer NOT NULL, content text NOT NULL,
-      line_length integer NOT NULL DEFAULT 0, segment_start integer NOT NULL DEFAULT 0,
-      PRIMARY KEY (file_id, source_content_updated_at, line_number, segment_number)
+    await sql`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, expires_at timestamp)`
+    await sql`CREATE TABLE workspace_file_search_revision (
+      file_id text PRIMARY KEY, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
+      status text NOT NULL DEFAULT 'pending', build_id text, dispatched_at timestamp
     )`
     await sql`CREATE TABLE workspace_file_search_dispatch_queue (
       workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now(), last_dispatched_at timestamp
     )`
+    await applyMigration(sql, '0359_workspace_file_search_chunks.sql', (statement) =>
+      statement.startsWith('CREATE OR REPLACE FUNCTION workspace_file_search_mark_pending')
+    )
     await applyMigration(
       sql,
       '0313_puzzling_zodiak.sql',
       (statement) =>
         statement.includes('workspace_file_search_mark_pending') &&
-        (statement.startsWith('CREATE OR REPLACE FUNCTION') ||
-          statement.startsWith('CREATE TRIGGER'))
+        statement.startsWith('CREATE TRIGGER')
     )
     await applyMigration(
       sql,
@@ -101,7 +94,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
 
   beforeEach(async () => {
     await sql`TRUNCATE workspace_files, workspace_file_secret_provenance,
-      workspace_file_search_index, workspace_file_search_segment,
+      workspace_file_search_revision, workspace_file_search_build,
       workspace_file_search_dispatch_queue`
   })
 
@@ -141,13 +134,6 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
       VALUES ('${fileId}', TIMESTAMP '${revision}', 'exact')`)
   }
 
-  async function seedIndexRow(fileId: string, revision: string, dispatched: boolean) {
-    await sql.unsafe(`INSERT INTO workspace_file_search_index
-      (file_id, workspace_id, source_content_updated_at, status, dispatched_at)
-      VALUES ('${fileId}', 'legacy-workspace', TIMESTAMP '${revision}', 'pending',
-        ${dispatched ? 'now()' : 'NULL'})`)
-  }
-
   async function revisionOf(fileId: string): Promise<string> {
     const [row] = await sql<{ revision: string }[]>`SELECT content_updated_at::text AS revision
       FROM workspace_files WHERE id = ${fileId}`
@@ -167,23 +153,6 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     expect(await revisionOf('knowledge')).toBe(MICROSECOND_REVISION)
   })
 
-  it('retains obsolete text for the contract migration after chunk search is installed', async () => {
-    await sql`CREATE TABLE workspace_file_search_revision (file_id text PRIMARY KEY)`
-    try {
-      await seedLegacyFile({ id: 'retired', context: 'workspace' })
-      await seedIndexRow('retired', MICROSECOND_REVISION, true)
-      await sql.unsafe(`INSERT INTO workspace_file_search_segment
-        (file_id, workspace_id, source_content_updated_at, line_number, segment_number, content)
-        VALUES ('retired', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 1, 1, 'old text')`)
-      expect(await repairWorkspaceFileContentRevisions(sql)).toBe(1)
-      expect(await revisionOf('retired')).toBe(MILLISECOND_REVISION)
-      const [row] = await sql`SELECT count(*)::int AS count FROM workspace_file_search_segment`
-      expect(row.count).toBe(1)
-    } finally {
-      await sql`DROP TABLE workspace_file_search_revision`
-    }
-  })
-
   it('keeps a tracked provenance version and realigns its sidecar', async () => {
     await seedLegacyFile({ id: 'tracked', context: 'workspace', provenance: 1 })
     await seedSidecar('tracked', MILLISECOND_REVISION)
@@ -199,26 +168,29 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     expect(row).toEqual({ version: 1, sidecarMatches: true })
   })
 
-  it('leaves the search index holding exactly the revision the file now records', async () => {
+  it('invalidates a stale build and queues exactly the repaired revision without legacy tables', async () => {
     await seedLegacyFile({ id: 'stranded', context: 'workspace' })
-    await seedIndexRow('stranded', MILLISECOND_REVISION, false)
-    await seedIndexRow('stranded', MICROSECOND_REVISION, true)
-    await sql.unsafe(`INSERT INTO workspace_file_search_segment
-      (file_id, workspace_id, source_content_updated_at, line_number, segment_number, content)
-      VALUES ('stranded', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 1, 1, 'orphaned')`)
-
+    await sql`INSERT INTO workspace_file_search_build (id) VALUES ('old-build')`
+    await sql.unsafe(`INSERT INTO workspace_file_search_revision
+      (file_id, workspace_id, source_content_updated_at, build_id, status, dispatched_at)
+      VALUES ('stranded', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 'old-build', 'ready', now())`)
     await repairWorkspaceFileContentRevisions(sql)
-
-    const rows = await sql<{ revision: string; matchesFile: boolean }[]>`
-      SELECT search_index.source_content_updated_at::text AS revision,
-        (search_index.source_content_updated_at = file.content_updated_at) AS "matchesFile"
-      FROM workspace_file_search_index AS search_index
-      JOIN workspace_files AS file ON file.id = search_index.file_id
-      WHERE search_index.file_id = 'stranded'`
-    expect([...rows]).toEqual([{ revision: MILLISECOND_REVISION, matchesFile: true }])
-    const [segments] = await sql<{ remaining: number }[]>`SELECT count(*)::int AS remaining
-      FROM workspace_file_search_segment WHERE file_id = 'stranded'`
-    expect(segments.remaining).toBe(0)
+    const rows = await sql`SELECT source_content_updated_at::text AS revision,
+      status, build_id, dispatched_at FROM workspace_file_search_revision WHERE file_id = 'stranded'`
+    expect([...rows]).toEqual([
+      {
+        revision: MILLISECOND_REVISION,
+        status: 'pending',
+        build_id: null,
+        dispatched_at: null,
+      },
+    ])
+    const [build] = await sql`SELECT expires_at IS NOT NULL AS expired
+      FROM workspace_file_search_build WHERE id = 'old-build'`
+    expect(build.expired).toBe(true)
+    const [queue] =
+      await sql`SELECT count(*)::int AS count FROM workspace_file_search_dispatch_queue`
+    expect(queue.count).toBe(1)
   })
 
   it('is a no-op on replay', async () => {
@@ -303,8 +275,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     })
 
     it('normalizes a legacy row promoted into the workspace by a metadata-only write', async () => {
-      // Materializing a chat upload sets `context` alone, so the revision is never written; without
-      // normalizing here the search-index trigger would key the promoted file to an unclaimable value.
+      /** A context-only promotion must normalize before the search trigger records its revision. */
       await seedLegacyFile({ id: 'promoted', context: 'mothership', provenance: 1 })
 
       await sql`UPDATE workspace_files SET context = 'workspace' WHERE id = 'promoted'`
@@ -313,7 +284,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
       const [row] = await sql<{ version: number; indexed: string | null }[]>`
         SELECT file.secret_provenance_version AS version,
           (SELECT search_index.source_content_updated_at::text
-           FROM workspace_file_search_index AS search_index
+           FROM workspace_file_search_revision AS search_index
            WHERE search_index.file_id = file.id) AS indexed
         FROM workspace_files AS file WHERE file.id = 'promoted'`
       expect(row.indexed).toBe(MILLISECOND_REVISION)

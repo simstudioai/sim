@@ -2270,7 +2270,7 @@ export const workspaceFiles = pgTable(
      * tokens, realtime versions — all of which truncate to milliseconds, while `now()` stores
      * microseconds. A sub-millisecond value therefore stops comparing equal to its own round-trip, and
      * every SQL equality keyed on it matches zero rows: a file whose
-     * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
+     * `workspace_file_search_revision.source_content_updated_at` came from such a round trip can never be
      * claimed, indexed, or cleaned up. The default truncates, and the
      * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
      * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
@@ -2353,51 +2353,6 @@ export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_
   'failed',
 ])
 
-/** contract-pending(chunk search fully deployed): retire legacy index state and segments after rollback window. */
-export const workspaceFileSearchIndex = pgTable(
-  'workspace_file_search_index',
-  {
-    fileId: text('file_id').notNull(),
-    workspaceId: text('workspace_id').notNull(),
-    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
-    status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
-    partial: boolean('partial').notNull().default(false),
-    failureReason: text('failure_reason'),
-    lineCount: integer('line_count').notNull().default(0),
-    indexedBytes: integer('indexed_bytes').notNull().default(0),
-    dispatchedAt: timestamp('dispatched_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({
-      name: 'workspace_file_search_index_pk',
-      columns: [table.fileId, table.sourceContentUpdatedAt],
-    }),
-    fileFk: foreignKey({
-      name: 'workspace_file_search_index_file_fk',
-      columns: [table.fileId],
-      foreignColumns: [workspaceFiles.id],
-    }).onDelete('cascade'),
-    workspaceFk: foreignKey({
-      name: 'workspace_file_search_index_workspace_fk',
-      columns: [table.workspaceId],
-      foreignColumns: [workspace.id],
-    }).onDelete('cascade'),
-    workspaceStatusIdx: index('workspace_file_search_index_workspace_status_idx').on(
-      table.workspaceId,
-      table.status,
-      table.sourceContentUpdatedAt
-    ),
-    pendingDispatchIdx: index('workspace_file_search_index_pending_dispatch_idx')
-      .on(table.workspaceId, table.updatedAt, table.fileId, table.sourceContentUpdatedAt)
-      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`),
-    activeDispatchIdx: index('workspace_file_search_index_active_dispatch_idx')
-      .on(table.workspaceId, table.dispatchedAt)
-      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NOT NULL`),
-  })
-)
-
 /** One bounded scheduler row per workspace with current file revisions awaiting dispatch. */
 export const workspaceFileSearchDispatchQueue = pgTable(
   'workspace_file_search_dispatch_queue',
@@ -2429,47 +2384,6 @@ export const workspaceFileSearchBackfill = pgTable('workspace_file_search_backfi
   completedAt: timestamp('completed_at'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
-
-/** Bounded, overlapping logical-line segments searched through PostgreSQL trigram indexes. */
-export const workspaceFileSearchSegment = pgTable(
-  'workspace_file_search_segment',
-  {
-    fileId: text('file_id').notNull(),
-    workspaceId: text('workspace_id').notNull(),
-    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
-    lineNumber: integer('line_number').notNull(),
-    segmentNumber: integer('segment_number').notNull(),
-    segmentStart: integer('segment_start').notNull(),
-    lineLength: integer('line_length').notNull(),
-    content: text('content').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({
-      name: 'workspace_file_search_segment_pk',
-      columns: [table.fileId, table.sourceContentUpdatedAt, table.lineNumber, table.segmentNumber],
-    }),
-    fileFk: foreignKey({
-      name: 'workspace_file_search_segment_file_fk',
-      columns: [table.fileId],
-      foreignColumns: [workspaceFiles.id],
-    }).onDelete('cascade'),
-    workspaceFk: foreignKey({
-      name: 'workspace_file_search_segment_workspace_fk',
-      columns: [table.workspaceId],
-      foreignColumns: [workspace.id],
-    }).onDelete('cascade'),
-    workspaceRevisionIdx: index('workspace_file_search_segment_workspace_revision_idx').on(
-      table.workspaceId,
-      table.fileId,
-      table.sourceContentUpdatedAt
-    ),
-    contentTrigramIdx: index('workspace_file_search_segment_workspace_content_trgm_idx').using(
-      'gin',
-      table.workspaceId.asc().op('text_ops'),
-      table.content.asc().op('gin_trgm_ops')
-    ),
-  })
-)
 
 /** Builds outlive file deletion so their text can be reclaimed in bounded background batches. */
 export const workspaceFileSearchBuild = pgTable(
