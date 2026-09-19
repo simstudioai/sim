@@ -8,6 +8,7 @@ import {
   LEGACY_POSTGRES_PASSWORD,
   postgresUser,
 } from './compose-database'
+import { SetupError } from './errors'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const COMPOSE_FILES = [
@@ -34,28 +35,22 @@ afterEach(() => {
 })
 
 describe('choosePostgresPassword', () => {
+  const noShell = {}
+
   it('leaves a password already in .env alone without looking for a volume', () => {
     const hasDatabaseVolume = vi.fn(() => true)
     expect(
-      choosePostgresPassword('in-env-file', 'sim-abc', {
-        shellValue: 'in-shell',
-        hasDatabaseVolume,
-      })
+      choosePostgresPassword('in-env-file', 'sim-abc', { shell: noShell, hasDatabaseVolume })
     ).toBeNull()
-    expect(hasDatabaseVolume).not.toHaveBeenCalled()
-  })
-
-  it('persists a shell-exported password, which is what Compose is using', () => {
-    const hasDatabaseVolume = vi.fn(() => true)
-    expect(
-      choosePostgresPassword(undefined, 'sim-abc', { shellValue: 'in-shell', hasDatabaseVolume })
-    ).toEqual({ value: 'in-shell', source: 'environment' })
     expect(hasDatabaseVolume).not.toHaveBeenCalled()
   })
 
   it('generates a password for a project with no database volume yet', () => {
     const hasDatabaseVolume = vi.fn(() => false)
-    const choice = choosePostgresPassword('', 'sim-abc', { shellValue: '', hasDatabaseVolume })
+    const choice = choosePostgresPassword(undefined, 'sim-abc', {
+      shell: noShell,
+      hasDatabaseVolume,
+    })
     expect(hasDatabaseVolume).toHaveBeenCalledWith('sim-abc')
     expect(choice?.source).toBe('generated')
     expect(choice?.value).toMatch(/^[0-9a-f]{64}$/)
@@ -63,14 +58,54 @@ describe('choosePostgresPassword', () => {
 
   it('keeps the legacy password for a volume created before it was required', () => {
     expect(
-      choosePostgresPassword(undefined, 'sim-abc', {
-        shellValue: '',
-        hasDatabaseVolume: () => true,
-      })
+      choosePostgresPassword('', 'sim-abc', { shell: noShell, hasDatabaseVolume: () => true })
     ).toEqual({ value: LEGACY_POSTGRES_PASSWORD, source: 'legacy' })
   })
 
-  it('reads the shell environment by default', () => {
+  it('persists a shell-only password, which is what Compose is using', () => {
+    const hasDatabaseVolume = vi.fn(() => true)
+    expect(
+      choosePostgresPassword(undefined, 'sim-abc', {
+        shell: { POSTGRES_PASSWORD: 'in-shell' },
+        hasDatabaseVolume,
+      })
+    ).toEqual({ value: 'in-shell', source: 'environment' })
+    expect(hasDatabaseVolume).not.toHaveBeenCalled()
+  })
+
+  it('accepts a shell password that matches .env', () => {
+    expect(
+      choosePostgresPassword('same', 'sim-abc', { shell: { POSTGRES_PASSWORD: 'same' } })
+    ).toBeNull()
+  })
+
+  it('refuses a shell password that differs from .env', () => {
+    expect(() =>
+      choosePostgresPassword('in-env-file', 'sim-abc', { shell: { POSTGRES_PASSWORD: 'other' } })
+    ).toThrow(SetupError)
+  })
+
+  it('refuses an empty shell export, which Compose would use over .env', () => {
+    for (const envFileValue of [undefined, 'in-env-file']) {
+      expect(() =>
+        choosePostgresPassword(envFileValue, 'sim-abc', { shell: { POSTGRES_PASSWORD: '' } })
+      ).toThrow(/exported but empty/)
+    }
+  })
+
+  it.each(['pa ss', 'pass#word', 'pa"ss', "pa'ss", 'pa\\ss', 'pa$ss'])(
+    'refuses to persist %s, which .env cannot store verbatim',
+    (value) => {
+      expect(() =>
+        choosePostgresPassword(undefined, 'sim-abc', {
+          shell: { POSTGRES_PASSWORD: value },
+          hasDatabaseVolume: () => false,
+        })
+      ).toThrow(/cannot store verbatim/)
+    }
+  )
+
+  it('reads the process environment by default', () => {
     vi.stubEnv('POSTGRES_PASSWORD', 'from-process')
     expect(choosePostgresPassword(undefined, 'sim-abc', { hasDatabaseVolume: () => true })).toEqual(
       { value: 'from-process', source: 'environment' }
