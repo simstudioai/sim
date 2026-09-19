@@ -1242,7 +1242,7 @@ export const GoogleCalendarBlockMeta = {
       name: 'rsvp-to-event',
       description: 'Accept, decline, or tentatively accept a Google Calendar invitation.',
       content:
-        '# RSVP to an Event\n\nChange your own response to an invitation without touching the guest list.\n\n## Steps\n1. Find the event with List Events over the right time window. List Events returns each occurrence of a recurring meeting with its own ID, so use that ID to respond to one occurrence only; the series ID (recurringEventId) changes your response for every occurrence.\n2. Run Respond to Invitation (RSVP) with Response set to `Yes (accept)`, `No (decline)`, or `Maybe (tentative)`, and an optional note.\n3. Do not use Update Event or Invite Attendees to RSVP; they edit the guest list, not your response.\n\n## Output\nConfirm the event title, the occurrence start time, and the confirmed response returned by the tool.',
+        '# RSVP to an Event\n\nChange your own response to an invitation without touching the guest list.\n\n## Steps\n1. Find the event with List Events over the right time window. List Events returns each occurrence of a recurring meeting with its own ID, so responding with that ID changes only that occurrence.\n2. Run Respond to Invitation (RSVP) with Response set to `Yes (accept)`, `No (decline)`, or `Maybe (tentative)`, and an optional note.\n3. Do not use Update Event or Invite Attendees to RSVP; they edit the guest list, not your response.\n\n## Output\nConfirm the event title, the occurrence start time, and the confirmed response returned by the tool.',
     },
   ],
 } as const satisfies BlockMeta

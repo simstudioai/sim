@@ -129,6 +129,31 @@ describe('google_calendar_respond', () => {
     ).rejects.toThrow('Forbidden')
   })
 
+  it('never writes the RSVP when the run was canceled', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      respondTool.transformResponse!(jsonResponse(eventWith('needsAction')), baseParams, {
+        signal: controller.signal,
+      })
+    ).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards the execution signal to the RSVP write', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(eventWith('accepted')))
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+
+    await respondTool.transformResponse!(jsonResponse(eventWith('needsAction')), baseParams, {
+      signal: controller.signal,
+    })
+    expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal)
+  })
+
   it('fails when Google does not reflect the new response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(eventWith('needsAction'))))
 

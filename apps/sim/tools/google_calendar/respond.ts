@@ -5,7 +5,7 @@ import {
   type GoogleCalendarRespondParams,
   type GoogleCalendarRespondResponse,
 } from '@/tools/google_calendar/types'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 const RESPONSE_STATUSES = ['accepted', 'declined', 'tentative'] as const
 
@@ -20,10 +20,12 @@ interface RespondResult {
  * entry flagged `self`, then patched with `attendeesOmitted: true` and only that entry, which
  * tells Google to update just this participant's response and leave every other guest intact.
  * Passing a recurring-event instance ID changes the response for that occurrence only.
+ * The execution signal is forwarded so a canceled run never writes the RSVP.
  */
 async function respondToEvent(
   response: Response,
-  params: GoogleCalendarRespondParams | undefined
+  params: GoogleCalendarRespondParams | undefined,
+  signal: AbortSignal | undefined
 ): Promise<RespondResult> {
   const existingEvent: GoogleCalendarApiEventResponse = await response.json()
 
@@ -61,8 +63,10 @@ async function respondToEvent(
   const queryString = queryParams.toString()
   const patchUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId?.trim() ?? '')}${queryString ? `?${queryString}` : ''}`
 
+  signal?.throwIfAborted()
   const patchResponse = await fetch(patchUrl, {
     method: 'PATCH',
+    signal,
     headers: {
       Authorization: `Bearer ${params?.accessToken}`,
       'Content-Type': 'application/json',
@@ -117,7 +121,7 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Google Calendar event ID to respond to. Use a recurring-event instance ID (from Get Recurring Instances) to respond to a single occurrence; the series ID responds to every occurrence.',
+        'Google Calendar event ID to respond to. Use a recurring-event instance ID (as returned by List Events or Get Recurring Instances) to respond to a single occurrence; the series ID responds to every occurrence.',
     },
     responseStatus: {
       type: 'string',
@@ -151,8 +155,8 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
-    const { data, responseStatus } = await respondToEvent(response, params)
+  transformResponse: async (response: Response, params, context?: ToolResponseContext) => {
+    const { data, responseStatus } = await respondToEvent(response, params, context?.signal)
 
     return {
       success: true,
@@ -212,8 +216,12 @@ export const respondV2Tool: ToolConfig<
   oauth: respondTool.oauth,
   params: respondTool.params,
   request: respondTool.request,
-  transformResponse: async (response: Response, params) => {
-    const { data, responseStatus, comment } = await respondToEvent(response, params)
+  transformResponse: async (response: Response, params, context?: ToolResponseContext) => {
+    const { data, responseStatus, comment } = await respondToEvent(
+      response,
+      params,
+      context?.signal
+    )
 
     return {
       success: true,
@@ -235,15 +243,15 @@ export const respondV2Tool: ToolConfig<
     id: { type: 'string', description: 'Event ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     status: { type: 'string', description: 'Event status' },
-    summary: { type: 'string', description: 'Event title', optional: true },
+    summary: { type: 'string', description: 'Event title', nullable: true },
     start: { type: 'json', description: 'Event start' },
     end: { type: 'json', description: 'Event end' },
     responseStatus: {
       type: 'string',
       description: 'Your confirmed response (accepted, declined, or tentative)',
     },
-    comment: { type: 'string', description: 'Your response comment', optional: true },
-    attendees: { type: 'json', description: 'Event attendees', optional: true },
-    organizer: { type: 'json', description: 'Event organizer', optional: true },
+    comment: { type: 'string', description: 'Your response comment', nullable: true },
+    attendees: { type: 'json', description: 'Event attendees', nullable: true },
+    organizer: { type: 'json', description: 'Event organizer', nullable: true },
   },
 }
