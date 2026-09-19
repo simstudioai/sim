@@ -19,7 +19,7 @@ import {
   type ConnectorSourceFailureCategory,
 } from '@/connectors/source-error'
 import type {
-  AccessibleScopes,
+  AccessibleScopePage,
   ConnectorConfig,
   ExternalDocument,
   ExternalDocumentList,
@@ -43,8 +43,6 @@ const MAX_THREAD_PAGES = 200
 const MAX_USERNAME_CACHE_ENTRIES = 2000
 const MAX_CHANNEL_CACHE_ENTRIES = 2000
 const MAX_ROOT_VERSION_CACHE_ENTRIES = 50_000
-/** Conversation pages read when resolving a caller's reachable channels; each proves access on its own. */
-const MAX_SCOPE_CHANNEL_PAGES = 100
 /**
  * Threads with activity this recent are reread on every listing. A root reports new
  * replies and its own edits, but not an edit or deletion of an existing reply, which in
@@ -1008,26 +1006,19 @@ async function messageLink(
 }
 
 /**
- * The conversations the caller can read, under the same inclusion rules as a listing,
- * as the external-id prefix of their threads. Access is granted per conversation, so
- * a conversation listed here proves access to every thread in it. Stopping at the page
- * cap reports the listing incomplete, so the conversations past it stay due for renewal.
+ * One page of the conversations the caller can read, under the same inclusion rules as
+ * a listing, as the external-id prefix of their threads. Access is granted per
+ * conversation, so a conversation listed here proves access to every thread in it.
  */
 async function listAccessibleScopes(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
+  cursor?: string,
   syncContext?: Record<string, unknown>
-): Promise<AccessibleScopes> {
+): Promise<AccessibleScopePage> {
   const { teamId } = await resolveWorkspace(accessToken, syncContext)
-  const prefixes: string[] = []
-  let cursor: string | undefined
-  for (let page = 0; page < MAX_SCOPE_CHANNEL_PAGES; page += 1) {
-    const { channels, nextCursor: next } = await listChannelPage(accessToken, sourceConfig, cursor)
-    for (const channel of channels) prefixes.push(channelScope(teamId, channel.id))
-    cursor = next
-    if (!cursor) break
-  }
-  return { prefixes, complete: !cursor }
+  const { channels, nextCursor: next } = await listChannelPage(accessToken, sourceConfig, cursor)
+  return { prefixes: channels.map((channel) => channelScope(teamId, channel.id)), nextCursor: next }
 }
 
 export const slackConnector: ConnectorConfig = {

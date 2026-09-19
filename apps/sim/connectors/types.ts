@@ -238,13 +238,13 @@ export type ExternalChange =
   | { kind: 'removed'; externalId: string }
 
 /**
- * The containers a caller can still read, as external-ID prefixes. Each listed
- * prefix proves access on its own; `complete` is false when the source stopped
- * before listing every container, so the rest are still due for renewal.
+ * One page of the containers a caller can still read, as external-ID prefixes.
+ * Each listed prefix proves access on its own; `nextCursor` continues the
+ * listing and is absent on its last page.
  */
-export interface AccessibleScopes {
+export interface AccessibleScopePage {
   prefixes: string[]
-  complete: boolean
+  nextCursor?: string
 }
 
 export interface ExternalChangeList {
@@ -582,14 +582,17 @@ export interface ConnectorConfig extends ConnectorMeta {
    * granted to whole containers (a Slack channel) rather than item by item. A
    * members-mode crawl renews the caller's observations under these prefixes
    * without relisting each item, so access stays fresh while a large listing is
-   * still in progress, and lapses for containers the caller has lost. Only
+   * still in progress, and lapses for containers the caller has lost. Paged, so
+   * a renewal can resume where an earlier run stopped; an expired cursor is
+   * recognised by {@link ConnectorConfig.isListingCursorInvalidError}. Only
    * meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
    */
   listAccessibleScopes?: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
+    cursor?: string,
     syncContext?: Record<string, unknown>
-  ) => Promise<AccessibleScopes>
+  ) => Promise<AccessibleScopePage>
 
   /**
    * Opens the external directory whose groups this connector's mirrored ACLs

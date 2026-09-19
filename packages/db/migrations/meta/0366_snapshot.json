@@ -1,5 +1,5 @@
 {
-  "id": "ee93b87f-2f40-4000-8d1e-99a69b27fd76",
+  "id": "7ee4afa1-b337-4176-bc78-1d27ac802bfa",
   "prevId": "6c3ac487-9a6a-4984-8732-57a76bab5c42",
   "version": "7",
   "dialect": "postgresql",
@@ -9517,6 +9517,18 @@
         },
         "scope_renewed_at": {
           "name": "scope_renewed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope_renewal_cursor": {
+          "name": "scope_renewal_cursor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope_renewal_started_at": {
+          "name": "scope_renewal_started_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false

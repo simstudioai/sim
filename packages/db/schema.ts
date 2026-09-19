@@ -6019,6 +6019,12 @@ export const knowledgeConnectorMember = pgTable(
      */
     scopeRenewedAt: timestamp('scope_renewed_at'),
     /**
+     * Where an unfinished scope renewal resumes in the source's container listing,
+     * and when that renewal pass began; both NULL when no pass is in progress.
+     */
+    scopeRenewalCursor: text('scope_renewal_cursor'),
+    scopeRenewalStartedAt: timestamp('scope_renewal_started_at'),
+    /**
      * Where the member's change feed resumes. Opened just before a full listing
      * and stored once that listing lands, so every later run reads the feed
      * instead of relisting; NULL when the connector has no feed or the feed

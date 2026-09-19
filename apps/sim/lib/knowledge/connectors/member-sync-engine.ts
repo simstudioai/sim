@@ -109,6 +109,7 @@ import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
 import { getConnectorRequiredScopes } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
+  AccessibleScopePage,
   ConnectorConfig,
   ExternalDocument,
   SyncResult,
@@ -779,6 +780,8 @@ async function reconcileMembership(
                     lastCompleteListingAt: null,
                     lastListedCount: null,
                     scopeRenewedAt: null,
+                    scopeRenewalCursor: null,
+                    scopeRenewalStartedAt: null,
                   }
                 : {}),
               updatedAt: now,
@@ -987,6 +990,8 @@ async function recordMemberFailure(
               memberSyncedThrough: null,
               lastCompleteListingAt: null,
               scopeRenewedAt: null,
+              scopeRenewalCursor: null,
+              scopeRenewalStartedAt: null,
             }
           : {}),
         consecutiveFailures: failures,
@@ -1012,7 +1017,9 @@ function isScopeUnavailableError(connectorConfig: ConnectorConfig, error: unknow
  * container: their observations under every container the source still grants them
  * are renewed, so evidence does not lapse while a listing that takes longer than the
  * evidence window is still in progress, and lapses only for containers they lost.
- * Best effort: a failure here leaves the listing to establish access itself.
+ * The container listing is paged and its cursor stored, so a renewal that outgrows
+ * one run resumes where it stopped instead of repeating its first pages. Best
+ * effort: a failure here leaves the listing to establish access itself.
  */
 async function renewMemberAccessScopes(input: {
   run: MemberSyncRun
@@ -1024,48 +1031,90 @@ async function renewMemberAccessScopes(input: {
 }): Promise<void> {
   const { run, member, connectorConfig } = input
   if (!connectorConfig.listAccessibleScopes) return
-  const startedAt = new Date()
-  const renewBefore = new Date(startedAt.getTime() - MEMBER_SCOPE_RENEW_AFTER_MS)
+  const now = new Date()
+  const renewBefore = new Date(now.getTime() - MEMBER_SCOPE_RENEW_AFTER_MS)
   /** Observations under lost containers stay stale, so only the member's own watermark says renewal is due. */
   if (member.scopeRenewedAt && member.scopeRenewedAt > renewBefore) return
-  try {
-    const scopes = await connectorConfig.listAccessibleScopes(
-      await input.tokens.get(member.id),
-      input.sourceConfig,
-      input.syncContext
+  const deadlineAt = Math.min(run.deadlineAt, Date.now() + MEMBER_SCOPE_RENEWAL_BUDGET_MS)
+  /** A resumed pass keeps its start, so the watermark never claims more than the whole pass renewed. */
+  const passStartedAt = member.scopeRenewalStartedAt ?? now
+  let cursor = member.scopeRenewalCursor ?? undefined
+  let restartedExpiredCursor = false
+  let scopes = 0
+  let renewed = 0
+  let finished = false
+  const saveProgress = (values: Partial<typeof knowledgeConnectorMember.$inferInsert>) =>
+    withMemberLease(run, (tx) =>
+      tx
+        .update(knowledgeConnectorMember)
+        .set(values)
+        .where(eq(knowledgeConnectorMember.id, member.id))
     )
-    const renewal = await renewMemberObservationsInScopes({
-      connectorId: run.connectorId,
-      memberId: member.id,
-      scopePrefixes: scopes.prefixes,
-      renewBefore,
-      deadlineAt: Math.min(run.deadlineAt, Date.now() + MEMBER_SCOPE_RENEWAL_BUDGET_MS),
-      beforeBatch: run.lease.beatIfDue,
-      withLease: (fn) => withMemberLease(run, fn),
-    })
-    run.result.observationsRenewed += renewal.renewed
-    if (renewal.finished && scopes.complete) {
-      await withMemberLease(run, (tx) =>
-        tx
-          .update(knowledgeConnectorMember)
-          .set({ scopeRenewedAt: startedAt })
-          .where(eq(knowledgeConnectorMember.id, member.id))
-      )
+  try {
+    while (Date.now() < deadlineAt) {
+      let page: AccessibleScopePage
+      try {
+        page = await connectorConfig.listAccessibleScopes(
+          await input.tokens.get(member.id),
+          input.sourceConfig,
+          cursor,
+          input.syncContext
+        )
+      } catch (error) {
+        if (
+          !cursor ||
+          restartedExpiredCursor ||
+          connectorConfig.isListingCursorInvalidError?.(error) !== true
+        )
+          throw error
+        cursor = undefined
+        restartedExpiredCursor = true
+        continue
+      }
+      scopes += page.prefixes.length
+      const renewal = await renewMemberObservationsInScopes({
+        connectorId: run.connectorId,
+        memberId: member.id,
+        scopePrefixes: page.prefixes,
+        renewBefore,
+        deadlineAt,
+        beforeBatch: run.lease.beatIfDue,
+        withLease: (fn) => withMemberLease(run, fn),
+      })
+      renewed += renewal.renewed
+      /** An unfinished page is read again next time, from the cursor that produced it. */
+      if (!renewal.finished) break
+      cursor = page.nextCursor
+      if (!cursor) {
+        finished = true
+        await saveProgress({
+          scopeRenewedAt: passStartedAt,
+          scopeRenewalCursor: null,
+          scopeRenewalStartedAt: null,
+        })
+        break
+      }
     }
-    logger.info('Renewed member observations by access scope', {
-      connectorId: run.connectorId,
-      memberId: member.id,
-      scopes: scopes.prefixes.length,
-      scopesComplete: scopes.complete,
-      renewed: renewal.renewed,
-      finished: renewal.finished,
-    })
+    if (!finished)
+      await saveProgress({
+        scopeRenewalCursor: cursor ?? null,
+        scopeRenewalStartedAt: passStartedAt,
+      })
   } catch (error) {
     if (error instanceof SyncLockLostException) throw error
     logger.warn('Member access scope renewal failed; the listing will establish access', {
       connectorId: run.connectorId,
       memberId: member.id,
       error: getErrorMessage(error),
+    })
+  } finally {
+    run.result.observationsRenewed += renewed
+    logger.info('Renewed member observations by access scope', {
+      connectorId: run.connectorId,
+      memberId: member.id,
+      scopes,
+      renewed,
+      finished,
     })
   }
 }
