@@ -43,6 +43,8 @@ EOF
 
 <Callout type="info">
   Do not set `DATABASE_URL` or `BETTER_AUTH_URL` in `.env` — `docker-compose.prod.yml` composes both on the service definition, and a value set here is ignored. Change `POSTGRES_*` and `NEXT_PUBLIC_APP_URL` instead.
+
+  Because `DATABASE_URL` is composed from them, keep `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` URL-safe — letters, digits, and `.` `_` `~` `-`. They are inserted into the connection string as written, so a value containing `@`, `/`, `?`, `#`, `%`, or a space can initialize the database while leaving the app and migrations unable to connect. `openssl rand -hex` output is always safe.
 </Callout>
 
 <Callout type="error">
