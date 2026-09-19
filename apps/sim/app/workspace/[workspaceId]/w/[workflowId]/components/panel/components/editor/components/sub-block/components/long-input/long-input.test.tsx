@@ -10,6 +10,13 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Chip: ({
+    onClick,
+    disabled,
+    'aria-label': label,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' onClick={onClick} disabled={disabled} aria-label={label} />
+  ),
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
 }))
@@ -17,12 +24,6 @@ vi.mock('@sim/emcn', () => ({
 vi.mock('@sim/emcn/icons', () => ({
   ChevronsUpDown: () => null,
   Wand: () => null,
-}))
-
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children }: { children?: React.ReactNode }) => (
-    <button type='button'>{children}</button>
-  ),
 }))
 
 vi.mock(
