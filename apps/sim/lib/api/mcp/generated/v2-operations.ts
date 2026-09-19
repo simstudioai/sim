@@ -1425,7 +1425,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListFileVersionsContract,
     summary: 'List File Versions',
     description:
-      'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits within ten minutes fold into one version, as do repeated workflow writes by one author. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten and removes older versions by plan, so numbers can have gaps.\n\nOAuth scope: `api:read`.',
+      'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into the current version while it is under ten minutes old and written in the last five. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten, so numbers can have gaps.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/[fileId]/versions/route').then((route) => route.GET),
   },
   listKnowledgeBases: {
