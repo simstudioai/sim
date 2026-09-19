@@ -1,6 +1,7 @@
 import {
   findWorkflowReferenceTokens,
   isLikelyWorkflowReferenceSegment,
+  splitOutsideWorkflowReferences,
   splitWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
 import { normalizeName, REFERENCE } from '@/executor/constants'
@@ -9,6 +10,7 @@ export const SYSTEM_REFERENCE_PREFIXES = new Set(['loop', 'parallel', 'variable'
 
 export const splitReferenceSegment = splitWorkflowReferenceSegment
 export const isLikelyReferenceSegment = isLikelyWorkflowReferenceSegment
+export const splitOutsideReferences = splitOutsideWorkflowReferences
 
 /**
  * Whether a subblock value carries a `<block.path>` / `<variable.name>` reference or a
