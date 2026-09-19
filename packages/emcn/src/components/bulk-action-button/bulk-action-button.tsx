@@ -7,7 +7,7 @@ import { chipFilledFillTokens, chipRadiusClass } from '../chip/chip-chrome'
 const BULK_ACTION_BUTTON_CLASS = `${chipRadiusClass} ${chipFilledFillTokens} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!`
 
 export interface BulkActionButtonProps
-  extends Omit<ButtonProps, 'variant' | 'size' | 'iconPadding'> {
+  extends Omit<ButtonProps, 'variant' | 'size' | 'iconPadding' | 'iconSize'> {
   /** Accessible name for the icon action; tooltip content is supplied separately. */
   'aria-label': string
 }

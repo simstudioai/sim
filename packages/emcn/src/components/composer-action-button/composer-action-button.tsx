@@ -27,7 +27,7 @@ export const composerActionButtonVariants = cva('rounded-full p-0', {
 })
 
 export interface ComposerActionButtonProps
-  extends Omit<ButtonProps, 'variant' | 'size' | 'iconPadding'> {
+  extends Omit<ButtonProps, 'variant' | 'size' | 'iconPadding' | 'iconSize'> {
   /** Accessible name for the caller's icon action. */
   'aria-label': string
   /** 28px by default; `sm` retains compact chat's 22px geometry and hover treatment. */
