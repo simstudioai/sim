@@ -232,6 +232,7 @@ jobs:
           lib/table/rows/secret-provenance.postgres.test.ts
           lib/memory/message-provenance.postgres.test.ts
           lib/memory/conversation-store.postgres.test.ts
+          lib/memory/summary-store.postgres.test.ts
           executor/handlers/agent/memory-harness.postgres.test.ts
 
       - name: Verify Search vector projection upgrade in PostgreSQL

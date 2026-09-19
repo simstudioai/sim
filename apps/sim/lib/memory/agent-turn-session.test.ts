@@ -426,7 +426,12 @@ describe('durable Agent session', () => {
       )
 
       expect(live.rawResponse).toBe(response)
-      expect(live.modelResponse.output.text).toBe(response.output.text)
+      expect(live.modelResponse).toMatchObject({
+        success,
+        output: { memoryResultUnavailable: true },
+        ...(!success ? { error: 'Upstream rejected the operation' } : {}),
+      })
+      expect(JSON.stringify(live.modelResponse).length).toBeLessThan(2000)
       expect(executeTool).toHaveBeenCalledTimes(1)
       expect(session!.getPendingCalls()).toEqual([])
       const recorded = session!.getRecordedResult(invocationId)
@@ -467,20 +472,40 @@ describe('durable Agent session', () => {
     expect(session!.getRecordedResult(invocationId)?.modelResponse).toEqual(response)
   })
 
-  it('does not attach another invocation or recreated conversation journal', async () => {
-    const first = await openAgentTurnSession(input())
-    await first!.captureStep(step())
-    const encryptedState = save.mock.calls.at(-1)![0].input.encryptedState
-    open.mockResolvedValue({
-      memoryId: 'replacement-memory',
-      turnId: 'replacement-turn',
-      revision: 2,
-      encryptedState,
-    })
-    const replacement = await openAgentTurnSession(input(2))
-    expect(replacement!.getPendingCalls()).toEqual([])
-    expect(replacement!.getMessages('openai', 'model-a', 'binding-a')).toEqual([])
-  })
+  it.each(['damaged ciphertext', 'invocation binding', 'memory binding', 'invalid state'])(
+    'refuses an empty fresh session when a saved checkpoint has %s',
+    async (failure) => {
+      const first = (await openAgentTurnSession(input()))!
+      await first.captureStep(step())
+      const response = { success: true, output: { delivered: true } }
+      await first.recordToolResult({
+        invocationId: first.getPendingCalls()[0].invocationId,
+        rawResponse: response,
+        modelResponse: response,
+      })
+      let encryptedState: string = save.mock.calls.at(-1)![0].input.encryptedState
+      if (failure === 'damaged ciphertext') {
+        const last = encryptedState.at(-1) === '0' ? '1' : '0'
+        encryptedState = `${encryptedState.slice(0, -1)}${last}`
+      } else if (failure === 'invalid state') {
+        const envelope = await decryptMemoryCheckpoint(encryptedState)
+        if (!isRecordLike(envelope)) throw new Error('Expected checkpoint envelope')
+        encryptedState = await encryptMemoryCheckpoint({ ...envelope, state: { version: 99 } })
+      }
+      open.mockResolvedValue({
+        memoryId: failure === 'memory binding' ? 'replacement-memory' : 'memory-1',
+        turnId: 'turn-1',
+        revision: 2,
+        encryptedState,
+      })
+      const retry = input(failure === 'invocation binding' ? 2 : 1)
+      await expect(openAgentTurnSession(retry)).rejects.toMatchObject({ retryable: false })
+      await expect(openAgentTurnSession(retry)).rejects.toMatchObject({ retryable: false })
+      expect(save).toHaveBeenCalledTimes(2)
+      expect(readArtifact).not.toHaveBeenCalled()
+      expect(executeTool).not.toHaveBeenCalled()
+    }
+  )
 
   it('writes payloads once while a long invocation grows beyond the old snapshot byte limit', async () => {
     const session = (await openAgentTurnSession(input()))!

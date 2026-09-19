@@ -412,7 +412,6 @@ export async function openAgentTurnSession(
   let record: AgentMemoryTurnRecord | undefined
   let state: AgentTurnState | undefined
   let journal: AgentTurnJournal | undefined
-  let restoringJournal = false
   let degraded = false
   const degrade = () => {
     if (!degraded)
@@ -463,7 +462,7 @@ export async function openAgentTurnSession(
         restored.memoryId !== record.memoryId
       )
         throw new Error('Invalid Agent checkpoint binding')
-      restoringJournal = isRecordLike(restored.state) && restored.state.version === 2
+      const restoringJournal = isRecordLike(restored.state) && restored.state.version === 2
       const restoredState = restoringJournal
         ? await journal.restore(restored.state)
         : restored.state
@@ -471,7 +470,7 @@ export async function openAgentTurnSession(
       state = restoredState
     }
   } catch (error) {
-    if (restoringJournal || (isRecordLike(error) && error.code === 'payload_too_large'))
+    if (record?.encryptedState || (isRecordLike(error) && error.code === 'payload_too_large'))
       throw Object.assign(new Error('Agent invocation journal could not be safely restored'), {
         retryable: false,
       })

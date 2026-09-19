@@ -62,15 +62,10 @@ import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const databaseUrl = process.env.MEMORY_PROVENANCE_TEST_DATABASE_URL
-if (databaseUrl) {
-  const location = new URL(databaseUrl)
-  if (
-    location.hostname !== '127.0.0.1' ||
-    location.port !== '5433' ||
-    location.pathname !== '/sim_durable_memory_e2e'
-  )
-    throw new Error('Memory provenance tests require the isolated local test database')
+if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
+  throw new Error('Memory PostgreSQL tests require an explicitly configured local database')
 }
+
 const schemaName = `memory_provenance_${generateId().replaceAll('-', '')}`
 const connection = databaseUrl
   ? postgres(databaseUrl, {

@@ -333,14 +333,13 @@ describe('durable Agent replay provenance', () => {
         Reflect.set(state.steps[0].assistant, 'privateCredential', secret)
       },
     ],
-  ] as const)('discards a checkpoint with %s', async (_name, mutate) => {
+  ] as const)('refuses continuation from a checkpoint with %s', async (_name, mutate) => {
     const { encryptedState } = await checkpointWithPendingCall()
     const envelope = (await artifacts.inspect(encryptedState)) as { state: AgentTurnState }
     mutate(envelope.state)
-    const { session } = await restore(await encryptMemoryCheckpoint(envelope))
-    expect(session.getPendingCalls()).toEqual([])
-    expect(session.getMessages('openai', 'model-a', 'binding-a')).toEqual([])
-    expect(session.getFinalResponse()).toBeUndefined()
+    await expect(restore(await encryptMemoryCheckpoint(envelope))).rejects.toMatchObject({
+      retryable: false,
+    })
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

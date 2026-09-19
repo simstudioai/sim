@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   principal: vi.fn(),
   project: vi.fn(),
   redact: vi.fn(),
+  tokens: vi.fn(),
 }))
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.principal,
@@ -22,9 +23,10 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 }))
 vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: mocks.redact }))
 vi.mock('@/lib/memory/context-tokens', () => ({
-  getConversationTokenCount: (text: string) => Math.ceil(text.length / 4),
+  getConversationTokenCount: mocks.tokens,
 }))
 
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import { createAgentConversationCompactor } from '@/providers/conversation-summary'
 import type { ProviderRuntimeContext } from '@/providers/runtime-context'
 import type { Message, ProviderRequest } from '@/providers/types'
@@ -75,6 +77,34 @@ function fixture() {
   }
 }
 
+function activeExchange(index: number, contentCharacters = 20_000): Message[] {
+  return [
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        {
+          id: `call-${index}`,
+          type: 'function',
+          function: { name: 'http_request', arguments: JSON.stringify({ stage: index }) },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      tool_call_id: `call-${index}`,
+      content: JSON.stringify({
+        receipt: `RECEIPT-${index}`,
+        padding: 'x'.repeat(contentCharacters),
+      }),
+    },
+  ]
+}
+
+function summarySource(test: ReturnType<typeof fixture>, callIndex: number): Message[] {
+  return JSON.parse(test.generate.mock.calls[callIndex][0].messages[0].content)
+}
+
 describe('bounded derived conversation summaries', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -85,6 +115,7 @@ describe('bounded derived conversation summaries', () => {
     mocks.redact.mockImplementation(async (value: string) =>
       value.replaceAll('PRIVATE', '[redacted]')
     )
+    mocks.tokens.mockImplementation((text: string) => Math.ceil(text.length / 4))
   })
 
   it('does not generate or load a summary before the wire guard requests compaction', () => {
@@ -120,7 +151,11 @@ describe('bounded derived conversation summaries', () => {
 
   it('reuses an exact cached summary without another provider charge', async () => {
     const test = fixture()
-    mocks.read.mockResolvedValue('Cached order receipt R123')
+    await test.compact()({ maxSummaryTokens: 1600 })
+    const cached = mocks.save.mock.calls.at(-1)![0].input
+    mocks.read.mockResolvedValue({ ...cached, content: 'Cached order receipt R123' })
+    test.generate.mockClear()
+    test.recordContextUsage.mockClear()
     const selected = await test.compact()({ maxSummaryTokens: 1600 })
     expect(selected!.content).toContain('Cached order receipt R123')
     expect(test.generate).not.toHaveBeenCalled()
@@ -128,7 +163,6 @@ describe('bounded derived conversation summaries', () => {
     expect(mocks.read.mock.calls[0][0].input).toMatchObject({
       memoryId: 'memory-1',
       workspaceId: 'workspace-1',
-      sourceHash: expect.stringMatching(/^[a-f0-9]{64}$/),
     })
   })
 
@@ -137,13 +171,15 @@ describe('bounded derived conversation summaries', () => {
     await test.compact()({ maxSummaryTokens: 1600 })
     test.history[5].content = `changed ${'x'.repeat(1500)}`
     await test.compact()({ maxSummaryTokens: 1600 })
-    expect(mocks.read.mock.calls[0][0].input.sourceHash).not.toBe(
-      mocks.read.mock.calls[1][0].input.sourceHash
+    expect(mocks.save.mock.calls[0][0].input.sourceHash).not.toBe(
+      mocks.save.mock.calls[1][0].input.sourceHash
     )
   })
 
   it('projects and redacts cached summaries again under current policy', async () => {
     const test = fixture()
+    await test.compact()({ maxSummaryTokens: 1600 })
+    const cached = mocks.save.mock.calls.at(-1)![0].input
     test.runtime.executionContext!.piiBlockOutputRedaction = {
       enabled: true,
       entityTypes: ['PERSON'],
@@ -152,7 +188,7 @@ describe('bounded derived conversation summaries', () => {
     test.runtime.resolvedSecretTraceRegistry = {} as NonNullable<
       ProviderRuntimeContext['resolvedSecretTraceRegistry']
     >
-    mocks.read.mockResolvedValue('PRIVATE order receipt R123')
+    mocks.read.mockResolvedValue({ ...cached, content: 'PRIVATE order receipt R123' })
     const selected = await test.compact()({ maxSummaryTokens: 1600 })
     expect(selected!.content).toContain('[redacted]')
     expect(selected!.content).not.toContain('PRIVATE')
@@ -217,6 +253,16 @@ describe('bounded derived conversation summaries', () => {
     expect(test.generate).not.toHaveBeenCalled()
   })
 
+  it('compacts according to actual wire capacity when the configured history target is larger', async () => {
+    const test = fixture()
+    test.runtime.agentMemoryContext = { historyTokens: 16_000 }
+    const note = await test.compact()({ maxSummaryTokens: 1600 })
+    expect(note).toBeDefined()
+    expect(test.generate).toHaveBeenCalledOnce()
+    expect(summarySource(test, 0)[0].content).toContain('old-0')
+    expect(summarySource(test, 0).at(-1)?.content).not.toContain('old-9')
+  })
+
   it('suppresses repeated failed compaction calls until history advances', async () => {
     const test = fixture()
     test.generate.mockRejectedValue(new Error('Provider unavailable'))
@@ -225,4 +271,223 @@ describe('bounded derived conversation summaries', () => {
     await compact({ maxSummaryTokens: 1600 })
     expect(test.generate).toHaveBeenCalledOnce()
   })
+
+  it('covers the earliest receipt in consecutive 5000-token sources before later exchanges', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    test.generate.mockResolvedValue({ content: 'Confirmed first receipt RECEIPT-0.' })
+    const active = Array.from({ length: 3 }, (_, index) => activeExchange(index)).flat()
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue(active)
+    const note = await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(2)
+    expect(
+      summarySource(test, 0)
+        .map((message) => message.tool_call_id)
+        .filter(Boolean)
+    ).toEqual(['call-0'])
+    expect(
+      summarySource(test, 1)
+        .map((message) => message.tool_call_id)
+        .filter(Boolean)
+    ).toEqual(['call-1'])
+    expect(summarySource(test, 1)[0].content).toContain('RECEIPT-0')
+    expect(note?.content).toContain('RECEIPT-0')
+    expect(test.recordContextUsage).toHaveBeenCalledTimes(2)
+    expect(test.onUsage).toHaveBeenCalledTimes(2)
+  })
+
+  it('limits each pressure event to three batches and drains successful backlog without new history', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    const active = Array.from({ length: 6 }, (_, index) => activeExchange(index)).flat()
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue(active)
+    const compact = test.compact()
+    await compact({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(3)
+    await compact({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(5)
+    await compact({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(5)
+    for (let index = 0; index < 5; index++) {
+      expect(summarySource(test, index).at(-1)?.tool_call_id).toBe(`call-${index}`)
+    }
+  })
+
+  it('retains successful prefix coverage after a later summary fails', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    const active = Array.from({ length: 4 }, (_, index) => activeExchange(index)).flat()
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue(active)
+    test.generate
+      .mockResolvedValueOnce({ content: 'Confirmed first receipt RECEIPT-0.' })
+      .mockRejectedValueOnce(new Error('second summary failed'))
+    const compact = test.compact()
+    const note = await compact({ maxSummaryTokens: 1600 })
+    expect(note?.content).toContain('RECEIPT-0')
+    expect(test.generate).toHaveBeenCalledTimes(2)
+    expect(await compact({ maxSummaryTokens: 1600 })).toBe(note)
+    expect(test.generate).toHaveBeenCalledTimes(2)
+    active.push(...activeExchange(4))
+    await compact({ maxSummaryTokens: 1600 })
+    expect(summarySource(test, 2).at(-1)?.tool_call_id).toBe('call-1')
+    expect(summarySource(test, 2)[0].content).toContain('RECEIPT-0')
+    expect(test.recordContextUsage).toHaveBeenCalledTimes(4)
+  })
+
+  it('summarizes an oversized parallel head as explicit excerpts with complete identities and artifact handles', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    const ids = ['a'.repeat(80), 'b'.repeat(80)]
+    const artifactId = 'c'.repeat(64)
+    const head: Message[] = [
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: ids.map((id) => ({
+          id,
+          type: 'function',
+          function: {
+            name: 'http_request',
+            arguments: JSON.stringify({ body: 'q'.repeat(30_000) }),
+          },
+        })),
+      },
+      ...ids.map((id) => ({
+        role: 'tool' as const,
+        tool_call_id: id,
+        content: JSON.stringify({
+          success: false,
+          output: { padding: 'x'.repeat(30_000), memoryArtifact: { id: artifactId } },
+          error: 'Request did not succeed',
+        }),
+      })),
+    ]
+    const original = JSON.stringify(head)
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue([
+      ...head,
+      ...activeExchange(1),
+    ])
+    await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledOnce()
+    const excerpt = JSON.parse(summarySource(test, 0)[0].content!)
+    expect(excerpt.type).toBe('untrusted_summary_source_excerpt')
+    expect(excerpt.notice).toContain('do not infer an outcome')
+    expect(excerpt.identities).toEqual([
+      { role: 'assistant', calls: ids.map((id) => ({ id, name: 'http_request' })) },
+      ...ids.map((callId) => ({ role: 'tool', callId })),
+    ])
+    expect(excerpt.artifactIds).toEqual([artifactId])
+    expect(excerpt.excerpt).toContain('success')
+    expect(JSON.stringify(head)).toBe(original)
+  })
+
+  it('labels an oversized plain user excerpt without inventing tool execution', async () => {
+    const test = fixture()
+    test.request.messages = [
+      { role: 'user', content: `User preference: blue. ${'x'.repeat(60_000)}` },
+      test.current,
+    ]
+    await test.compact()({ maxSummaryTokens: 1600 })
+    const excerpt = JSON.parse(summarySource(test, 0)[0].content!)
+    expect(excerpt.identities).toEqual([{ role: 'user' }])
+    expect(excerpt.excerpt[0]).toEqual({
+      role: 'user',
+      content: expect.stringContaining('User preference: blue.'),
+    })
+    expect(excerpt).not.toHaveProperty('calls')
+    expect(JSON.stringify(excerpt)).not.toContain('untrusted_prior_tool_execution')
+  })
+
+  it('rechecks the complete source when small groups cross the conservative tokenizer threshold', async () => {
+    const test = fixture()
+    mocks.tokens.mockImplementation((text: string) =>
+      text.length > 4096 ? Buffer.byteLength(text) : Math.ceil(text.length / 4)
+    )
+    await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(2)
+    for (const [request] of test.generate.mock.calls) {
+      expect(Buffer.byteLength(request.messages[0].content)).toBeLessThanOrEqual(8000)
+    }
+    expect(summarySource(test, 0)[0].content).toContain('old-0')
+  })
+
+  it('reuses the latest cumulative cache after three batches in a fresh compactor', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    const active = Array.from({ length: 4 }, (_, index) => activeExchange(index)).flat()
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue(active)
+    let cached: unknown
+    mocks.read.mockImplementation(async () => cached)
+    mocks.save.mockImplementation(async ({ input }) => {
+      cached = input
+    })
+    const first = await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(3)
+    expect(mocks.save.mock.calls.map(([call]) => call.input.sourceMessageCount)).toEqual([2, 4, 6])
+    test.generate.mockClear()
+    test.recordContextUsage.mockClear()
+    expect(await test.compact()({ maxSummaryTokens: 1600 })).toEqual(first)
+    expect(test.generate).not.toHaveBeenCalled()
+    expect(test.recordContextUsage).not.toHaveBeenCalled()
+    expect(mocks.read).toHaveBeenCalledTimes(2)
+  })
+
+  it('resumes a cached partial prefix without regenerating the first three summaries', async () => {
+    const test = fixture()
+    test.request.messages = [test.current]
+    const active = Array.from({ length: 6 }, (_, index) => activeExchange(index)).flat()
+    vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue(active)
+    let cached: unknown
+    mocks.read.mockImplementation(async () => cached)
+    mocks.save.mockImplementation(async ({ input }) => {
+      cached = input
+    })
+    await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(3)
+    await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledTimes(5)
+    expect(summarySource(test, 3).at(-1)?.tool_call_id).toBe('call-3')
+    expect(summarySource(test, 4).at(-1)?.tool_call_id).toBe('call-4')
+    expect(mocks.save.mock.calls.at(-1)![0].input.sourceMessageCount).toBe(10)
+  })
+
+  it('binds the cache to canonical history without current instructions or private native state', async () => {
+    const test = fixture()
+    await test.compact()({ maxSummaryTokens: 1600 })
+    const cached = mocks.save.mock.calls.at(-1)![0].input
+    mocks.read.mockResolvedValue(cached)
+    test.current.content = 'A different current request'
+    test.system.content = 'Different current system rules'
+    setNativeConversationMessage(test.history[0], {
+      protocol: 'responses',
+      providerId: 'openai',
+      model: test.request.model,
+      binding: 'test',
+      value: [{ type: 'reasoning', encrypted_content: 'PRIVATE_PROVIDER_STATE' }],
+    })
+    await test.compact()({ maxSummaryTokens: 1600 })
+    expect(test.generate).toHaveBeenCalledOnce()
+    expect(JSON.stringify(summarySource(test, 0))).not.toContain('PRIVATE_PROVIDER_STATE')
+  })
+
+  it.each(['partial-group', 'ineligible-count', 'mismatched-hash'] as const)(
+    'rejects a cached %s prefix before using its content',
+    async (failure) => {
+      const test = fixture()
+      test.request.messages = [test.current]
+      vi.mocked(test.runtime.agentConversation!.getMessages).mockReturnValue([
+        ...activeExchange(0),
+        ...activeExchange(1),
+      ])
+      await test.compact()({ maxSummaryTokens: 1600 })
+      const cached = { ...mocks.save.mock.calls.at(-1)![0].input, content: 'UNTRUSTED_CACHE' }
+      if (failure === 'partial-group') cached.sourceMessageCount = 1
+      if (failure === 'ineligible-count') cached.sourceMessageCount = 4
+      if (failure === 'mismatched-hash') cached.sourceHash = '0'.repeat(64)
+      mocks.read.mockResolvedValue(cached)
+      await test.compact()({ maxSummaryTokens: 1600 })
+      expect(test.generate).toHaveBeenCalledTimes(2)
+      expect(JSON.stringify(summarySource(test, 1))).not.toContain('UNTRUSTED_CACHE')
+    }
+  )
 })

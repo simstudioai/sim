@@ -70,6 +70,8 @@ export interface ReadConversationItemsInput {
   memoryId: string
   beforeSequence?: number
   limit?: number
+  /** Interactive retrieval can continue across byte-limited pages; context loading stops. */
+  continueAfterByteLimit?: boolean
 }
 
 export interface ReadConversationPrefixInput {
@@ -324,7 +326,11 @@ async function appendConversationItemsInTx(
     })
   }
   const existing = await tx
-    .select()
+    .select({
+      appendKey: memoryItem.appendKey,
+      contentHash: memoryItem.contentHash,
+      kind: memoryItem.kind,
+    })
     .from(memoryItem)
     .where(
       and(
@@ -517,6 +523,7 @@ export async function readPlainMemoryTail(
 export async function readConversationItems(input: ReadConversationItemsInput): Promise<{
   items: ConversationItem[]
   nextBeforeSequence?: number
+  unavailableSequence?: number
 }> {
   const limit = input.limit ?? MEMORY_ITEM_PAGE_SIZE
   if (!Number.isInteger(limit) || limit < 1 || limit > MEMORY_ITEM_PAGE_SIZE) {
@@ -559,7 +566,18 @@ export async function readConversationItems(input: ReadConversationItemsInput): 
     bytes += item.bytes
     selectedIds.push(item.id)
   }
-  if (selectedIds.length === 0) return { items: [] }
+  if (selectedIds.length === 0) {
+    const unavailable = reachedByteLimit && input.continueAfterByteLimit ? page[0] : undefined
+    return {
+      items: [],
+      ...(unavailable
+        ? {
+            unavailableSequence: unavailable.sequence,
+            nextBeforeSequence: unavailable.sequence,
+          }
+        : {}),
+    }
+  }
   const selected = await db
     .select({ item: memoryItem })
     .from(memoryItem)
@@ -579,8 +597,9 @@ export async function readConversationItems(input: ReadConversationItemsInput): 
       data: item.data,
       provenance: itemProvenance(item),
     })),
-    ...(!reachedByteLimit && page.length > limit
-      ? { nextBeforeSequence: page[limit - 1].sequence }
+    ...((reachedByteLimit && input.continueAfterByteLimit) ||
+    (!reachedByteLimit && page.length > limit)
+      ? { nextBeforeSequence: page[selectedIds.length - 1].sequence }
       : {}),
   }
 }

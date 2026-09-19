@@ -200,6 +200,7 @@ describe('bounded model memory retrieval', () => {
       memoryId: input.memoryId,
       beforeSequence: undefined,
       limit: 10,
+      continueAfterByteLimit: true,
     })
     mocks.history.mockResolvedValueOnce({ items: [historyItem(90, 'Found NeEdLe here')] })
     const next = await retrieveMemory({
@@ -209,6 +210,47 @@ describe('bounded model memory retrieval', () => {
     expect(next.text).toContain('Found NeEdLe here')
     expect(mocks.history).toHaveBeenLastCalledWith(expect.objectContaining({ beforeSequence: 91 }))
     expect(JSON.stringify(next)).not.toContain('ENCRYPTED_PRIVATE_CANARY')
+  })
+
+  it('continues a no-match byte-limited page before searching the legacy prefix', async () => {
+    mocks.history.mockResolvedValueOnce({
+      items: [historyItem(8, 'unrelated'), historyItem(7, 'unrelated')],
+      nextBeforeSequence: 7,
+    })
+    const args = { target: 'history' as const, query: 'older needle' }
+    const first = await retrieveMemory({ ...input, arguments: args })
+    expect(first).toMatchObject({ text: '', scannedItems: 2, nextCursor: expect.any(String) })
+    expect(mocks.prefix).not.toHaveBeenCalled()
+    mocks.history.mockResolvedValueOnce({ items: [historyItem(6, 'older needle found')] })
+    const next = await retrieveMemory({
+      ...input,
+      arguments: { ...args, cursor: first.nextCursor },
+    })
+    expect(next.text).toContain('older needle found')
+    expect(mocks.history).toHaveBeenLastCalledWith(
+      expect.objectContaining({ beforeSequence: 7, continueAfterByteLimit: true })
+    )
+    expect(mocks.prefix).not.toHaveBeenCalled()
+  })
+
+  it('reports an oversized item explicitly and never loops on its cursor', async () => {
+    mocks.history.mockResolvedValueOnce({
+      items: [],
+      unavailableSequence: 2,
+      nextBeforeSequence: 2,
+    })
+    const args = { target: 'history' as const, query: 'needle' }
+    const first = await retrieveMemory({ ...input, arguments: args })
+    expect(first).toMatchObject({ text: '', scannedItems: 1, nextCursor: expect.any(String) })
+    expect(first.notice).toContain('History item 2 is not retrievable')
+    expect(mocks.prefix).not.toHaveBeenCalled()
+    const next = await retrieveMemory({
+      ...input,
+      arguments: { ...args, cursor: first.nextCursor },
+    })
+    expect(mocks.history).toHaveBeenLastCalledWith(expect.objectContaining({ beforeSequence: 2 }))
+    expect(next.nextCursor).toBeUndefined()
+    expect(mocks.prefix).toHaveBeenCalledOnce()
   })
 
   it('searches the frozen legacy prefix after exhausting appended records', async () => {

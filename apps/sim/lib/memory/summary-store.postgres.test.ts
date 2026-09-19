@@ -55,15 +55,10 @@ import {
 } from '@/lib/memory/summary-store'
 
 const databaseUrl = process.env.MEMORY_PROVENANCE_TEST_DATABASE_URL
-if (databaseUrl) {
-  const location = new URL(databaseUrl)
-  if (
-    location.hostname !== '127.0.0.1' ||
-    location.port !== '5433' ||
-    location.pathname !== '/sim_durable_memory_e2e'
-  )
-    throw new Error('Summary integration tests require the isolated local test database')
+if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
+  throw new Error('Memory PostgreSQL tests require an explicitly configured local database')
 }
+
 const schemaName = `memory_summary_${generateId().replaceAll('-', '')}`
 const connection = databaseUrl
   ? postgres(databaseUrl, {
@@ -149,15 +144,18 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
     }
   })
 
-  it('reuses only the exact source hash and stores the summary solely as encrypted derived data', async () => {
+  it('returns bounded prefix metadata and stores the summary solely as encrypted derived data', async () => {
     const content = 'Confirmed receipt: summary-receipt-123'
     await saveMemorySummary({ ...scope, content, sourceMessageCount: 2 })
-    expect(await readMemorySummary(scope)).toBe(content)
-    expect(await readMemorySummary({ ...scope, sourceHash: 'b'.repeat(64) })).toBeUndefined()
+    expect(await readMemorySummary(scope)).toEqual({
+      content,
+      sourceHash: scope.sourceHash,
+      sourceMessageCount: 2,
+    })
     const row = await cacheRow()
     expect(row.encrypted_context_summary).not.toContain('summary-receipt-123')
     expect(JSON.parse((await decryptSecret(row.encrypted_context_summary)).decrypted)).toEqual({
-      version: 1,
+      version: 2,
       memoryId: scope.memoryId,
       sourceHash: scope.sourceHash,
       sourceMessageCount: 2,
@@ -165,6 +163,30 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
     })
     expect(row.data).toEqual(prefix)
     expect((await readConversationItems(scope)).items).toEqual([])
+  })
+
+  it('ignores old or invalid prefix metadata without exposing its content', async () => {
+    for (const invalid of [
+      { version: 1 },
+      { sourceHash: 'invalid' },
+      { sourceMessageCount: 0 },
+      { sourceMessageCount: -1 },
+      { sourceMessageCount: 1.5 },
+      { content: ' ' },
+    ]) {
+      const { encrypted } = await encryptSecret(
+        JSON.stringify({
+          version: 2,
+          memoryId: scope.memoryId,
+          sourceHash: scope.sourceHash,
+          sourceMessageCount: 2,
+          content: 'Old or invalid cache',
+          ...invalid,
+        })
+      )
+      await connection!`UPDATE memory SET encrypted_context_summary = ${encrypted} WHERE id = ${scope.memoryId}`
+      expect(await readMemorySummary(scope)).toBeUndefined()
+    }
   })
 
   it('cannot read or overwrite a cache through another workspace or memory owner', async () => {
@@ -180,7 +202,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
     expect((await cacheRow()).encrypted_context_summary).toBe(original)
     const foreignCiphertext = await encryptSecret(
       JSON.stringify({
-        version: 1,
+        version: 2,
         memoryId: 'foreign-memory',
         sourceHash: scope.sourceHash,
         content: 'Copied foreign cache',
@@ -247,10 +269,11 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
       content: stored.content,
       sourceMessageCount: stored.sourceMessageCount,
     })
-    for (const candidate of candidates)
-      expect(await readMemorySummary(candidate)).toBe(
-        candidate.sourceHash === stored.sourceHash ? candidate.content : undefined
-      )
+    expect(await readMemorySummary(scope)).toEqual({
+      sourceHash: stored.sourceHash,
+      sourceMessageCount: stored.sourceMessageCount,
+      content: stored.content,
+    })
     expect(await connection!`SELECT id FROM memory`).toHaveLength(1)
     expect(await connection!`SELECT id FROM memory_item`).toHaveLength(0)
     expect((await cacheRow()).data).toEqual(prefix)
@@ -281,7 +304,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
   it('supports the maximum Unicode summary while keeping the encrypted value within its SQL read cap', async () => {
     const content = '界'.repeat(MAX_MEMORY_SUMMARY_CHARS)
     await saveMemorySummary({ ...scope, content, sourceMessageCount: 1 })
-    expect(await readMemorySummary(scope)).toBe(content)
+    expect((await readMemorySummary(scope))?.content).toBe(content)
     expect(Buffer.byteLength((await cacheRow()).encrypted_context_summary)).toBeLessThanOrEqual(
       64 * 1024
     )

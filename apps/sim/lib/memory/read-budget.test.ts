@@ -120,4 +120,35 @@ describe('plain appended-memory read budget', () => {
     expect(mocks.select).toHaveBeenCalledOnce()
     expect(mocks.select.mock.calls[0][0]).not.toHaveProperty('item')
   })
+
+  it('retains an interactive retrieval cursor when admitted items reach the byte limit', async () => {
+    mocks.limit.mockResolvedValueOnce([
+      { id: 'item-4', sequence: 4, bytes: 2 * 1024 * 1024 },
+      { id: 'item-3', sequence: 3, bytes: 2 * 1024 * 1024 },
+      { id: 'item-2', sequence: 2, bytes: 100 },
+    ])
+    mocks.limit.mockResolvedValueOnce([row(4), row(3)])
+    const page = await readConversationItems({
+      memoryId: 'memory-1',
+      workspaceId: 'workspace-1',
+      limit: 10,
+      continueAfterByteLimit: true,
+    })
+    expect(page.items.map((item) => item.sequence)).toEqual([4, 3])
+    expect(page.nextBeforeSequence).toBe(3)
+    expect(page.unavailableSequence).toBeUndefined()
+    expect(mocks.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports an individually oversized item and advances without fetching its JSON', async () => {
+    mocks.limit.mockResolvedValueOnce([{ id: 'item-1', sequence: 1, bytes: 5 * 1024 * 1024 }])
+    const page = await readConversationItems({
+      memoryId: 'memory-1',
+      workspaceId: 'workspace-1',
+      continueAfterByteLimit: true,
+    })
+    expect(page).toEqual({ items: [], unavailableSequence: 1, nextBeforeSequence: 1 })
+    expect(mocks.select).toHaveBeenCalledOnce()
+    expect(mocks.select.mock.calls[0][0]).not.toHaveProperty('item')
+  })
 })

@@ -359,7 +359,20 @@ export async function retrieveMemory(input: RetrieveMemoryInput): Promise<Memory
     memoryId: input.memoryId,
     beforeSequence: cursor.sequence ? cursor.sequence + 1 : cursor.before,
     limit: MAX_MEMORY_RETRIEVAL_SCAN_ITEMS,
+    continueAfterByteLimit: true,
   })
+  if (page.unavailableSequence !== undefined) {
+    return {
+      ...base,
+      scannedItems: 1,
+      notice: `${UNTRUSTED_MEMORY_NOTICE} History item ${page.unavailableSequence} is not retrievable within the safe 4 MiB payload/provenance limit. Continue with nextCursor to read older history.`,
+      nextCursor: encodeCursor({
+        binding: cursor.binding,
+        before: page.unavailableSequence,
+        offset: 0,
+      }),
+    }
+  }
   let scannedItems = 0
   for (const item of page.items) {
     scannedItems++

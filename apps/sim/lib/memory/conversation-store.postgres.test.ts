@@ -11,6 +11,10 @@ const database = vi.hoisted(() => ({ current: undefined as PostgresJsDatabase | 
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
 vi.mock('@sim/db', () => ({
+  dbFor: () => {
+    if (!database.current) throw new Error('Postgres test is not initialized')
+    return database.current
+  },
   db: {
     select: (...args: unknown[]) => {
       if (!database.current) throw new Error('Postgres test is not initialized')
@@ -63,6 +67,7 @@ import {
   readPlainMemoryTail,
   saveAgentMemoryTurn,
 } from '@/lib/memory/conversation-store'
+import { retrieveMemory } from '@/lib/memory/retrieval'
 import {
   getMemoryMessageAppendKey,
   getMemoryMessageTurnId,
@@ -94,6 +99,7 @@ const identity: AgentMemoryTurnIdentity = {
 }
 const provenance = { status: 'exact', entries: [] } as const
 const journalReads: string[] = []
+const deduplicationReads: string[] = []
 const prefix = [
   { role: 'user', content: 'legacy question' },
   { role: 'assistant', content: 'legacy answer' },
@@ -156,6 +162,12 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         logQuery(query) {
           if (query.startsWith('select ') && query.includes('agent_memory_turn'))
             journalReads.push(query)
+          if (
+            query.startsWith('select ') &&
+            query.includes('from "memory_item"') &&
+            query.includes('"memory_item"."append_key" in')
+          )
+            deduplicationReads.push(query)
         },
       },
     })
@@ -348,6 +360,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
   })
 
   it('deduplicates committed history and rolls back journal advancement on conflicting content', async () => {
+    deduplicationReads.length = 0
     const turn = await openAgentMemoryTurn(identity)
     const item = {
       appendKey: 'stable-exchange',
@@ -386,6 +399,10 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       (await readConversationItems({ workspaceId: identity.workspaceId, memoryId: turn.memoryId }))
         .items
     ).toHaveLength(1)
+    expect(deduplicationReads).toHaveLength(3)
+    for (const query of deduplicationReads) {
+      expect(query.split(' from ')[0]).toBe('select "append_key", "content_hash", "kind"')
+    }
   })
 
   it('deletion cascades history and forbids stale writers from resurrecting a recreated key', async () => {
@@ -697,5 +714,63 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     expect(
       await connection!`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
     ).toEqual([{ id: 'existing-large-item' }])
+  })
+
+  it('finds older retained matches after a no-match page reaches the retrieval byte limit', async () => {
+    const turn = await openAgentMemoryTurn(identity)
+    await saveAgentMemoryTurn({
+      ...identity,
+      ...turn,
+      expectedRevision: 0,
+      encryptedState: 'saved',
+      items: [
+        {
+          appendKey: 'older-match',
+          kind: 'message',
+          data: { role: 'user', content: 'older retained receipt needle' },
+          provenance,
+        },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          appendKey: `large-unrelated-${index}`,
+          kind: 'message' as const,
+          data: { role: 'assistant', content: 'x'.repeat(1024 * 1024 - 1024) },
+          provenance,
+        })),
+      ],
+    })
+    const scope = { workspaceId: identity.workspaceId, memoryId: turn.memoryId }
+    const contextPage = await readConversationItems({ ...scope, limit: 10 })
+    expect(contextPage.items).toHaveLength(4)
+    expect(contextPage.nextBeforeSequence).toBeUndefined()
+
+    const args = { target: 'history' as const, query: 'receipt needle' }
+    const first = await retrieveMemory({ ...scope, arguments: args, projection: {} })
+    expect(first).toMatchObject({ text: '', scannedItems: 4, nextCursor: expect.any(String) })
+    const next = await retrieveMemory({
+      ...scope,
+      arguments: { ...args, cursor: first.nextCursor },
+      projection: {},
+    })
+    expect(next.text).toContain('older retained receipt needle')
+    expect(next.scannedItems).toBe(2)
+  })
+
+  it('reports a single oversized history item and advances to the end without repeating it', async () => {
+    const turn = await openAgentMemoryTurn(identity)
+    const oversized = { role: 'user', content: 'x'.repeat(5 * 1024 * 1024) }
+    await connection!`INSERT INTO memory_item (id, memory_id, append_key, kind, data, content_hash, provenance_status, provenance_entries) VALUES ('oversized-retrieval-item', ${turn.memoryId}, 'oversized-retrieval', 'message', ${JSON.stringify(oversized)}::jsonb, ${hashDurableSecretProvenanceValue(oversized)}, 'exact', '[]')`
+    const scope = { workspaceId: identity.workspaceId, memoryId: turn.memoryId }
+    const args = { target: 'history' as const, query: 'needle' }
+    const first = await retrieveMemory({ ...scope, arguments: args, projection: {} })
+    expect(first.text).toBe('')
+    expect(first.notice).toContain('not retrievable within the safe 4 MiB')
+    expect(first.nextCursor).toEqual(expect.any(String))
+    const next = await retrieveMemory({
+      ...scope,
+      arguments: { ...args, cursor: first.nextCursor },
+      projection: {},
+    })
+    expect(next.nextCursor).toBeUndefined()
+    expect(next.scannedItems).toBe(0)
   })
 })
