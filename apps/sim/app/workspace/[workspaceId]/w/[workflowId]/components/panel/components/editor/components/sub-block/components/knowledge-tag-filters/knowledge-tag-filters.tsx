@@ -4,12 +4,13 @@ import { useRef } from 'react'
 import {
   Badge,
   Button,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
   cn,
-  handleKeyboardActivation,
   Input,
   Label,
+  OverflowText,
   Trash,
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
@@ -228,57 +229,52 @@ export function KnowledgeTagFilters({
   }
 
   /**
-   * Renders the filter header with name, badge, and action buttons
+   * Renders the filter summary with its type badge
    * Shows tag name only when collapsed (as summary), generic label when expanded
    */
-  const renderFilterHeader = (filter: TagFilter, index: number) => (
-    <div
-      role='button'
-      tabIndex={0}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(filter.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(filter.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
-        </span>
-        {filter.collapsed && filter.tagName && (
-          <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
-          </Badge>
-        )}
-      </div>
-      <div className='flex items-center gap-2 pl-2'>
-        <Button
-          variant='ghost'
-          onClick={(e) => {
-            e.stopPropagation()
-            addFilter()
-          }}
-          disabled={isReadOnly}
-          className='h-auto p-0'
-        >
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Filter</span>
-        </Button>
-        <Button
-          variant='ghost-destructive'
-          onClick={(e) => {
-            e.stopPropagation()
-            removeFilter(filter.id)
-          }}
-          disabled={isReadOnly}
-          className='h-auto p-0'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Filter</span>
-        </Button>
-      </div>
-    </div>
+  const renderTitle = (filter: TagFilter, index: number) => (
+    <span className='flex min-w-0 items-center gap-2'>
+      <OverflowText
+        label={filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
+        focusTarget='nearest-interactive'
+      >
+        {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
+      </OverflowText>
+      {filter.collapsed && filter.tagName && (
+        <Badge variant='type' size='sm'>
+          {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
+        </Badge>
+      )}
+    </span>
+  )
+
+  const renderActions = (filter: TagFilter) => (
+    <>
+      <Button
+        variant='ghost'
+        onClick={(e) => {
+          e.stopPropagation()
+          addFilter()
+        }}
+        disabled={isReadOnly}
+        className='h-auto p-0'
+      >
+        <Plus className='size-[14px]' />
+        <span className='sr-only'>Add Filter</span>
+      </Button>
+      <Button
+        variant='ghost-destructive'
+        onClick={(e) => {
+          e.stopPropagation()
+          removeFilter(filter.id)
+        }}
+        disabled={isReadOnly}
+        className='h-auto p-0'
+      >
+        <Trash className='size-[14px]' />
+        <span className='sr-only'>Delete Filter</span>
+      </Button>
+    </>
   )
 
   /**
@@ -383,7 +379,7 @@ export function KnowledgeTagFilters({
     const isBetween = filter.operator === 'between'
 
     return (
-      <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+      <>
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Tag</Label>
           <Combobox
@@ -418,24 +414,25 @@ export function KnowledgeTagFilters({
             renderValueInput(filter, 'tagValue')
           )}
         </div>
-      </div>
+      </>
     )
   }
 
   return (
     <div className='space-y-2'>
       {filters.map((filter, index) => (
-        <div
+        <CollapsibleCard
           key={filter.id}
           data-filter-id={filter.id}
-          className={cn(
-            'rounded-sm border border-[var(--border-1)]',
-            filter.collapsed ? 'overflow-hidden' : 'overflow-visible'
-          )}
+          role='group'
+          aria-label={`Filter ${index + 1}`}
+          title={renderTitle(filter, index)}
+          actions={renderActions(filter)}
+          collapsed={Boolean(filter.collapsed)}
+          onToggleCollapse={() => toggleCollapse(filter.id)}
         >
-          {renderFilterHeader(filter, index)}
           {!filter.collapsed && renderFilterContent(filter)}
-        </div>
+        </CollapsibleCard>
       ))}
     </div>
   )
