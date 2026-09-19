@@ -3156,7 +3156,7 @@ export function CredentialDisplay({
  */
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
   return (
-    <p className='text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>{data.message}</p>
+    <p className='text-[var(--text-secondary)] text-small italic leading-[20px]'>{data.message}</p>
   )
 }
 
