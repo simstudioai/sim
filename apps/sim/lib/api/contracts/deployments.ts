@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  INT4_MAX,
+  versionNumberPathSchema,
+  versionNumberSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -27,36 +32,19 @@ export const deployedWorkflowStateSchema = z
  * comparison instead of missing, so every schema carrying a deployment version
  * — path param, request body, or cursor payload — must be bounded by this.
  */
-export const DEPLOYMENT_VERSION_MAX = 2147483647
+export const DEPLOYMENT_VERSION_MAX = INT4_MAX
 
 /** A deployment version number, bounded to the range its column can hold. */
-export const deploymentVersionNumberSchema = z
-  .number()
-  .int('version must be an integer')
-  .min(1, 'version must be a positive integer')
-  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
-
-/**
- * {@link deploymentVersionNumberSchema} for a path segment, which arrives as a
- * string. Spelled out rather than piped through the body schema because a
- * `ZodPipe` publishes none of its constraints to the generated OpenAPI document,
- * which would leave the documented parameter unbounded even though the runtime
- * check holds.
- */
-const deploymentVersionPathSchema = z.coerce
-  .number()
-  .int()
-  .positive()
-  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
+export const deploymentVersionNumberSchema = versionNumberSchema
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: deploymentVersionPathSchema,
+  version: versionNumberPathSchema,
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([deploymentVersionPathSchema, z.literal('active')]),
+  version: z.union([versionNumberPathSchema, z.literal('active')]),
 })
 
 export const updatePublicApiBodySchema = z.object({

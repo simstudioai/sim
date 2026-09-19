@@ -1104,6 +1104,8 @@ describe('destructive operations are gated', () => {
     'restoreTableFolder',
     'restoreWorkflow',
     'resumeWorkflow',
+    // Writes the old content as a new version, so what it replaces stays revertible.
+    'revertFileVersion',
     'rollbackWorkflow',
     'runRowEnrichment',
     'createTableDispatch',

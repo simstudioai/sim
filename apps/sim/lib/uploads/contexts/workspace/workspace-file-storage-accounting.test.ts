@@ -31,6 +31,7 @@ const {
   mockReplaceWorkspaceFileSecretProvenanceInTx,
   mockSaveCollabDocStateInTx,
   mockUploadFile,
+  mockRecordWorkspaceFileVersionInTx,
 } = vi.hoisted(() => ({
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockDeleteFile: vi.fn(),
@@ -54,6 +55,7 @@ const {
   mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockSaveCollabDocStateInTx: vi.fn(),
   mockUploadFile: vi.fn(),
+  mockRecordWorkspaceFileVersionInTx: vi.fn(),
 }))
 
 vi.mock('@/lib/collab-doc/collab-state', () => ({
@@ -65,7 +67,16 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
   initializeWorkspaceFileSecretProvenanceInTx: mockInitializeWorkspaceFileSecretProvenanceInTx,
   preserveWorkspaceFileSecretProvenanceInTx: vi.fn(),
+  reinstateWorkspaceFileSecretProvenanceInTx: vi.fn(),
   replaceWorkspaceFileSecretProvenanceInTx: mockReplaceWorkspaceFileSecretProvenanceInTx,
+  snapshotWorkspaceFileSecretProvenanceInTx: vi.fn(async () => ({ status: 'exact', entries: [] })),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  hashWorkspaceFileContent: vi.fn(() => 'content-hash'),
+  isVersionHeadCurrent: vi.fn(() => false),
+  loadWorkspaceFileVersionHead: vi.fn(async () => undefined),
+  recordWorkspaceFileVersionInTx: mockRecordWorkspaceFileVersionInTx,
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({
@@ -98,7 +109,14 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: mockEnqueueWorkspaceFileStorageCleanup,
+  enqueueWorkspaceFileStorageCleanups: (executor: unknown, keys: string[]) =>
+    Promise.all(keys.map((key) => mockEnqueueWorkspaceFileStorageCleanup(executor, { key }))),
   processWorkspaceFileStorageCleanupNow: mockProcessWorkspaceFileStorageCleanupNow,
+  processWorkspaceFileStorageCleanupsNow: async (eventIds: string[]) => {
+    for (const eventId of eventIds) {
+      await mockProcessWorkspaceFileStorageCleanupNow(eventId).catch(() => undefined)
+    }
+  },
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
@@ -138,6 +156,8 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+
+const TEST_VERSION_WRITE = { source: 'api', authorUserId: 'user-1' } as const
 
 const STORAGE_CONTEXT = {
   workspaceId: '7727ef3f-8cf6-4686-b063-2bb006a10785',
@@ -190,6 +210,7 @@ describe('workspace file metadata and storage accounting', () => {
     mockProcessWorkspaceFileLiveDocReconciliationNow.mockResolvedValue('completed')
     mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
     mockSaveCollabDocStateInTx.mockResolvedValue(undefined)
+    mockRecordWorkspaceFileVersionInTx.mockResolvedValue({ releasedKeys: [] })
   })
 
   it('returns the canonical inserted record with the pre-resolved folder path', async () => {
@@ -705,7 +726,8 @@ describe('workspace file metadata and storage accounting', () => {
       FILE_ROW.id,
       FILE_ROW.userId,
       Buffer.alloc(10),
-      'application/octet-stream'
+      'application/octet-stream',
+      { version: TEST_VERSION_WRITE }
     )
 
     expect(mockUploadFile).toHaveBeenCalledWith(
@@ -725,14 +747,57 @@ describe('workspace file metadata and storage accounting', () => {
       updatedFile.contentUpdatedAt,
       { status: 'unknown' }
     )
-    expect(mockDeleteFile).toHaveBeenCalledWith({ key: FILE_ROW.key, context: 'workspace' })
+    expect(mockRecordWorkspaceFileVersionInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        previous: concurrentFile,
+        next: updatedFile,
+        contentHash: 'content-hash',
+        write: TEST_VERSION_WRITE,
+      })
+    )
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockEnqueueWorkspaceFileStorageCleanup).not.toHaveBeenCalled()
     expect(updated.key).toBe(replacementKey)
     expect(mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.transaction.mock.invocationCallOrder[0]
     )
-    expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeleteFile.mock.invocationCallOrder[0]
+  })
+
+  it('durably releases the storage keys the version history no longer references', async () => {
+    const transaction = { ...dbChainMock.db }
+    const replacementKey = `${FILE_ROW.key}-replacement`
+    const updatedFile = { ...FILE_ROW, key: replacementKey, size: 10, sizeBytes: 10 }
+    let committed = false
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {
+      const result = await callback(transaction)
+      expect(mockEnqueueWorkspaceFileStorageCleanup).toHaveBeenCalledWith(transaction, {
+        key: FILE_ROW.key,
+      })
+      expect(mockProcessWorkspaceFileStorageCleanupNow).not.toHaveBeenCalled()
+      committed = true
+      return result
+    })
+    mockProcessWorkspaceFileStorageCleanupNow.mockImplementationOnce(async () => {
+      expect(committed).toBe(true)
+      return 'completed'
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: replacementKey })
+    mockRecordWorkspaceFileVersionInTx.mockResolvedValueOnce({ releasedKeys: [FILE_ROW.key] })
+
+    await updateWorkspaceFileContent(
+      FILE_ROW.workspaceId,
+      FILE_ROW.id,
+      FILE_ROW.userId,
+      Buffer.alloc(10),
+      undefined,
+      { version: { source: 'collab', authorUserId: FILE_ROW.userId } }
     )
+
+    expect(mockProcessWorkspaceFileStorageCleanupNow).toHaveBeenCalledWith('cleanup-event-1')
+    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it('cleans up only the new overwrite object when atomic finalization fails', async () => {
@@ -750,7 +815,9 @@ describe('workspace file metadata and storage accounting', () => {
         FILE_ROW.workspaceId,
         FILE_ROW.id,
         FILE_ROW.userId,
-        Buffer.alloc(10)
+        Buffer.alloc(10),
+        undefined,
+        { version: TEST_VERSION_WRITE }
       )
     ).rejects.toThrow('Storage limit exceeded')
 
@@ -792,15 +859,13 @@ describe('workspace file metadata and storage accounting', () => {
       committed = true
       return result
     })
-    mockDeleteFile.mockImplementationOnce(async () => {
-      expect(committed).toBe(true)
-    })
     dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: replacementKey })
 
     await expect(
       updateWorkspaceFileContent(MD_ROW.workspaceId, MD_ROW.id, MD_ROW.userId, content, undefined, {
+        version: TEST_VERSION_WRITE,
         expectedUpdatedAt: MD_ROW.contentUpdatedAt,
         collabDocState: PREPARED_COLLAB_STATE,
       })
@@ -817,7 +882,8 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockSaveCollabDocStateInTx.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.update.mock.invocationCallOrder[0]
     )
-    expect(mockDeleteFile).toHaveBeenCalledWith({ key: MD_ROW.key, context: 'workspace' })
+    expect(committed).toBe(true)
+    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -856,7 +922,11 @@ describe('workspace file metadata and storage accounting', () => {
           MD_ROW.userId,
           Buffer.from('# new content'),
           undefined,
-          { expectedUpdatedAt: MD_ROW.contentUpdatedAt, collabDocState: preparedState }
+          {
+            version: TEST_VERSION_WRITE,
+            expectedUpdatedAt: MD_ROW.contentUpdatedAt,
+            collabDocState: preparedState,
+          }
         )
       ).rejects.toBe(conflict)
 
@@ -883,7 +953,7 @@ describe('workspace file metadata and storage accounting', () => {
         MD_ROW.userId,
         Buffer.from('# new content'),
         undefined,
-        { collabDocState: PREPARED_COLLAB_STATE }
+        { version: TEST_VERSION_WRITE, collabDocState: PREPARED_COLLAB_STATE }
       )
     ).rejects.toThrow('Collaborative state updates require an expected content version')
 
@@ -905,6 +975,7 @@ describe('workspace file metadata and storage accounting', () => {
         Buffer.from('# stale content'),
         undefined,
         {
+          version: TEST_VERSION_WRITE,
           expectedUpdatedAt: new Date('2020-01-01T00:00:00.000Z'),
           collabDocState: PREPARED_COLLAB_STATE,
         }
@@ -944,7 +1015,11 @@ describe('workspace file metadata and storage accounting', () => {
         MD_ROW.userId,
         Buffer.from('# new content'),
         undefined,
-        { expectedUpdatedAt: MD_ROW.contentUpdatedAt, collabDocState: PREPARED_COLLAB_STATE }
+        {
+          version: TEST_VERSION_WRITE,
+          expectedUpdatedAt: MD_ROW.contentUpdatedAt,
+          collabDocState: PREPARED_COLLAB_STATE,
+        }
       )
     ).rejects.toThrow('accounting unavailable')
 
@@ -1001,7 +1076,9 @@ describe('workspace file metadata and storage accounting', () => {
       MD_ROW.workspaceId,
       MD_ROW.id,
       MD_ROW.userId,
-      Buffer.from('# new content', 'utf-8')
+      Buffer.from('# new content', 'utf-8'),
+      undefined,
+      { version: TEST_VERSION_WRITE }
     )
 
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(transaction, {
@@ -1027,7 +1104,7 @@ describe('workspace file metadata and storage accounting', () => {
       MD_ROW.userId,
       Buffer.from('# new content', 'utf-8'),
       undefined,
-      { syncLiveDoc: false }
+      { version: TEST_VERSION_WRITE, syncLiveDoc: false }
     )
 
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
@@ -1045,7 +1122,8 @@ describe('workspace file metadata and storage accounting', () => {
       FILE_ROW.id,
       FILE_ROW.userId,
       Buffer.alloc(10),
-      'application/octet-stream'
+      'application/octet-stream',
+      { version: TEST_VERSION_WRITE }
     )
 
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
@@ -1062,7 +1140,9 @@ describe('workspace file metadata and storage accounting', () => {
       MD_ROW.workspaceId,
       MD_ROW.id,
       MD_ROW.userId,
-      Buffer.alloc(size)
+      Buffer.alloc(size),
+      undefined,
+      { version: TEST_VERSION_WRITE }
     )
 
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
@@ -1091,7 +1171,8 @@ describe('workspace file metadata and storage accounting', () => {
       markdownByType.id,
       markdownByType.userId,
       Buffer.alloc(12),
-      'application/octet-stream'
+      'application/octet-stream',
+      { version: TEST_VERSION_WRITE }
     )
 
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
@@ -1113,7 +1194,7 @@ describe('workspace file metadata and storage accounting', () => {
       FILE_ROW.userId,
       Buffer.alloc(12),
       undefined,
-      { expectedUpdatedAt: FILE_ROW.updatedAt }
+      { version: TEST_VERSION_WRITE, expectedUpdatedAt: FILE_ROW.updatedAt }
     )
 
     expect(updated.size).toBe(12)
@@ -1132,7 +1213,7 @@ describe('workspace file metadata and storage accounting', () => {
         FILE_ROW.userId,
         Buffer.alloc(12),
         undefined,
-        { expectedUpdatedAt: new Date('2020-01-01T00:00:00.000Z') }
+        { version: TEST_VERSION_WRITE, expectedUpdatedAt: new Date('2020-01-01T00:00:00.000Z') }
       )
     ).rejects.toBeInstanceOf(ContentVersionConflictError)
 

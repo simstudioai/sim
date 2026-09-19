@@ -86,10 +86,11 @@ Persist that value as `CRON_SECRET` on the app **and** on whatever calls these e
 | Retention — logs | `GET /api/logs/cleanup` | Daily | **No** — schedule it yourself |
 | Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** — schedule it yourself |
 | Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** — schedule it yourself |
+| Retention — file versions | `GET /api/cron/cleanup-file-versions` | Daily | **No** — schedule it yourself |
 | OAuth token cleanup | `GET /api/cron/cleanup-oauth-tokens` | Hourly | Yes — Helm and Docker Compose both call it |
 
 <Callout type="warn">
-  Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the three configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the three endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
+  Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the four configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the four endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
 
   OAuth token cleanup runs independently of sign-in activity, removing expired and revoked credentials. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for provider configuration.
 </Callout>

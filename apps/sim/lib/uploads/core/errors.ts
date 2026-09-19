@@ -45,3 +45,16 @@ export function isObjectNotFoundError(error: unknown): boolean {
   }
   return code === 404 || statusCode === 404 || $metadata?.httpStatusCode === 404
 }
+
+/**
+ * True when `error`, or any error it wraps as its `cause`, reports a missing object. For callers
+ * that read an object through a layer which re-wraps storage failures but keeps the original.
+ */
+export function hasObjectNotFoundCause(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; current && depth < 5; depth++) {
+    if (isObjectNotFoundError(current)) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}

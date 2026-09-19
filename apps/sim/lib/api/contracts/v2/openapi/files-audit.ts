@@ -1,5 +1,13 @@
 import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import {
+  v2DeleteFileVersionContract,
+  v2DownloadFileVersionContract,
+  v2GetFileVersionContract,
+  v2ListFileVersionsContract,
+  v2ReadFileVersionTextContract,
+  v2RevertFileVersionContract,
+} from '@/lib/api/contracts/v2/file-versions'
+import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
   v2BulkDownloadFilesContract,
@@ -71,6 +79,20 @@ const FILE_EXAMPLE = {
   uploadedAt: '2026-01-15T10:30:00Z',
   updatedAt: '2026-01-15T10:30:00Z',
   deletedAt: null,
+} as const
+
+const FILE_VERSION_EXAMPLE = {
+  fileId: FILE_EXAMPLE.id,
+  version: 3,
+  isCurrent: true,
+  size: 1024,
+  contentType: 'text/csv',
+  source: 'api',
+  authors: [{ id: 'usr_4kJ9mN2pQ7rS', email: 'jane@example.com' }],
+  restoredFromVersion: null,
+  createdAt: '2026-01-15T10:30:00Z',
+  updatedAt: '2026-01-15T10:30:00Z',
+  supersededAt: null,
 } as const
 
 const SHARE_EXAMPLE = {
@@ -419,6 +441,216 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListFileVersionsContract,
+    filesOperation({
+      applicationOperation: fileOperations.listVersions,
+      operationId: 'listFileVersions',
+      summary: 'List File Versions',
+      description:
+        'List the recorded versions of a file, newest first by default. Every content write records a version; collaborative edits and repeated workflow writes by one author within ten minutes fold into one. Renames and moves are not versions. Retention removes old versions by plan, always keeping the newest ten, so version numbers can have gaps.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A page of file versions.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListFileVersionsContract.params,
+        'ListFileVersionsParams',
+        'List file versions path parameters',
+        'File whose versions are listed.'
+      ),
+      query: documentedSchema(
+        v2ListFileVersionsContract.query,
+        'ListFileVersionsQuery',
+        'List file versions query',
+        'Workspace scope, sort direction, and pagination for a version list.'
+      ),
+      response: documentedSchema(
+        v2ListFileVersionsContract.response.schema,
+        'V2FileVersionListResponse',
+        'File version list response',
+        'A cursor-paginated page of file versions.',
+        [{ data: [FILE_VERSION_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetFileVersionContract,
+    filesOperation({
+      applicationOperation: fileOperations.readVersion,
+      operationId: 'getFileVersion',
+      summary: 'Get File Version',
+      description:
+        'Get one version of a file. A version removed by retention, or one that never existed, returns `404`.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The file version.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetFileVersionContract.params,
+        'FileVersionParams',
+        'File version path parameters',
+        'File and version selected by the request path.'
+      ),
+      query: documentedSchema(
+        v2GetFileVersionContract.query,
+        'FileVersionQuery',
+        'File version query',
+        'Workspace scope for the file.'
+      ),
+      response: documentedSchema(
+        v2GetFileVersionContract.response.schema,
+        'V2FileVersionResponse',
+        'File version response',
+        'A single file version.',
+        [{ data: FILE_VERSION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteFileVersionContract,
+    filesOperation({
+      applicationOperation: fileOperations.deleteVersion,
+      operationId: 'deleteFileVersion',
+      summary: 'Delete File Version',
+      description:
+        'Permanently delete one earlier version and its stored content, for example to purge a leaked value from history before retention removes it. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Deletion confirmation.' },
+    }),
+    {
+      params: documentedSchema(
+        v2DeleteFileVersionContract.params,
+        'FileVersionParams',
+        'File version path parameters',
+        'File and version selected by the request path.'
+      ),
+      query: documentedSchema(
+        v2DeleteFileVersionContract.query,
+        'FileVersionQuery',
+        'File version query',
+        'Workspace scope for the file.'
+      ),
+      response: documentedSchema(
+        v2DeleteFileVersionContract.response.schema,
+        'V2FileVersionDeleteResponse',
+        'Delete file version response',
+        'Deletion confirmation for one file version.',
+        [{ data: { fileId: FILE_EXAMPLE.id, version: 2, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReadFileVersionTextContract,
+    filesOperation({
+      applicationOperation: fileOperations.readVersionContent,
+      operationId: 'readFileVersionText',
+      summary: 'Read File Version Text',
+      description:
+        'Extract the text of one version, exactly as Read File Text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: {
+        description: 'The extracted text of the version and its extraction-quality flags.',
+      },
+    }),
+    {
+      params: documentedSchema(
+        v2ReadFileVersionTextContract.params,
+        'FileVersionParams',
+        'File version path parameters',
+        'File and version selected by the request path.'
+      ),
+      query: documentedSchema(
+        v2ReadFileVersionTextContract.query,
+        'ReadFileVersionTextQuery',
+        'Read file version text query',
+        'Workspace scope, optional source-byte ceiling, and optional line window.'
+      ),
+      response: documentedSchema(
+        v2ReadFileVersionTextContract.response.schema,
+        'FileVersionTextResponse',
+        'File version text response',
+        'Text extracted from one version of a workspace file.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DownloadFileVersionContract,
+    filesOperation({
+      applicationOperation: fileOperations.downloadVersion,
+      operationId: 'downloadFileVersion',
+      summary: 'Download File Version',
+      description: `Download the bytes of one version, served exactly as Download File serves the current bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: {
+        description: 'The version bytes.',
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
+        contentTypes: ['application/octet-stream'],
+      },
+    }),
+    {
+      params: documentedSchema(
+        v2DownloadFileVersionContract.params,
+        'FileVersionParams',
+        'File version path parameters',
+        'File and version selected by the request path.'
+      ),
+      query: documentedSchema(
+        v2DownloadFileVersionContract.query,
+        'FileVersionQuery',
+        'File version query',
+        'Workspace scope for the file.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RevertFileVersionContract,
+    filesOperation({
+      applicationOperation: fileOperations.revertVersion,
+      operationId: 'revertFileVersion',
+      summary: 'Revert File Version',
+      description:
+        'Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MB returns `413`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The file and its current version after the revert.' },
+    }),
+    {
+      query: v2RevertFileVersionContract.query,
+      params: documentedSchema(
+        v2RevertFileVersionContract.params,
+        'FileVersionParams',
+        'File version path parameters',
+        'File and version selected by the request path.'
+      ),
+      body: documentedSchema(
+        v2RevertFileVersionContract.body,
+        'RevertFileVersionRequest',
+        'Revert file version request',
+        'Workspace scope and an optional current-version precondition.',
+        [{ workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64', expectedCurrentVersion: 4 }]
+      ),
+      response: documentedSchema(
+        v2RevertFileVersionContract.response.schema,
+        'V2FileVersionRevertResponse',
+        'Revert file version response',
+        'The file and its current version after the revert.',
+        [
+          {
+            data: {
+              reverted: true,
+              file: FILE_EXAMPLE,
+              version: {
+                ...FILE_VERSION_EXAMPLE,
+                version: 5,
+                source: 'revert',
+                restoredFromVersion: 3,
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2BulkDownloadFilesContract,
     filesOperation({
       applicationOperation: fileOperations.download,
@@ -616,7 +848,7 @@ const declaredRoutes = [
       operationId: 'getFile',
       summary: 'Get File Metadata',
       description:
-        'Get file metadata and its public-share configuration. The `share` field is null when the file has never been shared.',
+        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.',
       errors: RESOURCE_ERRORS,
       success: { description: 'File metadata and public-share state.' },
     }),
@@ -639,8 +871,8 @@ const declaredRoutes = [
         'File metadata response',
         'File metadata enriched with its current nullable public-share state.',
         [
-          { data: { ...FILE_EXAMPLE, share: null } },
-          { data: { ...FILE_EXAMPLE, share: SHARE_EXAMPLE } },
+          { data: { ...FILE_EXAMPLE, share: null, currentVersion: 1 } },
+          { data: { ...FILE_EXAMPLE, share: SHARE_EXAMPLE, currentVersion: 3 } },
         ]
       ),
     }
@@ -1156,7 +1388,8 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   tags: [
     {
       name: 'Files',
-      description: 'Create, upload, download, organize, share, and delete workspace files.',
+      description:
+        'Create, upload, download, organize, share, version, and delete workspace files.',
     },
     {
       name: 'Audit Logs',

@@ -42,6 +42,13 @@ import {
   v2UpdateCustomToolContract,
 } from '@/lib/api/contracts/v2/custom-tools'
 import {
+  v2DeleteFileVersionContract,
+  v2GetFileVersionContract,
+  v2ListFileVersionsContract,
+  v2ReadFileVersionTextContract,
+  v2RevertFileVersionContract,
+} from '@/lib/api/contracts/v2/file-versions'
+import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
   v2CompleteFileUploadContract,
@@ -732,6 +739,14 @@ export const V2_MCP_OPERATIONS = {
       'Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/folders/route').then((route) => route.DELETE),
   },
+  deleteFileVersion: {
+    contract: v2DeleteFileVersionContract,
+    summary: 'Delete File Version',
+    description:
+      'Permanently delete one earlier version and its stored content, for example to purge a leaked value from history before retention removes it. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/versions/[version]/route').then((route) => route.DELETE),
+  },
   deleteKnowledgeBase: {
     contract: v2DeleteKnowledgeBaseContract,
     summary: 'Delete Knowledge Base',
@@ -1020,7 +1035,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetFileContract,
     summary: 'Get File Metadata',
     description:
-      'Get file metadata and its public-share configuration. The `share` field is null when the file has never been shared.\n\nOAuth scope: `api:read`.',
+      'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/[fileId]/metadata/route').then((route) => route.GET),
   },
   getFileShare: {
@@ -1036,6 +1051,14 @@ export const V2_MCP_OPERATIONS = {
     description:
       "Get an upload session's state to determine whether an interrupted transfer can resume. Requires the signed upload token and current workspace access.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/files/uploads/[uploadId]/route').then((route) => route.GET),
+  },
+  getFileVersion: {
+    contract: v2GetFileVersionContract,
+    summary: 'Get File Version',
+    description:
+      'Get one version of a file. A version removed by retention, or one that never existed, returns `404`.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/versions/[version]/route').then((route) => route.GET),
   },
   getKnowledgeBase: {
     contract: v2GetKnowledgeBaseContract,
@@ -1397,6 +1420,13 @@ export const V2_MCP_OPERATIONS = {
     description:
       'List active workspace files with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find files available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/route').then((route) => route.GET),
+  },
+  listFileVersions: {
+    contract: v2ListFileVersionsContract,
+    summary: 'List File Versions',
+    description:
+      'List the recorded versions of a file, newest first by default. Every content write records a version; collaborative edits and repeated workflow writes by one author within ten minutes fold into one. Renames and moves are not versions. Retention removes old versions by plan, always keeping the newest ten, so version numbers can have gaps.\n\nOAuth scope: `api:read`.',
+    handler: () => import('@/app/api/v2/files/[fileId]/versions/route').then((route) => route.GET),
   },
   listKnowledgeBases: {
     contract: v2ListKnowledgeBasesContract,
@@ -1776,6 +1806,16 @@ export const V2_MCP_OPERATIONS = {
       'Extract text without changing the file. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/[fileId]/text/route').then((route) => route.GET),
   },
+  readFileVersionText: {
+    contract: v2ReadFileVersionTextContract,
+    summary: 'Read File Version Text',
+    description:
+      'Extract the text of one version, exactly as Read File Text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/versions/[version]/text/route').then(
+        (route) => route.GET
+      ),
+  },
   relocateFileFolder: {
     contract: v2RelocateFileFolderContract,
     summary: 'Rename or Move Folder',
@@ -1883,6 +1923,16 @@ export const V2_MCP_OPERATIONS = {
       'Resume one human-in-the-loop pause. The resumed attempt receives a new run ID and returns either a synchronous result or a queue receipt.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route').then(
+        (route) => route.POST
+      ),
+  },
+  revertFileVersion: {
+    contract: v2RevertFileVersionContract,
+    summary: 'Revert File Version',
+    description:
+      'Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MB returns `413`.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/versions/[version]/revert/route').then(
         (route) => route.POST
       ),
   },

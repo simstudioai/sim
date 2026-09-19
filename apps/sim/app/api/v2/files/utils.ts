@@ -1,8 +1,10 @@
+import type { V2FileVersion } from '@/lib/api/contracts/v2/file-versions'
 import type { V2File } from '@/lib/api/contracts/v2/files'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildFolderPath } from '@/lib/folders/paths'
 import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
@@ -58,4 +60,36 @@ export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[
   return records.map((record) =>
     serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy), baseUrl)
   )
+}
+
+function serializeV2FileVersion(
+  record: WorkspaceFileVersionRecord,
+  emailByUserId: Map<string, string>
+): V2FileVersion {
+  return {
+    fileId: record.fileId,
+    version: record.version,
+    isCurrent: record.isCurrent,
+    size: record.size,
+    contentType: record.contentType,
+    source: record.source,
+    authors: record.authorUserIds.map((id) => ({ id, email: emailByUserId.get(id) ?? null })),
+    restoredFromVersion: record.restoredFromVersion,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    supersededAt: record.supersededAt?.toISOString() ?? null,
+  }
+}
+
+/** Serializes file versions, resolving every author's email in one query. */
+export async function toV2FileVersions(
+  records: WorkspaceFileVersionRecord[]
+): Promise<V2FileVersion[]> {
+  const emailByUserId = await getUserEmailsByIds(records.flatMap((record) => record.authorUserIds))
+  return records.map((record) => serializeV2FileVersion(record, emailByUserId))
+}
+
+export async function toV2FileVersion(record: WorkspaceFileVersionRecord): Promise<V2FileVersion> {
+  const [version] = await toV2FileVersions([record])
+  return version
 }

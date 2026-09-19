@@ -7,6 +7,7 @@ import {
   getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getCurrentWorkspaceFileVersion } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -26,6 +27,11 @@ export interface ReadWorkspaceFileMetadataInput {
 export interface ReadWorkspaceFileMetadataResult {
   file: WorkspaceFileRecord
   share: ShareRecord | null
+}
+
+export interface ReadWorkspaceFileMetadataWithVersionResult
+  extends ReadWorkspaceFileMetadataResult {
+  currentVersion: number
 }
 
 async function executeReadWorkspaceFileMetadata({
@@ -51,4 +57,19 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
   resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeReadWorkspaceFileMetadata,
+})
+
+/**
+ * The same read plus the current version number, for the public metadata surface. Kept separate so
+ * the many internal callers of {@link readWorkspaceFileMetadata} pay no extra query.
+ */
+export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.readMetadata,
+  resolveContext: ({ input }: { input: ReadWorkspaceFileMetadataInput }) =>
+    resolveActiveWorkspaceFileContext(input),
+  async execute(args): Promise<ReadWorkspaceFileMetadataWithVersionResult> {
+    const result = await executeReadWorkspaceFileMetadata(args)
+    const current = await getCurrentWorkspaceFileVersion(result.file)
+    return { ...result, currentVersion: current.version }
+  },
 })

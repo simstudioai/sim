@@ -11,6 +11,7 @@ import {
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
+  workspaceFileVersion,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
@@ -39,6 +40,7 @@ import {
   cleanupOwnerCondition,
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
+import { deleteWorkspaceStorageObjects } from '@/lib/cleanup/storage-delete'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import type { StorageContext } from '@/lib/uploads'
@@ -220,6 +222,49 @@ async function cleanupWorkspaceFileStorage(
   }
 
   return result
+}
+
+/** Files whose version rows are read in one query while their objects are collected. */
+const VERSION_OBJECT_FILE_CHUNK_SIZE = 100
+
+/**
+ * Deletes the stored objects of every earlier version of the workspace files about to be purged,
+ * before their version rows cascade away with the file. A file whose version objects could not all
+ * be deleted is withheld from this purge, so its rows survive for the next run instead of leaving
+ * those objects unreferenced.
+ */
+async function cleanupWorkspaceFileVersionStorage(
+  rows: WorkspaceFileScope['multiContextRows'],
+  label: string
+): Promise<{ rows: WorkspaceFileScope['multiContextRows']; failed: number }> {
+  const workspaceRows = rows.filter((row) => row.context === 'workspace')
+  if (workspaceRows.length === 0 || !isUsingCloudStorage()) return { rows, failed: 0 }
+
+  const currentKeyByFileId = new Map(workspaceRows.map((row) => [row.id, row.key]))
+  const withheldFileIds = new Set<string>()
+  for (const fileIds of chunkArray(
+    [...currentKeyByFileId.keys()],
+    VERSION_OBJECT_FILE_CHUNK_SIZE
+  )) {
+    const versions = await cleanupDb
+      .select({ fileId: workspaceFileVersion.fileId, key: workspaceFileVersion.key })
+      .from(workspaceFileVersion)
+      .where(inArray(workspaceFileVersion.fileId, fileIds))
+    const fileIdByKey = new Map(
+      versions
+        .filter((version) => version.key !== currentKeyByFileId.get(version.fileId))
+        .map((version) => [version.key, version.fileId])
+    )
+    for (const key of await deleteWorkspaceStorageObjects([...fileIdByKey.keys()], label)) {
+      const fileId = fileIdByKey.get(key)
+      if (fileId) withheldFileIds.add(fileId)
+    }
+  }
+
+  return {
+    rows: rows.filter((row) => !withheldFileIds.has(row.id)),
+    failed: withheldFileIds.size,
+  }
 }
 
 async function deleteExpiredLegacyWorkspaceFileRows(
@@ -899,7 +944,12 @@ export async function runCleanupSoftDeletes(
     chatCleanup = await prepareChatCleanup([...doomedChatIds], label)
   }
 
-  const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
+  const versionCleanup = await cleanupWorkspaceFileVersionStorage(fileScope.multiContextRows, label)
+  if (budgets && versionCleanup.failed) throw new Error('File version storage cleanup failed')
+  const fileCleanup = await cleanupWorkspaceFileStorage({
+    ...fileScope,
+    multiContextRows: versionCleanup.rows,
+  })
   if (budgets && fileCleanup.filesFailed) throw new Error('File storage cleanup failed')
 
   let totalDeleted = 0
