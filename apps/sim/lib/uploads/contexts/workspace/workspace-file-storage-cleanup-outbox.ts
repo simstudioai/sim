@@ -1,6 +1,6 @@
 import type { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { describeError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import {
   enqueueOutboxEvents,
@@ -87,7 +87,7 @@ export async function processWorkspaceFileStorageCleanupsNow(
       logger.warn('Storage cleanup deferred after inline processing error', {
         ...logContext,
         eventId,
-        error: getErrorMessage(error),
+        error: describeError(error),
       })
     }
   }
