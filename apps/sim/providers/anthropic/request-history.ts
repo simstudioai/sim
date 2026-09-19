@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { buildAnthropicMessageContent } from '@/providers/attachments'
+import { getNativeConversationMessage } from '@/providers/conversation-metadata'
 import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import type { Message } from '@/providers/types'
 
@@ -109,6 +110,16 @@ export function convertAnthropicRequestHistory({
     }
 
     assertNoPendingToolCalls()
+
+    const nativeContent = getNativeConversationMessage(message, 'anthropic')
+    if (message.role === 'assistant' && Array.isArray(nativeContent)) {
+      const content = nativeContent as Anthropic.Messages.ContentBlockParam[]
+      for (const block of content) {
+        if (block.type === 'tool_use') registerToolCall({ id: block.id, name: block.name })
+      }
+      convertedMessages.push({ role: 'assistant', content })
+      return
+    }
 
     const content = buildAnthropicMessageContent(message.content, message.files, providerId)
     if (message.role === 'assistant' && message.tool_calls?.length) {

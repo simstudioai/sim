@@ -30,6 +30,43 @@ async function collectEvents(
 }
 
 describe('createReadableStreamFromAnthropicStream', () => {
+  it('keeps citation deltas in the native text block', async () => {
+    const onComplete = vi.fn()
+    const citation = {
+      type: 'char_location' as const,
+      cited_text: 'fact',
+      document_index: 0,
+      document_title: 'Source',
+      start_char_index: 0,
+      end_char_index: 4,
+    }
+    await collectEvents(
+      createReadableStreamFromAnthropicStream(
+        (async function* () {
+          yield {
+            type: 'content_block_start' as const,
+            index: 0,
+            content_block: { type: 'text' as const, text: '', citations: [] },
+          }
+          yield {
+            type: 'content_block_delta' as const,
+            index: 0,
+            delta: { type: 'text_delta' as const, text: 'Fact' },
+          }
+          yield {
+            type: 'content_block_delta' as const,
+            index: 0,
+            delta: { type: 'citations_delta' as const, citation },
+          }
+        })(),
+        onComplete
+      )
+    )
+    expect(onComplete.mock.calls[0][0].nativeContent).toEqual([
+      { type: 'text', text: 'Fact', citations: [citation] },
+    ])
+  })
+
   it('emits thinking_delta then text_delta and ignores tool_use (thinking+text+tool fixture)', async () => {
     const onComplete = vi.fn()
     const stream = createReadableStreamFromAnthropicStream(
@@ -57,6 +94,9 @@ describe('createReadableStreamFromAnthropicStream', () => {
     )
 
     expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(onComplete.mock.calls[0][0].nativeContent).toContainEqual(
+      expect.objectContaining({ type: 'thinking', signature: expect.any(String) })
+    )
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicThinkingTextToolExpectedText,
       thinking: anthropicThinkingTextToolExpectedThinking,

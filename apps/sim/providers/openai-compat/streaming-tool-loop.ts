@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Shared OpenAI Chat Completions streaming tool loop.
  *
@@ -17,6 +18,11 @@ import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import {
   createOpenAICompatibleAgentEventStream,
   type OpenAICompatAssembledToolCall,
@@ -162,7 +168,11 @@ export function createOpenAICompatStreamingToolLoopStream(
           }
 
           const stream = await createStream(
-            turnPayload as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+            await prepareConversationGeneration(
+              request,
+              'chat-completions',
+              turnPayload as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
+            ),
             streamOpts
           )
 
@@ -194,6 +204,7 @@ export function createOpenAICompatStreamingToolLoopStream(
             emitToolCallStarts: true,
             onComplete: (result) => {
               turnUsage = {
+                ...result.usage,
                 prompt_tokens: result.usage.prompt_tokens ?? 0,
                 completion_tokens: result.usage.completion_tokens ?? 0,
                 total_tokens: result.usage.total_tokens ?? 0,
@@ -258,6 +269,19 @@ export function createOpenAICompatStreamingToolLoopStream(
           const pendingTools = assembledPendingTools
           const turnTag = pendingTools.length > 0 ? 'intermediate' : 'final'
           const turnText = turnContent || liveText.join('')
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            {
+              role: 'assistant',
+              content: turnText,
+              ...(pendingTools.length ? { tool_calls: pendingTools } : {}),
+              ...(turnReasoningContent ? { reasoning_content: turnReasoningContent } : {}),
+              ...(turnReasoning ? { reasoning: turnReasoning } : {}),
+              ...(turnReasoningDetails?.length ? { reasoning_details: turnReasoningDetails } : {}),
+            },
+            getChatCompletionConversationUsage(turnUsage)
+          )
           // If the parser assembled text but we somehow missed deltas, still emit
           // it before the boundary so the turn_end classification covers it.
           if (turnText && liveText.length === 0) {
@@ -367,6 +391,12 @@ export function createOpenAICompatStreamingToolLoopStream(
               try {
                 toolArgs = parseToolArguments(tc.function.arguments, toolName)
               } catch (error) {
+                await recordProviderConversationToolError(
+                  request,
+                  tc.id,
+                  toolName,
+                  getErrorMessage(error, `Invalid tool arguments for ${toolName}`)
+                )
                 const endTime = Date.now()
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
@@ -398,6 +428,12 @@ export function createOpenAICompatStreamingToolLoopStream(
                 }
                 const tool = request.tools?.find((t) => t.id === toolName)
                 if (!tool) {
+                  await recordProviderConversationToolError(
+                    request,
+                    tc.id,
+                    toolName,
+                    `Tool not found: ${toolName}`
+                  )
                   const value = {
                     toolUseId,
                     toolName,
@@ -480,6 +516,12 @@ export function createOpenAICompatStreamingToolLoopStream(
                   throw error
                 }
 
+                await recordProviderConversationToolError(
+                  request,
+                  tc.id,
+                  toolName,
+                  getErrorMessage(error, 'Tool execution failed')
+                )
                 logger.error('Error processing tool call:', { error, toolName })
                 const value = {
                   toolUseId,

@@ -12,6 +12,7 @@ import {
   resolveFileType,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
+import { getNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   getProviderFileAttachment,
   INLINE_ATTACHMENT_MAX_BYTES,
@@ -820,6 +821,10 @@ export function formatMessagesForProvider(
   }
 
   return messages.map((message) => {
+    const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
+    if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
+      message = { ...message, ...nativeMessage }
+    }
     if (!message.files?.length || (message.role !== 'user' && message.role !== 'assistant')) {
       return message as ProviderFormattedMessage
     }

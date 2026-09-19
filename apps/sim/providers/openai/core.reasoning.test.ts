@@ -7,8 +7,10 @@
  * unverified-organization 400 falls back to a summary-free retry.
  */
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { BlockTokens } from '@/executor/types'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
 import { executeTool } from '@/tools'
 
@@ -107,6 +109,20 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
   }
 
   describe('agent-events runs', () => {
+    it('requests encrypted reasoning only for a durable Agent reasoning request', async () => {
+      const agentConversation = new AgentTurnStateMachine({ save: async () => {} })
+      await runWithProviderRuntimeContext({ agentConversation }, () => run({ model: 'gpt-5.5' }))
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).include).toEqual([
+        'reasoning.encrypted_content',
+      ])
+      fetchMock.mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
+      await run({ model: 'gpt-5.5' })
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).include).toBeUndefined()
+      fetchMock.mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
+      await runWithProviderRuntimeContext({ agentConversation }, () => run({ model: 'gpt-4.1' }))
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).include).toBeUndefined()
+    })
+
     it('requests reasoning.summary auto when effort is auto', async () => {
       await run({ model: 'gpt-5.5', agentEvents: true, reasoningEffort: 'auto' })
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)

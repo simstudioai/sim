@@ -27,8 +27,18 @@ import {
   isChatCompletionsEndpoint,
   isResponsesEndpoint,
 } from '@/providers/azure-openai/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import { getNativeConversationMessage } from '@/providers/conversation-metadata'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -105,6 +115,11 @@ async function executeChatCompletionsRequest(
 
   if (request.messages) {
     for (const message of request.messages) {
+      const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
+      if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
+        allMessages.push({ ...message, ...nativeMessage } as ChatCompletionMessageParam)
+        continue
+      }
       if (!message.files?.length || message.role !== 'user') {
         allMessages.push(message as ChatCompletionMessageParam)
         continue
@@ -198,7 +213,7 @@ async function executeChatCompletionsRequest(
         stream_options: { include_usage: true },
       }
       const streamResponse = await azureOpenAI.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -211,27 +226,31 @@ async function executeChatCompletionsRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createReadableStreamFromAzureOpenAIStream(
+            streamResponse,
+            (content, usage) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
 
-            finalizeTiming()
-          }),
+              finalizeTiming()
+            },
+            request
+          ),
       })
 
       return streamingResult
@@ -243,9 +262,17 @@ async function executeChatCompletionsRequest(
     let usedForcedTools: string[] = []
 
     let currentResponse = (await azureOpenAI.chat.completions.create(
-      payload,
+      await prepareConversationGeneration(request, 'chat-completions', payload),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )) as ChatCompletion
+    if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
+    }
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
@@ -306,6 +333,12 @@ async function executeChatCompletionsRequest(
 
       const toolsStartTime = Date.now()
 
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
       const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
         const toolCallStartTime = Date.now()
         const toolName = toolCall.function.name
@@ -315,6 +348,12 @@ async function executeChatCompletionsRequest(
           const tool = request.tools?.find((t) => t.id === toolName)
 
           if (!tool) {
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              `Tool "${toolName}" is not available`
+            )
             const toolCallEndTime = Date.now()
             return {
               toolCall,
@@ -360,6 +399,12 @@ async function executeChatCompletionsRequest(
           if (isAbortError(error) || request.abortSignal?.aborted) {
             throw error
           }
+          await recordProviderConversationToolError(
+            request,
+            toolCall.id,
+            toolName,
+            getErrorMessage(error, 'Tool execution failed')
+          )
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -471,9 +516,17 @@ async function executeChatCompletionsRequest(
 
       const nextModelStartTime = Date.now()
       currentResponse = (await azureOpenAI.chat.completions.create(
-        nextPayload,
+        await prepareConversationGeneration(request, 'chat-completions', nextPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
 
       const nextCheckResult = checkForForcedToolUsage(
         currentResponse,
@@ -529,12 +582,20 @@ async function executeChatCompletionsRequest(
       const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
       const synthesisStartTime = Date.now()
       const synthesisResponse = (await azureOpenAI.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...synthesisPayload,
           messages: currentMessages,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          synthesisResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(synthesisResponse.usage)
+        )
+      }
       const synthesisEndTime = Date.now()
 
       timeSegments.push({
@@ -637,7 +698,7 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 
@@ -721,7 +782,7 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
 
       return executeChatCompletionsRequest(
-        { ...request, apiKey },
+        request,
         baseUrl,
         azureApiVersion,
         deploymentName,
@@ -736,22 +797,19 @@ export const azureOpenAIProvider: ProviderConfig = {
       const deploymentName = request.model.replace(/^azure\//i, '')
 
       // Use the URL as-is since it's already complete
-      return executeResponsesProviderRequest(
-        { ...request, apiKey },
-        {
-          providerId: 'azure-openai',
-          providerLabel: 'Azure OpenAI',
-          modelName: deploymentName,
-          endpoint: azureEndpoint,
-          headers: {
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'responses=v1',
-            'api-key': apiKey,
-          },
-          logger,
-          fetch: pinnedFetch,
-        }
-      )
+      return executeResponsesProviderRequest(request, {
+        providerId: 'azure-openai',
+        providerLabel: 'Azure OpenAI',
+        modelName: deploymentName,
+        endpoint: azureEndpoint,
+        headers: {
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'responses=v1',
+          'api-key': apiKey,
+        },
+        logger,
+        fetch: pinnedFetch,
+      })
     }
 
     // Default: base URL provided, construct the responses API URL
@@ -761,21 +819,18 @@ export const azureOpenAIProvider: ProviderConfig = {
     const deploymentName = request.model.replace(/^azure\//i, '')
     const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
 
-    return executeResponsesProviderRequest(
-      { ...request, apiKey },
-      {
-        providerId: 'azure-openai',
-        providerLabel: 'Azure OpenAI',
-        modelName: deploymentName,
-        endpoint: apiUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'responses=v1',
-          'api-key': apiKey,
-        },
-        logger,
-        fetch: pinnedFetch,
-      }
-    )
+    return executeResponsesProviderRequest(request, {
+      providerId: 'azure-openai',
+      providerLabel: 'Azure OpenAI',
+      modelName: deploymentName,
+      endpoint: apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'responses=v1',
+        'api-key': apiKey,
+      },
+      logger,
+      fetch: pinnedFetch,
+    })
   },
 }

@@ -16,7 +16,9 @@ import { AV_MEMORY_WORKFLOW } from '@/components/workflow-preview/academy-video-
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-By default, an agent keeps nothing between runs: every conversation starts completely fresh. The Memory setting changes that: choose Conversation, give it a conversation ID, and everything said under that key is kept and loaded back before the model runs.
+By default, an agent keeps nothing between runs: every conversation starts completely fresh. The Memory setting changes that: choose Conversation, give it a conversation ID, and the agent saves the conversation under that key. Later runs load history according to the memory mode and the model's context limits.
+
+When durable tool history is enabled for your workspace, that history also includes completed tool calls and their results or errors. The agent can remember what it did, such as looking up an order, even when the run failed before giving its final answer. See the [Agent block's memory settings](/workflows/blocks/agent#memory) for tool-history and retry behavior.
 
 Uploaded attachments stay linked to the message that included them. Memory stores file references; each later run reads the accessible files again and prepares them for the selected provider. Attachments follow the selected memory window and the source file's storage retention. A replay can include up to 20 attachment references; use a smaller memory window for longer file-heavy conversations. Files omitted by older versions of memory need to be attached again.
 
@@ -32,7 +34,7 @@ Uploaded attachments stay linked to the message that included them. Memory store
     },
     {
       title: 'Recall happens before the model runs',
-      body: 'On the next run, everything stored under the key is loaded back into the conversation first: so the agent answers like no time has passed.',
+      body: 'On the next run, selected history under the key is loaded into the conversation before the model answers.',
     },
     {
       title: 'Keys are separate threads',
@@ -65,20 +67,22 @@ Here is the agent from the video with Memory set on the block:
 
 ## The same agent, with and without memory
 
-The video runs the same agent twice, side by side: once with no memory and once with the conversation ID. The same follow-up question arrives in both. Without the key, the agent starts from zero and has to ask for everything again; with it, everything stored under the key was loaded back before the model saw the new message, and the answer picks up exactly where yesterday stopped.
+The video runs the same agent twice, side by side: once with no memory and once with the conversation ID. The same follow-up question arrives in both. Without the key, the agent starts from zero and has to ask for everything again; with it, the earlier conversation supplies the context needed to answer the follow-up.
 
 ## When conversations grow
 
 Memory can also be a sliding window, keeping the most recent messages, or the most recent tokens, while the oldest quietly fall away. The stored transcript keeps every turn; the window controls how much of it rides into the model on each run.
+
+Tool exchanges stay together when history is selected. They do not each count as a message in a message window, but their contents still use input tokens. Large results may appear as previews, and history is not automatically summarized. A token window gives more direct control over recalled context than a message count; neither setting caps the total cost of a run that makes further model or tool calls.
 
 ## When to use memory
 
 Enable memory when a follow-up needs earlier conversation context, such as a support ticket or sales conversation. Keep classification and extraction stateless when each input contains everything the task needs.
 
 <FAQ items={[
-  { question: "What memory modes does the Agent block support?", answer: "Conversation keeps every turn under a conversation ID. Sliding window (messages) keeps the most recent messages, and sliding window (tokens) keeps as much recent history as fits a token budget." },
+  { question: "What memory modes does the Agent block support?", answer: "Conversation recalls stored history subject to history-loading and model context limits. Sliding window (messages) selects the most recent messages, and sliding window (tokens) selects recent history against a token budget. Tool-call groups stay together." },
   { question: "What should I use as a conversation ID?", answer: "Any stable key that identifies the thread: a customer ID, a ticket number, a channel ID. Runs that share the key share the conversation; runs with different keys never see each other's history." },
-  { question: "Does agent memory cost extra tokens?", answer: "Recalled history is loaded into the model's context, so it is billed as input tokens like any other message. Sliding-window modes exist to cap that cost on long-running conversations." },
+  { question: "Does agent memory cost extra tokens?", answer: "Recalled messages, tool arguments, and tool results use input tokens. Sliding-window modes reduce how much history is recalled, but a message count is not a token limit and a memory window does not cap the total cost of the run." },
   { question: "Where is the conversation stored?", answer: "In your Sim workspace, as a stored transcript per conversation ID. You can inspect it, and the agent reads from it automatically before each run." },
 ]} />
 

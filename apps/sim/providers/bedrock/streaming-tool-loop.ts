@@ -1,3 +1,4 @@
+import { prepareConversationGeneration } from '@/providers/conversation-generation'
 /**
  * Live Bedrock ConverseStream tool loop.
  *
@@ -28,7 +29,12 @@ import {
   generateToolUseId,
   getBedrockStreamError,
   supportsToolResultStatus,
+  toBedrockConversationUsage,
 } from '@/providers/bedrock/utils'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
@@ -89,6 +95,8 @@ async function drainBedrockTurn(
   content: DrainedContentBlock[]
   inputTokens: number
   outputTokens: number
+  cacheReadInputTokens?: number
+  cacheWriteInputTokens?: number
   stopReason?: string
 }> {
   let text = ''
@@ -101,6 +109,8 @@ async function drainBedrockTurn(
   let currentIndex: number | undefined
   let inputTokens = 0
   let outputTokens = 0
+  let cacheReadInputTokens: number | undefined
+  let cacheWriteInputTokens: number | undefined
   let stopReason: string | undefined
 
   for await (const event of stream) {
@@ -160,6 +170,8 @@ async function drainBedrockTurn(
     if (event.metadata?.usage) {
       inputTokens = event.metadata.usage.inputTokens ?? inputTokens
       outputTokens = event.metadata.usage.outputTokens ?? outputTokens
+      cacheReadInputTokens = event.metadata.usage.cacheReadInputTokens
+      cacheWriteInputTokens = event.metadata.usage.cacheWriteInputTokens
       continue
     }
 
@@ -203,6 +215,8 @@ async function drainBedrockTurn(
       .map(([, block]) => block),
     inputTokens,
     outputTokens,
+    cacheReadInputTokens,
+    cacheWriteInputTokens,
     stopReason,
   }
 }
@@ -300,13 +314,15 @@ export function createBedrockStreamingToolLoopStream(
             : undefined
 
           const modelStart = Date.now()
-          const command = new ConverseStreamCommand({
-            modelId,
-            messages: currentMessages,
-            system: system && system.length > 0 ? system : undefined,
-            inferenceConfig,
-            toolConfig,
-          })
+          const command = new ConverseStreamCommand(
+            await prepareConversationGeneration(request, 'bedrock', {
+              modelId,
+              messages: currentMessages,
+              system: system && system.length > 0 ? system : undefined,
+              inferenceConfig,
+              toolConfig,
+            })
+          )
 
           const streamResponse = await client.send(command, {
             abortSignal: loopAbortController.signal,
@@ -381,6 +397,26 @@ export function createBedrockStreamingToolLoopStream(
             input: parseToolInput(t.inputJson),
           }))
 
+          const toolUsesById = new Map(
+            assembledToolUses.map((toolUse) => [toolUse.toolUseId, toolUse])
+          )
+          const assistantMessage: BedrockMessage = {
+            role: 'assistant' as ConversationRole,
+            content: drained.content.map((block) => {
+              if (!('pendingToolUseId' in block)) return block
+              const toolUse = toolUsesById.get(block.pendingToolUseId)
+              if (!toolUse) throw new Error('Missing assembled Bedrock tool use')
+              return { toolUse }
+            }),
+          }
+          await captureProviderConversationStep(
+            request,
+            'bedrock',
+            assistantMessage,
+            toBedrockConversationUsage(drained),
+            { requestHistory: currentMessages }
+          )
+
           enrichLastModelSegment(timeSegments, {
             assistantContent: drained.text || undefined,
             toolCalls:
@@ -437,6 +473,12 @@ export function createBedrockStreamingToolLoopStream(
 
                 const tool = request.tools?.find((t) => t.id === toolName)
                 if (!tool) {
+                  await recordProviderConversationToolError(
+                    request,
+                    toolUse.toolUseId,
+                    toolName,
+                    `Tool "${toolName}" is not available`
+                  )
                   const value = {
                     toolUse,
                     toolUseId,
@@ -521,6 +563,12 @@ export function createBedrockStreamingToolLoopStream(
                   throw error
                 }
 
+                await recordProviderConversationToolError(
+                  request,
+                  toolUse.toolUseId,
+                  toolName,
+                  getErrorMessage(error, 'Tool execution failed')
+                )
                 logger.error('Error processing tool call:', { error, toolName })
                 const status: ToolCallEndStatus = 'error'
                 openToolStarts.delete(toolUseId)
@@ -552,18 +600,7 @@ export function createBedrockStreamingToolLoopStream(
 
           toolsTime += Date.now() - toolsStartTime
 
-          const toolUsesById = new Map(
-            assembledToolUses.map((toolUse) => [toolUse.toolUseId, toolUse])
-          )
-          currentMessages.push({
-            role: 'assistant' as ConversationRole,
-            content: drained.content.map((block) => {
-              if (!('pendingToolUseId' in block)) return block
-              const toolUse = toolUsesById.get(block.pendingToolUseId)
-              if (!toolUse) throw new Error('Missing assembled Bedrock tool use')
-              return { toolUse }
-            }),
-          })
+          currentMessages.push(assistantMessage)
 
           const toolResultContent: ContentBlock[] = []
           for (const value of orderedResults) {

@@ -16,7 +16,12 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
 
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
-import { MEMORY } from '@/executor/constants'
+import { MEMORY } from '@/lib/memory/constants'
+import * as conversationStore from '@/lib/memory/conversation-store'
+import {
+  selectConversationMessageWindow,
+  selectConversationTokenWindow,
+} from '@/lib/memory/history-window'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, UserFile } from '@/executor/types'
@@ -53,7 +58,7 @@ describe('Memory', () => {
     memoryService = new Memory()
   })
 
-  describe('applyWindow (message-based)', () => {
+  describe('message window', () => {
     it('should keep last N messages', () => {
       const messages: Message[] = [
         { role: 'user', content: 'Message 1' },
@@ -64,7 +69,7 @@ describe('Memory', () => {
         { role: 'assistant', content: 'Response 3' },
       ]
 
-      const result = (memoryService as any).applyWindow(messages, 4)
+      const result = selectConversationMessageWindow(messages, 4)
 
       expect(result.length).toBe(4)
       expect(result[0].content).toBe('Message 2')
@@ -77,26 +82,26 @@ describe('Memory', () => {
         { role: 'assistant', content: 'Response' },
       ]
 
-      const result = (memoryService as any).applyWindow(messages, 10)
+      const result = selectConversationMessageWindow(messages, 10)
       expect(result.length).toBe(2)
     })
 
     it('should handle invalid window size', () => {
       const messages: Message[] = [{ role: 'user', content: 'Test' }]
 
-      const result = (memoryService as any).applyWindow(messages, Number.NaN)
+      const result = selectConversationMessageWindow(messages, Number.NaN)
       expect(result).toEqual(messages)
     })
 
     it('should handle zero limit', () => {
       const messages: Message[] = [{ role: 'user', content: 'Test' }]
 
-      const result = (memoryService as any).applyWindow(messages, 0)
+      const result = selectConversationMessageWindow(messages, 0)
       expect(result).toEqual(messages)
     })
   })
 
-  describe('applyTokenWindow (token-based)', () => {
+  describe('token window', () => {
     it('should keep messages within token limit', () => {
       const messages: Message[] = [
         { role: 'user', content: 'Short' },
@@ -105,7 +110,7 @@ describe('Memory', () => {
         { role: 'assistant', content: 'Final response' },
       ]
 
-      const result = (memoryService as any).applyTokenWindow(messages, 15, 'gpt-4o')
+      const result = selectConversationTokenWindow(messages, 15, 'gpt-4o')
 
       expect(result.length).toBeGreaterThan(0)
       expect(result.length).toBeLessThan(messages.length)
@@ -121,7 +126,7 @@ describe('Memory', () => {
         },
       ]
 
-      const result = (memoryService as any).applyTokenWindow(messages, 5, 'gpt-4o')
+      const result = selectConversationTokenWindow(messages, 5, 'gpt-4o')
 
       expect(result.length).toBe(1)
       expect(result[0].content).toBe(messages[0].content)
@@ -135,7 +140,7 @@ describe('Memory', () => {
         { role: 'assistant', content: 'New response' },
       ]
 
-      const result = (memoryService as any).applyTokenWindow(messages, 10, 'gpt-4o')
+      const result = selectConversationTokenWindow(messages, 10, 'gpt-4o')
 
       expect(result[result.length - 1].content).toBe('New response')
     })
@@ -143,31 +148,31 @@ describe('Memory', () => {
     it('should handle invalid token limit', () => {
       const messages: Message[] = [{ role: 'user', content: 'Test' }]
 
-      const result = (memoryService as any).applyTokenWindow(messages, Number.NaN, 'gpt-4o')
+      const result = selectConversationTokenWindow(messages, Number.NaN, 'gpt-4o')
       expect(result).toEqual(messages)
     })
 
     it('should handle zero or negative token limit', () => {
       const messages: Message[] = [{ role: 'user', content: 'Test' }]
 
-      const result1 = (memoryService as any).applyTokenWindow(messages, 0, 'gpt-4o')
+      const result1 = selectConversationTokenWindow(messages, 0, 'gpt-4o')
       expect(result1).toEqual(messages)
 
-      const result2 = (memoryService as any).applyTokenWindow(messages, -5, 'gpt-4o')
+      const result2 = selectConversationTokenWindow(messages, -5, 'gpt-4o')
       expect(result2).toEqual(messages)
     })
 
     it('should work without model specified', () => {
       const messages: Message[] = [{ role: 'user', content: 'Test message' }]
 
-      const result = (memoryService as any).applyTokenWindow(messages, 100, undefined)
+      const result = selectConversationTokenWindow(messages, 100, undefined)
       expect(result.length).toBe(1)
     })
 
     it('should handle empty messages array', () => {
       const messages: Message[] = []
 
-      const result = (memoryService as any).applyTokenWindow(messages, 100, 'gpt-4o')
+      const result = selectConversationTokenWindow(messages, 100, 'gpt-4o')
       expect(result).toEqual([])
     })
   })
@@ -454,14 +459,17 @@ describe('Memory', () => {
       const registry = new ResolvedSecretTraceRegistry()
       registry.markIncomplete('unspecified')
       const appendMessage = vi
-        .spyOn(memoryService as any, 'appendMessage')
+        .spyOn(conversationStore, 'appendMemoryMessages')
         .mockResolvedValue(undefined)
 
       const message = { role: 'user' as const, content: 'possibly secret' }
       await memoryService.appendToMemory(createContext(registry) as never, inputs, message)
 
-      expect(appendMessage).toHaveBeenCalledWith('workspace-1', 'conversation-1', message, {
-        status: 'unknown',
+      expect(appendMessage).toHaveBeenCalledWith({
+        workspaceId: 'workspace-1',
+        key: 'conversation-1',
+        messages: [message],
+        provenance: { status: 'unknown' },
       })
     })
 
@@ -469,14 +477,17 @@ describe('Memory', () => {
       const registry = new ResolvedSecretTraceRegistry()
       registry.markIncomplete('unspecified')
       const seedMemoryRecord = vi
-        .spyOn(memoryService as any, 'seedMemoryRecord')
+        .spyOn(conversationStore, 'seedMemoryMessages')
         .mockResolvedValue(undefined)
       const message = { role: 'assistant' as const, content: 'possibly secret' }
 
       await memoryService.seedMemory(createContext(registry) as never, inputs, [message])
 
-      expect(seedMemoryRecord).toHaveBeenCalledWith('workspace-1', 'conversation-1', [message], {
-        status: 'unknown',
+      expect(seedMemoryRecord).toHaveBeenCalledWith({
+        workspaceId: 'workspace-1',
+        key: 'conversation-1',
+        messages: [message],
+        provenance: { status: 'unknown' },
       })
     })
 
@@ -572,10 +583,10 @@ describe('Memory', () => {
         })
 
         const appendMessage = vi
-          .spyOn(memoryService as any, 'appendMessage')
+          .spyOn(conversationStore, 'appendMemoryMessages')
           .mockResolvedValue(undefined)
         await memoryService.appendToMemory(createContext(registry) as never, inputs, message)
-        const stored = appendMessage.mock.calls.at(-1)?.[2] as Message
+        const stored = appendMessage.mock.calls.at(-1)?.[0].messages[0] as Message
         expect(JSON.parse(stored.function_call?.arguments ?? '')).toEqual({
           value: secret,
           converted,
@@ -721,9 +732,7 @@ describe('Memory', () => {
         memoryType: 'conversation' as const,
         conversationId: 'conversation-secret __var_TOKEN __sim_runtime_test_1',
       }
-      vi.spyOn(memoryService as never, 'appendMessage' as never).mockResolvedValue(
-        undefined as never
-      )
+      vi.spyOn(conversationStore, 'appendMemoryMessages').mockResolvedValue(undefined)
 
       await memoryService.appendToMemory(ctx as never, inputs, {
         role: 'user',
@@ -740,9 +749,7 @@ describe('Memory', () => {
       expect(serializedCalls).not.toContain('__sim_')
 
       mockMemoryLogger.debug.mockClear()
-      vi.spyOn(memoryService as never, 'seedMemoryRecord' as never).mockResolvedValue(
-        undefined as never
-      )
+      vi.spyOn(conversationStore, 'seedMemoryMessages').mockResolvedValue(undefined)
 
       await memoryService.seedMemory(ctx as never, inputs, [
         { role: 'assistant', content: 'ordinary response' },
@@ -770,10 +777,10 @@ describe('Memory', () => {
         { role: 'user', content: 'B' },
       ]
 
-      const messageResult = (memoryService as any).applyWindow(messages, 2)
+      const messageResult = selectConversationMessageWindow(messages, 2)
       expect(messageResult.length).toBe(2)
 
-      const tokenResult = (memoryService as any).applyTokenWindow(messages, 10, 'gpt-4o')
+      const tokenResult = selectConversationTokenWindow(messages, 10, 'gpt-4o')
       expect(tokenResult.length).toBeGreaterThanOrEqual(1)
     })
   })

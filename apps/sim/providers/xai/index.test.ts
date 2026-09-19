@@ -19,6 +19,7 @@ vi.mock('openai', () => ({
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 
 vi.mock('@/providers/runtime-context', () => ({
+  getProviderRuntimeContext: () => undefined,
   executeProviderTool: mockExecuteProviderTool,
 }))
 

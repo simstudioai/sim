@@ -79,7 +79,7 @@ During a live tool loop, the model can’t be classified mid-turn: text it emits
 - **Clients sending the protocol header** (no event policy required) receive answer text as `chunk` frames **live**, token by token. If the turn then resolves to tool calls, a `chunk_reset` frame tells the client to discard that block’s streamed text — the final turn re-streams live after tools settle. Append `chunk`, honor `chunk_reset`, and the displayed answer always converges to the block’s final content.
 - **Clients without the header** never see provisional text: only settled final-turn text is emitted as `chunk`, delivered in one piece when the turn completes. Honoring `chunk_reset` is what buys live cadence, so send the header if you want it.
 
-Logs, memory, and the block’s `content` output always contain final-turn text only — intermediate preamble is never persisted.
+The block's `content` output and plain-message memory view contain the final response text. With [durable tool history](/workflows/blocks/agent#memory) enabled, internal memory also preserves complete assistant messages that lead to tool calls and their results. It records completed provider messages, not individual streamed text deltas, and does not add these internal exchanges to the Memory API's `data` response.
 
 ### Abort
 

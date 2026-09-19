@@ -2,14 +2,29 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
+import type { ConversationUsageTotal } from '@/lib/memory/conversation-types'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
+import {
+  continuePendingConversationCalls,
+  restoreConversationNativeMessages,
+} from '@/providers/conversation-continuation'
+import {
+  bindConversationGenerationCompactor,
+  bindConversationGenerationPrompt,
+} from '@/providers/conversation-generation'
+import {
+  bindConversationRequestContext,
+  getConversationBinding,
+} from '@/providers/conversation-history'
+import { createAgentConversationCompactor } from '@/providers/conversation-summary'
 import {
   applyModelCostPolicy,
   applySegmentCostPolicy,
   calculateBillableModelCost,
   installStreamingCostPolicy,
+  type ModelCost,
   type ModelCostPolicy,
   resolveModelCostPolicy,
   withoutToolCost,
@@ -29,9 +44,11 @@ import {
   projectProviderResponseToolIdentities,
   projectStreamingExecutionToolIdentities,
 } from '@/providers/tool-identity'
+import { getProviderToolModelInputRegistry } from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
+  getModelPricing,
   sumToolCosts,
   supportsPromptCaching,
   supportsReasoningEffort,
@@ -41,6 +58,37 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('Providers')
+
+function addPriorConversationUsage(
+  response: { tokens?: ProviderResponse['tokens']; cost?: ModelCost },
+  prior: ConversationUsageTotal
+): void {
+  const tokens = response.tokens ?? {}
+  response.tokens = {
+    input: (tokens.input ?? 0) + prior.tokens.input,
+    output: (tokens.output ?? 0) + prior.tokens.output,
+    cacheRead: (tokens.cacheRead ?? 0) + (prior.tokens.cacheRead ?? 0),
+    cacheWrite: (tokens.cacheWrite ?? 0) + (prior.tokens.cacheWrite ?? 0),
+    total:
+      (tokens.total ??
+        (tokens.input ?? 0) +
+          (tokens.output ?? 0) +
+          (tokens.cacheRead ?? 0) +
+          (tokens.cacheWrite ?? 0)) +
+      prior.tokens.input +
+      prior.tokens.output +
+      (prior.tokens.cacheRead ?? 0) +
+      (prior.tokens.cacheWrite ?? 0),
+  }
+  if (response.cost)
+    response.cost = {
+      ...response.cost,
+      input: response.cost.input + prior.cost.input,
+      output: response.cost.output + prior.cost.output,
+      toolCost: (response.cost.toolCost ?? 0) + prior.cost.toolCost,
+      total: response.cost.total + prior.cost.total,
+    }
+}
 
 async function prepareProviderFileAttachments(request: ProviderRequest): Promise<ProviderRequest> {
   const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
@@ -246,6 +294,14 @@ export async function executeProviderRequest(
   const failedFunctionToolCost = { total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {
     ...runtimeContext,
+    ...(runtimeContext?.agentConversation
+      ? {
+          conversationProvider: {
+            providerId: providerId as ProviderId,
+            binding: getConversationBinding(providerId as ProviderId, modelSafeRequest),
+          },
+        }
+      : {}),
     failedFunctionToolCost,
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
@@ -268,11 +324,90 @@ export async function executeProviderRequest(
     }
   }
 
+  let priorConversationUsage: ConversationUsageTotal | undefined
+  let cachedFinalResponse: ProviderResponse | undefined
   const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
+    bindConversationRequestContext(modelSafeRequest, requestRuntimeContext)
+    const session = runtimeContext?.agentConversation
+    const final = session?.getFinalResponse()
+    if (session && !final) {
+      const binding = requestRuntimeContext.conversationProvider!.binding
+      modelSafeRequest.resolveToolInvocationId = (wireId, toolId) =>
+        session.resolveInvocationId(wireId, toolId)
+      const replayRegistries = new Set([
+        runtimeContext?.resolvedSecretTraceRegistry,
+        ...(modelSafeRequest.tools ?? []).map(getProviderToolModelInputRegistry),
+      ])
+      for (const registry of replayRegistries) {
+        if (registry) await session.restoreProvenance?.(registry)
+      }
+      await continuePendingConversationCalls(modelSafeRequest, session)
+      const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
+        .reverse()
+        .find((message) => message.role === 'user')
+      bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
+      priorConversationUsage = session.getUsage()
+      bindConversationGenerationCompactor(
+        modelSafeRequest,
+        createAgentConversationCompactor(
+          modelSafeRequest,
+          requestRuntimeContext,
+          currentUserMessage,
+          async (summaryRequest) => {
+            const summary = await executeProviderRequest(providerId, summaryRequest, {
+              resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
+              executionContext: requestRuntimeContext.executionContext,
+            })
+            if (isStreamingExecution(summary) || isReadableStream(summary))
+              throw new Error('Conversation summary did not return a settled response')
+            return summary
+          },
+          (usage) => addPriorConversationUsage(priorConversationUsage!, usage)
+        )
+      )
+      const history = [
+        ...(modelSafeRequest.messages ?? []),
+        ...session.getMessages(providerId as ProviderId, modelSafeRequest.model, binding),
+      ]
+      modelSafeRequest.messages = await restoreConversationNativeMessages(
+        history,
+        providerId as ProviderId,
+        modelSafeRequest.model,
+        binding,
+        session.memoryId,
+        modelSafeRequest
+      )
+    }
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
     await uploadLargeFilesToProvider(modelSafeRequest, providerId, runtimeContext?.executionContext)
+    if (final && session) {
+      modelSafeRequest.abortSignal?.throwIfAborted()
+      const usage = session.getUsage()
+      cachedFinalResponse = {
+        ...final,
+        tokens: {
+          ...usage.tokens,
+          total:
+            usage.tokens.input +
+            usage.tokens.output +
+            (usage.tokens.cacheRead ?? 0) +
+            (usage.tokens.cacheWrite ?? 0),
+        },
+        cost: {
+          ...usage.cost,
+          pricing: getModelPricing(final.model) ?? {
+            input: 0,
+            output: 0,
+            updatedAt: new Date(0).toISOString(),
+          },
+        },
+      }
+      return cachedFinalResponse
+    }
     return provider.executeRequest(modelSafeRequest)
   })
+
+  if (cachedFinalResponse) return cachedFinalResponse
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
@@ -282,6 +417,32 @@ export async function executeProviderRequest(
       () => failedFunctionToolCost.total
     )
     projectStreamingExecutionToolIdentities(response, toolIdentities)
+    if (priorConversationUsage) {
+      const prior = priorConversationUsage
+      const onFullContent = response.onFullContent
+      let usageApplied = false
+      response.onFullContent = async (content) => {
+        await onFullContent?.(content)
+        if (usageApplied) return
+        usageApplied = true
+        const output = response.execution.output
+        const projected = {
+          content,
+          model: sanitizedRequest.model,
+          tokens: output.tokens,
+          cost: output.cost,
+        }
+        addPriorConversationUsage(projected, prior)
+        output.tokens = projected.tokens
+        /** Cost is already policy-projected; replace the accessor instead of applying policy twice. */
+        Object.defineProperty(output, 'cost', {
+          value: projected.cost,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        })
+      }
+    }
     return response
   }
 
@@ -338,5 +499,6 @@ export async function executeProviderRequest(
     }
   }
 
+  if (priorConversationUsage) addPriorConversationUsage(response, priorConversationUsage)
   return response
 }

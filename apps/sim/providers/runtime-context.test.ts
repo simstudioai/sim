@@ -12,6 +12,9 @@ vi.mock('@/tools', () => ({
   executeTool: mockExecuteTool,
 }))
 
+import type { AgentConversationSession } from '@/lib/memory/conversation-types'
+import { AGENT_MEMORY_RETRIEVAL_TOOL_ID } from '@/lib/memory/retrieval-tool-types'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   type ExecuteProviderToolOptions,
@@ -36,6 +39,131 @@ async function executeProviderTool(
 describe('provider runtime context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('dispatches the bound memory reader and reauthorizes repeated invocation reads', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ success: true, output: { text: 'current access' } })
+      .mockResolvedValueOnce({ success: false, output: {}, error: 'access revoked' })
+    const session: AgentConversationSession = {
+      memoryId: 'original-memory',
+      getFinalResponse: vi.fn(),
+      getFinalAssistantContent: vi.fn(),
+      getUsage: () => ({
+        tokens: { input: 0, output: 0 },
+        cost: { input: 0, output: 0, total: 0, toolCost: 0 },
+      }),
+      captureStep: vi.fn(),
+      resolveInvocationId: vi.fn(),
+      getReplayResult: vi.fn(),
+      recordToolResult: vi.fn(),
+      recordToolError: vi.fn(),
+      getPendingCalls: () => [],
+      getMessages: () => [],
+    }
+    const tool = {
+      id: 'wire-memory-reader',
+      canonicalId: AGENT_MEMORY_RETRIEVAL_TOOL_ID,
+      description: '',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    await runWithProviderRuntimeContext(
+      {
+        agentConversation: session,
+        agentMemoryRetrieval: { tool, execute },
+        toolIdByWireId: new Map([['wire-memory-reader', AGENT_MEMORY_RETRIEVAL_TOOL_ID]]),
+      },
+      async () => {
+        const params = { target: 'history', _context: { invocationId: 'same-invocation' } }
+        expect(await executeProviderTool('wire-memory-reader', params)).toMatchObject({
+          success: true,
+        })
+        expect(await executeProviderTool('wire-memory-reader', params)).toMatchObject({
+          success: false,
+        })
+      }
+    )
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(session.getReplayResult).not.toHaveBeenCalled()
+    expect(session.recordToolResult).toHaveBeenCalledTimes(2)
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
+  it('routes only the exact injected tool instance when another tool shares its canonical id', async () => {
+    const execute = vi.fn(async () => ({ success: true, output: { text: 'bound reader' } }))
+    const tool = {
+      id: 'agent_memory_read__sim_2',
+      canonicalId: AGENT_MEMORY_RETRIEVAL_TOOL_ID,
+      description: '',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    await runWithProviderRuntimeContext(
+      {
+        agentMemoryRetrieval: { tool, execute },
+        toolIdByWireId: new Map([[tool.id, AGENT_MEMORY_RETRIEVAL_TOOL_ID]]),
+      },
+      async () => {
+        await executeProviderTool(AGENT_MEMORY_RETRIEVAL_TOOL_ID, { target: 'history' })
+        await executeProviderTool(tool.id, { target: 'history' })
+      }
+    )
+    expect(execute).toHaveBeenCalledOnce()
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      AGENT_MEMORY_RETRIEVAL_TOOL_ID,
+      { target: 'history' },
+      expect.anything()
+    )
+  })
+
+  it('forwards the retained preview to the same provider turn while preserving the full raw result', async () => {
+    const rawResponse = {
+      success: true,
+      output: { padding: 'x'.repeat(140_000), endReceipt: 'original-receipt' },
+    }
+    const modelResponse = {
+      success: true,
+      output: { memoryArtifact: { id: 'a'.repeat(64) }, preview: 'retained result preview' },
+    }
+    const session = new AgentTurnStateMachine({
+      save: vi.fn(),
+      prepareResult: async (result) => ({ ...result, rawResponse: modelResponse, modelResponse }),
+    })
+    await session.captureStep({
+      assistant: { role: 'assistant', content: '' },
+      calls: [{ toolId: 'http_request', providerCallId: 'provider-call-1', arguments: '{}' }],
+      native: {
+        protocol: 'responses',
+        providerId: 'openai',
+        model: 'gpt-4.1-mini',
+        binding: 'binding',
+        value: {},
+      },
+    })
+    const invocationId = session.resolveInvocationId('provider-call-1', 'http_request')!
+    mockExecuteTool.mockResolvedValueOnce(rawResponse)
+    await runWithProviderRuntimeContext({ agentConversation: session }, async () => {
+      const response = await executeProviderToolWithInput('http_request', {
+        _context: { invocationId },
+      })
+      expect(response.rawResponse).toBe(rawResponse)
+      expect(response.modelResponse).toEqual(modelResponse)
+      expect(JSON.stringify(response.modelResponse)).not.toContain('original-receipt')
+      vi.spyOn(session, 'getReplayResult').mockResolvedValueOnce({
+        invocationId,
+        rawResponse,
+        modelResponse: rawResponse,
+      })
+      const replay = await executeProviderToolWithInput('http_request', {
+        _context: { invocationId },
+      })
+      expect(replay.rawResponse).toBe(rawResponse)
+      expect(replay.modelResponse).toEqual(modelResponse)
+    })
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
   })
 
   it('isolates concurrent tool executions without adding registry data to params', async () => {
