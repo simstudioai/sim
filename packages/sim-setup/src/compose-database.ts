@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { generateSecret } from './env-files'
 import { SetupError } from './errors'
+import * as p from './prompter'
 
 /**
  * The password Postgres was initialized with on a Compose install created while
@@ -23,37 +24,45 @@ export function composeFileRequiresPostgresPassword(composeFile: string): boolea
   return readFileSync(composeFile, 'utf8').includes('${POSTGRES_PASSWORD:?')
 }
 
+/** Where a chosen `POSTGRES_PASSWORD` came from. */
+export type PostgresPasswordSource = 'environment' | 'generated' | 'legacy'
+
 export interface PostgresPasswordChoice {
   value: string
-  /** True when the value is the legacy password an existing volume was created with. */
-  legacy: boolean
+  source: PostgresPasswordSource
+}
+
+interface ChooseOptions {
+  /** `POSTGRES_PASSWORD` from the shell, which Compose interpolates over `.env`. */
+  shellValue?: string
+  hasDatabaseVolume?: (project: string) => boolean
 }
 
 /**
- * Picks the `POSTGRES_PASSWORD` a Compose install's `.env` needs, or null when it
- * already has one. The production Compose file requires the variable, so an
- * install that never set it must gain one before Compose will start — and the
- * value must match what the data volume was created with: a fresh password for
- * a new volume, the legacy one for a volume that already exists. Guessing wrong
- * in the other direction would lock the app out of its own database.
+ * Picks the `POSTGRES_PASSWORD` to write to a Compose install's `.env`, or null
+ * when `.env` already has one. The production Compose file requires the
+ * variable, and the value must match what the data volume was created with —
+ * Postgres ignores `POSTGRES_PASSWORD` on an existing data directory, so a
+ * wrong value locks the app out of its own database:
+ *
+ * - A value exported in the shell is what Compose is using, so it is persisted;
+ *   otherwise a later run without the export would fall back to a guess.
+ * - With no value anywhere, an existing volume was created with the legacy
+ *   password, and a project with no volume yet gets a generated one.
  */
 export function choosePostgresPassword(
-  configured: string | undefined,
+  envFileValue: string | undefined,
   project: string,
-  hasDatabaseVolume: (project: string) => boolean = composeDatabaseVolumeExists
+  {
+    shellValue = process.env.POSTGRES_PASSWORD,
+    hasDatabaseVolume = composeDatabaseVolumeExists,
+  }: ChooseOptions = {}
 ): PostgresPasswordChoice | null {
-  if (configured) return null
+  if (envFileValue) return null
+  if (shellValue) return { value: shellValue, source: 'environment' }
   return hasDatabaseVolume(project)
-    ? { value: LEGACY_POSTGRES_PASSWORD, legacy: true }
-    : { value: generateSecret(), legacy: false }
-}
-
-/**
- * The value Compose will interpolate for `POSTGRES_PASSWORD`: the shell
- * environment wins over `.env`, so a value exported there is already in effect.
- */
-export function configuredPostgresPassword(envFileValue: string | undefined): string | undefined {
-  return process.env.POSTGRES_PASSWORD || envFileValue || undefined
+    ? { value: LEGACY_POSTGRES_PASSWORD, source: 'legacy' }
+    : { value: generateSecret(), source: 'generated' }
 }
 
 /** Whether a Compose project already has a Postgres data volume, found by Compose's own labels. */
@@ -107,15 +116,35 @@ function parseProjectName(stdout: string): string | null {
 }
 
 /**
- * Explains why the legacy password was kept and how to rotate it. `compose` is
- * the pinned `docker compose -p … -f …` prefix for this install.
+ * Reports what was written. `compose` is the pinned `docker compose -p … -f …`
+ * prefix for the install, and `user` the effective `POSTGRES_USER`, both used
+ * in the legacy rotation steps.
  */
-export function legacyPostgresPasswordNote(compose: string): string {
-  return [
-    'This database was created with the password "postgres", so .env now sets',
-    'POSTGRES_PASSWORD=postgres to keep it working. The database is not published',
-    'to the host, so only the containers in this stack can reach it. To rotate it:',
-    `  ${compose} exec db psql -U postgres -c "ALTER ROLE postgres PASSWORD '<new password>'"`,
-    '  then set POSTGRES_PASSWORD=<new password> in .env and run: npx sim-setup start',
-  ].join('\n')
+export function reportPostgresPasswordChoice(
+  choice: PostgresPasswordChoice,
+  { compose, user, envPath }: { compose: string; user: string; envPath: string }
+): void {
+  if (choice.source === 'environment') {
+    p.log.step(`Saved POSTGRES_PASSWORD from the shell environment to ${envPath}`)
+    return
+  }
+  if (choice.source === 'generated') {
+    p.log.step(`Generated POSTGRES_PASSWORD in ${envPath}`)
+    return
+  }
+  p.note(
+    [
+      `This database was created with the password "${LEGACY_POSTGRES_PASSWORD}", so ${envPath}`,
+      `now sets POSTGRES_PASSWORD=${LEGACY_POSTGRES_PASSWORD} to keep it working. The database is not`,
+      'published to the host, so only the containers in this stack can reach it. To rotate it:',
+      `  ${compose} exec db psql -U ${user} -c "ALTER ROLE CURRENT_USER PASSWORD '<new password>'"`,
+      '  then set POSTGRES_PASSWORD=<new password> in .env and run: npx sim-setup start',
+    ].join('\n'),
+    'Database password'
+  )
+}
+
+/** The Postgres role Compose initializes, which the shell overrides over `.env` like any variable. */
+export function postgresUser(envFileValue: string | undefined): string {
+  return process.env.POSTGRES_USER || envFileValue || 'postgres'
 }

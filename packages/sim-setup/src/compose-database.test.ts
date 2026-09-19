@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   choosePostgresPassword,
   composeFileRequiresPostgresPassword,
-  configuredPostgresPassword,
   LEGACY_POSTGRES_PASSWORD,
+  postgresUser,
 } from './compose-database'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -34,37 +34,57 @@ afterEach(() => {
 })
 
 describe('choosePostgresPassword', () => {
-  it('leaves a configured password alone without looking for a volume', () => {
-    const lookup = vi.fn(() => true)
-    expect(choosePostgresPassword('already-set', 'sim-abc', lookup)).toBeNull()
-    expect(lookup).not.toHaveBeenCalled()
+  it('leaves a password already in .env alone without looking for a volume', () => {
+    const hasDatabaseVolume = vi.fn(() => true)
+    expect(
+      choosePostgresPassword('in-env-file', 'sim-abc', {
+        shellValue: 'in-shell',
+        hasDatabaseVolume,
+      })
+    ).toBeNull()
+    expect(hasDatabaseVolume).not.toHaveBeenCalled()
+  })
+
+  it('persists a shell-exported password, which is what Compose is using', () => {
+    const hasDatabaseVolume = vi.fn(() => true)
+    expect(
+      choosePostgresPassword(undefined, 'sim-abc', { shellValue: 'in-shell', hasDatabaseVolume })
+    ).toEqual({ value: 'in-shell', source: 'environment' })
+    expect(hasDatabaseVolume).not.toHaveBeenCalled()
   })
 
   it('generates a password for a project with no database volume yet', () => {
-    const lookup = vi.fn(() => false)
-    const choice = choosePostgresPassword(undefined, 'sim-abc', lookup)
-    expect(lookup).toHaveBeenCalledWith('sim-abc')
-    expect(choice?.legacy).toBe(false)
+    const hasDatabaseVolume = vi.fn(() => false)
+    const choice = choosePostgresPassword('', 'sim-abc', { shellValue: '', hasDatabaseVolume })
+    expect(hasDatabaseVolume).toHaveBeenCalledWith('sim-abc')
+    expect(choice?.source).toBe('generated')
     expect(choice?.value).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('keeps the legacy password for a volume created before it was required', () => {
-    const choice = choosePostgresPassword(undefined, 'sim-abc', () => true)
-    expect(choice).toEqual({ value: LEGACY_POSTGRES_PASSWORD, legacy: true })
+    expect(
+      choosePostgresPassword(undefined, 'sim-abc', {
+        shellValue: '',
+        hasDatabaseVolume: () => true,
+      })
+    ).toEqual({ value: LEGACY_POSTGRES_PASSWORD, source: 'legacy' })
+  })
+
+  it('reads the shell environment by default', () => {
+    vi.stubEnv('POSTGRES_PASSWORD', 'from-process')
+    expect(choosePostgresPassword(undefined, 'sim-abc', { hasDatabaseVolume: () => true })).toEqual(
+      { value: 'from-process', source: 'environment' }
+    )
   })
 })
 
-describe('configuredPostgresPassword', () => {
-  it('prefers the shell environment, which Compose interpolates over .env', () => {
-    vi.stubEnv('POSTGRES_PASSWORD', 'from-shell')
-    expect(configuredPostgresPassword('from-env-file')).toBe('from-shell')
-  })
-
-  it('falls back to .env and treats empty values as unset', () => {
-    vi.stubEnv('POSTGRES_PASSWORD', '')
-    expect(configuredPostgresPassword('from-env-file')).toBe('from-env-file')
-    expect(configuredPostgresPassword('')).toBeUndefined()
-    expect(configuredPostgresPassword(undefined)).toBeUndefined()
+describe('postgresUser', () => {
+  it('prefers the shell, then .env, then the image default', () => {
+    vi.stubEnv('POSTGRES_USER', 'from-shell')
+    expect(postgresUser('from-env-file')).toBe('from-shell')
+    vi.stubEnv('POSTGRES_USER', '')
+    expect(postgresUser('from-env-file')).toBe('from-env-file')
+    expect(postgresUser(undefined)).toBe('postgres')
   })
 })
 

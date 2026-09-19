@@ -7,8 +7,8 @@ import {
   choosePostgresPassword,
   composeFileRequiresPostgresPassword,
   composeProjectName,
-  configuredPostgresPassword,
-  legacyPostgresPasswordNote,
+  postgresUser,
+  reportPostgresPasswordChoice,
 } from '../compose-database'
 import { legacyComposeProjectName, standaloneComposeProjectName } from '../compose-project'
 import { SETUP_CONTEXT } from '../context'
@@ -188,7 +188,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   }
   const postgresPassword = composeFileRequiresPostgresPassword(composeFile)
     ? choosePostgresPassword(
-        configuredPostgresPassword(root.vars.get('POSTGRES_PASSWORD')),
+        root.vars.get('POSTGRES_PASSWORD'),
         composeProject ?? composeProjectName(composeFile, ROOT)
       )
     : null
@@ -232,13 +232,12 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   for (const key of Object.keys(values)) remove.delete(key)
   reconcileEnvValues('root', [...remove], values)
   p.log.step('Wrote .env (compose reads it for variable substitution)')
-  if (postgresPassword?.legacy) {
-    p.note(
-      legacyPostgresPasswordNote(composeCommand(composeFile, composeProject)),
-      'Database password'
-    )
-  } else if (postgresPassword) {
-    p.log.step('Generated POSTGRES_PASSWORD')
+  if (postgresPassword) {
+    reportPostgresPasswordChoice(postgresPassword, {
+      compose: composeCommand(composeFile, composeProject),
+      user: postgresUser(root.vars.get('POSTGRES_USER')),
+      envPath: root.path,
+    })
   }
 
   const validation = spawnSync('docker', composeArgs(composeFile, composeProject, 'config'), {

@@ -5,8 +5,8 @@ import { ensureProductionComposeFile } from './compose-asset'
 import {
   choosePostgresPassword,
   composeFileRequiresPostgresPassword,
-  configuredPostgresPassword,
-  legacyPostgresPasswordNote,
+  postgresUser,
+  reportPostgresPasswordChoice,
 } from './compose-database'
 import { legacyComposeProjectName } from './compose-project'
 import { directoryOverride, resolveSetupContextAtRoot, SETUP_CONTEXT } from './context'
@@ -210,20 +210,15 @@ function ensureComposePostgresPassword(install: ComposeInstall): void {
   if (!composeFileRequiresPostgresPassword(install.file)) return
   const envPath = path.join(install.dir, '.env')
   const content = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
-  const choice = choosePostgresPassword(
-    configuredPostgresPassword(parseEnv(content).get('POSTGRES_PASSWORD')),
-    install.project
-  )
+  const vars = parseEnv(content)
+  const choice = choosePostgresPassword(vars.get('POSTGRES_PASSWORD'), install.project)
   if (!choice) return
   writeEnvFile(envPath, upsertEnv(content, 'POSTGRES_PASSWORD', choice.value))
-  if (choice.legacy) {
-    p.note(
-      legacyPostgresPasswordNote(`docker compose -p ${install.project} -f ${install.file}`),
-      'Database password'
-    )
-  } else {
-    p.log.step(`Generated POSTGRES_PASSWORD in ${envPath}`)
-  }
+  reportPostgresPasswordChoice(choice, {
+    compose: `docker compose -p ${install.project} -f ${install.file}`,
+    user: postgresUser(vars.get('POSTGRES_USER')),
+    envPath,
+  })
 }
 
 /** Dev mode owns the split env files and, usually, the managed Postgres/Redis. */
