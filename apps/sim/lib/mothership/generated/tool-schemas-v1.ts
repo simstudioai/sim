@@ -90,6 +90,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
+        },
       },
       required: ['elementId'],
     },
@@ -694,6 +706,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           minItems: 1,
           type: 'array',
         },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
+        },
       },
       required: ['fields'],
       type: 'object',
@@ -1219,6 +1243,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description:
             "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
+        },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
         },
       },
       required: ['key'],
@@ -1810,6 +1846,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'number',
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
         },
         submit: {
           type: 'boolean',
@@ -7301,6 +7349,29 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
         },
       },
+    },
+    resultSchema: undefined,
+  },
+  workspaces: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          minLength: 1,
+        },
+        skipDefaultWorkflow: {
+          default: false,
+          type: 'boolean',
+        },
+        action: {
+          type: 'string',
+          const: 'create',
+        },
+      },
+      required: ['name', 'action'],
+      additionalProperties: false,
     },
     resultSchema: undefined,
   },
