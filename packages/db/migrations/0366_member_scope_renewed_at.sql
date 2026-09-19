@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_connector_member" ADD COLUMN "scope_renewed_at" timestamp;

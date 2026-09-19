@@ -58,6 +58,7 @@ import {
   recordMemberObservations,
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
+  renewMemberObservationsInScopes,
   rewriteConnectorAcls,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
@@ -73,6 +74,8 @@ import {
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
+  MEMBER_SCOPE_RENEW_AFTER_MS,
+  MEMBER_SCOPE_RENEWAL_BUDGET_MS,
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
@@ -140,6 +143,8 @@ export interface MemberSyncResult extends SyncResult {
   docsListed: number
   docsHydratedOnce: number
   observationsAdded: number
+  /** Observations kept fresh because the source still grants the scope they fall under. */
+  observationsRenewed: number
   observationsRemoved: number
   docsTombstoned: number
   docsResurrected: number
@@ -212,6 +217,7 @@ function emptyResult(): MemberSyncResult {
     docsListed: 0,
     docsHydratedOnce: 0,
     observationsAdded: 0,
+    observationsRenewed: 0,
     observationsRemoved: 0,
     docsTombstoned: 0,
     docsResurrected: 0,
@@ -997,6 +1003,68 @@ async function recordMemberFailure(
  */
 function isScopeUnavailableError(connectorConfig: ConnectorConfig, error: unknown): boolean {
   return connectorConfig.isListingScopeUnavailableError?.(error) === true
+}
+
+/**
+ * Keeps a member's access evidence fresh for a connector that grants access per
+ * container: their observations under every container the source still grants them
+ * are renewed, so evidence does not lapse while a listing that takes longer than the
+ * evidence window is still in progress, and lapses only for containers they lost.
+ * Best effort: a failure here leaves the listing to establish access itself.
+ */
+async function renewMemberAccessScopes(input: {
+  run: MemberSyncRun
+  member: MemberRow
+  connectorConfig: ConnectorConfig
+  sourceConfig: Record<string, unknown>
+  tokens: MemberTokenCache
+  syncContext: Record<string, unknown>
+}): Promise<void> {
+  const { run, member, connectorConfig } = input
+  if (!connectorConfig.listAccessibleScopes) return
+  const startedAt = new Date()
+  const renewBefore = new Date(startedAt.getTime() - MEMBER_SCOPE_RENEW_AFTER_MS)
+  /** Observations under lost containers stay stale, so only the member's own watermark says renewal is due. */
+  if (member.scopeRenewedAt && member.scopeRenewedAt > renewBefore) return
+  try {
+    const scopePrefixes = await connectorConfig.listAccessibleScopes(
+      await input.tokens.get(member.id),
+      input.sourceConfig,
+      input.syncContext
+    )
+    const renewal = await renewMemberObservationsInScopes({
+      connectorId: run.connectorId,
+      memberId: member.id,
+      scopePrefixes,
+      renewBefore,
+      deadlineAt: Math.min(run.deadlineAt, Date.now() + MEMBER_SCOPE_RENEWAL_BUDGET_MS),
+      beforeBatch: run.lease.beatIfDue,
+      withLease: (fn) => withMemberLease(run, fn),
+    })
+    run.result.observationsRenewed += renewal.renewed
+    if (renewal.finished) {
+      await withMemberLease(run, (tx) =>
+        tx
+          .update(knowledgeConnectorMember)
+          .set({ scopeRenewedAt: startedAt })
+          .where(eq(knowledgeConnectorMember.id, member.id))
+      )
+    }
+    logger.info('Renewed member observations by access scope', {
+      connectorId: run.connectorId,
+      memberId: member.id,
+      scopes: scopePrefixes.length,
+      renewed: renewal.renewed,
+      finished: renewal.finished,
+    })
+  } catch (error) {
+    if (error instanceof SyncLockLostException) throw error
+    logger.warn('Member access scope renewal failed; the listing will establish access', {
+      connectorId: run.connectorId,
+      memberId: member.id,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 interface MemberListing {
@@ -1983,6 +2051,7 @@ export async function executeMemberSync(
               corpus,
               forceRehydrate: false,
               state: pageState,
+              matchContentHash: connectorConfig.matchContentHash,
             })
             const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
             await persistAttempted(documents.filter((item) => !pendingIds.has(item.externalId)))
@@ -1996,6 +2065,7 @@ export async function executeMemberSync(
               corpus,
               forceRehydrate: false,
               state: pageState,
+              matchContentHash: connectorConfig.matchContentHash,
               hydration: {
                 concurrency: connectorConfig.contentConcurrency,
                 getDocument: async (externalId) => {
@@ -2037,6 +2107,14 @@ export async function executeMemberSync(
             await observeAttempted(documents)
           }
         }
+        await renewMemberAccessScopes({
+          run,
+          member,
+          connectorConfig,
+          sourceConfig,
+          tokens,
+          syncContext,
+        })
         const listed = await listForMember({
           run,
           member,
@@ -2083,7 +2161,13 @@ export async function executeMemberSync(
           complete: listed.complete,
           resumable: listed.resumable,
           suspect,
-          contentFailures: contentFailures || Boolean(listed.checkpoint?.contentFailures),
+          /**
+           * A listing still resuming relists fully regardless, so only this run's own failures are
+           * reported; the generation's failures carry over once it completes, forcing the next full
+           * listing that retries them.
+           */
+          contentFailures:
+            contentFailures || (!listed.resumable && Boolean(listed.checkpoint?.contentFailures)),
           changeCursor: suspect ? undefined : listed.changeCursor,
           checkpoint: listed.checkpoint,
           observationRunId: listed.observationRunId,

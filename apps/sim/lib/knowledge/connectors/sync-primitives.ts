@@ -23,8 +23,8 @@ import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connec
 import {
   addDocument,
   type KnowledgeBaseOwner,
+  persistHashOnlyUpdates,
   persistSkippedDocuments,
-  persistSkippedRetryHashes,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
@@ -266,7 +266,8 @@ export function classifyExternalDoc(
     | 'skippedRetryPolicy'
   >,
   existing: { id: string; contentHash: string | null; storageKey?: string | null } | undefined,
-  forceRehydrate = false
+  forceRehydrate = false,
+  matchContentHash?: ContentHashMatcher
 ): DocClassification {
   if (extDoc.skippedReason) {
     if (!existing) return { type: 'skip' }
@@ -287,13 +288,35 @@ export function classifyExternalDoc(
   ) {
     return { type: 'update', existingId: existing.id }
   }
-  if (existing.contentHash === null || existing.contentHash !== extDoc.contentHash) {
+  if (!storedHashIsCurrent(existing.contentHash, extDoc.contentHash, matchContentHash)) {
     return { type: 'update', existingId: existing.id }
   }
   if (forceRehydrate && extDoc.contentDeferred) {
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
+}
+
+/** A connector's comparison of a new hash against the stored one; see `ConnectorConfig.matchContentHash`. */
+export type ContentHashMatcher = NonNullable<ConnectorConfig['matchContentHash']>
+
+/** Identical hashes always match; otherwise only a connector-owned comparison can match them. */
+export function contentHashMatch(
+  candidate: string,
+  stored: string,
+  matchContentHash?: ContentHashMatcher
+): 'current' | 'equivalent' | 'stale' {
+  if (candidate === stored) return 'current'
+  return matchContentHash?.(candidate, stored) ?? 'stale'
+}
+
+/** Whether stored content still stands for `candidate`; a missing hash never does. */
+export function storedHashIsCurrent(
+  stored: string | null | undefined,
+  candidate: string,
+  matchContentHash?: ContentHashMatcher
+): boolean {
+  return stored ? contentHashMatch(candidate, stored, matchContentHash) !== 'stale' : false
 }
 
 /**
@@ -897,6 +920,7 @@ export function classifyListing(input: {
   corpus: OwnedCorpus
   forceRehydrate: boolean
   state: SyncRunState
+  matchContentHash?: ContentHashMatcher
 }): DocOp[] {
   const { externalDocs, corpus, forceRehydrate } = input
   const { result, seenExternalIds, failedExternalIds } = input.state
@@ -912,7 +936,12 @@ export function classifyListing(input: {
     }
 
     const existing = corpus.priorByExternalId.get(extDoc.externalId)
-    const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
+    const classification = classifyExternalDoc(
+      extDoc,
+      existing,
+      forceRehydrate,
+      input.matchContentHash
+    )
 
     switch (classification.type) {
       case 'skip':
@@ -968,6 +997,7 @@ export interface ProcessDocOpsInput {
   forceRehydrate: boolean
   state: SyncRunState
   hydration: DocOpHydration
+  matchContentHash?: ContentHashMatcher
   lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive' | 'stillHeld'>
   /** Who may read the documents this pass writes. */
   documentAccess: ConnectorAccessMode
@@ -1053,7 +1083,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
       await input.lease.beatIfDue()
 
       const skipOps = rawBatch.filter((op) => op.type === 'skip')
-      const skippedRetryHashUpdates: Array<{
+      /** Skips retried by their own hash, and unchanged content moved to its current hash. */
+      const hashOnlyUpdates: Array<{
         existingId: string
         externalId: string
         contentHash: string
@@ -1095,7 +1126,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
                   })
                 } else {
                   if (fullDoc.skippedRetryContentHash) {
-                    skippedRetryHashUpdates.push({
+                    hashOnlyUpdates.push({
                       existingId: op.existingId,
                       externalId: op.extDoc.externalId,
                       contentHash: fullDoc.skippedRetryContentHash,
@@ -1121,12 +1152,22 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
              * Forced rehydration also refreshes rendered dependencies whose changes
              * are not represented by the parent version hash.
              */
-            if (
+            const match =
               op.type === 'update' &&
               !forceRehydrate &&
               existing?.storageKey !== null &&
-              existing?.contentHash === hydratedHash
-            ) {
+              existing?.contentHash
+                ? contentHashMatch(hydratedHash, existing.contentHash, input.matchContentHash)
+                : 'stale'
+            if (op.type === 'update' && match !== 'stale') {
+              /** The same content under an older hash only advances the hash the next listing compares. */
+              if (match === 'equivalent') {
+                hashOnlyUpdates.push({
+                  existingId: op.existingId,
+                  externalId: op.extDoc.externalId,
+                  contentHash: hydratedHash,
+                })
+              }
               result.docsUnchanged++
               return null
             }
@@ -1175,24 +1216,24 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
        */
       await input.lease.beatLive()
 
-      if (skippedRetryHashUpdates.length > 0) {
+      if (hashOnlyUpdates.length > 0) {
         try {
-          const missedExternalIds = await persistSkippedRetryHashes(
+          const missedExternalIds = await persistHashOnlyUpdates(
             connector.knowledgeBaseId,
             connectorId,
-            skippedRetryHashUpdates,
+            hashOnlyUpdates,
             input.lease
           )
           if (missedExternalIds.length > 0) {
-            logger.warn('Skipped retry hashes were not persisted for detached documents', {
+            logger.warn('Hash-only updates were not persisted for detached documents', {
               connectorId,
               externalIds: missedExternalIds,
             })
           }
         } catch (error) {
-          logger.error('Failed to persist skipped document retry hashes', {
+          logger.error('Failed to persist hash-only document updates', {
             connectorId,
-            count: skippedRetryHashUpdates.length,
+            count: hashOnlyUpdates.length,
             error: toError(error).message,
           })
           throw error

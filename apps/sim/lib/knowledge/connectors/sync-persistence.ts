@@ -436,11 +436,12 @@ export async function persistSkippedDocuments(
 }
 
 /**
- * Persists only connector-owned retry hashes for skipped refreshes of existing
- * documents. Indexed content and processing state stay last-known-good while the
- * hash guarantees that unchanged listing metadata still re-enters hydration.
+ * Persists only a new hash for existing documents, leaving indexed content and
+ * processing state as they are: a connector-owned retry hash for a skipped
+ * refresh, so unchanged listing metadata still re-enters hydration, or the
+ * current hash of content that hydration found unchanged under an older one.
  */
-export async function persistSkippedRetryHashes(
+export async function persistHashOnlyUpdates(
   knowledgeBaseId: string,
   connectorId: string,
   updates: Array<{ existingId: string; externalId: string; contentHash: string }>,

@@ -6013,6 +6013,12 @@ export const knowledgeConnectorMember = pgTable(
     /** Authorization watermark: complete nonsuspect full listing or completely drained change feed. */
     memberSyncedThrough: timestamp('member_synced_through'),
     /**
+     * When every observation under the containers the source still grants this member
+     * was last renewed, for connectors that grant access per container; NULL until the
+     * first renewal completes.
+     */
+    scopeRenewedAt: timestamp('scope_renewed_at'),
+    /**
      * Where the member's change feed resumes. Opened just before a full listing
      * and stored once that listing lands, so every later run reads the feed
      * instead of relisting; NULL when the connector has no feed or the feed

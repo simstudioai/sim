@@ -115,6 +115,7 @@ export async function runResumableListing(input: {
     if (Date.now() >= input.deadlineAt) break
     input.syncContext.syncRunId = checkpoint.generationId
     input.syncContext.totalDocsFetched = checkpoint.listedCount
+    input.syncContext.fullSync = checkpoint.fullSync
     let response: ExternalDocumentList
     try {
       response = await input.connectorConfig.listDocuments(

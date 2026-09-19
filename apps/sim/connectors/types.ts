@@ -557,6 +557,31 @@ export interface ConnectorConfig extends ConnectorMeta {
   isListingCursorInvalidError?: (error: unknown) => boolean
 
   /**
+   * Whether `candidate` describes the content `stored` already holds, for a
+   * connector whose hashes are not compared by equality alone. `current` means
+   * the stored document is up to date; `equivalent` means it holds the same
+   * content under an older hash, which is advanced without re-indexing; `stale`
+   * means the document must be refreshed. Consulted for listing hashes, which
+   * may identify a source version without its content, and for hydrated hashes.
+   * Without it, hashes match only when identical.
+   */
+  matchContentHash?: (candidate: string, stored: string) => 'current' | 'equivalent' | 'stale'
+
+  /**
+   * External-ID prefixes of everything the caller can still read, when access is
+   * granted to whole containers (a Slack channel) rather than item by item. A
+   * members-mode crawl renews the caller's observations under these prefixes
+   * without relisting each item, so access stays fresh while a large listing is
+   * still in progress, and lapses for containers the caller has lost. Only
+   * meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
+   */
+  listAccessibleScopes?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
+  ) => Promise<string[]>
+
+  /**
    * Opens the external directory whose groups this connector's mirrored ACLs
    * refer to, or null when it has none reachable.
    *

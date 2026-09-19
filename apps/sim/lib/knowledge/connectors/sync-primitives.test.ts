@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   add: vi.fn(),
   update: vi.fn(),
   triggerAvailable: vi.fn(),
+  persistHashes: vi.fn(),
   dispatch: vi.fn<(documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>>(),
 }))
 
@@ -15,7 +16,7 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: mocks.add,
   updateDocument: mocks.update,
   persistSkippedDocuments: vi.fn(),
-  persistSkippedRetryHashes: vi.fn(),
+  persistHashOnlyUpdates: mocks.persistHashes,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   isTriggerAvailable: mocks.triggerAvailable,
@@ -32,6 +33,41 @@ import {
   type ProcessDocOpsInput,
   processDocOps,
 } from '@/lib/knowledge/connectors/sync-primitives'
+
+describe('connector-owned hash comparison', () => {
+  const listed: ExternalDocument = {
+    externalId: 'thread',
+    title: 'Thread',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    contentHash: 'version:2',
+  }
+  const existing = { id: 'document', contentHash: 'version:2:text:a', storageKey: 'stored' }
+  const matcher = (candidate: string, stored: string) =>
+    stored.startsWith(`${candidate}:`) ? ('current' as const) : ('stale' as const)
+
+  it('treats a listing the connector matches to the stored hash as unchanged', () => {
+    expect(classifyExternalDoc(listed, existing)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+    expect(classifyExternalDoc(listed, existing, false, matcher)).toEqual({ type: 'unchanged' })
+    expect(
+      classifyExternalDoc({ ...listed, contentHash: 'version:3' }, existing, false, matcher)
+    ).toEqual({ type: 'update', existingId: 'document' })
+  })
+
+  it('still rehydrates missing content and forced refreshes', () => {
+    expect(classifyExternalDoc(listed, { ...existing, contentHash: null }, false, matcher)).toEqual(
+      { type: 'update', existingId: 'document' }
+    )
+    expect(classifyExternalDoc(listed, existing, true, matcher)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+  })
+})
 
 describe('source-change skip retry policy', () => {
   const listed: ExternalDocument = {
@@ -158,6 +194,7 @@ beforeEach(() => {
     { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
   ])
   mocks.triggerAvailable.mockReturnValue(true)
+  mocks.persistHashes.mockResolvedValue([])
   mocks.add.mockImplementation(
     async (
       _knowledgeBaseId: string,
@@ -183,6 +220,63 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('processDocOps unchanged content under a new hash', () => {
+  function refreshOf(storedHash: string, hydratedHash: string) {
+    const input = inputFor(0)
+    input.pendingOps = [
+      {
+        type: 'update',
+        existingId: 'document',
+        extDoc: { ...sourceDocument('thread'), content: '', contentDeferred: true },
+      },
+    ]
+    input.corpus = {
+      priorByExternalId: new Map([
+        [
+          'thread',
+          {
+            id: 'document',
+            externalId: 'thread',
+            contentHash: storedHash,
+            storageKey: 'stored',
+            userExcluded: false,
+            sourceSeenAt: null,
+          },
+        ],
+      ]),
+    }
+    input.hydration.getDocument = vi.fn(async () => ({
+      ...sourceDocument('thread'),
+      contentHash: hydratedHash,
+    }))
+    input.matchContentHash = (candidate, stored) =>
+      candidate.split(':').at(-1) === stored.split(':').at(-1) ? 'equivalent' : 'stale'
+    return input
+  }
+
+  it('advances only the stored hash when the connector finds the same text', async () => {
+    const input = refreshOf('legacy:text-a', 'version:2:text-a')
+    await expect(processDocOps(input)).resolves.toBe(true)
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+    expect(input.state.result.docsUnchanged).toBe(1)
+    expect(mocks.persistHashes).toHaveBeenCalledWith(
+      'knowledge-base',
+      'connector',
+      [{ existingId: 'document', externalId: 'thread', contentHash: 'version:2:text-a' }],
+      input.lease
+    )
+  })
+
+  it('reindexes when the connector finds different text', async () => {
+    const input = refreshOf('legacy:text-a', 'version:2:text-b')
+    await expect(processDocOps(input)).resolves.toBe(true)
+    expect(mocks.update).toHaveBeenCalledTimes(1)
+    expect(mocks.persistHashes).not.toHaveBeenCalled()
+    expect(dispatchedIds()).toEqual([['document']])
+  })
 })
 
 describe('processDocOps dispatch buffering', () => {

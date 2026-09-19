@@ -43,6 +43,7 @@ import {
   processDocOps,
   resolvePreviousOwnedCount,
   resolveReconciliationDeleteCap,
+  storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
@@ -83,6 +84,7 @@ interface ContentPassInput {
 
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
 export async function runConnectorContentPass(input: ContentPassInput) {
+  const { matchContentHash } = input.connectorConfig
   const withLease = <T>(fn: (tx: DbOrTx) => Promise<T>) =>
     db.transaction(async (tx) => {
       await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
@@ -165,8 +167,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
           const prior = corpus.priorByExternalId.get(item.externalId)
           return (
             prior &&
-            (!prior.contentHash ||
-              prior.contentHash !== item.contentHash ||
+            (!storedHashIsCurrent(prior.contentHash, item.contentHash, matchContentHash) ||
               prior.storageKey === null)
           )
         })
@@ -194,11 +195,14 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       const startedAt = new Date(cycle.startedAt)
       const remaining = documents.filter((item) => {
         const prior = corpus.priorByExternalId.get(item.externalId)
-        if (page.permissionsOnly) return prior?.contentHash !== item.contentHash
+        if (page.permissionsOnly)
+          return !storedHashIsCurrent(prior?.contentHash, item.contentHash, matchContentHash)
         if (
           !prior?.sourceSeenAt ||
           prior.sourceSeenAt < startedAt ||
-          (company && prior.contentHash !== null && prior.contentHash !== item.contentHash)
+          (company &&
+            prior.contentHash !== null &&
+            !storedHashIsCurrent(prior.contentHash, item.contentHash, matchContentHash))
         )
           return true
         /** A crash after persisting a failed batch must not erase its failure evidence. */
@@ -246,6 +250,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         corpus,
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         state,
+        matchContentHash,
       })
       const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
       await persistAttempted(remaining.filter((item) => !pendingIds.has(item.externalId)))
@@ -255,6 +260,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         state,
         pendingOps,
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
+        matchContentHash,
         onBatchComplete: async (attempted) => {
           hydratedCount += attempted.filter((item) => item.contentDeferred).length
           await persistAttempted(attempted)
@@ -269,8 +275,8 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         if (state.failedExternalIds.has(item.externalId)) return false
         const stored = permissionCorpus.priorByExternalId.get(item.externalId)
         return Boolean(
-          stored?.contentHash &&
-            stored.contentHash === item.contentHash &&
+          stored &&
+            storedHashIsCurrent(stored.contentHash, item.contentHash, matchContentHash) &&
             stored.storageKey !== null
         )
       })

@@ -686,7 +686,7 @@ describe('persistSkippedDocuments', () => {
   })
 })
 
-describe('persistSkippedRetryHashes', () => {
+describe('persistHashOnlyUpdates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -694,15 +694,13 @@ describe('persistSkippedRetryHashes', () => {
 
   it('updates only the retry hash for a last-known-good connector document', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    const { persistSkippedRetryHashes } = await import(
-      '@/lib/knowledge/connectors/sync-persistence'
-    )
+    const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
 
     await expect(
-      persistSkippedRetryHashes(
+      persistHashOnlyUpdates(
         'kb-1',
         'connector-1',
         [
@@ -734,15 +732,13 @@ describe('persistSkippedRetryHashes', () => {
   })
 
   it('commits live retry hashes when another document is no longer a connector target', async () => {
-    const { persistSkippedRetryHashes } = await import(
-      '@/lib/knowledge/connectors/sync-persistence'
-    )
+    const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
 
     await expect(
-      persistSkippedRetryHashes(
+      persistHashOnlyUpdates(
         'kb-1',
         'connector-1',
         [
