@@ -18,6 +18,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { prismProvider } from '@/providers/prism'
 import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
@@ -51,6 +52,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   fireworks: fireworksProvider,
   together: togetherProvider,
   baseten: basetenProvider,
+  prism: prismProvider,
   ollama: ollamaProvider,
   'ollama-cloud': ollamaCloudProvider,
   bedrock: bedrockProvider,

@@ -633,6 +633,50 @@ describe('fireworks static catalog (the sim-auto pool)', () => {
   })
 })
 
+describe('Prism provider definition', () => {
+  const modelIds = ['prism/deepseek-v4.1-flash', 'prism/deepseek-v4-flash']
+
+  it('registers its canonical models newest-first with the approved capabilities and pricing', () => {
+    expect(PROVIDER_DEFINITIONS.prism).toMatchObject({
+      id: 'prism',
+      defaultModel: modelIds[0],
+      models: [
+        {
+          id: modelIds[0],
+          pricing: { input: 0.3, cachedInput: 0.07, output: 1.2 },
+          capabilities: {
+            temperature: { min: 0, max: 2 },
+            toolUsageControl: true,
+            nativeStructuredOutputs: true,
+            maxOutputTokens: 384000,
+            reasoningEffort: { values: ['none', 'low', 'medium', 'high'] },
+          },
+          contextWindow: 1000000,
+          releaseDate: '2026-09-10',
+        },
+        {
+          id: modelIds[1],
+          pricing: { input: 0.14, cachedInput: 0.07, output: 0.28 },
+          capabilities: {
+            temperature: { min: 0, max: 2 },
+            toolUsageControl: true,
+            nativeStructuredOutputs: true,
+            maxOutputTokens: 384000,
+            reasoningEffort: { values: ['none', 'low', 'medium', 'high'] },
+          },
+          contextWindow: 1000000,
+          releaseDate: '2026-09-09',
+        },
+      ],
+    })
+    expect(getProviderModels('prism')).toEqual(modelIds)
+  })
+
+  it('stays outside the hosted model set', () => {
+    for (const modelId of modelIds) expect(getHostedModels()).not.toContain(modelId)
+  })
+})
+
 describe('getStaticProviderModels', () => {
   it('retains public built-in models after private models are discovered', () => {
     const originalModels = PROVIDER_DEFINITIONS.fireworks.models

@@ -613,3 +613,52 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
     expect(result).toEqual({ apiKey: 'platform-fireworks-key', isBYOK: false })
   })
 })
+
+describe('getApiKeyWithBYOK for Prism', () => {
+  const model = 'prism/deepseek-v4-flash'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+    mockIsOrganizationBYOKEntitled.mockResolvedValue(true)
+    mockEnv.PRISM_API_KEY = 'must-not-be-used'
+    ;(useProvidersStore.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+      providers: {
+        ollama: { models: [] },
+        vllm: { models: [] },
+        litellm: { models: [] },
+      },
+    })
+  })
+
+  it('prefers a stored BYOK key over an inline key', async () => {
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('prism-key')])
+
+    await expect(
+      getApiKeyWithBYOK('prism', model, uniqueWorkspaceId(), 'inline-key')
+    ).resolves.toEqual({
+      apiKey: 'decrypted-prism-key',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+  })
+
+  it('uses an inline key only when no stored key exists', async () => {
+    await expect(
+      getApiKeyWithBYOK('prism', model, uniqueWorkspaceId(), 'inline-key')
+    ).resolves.toEqual({
+      apiKey: 'inline-key',
+      isBYOK: false,
+    })
+  })
+
+  it('never falls back to an environment or platform key', async () => {
+    await expect(getApiKeyWithBYOK('prism', model, uniqueWorkspaceId())).rejects.toThrow(
+      'API key is required for Prism'
+    )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+})

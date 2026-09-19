@@ -134,6 +134,7 @@ export function createOpenAICompatStreamingToolLoopStream(
           },
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          toolResults: toolResults.length > 0 ? toolResults : undefined,
           modelTime,
           toolsTime,
           firstResponseTime,

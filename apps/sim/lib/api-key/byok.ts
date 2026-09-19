@@ -109,7 +109,10 @@ export async function getBYOKKey(
 
   try {
     const workspaceKeys = await db
-      .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
+      .select({
+        id: workspaceBYOKKeys.id,
+        encryptedApiKey: workspaceBYOKKeys.encryptedApiKey,
+      })
       .from(workspaceBYOKKeys)
       .where(
         and(
@@ -200,18 +203,46 @@ export async function getApiKeyWithBYOK(
   }
 
   if (provider === 'vllm') {
-    return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
+    return {
+      apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty',
+      isBYOK: false,
+    }
   }
 
   if (provider === 'litellm') {
-    return { apiKey: userProvidedKey || env.LITELLM_API_KEY || 'empty', isBYOK: false }
+    return {
+      apiKey: userProvidedKey || env.LITELLM_API_KEY || 'empty',
+      isBYOK: false,
+    }
+  }
+
+  if (provider === 'prism') {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'prism')
+      if (byokResult) {
+        logger.info('Using BYOK key for Prism', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for Prism ${model}`)
   }
 
   if (provider === 'fireworks') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'fireworks')
       if (byokResult) {
-        logger.info('Using BYOK key for Fireworks', { model, workspaceId, scope: byokResult.scope })
+        logger.info('Using BYOK key for Fireworks', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
         return byokResult
       }
     }
@@ -278,7 +309,11 @@ export async function getApiKeyWithBYOK(
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'baseten')
       if (byokResult) {
-        logger.info('Using BYOK key for Baseten', { model, workspaceId, scope: byokResult.scope })
+        logger.info('Using BYOK key for Baseten', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
         return byokResult
       }
     }
@@ -314,11 +349,17 @@ export async function getApiKeyWithBYOK(
   }
 
   if (provider === 'azure-openai') {
-    return { apiKey: userProvidedKey || env.AZURE_OPENAI_API_KEY || '', isBYOK: false }
+    return {
+      apiKey: userProvidedKey || env.AZURE_OPENAI_API_KEY || '',
+      isBYOK: false,
+    }
   }
 
   if (provider === 'azure-anthropic') {
-    return { apiKey: userProvidedKey || env.AZURE_ANTHROPIC_API_KEY || '', isBYOK: false }
+    return {
+      apiKey: userProvidedKey || env.AZURE_ANTHROPIC_API_KEY || '',
+      isBYOK: false,
+    }
   }
 
   const isOpenAIModel = provider === 'openai'
@@ -345,15 +386,30 @@ export async function getApiKeyWithBYOK(
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
-    logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
+    logger.debug('BYOK check', {
+      provider,
+      model,
+      workspaceId,
+      isHosted,
+      isModelHosted,
+    })
 
     if (isModelHosted || isMistralModel) {
       const byokResult = await getBYOKKey(workspaceId, byokProviderId)
       if (byokResult) {
-        logger.info('Using BYOK key', { provider, model, workspaceId, scope: byokResult.scope })
+        logger.info('Using BYOK key', {
+          provider,
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
         return byokResult
       }
-      logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
+      logger.debug('No BYOK key found, falling back', {
+        provider,
+        model,
+        workspaceId,
+      })
 
       if (isModelHosted) {
         try {
