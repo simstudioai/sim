@@ -3026,14 +3026,14 @@ const WORKFLOW_OPERATION_PARAM_ENVELOPE =
 const v2AgentToolUsageControlSchema = z
   .enum(['auto', 'force', 'none'])
   .describe(
-    'When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`.'
+    'Selector Permission Mode: `auto` lets the model decide, `force` requires a call, and `none` disables it. Supply this property and omit `usageControlExpression` to select or switch to Selector mode; do not send null or set `canonicalModes` or block-level `advancedMode`. With neither property, the default is `auto`.'
   )
 
 const v2AgentToolUsageControlExpressionSchema = z
   .string()
   .max(2048, 'Agent tool mode expression must be at most 2048 characters')
   .describe(
-    'Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time.'
+    'Variable Permission Mode: a reference such as `<start.toolMode>` or a literal such as `none`, resolving to `auto`, `force`, or `none` at execution time. Supply this property and omit `usageControl` to select or switch to Variable mode; do not send null or set `canonicalModes` or block-level `advancedMode`.'
   )
 
 const v2AgentToolParamsSchema = z

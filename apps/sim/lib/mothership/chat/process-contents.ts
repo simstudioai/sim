@@ -845,7 +845,12 @@ function folderReferenceContent(pointer: string): string {
   }
   const resourceType = resourceTypes[root]
   if (!resourceType) throw new Error('Unsupported folder resource domain')
-  return JSON.stringify({ resourceType, folderPath: pointer.slice(separator) })
+  return JSON.stringify({
+    resourceType,
+    folderPath: pointer.slice(separator),
+    discovery:
+      "This attachment refers to the contents of this exact folder, including descendants. Use the domain's CLI folder/resource listing with this literal path, not a glob; follow pagination and descendant folders, then read relevant resources. An empty folder has no contents; do not substitute a similarly named folder.",
+  })
 }
 
 async function resolveTableResource(
