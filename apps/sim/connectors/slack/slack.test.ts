@@ -709,19 +709,34 @@ describe('Slack change detection and access scopes', () => {
     const listScopes = slackConnector.listAccessibleScopes
     if (!listScopes) throw new Error('Slack must report access scopes')
     pageSize = 1
-    expect(await listScopes('alice', {})).toEqual([
-      scope(GENERAL.id),
-      scope(PRIVATE.id),
-      scope(ARCHIVE.id),
-    ])
-    expect(await listScopes('bob', {})).toEqual([scope(GENERAL.id)])
+    expect(await listScopes('alice', {})).toEqual({
+      prefixes: [scope(GENERAL.id), scope(PRIVATE.id), scope(ARCHIVE.id)],
+      complete: true,
+    })
+    expect(await listScopes('bob', {})).toEqual({ prefixes: [scope(GENERAL.id)], complete: true })
     expect(
       await listScopes('alice', { excludeChannels: '#general', includeArchived: 'false' })
-    ).toEqual([scope(PRIVATE.id)])
+    ).toEqual({ prefixes: [scope(PRIVATE.id)], complete: true })
     const listed = await listAll('alice', { maxMessages: 0 })
-    const scopes = await listScopes('alice', {})
+    const { prefixes } = await listScopes('alice', {})
     expect(
-      listed.documents.every((doc) => scopes.some((prefix) => doc.externalId.startsWith(prefix)))
+      listed.documents.every((doc) => prefixes.some((prefix) => doc.externalId.startsWith(prefix)))
     ).toBe(true)
+  })
+
+  it('reports a conversation listing cut off at the page cap as incomplete', async () => {
+    const listScopes = slackConnector.listAccessibleScopes
+    if (!listScopes) throw new Error('Slack must report access scopes')
+    replacement = (call) =>
+      call.method === 'conversations.list'
+        ? {
+            ok: true,
+            channels: [GENERAL],
+            response_metadata: { next_cursor: String(Number(call.params.get('cursor') || 0) + 1) },
+          }
+        : undefined
+    const scopes = await listScopes('alice', {})
+    expect(scopes.complete).toBe(false)
+    expect(scopes.prefixes.length).toBeGreaterThan(0)
   })
 })

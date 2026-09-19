@@ -828,7 +828,7 @@ describe('member engine with a dedicated content credential', () => {
 
   it('renews member access by scope before listing and records when it finished', async () => {
     const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
-    mocks.scopes.mockResolvedValue(['source:container-a:'])
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], complete: true })
     mocks.renew.mockResolvedValue({ renewed: 3, finished: true })
     const result = await run()
     expect(result.error).toBeUndefined()
@@ -857,9 +857,20 @@ describe('member engine with a dedicated content credential', () => {
 
   it('leaves an unfinished renewal due for the next run', async () => {
     const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
-    mocks.scopes.mockResolvedValue(['source:container-a:'])
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], complete: true })
     mocks.renew.mockResolvedValue({ renewed: 1000, finished: false })
     expect((await run()).observationsRenewed).toBe(1000)
+    expect(scopeRenewal()).toBeUndefined()
+  })
+
+  it('leaves renewal due when the source stopped before listing every scope', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], complete: false })
+    mocks.renew.mockResolvedValue({ renewed: 3, finished: true })
+    expect((await run()).observationsRenewed).toBe(3)
+    expect(mocks.renew).toHaveBeenCalledWith(
+      expect.objectContaining({ scopePrefixes: ['source:container-a:'] })
+    )
     expect(scopeRenewal()).toBeUndefined()
   })
 

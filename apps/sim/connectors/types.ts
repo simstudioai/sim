@@ -237,6 +237,16 @@ export type ExternalChange =
   | { kind: 'upsert'; externalId: string; document: ExternalDocument }
   | { kind: 'removed'; externalId: string }
 
+/**
+ * The containers a caller can still read, as external-ID prefixes. Each listed
+ * prefix proves access on its own; `complete` is false when the source stopped
+ * before listing every container, so the rest are still due for renewal.
+ */
+export interface AccessibleScopes {
+  prefixes: string[]
+  complete: boolean
+}
+
 export interface ExternalChangeList {
   changes: ExternalChange[]
   /**
@@ -579,7 +589,7 @@ export interface ConnectorConfig extends ConnectorMeta {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
-  ) => Promise<string[]>
+  ) => Promise<AccessibleScopes>
 
   /**
    * Opens the external directory whose groups this connector's mirrored ACLs

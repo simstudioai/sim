@@ -18,7 +18,12 @@ import {
   ConnectorSourceError,
   type ConnectorSourceFailureCategory,
 } from '@/connectors/source-error'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type {
+  AccessibleScopes,
+  ConnectorConfig,
+  ExternalDocument,
+  ExternalDocumentList,
+} from '@/connectors/types'
 import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
@@ -1005,23 +1010,24 @@ async function messageLink(
 /**
  * The conversations the caller can read, under the same inclusion rules as a listing,
  * as the external-id prefix of their threads. Access is granted per conversation, so
- * a conversation listed here proves access to every thread in it.
+ * a conversation listed here proves access to every thread in it. Stopping at the page
+ * cap reports the listing incomplete, so the conversations past it stay due for renewal.
  */
 async function listAccessibleScopes(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
   syncContext?: Record<string, unknown>
-): Promise<string[]> {
+): Promise<AccessibleScopes> {
   const { teamId } = await resolveWorkspace(accessToken, syncContext)
-  const scopes: string[] = []
+  const prefixes: string[] = []
   let cursor: string | undefined
   for (let page = 0; page < MAX_SCOPE_CHANNEL_PAGES; page += 1) {
     const { channels, nextCursor: next } = await listChannelPage(accessToken, sourceConfig, cursor)
-    for (const channel of channels) scopes.push(channelScope(teamId, channel.id))
+    for (const channel of channels) prefixes.push(channelScope(teamId, channel.id))
     cursor = next
     if (!cursor) break
   }
-  return scopes
+  return { prefixes, complete: !cursor }
 }
 
 export const slackConnector: ConnectorConfig = {

@@ -1027,7 +1027,7 @@ async function renewMemberAccessScopes(input: {
   /** Observations under lost containers stay stale, so only the member's own watermark says renewal is due. */
   if (member.scopeRenewedAt && member.scopeRenewedAt > renewBefore) return
   try {
-    const scopePrefixes = await connectorConfig.listAccessibleScopes(
+    const scopes = await connectorConfig.listAccessibleScopes(
       await input.tokens.get(member.id),
       input.sourceConfig,
       input.syncContext
@@ -1035,14 +1035,14 @@ async function renewMemberAccessScopes(input: {
     const renewal = await renewMemberObservationsInScopes({
       connectorId: run.connectorId,
       memberId: member.id,
-      scopePrefixes,
+      scopePrefixes: scopes.prefixes,
       renewBefore,
       deadlineAt: Math.min(run.deadlineAt, Date.now() + MEMBER_SCOPE_RENEWAL_BUDGET_MS),
       beforeBatch: run.lease.beatIfDue,
       withLease: (fn) => withMemberLease(run, fn),
     })
     run.result.observationsRenewed += renewal.renewed
-    if (renewal.finished) {
+    if (renewal.finished && scopes.complete) {
       await withMemberLease(run, (tx) =>
         tx
           .update(knowledgeConnectorMember)
@@ -1053,7 +1053,8 @@ async function renewMemberAccessScopes(input: {
     logger.info('Renewed member observations by access scope', {
       connectorId: run.connectorId,
       memberId: member.id,
-      scopes: scopePrefixes.length,
+      scopes: scopes.prefixes.length,
+      scopesComplete: scopes.complete,
       renewed: renewal.renewed,
       finished: renewal.finished,
     })
