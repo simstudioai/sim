@@ -271,18 +271,28 @@ networkPolicy:
 
 The service bundles ~2.2 GB of spaCy models, so first start takes around three minutes and it needs at least 4 GB of memory.
 
-## The shipped Compose file publishes Postgres
+## Postgres on Compose
+
+The Compose files do not publish the `db` service to the host: `simstudio`, `realtime`, and `migrations` reach it over the Compose network as `db:5432`, and nothing outside the stack can. `docker-compose.prod.yml` also refuses to start without `POSTGRES_PASSWORD`, the same way it refuses to start without `BETTER_AUTH_SECRET`.
 
 <Callout type="error">
-  `docker-compose.prod.yml` maps the database to the host: `${POSTGRES_PORT:-5432}:5432`, with `POSTGRES_USER` and `POSTGRES_PASSWORD` both defaulting to `postgres`. A plain `docker compose up -d` against that file, on a machine with a public interface, therefore exposes an open Postgres on 5432 with credentials anyone can guess. The local and Ollama stacks map the database the same way, so apply the fix to whichever file started your install.
+  Installs created from an earlier Compose file published the database on every interface of the host (`5432:5432`), and a `POSTGRES_PASSWORD` left unset fell back to `postgres`. A Docker `ports:` mapping writes its own iptables rules, so a host firewall that looks like it blocks 5432 usually does not. Update the Compose file, then check what your database was created with:
 
-  The [Docker guide](/platform/self-hosting/docker#1-configure-environment) tells you to generate `POSTGRES_PASSWORD` before the first start — do that, and additionally close the port:
+  - **You set `POSTGRES_PASSWORD` before the first start.** Nothing else to do — updating the file closes the port.
+  - **You never set it.** Postgres applies `POSTGRES_PASSWORD` only when it creates the data volume, so the database still uses `postgres`. Set `POSTGRES_PASSWORD=postgres` in `.env` so the stack starts, then rotate it: run `docker compose -f docker-compose.prod.yml exec db psql -U postgres -c "ALTER ROLE postgres PASSWORD '<new password>'"`, set `POSTGRES_PASSWORD` to the same value, and run `docker compose -f docker-compose.prod.yml up -d`. Setting a new value in `.env` alone does not change the database's password and locks the app out.
 
-  - **Do not need host access.** Delete the `ports:` block from the `db` service. Every other service reaches it over the Compose network by name.
-  - **Need host access.** Bind it to loopback only — `127.0.0.1:${POSTGRES_PORT:-5432}:5432` — and reach it over an SSH tunnel.
-
-  A Docker `ports:` mapping writes its own iptables rules, so a host firewall that looks like it blocks 5432 usually does not.
+  `npx sim-setup start` and `npx sim-setup update` write the right value for you and print the rotation steps.
 </Callout>
+
+To reach the database from the host — `psql`, a desktop client, a backup job — use `docker compose -f docker-compose.prod.yml exec db psql -U postgres simstudio`, or pass a second Compose file that publishes it on loopback only and connect over an SSH tunnel:
+
+```yaml
+# db-port.yml — docker compose -f docker-compose.prod.yml -f db-port.yml up -d
+services:
+  db:
+    ports:
+      - '127.0.0.1:5432:5432'
+```
 
 ## Pre-launch checklist
 
@@ -297,7 +307,7 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
 - NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller
 - Namespace labelled `pod-security.kubernetes.io/enforce=restricted`
 - Object storage buckets private, with CORS limited to your Sim origin
-- Database reachable only from the deployment — on Compose, the `db` service's host `ports:` mapping removed or bound to `127.0.0.1` — with a generated `POSTGRES_PASSWORD`
+- Database reachable only from the deployment — on Compose, no host `ports:` mapping on the `db` service, or one bound to `127.0.0.1` — with a generated `POSTGRES_PASSWORD`
 - TLS enforced (`sslMode: require`) on an externally managed database, or on the bundled one once you have configured it for TLS — the shipped Compose database does not enable it
 - Backups configured **and a restore rehearsed**
 - Sandbox strategy decided for user code
