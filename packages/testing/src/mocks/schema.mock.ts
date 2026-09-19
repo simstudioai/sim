@@ -92,31 +92,6 @@ const organizationMock = {
   updatedAt: 'organization.updatedAt',
 }
 
-const workspaceFileSearchIndexMock = {
-  fileId: 'workspaceFileSearchIndex.fileId',
-  workspaceId: 'workspaceFileSearchIndex.workspaceId',
-  sourceContentUpdatedAt: 'workspaceFileSearchIndex.sourceContentUpdatedAt',
-  status: 'workspaceFileSearchIndex.status',
-  partial: 'workspaceFileSearchIndex.partial',
-  failureReason: 'workspaceFileSearchIndex.failureReason',
-  lineCount: 'workspaceFileSearchIndex.lineCount',
-  indexedBytes: 'workspaceFileSearchIndex.indexedBytes',
-  dispatchedAt: 'workspaceFileSearchIndex.dispatchedAt',
-  createdAt: 'workspaceFileSearchIndex.createdAt',
-  updatedAt: 'workspaceFileSearchIndex.updatedAt',
-}
-
-const workspaceFileSearchSegmentMock = {
-  fileId: 'workspaceFileSearchSegment.fileId',
-  workspaceId: 'workspaceFileSearchSegment.workspaceId',
-  sourceContentUpdatedAt: 'workspaceFileSearchSegment.sourceContentUpdatedAt',
-  lineNumber: 'workspaceFileSearchSegment.lineNumber',
-  segmentNumber: 'workspaceFileSearchSegment.segmentNumber',
-  segmentStart: 'workspaceFileSearchSegment.segmentStart',
-  lineLength: 'workspaceFileSearchSegment.lineLength',
-  content: 'workspaceFileSearchSegment.content',
-}
-
 export const schemaMock = {
   permissionAccessRequest: {
     id: 'permissionAccessRequest.id',
@@ -729,7 +704,6 @@ export const schemaMock = {
     uploadedAt: 'workspaceFile.uploadedAt',
   },
   workspaceFiles: workspaceFilesMock,
-  workspaceFileSearchIndex: workspaceFileSearchIndexMock,
   workspaceFileSearchRevision: {
     fileId: 'revision.fileId',
     workspaceId: 'revision.workspaceId',
@@ -760,7 +734,6 @@ export const schemaMock = {
     overlap: 'chunk.overlap',
     content: 'chunk.content',
   },
-  workspaceFileSearchSegment: workspaceFileSearchSegmentMock,
   workspaceFileVersion: {
     id: 'workspaceFileVersion.id',
     fileId: 'workspaceFileVersion.fileId',

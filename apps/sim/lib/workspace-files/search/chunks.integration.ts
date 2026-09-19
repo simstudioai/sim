@@ -187,6 +187,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       '0358_workspace_file_content_version_precision.sql',
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
+      '0368_retire_legacy_file_search.sql',
     ]) {
       await applyMigration(migration)
     }
@@ -208,7 +209,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
   })
   beforeEach(async () => {
     await connection`TRUNCATE workspace, workspace_files, workspace_file_search_revision, workspace_file_search_build,
-      workspace_file_search_chunk, workspace_file_search_index, workspace_file_search_segment, workspace_file_search_dispatch_queue, workspace_file_search_backfill`
+      workspace_file_search_chunk, workspace_file_search_dispatch_queue, workspace_file_search_backfill`
     await connection`INSERT INTO workspace_file_search_backfill (id, completed_at) VALUES ('workspace-file-search-chunks-v2', now())`
     await addFile('file-1')
   })
@@ -220,6 +221,45 @@ describe('chunked workspace file search on PostgreSQL', () => {
       database.search = undefined
       await Promise.all([connection.end(), searchConnection.end()])
     }
+  })
+
+  it('retires legacy tables atomically, preserves current search, and safely replays', async () => {
+    await index('heading\nretirement needle\ntail')
+    await connection`CREATE TABLE workspace_file_search_index (file_id text PRIMARY KEY)`
+    await connection`CREATE TABLE workspace_file_search_segment (file_id text, content text)`
+    await connection`INSERT INTO workspace_file_search_index VALUES ('retired-file')`
+    await connection`INSERT INTO workspace_file_search_segment VALUES ('retired-file', 'retired text')`
+    await connection`CREATE VIEW legacy_dependency AS SELECT * FROM workspace_file_search_index`
+    try {
+      await expect(applyMigration('0368_retire_legacy_file_search.sql')).rejects.toMatchObject({
+        code: '2BP01',
+      })
+      expect(
+        (await connection`SELECT count(*)::int AS count FROM workspace_file_search_segment`)[0]
+          .count
+      ).toBe(1)
+      await connection`DROP VIEW legacy_dependency`
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await applyMigration('0368_retire_legacy_file_search.sql')
+        expect(
+          (
+            await connection`SELECT to_regclass('workspace_file_search_index') AS legacy_index,
+          to_regclass('workspace_file_search_segment') AS legacy_segment`
+          )[0]
+        ).toEqual({ legacy_index: null, legacy_segment: null })
+        expect((await search('retirement needle')).results).toMatchObject([
+          { fileId: 'file-1', lineNumber: 2 },
+        ])
+        expect((await search('^retirement.*needle$', 'regex')).results).toMatchObject([
+          { fileId: 'file-1', lineNumber: 2 },
+        ])
+      }
+    } finally {
+      await connection`DROP VIEW IF EXISTS legacy_dependency`
+      await applyMigration('0368_retire_legacy_file_search.sql')
+    }
+    await connection`DELETE FROM workspace_files WHERE id = 'file-1'`
+    expect((await search('needle')).results).toEqual([])
   })
 
   it('preserves search through disabling, draining, and replaying GIN pending-list maintenance', async () => {
