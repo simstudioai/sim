@@ -11,7 +11,7 @@ tags: [Enterprise, Security, Compliance, AI Agents, Sim]
 ogImage: /blog/enterprise/cover.jpg
 ogAlt: 'Sim Enterprise features overview'
 about: ['Enterprise Software', 'Security', 'Compliance', 'Self-Hosting']
-timeRequired: PT10M
+timeRequired: PT6M
 canonical: https://www.sim.ai/blog/enterprise
 featured: true
 draft: false
@@ -35,7 +35,7 @@ faq:
   - q: "Can Copilot be used without sending workflow data to an external AI service?"
     a: "Yes, if Copilot uses a model endpoint hosted within your network. Customer-owned API keys alone do not keep data on-premises when the selected provider runs externally. Copilot requests may include workflow context, execution logs, and workspace configuration."
   - q: "What identity providers does Sim support for SSO, and what happens when an employee is deprovisioned?"
-    a: "Sim integrates with Okta, Microsoft Entra ID (formerly Azure AD), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and other identity providers that support SAML 2.0 or OIDC. Sim uses your IdP configuration for authentication and account access. Logout behavior and deprovisioning timing can depend on session settings, so verify both during implementation."
+    a: "Sim integrates with Okta, Microsoft Entra ID (formerly Azure AD), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and other identity providers that support SAML 2.0 or OIDC. With SSO alone, IdP deprovisioning blocks future SSO authentication but does not remove Sim membership or revoke active Sim sessions, so offboarding must also remove or suspend access in Sim."
 ---
 
 Sim supports enterprise deployments with access controls, customer-managed model credentials, self-hosting, SSO, compliance documentation, and programmatic administration. These capabilities help larger organizations deploy Sim under strict security, compliance, and data-handling requirements. This guide explains how each control works and which deployment requirements it addresses.
