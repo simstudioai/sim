@@ -6,6 +6,7 @@ import { task } from '@trigger.dev/sdk'
 import { and, count, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
+  DEFAULT_BATCH_SIZE,
   DEFAULT_DELETE_CHUNK_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
   DEFAULT_WORKSPACE_CHUNK_SIZE,
@@ -21,6 +22,12 @@ const cleanupDb = dbFor('cleanup')
 
 /** Candidate files whose histories are ranked in one query. */
 const FILES_PER_QUERY = 500
+
+/**
+ * Bounds one run like the other cleanup jobs: {@link DEFAULT_MAX_BATCHES_PER_TABLE} batches per
+ * workspace chunk and this many versions overall. The next run resumes where this one stopped.
+ */
+const MAX_VERSIONS_PER_RUN = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE
 
 /**
  * Superseded versions a free file keeps (its newest 100 with the current one); versions beyond it
@@ -146,16 +153,26 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
   )
 
   let deleted = 0
+  let attempted = 0
   for (const group of chunkArray(workspaceIds, DEFAULT_WORKSPACE_CHUNK_SIZE)) {
+    if (attempted >= MAX_VERSIONS_PER_RUN) break
     const candidates = await selectCandidateFileIds(group, cutoff, maxSuperseded)
+    let batches = 0
     for (const fileIds of chunkArray(candidates, FILES_PER_QUERY)) {
-      for (let batch = 0; batch < DEFAULT_MAX_BATCHES_PER_TABLE; batch++) {
+      let exhausted = false
+      while (
+        !exhausted &&
+        batches < DEFAULT_MAX_BATCHES_PER_TABLE &&
+        attempted < MAX_VERSIONS_PER_RUN
+      ) {
+        batches++
         const expired = await selectExpiredVersions(fileIds, cutoff, maxSuperseded)
-        if (expired.length === 0) break
-        const removed = await deleteVersions(expired)
+        attempted += expired.length
+        const removed = expired.length > 0 ? await deleteVersions(expired) : 0
         deleted += removed
-        if (expired.length < DEFAULT_DELETE_CHUNK_SIZE || removed === 0) break
+        exhausted = expired.length < DEFAULT_DELETE_CHUNK_SIZE || removed === 0
       }
+      if (!exhausted) break
     }
   }
 
