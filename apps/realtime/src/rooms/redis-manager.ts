@@ -123,6 +123,39 @@ return 1
 `
 
 /**
+ * Ceiling on the JSON length of a single presence field. Every legitimate payload is far
+ * below this — a cursor is tens of characters, and the largest handler-bounded selection
+ * (two cell refs whose ids cap at 200) stays under 500 — so this never trims real presence.
+ * It is a backstop for presence-bearing events whose handler validation is missing or
+ * regresses, capping what one socket can park in the shared room hash and fan out to peers.
+ */
+const MAX_PRESENCE_FIELD_LENGTH = 4096
+
+/**
+ * Serialize one presence field for the activity script. Returns `''` when there is no
+ * update (the script skips the field) and, defensively, when the value exceeds
+ * {@link MAX_PRESENCE_FIELD_LENGTH} — dropping just that field rather than the whole
+ * update, so a single oversized field can't suppress the others or the activity refresh.
+ */
+function serializePresenceField(
+  field: 'cursor' | 'selection' | 'cell',
+  value: unknown,
+  socketId: string
+): string {
+  if (value === undefined) return ''
+  const serialized = JSON.stringify(value)
+  if (serialized.length > MAX_PRESENCE_FIELD_LENGTH) {
+    logger.warn('Dropping oversized presence field', {
+      field,
+      socketId,
+      length: serialized.length,
+    })
+    return ''
+  }
+  return serialized
+}
+
+/**
  * Redis-backed room manager for multi-pod deployments. Domain-neutral: keyed by
  * {@link RoomRef}, supports a socket in multiple rooms (one per {@link RoomType}).
  * Uses Lua scripts for atomic multi-key operations.
@@ -370,14 +403,14 @@ export class RedisRoomManager implements IRoomManager {
         keys: [KEYS.roomUsers(room), KEYS.socketRooms(socketId), KEYS.socketSession(socketId)],
         arguments: [
           socketId,
-          updates.cursor !== undefined ? JSON.stringify(updates.cursor) : '',
-          updates.selection !== undefined ? JSON.stringify(updates.selection) : '',
+          serializePresenceField('cursor', updates.cursor, socketId),
+          serializePresenceField('selection', updates.selection, socketId),
           (updates.lastActivity ?? Date.now()).toString(),
           SOCKET_ROOMS_TTL.toString(),
           SESSION_TTL.toString(),
           // Trailing arg (ARGV[7]) so existing indices stay stable. `null` (cleared
           // selection) serializes to 'null'; `undefined` (no cell change) to '' (skip).
-          updates.cell !== undefined ? JSON.stringify(updates.cell) : '',
+          serializePresenceField('cell', updates.cell, socketId),
         ],
       })
     } catch (error) {
