@@ -3,6 +3,13 @@ import path from 'node:path'
 import { EMAIL_SETUP, STORAGE_SETUP } from '../capability-config'
 import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup'
 import { ensureProductionComposeFile } from '../compose-asset'
+import {
+  choosePostgresPassword,
+  composeFileRequiresPostgresPassword,
+  composeProjectName,
+  postgresUser,
+  reportPostgresPasswordChoice,
+} from '../compose-database'
 import { legacyComposeProjectName, standaloneComposeProjectName } from '../compose-project'
 import { SETUP_CONTEXT } from '../context'
 import type { Detection } from '../detect'
@@ -179,6 +186,13 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   if (composeProject && !configuredComposeProject) {
     values.COMPOSE_PROJECT_NAME = composeProject
   }
+  const postgresPassword = composeFileRequiresPostgresPassword(composeFile)
+    ? choosePostgresPassword(
+        root.vars.get('POSTGRES_PASSWORD'),
+        composeProject ?? composeProjectName(composeFile, ROOT)
+      )
+    : null
+  if (postgresPassword) values.POSTGRES_PASSWORD = postgresPassword.value
   // Before the key is minted: a half-set override mints against one environment
   // and validates against the other, and warning afterwards is too late — the
   // bad key is already stored, and the next run offers to keep it.
@@ -218,6 +232,13 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   for (const key of Object.keys(values)) remove.delete(key)
   reconcileEnvValues('root', [...remove], values)
   p.log.step('Wrote .env (compose reads it for variable substitution)')
+  if (postgresPassword) {
+    reportPostgresPasswordChoice(postgresPassword, {
+      compose: composeCommand(composeFile, composeProject),
+      user: postgresUser(root.vars.get('POSTGRES_USER')),
+      envPath: root.path,
+    })
+  }
 
   const validation = spawnSync('docker', composeArgs(composeFile, composeProject, 'config'), {
     cwd: ROOT,
