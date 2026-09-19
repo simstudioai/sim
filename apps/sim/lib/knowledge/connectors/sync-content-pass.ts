@@ -290,6 +290,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
               and(
                 eq(document.connectorId, input.connectorId),
                 inArray(document.externalId, verified.slice(offset, offset + 500)),
+                isNotNull(document.deletedAt),
                 isNotNull(document.contentHash),
                 isNull(document.archivedAt)
               )
