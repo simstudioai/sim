@@ -4549,7 +4549,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647,
-            "description": "Version number, increasing by one per recorded version. Numbers are never reused, so a gap means retention removed that version.",
+            "description": "Version number, increasing by one per recorded version. Numbers are never reused, so a gap means an older version was removed by retention or deleted.",
             "examples": [3]
           },
           "isCurrent": {

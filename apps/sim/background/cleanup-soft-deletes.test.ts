@@ -82,6 +82,13 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
 
+const { mockReleaseExpiredWorkspaceFileVersions } = vi.hoisted(() => ({
+  mockReleaseExpiredWorkspaceFileVersions: vi.fn(),
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  releaseExpiredWorkspaceFileVersions: mockReleaseExpiredWorkspaceFileVersions,
+}))
+
 vi.mock('@/lib/workflows/utils', () => ({
   deduplicateWorkflowName: mockDeduplicateWorkflowName,
 }))
@@ -120,6 +127,39 @@ describe('cleanup soft deletes', () => {
       plan: 'free',
       customStorageLimitGB: null,
     })
+  })
+
+  it('releases the version history of expired workspace files before purging their objects', async () => {
+    mockSelectRowsByIdChunks
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/file-1',
+          workspaceId: 'ws-1',
+          context: 'workspace',
+          sizeBytes: 5,
+        },
+        {
+          id: 'chat-file',
+          key: 'mothership/chat-file',
+          workspaceId: 'ws-1',
+          context: 'mothership',
+          sizeBytes: 3,
+        },
+      ])
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockReleaseExpiredWorkspaceFileVersions).toHaveBeenCalledWith(
+      expect.anything(),
+      ['file-1'],
+      expect.any(Date)
+    )
+    expect(mockReleaseExpiredWorkspaceFileVersions.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteFiles.mock.invocationCallOrder[0]
+    )
   })
 
   it('keeps metadata rows whose object deletion failed', async () => {

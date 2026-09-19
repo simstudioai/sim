@@ -3,11 +3,12 @@ import {
   type WorkspaceFileRow,
   type WorkspaceFileVersionRow,
   type WorkspaceFileVersionSource,
+  workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, notInArray } from 'drizzle-orm'
 import {
   type CursorKey,
   type KeysetKey,
@@ -21,6 +22,7 @@ import {
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenanceSnapshot } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 /** A coalescing version stops absorbing writes this long after it was opened. */
@@ -288,6 +290,64 @@ export async function deleteWorkspaceFileVersionInTx(
     )
     .returning({ key: workspaceFileVersion.key })
   return deleted?.key ?? null
+}
+
+/** Files whose history is released in one transaction. */
+const RELEASE_FILE_CHUNK_SIZE = 100
+/** Most cleanup events one outbox insert may carry. */
+const RELEASE_ENQUEUE_CHUNK_SIZE = 1000
+
+/**
+ * Releases the history of soft-deleted files about to be purged: per chunk, one transaction locks
+ * the files still deleted before `deletedBefore`, deletes their superseded version rows, and
+ * enqueues those objects on the durable storage-cleanup outbox. The row lock orders this against a
+ * restore, which updates the same row, so a file is either restored first and keeps its whole
+ * history or purged first and restored without it — version rows never outlive their bytes, and no
+ * object is left unreferenced. The current version is left to the file's own purge.
+ */
+export async function releaseExpiredWorkspaceFileVersions(
+  client: typeof db,
+  fileIds: readonly string[],
+  deletedBefore: Date
+): Promise<void> {
+  for (let start = 0; start < fileIds.length; start += RELEASE_FILE_CHUNK_SIZE) {
+    const chunk = fileIds.slice(start, start + RELEASE_FILE_CHUNK_SIZE)
+    await client.transaction(async (tx) => {
+      const expired = await tx
+        .select({ id: workspaceFiles.id, key: workspaceFiles.key })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.id, chunk),
+            isNotNull(workspaceFiles.deletedAt),
+            lt(workspaceFiles.deletedAt, deletedBefore)
+          )
+        )
+        .for('update')
+      if (expired.length === 0) return
+      const released = await tx
+        .delete(workspaceFileVersion)
+        .where(
+          and(
+            inArray(
+              workspaceFileVersion.fileId,
+              expired.map((file) => file.id)
+            ),
+            notInArray(
+              workspaceFileVersion.key,
+              expired.map((file) => file.key)
+            )
+          )
+        )
+        .returning({ key: workspaceFileVersion.key })
+      for (let offset = 0; offset < released.length; offset += RELEASE_ENQUEUE_CHUNK_SIZE) {
+        await enqueueWorkspaceFileStorageCleanups(
+          tx,
+          released.slice(offset, offset + RELEASE_ENQUEUE_CHUNK_SIZE).map((row) => row.key)
+        )
+      }
+    })
+  }
 }
 
 /** Deletes superseded versions beyond {@link MAX_SUPERSEDED_FILE_VERSIONS}, returning their keys. */

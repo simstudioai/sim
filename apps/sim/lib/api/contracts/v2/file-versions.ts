@@ -50,7 +50,7 @@ export const v2FileVersionSchema = z
     fileId: z.string().describe('File this version belongs to.'),
     version: versionNumberSchema
       .describe(
-        'Version number, increasing by one per recorded version. Numbers are never reused, so a gap means retention removed that version.'
+        'Version number, increasing by one per recorded version. Numbers are never reused, so a gap means an older version was removed by retention or deleted.'
       )
       .meta({ examples: [3] }),
     isCurrent: z.boolean().describe('Whether this version holds the current content of the file.'),

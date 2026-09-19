@@ -8,7 +8,7 @@ import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { DEFAULT_DELETE_CHUNK_SIZE } from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
-import { deleteWorkspaceStorageObjects } from '@/lib/cleanup/storage-delete'
+import { StorageService } from '@/lib/uploads'
 import {
   FILE_VERSION_RETENTION_KEEP_LATEST,
   MAX_SUPERSEDED_FILE_VERSIONS,
@@ -117,10 +117,17 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
  * delete leaves its row — and the next run retries it — instead of orphaning the object.
  */
 async function deleteVersions(rows: Array<{ id: string; key: string }>, label: string) {
-  const failedKeys = await deleteWorkspaceStorageObjects(
-    rows.map((row) => row.key),
-    label
-  )
+  const failedKeys = new Set<string>()
+  for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
+    const deletion = await StorageService.deleteFiles(
+      batch.map((row) => row.key),
+      'workspace'
+    )
+    for (const { key, error } of deletion.failed) {
+      failedKeys.add(key)
+      logger.error(`[${label}] Failed to delete file version object ${key}`, { error })
+    }
+  }
   const removable = rows.filter((row) => !failedKeys.has(row.key))
   let deleted = 0
   for (const batch of chunkArray(removable, DEFAULT_DELETE_CHUNK_SIZE)) {

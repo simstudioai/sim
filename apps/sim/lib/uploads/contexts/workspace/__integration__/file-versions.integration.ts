@@ -6,9 +6,11 @@ import path from 'node:path'
 import { db, dbFor } from '@sim/db'
 import {
   organization,
+  outboxEvent,
   user,
   workspace,
   workspaceFileSecretProvenance,
+  workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -33,9 +35,11 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   queryWorkspaceFileVersions,
+  releaseExpiredWorkspaceFileVersions,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
@@ -396,6 +400,49 @@ describe('workspace file version history in PostgreSQL', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('releases an expired file history atomically and leaves a restored file untouched', async () => {
+    const expired = await seedFile('one')
+    const restored = await seedFile('one')
+    for (const fixture of [expired, restored]) {
+      for (const content of ['two', 'three']) {
+        await updateWorkspaceFileContent(
+          fixture.workspaceId,
+          fixture.fileId,
+          fixture.aliceId,
+          Buffer.from(content),
+          undefined,
+          { version: { source: 'api', authorUserId: fixture.aliceId } }
+        )
+      }
+    }
+    const deletedAt = sql`now() - interval '40 days'`
+    await db.update(workspaceFiles).set({ deletedAt }).where(eq(workspaceFiles.id, expired.fileId))
+    const releasedKeys = (await versionRows(expired.fileId))
+      .filter((row) => row.supersededAt !== null)
+      .map((row) => row.key)
+
+    await releaseExpiredWorkspaceFileVersions(
+      db,
+      [expired.fileId, restored.fileId],
+      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    )
+
+    expect((await versionRows(expired.fileId)).map((row) => row.version)).toEqual([3])
+    expect((await versionRows(restored.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
+    const events = await db
+      .select({ id: outboxEvent.id, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT))
+    const enqueuedKeys = events.map((event) => (event.payload as { key: string }).key)
+    expect(enqueuedKeys).toEqual(expect.arrayContaining(releasedKeys))
+    await db.delete(outboxEvent).where(
+      inArray(
+        outboxEvent.id,
+        events.map((event) => event.id)
+      )
+    )
   })
 
   it('prunes superseded versions past retention but always keeps the newest ten', async () => {

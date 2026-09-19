@@ -11,7 +11,6 @@ import {
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
-  workspaceFileVersion,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
@@ -40,12 +39,12 @@ import {
   cleanupOwnerCondition,
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
-import { deleteWorkspaceStorageObjects } from '@/lib/cleanup/storage-delete'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { releaseExpiredWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -222,64 +221,6 @@ async function cleanupWorkspaceFileStorage(
   }
 
   return result
-}
-
-/** Files whose version rows are read in one query while their objects are collected. */
-const VERSION_OBJECT_FILE_CHUNK_SIZE = 100
-
-/**
- * Deletes the stored objects of every earlier version of the workspace files about to be purged,
- * before their version rows cascade away with the file. A file whose version objects could not all
- * be deleted is withheld from this purge, so its rows survive for the next run instead of leaving
- * those objects unreferenced. Each chunk re-reads which files are still deleted past the cutoff
- * right before deleting, so a file restored since selection keeps its history; the file-row delete
- * re-checks the same condition, so it skips that file too.
- */
-async function cleanupWorkspaceFileVersionStorage(
-  rows: WorkspaceFileScope['multiContextRows'],
-  retentionDate: Date,
-  label: string
-): Promise<{ rows: WorkspaceFileScope['multiContextRows']; failed: number }> {
-  const workspaceRows = rows.filter((row) => row.context === 'workspace')
-  if (workspaceRows.length === 0) return { rows, failed: 0 }
-
-  const currentKeyByFileId = new Map(workspaceRows.map((row) => [row.id, row.key]))
-  const withheldFileIds = new Set<string>()
-  for (const selectedFileIds of chunkArray(
-    [...currentKeyByFileId.keys()],
-    VERSION_OBJECT_FILE_CHUNK_SIZE
-  )) {
-    const stillExpired = await cleanupDb
-      .select({ id: workspaceFiles.id })
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(workspaceFiles.id, selectedFileIds),
-          isNotNull(workspaceFiles.deletedAt),
-          lt(workspaceFiles.deletedAt, retentionDate)
-        )
-      )
-    const fileIds = stillExpired.map((file) => file.id)
-    if (fileIds.length === 0) continue
-    const versions = await cleanupDb
-      .select({ fileId: workspaceFileVersion.fileId, key: workspaceFileVersion.key })
-      .from(workspaceFileVersion)
-      .where(inArray(workspaceFileVersion.fileId, fileIds))
-    const fileIdByKey = new Map(
-      versions
-        .filter((version) => version.key !== currentKeyByFileId.get(version.fileId))
-        .map((version) => [version.key, version.fileId])
-    )
-    for (const key of await deleteWorkspaceStorageObjects([...fileIdByKey.keys()], label)) {
-      const fileId = fileIdByKey.get(key)
-      if (fileId) withheldFileIds.add(fileId)
-    }
-  }
-
-  return {
-    rows: rows.filter((row) => !withheldFileIds.has(row.id)),
-    failed: withheldFileIds.size,
-  }
 }
 
 async function deleteExpiredLegacyWorkspaceFileRows(
@@ -959,16 +900,12 @@ export async function runCleanupSoftDeletes(
     chatCleanup = await prepareChatCleanup([...doomedChatIds], label)
   }
 
-  const versionCleanup = await cleanupWorkspaceFileVersionStorage(
-    fileScope.multiContextRows,
-    retentionDate,
-    label
+  await releaseExpiredWorkspaceFileVersions(
+    cleanupDb,
+    fileScope.multiContextRows.filter((row) => row.context === 'workspace').map((row) => row.id),
+    retentionDate
   )
-  if (budgets && versionCleanup.failed) throw new Error('File version storage cleanup failed')
-  const fileCleanup = await cleanupWorkspaceFileStorage({
-    ...fileScope,
-    multiContextRows: versionCleanup.rows,
-  })
+  const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
   if (budgets && fileCleanup.filesFailed) throw new Error('File storage cleanup failed')
 
   let totalDeleted = 0
