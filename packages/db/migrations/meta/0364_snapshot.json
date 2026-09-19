@@ -25545,7 +25545,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "gin",
           "with": {
             "fastupdate": "off"
