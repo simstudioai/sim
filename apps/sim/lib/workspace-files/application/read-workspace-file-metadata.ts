@@ -59,7 +59,7 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   execute: executeReadWorkspaceFileMetadata,
 })
 
-/** Reads a content write can race before the file record and version head agree. */
+/** Attempts to read a file record and version head that describe the same stored object. */
 const CURRENT_VERSION_READ_ATTEMPTS = 3
 
 /**

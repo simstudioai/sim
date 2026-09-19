@@ -39,7 +39,7 @@ import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/conte
 import {
   getCurrentWorkspaceFileVersion,
   queryWorkspaceFileVersions,
-  releaseExpiredWorkspaceFileVersions,
+  releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
@@ -402,7 +402,7 @@ describe('workspace file version history in PostgreSQL', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
   })
 
-  it('releases an expired file history atomically and leaves a restored file untouched', async () => {
+  it('releases history only with the purge transaction and leaves a restored file untouched', async () => {
     const expired = await seedFile('one')
     const restored = await seedFile('one')
     for (const fixture of [expired, restored]) {
@@ -423,10 +423,17 @@ describe('workspace file version history in PostgreSQL', () => {
       .filter((row) => row.supersededAt !== null)
       .map((row) => row.key)
 
-    await releaseExpiredWorkspaceFileVersions(
-      db,
-      [expired.fileId, restored.fileId],
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    await expect(
+      db.transaction(async (tx) => {
+        await releaseWorkspaceFileVersionsForPurgeInTx(tx, [expired.fileId], cutoff)
+        throw new Error('purge failed')
+      })
+    ).rejects.toThrow('purge failed')
+    expect((await versionRows(expired.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
+
+    await db.transaction((tx) =>
+      releaseWorkspaceFileVersionsForPurgeInTx(tx, [expired.fileId, restored.fileId], cutoff)
     )
 
     expect((await versionRows(expired.fileId)).map((row) => row.version)).toEqual([3])

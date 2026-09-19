@@ -22,16 +22,16 @@ import {
 
 /**
  * v2 file version history contracts. Every content write that changes the bytes — an upload, an
- * API or editor save, a Sim edit, a workflow write, a revert — records a version; collaborative
- * edits and repeated workflow writes from one author fold into one version per ten-minute window. Renames and moves
- * are metadata changes and never create versions, so every version reads under the file's
- * current name.
+ * API or editor save, a Sim edit, a workflow write, a revert — records a version. Collaborative
+ * edits and repeated workflow writes from one author fold into the current version until it is ten
+ * minutes old or its writer has been idle for five. Renames and moves are metadata changes and never
+ * create versions, so every version reads under the file's current name.
  */
 
 export const v2FileVersionSourceSchema = z
   .enum(['upload', 'user', 'api', 'copilot', 'workflow', 'collab', 'revert', 'unknown'])
   .describe(
-    'What wrote this version: `upload` (the original upload), `user` (a save in the Sim editor), `api` (an API, CLI, or MCP write), `copilot` (Sim, the agent), `workflow` (a workflow run), `collab` (collaborative editing), `revert` (a revert to an earlier version), or `unknown` (content written before version history existed).'
+    'What wrote this version: `upload` (the original upload), `user` (a save in the Sim editor), `api` (an API, CLI, or MCP write), `copilot` (Sim, the agent), `workflow` (a workflow run), `collab` (collaborative editing), `revert` (a revert to an earlier version), or `unknown` (content written before version history existed, or by a writer with no source of its own).'
   )
 
 export const v2FileVersionAuthorSchema = z

@@ -44,7 +44,7 @@ import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { releaseExpiredWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -333,6 +333,11 @@ async function deleteExpiredBillableWorkspaceFileRows(
     for (const batch of chunkArray(workspaceRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
         const deletedCount = await db.transaction(async (tx) => {
+          await releaseWorkspaceFileVersionsForPurgeInTx(
+            tx,
+            batch.map(({ id }) => id),
+            retentionDate
+          )
           const deletedRows = await tx
             .delete(workspaceFiles)
             .where(
@@ -901,15 +906,6 @@ export async function runCleanupSoftDeletes(
   }
 
   const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
-  /**
-   * Only files whose current object is gone are committed to the purge, so a file whose object
-   * deletion failed keeps its history for the retry instead of losing it ahead of its own delete.
-   */
-  await releaseExpiredWorkspaceFileVersions(
-    cleanupDb,
-    fileCleanup.multiContextRows.filter((row) => row.context === 'workspace').map((row) => row.id),
-    retentionDate
-  )
   if (budgets && fileCleanup.filesFailed) throw new Error('File storage cleanup failed')
 
   let totalDeleted = 0

@@ -34,8 +34,6 @@ const FILE_VERSION_COALESCE_IDLE_MS = 5 * 60 * 1000
  * write loop stays bounded between retention runs. Plan-specific counts are enforced by retention.
  */
 export const MAX_SUPERSEDED_FILE_VERSIONS = 500
-/** Retention never prunes the newest versions of a file, whatever their age. */
-export const FILE_VERSION_RETENTION_KEEP_LATEST = 10
 /**
  * Bounds the attribution list a long collaborative window can accumulate. Also keeps a full page of
  * versions within the user-email batch the v2 presenter resolves in one query.
@@ -98,7 +96,7 @@ export function isVersionHeadCurrent(
 }
 
 /** Whether a file's current bytes are still the ones originally uploaded. */
-export function isOriginalUploadContent(
+function isOriginalUploadContent(
   file: Pick<WorkspaceFileRow, 'uploadedAt' | 'contentUpdatedAt'>
 ): boolean {
   return (
@@ -164,7 +162,7 @@ interface RecordWorkspaceFileVersionParams {
 }
 
 /** The outcome of recording one content write. */
-export interface RecordedWorkspaceFileVersion {
+interface RecordedWorkspaceFileVersion {
   /** Version number of the file's current content after the write. */
   version: number
   /** Storage keys no version references any more; the caller releases them after commit. */
@@ -292,61 +290,55 @@ export async function deleteWorkspaceFileVersionInTx(
   return deleted?.key ?? null
 }
 
-/** Files whose history is released in one transaction. */
-const RELEASE_FILE_CHUNK_SIZE = 100
 /** Most cleanup events one outbox insert may carry. */
 const RELEASE_ENQUEUE_CHUNK_SIZE = 1000
 
 /**
- * Releases the history of soft-deleted files about to be purged: per chunk, one transaction locks
- * the files still deleted before `deletedBefore`, deletes their superseded version rows, and
- * enqueues those objects on the durable storage-cleanup outbox. The row lock orders this against a
- * restore, which updates the same row, so a file is either restored first and keeps its whole
- * history or purged first and restored without it — version rows never outlive their bytes, and no
- * object is left unreferenced. The current version is left to the file's own purge.
+ * Releases the history of soft-deleted files inside the transaction that purges their rows: it
+ * locks the files still deleted before `deletedBefore`, deletes their superseded version rows, and
+ * enqueues those objects on the durable storage-cleanup outbox. Sharing the purge's transaction
+ * means history is released exactly when the file row is deleted — a failed purge rolls both back —
+ * and the row lock orders it against a restore, which updates the same row. The current version's
+ * row cascades with the file, whose own object the purge deletes.
  */
-export async function releaseExpiredWorkspaceFileVersions(
-  client: typeof db,
+export async function releaseWorkspaceFileVersionsForPurgeInTx(
+  tx: DbTransaction,
   fileIds: readonly string[],
   deletedBefore: Date
 ): Promise<void> {
-  for (let start = 0; start < fileIds.length; start += RELEASE_FILE_CHUNK_SIZE) {
-    const chunk = fileIds.slice(start, start + RELEASE_FILE_CHUNK_SIZE)
-    await client.transaction(async (tx) => {
-      const expired = await tx
-        .select({ id: workspaceFiles.id, key: workspaceFiles.key })
-        .from(workspaceFiles)
-        .where(
-          and(
-            inArray(workspaceFiles.id, chunk),
-            isNotNull(workspaceFiles.deletedAt),
-            lt(workspaceFiles.deletedAt, deletedBefore)
-          )
+  if (fileIds.length === 0) return
+  const expired = await tx
+    .select({ id: workspaceFiles.id, key: workspaceFiles.key })
+    .from(workspaceFiles)
+    .where(
+      and(
+        inArray(workspaceFiles.id, [...fileIds]),
+        isNotNull(workspaceFiles.deletedAt),
+        lt(workspaceFiles.deletedAt, deletedBefore)
+      )
+    )
+    .for('update')
+  if (expired.length === 0) return
+  const released = await tx
+    .delete(workspaceFileVersion)
+    .where(
+      and(
+        inArray(
+          workspaceFileVersion.fileId,
+          expired.map((file) => file.id)
+        ),
+        notInArray(
+          workspaceFileVersion.key,
+          expired.map((file) => file.key)
         )
-        .for('update')
-      if (expired.length === 0) return
-      const released = await tx
-        .delete(workspaceFileVersion)
-        .where(
-          and(
-            inArray(
-              workspaceFileVersion.fileId,
-              expired.map((file) => file.id)
-            ),
-            notInArray(
-              workspaceFileVersion.key,
-              expired.map((file) => file.key)
-            )
-          )
-        )
-        .returning({ key: workspaceFileVersion.key })
-      for (let offset = 0; offset < released.length; offset += RELEASE_ENQUEUE_CHUNK_SIZE) {
-        await enqueueWorkspaceFileStorageCleanups(
-          tx,
-          released.slice(offset, offset + RELEASE_ENQUEUE_CHUNK_SIZE).map((row) => row.key)
-        )
-      }
-    })
+      )
+    )
+    .returning({ key: workspaceFileVersion.key })
+  for (let offset = 0; offset < released.length; offset += RELEASE_ENQUEUE_CHUNK_SIZE) {
+    await enqueueWorkspaceFileStorageCleanups(
+      tx,
+      released.slice(offset, offset + RELEASE_ENQUEUE_CHUNK_SIZE).map((row) => row.key)
+    )
   }
 }
 
@@ -356,7 +348,7 @@ async function pruneExcessWorkspaceFileVersionsInTx(
   fileId: string
 ): Promise<string[]> {
   const excess = await tx
-    .select({ id: workspaceFileVersion.id, key: workspaceFileVersion.key })
+    .select({ id: workspaceFileVersion.id })
     .from(workspaceFileVersion)
     .where(
       and(eq(workspaceFileVersion.fileId, fileId), isNotNull(workspaceFileVersion.supersededAt))
@@ -364,17 +356,20 @@ async function pruneExcessWorkspaceFileVersionsInTx(
     .orderBy(desc(workspaceFileVersion.version))
     .offset(MAX_SUPERSEDED_FILE_VERSIONS)
   if (excess.length === 0) return []
-  await tx.delete(workspaceFileVersion).where(
-    inArray(
-      workspaceFileVersion.id,
-      excess.map((row) => row.id)
+  const removed = await tx
+    .delete(workspaceFileVersion)
+    .where(
+      inArray(
+        workspaceFileVersion.id,
+        excess.map((row) => row.id)
+      )
     )
-  )
-  return excess.map((row) => row.key)
+    .returning({ key: workspaceFileVersion.key })
+  return removed.map((row) => row.key)
 }
 
 /** The file fields that identify its current bytes. */
-export type WorkspaceFileVersionSubject = Pick<
+type WorkspaceFileVersionSubject = Pick<
   WorkspaceFileRecord,
   'id' | 'key' | 'size' | 'type' | 'uploadedBy' | 'uploadedAt' | 'updatedAt' | 'contentUpdatedAt'
 >
@@ -469,10 +464,10 @@ export async function queryWorkspaceFileVersions(
     .limit(options.limit + 1)
   const records = rows.map(toVersionRecord)
   /**
-   * A file with no rows lists its implicit version 1, the only version it has. Any cursor was minted
-   * past that version already, so only the first page can carry it.
+   * An uncursored page that is empty means the file has no rows, so it lists its implicit version 1.
+   * Any cursor was minted past that version already, so only the first page can carry it.
    */
-  if (records.length === 0 && !options.after && !(await loadWorkspaceFileVersionHead(file.id))) {
+  if (records.length === 0 && !options.after) {
     records.push(implicitFirstVersion(file))
   }
   const page = keysetPage(VERSION_KEYSET, records, options.limit)
@@ -480,9 +475,10 @@ export async function queryWorkspaceFileVersions(
 }
 
 /**
- * The subset of `keys` that name a retained version object. Such an object is reachable only
- * through the version routes, which authorize against its file; key-addressed readers must refuse
- * it rather than fall back to the object's own metadata or treat it as an untracked legacy file.
+ * The subset of `keys` held by any version row. Callers ask only about keys with no active file row,
+ * so a match is a superseded version or an archived file's current bytes — both reachable only
+ * through authorized file and version routes. Key-addressed readers refuse them rather than fall
+ * back to the object's own metadata or treat them as untracked legacy files.
  */
 export async function findWorkspaceFileVersionKeys(keys: readonly string[]): Promise<Set<string>> {
   if (keys.length === 0) return new Set()

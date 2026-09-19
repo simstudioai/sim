@@ -210,7 +210,7 @@ describe('workspace file metadata and storage accounting', () => {
     mockProcessWorkspaceFileLiveDocReconciliationNow.mockResolvedValue('completed')
     mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
     mockSaveCollabDocStateInTx.mockResolvedValue(undefined)
-    mockRecordWorkspaceFileVersionInTx.mockResolvedValue({ releasedKeys: [] })
+    mockRecordWorkspaceFileVersionInTx.mockResolvedValue({ version: 2, releasedKeys: [] })
   })
 
   it('returns the canonical inserted record with the pre-resolved folder path', async () => {
@@ -785,7 +785,10 @@ describe('workspace file metadata and storage accounting', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: replacementKey })
-    mockRecordWorkspaceFileVersionInTx.mockResolvedValueOnce({ releasedKeys: [FILE_ROW.key] })
+    mockRecordWorkspaceFileVersionInTx.mockResolvedValueOnce({
+      version: 2,
+      releasedKeys: [FILE_ROW.key],
+    })
 
     await updateWorkspaceFileContent(
       FILE_ROW.workspaceId,

@@ -9,10 +9,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { DEFAULT_DELETE_CHUNK_SIZE } from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import {
-  FILE_VERSION_RETENTION_KEEP_LATEST,
-  MAX_SUPERSEDED_FILE_VERSIONS,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 
 const logger = createLogger('CleanupFileVersions')
 
@@ -38,6 +35,9 @@ const MAX_SUPERSEDED_VERSIONS_BY_PLAN: Record<PlanCategory, number> = {
   team: MAX_SUPERSEDED_FILE_VERSIONS,
   enterprise: MAX_SUPERSEDED_FILE_VERSIONS,
 }
+
+/** Retention never prunes the newest versions of a file, whatever their age. */
+const FILE_VERSION_RETENTION_KEEP_LATEST = 10
 
 /** Newest superseded versions a file keeps whatever their age (the current version is the tenth). */
 const KEEP_SUPERSEDED = FILE_VERSION_RETENTION_KEEP_LATEST - 1

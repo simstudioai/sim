@@ -82,11 +82,11 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
 
-const { mockReleaseExpiredWorkspaceFileVersions } = vi.hoisted(() => ({
-  mockReleaseExpiredWorkspaceFileVersions: vi.fn(),
+const { mockReleaseWorkspaceFileVersionsForPurgeInTx } = vi.hoisted(() => ({
+  mockReleaseWorkspaceFileVersionsForPurgeInTx: vi.fn(),
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
-  releaseExpiredWorkspaceFileVersions: mockReleaseExpiredWorkspaceFileVersions,
+  releaseWorkspaceFileVersionsForPurgeInTx: mockReleaseWorkspaceFileVersionsForPurgeInTx,
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
@@ -129,7 +129,7 @@ describe('cleanup soft deletes', () => {
     })
   })
 
-  it('releases version history only for files whose current object was deleted', async () => {
+  it('releases version history inside the transaction that purges the file rows', async () => {
     mockSelectRowsByIdChunks
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -148,28 +148,26 @@ describe('cleanup soft deletes', () => {
           context: 'workspace',
           sizeBytes: 4,
         },
-        {
-          id: 'chat-file',
-          key: 'mothership/chat-file',
-          workspaceId: 'ws-1',
-          context: 'mothership',
-          sizeBytes: 3,
-        },
       ])
     mockDeleteFiles.mockResolvedValueOnce({
       deleted: 1,
       failed: [{ key: 'workspace/ws-1/file-failed', error: 'storage unavailable' }],
     })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-purged', sizeBytes: 5 }])
 
     await runCleanupSoftDeletes(basePayload)
 
-    expect(mockReleaseExpiredWorkspaceFileVersions).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledOnce()
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledWith(
+      dbChainMock.db,
       ['file-purged'],
       expect.any(Date)
     )
-    expect(mockDeleteFiles.mock.invocationCallOrder[0]).toBeLessThan(
-      mockReleaseExpiredWorkspaceFileVersions.mock.invocationCallOrder[0]
+    expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]
+    )
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[0]
     )
   })
 

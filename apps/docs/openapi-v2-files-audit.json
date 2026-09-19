@@ -4569,7 +4569,7 @@
           "source": {
             "type": "string",
             "enum": ["upload", "user", "api", "copilot", "workflow", "collab", "revert", "unknown"],
-            "description": "What wrote this version: `upload` (the original upload), `user` (a save in the Sim editor), `api` (an API, CLI, or MCP write), `copilot` (Sim, the agent), `workflow` (a workflow run), `collab` (collaborative editing), `revert` (a revert to an earlier version), or `unknown` (content written before version history existed)."
+            "description": "What wrote this version: `upload` (the original upload), `user` (a save in the Sim editor), `api` (an API, CLI, or MCP write), `copilot` (Sim, the agent), `workflow` (a workflow run), `collab` (collaborative editing), `revert` (a revert to an earlier version), or `unknown` (content written before version history existed, or by a writer with no source of its own)."
           },
           "authors": {
             "type": "array",
