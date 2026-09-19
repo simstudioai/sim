@@ -12,17 +12,17 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
-  DOCUMENT_LIVENESS_BATCH_SIZE,
-  documentProcessingSnapshotCondition,
-  findAbandonedDocumentProcessing,
-  processingSnapshotColumns,
-} from '@/lib/knowledge/documents/processing-liveness'
-import {
   createDocumentProcessingPayload,
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
@@ -35,7 +35,7 @@ const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 /**
  * Re-admits bounded, abandoned connector documents from our retained bytes, independently
  * of source sync schedules and credentials. The generation, attempt and outbox event commit
- * together; no provider call or source lease is needed. Paused/deleted sources stay paused.
+ * together; no source-provider call or source lease is needed. Paused/deleted sources stay paused.
  */
 export async function recoverKnowledgeDocumentProcessing(now = new Date()): Promise<number> {
   const deadlineAt = Date.now() + RECOVERY_RUNTIME_MS
@@ -125,7 +125,6 @@ async function recoverStoredDocumentBatch(
   for (const [knowledgeBaseId, group] of groups) {
     if (Date.now() >= deadlineAt) break
     const connectorIds = [...new Set(group.map((row) => row.connectorId))]
-    for (const connectorId of connectorIds) attemptedConnectors.add(connectorId)
     const owner = group[0]
     let ownerVerified = false
     try {

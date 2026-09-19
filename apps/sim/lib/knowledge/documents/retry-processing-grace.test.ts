@@ -27,6 +27,7 @@ import {
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const OBSERVED_DOCUMENT = {
+  uploadedAt: new Date(0),
   id: 'doc-1',
   processingStatus: 'completed',
   processingQueueToken: 'old-token',

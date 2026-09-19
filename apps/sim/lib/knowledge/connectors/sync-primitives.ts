@@ -27,13 +27,13 @@ import {
   persistSkippedRetryHashes,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
   documentProcessingSnapshotCondition,
   findAbandonedDocumentProcessing,
   processingSnapshotColumns,
-} from '@/lib/knowledge/documents/processing-liveness'
-import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -1341,7 +1341,6 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
       filename: document.filename,
       fileSize: document.fileSize,
       mimeType: document.mimeType,
-      uploadedAt: document.uploadedAt,
     })
     .from(document)
     .where(
@@ -1403,7 +1402,6 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
           filename: document.filename,
           fileSize: document.fileSize,
           mimeType: document.mimeType,
-          uploadedAt: document.uploadedAt,
         })
         .from(document)
         .where(

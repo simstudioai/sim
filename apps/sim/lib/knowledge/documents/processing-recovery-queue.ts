@@ -8,11 +8,14 @@ import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { withinDeadline } from '@/lib/core/utils/deadline'
+import type { DbTransaction } from '@/lib/db/types'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const logger = createLogger('DocumentProcessingLiveness')
 export const DOCUMENT_LIVENESS_BATCH_SIZE = 200
 const LOOKUP_CONCURRENCY = 4
-const LOOKUP_BUDGET_MS = 8_000
+const INSPECTION_BUDGET_MS = 8_000
+const COOLDOWN_RESERVE_MS = 2_000
 const LIVE_RECHECK_MS = 15 * 60_000
 const UNKNOWN_RECHECK_MS = 60_000
 type TriggerRunStatus = Extract<RunStatus, string>
@@ -39,6 +42,7 @@ const ACTIVE_RUN_STATUSES = (Object.keys(RUN_STATUS_LIVENESS) as TriggerRunStatu
 
 export const processingSnapshotColumns = {
   id: document.id,
+  uploadedAt: document.uploadedAt,
   processingStatus: document.processingStatus,
   processingQueueToken: document.processingQueueToken,
   processingQueuedAt: document.processingQueuedAt,
@@ -67,9 +71,36 @@ export function documentProcessingSnapshotCondition(snapshot: DocumentProcessing
   )
 }
 
+/** Pool acquisition has no driver cancellation; late callbacks must exit before issuing work. */
+async function withinLivenessTransaction<T>(
+  operation: (tx: DbTransaction) => Promise<T>,
+  deadlineAt: number,
+  signal?: AbortSignal
+): Promise<T> {
+  return withinDeadline(
+    (transactionSignal) =>
+      db.transaction(async (tx) => {
+        transactionSignal.throwIfAborted()
+        await tx.execute(
+          sql`SELECT set_config('statement_timeout', '2000', true), set_config('lock_timeout', '500', true)`
+        )
+        transactionSignal.throwIfAborted()
+        const result = await operation(tx)
+        transactionSignal.throwIfAborted()
+        return result
+      }),
+    deadlineAt,
+    signal
+  )
+}
+
 type ProcessingLiveness = 'live' | 'abandoned' | 'unknown'
 
-async function inspectTriggerWork(documentId: string, deadlineAt: number, signal?: AbortSignal) {
+async function inspectTriggerWork(
+  candidate: DocumentProcessingSnapshot,
+  deadlineAt: number,
+  signal?: AbortSignal
+) {
   return withinDeadline(
     async (requestSignal) => {
       const client = apiClientManager.clientOrThrow()
@@ -80,8 +111,11 @@ async function inspectTriggerWork(documentId: string, deadlineAt: number, signal
         {
           query: new URLSearchParams({
             'filter[taskIdentifier]': 'knowledge-process-document',
-            'filter[tag]': `documentId:${documentId}`,
+            'filter[tag]': `documentId:${candidate.id}`,
             'filter[status]': ACTIVE_RUN_STATUSES.join(','),
+            'filter[createdAt][from]': String(
+              candidate.uploadedAt.getTime() - QUEUED_DISPATCH_GRACE_MS
+            ),
           }),
           limit: 1,
         },
@@ -111,7 +145,8 @@ export async function inspectDocumentProcessingLiveness<T extends DocumentProces
     throw new Error('Document liveness batch exceeds its limit')
   }
   signal?.throwIfAborted()
-  const deadlineAt = Date.now() + LOOKUP_BUDGET_MS
+  const deadlineAt = Date.now() + INSPECTION_BUDGET_MS
+  const lookupDeadlineAt = deadlineAt - COOLDOWN_RESERVE_MS
   const states = new Map<string, ProcessingLiveness>()
   try {
     const tokens = candidates.flatMap((row) =>
@@ -120,28 +155,26 @@ export async function inspectDocumentProcessingLiveness<T extends DocumentProces
     const carriers =
       tokens.length === 0
         ? []
-        : await db.transaction(async (tx) => {
-            signal?.throwIfAborted()
-            await tx.execute(
-              sql`SELECT set_config('statement_timeout', '2000', true), set_config('lock_timeout', '500', true)`
-            )
-            signal?.throwIfAborted()
-            return tx
-              .select({ id: outboxEvent.id })
-              .from(outboxEvent)
-              .where(
-                and(
-                  inArray(outboxEvent.id, tokens),
-                  inArray(outboxEvent.status, ['pending', 'processing'])
+        : await withinLivenessTransaction(
+            async (tx) =>
+              tx
+                .select({ id: outboxEvent.id })
+                .from(outboxEvent)
+                .where(
+                  and(
+                    inArray(outboxEvent.id, tokens),
+                    inArray(outboxEvent.status, ['pending', 'processing'])
+                  )
                 )
-              )
-              .limit(DOCUMENT_LIVENESS_BATCH_SIZE)
-          })
+                .limit(DOCUMENT_LIVENESS_BATCH_SIZE),
+            deadlineAt,
+            signal
+          )
     const liveTokens = new Set(carriers.map((row) => row.id))
     let next = 0
     await Promise.all(
       Array.from({ length: Math.min(LOOKUP_CONCURRENCY, candidates.length) }, async () => {
-        while (next < candidates.length && Date.now() < deadlineAt && !signal?.aborted) {
+        while (next < candidates.length && Date.now() < lookupDeadlineAt && !signal?.aborted) {
           const candidate = candidates[next++]!
           if (candidate.processingQueueToken && liveTokens.has(candidate.processingQueueToken)) {
             states.set(candidate.id, 'live')
@@ -152,7 +185,7 @@ export async function inspectDocumentProcessingLiveness<T extends DocumentProces
             continue
           }
           try {
-            states.set(candidate.id, await inspectTriggerWork(candidate.id, deadlineAt, signal))
+            states.set(candidate.id, await inspectTriggerWork(candidate, lookupDeadlineAt, signal))
           } catch {
             states.set(candidate.id, 'unknown')
           }
@@ -168,21 +201,20 @@ export async function inspectDocumentProcessingLiveness<T extends DocumentProces
     const protectedRows = candidates.filter((row) => (states.get(row.id) ?? 'unknown') === state)
     if (protectedRows.length === 0) continue
     try {
-      await db.transaction(async (tx) => {
-        signal?.throwIfAborted()
-        await tx.execute(
-          sql`SELECT set_config('statement_timeout', '2000', true), set_config('lock_timeout', '500', true)`
-        )
-        signal?.throwIfAborted()
-        await tx
-          .update(document)
-          .set({
-            processingRecoveryAfter: new Date(
-              Date.now() + (state === 'live' ? LIVE_RECHECK_MS : UNKNOWN_RECHECK_MS)
-            ),
-          })
-          .where(or(...protectedRows.map(documentProcessingSnapshotCondition)))
-      })
+      await withinLivenessTransaction(
+        async (tx) => {
+          await tx
+            .update(document)
+            .set({
+              processingRecoveryAfter: new Date(
+                Date.now() + (state === 'live' ? LIVE_RECHECK_MS : UNKNOWN_RECHECK_MS)
+              ),
+            })
+            .where(or(...protectedRows.map(documentProcessingSnapshotCondition)))
+        },
+        deadlineAt,
+        signal
+      )
     } catch {
       signal?.throwIfAborted()
       logger.warn('Document recovery cooldown could not be persisted', {

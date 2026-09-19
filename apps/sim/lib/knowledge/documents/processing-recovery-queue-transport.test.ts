@@ -11,10 +11,11 @@ import { resetInsideTriggerRunForTests } from '@/lib/core/config/trigger-runtime
 import {
   type DocumentProcessingSnapshot,
   findAbandonedDocumentProcessing,
-} from '@/lib/knowledge/documents/processing-liveness'
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const snapshot: DocumentProcessingSnapshot = {
   id: 'doc-1',
+  uploadedAt: new Date('2026-09-01T00:00:00Z'),
   processingStatus: 'pending',
   processingQueueToken: 'generation-1',
   processingQueuedAt: new Date('2026-09-01T00:00:00Z'),
@@ -92,6 +93,9 @@ describe('document liveness SDK transport', () => {
       expect(fetch).toHaveBeenCalledOnce()
       const url = new URL(fetch.mock.calls[0][0])
       expect(url.searchParams.get('page[size]')).toBe('1')
+      expect(url.searchParams.get('filter[createdAt][from]')).toBe(
+        String(new Date('2026-08-31T20:00:00Z').getTime())
+      )
       expect(url.searchParams.get('filter[tag]')).toBe('documentId:doc-1')
     }
   )
