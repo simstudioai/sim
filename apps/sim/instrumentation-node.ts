@@ -35,7 +35,7 @@ const DEFAULT_TELEMETRY_CONFIG = {
     maxQueueSize: 2048,
     maxExportBatchSize: 512,
     scheduledDelayMillis: 5000,
-    exportTimeoutMillis: 30000,
+    exportTimeoutMillis: 10000,
   },
 }
 
@@ -151,8 +151,12 @@ class MothershipOriginSpanProcessor implements SpanProcessor {
 
 async function initializeOpenTelemetry() {
   try {
-    if (env.NEXT_TELEMETRY_DISABLED === '1' || process.env.NEXT_TELEMETRY_DISABLED === '1') {
-      logger.info('OpenTelemetry disabled via NEXT_TELEMETRY_DISABLED=1')
+    if (
+      process.env.DISABLE_TELEMETRY === '1' ||
+      env.NEXT_TELEMETRY_DISABLED === '1' ||
+      process.env.NEXT_TELEMETRY_DISABLED === '1'
+    ) {
+      logger.info('OpenTelemetry disabled via env var')
       return
     }
 
@@ -359,15 +363,19 @@ async function initializeOpenTelemetry() {
 
     const shutdownOtel = async () => {
       try {
-        await sdk.shutdown()
+        const shutdownPromise = sdk.shutdown()
+        const timeoutPromise = new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('OTel shutdown timed out')), 5000)
+        )
+        await Promise.race([shutdownPromise, timeoutPromise])
         logger.info('OpenTelemetry SDK shut down successfully')
       } catch (err) {
         logger.error('Error shutting down OpenTelemetry SDK', err)
       }
     }
 
-    process.on('SIGTERM', shutdownOtel)
-    process.on('SIGINT', shutdownOtel)
+    process.once('SIGTERM', shutdownOtel)
+    process.once('SIGINT', shutdownOtel)
 
     logger.info('OpenTelemetry instrumentation initialized', {
       serviceName: telemetryConfig.serviceName,
@@ -398,8 +406,8 @@ export async function register() {
     }
   }
 
-  process.on('SIGTERM', shutdownPostHog)
-  process.on('SIGINT', shutdownPostHog)
+  process.once('SIGTERM', shutdownPostHog)
+  process.once('SIGINT', shutdownPostHog)
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
