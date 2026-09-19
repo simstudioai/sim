@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Button, type ComboboxOption } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { AddRowButton, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTION_OPTIONS, type SortRule } from '@/lib/table/query-builder/constants'
@@ -86,16 +85,7 @@ export function SortBuilder({
 
   if (rules.length === 0) {
     if (isReadOnly) return null
-    return (
-      <Button
-        variant='ghost'
-        onClick={addRule}
-        className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
-      >
-        <Plus className='size-[14px]' />
-        Add sort
-      </Button>
-    )
+    return <AddRowButton onClick={addRule}>Add sort</AddRowButton>
   }
 
   return (
