@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  estimateTrigramKeys,
   iterateFileSearchChunks,
   planFileSearchIndex,
 } from '@/lib/workspace-files/search/index-plan'
@@ -55,6 +56,45 @@ describe('file search chunk packing', () => {
     expect(() =>
       planFileSearchIndex({ text: 'x'.repeat(25 * 1024 * 1024 + 1), partial: false }, signal)
     ).toThrow('extracted_text_too_large')
+  })
+  it.each([
+    ['a binary stored as base64 text', 'iVBORw0KGgo'.repeat(10_000)],
+    [
+      'an SVG embedding a data URI',
+      `<svg><title>sheet</title><image href="data:image/jpeg;base64,${'/9j/4AAQ'.repeat(8000)}"/></svg>`,
+    ],
+    ['base64 wrapped into lines at the minimum run length', `${'aB3'.repeat(86)}\n`.repeat(500)],
+  ])('excludes %s before producing any chunks', (_, text) => {
+    expect(() => planFileSearchIndex({ text, partial: false }, signal)).toThrow('encoded_content')
+  })
+  it.each([
+    [
+      'a small config carrying one signature',
+      `{"$schema":"https://example.com/schema.json","signature":"${'Qk9'.repeat(200)}"}`,
+    ],
+    [
+      'a lockfile whose integrity hashes are short runs',
+      `"pkg": ["pkg@1.0.0", "", {}, "sha512-${'Ab1+'.repeat(22)}=="],\n\n`.repeat(2000),
+    ],
+    ['base64 wrapped into lines just short of the run length', `${'aB3'.repeat(85)}\n`.repeat(500)],
+    ['an unwrapped DNA sequence', `>chr1\n${'ACGT'.repeat(20_000)}\n`],
+    ['a hex digest dump', `${'deadbeef0123'.repeat(5000)}\n`],
+    [
+      'prose that embeds an encoded payload smaller than itself',
+      `${'Quarterly results and notes. '.repeat(5000)}${'aB3d'.repeat(10_000)}`,
+    ],
+  ])('keeps %s searchable', (_, text) => {
+    expect(() => planFileSearchIndex({ text, partial: false }, signal)).not.toThrow()
+  })
+  it.each([
+    ['cat', 4],
+    ['Cat CAT cat', 4],
+    ['foo|bar', 8],
+    ['a', 2],
+    ['', 0],
+    ['--- ___ ...', 0],
+  ])('estimates pg_trgm keys for %j', (text, expected) => {
+    expect(estimateTrigramKeys(text)).toBe(expected)
   })
   it('stops iteration when aborted', () => {
     const controller = new AbortController()

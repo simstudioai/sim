@@ -2,11 +2,68 @@ import { Buffer } from 'node:buffer'
 import {
   FILE_SEARCH_CANDIDATE_LITERAL_CHARS,
   FILE_SEARCH_CHUNK_BYTES,
+  FILE_SEARCH_ENCODED_EXCLUSION_MIN_BYTES,
+  FILE_SEARCH_ENCODED_EXCLUSION_RATIO,
+  FILE_SEARCH_ENCODED_RUN_MIN_CHARS,
   FILE_SEARCH_MAX_EXTRACTED_BYTES,
 } from '@/lib/workspace-files/search/constants'
 import type { ExtractedIndexText } from '@/lib/workspace-files/search/extract'
 
-export type FileSearchExclusionReason = 'extracted_text_too_large' | 'incomplete_extraction'
+export type FileSearchExclusionReason =
+  | 'extracted_text_too_large'
+  | 'incomplete_extraction'
+  | 'encoded_content'
+
+const TRIGRAM_WORD = /[\p{L}\p{N}]+/gu
+
+/**
+ * Bytes inside long base64 runs, in one linear pass. A run counts only when it mixes upper case,
+ * lower case, and digits, as real base64 does; single-case runs such as hex digests or DNA
+ * sequences are searchable text with few distinct trigrams. Runs are ASCII, so chars are bytes.
+ */
+function countEncodedBytes(text: string): number {
+  let encoded = 0
+  let run = 0
+  let upper = false
+  let lower = false
+  let digit = false
+  const endRun = () => {
+    if (run >= FILE_SEARCH_ENCODED_RUN_MIN_CHARS && upper && lower && digit) encoded += run
+    run = 0
+    upper = lower = digit = false
+  }
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    const isUpper = code >= 65 && code <= 90
+    const isLower = code >= 97 && code <= 122
+    const isDigit = code >= 48 && code <= 57
+    if (isUpper || isLower || isDigit || code === 43 || code === 47) {
+      run++
+      upper ||= isUpper
+      lower ||= isLower
+      digit ||= isDigit
+    } else {
+      endRun()
+    }
+  }
+  endRun()
+  return encoded
+}
+
+/**
+ * Distinct keys `gin_trgm_ops` extracts from `content`, mirroring pg_trgm: lowercased alphanumeric
+ * words, each padded with two leading spaces and one trailing space. This matches PostgreSQL under
+ * the `en_US.UTF-8` ctype; its hashing of multibyte trigrams can only merge keys, so the count is
+ * never an underestimate.
+ */
+export function estimateTrigramKeys(content: string): number {
+  const keys = new Set<string>()
+  for (const [word] of content.toLowerCase().matchAll(TRIGRAM_WORD)) {
+    const padded = [' ', ' ', ...word, ' ']
+    for (let i = 2; i < padded.length; i++) keys.add(padded[i - 2] + padded[i - 1] + padded[i])
+  }
+  return keys.size
+}
 
 export class FileSearchExclusionError extends Error {
   constructor(readonly reason: FileSearchExclusionReason) {
@@ -30,15 +87,26 @@ export interface FileSearchIndexPlan {
   indexedBytes: number
 }
 
-/** Admission happens before any chunks are written; incomplete extraction never becomes searchable. */
+/**
+ * Admission happens before any chunks are written; incomplete extraction never becomes searchable,
+ * and neither does text that is mostly an encoded payload.
+ */
 export function planFileSearchIndex(
   extracted: ExtractedIndexText,
   signal: AbortSignal
 ): FileSearchIndexPlan {
   signal.throwIfAborted()
   if (extracted.partial) throw new FileSearchExclusionError('incomplete_extraction')
-  if (Buffer.byteLength(extracted.text, 'utf8') > FILE_SEARCH_MAX_EXTRACTED_BYTES) {
+  const textBytes = Buffer.byteLength(extracted.text, 'utf8')
+  if (textBytes > FILE_SEARCH_MAX_EXTRACTED_BYTES) {
     throw new FileSearchExclusionError('extracted_text_too_large')
+  }
+  const encodedBytes = countEncodedBytes(extracted.text)
+  if (
+    encodedBytes > FILE_SEARCH_ENCODED_EXCLUSION_MIN_BYTES &&
+    encodedBytes >= textBytes * FILE_SEARCH_ENCODED_EXCLUSION_RATIO
+  ) {
+    throw new FileSearchExclusionError('encoded_content')
   }
   const bytes = Buffer.from(extracted.text.replace(/\r(?=\n|$)/g, ''), 'utf8')
   let lineCount = 1

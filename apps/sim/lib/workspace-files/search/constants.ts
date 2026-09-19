@@ -19,6 +19,16 @@ export const FILE_SEARCH_MAX_RESULTS = 200
 
 export const FILE_SEARCH_MAX_SOURCE_BYTES = 25 * 1024 * 1024
 export const FILE_SEARCH_MAX_EXTRACTED_BYTES = 25 * 1024 * 1024
+/**
+ * Unbroken base64-alphabet runs at least this long are encoded payloads (data URIs, binaries
+ * stored as base64 text), not searchable text. Each chunk of one yields thousands of distinct
+ * rare trigrams, which makes its direct GIN insert far slower than ordinary text.
+ */
+export const FILE_SEARCH_ENCODED_RUN_MIN_CHARS = 256
+/** Text is excluded when encoded runs are at least this share of it... */
+export const FILE_SEARCH_ENCODED_EXCLUSION_RATIO = 0.5
+/** ...and span more than a few chunks, so a small config carrying one signature stays searchable. */
+export const FILE_SEARCH_ENCODED_EXCLUSION_MIN_BYTES = 32 * 1024
 export const FILE_SEARCH_MAX_PREVIEW_BYTES = 2 * 1024
 export const FILE_SEARCH_CHUNK_BYTES = 8 * 1024
 export const FILE_SEARCH_CANDIDATE_PAGE_SIZE = 16
@@ -48,6 +58,8 @@ export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
 /** Direct GIN writes perform index work in each insert, so transactions use smaller byte batches. */
 export const FILE_SEARCH_INSERT_BATCH_BYTES = 128 * 1024
+/** Batches at least this slow are logged with their estimated trigram key count. */
+export const FILE_SEARCH_SLOW_INSERT_BATCH_MS = 2000
 
 /** Index writes allow statement cancellation before the outer transaction terminates its session. */
 export const FILE_SEARCH_INDEX_TRANSACTION_LIMITS = {
