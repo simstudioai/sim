@@ -661,7 +661,8 @@ export function MessagesInput({
                               deleteMessage(index)
                             }}
                             disabled={disabled}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Delete message'
                           >
                             <Trash className='size-3' />
@@ -673,7 +674,8 @@ export function MessagesInput({
                               moveMessageUp(index)
                             }}
                             disabled={disabled || index === 0}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Move message up'
                           >
                             <ChevronUp className='size-3' />
@@ -685,7 +687,8 @@ export function MessagesInput({
                               moveMessageDown(index)
                             }}
                             disabled={disabled || index === currentMessages.length - 1}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Move message down'
                           >
                             <ChevronDown className='size-3' />
@@ -699,7 +702,8 @@ export function MessagesInput({
                           addMessageAfter(index)
                         }}
                         disabled={disabled}
-                        className='-mr-1.5 -my-1 size-6 p-0'
+                        iconSize='compact'
+                        className='-mr-1.5 -my-1'
                         aria-label='Add message below'
                       >
                         <Plus className='size-3.5' />
