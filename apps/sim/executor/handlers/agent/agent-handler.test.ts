@@ -19,6 +19,7 @@ import {
   vi,
 } from 'vitest'
 import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { AgentTurnSession } from '@/lib/memory/agent-turn-session'
 import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
 import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
@@ -6056,6 +6057,44 @@ describe('AgentBlockHandler', () => {
   })
 
   describe('wrapStreamForMemoryPersistence envelope', () => {
+    it.each(['Completed answer.', ''])(
+      'finalizes %j even when an existing stream callback rejects',
+      async (content) => {
+        const finalize = vi.fn().mockResolvedValue(undefined)
+        const onFullContent = vi.fn().mockRejectedValue(new Error('Callback failed'))
+        const stream: StreamingExecution = {
+          stream: new ReadableStream(),
+          onFullContent,
+          execution: {
+            success: true,
+            output: { content },
+            logs: [],
+            metadata: { startTime: '', duration: 0 },
+          },
+        }
+        const privateHandler = handler as unknown as {
+          wrapStreamForMemoryPersistence: (
+            ctx: ExecutionContext,
+            inputs: AgentInputs,
+            stream: StreamingExecution,
+            model: string,
+            session: AgentTurnSession
+          ) => StreamingExecution
+        }
+        const wrapped = privateHandler.wrapStreamForMemoryPersistence(
+          mockContext,
+          { model: 'gpt-4o' },
+          stream,
+          'gpt-4o',
+          { memoryId: 'memory-1', finalize } as AgentTurnSession
+        )
+
+        await expect(wrapped.onFullContent?.(content)).resolves.toBeUndefined()
+        expect(onFullContent).toHaveBeenCalledWith(content)
+        expect(finalize).toHaveBeenCalledExactlyOnceWith(content, 'gpt-4o')
+      }
+    )
+
     it('preserves streamFormat, subscribe, and the existing completion callback', async () => {
       const handler = new AgentBlockHandler()
       const subscribe = vi.fn()

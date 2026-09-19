@@ -14,7 +14,7 @@ export function getConversationModelLimits(modelId: string): {
   const definition =
     definitions.find((model) => model.id.toLowerCase() === canonical) ??
     definitions.find(
-      (model) => model.id.toLowerCase() === canonical.replace(/-\d{4}-\d{2}-\d{2}$/, '')
+      (model) => model.id.toLowerCase() === canonical.replace(/-(?:\d{4}-\d{2}-\d{2}|\d{8})$/, '')
     )
   return {
     contextWindow: definition?.contextWindow ?? 32_000,

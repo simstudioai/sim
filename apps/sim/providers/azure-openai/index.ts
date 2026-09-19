@@ -35,7 +35,10 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
@@ -117,7 +120,12 @@ async function executeChatCompletionsRequest(
     for (const message of request.messages) {
       const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
       if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
-        allMessages.push({ ...message, ...nativeMessage } as ChatCompletionMessageParam)
+        allMessages.push(
+          retainConversationMessageSource(message, {
+            ...message,
+            ...nativeMessage,
+          } as ChatCompletionMessageParam)
+        )
         continue
       }
       if (!message.files?.length || message.role !== 'user') {
@@ -139,7 +147,12 @@ async function executeChatCompletionsRequest(
         parts.push({ type: 'image_url', image_url: { url: a.remoteUrl ?? a.dataUrl ?? '' } })
       }
       const { files: _files, ...rest } = message
-      allMessages.push({ ...rest, content: parts } as ChatCompletionMessageParam)
+      allMessages.push(
+        retainConversationMessageSource(message, {
+          ...rest,
+          content: parts,
+        } as ChatCompletionMessageParam)
+      )
     }
   }
 

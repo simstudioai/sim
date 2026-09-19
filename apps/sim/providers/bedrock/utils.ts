@@ -2,11 +2,14 @@ import type {
   Message as BedrockMessage,
   ContentBlock,
   ConverseStreamOutput,
+  TokenUsage,
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
+import { toAnthropicModelUsage } from '@/providers/anthropic/usage'
 import { GEO_PROFILE_PREFIX_PATTERN, getBedrockBaseModelId } from '@/providers/bedrock/model-id'
+import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -17,18 +20,45 @@ export interface BedrockStreamUsage {
   outputTokens: number
   cacheReadInputTokens?: number
   cacheWriteInputTokens?: number
+  cacheDetails?: TokenUsage['cacheDetails']
 }
 
 /** Converse reports uncached input separately from cache reads and writes. */
-export function toBedrockConversationUsage(usage: Partial<BedrockStreamUsage> | undefined) {
-  return usage
-    ? {
-        input: usage.inputTokens ?? 0,
-        output: usage.outputTokens ?? 0,
-        ...(usage.cacheReadInputTokens ? { cacheRead: usage.cacheReadInputTokens } : {}),
-        ...(usage.cacheWriteInputTokens ? { cacheWrite: usage.cacheWriteInputTokens } : {}),
-      }
-    : undefined
+export function toBedrockConversationUsage(
+  usage: Partial<BedrockStreamUsage> | undefined,
+  model: string
+): ModelUsage | undefined {
+  if (!usage) return undefined
+  if (getBedrockBaseModelId(model).startsWith('anthropic.')) {
+    return toAnthropicModelUsage({
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cache_read_input_tokens: usage.cacheReadInputTokens,
+      cache_creation_input_tokens: usage.cacheWriteInputTokens,
+      ...(usage.cacheDetails
+        ? {
+            cache_creation: {
+              ephemeral_5m_input_tokens: usage.cacheDetails.reduce(
+                (total, detail) => total + (detail.ttl === '5m' ? (detail.inputTokens ?? 0) : 0),
+                0
+              ),
+              ephemeral_1h_input_tokens: usage.cacheDetails.reduce(
+                (total, detail) => total + (detail.ttl === '1h' ? (detail.inputTokens ?? 0) : 0),
+                0
+              ),
+            },
+          }
+        : {}),
+    })
+  }
+  return {
+    input: usage.inputTokens ?? 0,
+    output: usage.outputTokens ?? 0,
+    ...(usage.cacheReadInputTokens ? { cacheRead: usage.cacheReadInputTokens } : {}),
+    ...(usage.cacheWriteInputTokens
+      ? { cacheWrites: [{ tokens: usage.cacheWriteInputTokens, inputRateMultiplier: 1 }] }
+      : {}),
+  }
 }
 
 /**
@@ -67,6 +97,7 @@ export function createReadableStreamFromBedrockStream(
   let outputTokens = 0
   let cacheReadInputTokens: number | undefined
   let cacheWriteInputTokens: number | undefined
+  let cacheDetails: TokenUsage['cacheDetails']
   let cancelled = false
   let streamIterator: AsyncIterator<ConverseStreamOutput> | undefined
 
@@ -110,6 +141,7 @@ export function createReadableStreamFromBedrockStream(
             outputTokens = event.metadata.usage.outputTokens ?? 0
             cacheReadInputTokens = event.metadata.usage.cacheReadInputTokens
             cacheWriteInputTokens = event.metadata.usage.cacheWriteInputTokens
+            cacheDetails = event.metadata.usage.cacheDetails
           }
         }
 
@@ -141,6 +173,7 @@ export function createReadableStreamFromBedrockStream(
               outputTokens,
               ...(cacheReadInputTokens ? { cacheReadInputTokens } : {}),
               ...(cacheWriteInputTokens ? { cacheWriteInputTokens } : {}),
+              ...(cacheDetails ? { cacheDetails } : {}),
             },
             {
               role: 'assistant',

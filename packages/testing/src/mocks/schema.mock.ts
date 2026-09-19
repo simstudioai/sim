@@ -848,6 +848,7 @@ export const schemaMock = {
     key: 'memory.key',
     data: 'memory.data',
     storageVersion: 'memory.storageVersion',
+    encryptedContextSummary: 'memory.encryptedContextSummary',
     secretProvenanceVersion: 'memory.secretProvenanceVersion',
     createdAt: 'memory.createdAt',
     updatedAt: 'memory.updatedAt',

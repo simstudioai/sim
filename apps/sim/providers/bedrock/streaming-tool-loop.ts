@@ -15,6 +15,7 @@ import {
   type ConversationRole,
   ConverseStreamCommand,
   type SystemContentBlock,
+  type TokenUsage,
   type Tool,
   type ToolConfiguration,
   type ToolResultBlock,
@@ -97,6 +98,7 @@ async function drainBedrockTurn(
   outputTokens: number
   cacheReadInputTokens?: number
   cacheWriteInputTokens?: number
+  cacheDetails?: TokenUsage['cacheDetails']
   stopReason?: string
 }> {
   let text = ''
@@ -111,6 +113,7 @@ async function drainBedrockTurn(
   let outputTokens = 0
   let cacheReadInputTokens: number | undefined
   let cacheWriteInputTokens: number | undefined
+  let cacheDetails: TokenUsage['cacheDetails']
   let stopReason: string | undefined
 
   for await (const event of stream) {
@@ -172,6 +175,7 @@ async function drainBedrockTurn(
       outputTokens = event.metadata.usage.outputTokens ?? outputTokens
       cacheReadInputTokens = event.metadata.usage.cacheReadInputTokens
       cacheWriteInputTokens = event.metadata.usage.cacheWriteInputTokens
+      cacheDetails = event.metadata.usage.cacheDetails
       continue
     }
 
@@ -217,6 +221,7 @@ async function drainBedrockTurn(
     outputTokens,
     cacheReadInputTokens,
     cacheWriteInputTokens,
+    cacheDetails,
     stopReason,
   }
 }
@@ -413,7 +418,7 @@ export function createBedrockStreamingToolLoopStream(
             request,
             'bedrock',
             assistantMessage,
-            toBedrockConversationUsage(drained),
+            toBedrockConversationUsage(drained, request.model),
             { requestHistory: currentMessages }
           )
 

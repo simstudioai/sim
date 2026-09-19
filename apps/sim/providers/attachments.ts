@@ -12,7 +12,10 @@ import {
   resolveFileType,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
-import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import {
   getProviderFileAttachment,
   INLINE_ATTACHMENT_MAX_BYTES,
@@ -823,7 +826,7 @@ export function formatMessagesForProvider(
   return messages.map((message) => {
     const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
     if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
-      message = { ...message, ...nativeMessage }
+      message = retainConversationMessageSource(message, { ...message, ...nativeMessage })
     }
     if (!message.files?.length || (message.role !== 'user' && message.role !== 'assistant')) {
       return message as ProviderFormattedMessage
@@ -831,7 +834,7 @@ export function formatMessagesForProvider(
 
     if (provider === 'openrouter') {
       const { files: _omit, ...rest } = message
-      return {
+      return retainConversationMessageSource(message, {
         ...rest,
         content: buildOpenRouterMessageContent(
           message.content,
@@ -839,15 +842,15 @@ export function formatMessagesForProvider(
           providerId,
           projectFilename
         ) as string | Array<Record<string, unknown>>,
-      }
+      })
     }
 
     const { files: _omit, ...rest } = message
-    return {
+    return retainConversationMessageSource(message, {
       ...rest,
       content: buildOpenAICompatibleChatContent(message.content, message.files, providerId) as
         | string
         | Array<Record<string, unknown>>,
-    }
+    })
   })
 }

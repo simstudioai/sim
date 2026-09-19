@@ -1,5 +1,5 @@
 import { loggerMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDecryptSecret, mockRedactObjectStrings } = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
@@ -14,6 +14,7 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
   redactObjectStrings: mockRedactObjectStrings,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
 import { MEMORY } from '@/lib/memory/constants'
@@ -56,6 +57,47 @@ describe('Memory', () => {
       decrypted: `decrypted:${encryptedValue}`,
     }))
     memoryService = new Memory()
+  })
+
+  describe('optional durable storage', () => {
+    const ctx = { workspaceId: 'workspace-1' } as ExecutionContext
+    const inputs = { memoryType: 'conversation' as const, conversationId: 'conversation-1' }
+
+    afterEach(() => vi.restoreAllMocks())
+
+    function rejectRead(error: Error) {
+      vi.spyOn(
+        memoryService as unknown as { fetchMemory: () => Promise<unknown> },
+        'fetchMemory'
+      ).mockRejectedValue(error)
+    }
+
+    it.each(['ECONNREFUSED', '42P01', '23514'])(
+      'degrades rich history on storage failure %s while preserving ordinary read errors',
+      async (code) => {
+        const error = Object.assign(new Error('Storage unavailable'), { code })
+        rejectRead(error)
+        await expect(
+          memoryService.fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
+        ).resolves.toEqual([])
+        await expect(memoryService.fetchMemoryMessages(ctx, inputs)).rejects.toBe(error)
+        expect(mockMemoryLogger.warn).toHaveBeenCalledWith(
+          'Agent durable memory read is unavailable',
+          { workspaceId: 'workspace-1' }
+        )
+      }
+    )
+
+    it.each(['forbidden', 'unauthorized', 'validation'] as const)(
+      'propagates application %s failures even for optional rich history',
+      async (code) => {
+        const error = new OrchestrationError(code, 'Memory access refused')
+        rejectRead(error)
+        await expect(
+          memoryService.fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
+        ).rejects.toBe(error)
+      }
+    )
   })
 
   describe('message window', () => {

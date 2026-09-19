@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   AgentContextLimitError,
+  type ConversationContextGroup,
   getConversationHistoryTokenBudget,
   selectConversationContextGroups,
 } from '@/lib/memory/context-policy'
@@ -61,17 +62,33 @@ describe('Agent context selection', () => {
     ).toEqual(['native prefix'])
   })
 
-  it('refuses an oversized required request before generation without marking it retryable', () => {
-    try {
-      selectConversationContextGroups(
-        [{ value: 'required batch', tokens: 30_000, required: true }],
+  it('drops optional history instead of refusing required context above the estimated capacity', () => {
+    const required = Object.freeze([{ id: 'call' }, { id: 'result' }])
+    const groups: ConversationContextGroup<string | typeof required>[] = [
+      { value: 'old history', tokens: 1000 },
+      { value: 'summary', tokens: 100, summary: true },
+      { value: required, tokens: 30_000, required: true },
+    ]
+    expect(getConversationHistoryTokenBudget(groups, budget)).toBe(0)
+    expect(selectConversationContextGroups(groups, budget)).toEqual([required])
+    expect(selectConversationContextGroups(groups, budget)[0]).toBe(required)
+  })
+
+  it('reserves zero optional tokens when fixed input and output estimates exceed model capacity', () => {
+    expect(getConversationHistoryTokenBudget([], { ...budget, fixedTokens: 40_000 })).toBe(0)
+    expect(getConversationHistoryTokenBudget([], { ...budget, outputTokens: 40_000 })).toBe(0)
+  })
+
+  it('refuses non-finite accumulated estimates rather than using an invalid budget', () => {
+    expect(() =>
+      getConversationHistoryTokenBudget(
+        [
+          { value: 'first', tokens: Number.MAX_VALUE, required: true },
+          { value: 'second', tokens: Number.MAX_VALUE, required: true },
+        ],
         budget
       )
-      expect.fail('Expected context refusal')
-    } catch (error) {
-      expect(error).toBeInstanceOf(AgentContextLimitError)
-      expect(error).toMatchObject({ retryable: false })
-    }
+    ).toThrow(AgentContextLimitError)
   })
 
   it('permits an empty optional history budget without dropping the current request', () => {

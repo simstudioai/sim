@@ -39,6 +39,52 @@ describe('portable execution records', () => {
     expect(record.content).not.toContain('private-binding')
   })
 
+  it('retains legacy function-call identity, arguments and results', () => {
+    const record = renderConversationExecutionRecord([
+      {
+        role: 'assistant',
+        content: null,
+        function_call: { name: 'lookup', arguments: '{"id":1}' },
+      },
+      { role: 'function', name: 'lookup', content: '{"found":true}' },
+    ])
+    expect(JSON.parse(record.content!).messages).toEqual([
+      { role: 'assistant', content: null, functionCall: { name: 'lookup', arguments: '{"id":1}' } },
+      { role: 'function', name: 'lookup', content: '{"found":true}' },
+    ])
+  })
+
+  it.each([
+    { messages: [{ role: 'tool' as const, content: 'x'.repeat(513) }] },
+    {
+      messages: [
+        {
+          role: 'assistant' as const,
+          content: null,
+          function_call: { name: 'lookup', arguments: 'x'.repeat(257) },
+        },
+      ],
+    },
+    { messages: Array.from({ length: 22 }, () => ({ role: 'tool' as const, content: 'ok' })) },
+    {
+      messages: [
+        {
+          role: 'assistant' as const,
+          content: null,
+          tool_calls: Array.from({ length: 21 }, (_, id) => ({
+            id: String(id),
+            type: 'function' as const,
+            function: { name: 'lookup', arguments: '{}' },
+          })),
+        },
+      ],
+    },
+  ])('discloses field and slice shortening even when the final record fits', ({ messages }) => {
+    const record = renderConversationExecutionRecord(messages, 10000)
+    expect(record.content!.length).toBeLessThan(10000)
+    expect(JSON.parse(record.content!).notice).toBe('execution record shortened')
+  })
+
   it('uses the same bounded format for protocol and context-size constraints', () => {
     const messages: Message[] = [{ role: 'tool', content: 'x'.repeat(10000) }]
     const record = renderConversationExecutionRecord(messages, 256)

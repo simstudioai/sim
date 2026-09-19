@@ -11,6 +11,7 @@ import { generateToolUseId } from '@/providers/bedrock/utils'
 import {
   getNativeConversationMessage,
   getNativeConversationPrefixHash,
+  retainConversationMessageSource,
 } from '@/providers/conversation-metadata'
 import { getConversationPrefixHash } from '@/providers/conversation-prefix'
 import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -27,6 +28,7 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
   if (request.context) messages.push({ role: 'user', content: [{ text: request.context }] })
 
   const sourceMessages = request.messages ?? []
+  let pendingLegacyCall: { id: string; name: string } | undefined
   for (let index = 0; index < sourceMessages.length; index++) {
     const message = sourceMessages[index]
     if (message.role === 'system') {
@@ -53,19 +55,29 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
         })
         continue
       }
-      messages.push({
-        role: nativeMessage.role,
-        content: (nativeMessage.content as ContentBlock[]).filter(
-          (block) => !('text' in block) || Boolean(block.text?.trim())
-        ),
-      })
+      messages.push(
+        retainConversationMessageSource(message, {
+          role: nativeMessage.role,
+          content: (nativeMessage.content as ContentBlock[]).filter(
+            (block) => !('text' in block) || Boolean(block.text?.trim())
+          ),
+        })
+      )
       continue
     }
 
     if (message.role === 'function' || message.role === 'tool') {
+      let toolUseId = message.tool_call_id || message.name || generateToolUseId('tool')
+      if (message.role === 'function') {
+        if (!pendingLegacyCall || pendingLegacyCall.name !== message.name) {
+          throw new Error('Bedrock function result has no matching legacy function call')
+        }
+        toolUseId = pendingLegacyCall.id
+        pendingLegacyCall = undefined
+      }
       const block: ContentBlock = {
         toolResult: {
-          toolUseId: message.tool_call_id || message.name || generateToolUseId('tool'),
+          toolUseId,
           content: [{ text: message.content ?? '' }],
         },
       }
@@ -89,11 +101,14 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
       (message.function_call
         ? [
             {
-              id: generateToolUseId(message.function_call.name),
+              id: `legacy-function-call-${index}`,
               function: message.function_call,
             },
           ]
         : [])
+    if (!message.tool_calls && message.function_call) {
+      pendingLegacyCall = { id: calls[0].id, name: message.function_call.name }
+    }
     for (const call of calls) {
       content.push({
         toolUse: {
@@ -106,7 +121,12 @@ export function convertBedrockRequestHistory(request: ProviderRequest): {
         },
       })
     }
-    messages.push({ role: message.role === 'assistant' ? 'assistant' : 'user', content })
+    messages.push(
+      retainConversationMessageSource(message, {
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content,
+      })
+    )
   }
 
   return { messages, systemContent }

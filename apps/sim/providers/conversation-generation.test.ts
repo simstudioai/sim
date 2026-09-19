@@ -1,4 +1,5 @@
 /** @vitest-environment node */
+import { isRecordLike } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import {
@@ -8,6 +9,7 @@ import {
   inheritConversationGenerationContext,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
+import { retainConversationMessageSource } from '@/providers/conversation-metadata'
 import type { ProviderRequest } from '@/providers/types'
 
 const state = vi.hoisted(() => ({ enabled: true, historyTokens: 0 }))
@@ -157,6 +159,9 @@ function request(model = 'large'): ProviderRequest {
     messages: [{ role: 'user', content: 'Complete the current task' }],
   }
   bindConversationGenerationPrompt(input, input.messages![0])
+  for (const fixture of fixtures) {
+    retainConversationMessageSource(input.messages![0], fixture.prompt as object)
+  }
   return input
 }
 
@@ -224,29 +229,70 @@ describe('provider generation context boundary', () => {
   })
 
   it.each(fixtures)(
-    'fails an oversized required $protocol exchange without changing native state',
+    'sends required $protocol state intact when fixed-input estimates exceed the model capacity',
     async (fixture) => {
       const input = [fixture.prompt, ...fixture.batch]
       const payload = { [fixture.key]: input, tools: [{ description: 'x'.repeat(3500) }] }
       const original = JSON.stringify(payload)
-      await expect(
-        prepareConversationGeneration(request(), fixture.protocol, payload)
-      ).rejects.toMatchObject({
-        retryable: false,
-        message: expect.stringContaining('exceed the model context budget'),
-      })
+      expect(await prepareConversationGeneration(request(), fixture.protocol, payload)).toBe(
+        payload
+      )
       expect(JSON.stringify(payload)).toBe(original)
     }
   )
 
-  it('uses the fallback model capacity and the actual provider output limit', async () => {
+  it.each(fixtures)(
+    'drops optional history without refusing a large parallel $protocol result batch',
+    async (fixture) => {
+      state.historyTokens = 16_000
+      const largeResult = 'large tool result '.repeat(1000)
+      const expandResults = (value: unknown): unknown => {
+        if (value === 'outcome') return largeResult
+        if (Array.isArray(value)) return value.map(expandResults)
+        if (isRecordLike(value))
+          return Object.fromEntries(
+            Object.entries(value).map(([key, entry]) => [
+              key,
+              key === 'outcome' ? largeResult : expandResults(entry),
+            ])
+          )
+        return value
+      }
+      const batch = fixture.batch.map(expandResults)
+      const prefix = oldPrompt(fixture)
+      const optional = nativeText(fixture, 'older optional history')
+      const tail = nativeText(fixture, 'Continue from the completed tool results')
+      const input = [prefix, fixture.prompt, ...batch, optional, tail]
+      const originalBatch = JSON.stringify(batch)
+      const payload = { [fixture.key]: input }
+      await expect(
+        prepareConversationGeneration(request('small'), fixture.protocol, payload)
+      ).resolves.toBe(payload)
+      expect(input).toEqual([
+        ...(fixture.prefixBound ? [prefix] : []),
+        fixture.prompt,
+        ...batch,
+        tail,
+      ])
+      expect(input).not.toContain(optional)
+      expect(JSON.stringify(batch)).toBe(originalBatch)
+      for (const member of batch) expect(input).toContain(member)
+    }
+  )
+
+  it('uses smaller fallback capacity and its output reserve to omit optional history', async () => {
+    state.historyTokens = 2000
     const fixture = fixtures[0]
-    const large = { messages: [fixture.prompt, ...fixture.batch], max_completion_tokens: 100 }
+    const prior = nativeText(fixture, 'optional'.repeat(25))
+    const large = {
+      messages: [prior, fixture.prompt, ...fixture.batch],
+      max_completion_tokens: 100,
+    }
     await prepareConversationGeneration(request(), fixture.protocol, large)
+    expect(large.messages).toContain(prior)
     const fallback = { ...large, messages: [...large.messages], max_completion_tokens: 700 }
-    await expect(
-      prepareConversationGeneration(request('small'), fixture.protocol, fallback)
-    ).rejects.toThrow('exceed the model context budget')
+    await prepareConversationGeneration(request('small'), fixture.protocol, fallback)
+    expect(fallback.messages).toEqual([fixture.prompt, ...fixture.batch])
   })
 
   it('reapplies the history target after every new tool turn', async () => {
@@ -386,17 +432,21 @@ describe('provider generation context boundary', () => {
     expect(messages).toEqual([prompt])
   })
 
-  it('requires Bedrock signed reasoning to retain its entire preceding native prefix', async () => {
+  it('retains the exact Bedrock signed prefix even when its estimate exceeds model capacity', async () => {
     const fixture = fixtures[4]
     const prefix = { role: 'user', content: [{ text: 'x'.repeat(3100) }] }
-    const payload = { messages: [prefix, fixture.prompt, ...fixture.batch] }
-    await expect(
-      prepareConversationGeneration(request(), fixture.protocol, payload)
-    ).rejects.toThrow('exceed the model context budget')
-    expect(payload.messages[0]).toBe(prefix)
+    const messages = [prefix, fixture.prompt, ...fixture.batch]
+    const original = JSON.stringify(messages)
+    const payload = { messages }
+    await expect(prepareConversationGeneration(request(), fixture.protocol, payload)).resolves.toBe(
+      payload
+    )
+    expect(JSON.stringify(messages)).toBe(original)
+    expect(messages[0]).toBe(prefix)
   })
 
-  it('accounts for remote file bytes even when the wire carries a short provider file id', async () => {
+  it('reserves remote file estimates by dropping optional history while preserving the attached prompt', async () => {
+    state.historyTokens = 2000
     const input = request()
     input.messages![0].files = [
       {
@@ -409,19 +459,17 @@ describe('provider generation context boundary', () => {
         providerFileId: 'provider-file',
       },
     ]
-    await expect(
-      prepareConversationGeneration(input, 'responses', {
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_text', text: 'Complete the current task' },
-              { type: 'input_file', file_id: 'provider-file' },
-            ],
-          },
-        ],
-      })
-    ).rejects.toThrow('exceed the model context budget')
+    const prompt = retainConversationMessageSource(input.messages![0], {
+      role: 'user',
+      content: [
+        { type: 'input_text', text: 'Complete the current task' },
+        { type: 'input_file', file_id: 'provider-file' },
+      ],
+    })
+    const payload = { input: [nativeText(fixtures[1], 'optional history'), prompt] }
+    await prepareConversationGeneration(input, 'responses', payload)
+    expect(payload.input).toEqual([prompt])
+    expect(payload.input[0]).toBe(prompt)
   })
 
   it('checks cancellation before processing a memory generation', async () => {
@@ -444,12 +492,39 @@ describe('provider generation context boundary', () => {
     expect(messages).toEqual([fixtures[0].prompt, receipt])
   })
 
+  it.each(fixtures)(
+    'pins the original $protocol prompt when later user content repeats it',
+    async (fixture) => {
+      const input = request()
+      const earlier = structuredClone(fixture.prompt)
+      const later = structuredClone(fixture.prompt)
+      const tail = nativeText(fixture, 'continue from the recorded tools')
+      const messages = [earlier, fixture.prompt, later, tail]
+      await prepareConversationGeneration(input, fixture.protocol, { [fixture.key]: messages })
+      expect(messages).toEqual([fixture.prompt, tail])
+      expect(messages[0]).toBe(fixture.prompt)
+      expect(messages).not.toContain(earlier)
+      expect(messages).not.toContain(later)
+    }
+  )
+
   it('does not confuse a portable tool receipt quoting the prompt with the prompt itself', async () => {
     const input = request()
     const receipt = { role: 'user', content: '{"toolArguments":"Complete the current task"}' }
     const payload = { messages: [fixtures[0].prompt, receipt] }
     await prepareConversationGeneration(input, 'chat-completions', payload)
     expect(payload.messages).toEqual([fixtures[0].prompt, receipt])
+  })
+
+  it('refuses a converted request that lost the bound prompt identity', async () => {
+    const input = request()
+    const messages = [structuredClone(fixtures[0].prompt)]
+    await expect(
+      prepareConversationGeneration(input, 'chat-completions', { messages })
+    ).rejects.toMatchObject({
+      retryable: false,
+      message: 'Agent context could not preserve the current user prompt.',
+    })
   })
 
   it('preserves a file-only current prompt ahead of a later portable receipt', async () => {
@@ -466,7 +541,10 @@ describe('provider generation context boundary', () => {
         providerFileId: 'file',
       },
     ]
-    const prompt = { role: 'user', content: [{ type: 'input_file', file_id: 'file' }] }
+    const prompt = retainConversationMessageSource(input.messages![0], {
+      role: 'user',
+      content: [{ type: 'input_file', file_id: 'file' }],
+    })
     const receipt = { role: 'user', content: 'Prior execution receipt' }
     const payload = { input: [prompt, receipt] }
     await prepareConversationGeneration(input, 'responses', payload)

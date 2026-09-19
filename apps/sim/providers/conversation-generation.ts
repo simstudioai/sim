@@ -16,6 +16,7 @@ import {
   bindConversationRequestContext,
   getConversationRequestContext,
 } from '@/providers/conversation-history'
+import { getConversationMessageSource } from '@/providers/conversation-metadata'
 import { getConversationModelLimits } from '@/providers/conversation-model'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderRequest } from '@/providers/types'
@@ -27,7 +28,6 @@ interface GenerationItem {
   calls: string[]
   results: string[]
   prefixBound: boolean
-  hasAttachments: boolean
 }
 
 interface GenerationGroup {
@@ -36,7 +36,6 @@ interface GenerationGroup {
   texts: string[]
   toolExchange: boolean
   prefixBound: boolean
-  hasAttachments: boolean
 }
 
 type ConversationGenerationCompactor = (options: {
@@ -136,29 +135,11 @@ function describeGenerationItem(value: unknown, protocol: ConversationProtocol):
     calls: [],
     results: [],
     prefixBound: false,
-    hasAttachments: false,
   }
   const contentParts = records(protocol === 'gemini' ? value.parts : value.content)
   for (const part of contentParts) {
     if (typeof part.text === 'string') item.texts.push(part.text)
   }
-  item.hasAttachments = contentParts.some(
-    (part) =>
-      [
-        'input_image',
-        'input_file',
-        'input_audio',
-        'image_url',
-        'file',
-        'image',
-        'document',
-      ].includes(String(part.type)) ||
-      'inlineData' in part ||
-      'fileData' in part ||
-      'image' in part ||
-      'document' in part ||
-      'video' in part
-  )
   if (protocol === 'responses') {
     if (value.type === 'function_call') {
       item.role = 'assistant'
@@ -243,7 +224,6 @@ function groupGenerationItems(
       texts: members.flatMap((member) => member.texts),
       toolExchange,
       prefixBound: members.some((member) => member.prefixBound),
-      hasAttachments: members.some((member) => member.hasAttachments),
     })
   }
   return groups
@@ -281,8 +261,8 @@ function nativeSummaryMessage(summary: Message, protocol: ConversationProtocol):
 
 /**
  * Runs immediately before every provider generation, including tool-loop turns and synthesis.
- * Native objects retain their identity and signatures. A required exchange that cannot fit
- * fails before the SDK send; it is never shortened into a malformed or misleading transcript.
+ * Native objects retain their identity and signatures. Estimates limit optional history;
+ * required exchanges remain intact and the provider enforces its actual context capacity.
  */
 export async function prepareConversationGeneration<T>(
   request: ProviderRequest,
@@ -310,11 +290,12 @@ export async function prepareConversationGeneration<T>(
     if (
       group.role === 'user' &&
       !group.toolExchange &&
-      (currentPrompt?.content
-        ? group.texts.includes(currentPrompt.content)
-        : currentPrompt?.files?.length
-          ? group.hasAttachments
-          : true)
+      currentPrompt &&
+      group.items.some(
+        (item) =>
+          isRecordLike(item) &&
+          getConversationMessageSource(item) === getConversationMessageSource(currentPrompt)
+      )
     ) {
       promptIndex = index
     }

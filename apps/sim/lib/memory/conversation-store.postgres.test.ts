@@ -62,6 +62,8 @@ import {
 } from '@/lib/memory/application/use-cases'
 import {
   type AgentMemoryTurnIdentity,
+  appendAgentMemoryMessage,
+  appendMemoryMessages,
   openAgentMemoryTurn,
   readConversationItems,
   readPlainMemoryTail,
@@ -677,6 +679,39 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     ).rejects.toThrow('Memory content could not be safely projected')
     expect((await readPlainMemoryTail(turn.memoryId, identity.workspaceId)).messages).toEqual([])
   })
+  it.each(['message', 'ordinary', 'checkpoint'] as const)(
+    'rejects oversized %s items without advancing the checkpoint or appending history',
+    async (writer) => {
+      const turn = await openAgentMemoryTurn(identity)
+      const data = { role: 'user', content: 'x'.repeat(1024 * 1024) }
+      const attempt =
+        writer === 'message'
+          ? appendAgentMemoryMessage({ ...identity, ...turn, appendKey: 'oversized', data })
+          : writer === 'ordinary'
+            ? appendMemoryMessages({
+                workspaceId: identity.workspaceId,
+                key: identity.conversationId,
+                messages: [data],
+              })
+            : saveAgentMemoryTurn({
+                ...identity,
+                ...turn,
+                encryptedState: 'must-not-commit',
+                expectedRevision: 0,
+                items: [{ appendKey: 'oversized', kind: 'exchange', data }],
+              })
+      await expect(attempt).rejects.toMatchObject({ code: 'payload_too_large' })
+      expect(
+        await connection!`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
+      ).toEqual([])
+      expect(
+        (
+          await connection!`SELECT revision, encrypted_state FROM agent_memory_turn WHERE id = ${turn.turnId}`
+        )[0]
+      ).toEqual({ revision: 0, encrypted_state: null })
+    }
+  )
+
   it('rejects an oversized compatibility append before writing any new message rows', async () => {
     const turn = await openAgentMemoryTurn(identity)
     await expect(

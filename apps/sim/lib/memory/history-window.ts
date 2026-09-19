@@ -1,6 +1,6 @@
 import { MEMORY } from '@/lib/memory/constants'
 import { getConversationTokenCount } from '@/lib/memory/context-tokens'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { getConversationModelLimits } from '@/providers/conversation-model'
 import type { Message } from '@/providers/types'
 
 const exchangeGroups = new WeakSet<object>()
@@ -76,16 +76,10 @@ export function selectConversationContextWindow<T extends Message>(
   groups?: T[][]
 ): T[] {
   if (!model) return messages
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    if (provider.contextInformationAvailable === false) continue
-    const definition = provider.models.find((candidate) => candidate.id === model)
-    if (definition?.contextWindow)
-      return selectConversationTokenWindow(
-        messages,
-        Math.floor(definition.contextWindow * MEMORY.CONTEXT_WINDOW_UTILIZATION),
-        model,
-        groups
-      )
-  }
-  return messages
+  return selectConversationTokenWindow(
+    messages,
+    Math.floor(getConversationModelLimits(model).contextWindow * MEMORY.CONTEXT_WINDOW_UTILIZATION),
+    model,
+    groups
+  )
 }

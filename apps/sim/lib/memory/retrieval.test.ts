@@ -168,6 +168,19 @@ describe('bounded model memory retrieval', () => {
     expect(result.text).not.toContain('success')
   })
 
+  it('keeps a search excerpt start on a code-point boundary', async () => {
+    mocks.artifact.mockResolvedValue(
+      resultArtifact({ text: `${'x'.repeat(200)}😀${'y'.repeat(127)}needle` })
+    )
+    const result = await retrieveMemory({
+      ...input,
+      arguments: { ...input.arguments, query: 'needle' },
+    })
+    expect(result.text.startsWith('😀')).toBe(true)
+    expect(result.text).toContain('needle')
+    expect(Buffer.from(result.text, 'utf8').toString('utf8')).toBe(result.text)
+  })
+
   it('binds cursors to original owner, target, query and current projected content', async () => {
     mocks.artifact.mockResolvedValue(resultArtifact({ text: 'x'.repeat(7000) }))
     const first = await retrieveMemory(input)

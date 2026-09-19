@@ -4,7 +4,9 @@ import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  bindConversationRequestContext,
   captureProviderConversationStep,
+  getConversationRequestContext,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
@@ -381,6 +383,8 @@ export function createOpenAIResponsesStreamingToolLoopStream(
     ...request,
     abortSignal: loopAbortController.signal,
   }
+  const conversationContext = getConversationRequestContext(request)
+  if (conversationContext) bindConversationRequestContext(loopRequest, conversationContext)
 
   return new ReadableStream<AgentStreamEvent>({
     start(controller) {

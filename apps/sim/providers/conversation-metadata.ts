@@ -4,8 +4,20 @@ import type {
 } from '@/lib/memory/conversation-types'
 import type { Message } from '@/providers/types'
 
+const messageSources = new WeakMap<object, object>()
+
 const nativeMessages = new WeakMap<object, NativeConversationMessage>()
 const encryptedMessages = new WeakMap<object, string>()
+
+/** Wire conversion keeps source identity private rather than inferring it from message text. */
+export function getConversationMessageSource(message: object): object {
+  return messageSources.get(message) ?? message
+}
+
+export function retainConversationMessageSource<T extends object>(source: object, target: T): T {
+  messageSources.set(target, getConversationMessageSource(source))
+  return target
+}
 
 export function setEncryptedConversationMessage(message: object, encrypted: string): void {
   encryptedMessages.set(message, encrypted)
@@ -54,6 +66,7 @@ export function retainCompatibleNativeConversationMessage(
 
 /** Message transforms preserve the binding without copying private data into enumerable fields. */
 export function copyNativeConversationMessage(source: Message, target: Message): void {
+  retainConversationMessageSource(source, target)
   const native = nativeMessages.get(source)
   if (native) nativeMessages.set(target, native)
   const encrypted = encryptedMessages.get(source)

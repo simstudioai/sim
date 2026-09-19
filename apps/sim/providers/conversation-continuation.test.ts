@@ -13,6 +13,7 @@ import { encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import {
   continuePendingConversationCalls,
+  groupConversationMessages,
   restoreConversationNativeMessages,
 } from '@/providers/conversation-continuation'
 import { getConfiguredConversationToolBinding } from '@/providers/conversation-history'
@@ -79,6 +80,18 @@ describe('durable conversation restoration and continuation', () => {
       },
     ],
   }
+
+  it('excludes incomplete and mismatched batches without fabricating historical outcomes', () => {
+    const input: Message = { role: 'user', content: 'original input' }
+    const final: Message = { role: 'assistant', content: 'completed response' }
+    const incomplete = toolGroup().slice(0, 1)
+    const mismatched = toolGroup()
+    mismatched[1].tool_call_id = 'unknown-call'
+    const complete = toolGroup('recorded terminal result')
+    expect(
+      groupConversationMessages([input, ...incomplete, ...mismatched, ...complete, final])
+    ).toEqual([[input], complete, [final]])
+  })
 
   it('records a known tool failure instead of repeatedly dispatching it on every continuation', async () => {
     const session = await pendingSession()

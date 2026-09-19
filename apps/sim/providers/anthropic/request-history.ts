@@ -1,6 +1,9 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { buildAnthropicMessageContent } from '@/providers/attachments'
-import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import type { Message } from '@/providers/types'
 
@@ -157,10 +160,12 @@ export function convertAnthropicRequestHistory({
     }
 
     if (content.length > 0) {
-      convertedMessages.push({
-        role: message.role === 'assistant' ? 'assistant' : 'user',
-        content,
-      })
+      convertedMessages.push(
+        retainConversationMessageSource(message, {
+          role: message.role === 'assistant' ? 'assistant' : 'user',
+          content,
+        })
+      )
     }
   })
 

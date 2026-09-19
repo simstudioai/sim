@@ -10,6 +10,7 @@ import {
   hashDurableSecretProvenanceValue,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import { MAX_RICH_MEMORY_PAGE_BYTES, PlainMemoryReadBudget } from '@/lib/memory/read-budget'
 import {
@@ -21,7 +22,7 @@ import {
 const MEMORY_ITEM_PAGE_SIZE = 100
 const MAX_TURN_ITEMS = 100
 const MAX_TURN_STATE_BYTES = 4 * 1024 * 1024
-const MAX_TURN_ITEM_BYTES = 1024 * 1024
+const MAX_MEMORY_ITEM_BYTES = 1024 * 1024
 
 export interface AgentMemoryTurnIdentity {
   workspaceId: string
@@ -308,10 +309,17 @@ async function appendConversationItemsInTx(
   const values: (typeof memoryItem.$inferInsert)[] = []
   for (const item of items) {
     if (!item.appendKey) throw new Error('Memory append identity is required')
-    const contentHash = hashDurableSecretProvenanceValue(item.data)
+    const encoded = stringifyBoundedMemoryJson(item.data, MAX_MEMORY_ITEM_BYTES)
+    if (encoded === undefined)
+      throw new OrchestrationError(
+        'payload_too_large',
+        'Memory item is too large or cannot be serialized'
+      )
+    const data: unknown = JSON.parse(encoded)
+    const contentHash = hashDurableSecretProvenanceValue(data)
     if (!contentHash) throw new Error('Memory item cannot be serialized')
     const provenance = item.provenance
-      ? await bindMemorySecretProvenanceToMessages([item.data], item.provenance)
+      ? await bindMemorySecretProvenanceToMessages([data], item.provenance)
       : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
     values.push({
       id: generateId(),
@@ -319,7 +327,7 @@ async function appendConversationItemsInTx(
       appendKey: item.turnId ? `${item.turnId}:${item.appendKey}` : item.appendKey,
       turnId: item.turnId,
       kind: item.kind,
-      data: item.data,
+      data,
       contentHash,
       provenanceStatus: provenance.status,
       provenanceEntries: provenance.status === 'exact' ? [...provenance.entries] : [],
@@ -675,10 +683,6 @@ export async function saveAgentMemoryTurn(
 ): Promise<{ revision: number }> {
   if (Buffer.byteLength(input.encryptedState, 'utf8') > MAX_TURN_STATE_BYTES)
     throw new Error('Agent memory checkpoint is too large')
-  for (const item of input.items ?? []) {
-    if (Buffer.byteLength(JSON.stringify(item.data), 'utf8') > MAX_TURN_ITEM_BYTES)
-      throw new Error('Agent memory item is too large')
-  }
   return db.transaction(async (tx) => {
     await lockMemoryConversationInTx(tx, input.workspaceId, input.conversationId)
     const [conversation] = await tx

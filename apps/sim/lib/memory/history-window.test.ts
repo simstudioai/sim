@@ -5,7 +5,15 @@ vi.mock('@/lib/tokenization/accurate', () => ({
   getAccurateTokenCount: (value: string) => value.length,
 }))
 vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: { test: { models: [{ id: 'small', contextWindow: 100 }] } },
+  PROVIDER_DEFINITIONS: {
+    test: {
+      models: [
+        { id: 'small', contextWindow: 100 },
+        { id: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0', contextWindow: 100 },
+      ],
+    },
+  },
+  getMaxOutputTokensForModel: () => 10,
 }))
 
 import {
@@ -65,6 +73,20 @@ describe('conversation history windows', () => {
     expect(selectConversationTokenWindow([...large, ...final], 100)).toEqual(final)
     expect(selectConversationTokenWindow([...final, ...large], 100)).toEqual(large)
     expect(selectConversationContextWindow([...large, ...final], 'small')).toEqual(final)
+  })
+
+  it.each(['SMALL', 'small-2026-09-19', 'bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0'])(
+    'uses normalized model limits for %s',
+    (model) => {
+      const groups = [user, exchange('batch'), final]
+      expect(selectConversationContextWindow(groups.flat(), model, groups)).toEqual(final)
+    }
+  )
+
+  it('uses the shared conservative limit for uncatalogued models', () => {
+    const old: Message[] = [{ role: 'user', content: 'x'.repeat(40_000) }]
+    expect(selectConversationContextWindow([...old, ...final], 'unknown')).toEqual(final)
+    expect(selectConversationContextWindow([...old, ...final])).toEqual([...old, ...final])
   })
 
   it('budgets call arguments and never retains half a parallel batch', () => {

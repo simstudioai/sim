@@ -17,6 +17,7 @@ import {
 import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
+  recordProviderConversationUsage,
 } from '@/providers/conversation-history'
 import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -574,6 +575,12 @@ export const groqProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
+          if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await recordProviderConversationUsage(
+              request,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,

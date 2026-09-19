@@ -6,6 +6,35 @@ import { getConversationPrefixHash } from '@/providers/conversation-prefix'
 import type { Message } from '@/providers/types'
 
 describe('convertBedrockRequestHistory', () => {
+  it('pairs repeated legacy function calls with stable and distinct result IDs', () => {
+    const request = {
+      model: 'bedrock/claude',
+      messages: [
+        { role: 'assistant', content: null, function_call: { name: 'lookup', arguments: '{}' } },
+        { role: 'function', name: 'lookup', content: 'First result' },
+        { role: 'assistant', content: null, function_call: { name: 'lookup', arguments: '{}' } },
+        { role: 'function', name: 'lookup', content: 'Second result' },
+      ] satisfies Message[],
+    }
+    const { messages } = convertBedrockRequestHistory(request)
+    const firstId = messages[0].content?.[0].toolUse?.toolUseId
+    const secondId = messages[2].content?.[0].toolUse?.toolUseId
+    expect(firstId).toBe('legacy-function-call-0')
+    expect(secondId).toBe('legacy-function-call-2')
+    expect(messages[1].content?.[0].toolResult?.toolUseId).toBe(firstId)
+    expect(messages[3].content?.[0].toolResult?.toolUseId).toBe(secondId)
+    expect(convertBedrockRequestHistory(request).messages).toEqual(messages)
+  })
+
+  it('rejects a legacy function result with no matching call instead of inventing an ID', () => {
+    expect(() =>
+      convertBedrockRequestHistory({
+        model: 'bedrock/claude',
+        messages: [{ role: 'function', name: 'lookup', content: 'orphan' }],
+      })
+    ).toThrow('no matching legacy function call')
+  })
+
   it('keeps parallel calls together and groups their results in the following user message', () => {
     const result = convertBedrockRequestHistory({
       model: 'bedrock/claude',

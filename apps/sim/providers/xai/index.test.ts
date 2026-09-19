@@ -3,7 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreate, mockExecuteProviderTool } = vi.hoisted(() => ({
+const { mockCreate, mockExecuteProviderTool, mockCapture, mockRecordUsage } = vi.hoisted(() => ({
+  mockRecordUsage: vi.fn(),
+  mockCapture: vi.fn(),
   mockCreate: vi.fn(),
   mockExecuteProviderTool: vi.fn(),
 }))
@@ -14,6 +16,13 @@ vi.mock('openai', () => ({
       chat = { completions: { create: mockCreate } }
     }
   ),
+}))
+
+vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationUsage: mockRecordUsage,
+  recordProviderConversationToolError: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
@@ -139,6 +148,55 @@ describe('xAIProvider.executeRequest', () => {
       modelResponse: { success: true, output: { ok: true } },
     })
   })
+
+  it.each([false, true])(
+    'keeps capped decisions unexecuted and accounts usage when synthesis failure is %s',
+    async (failsSynthesis) => {
+      let generated = 0
+      mockCreate.mockImplementation((payload) => {
+        const final = payload.tool_choice === 'none'
+        if (final && failsSynthesis) return Promise.reject(new Error('synthesis failed'))
+        return Promise.resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: final ? 'Tool limit reached' : null,
+                tool_calls: final
+                  ? []
+                  : [
+                      {
+                        id: `call-${++generated}`,
+                        type: 'function',
+                        function: { name: 'lookup', arguments: '{}' },
+                      },
+                    ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+        })
+      })
+      const result = run({ tools: [tool('lookup')] })
+      if (failsSynthesis) await expect(result).rejects.toThrow('synthesis failed')
+      else
+        await expect(result).resolves.toMatchObject({
+          tokens: { input: 110, output: 66, total: 176 },
+        })
+      expect(mockExecuteProviderTool).toHaveBeenCalledTimes(20)
+      expect(generated).toBe(21)
+      expect(mockRecordUsage).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+        input: 5,
+        output: 3,
+        cacheRead: 0,
+      })
+      const capturedCalls = mockCapture.mock.calls.flatMap(
+        ([, , message]) => message.tool_calls?.map((call: { id: string }) => call.id) ?? []
+      )
+      expect(capturedCalls).toEqual(Array.from({ length: 20 }, (_, index) => `call-${index + 1}`))
+      expect(capturedCalls).not.toContain('call-21')
+    }
+  )
 
   it('maps temperature and max_completion_tokens', async () => {
     await run({ temperature: 0.5, maxTokens: 256 })

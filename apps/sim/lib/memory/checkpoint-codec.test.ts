@@ -45,9 +45,18 @@ describe('private memory checkpoint encoding', () => {
 
   it('round-trips a large binary signature within the same byte budget', async () => {
     const bytes = new Uint8Array(1024 * 1024).fill(255)
-    expect(await decryptMemoryCheckpoint(await encryptMemoryCheckpoint({ bytes }))).toEqual({
-      bytes,
-    })
+    const restored = (await decryptMemoryCheckpoint(await encryptMemoryCheckpoint({ bytes }))) as {
+      bytes: Uint8Array
+    }
+    expect(restored).toEqual({ bytes: expect.any(Uint8Array) })
+    expect(restored.bytes.byteLength).toBe(bytes.byteLength)
+    expect(
+      Buffer.from(
+        restored.bytes.buffer,
+        restored.bytes.byteOffset,
+        restored.bytes.byteLength
+      ).equals(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength))
+    ).toBe(true)
   })
 
   it('encrypts private signatures and preserves binary state without interpreting user JSON', async () => {

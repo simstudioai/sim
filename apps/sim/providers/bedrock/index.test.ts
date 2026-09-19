@@ -107,6 +107,19 @@ describe('bedrockProvider credential handling', () => {
     messages: [{ role: 'user' as const, content: 'Hello' }],
   }
 
+  it('preserves system-only instructions while supplying the required user message', async () => {
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      messages: [{ role: 'system', content: 'Answer in French.' }],
+    })
+    expect(ConverseCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: [{ text: 'You are helpful.' }, { text: 'Answer in French.' }],
+        messages: [{ role: 'user', content: [{ text: 'Hello' }] }],
+      })
+    )
+  })
+
   it('throws when only bedrockAccessKeyId is provided', async () => {
     await expect(
       bedrockProvider.executeRequest({

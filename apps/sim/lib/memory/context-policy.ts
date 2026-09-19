@@ -20,14 +20,15 @@ export class AgentContextLimitError extends Error {
   readonly retryable = false
 
   constructor() {
-    super(
-      'The current Agent input and required tool exchange exceed the model context budget. Reduce the input, tool output, or output-token limit.'
-    )
+    super('The Agent context budget contains an invalid token limit or estimate.')
     this.name = 'AgentContextLimitError'
   }
 }
 
-/** One policy for canonical history and native wire groups; adapters own grouping and token costs. */
+/**
+ * Estimates bound optional history only; required current context remains intact for the provider.
+ * Adapters own grouping and token costs.
+ */
 export function getConversationHistoryTokenBudget<T>(
   groups: readonly ConversationContextGroup<T>[],
   options: ConversationContextBudget
@@ -53,9 +54,9 @@ export function getConversationHistoryTokenBudget<T>(
     if (!Number.isFinite(group.tokens) || group.tokens < 0) throw new AgentContextLimitError()
     available -= Math.ceil(group.tokens)
   }
-  if (available < 0) throw new AgentContextLimitError()
+  if (!Number.isFinite(available)) throw new AgentContextLimitError()
 
-  return Math.min(available, Math.floor(historyTokens))
+  return Math.min(Math.max(0, available), Math.floor(historyTokens))
 }
 
 /** Bounded summaries take priority within the same optional budget as the recent raw suffix. */

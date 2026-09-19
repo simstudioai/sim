@@ -17,7 +17,10 @@ import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
 import { captureProviderConversationStep } from '@/providers/conversation-history'
-import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { GeminiUsage } from '@/providers/gemini/types'
 import { splitGeminiUsage } from '@/providers/gemini/usage'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -165,7 +168,7 @@ export function convertToGeminiFormat(
           message.tool_calls?.forEach((call, index) => {
             if (functionCalls[index]) nativeCallIds.set(call.id, functionCalls[index].id)
           })
-          contents.push(nativeMessage as Content)
+          contents.push(retainConversationMessageSource(message, nativeMessage as Content))
           continue
         }
         const geminiRole = message.role === 'user' ? 'user' : 'model'
@@ -182,7 +185,7 @@ export function convertToGeminiFormat(
           parts.push(...functionCalls)
         }
         if (parts.length > 0) {
-          contents.push({ role: geminiRole, parts })
+          contents.push(retainConversationMessageSource(message, { role: geminiRole, parts }))
         }
       } else if (message.role === 'tool') {
         if (!message.name) {

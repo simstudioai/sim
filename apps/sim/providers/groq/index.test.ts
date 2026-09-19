@@ -9,12 +9,14 @@ const {
   mockCreate,
   mockExecuteTool,
   mockPrepareToolsWithUsageControl,
+  mockRecordUsage,
   mockCapture,
   mockRecordError,
 } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockExecuteTool: vi.fn(),
   mockPrepareToolsWithUsageControl: vi.fn(),
+  mockRecordUsage: vi.fn(),
   mockCapture: vi.fn(),
   mockRecordError: vi.fn(),
 }))
@@ -22,6 +24,7 @@ const {
 vi.mock('@/providers/conversation-history', () => ({
   getConversationRequestContext: () => undefined,
   captureProviderConversationStep: mockCapture,
+  recordProviderConversationUsage: mockRecordUsage,
   recordProviderConversationToolError: mockRecordError,
 }))
 
@@ -103,6 +106,64 @@ describe('groqProvider reasoning payload', () => {
       choices: [{ message: { content: 'ok', tool_calls: [] } }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
     })
+  })
+
+  it('does not admit tool decisions beyond the iteration limit into continuation', async () => {
+    mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+      tools,
+      toolChoice: 'auto',
+      forcedTools: [],
+      hasFilteredTools: false,
+    }))
+    mockExecuteTool.mockResolvedValue({ success: true, output: {} })
+    let generated = 0
+    mockCreate.mockImplementation((payload) => {
+      const final = false
+      return Promise.resolve({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: final ? 'Tool limit reached' : null,
+              tool_calls: final
+                ? []
+                : [
+                    {
+                      id: `call-${++generated}`,
+                      type: 'function',
+                      function: { name: 'lookup', arguments: '{}' },
+                    },
+                  ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+      })
+    })
+    await groqProvider.executeRequest(
+      request({
+        tools: [
+          {
+            id: 'lookup',
+            description: '',
+            params: {},
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      })
+    )
+    expect(mockExecuteTool).toHaveBeenCalledTimes(5)
+    expect(generated).toBe(6)
+    expect(mockRecordUsage).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      input: 5,
+      output: 3,
+      cacheRead: 0,
+    })
+    const capturedCalls = mockCapture.mock.calls.flatMap(
+      ([, , message]) => message.tool_calls?.map((call: { id: string }) => call.id) ?? []
+    )
+    expect(capturedCalls).toEqual(Array.from({ length: 5 }, (_, index) => `call-${index + 1}`))
+    expect(capturedCalls).not.toContain('call-6')
   })
 
   it('captures native calls before dispatch and captures the final answer', async () => {

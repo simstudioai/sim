@@ -192,6 +192,28 @@ describe('Agent invocation continuation', () => {
     expect(session.getFinalResponse()).toBeUndefined()
   })
 
+  it('preserves projected failure details without an artifact during continuation', async () => {
+    const session = new AgentTurnStateMachine({ save: async () => {} })
+    await session.captureStep(batch(['wire-1']))
+    await session.recordToolResult({
+      invocationId: session.getPendingCalls()[0].invocationId,
+      rawResponse: { success: false, output: { private: 'RAW_PRIVATE' }, error: 'PRIVATE_ERROR' },
+      modelResponse: {
+        success: false,
+        output: { status: 422, invalidFields: ['email'], success: true },
+        error: 'Invalid email',
+      },
+    })
+    const messages = session.getMessages('anthropic', 'other-model', 'other-binding')
+    expect(JSON.parse(messages[1].content!)).toEqual({
+      status: 422,
+      invalidFields: ['email'],
+      success: false,
+      error: 'Invalid email',
+    })
+    expect(JSON.stringify(messages)).not.toContain('PRIVATE')
+  })
+
   it('keeps an artifact receipt discoverable when a recorded tool failed', async () => {
     const session = new AgentTurnStateMachine({ save: async () => {} })
     await session.captureStep(batch(['wire-1']))

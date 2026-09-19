@@ -26,6 +26,7 @@ import {
   installStreamingCostPolicy,
   type ModelCost,
   type ModelCostPolicy,
+  notBilledCost,
   resolveModelCostPolicy,
   withoutToolCost,
 } from '@/providers/cost-policy'
@@ -80,14 +81,14 @@ function addPriorConversationUsage(
       (prior.tokens.cacheRead ?? 0) +
       (prior.tokens.cacheWrite ?? 0),
   }
-  if (response.cost)
-    response.cost = {
-      ...response.cost,
-      input: response.cost.input + prior.cost.input,
-      output: response.cost.output + prior.cost.output,
-      toolCost: (response.cost.toolCost ?? 0) + prior.cost.toolCost,
-      total: response.cost.total + prior.cost.total,
-    }
+  const cost = response.cost ?? notBilledCost()
+  response.cost = {
+    ...cost,
+    input: cost.input + prior.cost.input,
+    output: cost.output + prior.cost.output,
+    toolCost: (cost.toolCost ?? 0) + prior.cost.toolCost,
+    total: cost.total + prior.cost.total,
+  }
 }
 
 async function prepareProviderFileAttachments(request: ProviderRequest): Promise<ProviderRequest> {

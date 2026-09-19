@@ -92,7 +92,7 @@ function copyMemoryMessageMetadata(source: Message, target: Message): void {
   if (appendKey) messageAppendKeys.set(target, appendKey)
 }
 
-/** Only storage availability/conflict failures degrade; identity and projection failures propagate. */
+/** Optional durability tolerates storage-engine failures; application identity and projection failures propagate. */
 function isOptionalMemoryStorageFailure(error: unknown): boolean {
   if (error instanceof OrchestrationError)
     return error.code === 'not_found' || error.code === 'conflict' || error.code === 'internal'

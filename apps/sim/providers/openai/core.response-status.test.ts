@@ -35,6 +35,7 @@ const { mockExecuteProviderTool, mockCaptureStep, mockRecordToolError, mockConve
   }))
 
 vi.mock('@/providers/conversation-history', () => ({
+  bindConversationRequestContext: vi.fn(),
   getConversationRequestContext: mockConversationContext,
   isProviderConversationCaptureEnabled: vi.fn().mockReturnValue(false),
   captureProviderConversationStep: mockCaptureStep,
@@ -108,14 +109,34 @@ describe('OpenAI non-streaming response status handling', () => {
     tools: [{ id: 'exa_search', name: 'exa_search', description: 'search', params: {} }],
   }
 
-  it('refuses oversized required context before sending and preserves its nonretryable classification', async () => {
-    mockConversationContext.mockReturnValue({ agentConversation: {} })
+  it('refuses invalid context configuration before sending and preserves its nonretryable classification', async () => {
+    mockConversationContext.mockReturnValue({
+      agentConversation: {},
+      agentMemoryContext: { historyTokens: Number.NaN },
+    })
     const fetchMock = vi.fn()
-    await expect(run(fetchMock, { maxTokens: 10_000_000 })).rejects.toMatchObject({
+    await expect(run(fetchMock)).rejects.toMatchObject({
       name: 'AgentContextLimitError',
       retryable: false,
     })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('lets an estimated oversized request reach the provider and propagates its actual context rejection', async () => {
+    mockConversationContext.mockReturnValue({ agentConversation: {} })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: async () =>
+        JSON.stringify({
+          error: { message: 'Provider context window exceeded', code: 'context_length_exceeded' },
+        }),
+    })
+    await expect(run(fetchMock, { maxTokens: 10_000_000 })).rejects.toThrow(
+      'Provider context window exceeded'
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('awaits assistant capture before dispatching tools and captures the final response', async () => {

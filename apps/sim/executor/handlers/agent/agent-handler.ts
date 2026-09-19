@@ -3085,7 +3085,18 @@ export class AgentBlockHandler implements BlockHandler {
     return {
       ...streamingExec,
       onFullContent: async (content: string) => {
-        await streamingExec.onFullContent?.(content)
+        try {
+          await streamingExec.onFullContent?.(content)
+        } catch (error) {
+          logger.error(
+            'Streaming completion callback failed',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
+        }
         if (!content.trim()) {
           await agentConversation?.finalize('', servedModel)
           return

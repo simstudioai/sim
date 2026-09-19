@@ -35,6 +35,10 @@ describe('createReadableStreamFromBedrockStream', () => {
                 totalTokens: 100,
                 cacheReadInputTokens: 30,
                 cacheWriteInputTokens: 40,
+                cacheDetails: [
+                  { ttl: '1h', inputTokens: 15 },
+                  { ttl: '5m', inputTokens: 25 },
+                ],
               },
               metrics: { latencyMs: 1 },
             },
@@ -43,11 +47,43 @@ describe('createReadableStreamFromBedrockStream', () => {
         onComplete
       )
     )
-    expect(toBedrockConversationUsage(onComplete.mock.calls[0][1])).toEqual({
+    expect(
+      toBedrockConversationUsage(
+        onComplete.mock.calls[0][1],
+        'bedrock/us.anthropic.claude-sonnet-4-6'
+      )
+    ).toEqual({
       input: 10,
       output: 20,
       cacheRead: 30,
-      cacheWrite: 40,
+      cacheWrites: [
+        { tokens: 25, inputRateMultiplier: 1.25 },
+        { tokens: 15, inputRateMultiplier: 2 },
+      ],
+    })
+  })
+
+  it('uses the standard Anthropic cache tier when TTL details are absent', () => {
+    expect(
+      toBedrockConversationUsage(
+        { cacheWriteInputTokens: 40 },
+        'bedrock/anthropic.claude-sonnet-4-6'
+      )
+    ).toMatchObject({
+      cacheWrites: [
+        { tokens: 40, inputRateMultiplier: 1.25 },
+        { tokens: 0, inputRateMultiplier: 2 },
+      ],
+    })
+  })
+
+  it('does not apply Anthropic cache-write premiums to Nova', () => {
+    expect(
+      toBedrockConversationUsage({ cacheWriteInputTokens: 40 }, 'bedrock/amazon.nova-lite-v1:0')
+    ).toEqual({
+      input: 0,
+      output: 0,
+      cacheWrites: [{ tokens: 40, inputRateMultiplier: 1 }],
     })
   })
 

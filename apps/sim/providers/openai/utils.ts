@@ -2,7 +2,10 @@ import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
-import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
@@ -180,7 +183,7 @@ export function buildResponsesInputFromMessages(
           ? buildOpenAIMessageContent(message.content, message.files, providerId)
           : (message.content ?? '')
       if (content.length > 0) {
-        input.push({ role: message.role, content })
+        input.push(retainConversationMessageSource(message, { role: message.role, content }))
       }
     }
 

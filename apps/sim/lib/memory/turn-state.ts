@@ -224,7 +224,8 @@ export function renderConversationStep(
           result?.modelResponse.success
             ? result.modelResponse.output
             : {
-                ...(result?.artifact ? { ...result.modelResponse.output, success: false } : {}),
+                ...result?.modelResponse.output,
+                success: false,
                 error: result?.modelResponse.error ?? 'Tool execution failed',
               }
         ),

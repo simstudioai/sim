@@ -16,6 +16,7 @@ import {
 import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
+  recordProviderConversationUsage,
 } from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
@@ -621,6 +622,12 @@ export const vllmProvider: ProviderConfig = {
       }
 
       if (iterationCount === MAX_TOOL_ITERATIONS) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await recordProviderConversationUsage(
+            request,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,

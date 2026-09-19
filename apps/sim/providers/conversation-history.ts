@@ -42,6 +42,7 @@ export function getConfiguredConversationToolBinding(tool: ProviderToolConfig): 
         blocked: tool.modelBlockedParams,
         usageControl: tool.usageControl,
         transform: tool.paramsTransform?.toString(),
+        jsonShapedParamKeys: tool.jsonShapedParamKeys,
         customInputs: tool.customBlockInputFields,
       })
     )
@@ -131,6 +132,31 @@ export async function captureProviderConversationStep(
     })
   } catch {
     logger.warn('Agent conversation capture unavailable')
+  }
+}
+
+/**
+ * Saves model usage outside captured exchanges, including discarded decisions at the tool limit.
+ * The current provider response already counts these tokens; only a later attempt adds this journal usage.
+ */
+export async function recordProviderConversationUsage(
+  request: ProviderRequest,
+  usage: ConversationUsage | undefined
+): Promise<void> {
+  const session = getConversationRequestContext(request)?.agentConversation
+  if (!usage || !session?.recordContextUsage) return
+  try {
+    const cost = priceModelUsage(
+      request.model,
+      usage,
+      resolveModelCostPolicy(request.model, request.isBYOK)
+    )
+    await session.recordContextUsage({
+      tokens: usage,
+      cost: { input: cost.input, output: cost.output, total: cost.total, toolCost: 0 },
+    })
+  } catch {
+    logger.warn('Agent conversation usage durability unavailable')
   }
 }
 

@@ -182,9 +182,8 @@ export const bedrockProvider: ProviderConfig = {
     if (messages.length === 0) {
       messages.push({
         role: 'user' as ConversationRole,
-        content: [{ text: request.systemPrompt || 'Hello' }],
+        content: [{ text: 'Hello' }],
       })
-      systemContent.length = 0
     }
 
     let structuredOutputTool: Tool | undefined
@@ -454,7 +453,7 @@ export const bedrockProvider: ProviderConfig = {
               request,
               'bedrock',
               message,
-              toBedrockConversationUsage(usage),
+              toBedrockConversationUsage(usage, request.model),
               { requestHistory: messages }
             )
             output.content = content
@@ -496,7 +495,7 @@ export const bedrockProvider: ProviderConfig = {
               content: [{ text: JSON.stringify(structured.toolUse.input, null, 2) }],
             }
           : message,
-        toBedrockConversationUsage(response.usage),
+        toBedrockConversationUsage(response.usage, request.model),
         { requestHistory }
       )
     }

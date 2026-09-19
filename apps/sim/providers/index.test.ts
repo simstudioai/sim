@@ -319,6 +319,33 @@ describe('executeProviderRequest — durable Agent continuation', () => {
     expect(onFullContent).toHaveBeenCalledTimes(2)
   })
 
+  it('retains prior billed usage when the finishing provider has no usage or cost', async () => {
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'previous-step',
+            assistant: { role: 'assistant', content: 'Partial answer' },
+            calls: [],
+            results: [],
+            usage: { input: 7, output: 3 },
+            cost: { input: 0.4, output: 0.6, total: 1 },
+          },
+        ],
+      }
+    )
+    mockExecuteRequest.mockResolvedValueOnce({ content: 'Finished.', model: 'gpt-4o' })
+
+    const result = (await executeProviderRequest('openai', initialRequest, {
+      agentConversation: session,
+    })) as ProviderResponse
+
+    expect(result.tokens).toMatchObject({ input: 7, output: 3, total: 10 })
+    expect(result.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+  })
+
   it('does not replay pending tools after cancellation', async () => {
     const session = new AgentTurnStateMachine({ save: vi.fn() })
     mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {

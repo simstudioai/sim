@@ -179,10 +179,14 @@ export async function readMemoryArtifact(input: ReadMemoryArtifactInput): Promis
   ) {
     return undefined
   }
-  const { decrypted } = await decryptSecret(envelope.encrypted, { logFailure: false })
-  if (Buffer.byteLength(decrypted, 'utf8') > MAX_MEMORY_ARTIFACT_BYTES) return undefined
-  const value: unknown = JSON.parse(decrypted)
-  return stringifyBoundedMemoryJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined
-    ? undefined
-    : value
+  try {
+    const { decrypted } = await decryptSecret(envelope.encrypted, { logFailure: false })
+    if (Buffer.byteLength(decrypted, 'utf8') > MAX_MEMORY_ARTIFACT_BYTES) return undefined
+    const value: unknown = JSON.parse(decrypted)
+    return stringifyBoundedMemoryJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined
+      ? undefined
+      : value
+  } catch {
+    return undefined
+  }
 }

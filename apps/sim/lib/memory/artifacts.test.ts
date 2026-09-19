@@ -238,6 +238,24 @@ describe('encrypted memory artifacts', () => {
     expect(materializeLargeValueRef).not.toHaveBeenCalled()
   })
 
+  it.each(['ciphertext', 'json'])(
+    'treats corrupt %s as an unavailable artifact',
+    async (failure) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          key: ref.key,
+          size: 500,
+          workflowId: identity.workflowId,
+          executionId: identity.executionId,
+        },
+      ])
+      if (failure === 'ciphertext')
+        encryptionMockFns.mockDecryptSecret.mockRejectedValueOnce(new Error('invalid ciphertext'))
+      else encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'invalid JSON' })
+      expect(await readMemoryArtifact({ ...scope, ref })).toBeUndefined()
+    }
+  )
+
   it('rejects an oversized decrypted result before parsing it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {

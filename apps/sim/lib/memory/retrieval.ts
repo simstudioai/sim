@@ -206,7 +206,9 @@ function textChunk(text: string, offset: number, args: MemoryRetrievalArguments)
     : 0
   const match = relativeMatch < 0 ? -1 : offset + relativeMatch
   if (match < 0 || match >= text.length) return undefined
-  const start = args.query ? Math.max(offset, match - 128) : offset
+  let start = args.query ? Math.max(offset, match - 128) : offset
+  if (start > offset && text.charCodeAt(start) >= 0xdc00 && text.charCodeAt(start) <= 0xdfff)
+    start--
   const limit = args.limit ?? MAX_MEMORY_RETRIEVAL_TEXT_BYTES
   let end = start
   let bytes = 0

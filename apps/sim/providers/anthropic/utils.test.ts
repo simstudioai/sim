@@ -6,9 +6,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  anthropicRedactedThinkingAssembledContent,
   anthropicRedactedThinkingExpectedText,
   anthropicRedactedThinkingExpectedTraceThinking,
   anthropicRedactedThinkingStreamEvents,
+  anthropicThinkingTextToolAssembledContent,
   anthropicThinkingTextToolExpectedText,
   anthropicThinkingTextToolExpectedThinking,
   anthropicThinkingTextToolStreamEvents,
@@ -95,7 +97,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
 
     expect(onComplete).toHaveBeenCalledTimes(1)
     expect(onComplete.mock.calls[0][0].nativeContent).toContainEqual(
-      expect.objectContaining({ type: 'thinking', signature: expect.any(String) })
+      anthropicThinkingTextToolAssembledContent[0]
     )
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicThinkingTextToolExpectedText,
@@ -170,6 +172,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicRedactedThinkingExpectedText,
       thinking: anthropicRedactedThinkingExpectedTraceThinking,
+      nativeContent: anthropicRedactedThinkingAssembledContent,
     })
   })
 
