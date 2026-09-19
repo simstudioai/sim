@@ -1,15 +1,18 @@
 import { Buffer } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
+import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
+  FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
 import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
 import {
+  estimateTrigramKeys,
   type FileSearchChunk,
   FileSearchExclusionError,
   iterateFileSearchChunks,
@@ -18,6 +21,7 @@ import {
 import {
   appendFileSearchChunks,
   beginFileSearchBuild,
+  type FileSearchBuild,
   type FileSearchRevision,
   failFileSearchRevision,
   publishFileSearchBuild,
@@ -38,6 +42,36 @@ function parseRevision(payload: WorkspaceFileSearchIndexPayload): FileSearchRevi
   if (Number.isNaN(sourceContentUpdatedAt.getTime()))
     throw new Error('Invalid workspace file search revision')
   return { workspaceId: payload.workspaceId, fileId: payload.fileId, sourceContentUpdatedAt }
+}
+
+/**
+ * Appends one batch and records slow ones, including a batch a statement timeout cancels, with the
+ * trigram key load that drives direct GIN insert cost. Keys are estimated only for slow batches.
+ */
+async function appendTimedBatch(
+  build: FileSearchBuild,
+  batch: FileSearchChunk[],
+  batchBytes: number,
+  signal: AbortSignal
+): Promise<boolean> {
+  const startedAt = Date.now()
+  try {
+    return await appendFileSearchChunks(build, batch, signal)
+  } finally {
+    const durationMs = Date.now() - startedAt
+    if (durationMs >= FILE_SEARCH_SLOW_INSERT_BATCH_MS) {
+      logger.warn('Workspace file search insert batch was slow', {
+        workspaceId: build.workspaceId,
+        fileId: build.fileId,
+        buildId: build.id,
+        firstOrdinal: batch[0]?.ordinal,
+        rows: batch.length,
+        bytes: batchBytes,
+        estimatedTrigramKeys: batch.reduce((sum, c) => sum + estimateTrigramKeys(c.content), 0),
+        durationMs,
+      })
+    }
+  }
 }
 
 export async function indexWorkspaceFileForSearch(
@@ -83,7 +117,7 @@ export async function indexWorkspaceFileForSearch(
         (batch.length >= FILE_SEARCH_INSERT_BATCH_ROWS ||
           batchBytes + chunkBytes > FILE_SEARCH_INSERT_BATCH_BYTES)
       ) {
-        if (!(await appendFileSearchChunks(build, batch, signal))) return
+        if (!(await appendTimedBatch(build, batch, batchBytes, signal))) return
         batch = []
         batchBytes = 0
       }
@@ -91,7 +125,7 @@ export async function indexWorkspaceFileForSearch(
       batchBytes += chunkBytes
       chunkCount++
     }
-    if (!(await appendFileSearchChunks(build, batch, signal))) return
+    if (!(await appendTimedBatch(build, batch, batchBytes, signal))) return
     const published = await publishFileSearchBuild(
       build,
       { status: 'ready', chunkCount, lineCount: plan.lineCount, indexedBytes: plan.indexedBytes },
@@ -121,7 +155,8 @@ export async function indexWorkspaceFileForSearch(
       error: describeError(error),
       durationMs: Date.now() - startedAt,
     })
-    throw error
+    /** Trigger records the thrown message verbatim; Drizzle's carries the bound file text. */
+    throw redactDatabaseQueryError(error, 'Workspace file search database query')
   }
 }
 
