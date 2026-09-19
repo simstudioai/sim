@@ -1239,7 +1239,6 @@ function PreviewEditorContent({
                           <OverlayActionButton
                             aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
-                            surface='uniform'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
@@ -1261,7 +1260,6 @@ function PreviewEditorContent({
                           <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            surface='uniform'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
@@ -1311,7 +1309,6 @@ function PreviewEditorContent({
                           <OverlayActionButton
                             aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
-                            surface='uniform'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
@@ -1333,7 +1330,6 @@ function PreviewEditorContent({
                           <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            surface='uniform'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()

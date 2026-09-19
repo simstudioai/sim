@@ -24,7 +24,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/** Pre-migration recipes from log details, the deployment preview and workflow previews. */
+/** Pre-migration recipes from log details and the deployment preview. */
 const PREVIOUS = [
   {
     name: 'default 20px adaptive action',
@@ -39,13 +39,6 @@ const PREVIOUS = [
     variant: 'default',
     className:
       'size-[28px] cursor-pointer bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]',
-  },
-  {
-    name: '20px uniform action',
-    props: { surface: 'uniform' },
-    variant: 'ghost',
-    className:
-      'size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]',
   },
 ] as const
 
