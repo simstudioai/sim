@@ -286,7 +286,7 @@ export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(f
           }}
         >
           {opt.iconElement ??
-            (Icon ? <Icon className='mr-2 size-[14px] text-[var(--text-icon)]' /> : null)}
+            (Icon ? <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' /> : null)}
           {opt.label}
         </DropdownMenuCheckboxItem>
       )
