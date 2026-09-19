@@ -761,6 +761,28 @@ test.describe('browser tools', () => {
     expect(await formState()).toMatchObject({ scrollLeft: 0 })
   })
 
+  test('batches an action with a fresh observation without replaying form fields', async () => {
+    const ref = await openForm()
+    const fill = await execute('browser_fill_form', {
+      fields: [{ elementId: ref('Name'), kind: 'text', text: 'Observed value' }],
+      observe: { query: 'Name' },
+    })
+    expect(fill.ok, fill.error).toBe(true)
+    expect(fill.result).toMatchObject({
+      completed: true,
+      completedCount: 1,
+      observation: { ok: true, result: { totalMatches: 1 } },
+    })
+    expect(await formState()).toMatchObject({ name: 'Observed value' })
+    const result = fill.result as { observation: { result: { matches: { elementId: number }[] } } }
+    const freshId = result.observation.result.matches[0].elementId
+    expect(freshId).not.toBe(ref('Name'))
+    const clear = await execute('browser_type', { elementId: freshId, text: '', observe: {} })
+    expect(clear.ok, clear.error).toBe(true)
+    expect(clear.result).toMatchObject({ observation: { ok: true } })
+    expect(await formState()).toMatchObject({ name: '' })
+  })
+
   test('stops after a route change without writing the next field', async () => {
     const ref = await openForm()
     const fill = await execute('browser_fill_form', {

@@ -69,6 +69,7 @@ import {
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
@@ -4698,13 +4699,28 @@ export async function executeTool(
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
           }
-          const execution = executeToolInner(
+          const execution = withPostActionObservation(
             tool,
             params,
-            assertCurrentExecution,
-            executionDeadline,
-            invocationEpoch,
-            executionController.signal
+            (actionParams) =>
+              executeToolInner(
+                tool,
+                actionParams,
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal
+              ),
+            (query) =>
+              executeToolInner(
+                query === undefined ? 'browser_snapshot' : 'browser_find',
+                query === undefined ? {} : { query },
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal
+              ),
+            assertCurrentExecution
           )
           const guardedExecution =
             watchdogMs === null
@@ -4715,7 +4731,8 @@ export async function executeTool(
                   if (
                     tool === 'browser_snapshot' ||
                     tool === 'browser_open_url' ||
-                    tool === 'browser_find'
+                    tool === 'browser_find' ||
+                    params.observe !== undefined
                   ) {
                     invalidateSnapshot(state)
                   }
@@ -4754,7 +4771,12 @@ export async function executeTool(
       // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
       // capture token before releasing the queue so a late snapshot cannot
       // overwrite refs belonging to a newer tab or snapshot.
-      if (tool === 'browser_snapshot' || tool === 'browser_open_url' || tool === 'browser_find') {
+      if (
+        tool === 'browser_snapshot' ||
+        tool === 'browser_open_url' ||
+        tool === 'browser_find' ||
+        params.observe !== undefined
+      ) {
         invalidateSnapshot(state)
       }
       const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))

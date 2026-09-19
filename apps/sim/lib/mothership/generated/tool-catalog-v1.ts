@@ -6,6 +6,7 @@ export interface ToolCatalogEntry {
   capabilities?: unknown
   clientExecutable?: boolean
   description?:
+    | 'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.'
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
     | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
     | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
@@ -149,6 +150,7 @@ export interface ToolCatalogEntry {
     | 'web_scrape'
     | 'web_search'
     | 'workflow'
+    | 'workspaces'
   internal?: boolean
   mode?: 'async' | 'sync'
   name?:
@@ -399,6 +401,18 @@ export const BrowserClick: ToolCatalogEntry = {
         type: 'number',
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+      },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
       },
     },
     required: ['elementId'],
@@ -892,6 +906,18 @@ export const BrowserFillForm: ToolCatalogEntry = {
         minItems: 1,
         type: 'array',
       },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
+      },
     },
     required: ['fields'],
     type: 'object',
@@ -1357,6 +1383,18 @@ export const BrowserPressKey: ToolCatalogEntry = {
         type: 'string',
         description:
           "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
+      },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
       },
     },
     required: ['key'],
@@ -1855,6 +1893,18 @@ export const BrowserType: ToolCatalogEntry = {
         type: 'number',
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+      },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
       },
       submit: { type: 'boolean', description: 'Press Enter after typing. Default false.' },
       text: {
@@ -7250,6 +7300,24 @@ export const ListWorkspaces: ToolCatalogEntry = {
   },
 }
 
+export const Workspaces: ToolCatalogEntry = {
+  id: 'workspaces',
+  description:
+    'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      name: { type: 'string', minLength: 1 },
+      skipDefaultWorkflow: { default: false, type: 'boolean' },
+      action: { type: 'string', const: 'create' },
+    },
+    required: ['name', 'action'],
+    additionalProperties: false,
+  },
+}
+
 export const Settings: ToolCatalogEntry = {
   id: 'settings',
   description:
@@ -7945,6 +8013,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [WebSearch.id]: WebSearch,
   [Workflow.id]: Workflow,
   [ListWorkspaces.id]: ListWorkspaces,
+  [Workspaces.id]: Workspaces,
   [Settings.id]: Settings,
   [SearchSources.id]: SearchSources,
 }
