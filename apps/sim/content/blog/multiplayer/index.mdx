@@ -43,7 +43,7 @@ Sim Multiplayer lets teams build, review, and improve AI agent workflows togethe
 ## TL;DR
 
 - Invite collaborators to a workspace and assign Read, Write, or Admin access.
-- Teammates with editing access can open the same workflow, see collaborator avatars, cursors, and selections, and make simultaneous changes.
+- Teammates with editing access can open the same workflow, see collaborator avatars and cursors, and make simultaneous changes.
 - Test the draft from the editor with representative inputs before publishing it.
 - Deployment creates a fixed, versioned snapshot, so later canvas edits do not silently change the live workflow.
 - Multiplayer improves shared review, but it does not replace testing, approvals, security controls, monitoring, or rollback planning.
@@ -70,7 +70,7 @@ Choose the least privilege each collaborator needs. A reviewer who only needs to
 
 ## How does real-time collaboration work in Sim?
 
-When collaborators open the same workflow, Sim joins each client to that workflow's realtime room. The canvas shows connected collaborators through avatars and transmits live cursor positions and block or edge selections, helping teammates understand who is present and what they are examining. These indicators communicate presence; they are not locks that reserve part of the canvas for one person.
+When collaborators open the same workflow, Sim joins each client to that workflow's realtime room. The canvas shows connected collaborators through avatars and transmits live cursor positions, helping teammates understand who is present and where their cursors are. These indicators communicate presence; they are not locks that reserve part of the canvas for one person.
 
 A typical collaborative session looks like this:
 
@@ -82,7 +82,7 @@ A typical collaborative session looks like this:
 6. Review behavior, edge cases, permissions, and expected outputs.
 7. Have an Admin deploy the reviewed version when it is ready.
 
-Sim synchronizes structural edits, block positions, field values, cursor movement, and selections over its realtime service. Each browser updates its local canvas immediately for responsive editing, while operations are queued for server validation, persistence, and broadcast to the other clients. Collaborators may edit different areas simultaneously; when they target the same value, the system converges rather than presenting a merge editor.
+Sim synchronizes structural edits, block positions, field values, and cursor movement over its realtime service. Each browser updates its local canvas immediately for responsive editing, while operations are queued for server validation, persistence, and broadcast to the other clients. Collaborators may edit different areas simultaneously; when they target the same value, the system converges rather than presenting a merge editor.
 
 This approach shortens the feedback loop between an idea and a working implementation. Questions can be resolved while the workflow is visible instead of being collected for a later handoff.
 
@@ -186,7 +186,7 @@ For the broader platform comparison, read [The best AI agent builders in 2026](h
 
 - Sim Multiplayer supports collaborative workflow building and review on a shared visual canvas.
 - Write and Admin workspace roles can edit together; Read is view-only, and deployment is reserved for Admins.
-- Presence includes collaborator identity, live cursors, and block or edge selections.
+- Presence includes collaborator identity and live cursors.
 - Draft testing and deployment are separate steps, and live deployments use versioned snapshots.
 - Sim supports solo work as well as team collaboration.
 - Sim is [licensed under the Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE).
