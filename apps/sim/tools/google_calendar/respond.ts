@@ -87,6 +87,12 @@ async function respondToEvent(
     )
   }
 
+  if (comment && updatedSelf.comment !== comment) {
+    throw new Error(
+      `Response set to "${responseStatus}", but Google Calendar did not save the response note`
+    )
+  }
+
   return { data, responseStatus, comment: updatedSelf.comment ?? null }
 }
 

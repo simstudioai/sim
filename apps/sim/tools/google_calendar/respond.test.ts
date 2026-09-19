@@ -154,6 +154,17 @@ describe('google_calendar_respond', () => {
     expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal)
   })
 
+  it('fails when Google applies the response but drops the note', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(eventWith('accepted'))))
+
+    await expect(
+      respondTool.transformResponse!(jsonResponse(eventWith('needsAction')), {
+        ...baseParams,
+        comment: 'See you',
+      })
+    ).rejects.toThrow(/did not save the response note/)
+  })
+
   it('fails when Google does not reflect the new response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(eventWith('needsAction'))))
 
