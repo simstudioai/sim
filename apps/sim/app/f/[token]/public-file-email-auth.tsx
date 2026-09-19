@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
+import { ChipInput, cn, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -90,7 +90,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
         >
           <div className='space-y-2'>
             <Label htmlFor='email'>Email</Label>
-            <Input
+            <ChipInput
               id='email'
               name='email'
               type='email'
@@ -104,7 +104,8 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 setEmail(e.target.value)
                 setError(null)
               }}
-              className={cn(error && 'border-[var(--text-error)] focus:border-[var(--text-error)]')}
+              className='h-[34px]'
+              error={Boolean(error)}
             />
             {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
           </div>

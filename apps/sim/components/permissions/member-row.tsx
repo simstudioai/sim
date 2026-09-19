@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar, AvatarFallback, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
+import { Avatar, AvatarFallback, Chip, ChipSelect, cn, OverflowText } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
@@ -74,7 +74,11 @@ export function MemberRow<TRole extends string = MemberRole>({
         </div>
       </div>
       <RoleLockTooltip reason={lockReason}>
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          dropdownWidth='trigger'
+          modal={false}
+          className='w-auto max-w-none'
           options={roleOptions}
           value={member.role}
           placeholder='Role'

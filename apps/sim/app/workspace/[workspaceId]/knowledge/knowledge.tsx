@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChipDropdownOption } from '@sim/emcn'
-import { Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn'
+import type { ChipSelectOption } from '@sim/emcn'
+import { Button, ChipConfirmModal, ChipSelect, Tooltip, toast } from '@sim/emcn'
 import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -127,13 +127,13 @@ const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
 const KNOWLEDGE_BASE_ICON = <Database className='size-[14px]' />
 
-const CONNECTOR_FILTER_OPTIONS: ChipDropdownOption[] = [
+const CONNECTOR_FILTER_OPTIONS: ChipSelectOption[] = [
   { value: 'all', label: 'All' },
   { value: 'connected', label: 'With connectors' },
   { value: 'unconnected', label: 'Without connectors' },
 ]
 
-const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
+const CONTENT_FILTER_OPTIONS: ChipSelectOption[] = [
   { value: 'all', label: 'All' },
   { value: 'has-docs', label: 'Has documents' },
   { value: 'empty', label: 'Empty' },
@@ -1320,7 +1320,7 @@ function KnowledgeContent() {
     [activeSort, setListSort, clearListSort]
   )
 
-  const memberOptions: ChipDropdownOption[] = useMemo(
+  const memberOptions: ChipSelectOption[] = useMemo(
     () =>
       (members ?? []).map((m) => ({
         value: m.userId,
@@ -1346,7 +1346,10 @@ function KnowledgeContent() {
               </Button>
             )}
           </div>
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
             options={CONNECTOR_FILTER_OPTIONS}
             value={connectorFilter[0] ?? 'all'}
             onChange={(value) => setConnectorFilter(value === 'all' ? [] : [value])}
@@ -1367,7 +1370,10 @@ function KnowledgeContent() {
               </Button>
             )}
           </div>
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
             options={CONTENT_FILTER_OPTIONS}
             value={contentFilter[0] ?? 'all'}
             onChange={(value) => setContentFilter(value === 'all' ? [] : [value])}
@@ -1389,12 +1395,16 @@ function KnowledgeContent() {
                 </Button>
               )}
             </div>
-            <ChipDropdown
-              multiple
+            <ChipSelect
+              placeholder='All'
+              showAllOption
+              dropdownWidth='trigger'
+              modal={false}
+              multiSelect
               options={memberOptions}
-              value={ownerFilter}
-              onChange={setOwnerFilter}
-              allLabel='All'
+              multiSelectValues={ownerFilter}
+              onMultiSelectChange={setOwnerFilter}
+              allOptionLabel='All'
               searchable
               searchPlaceholder='Search members...'
               align='start'

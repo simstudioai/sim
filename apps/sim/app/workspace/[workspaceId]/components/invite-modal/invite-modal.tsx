@@ -2,14 +2,14 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import {
-  ChipDropdown,
-  type ChipDropdownOption,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
+  type ChipSelectOption,
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -161,7 +161,7 @@ export function InviteModal({
     { enabled: open && isOrganizationInvite && !organizationOnly }
   )
 
-  const workspaceOptions = useMemo<ChipDropdownOption[]>(() => {
+  const workspaceOptions = useMemo<ChipSelectOption[]>(() => {
     if (!isOrganizationInvite) {
       return workspaceId ? [{ value: workspaceId, label: workspaceName ?? 'This workspace' }] : []
     }
@@ -317,12 +317,15 @@ export function InviteModal({
         {!organizationOnly && (
           <>
             <ChipModalField type='custom' title='Workspaces'>
-              <ChipDropdown
-                multiple
-                value={selectedWorkspaceIds}
-                onChange={setSelectedWorkspaceIds}
+              <ChipSelect
+                placeholder='Select workspaces'
+                dropdownWidth='trigger'
+                modal={false}
+                multiSelect
+                multiSelectValues={selectedWorkspaceIds}
+                onMultiSelectChange={setSelectedWorkspaceIds}
                 options={workspaceOptions}
-                allLabel='Select workspaces'
+                allOptionLabel='Select workspaces'
                 showAllOption={false}
                 searchable={isOrganizationInvite}
                 searchPlaceholder='Search workspaces...'

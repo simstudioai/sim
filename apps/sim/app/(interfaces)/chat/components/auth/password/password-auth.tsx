@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { ChipInput, cn, Label } from '@sim/emcn'
 import { Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -68,7 +68,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
               </div>
               <div className='relative'>
                 <div className='relative'>
-                  <Input
+                  <ChipInput
                     id='password'
                     name='password'
                     required
@@ -79,11 +79,8 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                     placeholder='Enter password'
                     value={password}
                     onChange={handlePasswordChange}
-                    className={cn(
-                      'pr-10',
-                      hasPasswordError &&
-                        'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                    )}
+                    className='h-[34px] pr-10'
+                    error={Boolean(hasPasswordError)}
                   />
                   <button
                     type='button'

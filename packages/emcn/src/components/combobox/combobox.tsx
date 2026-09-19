@@ -28,16 +28,12 @@ const comboboxVariants = cva(
   'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
-      variant: {
-        default: '',
-      },
       size: {
         sm: 'py-1.5 text-caption',
         md: 'py-1.5 text-sm',
       },
     },
     defaultVariants: {
-      variant: 'default',
       size: 'md',
     },
   }
@@ -185,7 +181,6 @@ const Combobox = memo(
     (
       {
         className,
-        variant,
         size,
         options,
         value,
@@ -865,7 +860,7 @@ const Combobox = memo(
                     aria-disabled={disabled}
                     tabIndex={disabled ? -1 : 0}
                     className={cn(
-                      comboboxVariants({ variant, size }),
+                      comboboxVariants({ size }),
                       'relative cursor-pointer items-center justify-between',
                       disabled && 'cursor-not-allowed opacity-50',
                       className

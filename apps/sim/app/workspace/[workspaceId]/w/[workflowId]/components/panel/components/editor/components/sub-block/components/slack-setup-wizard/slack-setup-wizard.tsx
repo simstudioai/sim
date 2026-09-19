@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
+import { Checkbox, ChipInput, cn, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
 import { Check, ChevronRight, CircleInfo, Clipboard } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -220,13 +220,13 @@ function StepConfigure({
         >
           Bot name
         </Label>
-        <Input
+        <ChipInput
           id={`${blockId}-wizard-bot-name`}
           value={appName}
           onChange={(e) => onAppNameChange(e.target.value)}
           disabled={disabled}
           placeholder={DEFAULT_APP_NAME}
-          className='h-9 text-sm'
+          className='h-9'
         />
       </div>
       <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
@@ -416,7 +416,7 @@ function SecretField({ id, label, value, onChange, disabled, placeholder }: Secr
         onChange={onChange}
         disabled={disabled}
         placeholder={placeholder}
-        className='h-9 text-sm'
+        className='h-9'
       />
     </div>
   )

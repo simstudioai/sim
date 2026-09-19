@@ -28,9 +28,7 @@ import { cn } from '../../lib/cn'
 import { chipContentGap, chipFieldSurfaceClass, chipGeometryClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
-
-const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
+import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
 
 /**
  * Menu row geometry. Rows sit 2px flatter than the 30px chip pill — the menu is a
@@ -246,7 +244,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent
       ref={ref}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px]', className)}
+      className={cn(POPOVER_ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px]', className)}
       {...props}
       data-native-surface-overlay=''
     />
@@ -280,7 +278,7 @@ const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px]', className)}
+      className={cn(POPOVER_ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px]', className)}
       {...props}
       data-native-surface-overlay=''
     />

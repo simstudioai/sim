@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipDropdown, ChipInput, cn } from '@sim/emcn'
+import { Button, ChipInput, ChipSelect, cn } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
@@ -329,37 +329,43 @@ const FilterRuleRow = memo(function FilterRuleRow({
         </button>
       )}
 
-      <ChipDropdown
+      <ChipSelect
+        showSelectedCheck
+        modal={false}
         options={columnOptions}
         value={rule.column}
         onChange={(value) => onColumnChange(rule.id, value)}
         placeholder='Column'
         align='start'
-        matchTriggerWidth={false}
-        className='min-w-[100px]'
+        dropdownWidth='content'
+        className='w-auto min-w-[100px] max-w-none'
       />
 
-      <ChipDropdown
+      <ChipSelect
+        showSelectedCheck
+        modal={false}
         options={operatorOptions}
         value={rule.operator}
         onChange={(value) => onUpdate(rule.id, 'operator', value)}
         placeholder='Operator'
         align='start'
-        matchTriggerWidth={false}
-        className='min-w-[90px]'
+        dropdownWidth='content'
+        className='w-auto min-w-[90px] max-w-none'
       />
 
       {VALUELESS_OPS.has(rule.operator) ? (
         <div className='h-[30px] flex-1' />
       ) : isSelect ? (
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          modal={false}
           options={selectValueOptions}
           value={rule.value}
           onChange={(value) => onUpdate(rule.id, 'value', value)}
           placeholder='Select a value'
           align='start'
-          matchTriggerWidth={false}
-          className='min-w-[100px] flex-1'
+          dropdownWidth='content'
+          className='w-auto min-w-[100px] max-w-none flex-1'
         />
       ) : autoApply ? (
         <FilterValueInput

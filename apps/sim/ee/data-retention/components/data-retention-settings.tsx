@@ -5,7 +5,6 @@ import {
   Checkbox,
   Chip,
   ChipConfirmModal,
-  ChipDropdown,
   ChipInput,
   ChipSelect,
   ChipSwitch,
@@ -521,14 +520,17 @@ function PolicyDetail({
                   ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
                   : 'Select the workspaces this override applies to'}
               </span>
-              <ChipDropdown
-                multiple
+              <ChipSelect
+                placeholder='Select workspaces'
+                dropdownWidth='trigger'
+                modal={false}
+                multiSelect
                 showAllOption={false}
-                allLabel='Select workspaces'
-                value={draft.workspaceIds}
-                onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
+                allOptionLabel='Select workspaces'
+                multiSelectValues={draft.workspaceIds}
+                onMultiSelectChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
                 options={workspaceOptions}
-                className='shrink-0'
+                className='w-auto max-w-none shrink-0'
               />
             </div>
           </SettingsSection>

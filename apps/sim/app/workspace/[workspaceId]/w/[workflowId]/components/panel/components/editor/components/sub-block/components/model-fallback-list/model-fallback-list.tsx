@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Chip, ChipCombobox, ChipDropdown, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipSelect, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
@@ -203,14 +203,17 @@ const FallbackRow = memo(function FallbackRow({
         {tuningFields.map(({ knob, options }) => (
           <div key={knob} className='flex flex-col gap-1.5'>
             <Label>{FALLBACK_TUNING_LABELS[knob]}</Label>
-            <ChipDropdown
+            <ChipSelect
+              showSelectedCheck
+              dropdownWidth='trigger'
+              modal={false}
               options={options}
               value={row[knob] ?? options[0]?.value ?? ''}
               onChange={(value) => onChangeTuning(row.id, knob, value)}
               placeholder={`Select ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               aria-label={`${ordinalChoiceLabel(index)} ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               disabled={readOnly}
-              className='w-full'
+              className='w-full max-w-none'
             />
           </div>
         ))}

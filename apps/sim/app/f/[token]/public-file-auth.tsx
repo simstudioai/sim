@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { ChipInput, Label } from '@sim/emcn'
 import { Eye, EyeOff } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
@@ -50,7 +50,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
         <div className='space-y-2'>
           <Label htmlFor='password'>Password</Label>
           <div className='relative'>
-            <Input
+            <ChipInput
               id='password'
               name='password'
               required
@@ -64,10 +64,8 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
                 setPassword(e.target.value)
                 setError(null)
               }}
-              className={cn(
-                'pr-10',
-                error && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-              )}
+              className='h-[34px] pr-10'
+              error={Boolean(error)}
             />
             <button
               type='button'
