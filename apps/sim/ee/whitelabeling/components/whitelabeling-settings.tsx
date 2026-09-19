@@ -11,6 +11,7 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -26,42 +27,6 @@ import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WhitelabelingSettings')
-
-interface DropZoneProps {
-  onDrop: (e: React.DragEvent) => void
-  children: React.ReactNode
-  className?: string
-}
-
-function DropZone({ onDrop, children, className }: DropZoneProps) {
-  const [isDragging, setIsDragging] = useState(false)
-
-  return (
-    <div
-      className={cn('relative', className)}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault()
-          setIsDragging(true)
-        }
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          setIsDragging(false)
-        }
-      }}
-      onDrop={(e) => {
-        setIsDragging(false)
-        onDrop(e)
-      }}
-    >
-      {children}
-      {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand-accent)] border-dashed bg-[color-mix(in_srgb,var(--brand-accent)_8%,transparent)]' />
-      )}
-    </div>
-  )
-}
 
 interface ColorInputProps {
   label: string
