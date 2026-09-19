@@ -16,6 +16,10 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import { priceGeminiTokens, splitGeminiTokens, splitGeminiUsage } from '@/providers/gemini/usage'
 import {
@@ -100,7 +104,8 @@ async function executeToolCallsBatch(
   request: ProviderRequest,
   state: ExecutionState,
   forcedTools: string[],
-  logger: ReturnType<typeof createLogger>
+  logger: ReturnType<typeof createLogger>,
+  assistantContent: Content
 ): Promise<{ success: boolean; state: ExecutionState }> {
   if (functionCallParts.length === 0) {
     return { success: false, state }
@@ -114,6 +119,12 @@ async function executeToolCallsBatch(
 
     const tool = request.tools?.find((t) => t.id === toolName)
     if (!tool) {
+      await recordProviderConversationToolError(
+        request,
+        functionCall.id,
+        toolName,
+        `Tool ${toolName} not found`
+      )
       logger.warn(`Tool ${toolName} not found in registry, skipping`)
       return {
         success: false,
@@ -176,6 +187,12 @@ async function executeToolCallsBatch(
       if (isAbortError(error) || request.abortSignal?.aborted) {
         throw error
       }
+      await recordProviderConversationToolError(
+        request,
+        functionCall.id,
+        toolName,
+        getErrorMessage(error, 'Tool execution failed')
+      )
 
       const toolCallEndTime = Date.now()
       logger.error('Error processing function call:', {
@@ -211,7 +228,6 @@ async function executeToolCallsBatch(
   // Build batched messages per Gemini spec:
   // ONE model message with ALL function call parts
   // ONE user message with ALL function responses
-  const modelParts: Part[] = results.map((r) => r.part)
   const userParts: Part[] = results.map((r) => ({
     functionResponse: {
       name: r.toolName,
@@ -222,7 +238,7 @@ async function executeToolCallsBatch(
 
   const updatedContents: Content[] = [
     ...state.contents,
-    { role: 'model', parts: modelParts },
+    assistantContent,
     { role: 'user', parts: userParts },
   ]
 
@@ -1175,7 +1191,8 @@ export async function executeGeminiRequest(
               segments[0].duration = streamEndTime - providerStartTime
             }
           }
-        }
+        },
+        request
       )
 
       return { ...streamingResult, stream, streamFormat: 'agent-events-v1' as const }
@@ -1183,6 +1200,14 @@ export async function executeGeminiRequest(
 
     // Non-streaming request
     const response = await ai.models.generateContent({ model, contents, config: geminiConfig })
+    if (!extractAllFunctionCallParts(response.candidates?.[0]).length) {
+      await captureProviderConversationStep(
+        request,
+        'gemini',
+        response.candidates?.[0]?.content,
+        splitGeminiUsage(convertUsageMetadata(response.usageMetadata))
+      )
+    }
     const firstResponseTime = Date.now() - initialCallTime
 
     // Check for UNEXPECTED_TOOL_CALL
@@ -1227,6 +1252,14 @@ export async function executeGeminiRequest(
         contents: currentState.contents,
         config: finalConfig,
       })
+      if (!extractAllFunctionCallParts(finalResponse.candidates?.[0]).length) {
+        await captureProviderConversationStep(
+          request,
+          'gemini',
+          finalResponse.candidates?.[0]?.content,
+          splitGeminiUsage(convertUsageMetadata(finalResponse.usageMetadata))
+        )
+      }
       const finalState = updateStateWithResponse(
         currentState,
         finalResponse,
@@ -1306,13 +1339,20 @@ export async function executeGeminiRequest(
           `Processing ${functionCallParts.length} function call(s): ${callNames} (iteration ${state.iterationCount + 1})`
         )
 
+        await captureProviderConversationStep(
+          request,
+          'gemini',
+          currentResponse.candidates?.[0]?.content,
+          splitGeminiUsage(convertUsageMetadata(currentResponse.usageMetadata))
+        )
         // Execute ALL function calls in this batch
         const { success, state: updatedState } = await executeToolCallsBatch(
           functionCallParts,
           request,
           state,
           forcedTools,
-          logger
+          logger,
+          currentResponse.candidates?.[0]?.content ?? { role: 'model', parts: functionCallParts }
         )
         if (!success) {
           content = extractTextContent(currentResponse.candidates?.[0])
@@ -1329,6 +1369,14 @@ export async function executeGeminiRequest(
           contents: state.contents,
           config: nextConfig,
         })
+        if (!extractAllFunctionCallParts(nextResponse.candidates?.[0]).length) {
+          await captureProviderConversationStep(
+            request,
+            'gemini',
+            nextResponse.candidates?.[0]?.content,
+            splitGeminiUsage(convertUsageMetadata(nextResponse.usageMetadata))
+          )
+        }
         state = updateStateWithResponse(
           state,
           nextResponse,

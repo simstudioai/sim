@@ -7,6 +7,10 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
   resolveFireworksWireModel,
@@ -14,6 +18,7 @@ import {
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -180,29 +185,33 @@ export const fireworksProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+            createReadableStreamFromOpenAIStream(
+              streamResponse,
+              (content, usage) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              // Pricing keys on the catalog id (fireworks/<name>), not the wire
-              // name — static hosted entries price; dynamic ids stay unpriced.
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+                // Pricing keys on the catalog id (fireworks/<name>), not the wire
+                // name — static hosted entries price; dynamic ids stay unpriced.
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
 
-              finalizeTiming()
-            }),
+                finalizeTiming()
+              },
+              request
+            ),
         })
 
         return streamingResult
@@ -217,6 +226,14 @@ export const fireworksProvider: ProviderConfig = {
         payload,
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -272,6 +289,12 @@ export const fireworksProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -281,6 +304,12 @@ export const fireworksProvider: ProviderConfig = {
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolCall,
@@ -326,6 +355,12 @@ export const fireworksProvider: ProviderConfig = {
             if (isAbortError(error) || request.abortSignal?.aborted) {
               throw error
             }
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (Fireworks):', {
               error: toError(error).message,
@@ -435,6 +470,14 @@ export const fireworksProvider: ProviderConfig = {
           nextPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
         const nextForcedToolResult = checkForForcedToolUsage(
           currentResponse,
           nextPayload.tool_choice,
@@ -493,6 +536,14 @@ export const fireworksProvider: ProviderConfig = {
             finalPayload,
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              finalResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(finalResponse.usage)
+            )
+          }
           const finalEndTime = Date.now()
           const finalDuration = finalEndTime - finalStartTime
 
@@ -547,6 +598,14 @@ export const fireworksProvider: ProviderConfig = {
           finalPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            finalResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(finalResponse.usage)
+          )
+        }
         const finalEndTime = Date.now()
         const finalDuration = finalEndTime - finalStartTime
 

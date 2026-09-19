@@ -2834,6 +2834,8 @@ export const memory = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
     data: jsonb('data').notNull(),
+    /** Version 2 keeps data as an immutable prefix and appends ordered memory items. */
+    storageVersion: integer('storage_version').notNull().default(1),
     /** NULL is a legacy/untracked record; version 1 requires a fresh private sidecar. */
     secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -2872,6 +2874,88 @@ export const memorySecretProvenance = pgTable(
       'memory_secret_provenance_status_check',
       sql`${table.status} IN ('exact', 'unknown')`
     ),
+  })
+)
+
+/** Ordered additions to a conversation; exchange payloads remain private to Agent history. */
+export const memoryItem = pgTable(
+  'memory_item',
+  {
+    id: text('id').primaryKey(),
+    memoryId: text('memory_id')
+      .notNull()
+      .references(() => memory.id, { onDelete: 'cascade' }),
+    sequence: bigint('sequence', { mode: 'number' }).generatedAlwaysAsIdentity(),
+    appendKey: text('append_key').notNull(),
+    turnId: text('turn_id'),
+    kind: text('kind').$type<'message' | 'exchange'>().notNull(),
+    data: jsonb('data').notNull(),
+    contentHash: text('content_hash').notNull(),
+    provenanceStatus: text('provenance_status').$type<'exact' | 'unknown'>().notNull(),
+    provenanceEntries: jsonb('provenance_entries')
+      .$type<DurableSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    appendUnique: uniqueIndex('memory_item_append_unique').on(table.memoryId, table.appendKey),
+    sequenceIdx: index('memory_item_sequence_idx').on(table.memoryId, table.sequence),
+    kindCheck: check('memory_item_kind_check', sql`${table.kind} IN ('message', 'exchange')`),
+    provenanceCheck: check(
+      'memory_item_provenance_status_check',
+      sql`${table.provenanceStatus} IN ('exact', 'unknown')`
+    ),
+  })
+)
+
+/** Recovery journal for one logical Agent invocation; provider state is encrypted by its owner. */
+export const agentMemoryTurn = pgTable(
+  'agent_memory_turn',
+  {
+    id: text('id').primaryKey(),
+    memoryId: text('memory_id')
+      .notNull()
+      .references(() => memory.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    blockId: text('block_id').notNull(),
+    nodeId: text('node_id').notNull(),
+    executionOrder: integer('execution_order').notNull(),
+    encryptedState: text('encrypted_state'),
+    revision: integer('revision').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    invocationUnique: uniqueIndex('agent_memory_turn_invocation_unique').on(
+      table.memoryId,
+      table.workflowId,
+      table.executionId,
+      table.blockId,
+      table.nodeId,
+      table.executionOrder
+    ),
+    workflowIdx: index('agent_memory_turn_workflow_idx').on(table.workflowId),
+  })
+)
+
+/** Retains large tool results for the lifetime of their conversation rather than their run log. */
+export const memoryArtifact = pgTable(
+  'memory_artifact',
+  {
+    memoryId: text('memory_id')
+      .notNull()
+      .references(() => memory.id, { onDelete: 'cascade' }),
+    key: text('key')
+      .notNull()
+      .references(() => executionLargeValues.key, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.memoryId, table.key] }),
+    keyIdx: index('memory_artifact_key_idx').on(table.key),
   })
 )
 

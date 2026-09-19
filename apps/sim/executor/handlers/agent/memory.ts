@@ -1,26 +1,45 @@
 import { db } from '@sim/db'
 import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   bindDurableSecretProvenanceToValue,
+  type DurableSecretProvenance,
   durableSecretProvenanceFromRegistry,
+  filterDurableSecretProvenanceBySourceValues,
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { mergeFileKeys } from '@/lib/execution/payloads/access-keys'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
-import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import {
+  appendAgentMemoryMessageUseCase,
+  readAgentMemoryItemsUseCase,
+  readAgentMemoryPrefixUseCase,
+} from '@/lib/memory/application/agent-turns'
+import { MEMORY_DELEGATION_AUDIENCE } from '@/lib/memory/application/authorization'
+import { MEMORY } from '@/lib/memory/constants'
+import {
+  appendMemoryMessages,
+  readPlainMemoryTail,
+  seedMemoryMessages,
+} from '@/lib/memory/conversation-store'
+import {
+  markConversationExchangeGroup,
+  selectConversationContextWindow,
+  selectConversationMessageWindow,
+  selectConversationTokenWindow,
+} from '@/lib/memory/history-window'
+import {
+  bindMemorySecretProvenanceToMessages,
   createMemorySecretProvenanceSelector,
   readBoundMemorySecretProvenance,
-  replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
-import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
-import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, FileNameProjection, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import {
@@ -29,17 +48,79 @@ import {
 } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import {
+  copyNativeConversationMessage,
+  setEncryptedConversationMessage,
+} from '@/providers/conversation-metadata'
 
 const logger = createLogger('Memory')
 
 const MEMORY_CONTENT_REFUSAL = 'Memory content could not be safely projected'
+const MAX_RICH_HISTORY_BYTES = 4 * 1024 * 1024
+const MAX_RICH_HISTORY_ITEMS = 1000
+
+export interface MemoryHistoryOptions {
+  richHistory?: boolean
+  memoryId?: string
+  excludeTurnId?: string
+}
+
+export interface MemoryAppendOptions {
+  memoryId: string
+  turnId: string
+  appendKey: string
+}
+
+const messageTurns = new WeakMap<object, string>()
+const messageAppendKeys = new WeakMap<object, string>()
+
+/** Internal invocation identity is never serialized into a provider or Memory API message. */
+export function getMemoryMessageTurnId(message: object): string | undefined {
+  return messageTurns.get(message)
+}
+
+/** Identifies the original input slot without adding internal metadata to public message data. */
+export function getMemoryMessageAppendKey(message: object): string | undefined {
+  return messageAppendKeys.get(message)
+}
+
+function copyMemoryMessageMetadata(source: Message, target: Message): void {
+  copyNativeConversationMessage(source, target)
+  const turnId = messageTurns.get(source)
+  if (turnId) messageTurns.set(target, turnId)
+  const appendKey = messageAppendKeys.get(source)
+  if (appendKey) messageAppendKeys.set(target, appendKey)
+}
+
+/** Only storage availability/conflict failures degrade; identity and projection failures propagate. */
+function isOptionalMemoryStorageFailure(error: unknown): boolean {
+  if (error instanceof OrchestrationError)
+    return error.code === 'not_found' || error.code === 'conflict' || error.code === 'internal'
+  const code = getPostgresErrorCode(error)
+  return Boolean(
+    (code &&
+      (/^[0-9A-Z]{5}$/.test(code) ||
+        [
+          'ECONNREFUSED',
+          'ECONNRESET',
+          'EPIPE',
+          'ETIMEDOUT',
+          'ENOTFOUND',
+          'CONNECTION_CLOSED',
+          'CONNECTION_ENDED',
+          'CONNECT_TIMEOUT',
+        ].includes(code))) ||
+      (error instanceof Error &&
+        (error.name === 'DrizzleQueryError' || error.name === 'PostgresError'))
+  )
+}
 
 export class Memory {
   async fetchMemoryMessages(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    projectedNameByFile?: WeakMap<object, FileNameProjection>
+    projectedNameByFile?: WeakMap<object, FileNameProjection>,
+    options: MemoryHistoryOptions = {}
   ): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
@@ -48,12 +129,19 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    const stored = await this.fetchMemory(workspaceId, inputs.conversationId!)
+    let stored: Awaited<ReturnType<Memory['fetchMemory']>>
+    try {
+      stored = await this.fetchMemory(ctx, workspaceId, inputs.conversationId!, options)
+    } catch (error) {
+      if (!options.richHistory || !isOptionalMemoryStorageFailure(error)) throw error
+      logger.warn('Agent durable memory read is unavailable', { workspaceId })
+      return []
+    }
     let messages: Message[]
 
     switch (inputs.memoryType) {
       case 'conversation':
-        messages = this.applyContextWindowLimit(stored.messages, inputs.model)
+        messages = selectConversationContextWindow(stored.messages, inputs.model, stored.groups)
         break
 
       case 'sliding_window': {
@@ -61,7 +149,7 @@ export class Memory {
           inputs.slidingWindowSize,
           MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
         )
-        messages = this.applyWindow(stored.messages, limit)
+        messages = selectConversationMessageWindow(stored.messages, limit, stored.groups)
         break
       }
 
@@ -70,7 +158,12 @@ export class Memory {
           inputs.slidingWindowTokens,
           MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
         )
-        messages = this.applyTokenWindow(stored.messages, maxTokens, inputs.model)
+        messages = selectConversationTokenWindow(
+          stored.messages,
+          maxTokens,
+          inputs.model,
+          stored.groups
+        )
         break
       }
 
@@ -134,8 +227,16 @@ export class Memory {
         workspaceId,
       })
     }
-    const selectProvenance = (values: readonly unknown[]) =>
-      selection.select(values, includeRecovered)
+    const selectProvenance = (values: readonly Message[]) =>
+      mergeDurableSecretProvenance(
+        selection.select(values, includeRecovered),
+        ...values.flatMap((message) => {
+          const provenance = stored.provenanceByMessage?.get(message)
+          return provenance
+            ? [filterDurableSecretProvenanceBySourceValues(provenance, [message])]
+            : []
+        })
+      )
     const selectedProvenance = selectProvenance(messages)
     const refuseStoredProvenance =
       selectedProvenance.status === 'unknown' ||
@@ -198,7 +299,8 @@ export class Memory {
   async appendToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    message: Message
+    message: Message,
+    options?: MemoryAppendOptions
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -216,7 +318,22 @@ export class Memory {
       ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, [message])
       : undefined
 
-    await this.appendMessage(workspaceId, key, message, provenance)
+    if (options) {
+      try {
+        const principal = await createExecutorPrincipalFromExecutionContext({
+          context: ctx,
+          audience: MEMORY_DELEGATION_AUDIENCE,
+        })
+        await appendAgentMemoryMessageUseCase.execute({
+          principal,
+          input: { ...options, workspaceId, conversationId: key, data: message, provenance },
+        })
+      } catch (error) {
+        if (!isOptionalMemoryStorageFailure(error)) throw error
+        logger.warn('Agent durable memory append is unavailable', { workspaceId })
+        return
+      }
+    } else await appendMemoryMessages({ workspaceId, key, messages: [message], provenance })
 
     logger.debug('Appended message to memory', {
       workspaceId,
@@ -246,13 +363,13 @@ export class Memory {
         inputs.slidingWindowSize,
         MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
       )
-      messagesToStore = this.applyWindow(conversationMessages, limit)
+      messagesToStore = selectConversationMessageWindow(conversationMessages, limit)
     } else if (inputs.memoryType === 'sliding_window_tokens') {
       const maxTokens = this.parsePositiveInt(
         inputs.slidingWindowTokens,
         MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
       )
-      messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
+      messagesToStore = selectConversationTokenWindow(conversationMessages, maxTokens, inputs.model)
     }
 
     messagesToStore = await Promise.all(
@@ -264,7 +381,7 @@ export class Memory {
     const provenance = ctx.resolvedSecretTraceRegistry
       ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, messagesToStore)
       : undefined
-    await this.seedMemoryRecord(workspaceId, key, messagesToStore, provenance)
+    await seedMemoryMessages({ workspaceId, key, messages: messagesToStore, provenance })
 
     logger.debug('Seeded memory', {
       workspaceId,
@@ -335,7 +452,7 @@ export class Memory {
     )
     if (
       !contentProjection.safe ||
-      typeof contentProjection.value !== 'string' ||
+      (typeof contentProjection.value !== 'string' && contentProjection.value !== null) ||
       !argumentProjection.safe ||
       !Array.isArray(argumentProjection.value) ||
       argumentProjection.value.length !== 1 + (toolArguments?.length ?? 0)
@@ -408,12 +525,14 @@ export class Memory {
       }
     }
 
-    return {
+    const projected = {
       ...message,
       content,
       ...(message.function_call !== undefined ? { function_call: projectedFunctionCall } : {}),
       ...(projectedToolCalls !== undefined ? { tool_calls: projectedToolCalls } : {}),
     }
+    copyMemoryMessageMetadata(message, projected)
+    return projected
   }
 
   /**
@@ -453,10 +572,6 @@ export class Memory {
     return ctx.workspaceId
   }
 
-  private applyWindow(messages: Message[], limit: number): Message[] {
-    return messages.slice(-limit)
-  }
-
   /** Storage keys survive turns; inline bytes, signed URLs, and provider handles do not. */
   private sanitizeMessageForStorage(message: Message): Message {
     const { files: _files, ...messageWithoutFiles } = message
@@ -474,84 +589,65 @@ export class Memory {
             ...(typeof file.context === 'string' ? { context: file.context } : {}),
           }))
       : []
-    return files.length > 0 ? { ...messageWithoutFiles, files } : messageWithoutFiles
-  }
-
-  private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {
-    const result: Message[] = []
-    let tokenCount = 0
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-      const msgTokens = getAccurateTokenCount(msg.content, model)
-
-      if (tokenCount + msgTokens <= maxTokens) {
-        result.unshift(msg)
-        tokenCount += msgTokens
-      } else if (result.length === 0) {
-        result.unshift(msg)
-        break
-      } else {
-        break
-      }
-    }
-
-    return result
-  }
-
-  private applyContextWindowLimit(messages: Message[], model?: string): Message[] {
-    if (!model) return messages
-
-    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-      if (provider.contextInformationAvailable === false) continue
-
-      const matchesPattern = provider.modelPatterns?.some((p) => p.test(model))
-      const matchesModel = provider.models.some((m) => m.id === model)
-
-      if (matchesPattern || matchesModel) {
-        const modelDef = provider.models.find((m) => m.id === model)
-        if (modelDef?.contextWindow) {
-          const maxTokens = Math.floor(modelDef.contextWindow * MEMORY.CONTEXT_WINDOW_UTILIZATION)
-          return this.applyTokenWindow(messages, maxTokens, model)
-        }
-      }
-    }
-
-    return messages
+    const sanitized = files.length > 0 ? { ...messageWithoutFiles, files } : messageWithoutFiles
+    copyMemoryMessageMetadata(message, sanitized)
+    return sanitized
   }
 
   private async fetchMemory(
+    ctx: ExecutionContext,
     workspaceId: string,
-    key: string
+    key: string,
+    options: MemoryHistoryOptions
   ): Promise<{
     messages: Message[]
+    groups?: Message[][]
+    provenanceByMessage?: Map<Message, DurableSecretProvenance>
     provenance: ReturnType<typeof readBoundMemorySecretProvenance>
   }> {
-    const result = await db
-      .select({
-        data: memory.data,
-        secretProvenanceVersion: memory.secretProvenanceVersion,
-        provenanceContentHash: memorySecretProvenance.contentHash,
-        provenanceStatus: memorySecretProvenance.status,
-        provenanceEntries: memorySecretProvenance.entries,
-      })
-      .from(memory)
-      .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
-      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
-      .limit(1)
+    const result = options.richHistory
+      ? [
+          await readAgentMemoryPrefixUseCase.execute({
+            principal: await createExecutorPrincipalFromExecutionContext({
+              context: ctx,
+              audience: MEMORY_DELEGATION_AUDIENCE,
+            }),
+            input: { workspaceId, conversationId: key, memoryId: options.memoryId },
+          }),
+        ]
+      : await db
+          .select({
+            id: memory.id,
+            storageVersion: memory.storageVersion,
+            data: memory.data,
+            secretProvenanceVersion: memory.secretProvenanceVersion,
+            provenanceContentHash: memorySecretProvenance.contentHash,
+            provenanceStatus: memorySecretProvenance.status,
+            provenanceEntries: memorySecretProvenance.entries,
+          })
+          .from(memory)
+          .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
+          .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
+          .limit(1)
 
-    if (result.length === 0) {
+    const row = result[0]
+    if (!row || (options.memoryId && row.id !== options.memoryId)) {
       return { messages: [], provenance: { status: 'exact', entries: [] } }
     }
 
-    const data = result[0].data
-    const provenance = readBoundMemorySecretProvenance({
-      secretProvenanceVersion: result[0].secretProvenanceVersion,
+    let data = row.data
+    let provenance = readBoundMemorySecretProvenance({
+      secretProvenanceVersion: row.secretProvenanceVersion,
       data,
-      provenanceContentHash: result[0].provenanceContentHash,
-      status: result[0].provenanceStatus,
-      entries: result[0].provenanceEntries,
+      provenanceContentHash: row.provenanceContentHash,
+      status: row.provenanceStatus,
+      entries: row.provenanceEntries,
     })
+    if (row.storageVersion === 2 && !options.richHistory) {
+      const tail = await readPlainMemoryTail(row.id, workspaceId)
+      data = [...(Array.isArray(data) ? data : []), ...tail.messages]
+      provenance = mergeDurableSecretProvenance(provenance, tail.provenance)
+    }
     const messages = (Array.isArray(data) ? data : [])
       .filter(
         (msg): msg is Message =>
@@ -563,119 +659,108 @@ export class Memory {
           typeof msg.content === 'string'
       )
       .map((msg) => this.sanitizeMessageForStorage(msg))
+    if (row.storageVersion === 2 && options.richHistory) {
+      try {
+        const tail = await this.fetchRichTail(ctx, row.id, workspaceId, options)
+        const groups = [...messages.map((message) => [message]), ...tail.groups]
+        return {
+          messages: groups.flat(),
+          groups,
+          provenance,
+          provenanceByMessage: tail.provenanceByMessage,
+        }
+      } catch (error) {
+        if (!isOptionalMemoryStorageFailure(error)) throw error
+        logger.warn('Agent durable memory history is unavailable', { workspaceId })
+      }
+    }
     return { messages, provenance }
   }
 
-  private async seedMemoryRecord(
+  private async fetchRichTail(
+    ctx: ExecutionContext,
+    memoryId: string,
     workspaceId: string,
-    key: string,
-    messages: Message[],
-    provenance: ReturnType<typeof durableSecretProvenanceFromRegistry> | undefined
-  ): Promise<void> {
-    const now = new Date()
-
-    const sanitizedMessages = messages.map((message) => this.sanitizeMessageForStorage(message))
-
-    await db.transaction(async (tx) => {
-      await lockMemoryConversationInTx(tx, workspaceId, key)
-      const id = generateId()
-      const [inserted] = await tx
-        .insert(memory)
-        .values({
-          id,
-          workspaceId,
-          key,
-          data: sanitizedMessages,
-          secretProvenanceVersion: provenance ? 1 : null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoNothing()
-        .returning({ id: memory.id })
-      if (inserted && provenance) {
-        await replaceMemorySecretProvenanceInTx(tx, id, sanitizedMessages, provenance)
-      }
+    options: MemoryHistoryOptions
+  ): Promise<{ groups: Message[][]; provenanceByMessage: Map<Message, DurableSecretProvenance> }> {
+    const newest: Array<{ messages: Message[]; provenance: DurableSecretProvenance }> = []
+    let bytes = 0
+    let scannedItems = 0
+    let beforeSequence: number | undefined
+    let complete = false
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: ctx,
+      audience: MEMORY_DELEGATION_AUDIENCE,
     })
-  }
-
-  private async appendMessage(
-    workspaceId: string,
-    key: string,
-    message: Message,
-    messageProvenance: ReturnType<typeof durableSecretProvenanceFromRegistry> | undefined
-  ): Promise<void> {
-    const now = new Date()
-
-    const sanitizedMessage = this.sanitizeMessageForStorage(message)
-
-    await db.transaction(async (tx) => {
-      await lockMemoryConversationInTx(tx, workspaceId, key)
-      const [existing] = await tx
-        .select({
-          id: memory.id,
-          data: memory.data,
-          updatedAt: memory.updatedAt,
-          secretProvenanceVersion: memory.secretProvenanceVersion,
-        })
-        .from(memory)
-        .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
-        .limit(1)
-        .for('update')
-
-      if (!existing) {
-        const id = generateId()
-        await tx.insert(memory).values({
-          id,
-          workspaceId,
-          key,
-          data: [sanitizedMessage],
-          secretProvenanceVersion: messageProvenance ? 1 : null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        if (messageProvenance) {
-          await replaceMemorySecretProvenanceInTx(tx, id, [sanitizedMessage], messageProvenance)
-        }
-        return
-      }
-
-      const [sidecar] = await tx
-        .select()
-        .from(memorySecretProvenance)
-        .where(eq(memorySecretProvenance.memoryId, existing.id))
-        .limit(1)
-      const previousProvenance = readBoundMemorySecretProvenance({
-        secretProvenanceVersion: existing.secretProvenanceVersion,
-        data: existing.data,
-        provenanceContentHash: sidecar?.contentHash ?? null,
-        status: sidecar?.status ?? null,
-        entries: sidecar?.entries,
+    while (!complete) {
+      const page = await readAgentMemoryItemsUseCase.execute({
+        principal,
+        input: { memoryId, workspaceId, beforeSequence, limit: 10 },
       })
-      const previousData = Array.isArray(existing.data) ? existing.data : []
-      const nextData = [...previousData, sanitizedMessage]
-      await tx
-        .update(memory)
-        .set({
-          data: sql`${memory.data} || ${JSON.stringify([sanitizedMessage])}::jsonb`,
-          secretProvenanceVersion: messageProvenance ? 1 : existing.secretProvenanceVersion,
-          updatedAt: now,
-        })
-        .where(eq(memory.id, existing.id))
-      if (messageProvenance) {
-        const nextProvenance = mergeDurableSecretProvenance(previousProvenance, messageProvenance)
-        await replaceMemorySecretProvenanceInTx(
-          tx,
-          existing.id,
-          nextData,
-          nextProvenance,
-          previousProvenance.status === 'unknown'
-            ? 'inherited-provenance-unknown'
-            : messageProvenance.status === 'exact' && nextProvenance.status === 'unknown'
-              ? 'merge-provenance-limit'
-              : undefined
+      for (const item of page.items) {
+        if (++scannedItems > MAX_RICH_HISTORY_ITEMS) {
+          complete = true
+          break
+        }
+        let values: unknown[]
+        let encryptedNative: string | undefined
+        if (item.kind === 'message') values = [item.data]
+        else {
+          if (
+            !isPlainRecord(item.data) ||
+            item.data.version !== 1 ||
+            !Array.isArray(item.data.messages)
+          )
+            continue
+          if (options.excludeTurnId && item.turnId === options.excludeTurnId) continue
+          values = item.data.messages
+          encryptedNative =
+            typeof item.data.encryptedNative === 'string' ? item.data.encryptedNative : undefined
+        }
+        const valid = values.every(
+          (value) =>
+            isPlainRecord(value) &&
+            ['system', 'user', 'assistant', 'tool', 'function'].includes(String(value.role)) &&
+            (typeof value.content === 'string' ||
+              (value.role === 'assistant' &&
+                value.content === null &&
+                Array.isArray(value.tool_calls)))
         )
+        if (!valid || values.length === 0) continue
+        const group = values as Message[]
+        const groupBytes =
+          Buffer.byteLength(JSON.stringify(item.data), 'utf8') +
+          Buffer.byteLength(JSON.stringify(item.provenance), 'utf8')
+        if (bytes + groupBytes > MAX_RICH_HISTORY_BYTES) {
+          complete = true
+          break
+        }
+        bytes += groupBytes
+        const sanitized = group.map((message) => this.sanitizeMessageForStorage(message))
+        if (item.kind === 'exchange') markConversationExchangeGroup(sanitized)
+        for (const message of sanitized) {
+          if (item.turnId) messageTurns.set(message, item.turnId)
+          messageAppendKeys.set(message, item.appendKey)
+        }
+        if (encryptedNative && sanitized[0]?.role === 'assistant')
+          setEncryptedConversationMessage(sanitized[0], encryptedNative)
+        newest.push({
+          messages: sanitized,
+          provenance: await bindMemorySecretProvenanceToMessages(sanitized, item.provenance),
+        })
       }
-    })
+      if (!page.nextBeforeSequence || scannedItems >= MAX_RICH_HISTORY_ITEMS) break
+      beforeSequence = page.nextBeforeSequence
+    }
+    newest.reverse()
+    return {
+      groups: newest.map((group) => group.messages),
+      provenanceByMessage: new Map(
+        newest.flatMap((group) =>
+          group.messages.map((message) => [message, group.provenance] as const)
+        )
+      ),
+    }
   }
 
   private parsePositiveInt(value: string | undefined, defaultValue: number): number {
@@ -696,7 +781,8 @@ export class Memory {
     }
   }
 
-  private validateContent(content: string): void {
+  private validateContent(content: string | null): void {
+    if (content === null) return
     const size = Buffer.byteLength(content, 'utf8')
     if (size > MEMORY.MAX_MESSAGE_CONTENT_BYTES) {
       throw new Error(

@@ -16,7 +16,7 @@ const {
   mockGetApiKeyWithBYOK: vi.fn(),
   mockExecuteRequest: vi.fn(),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
-  mockExecuteTool: vi.fn(async () => ({ success: true, output: {} })),
+  mockExecuteTool: vi.fn(async (..._args: unknown[]) => ({ success: true, output: {} })),
   mockUploadLargeFilesToProvider: vi.fn(),
 }))
 
@@ -45,12 +45,16 @@ vi.mock('@/tools', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }))
 
+import type { AgentTurnState } from '@/lib/memory/conversation-types'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { ExecutionContext, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import { captureProviderConversationStep } from '@/providers/conversation-history'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
-import type { ProviderResponse, ProviderToolConfig } from '@/providers/types'
+import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
+import { prepareToolExecution } from '@/providers/utils'
 
 const HOSTED_RATE_INPUT_COST = 0.340285
 const HOSTED_RATE_OUTPUT_COST = 0.0387
@@ -108,6 +112,253 @@ function makeProviderTool(id: string, credential: string): ProviderToolConfig {
     parameters: { type: 'object', properties: {}, required: [] },
   }
 }
+
+describe('executeProviderRequest — durable Agent continuation', () => {
+  const tool = makeProviderTool('http_request', 'credential-1')
+  const initialRequest: ProviderRequest = {
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: 'Finish the work.' }],
+    tools: [tool],
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    blockId: 'agent-1',
+  }
+  const toolMessage = (ids: string[]) => ({
+    role: 'assistant',
+    content: 'Looking up records.',
+    tool_calls: ids.map((id) => ({
+      id,
+      type: 'function',
+      function: { name: 'http_request', arguments: JSON.stringify({ key: id }) },
+    })),
+  })
+  const response = (): ProviderResponse => ({
+    content: 'Finished.',
+    model: 'gpt-4o',
+    tokens: { input: 2, output: 1, total: 3 },
+    toolCalls: [],
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteRequest.mockReset().mockImplementation(async () => response())
+    mockExecuteTool.mockReset().mockResolvedValue({ success: true, output: { value: 'saved' } })
+  })
+
+  async function executeCall(request: ProviderRequest, id: string) {
+    const configuredTool = request.tools![0]
+    const { executionParams } = prepareToolExecution(configuredTool, { key: id }, request, id)
+    return executeProviderTool(configuredTool.id, executionParams)
+  }
+
+  it('carries completed work and usage to fallback without dispatching the tool again', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']), {
+        input: 7,
+        output: 3,
+      })
+      await executeCall(request, 'call-1')
+      throw new Error('Primary failed after the completed tool')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Primary failed')
+
+    const result = (await executeProviderRequest(
+      'groq',
+      { ...initialRequest, model: 'llama-3.3-70b-versatile' },
+      { agentConversation: session }
+    )) as ProviderResponse
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    const fallback = mockExecuteRequest.mock.calls[1][0] as ProviderRequest
+    expect(fallback.messages).toEqual([
+      ...initialRequest.messages!,
+      expect.objectContaining({
+        role: 'assistant',
+        tool_calls: toolMessage(['call-1']).tool_calls,
+      }),
+      { role: 'tool', name: 'http_request', tool_call_id: 'call-1', content: '{"value":"saved"}' },
+    ])
+    expect(session.getPendingCalls()).toEqual([])
+    expect(result.tokens).toMatchObject({ input: 9, output: 4, total: 13 })
+  })
+
+  it('restores a partial parallel batch and only retries the call without a recorded result', async () => {
+    let checkpoint: AgentTurnState | undefined
+    const session = new AgentTurnStateMachine({
+      save: async (state) => {
+        checkpoint = state
+      },
+    })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        toolMessage(['done', 'pending'])
+      )
+      await executeCall(request, 'done')
+      throw new Error('Process stopped before the other result was recorded')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Process stopped')
+    const pendingIdentity = session.getPendingCalls()[0].invocationId
+    const restored = new AgentTurnStateMachine({ save: vi.fn() }, checkpoint)
+
+    await executeProviderRequest('openai', initialRequest, { agentConversation: restored })
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    expect(mockExecuteTool.mock.calls.map((call) => (call[1] as { key: string }).key)).toEqual([
+      'done',
+      'pending',
+    ])
+    expect(mockExecuteTool.mock.calls[1][1]).toMatchObject({
+      _context: { invocationId: pendingIdentity },
+    })
+    expect(restored.getPendingCalls()).toEqual([])
+    const resumedRequest = mockExecuteRequest.mock.calls[1][0] as ProviderRequest
+    expect(resumedRequest.messages?.filter((message) => message.role === 'tool')).toHaveLength(2)
+    await executeProviderRequest('openai', initialRequest, { agentConversation: restored })
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves the ordinary provider path without an Agent memory session', async () => {
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']))
+      expect(request.resolveToolInvocationId).toBeUndefined()
+      await executeCall(request, 'call-1')
+      return response()
+    })
+    await executeProviderRequest('openai', initialRequest)
+    await executeProviderRequest('openai', initialRequest)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest.mock.calls[1][0].messages).toEqual(initialRequest.messages)
+  })
+
+  it('returns a completed checkpoint after current authorization without another model call', async () => {
+    const state: AgentTurnState = {
+      version: 1,
+      steps: [
+        {
+          id: 'final-step',
+          assistant: { role: 'assistant', content: '{"answer":42}' },
+          calls: [],
+          results: [],
+          usage: { input: 7, output: 3, cacheRead: 2 },
+          cost: { input: 0.4, output: 0.6, total: 1 },
+        },
+      ],
+      final: { content: '{"answer":42}', model: 'claude-opus-4-6' },
+    }
+    const restored = new AgentTurnStateMachine({ save: vi.fn() }, state)
+    mockGetApiKeyWithBYOK.mockResolvedValueOnce({ apiKey: 'new-byok-key', isBYOK: true })
+
+    const result = (await executeProviderRequest(
+      'openai',
+      { ...initialRequest, workspaceId: 'workspace-1' },
+      { agentConversation: restored }
+    )) as ProviderResponse
+
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledTimes(1)
+    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledTimes(1)
+    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      content: '{"answer":42}',
+      model: 'claude-opus-4-6',
+      tokens: { input: 7, output: 3, cacheRead: 2, total: 12 },
+      cost: { input: 0.4, output: 0.6, total: 1 },
+    })
+  })
+
+  it('adds previous usage once when a stream completion callback is repeated', async () => {
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'previous-step',
+            assistant: { role: 'assistant', content: 'Partial answer' },
+            calls: [],
+            results: [],
+            usage: { input: 7, output: 3 },
+            cost: { input: 0.4, output: 0.6, total: 1 },
+          },
+        ],
+      }
+    )
+    const onFullContent = vi.fn()
+    const streaming: StreamingExecution = {
+      stream: new ReadableStream(),
+      onFullContent,
+      execution: {
+        success: true,
+        logs: [],
+        metadata: { startTime: '', duration: 0 },
+        output: {
+          content: 'Finished.',
+          tokens: { input: 2, output: 1, total: 3 },
+          cost: { input: 0, output: 0, total: 0 },
+        },
+      },
+    }
+    mockExecuteRequest.mockResolvedValueOnce(streaming)
+    const result = (await executeProviderRequest(
+      'openai',
+      { ...initialRequest, stream: true },
+      { agentConversation: session }
+    )) as StreamingExecution
+
+    await Promise.all([result.onFullContent?.('Finished.'), result.onFullContent?.('Finished.')])
+    expect(result.execution.output.tokens).toMatchObject({ input: 9, output: 4, total: 13 })
+    expect(result.execution.output.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+    expect(onFullContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not replay pending tools after cancellation', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['pending']))
+      throw new Error('Process stopped')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Process stopped')
+    const abort = new AbortController()
+    abort.abort()
+    await expect(
+      executeProviderRequest(
+        'openai',
+        { ...initialRequest, abortSignal: abort.signal },
+        {
+          agentConversation: session,
+        }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates a nonretryable tool failure without another execution', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    const failure = Object.assign(new Error('Policy denied this operation'), { retryable: false })
+    mockExecuteTool.mockRejectedValueOnce(failure)
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']))
+      await executeCall(request, 'call-1')
+      return response()
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toBe(failure)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('executeProviderRequest — tool identities', () => {
   beforeEach(() => {

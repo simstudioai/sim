@@ -1,4 +1,8 @@
-import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  Message as BedrockMessage,
+  ContentBlock,
+  ConverseStreamOutput,
+} from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
@@ -10,6 +14,20 @@ const logger = createLogger('BedrockUtils')
 export interface BedrockStreamUsage {
   inputTokens: number
   outputTokens: number
+  cacheReadInputTokens?: number
+  cacheWriteInputTokens?: number
+}
+
+/** Converse reports uncached input separately from cache reads and writes. */
+export function toBedrockConversationUsage(usage: Partial<BedrockStreamUsage> | undefined) {
+  return usage
+    ? {
+        input: usage.inputTokens ?? 0,
+        output: usage.outputTokens ?? 0,
+        ...(usage.cacheReadInputTokens ? { cacheRead: usage.cacheReadInputTokens } : {}),
+        ...(usage.cacheWriteInputTokens ? { cacheWrite: usage.cacheWriteInputTokens } : {}),
+      }
+    : undefined
 }
 
 /**
@@ -37,17 +55,28 @@ export function getBedrockStreamError(event: ConverseStreamOutput): Error | unde
  */
 export function createReadableStreamFromBedrockStream(
   bedrockStream: AsyncIterable<ConverseStreamOutput>,
-  onComplete?: (content: string, usage: BedrockStreamUsage) => void
+  onComplete?: (
+    content: string,
+    usage: BedrockStreamUsage,
+    message: BedrockMessage
+  ) => void | Promise<void>
 ): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
+  let cacheReadInputTokens: number | undefined
+  let cacheWriteInputTokens: number | undefined
   let cancelled = false
   let streamIterator: AsyncIterator<ConverseStreamOutput> | undefined
 
   return new ReadableStream({
     async start(controller) {
       try {
+        const contentByIndex = new Map<number, ContentBlock>()
+        const reasoningByIndex = new Map<
+          number,
+          { text: string; signature: string; redacted: Uint8Array[] }
+        >()
         streamIterator = bedrockStream[Symbol.asyncIterator]()
         while (true) {
           const next = await streamIterator.next()
@@ -55,19 +84,70 @@ export function createReadableStreamFromBedrockStream(
           const event = next.value
           const streamError = getBedrockStreamError(event)
           if (streamError) throw streamError
+          const delta = event.contentBlockDelta?.delta
+          const index = event.contentBlockDelta?.contentBlockIndex ?? 0
+          if (delta?.reasoningContent) {
+            const reasoning = reasoningByIndex.get(index) ?? {
+              text: '',
+              signature: '',
+              redacted: [],
+            }
+            reasoning.text += delta.reasoningContent.text ?? ''
+            reasoning.signature += delta.reasoningContent.signature ?? ''
+            if (delta.reasoningContent.redactedContent)
+              reasoning.redacted.push(delta.reasoningContent.redactedContent)
+            reasoningByIndex.set(index, reasoning)
+          }
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
+            const previous = contentByIndex.get(index)
+            contentByIndex.set(index, { text: (previous?.text ?? '') + text })
             controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           } else if (event.metadata?.usage) {
             inputTokens = event.metadata.usage.inputTokens ?? 0
             outputTokens = event.metadata.usage.outputTokens ?? 0
+            cacheReadInputTokens = event.metadata.usage.cacheReadInputTokens
+            cacheWriteInputTokens = event.metadata.usage.cacheWriteInputTokens
           }
         }
 
         if (cancelled) return
         if (onComplete) {
-          onComplete(fullContent, { inputTokens, outputTokens })
+          for (const [index, reasoning] of reasoningByIndex) {
+            if (reasoning.redacted.length > 0) {
+              const redactedContent = new Uint8Array(
+                reasoning.redacted.reduce((size, chunk) => size + chunk.length, 0)
+              )
+              let offset = 0
+              for (const chunk of reasoning.redacted) {
+                redactedContent.set(chunk, offset)
+                offset += chunk.length
+              }
+              contentByIndex.set(index, { reasoningContent: { redactedContent } })
+            } else {
+              contentByIndex.set(index, {
+                reasoningContent: {
+                  reasoningText: { text: reasoning.text, signature: reasoning.signature },
+                },
+              })
+            }
+          }
+          await onComplete(
+            fullContent,
+            {
+              inputTokens,
+              outputTokens,
+              ...(cacheReadInputTokens ? { cacheReadInputTokens } : {}),
+              ...(cacheWriteInputTokens ? { cacheWriteInputTokens } : {}),
+            },
+            {
+              role: 'assistant',
+              content: [...contentByIndex.entries()]
+                .sort(([left], [right]) => left - right)
+                .map(([, block]) => block),
+            }
+          )
         }
 
         controller.close()

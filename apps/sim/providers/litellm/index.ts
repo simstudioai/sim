@@ -7,9 +7,14 @@ import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { createReadableStreamFromLiteLLMStream } from '@/providers/litellm/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -228,32 +233,36 @@ export const litellmProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromLiteLLMStream(streamResponse, (content, usage) => {
-              let cleanContent = content
-              if (cleanContent && request.responseFormat) {
-                cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
-              }
+            createReadableStreamFromLiteLLMStream(
+              streamResponse,
+              (content, usage) => {
+                let cleanContent = content
+                if (cleanContent && request.responseFormat) {
+                  cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
+                }
 
-              output.content = cleanContent
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+                output.content = cleanContent
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
 
-              finalizeTiming()
-            }),
+                finalizeTiming()
+              },
+              request
+            ),
         })
 
         return streamingResult
@@ -292,6 +301,14 @@ export const litellmProvider: ProviderConfig = {
         payload,
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -355,6 +372,12 @@ export const litellmProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -364,6 +387,12 @@ export const litellmProvider: ProviderConfig = {
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolCall,
@@ -409,6 +438,12 @@ export const litellmProvider: ProviderConfig = {
             if (isAbortError(error) || request.abortSignal?.aborted) {
               throw error
             }
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call:', { error, toolName })
 
@@ -523,6 +558,14 @@ export const litellmProvider: ProviderConfig = {
           nextPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
 
         checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
 
@@ -584,6 +627,14 @@ export const litellmProvider: ProviderConfig = {
           finalPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
 
         const finalFormatEndTime = Date.now()
         timeSegments.push({
@@ -628,6 +679,14 @@ export const litellmProvider: ProviderConfig = {
           },
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            synthesisResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(synthesisResponse.usage)
+          )
+        }
         const synthesisEndTime = Date.now()
 
         timeSegments.push({

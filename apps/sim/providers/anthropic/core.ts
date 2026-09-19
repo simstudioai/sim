@@ -10,14 +10,20 @@ import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/st
 import { buildAnthropicStructuredOutputSchema } from '@/providers/anthropic/structured-output-schema'
 import {
   addAnthropicUsage,
+  buildAnthropicModelUsage,
   buildAnthropicUsageCost,
   buildAnthropicUsageTokens,
   createAnthropicUsageAccumulator,
+  toAnthropicModelUsage,
 } from '@/providers/anthropic/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -519,7 +525,13 @@ export async function executeAnthropicProviderRequest(
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          ({ content, usage, thinking }) => {
+          async ({ content, usage, thinking, nativeContent }) => {
+            await captureProviderConversationStep(
+              request,
+              'anthropic',
+              nativeContent,
+              buildAnthropicModelUsage(usage)
+            )
             const tokens = buildAnthropicUsageTokens(usage)
             const cost = buildAnthropicUsageCost(request.model, usage)
             output.content = content
@@ -558,6 +570,12 @@ export async function executeAnthropicProviderRequest(
     let usedForcedTools: string[] = []
 
     let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
+    await captureProviderConversationStep(
+      request,
+      'anthropic',
+      currentResponse.content,
+      toAnthropicModelUsage(currentResponse.usage)
+    )
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -646,6 +664,12 @@ export async function executeAnthropicProviderRequest(
 
             const tool = request.tools?.find((t) => t.id === toolName)
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolUse.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolUseId,
@@ -694,6 +718,12 @@ export async function executeAnthropicProviderRequest(
               throw error
             }
             const toolCallEndTime = Date.now()
+            await recordProviderConversationToolError(
+              request,
+              toolUse.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             logger.error('Error processing tool call:', { error, toolName })
 
             return {
@@ -854,6 +884,13 @@ export async function executeAnthropicProviderRequest(
         const nextModelStartTime = Date.now()
 
         currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
+
+        await captureProviderConversationStep(
+          request,
+          'anthropic',
+          currentResponse.content,
+          toAnthropicModelUsage(currentResponse.usage)
+        )
 
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,

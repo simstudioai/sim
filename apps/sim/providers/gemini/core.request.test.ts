@@ -7,7 +7,16 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
+const { mockExecuteTool, mockCapture, mockRecordError } = vi.hoisted(() => ({
+  mockExecuteTool: vi.fn(),
+  mockCapture: vi.fn(),
+  mockRecordError: vi.fn(),
+}))
+
+vi.mock('@/providers/conversation-history', () => ({
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationToolError: mockRecordError,
+}))
 
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
@@ -48,6 +57,61 @@ describe('Vertex Gemini request compatibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+  })
+
+  it('captures two same-name calls without IDs before parallel execution and preserves every part', async () => {
+    const calls = [
+      { name: 'lookup', args: { key: 'a' } },
+      { name: 'lookup', args: { key: 'b' } },
+    ]
+    const content = {
+      role: 'model',
+      parts: [
+        { text: 'Looking up both', thoughtSignature: 'text-signature' },
+        ...calls.map((functionCall, index) => ({
+          functionCall,
+          thoughtSignature: `signature-${index}`,
+        })),
+      ],
+    }
+    const generateContent = vi
+      .fn()
+      .mockResolvedValueOnce({
+        functionCalls: calls,
+        candidates: [{ content, finishReason: 'STOP' }],
+      })
+      .mockResolvedValueOnce(textTurn())
+    mockExecuteTool.mockImplementation(async (_tool, params) => {
+      expect(mockCapture).toHaveBeenCalledWith(expect.anything(), 'gemini', content, {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+      })
+      return { success: true, output: { value: params.key } }
+    })
+
+    await run('vertex/gemini-3.8-flash', generateContent, {
+      tools: [
+        {
+          id: 'lookup',
+          name: 'Lookup',
+          description: 'Look up a record',
+          parameters: { type: 'object', properties: { key: { type: 'string' } } },
+        },
+      ],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    const secondRequest = generateContent.mock.calls[1][0] as GenerateContentParameters
+    expect(secondRequest.contents).toContainEqual(content)
+    expect(secondRequest.contents).toContainEqual({
+      role: 'user',
+      parts: [
+        { functionResponse: { name: 'lookup', response: { value: 'a' } } },
+        { functionResponse: { name: 'lookup', response: { value: 'b' } } },
+      ],
+    })
   })
 
   it.each([

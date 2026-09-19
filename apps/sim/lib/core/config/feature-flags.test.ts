@@ -13,6 +13,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
+    AGENT_MEMORY_HISTORY: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
     SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
@@ -73,6 +74,25 @@ describe('getFeatureFlags', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
+    envRef.AGENT_MEMORY_HISTORY = undefined
+  })
+
+  it('rolls Agent history out by workspace and retains a global capture switch', async () => {
+    withAppConfig({ 'agent-memory-history': { workspaceIds: ['workspace-a'] } })
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-a' })).toBe(
+      true
+    )
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-b' })).toBe(
+      false
+    )
+    withAppConfig({ 'agent-memory-history': { enabled: true } })
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-b' })).toBe(
+      true
+    )
+    setEnvFlags({ isAppConfigEnabled: false })
+    expect(await isFeatureEnabled('agent-memory-history')).toBe(false)
+    envRef.AGENT_MEMORY_HISTORY = true
+    expect(await isFeatureEnabled('agent-memory-history')).toBe(true)
   })
 
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {

@@ -1,0 +1,113 @@
+import type {
+  Message as BedrockMessage,
+  ContentBlock,
+  SystemContentBlock,
+  ToolUseBlock,
+} from '@aws-sdk/client-bedrock-runtime'
+import { isRecordLike } from '@sim/utils/object'
+import { renderConversationExecutionRecord } from '@/lib/memory/execution-record'
+import { buildBedrockMessageContent } from '@/providers/attachments'
+import { generateToolUseId } from '@/providers/bedrock/utils'
+import {
+  getNativeConversationMessage,
+  getNativeConversationPrefixHash,
+} from '@/providers/conversation-metadata'
+import { getConversationPrefixHash } from '@/providers/conversation-prefix'
+import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import type { ProviderRequest } from '@/providers/types'
+
+/** Converts shared history without splitting parallel tool calls or their results. */
+export function convertBedrockRequestHistory(request: ProviderRequest): {
+  messages: BedrockMessage[]
+  systemContent: SystemContentBlock[]
+} {
+  const messages: BedrockMessage[] = []
+  const systemContent: SystemContentBlock[] = []
+  if (request.systemPrompt) systemContent.push({ text: request.systemPrompt })
+  if (request.context) messages.push({ role: 'user', content: [{ text: request.context }] })
+
+  const sourceMessages = request.messages ?? []
+  for (let index = 0; index < sourceMessages.length; index++) {
+    const message = sourceMessages[index]
+    if (message.role === 'system') {
+      if (message.content) systemContent.push({ text: message.content })
+      continue
+    }
+
+    const nativeMessage = getNativeConversationMessage(message, 'bedrock')
+    if (
+      isRecordLike(nativeMessage) &&
+      Array.isArray(nativeMessage.content) &&
+      (nativeMessage.role === 'assistant' || nativeMessage.role === 'user')
+    ) {
+      const hasReasoning = nativeMessage.content.some(
+        (block) => isRecordLike(block) && 'reasoningContent' in block
+      )
+      const prefixHash = getNativeConversationPrefixHash(message)
+      if (hasReasoning && (!prefixHash || prefixHash !== getConversationPrefixHash(messages))) {
+        const group = [message]
+        while (sourceMessages[index + 1]?.role === 'tool') group.push(sourceMessages[++index])
+        messages.push({
+          role: 'user',
+          content: [{ text: renderConversationExecutionRecord(group, 4096).content ?? '' }],
+        })
+        continue
+      }
+      messages.push({
+        role: nativeMessage.role,
+        content: (nativeMessage.content as ContentBlock[]).filter(
+          (block) => !('text' in block) || Boolean(block.text?.trim())
+        ),
+      })
+      continue
+    }
+
+    if (message.role === 'function' || message.role === 'tool') {
+      const block: ContentBlock = {
+        toolResult: {
+          toolUseId: message.tool_call_id || message.name || generateToolUseId('tool'),
+          content: [{ text: message.content ?? '' }],
+        },
+      }
+      const previous = messages.at(-1)
+      if (previous?.role === 'user' && previous.content?.every((item) => 'toolResult' in item)) {
+        previous.content.push(block)
+      } else {
+        messages.push({ role: 'user', content: [block] })
+      }
+      continue
+    }
+
+    /** The shared builder emits the Bedrock union while retaining provider-neutral types. */
+    const content = buildBedrockMessageContent(
+      message.content,
+      message.files,
+      'bedrock'
+    ) as ContentBlock[]
+    const calls =
+      message.tool_calls ??
+      (message.function_call
+        ? [
+            {
+              id: generateToolUseId(message.function_call.name),
+              function: message.function_call,
+            },
+          ]
+        : [])
+    for (const call of calls) {
+      content.push({
+        toolUse: {
+          toolUseId: call.id,
+          name: call.function.name,
+          input: parseToolArguments(
+            call.function.arguments,
+            call.function.name
+          ) as ToolUseBlock['input'],
+        },
+      })
+    }
+    messages.push({ role: message.role === 'assistant' ? 'assistant' : 'user', content })
+  }
+
+  return { messages, systemContent }
+}

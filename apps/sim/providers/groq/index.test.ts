@@ -5,10 +5,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockCreate, mockExecuteTool, mockPrepareToolsWithUsageControl } = vi.hoisted(() => ({
+const {
+  mockCreate,
+  mockExecuteTool,
+  mockPrepareToolsWithUsageControl,
+  mockCapture,
+  mockRecordError,
+} = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockExecuteTool: vi.fn(),
   mockPrepareToolsWithUsageControl: vi.fn(),
+  mockCapture: vi.fn(),
+  mockRecordError: vi.fn(),
+}))
+
+vi.mock('@/providers/conversation-history', () => ({
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationToolError: mockRecordError,
 }))
 
 vi.mock('groq-sdk', () => ({
@@ -74,6 +87,8 @@ function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
 
 describe('groqProvider reasoning payload', () => {
   beforeEach(() => {
+    mockCapture.mockReset()
+    mockRecordError.mockReset()
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockPrepareToolsWithUsageControl.mockReset()
@@ -87,6 +102,68 @@ describe('groqProvider reasoning payload', () => {
       choices: [{ message: { content: 'ok', tool_calls: [] } }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
     })
+  })
+
+  it('captures native calls before dispatch and captures the final answer', async () => {
+    const assistant = {
+      role: 'assistant',
+      content: null,
+      reasoning: 'look up the record',
+      tool_calls: [
+        { id: 'call-a', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+      ],
+    }
+    mockCreate.mockResolvedValueOnce({ choices: [{ message: assistant }] })
+    mockExecuteTool.mockImplementation(async () => {
+      expect(mockCapture).toHaveBeenCalledWith(
+        expect.anything(),
+        'chat-completions',
+        assistant,
+        undefined
+      )
+      return { success: true, output: { value: 'found' } }
+    })
+    await groqProvider.executeRequest(
+      request({ tools: [{ id: 'lookup', name: 'Lookup', parameters: {} }] })
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    expect(mockCapture).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'chat-completions',
+      {
+        content: 'ok',
+        tool_calls: [],
+      },
+      expect.anything()
+    )
+  })
+
+  it('records malformed arguments as a terminal tool result without executing them', async () => {
+    mockCreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              { id: 'bad-call', type: 'function', function: { name: 'lookup', arguments: '{' } },
+            ],
+          },
+        },
+      ],
+    })
+    await groqProvider.executeRequest(
+      request({ tools: [{ id: 'lookup', name: 'Lookup', parameters: {} }] })
+    )
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockRecordError).toHaveBeenCalledWith(
+      expect.anything(),
+      'bad-call',
+      'lookup',
+      expect.any(String)
+    )
   })
 
   it('GPT-OSS sets include_reasoning and reasoning_effort', async () => {

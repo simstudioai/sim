@@ -19,8 +19,15 @@ async function collectEvents(
   return events
 }
 
-const { mockExecuteTool } = vi.hoisted(() => ({
+const { mockExecuteTool, mockCapture, mockRecordError } = vi.hoisted(() => ({
   mockExecuteTool: vi.fn(),
+  mockCapture: vi.fn(),
+  mockRecordError: vi.fn(),
+}))
+
+vi.mock('@/providers/conversation-history', () => ({
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationToolError: mockRecordError,
 }))
 
 vi.mock('@/tools', () => ({
@@ -69,8 +76,13 @@ describe('createGeminiStreamingToolLoopStream', () => {
             {
               content: {
                 parts: [
-                  { text: 'I should call the API. ', thought: true },
                   {
+                    text: 'I should call the API. ',
+                    thought: true,
+                    thoughtSignature: 'thinking-signature',
+                  },
+                  {
+                    thoughtSignature: 'call-signature',
                     functionCall: {
                       name: 'http_request',
                       args: { url: 'https://httpbin.org/get' },
@@ -139,6 +151,21 @@ describe('createGeminiStreamingToolLoopStream', () => {
     })
 
     const events = await collectEvents(stream)
+
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    expect(mockCapture.mock.calls[0][2]).toEqual({
+      role: 'model',
+      parts: [
+        { text: 'I should call the API. ', thought: true, thoughtSignature: 'thinking-signature' },
+        {
+          thoughtSignature: 'call-signature',
+          functionCall: { name: 'http_request', args: { url: 'https://httpbin.org/get' } },
+        },
+      ],
+    })
+    expect(mockCapture.mock.invocationCallOrder[0]).toBeLessThan(
+      mockExecuteTool.mock.invocationCallOrder[0]
+    )
 
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'I should call the API. ',

@@ -28,6 +28,10 @@ import { isRecordLike } from '@sim/utils/object'
 import type { IterationToolCall } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import {
   checkForForcedToolUsage,
   cleanSchemaForGemini,
   convertUsageMetadata,
@@ -119,6 +123,7 @@ async function drainGeminiTurn(
   text: string
   thinking: string
   functionCalls: StreamedFunctionCall[]
+  modelParts: Part[]
   hasFunctionCallPart: boolean
   usage: GeminiUsage
   finishReason?: string
@@ -126,6 +131,7 @@ async function drainGeminiTurn(
   let text = ''
   let thinking = ''
   const functionCalls: StreamedFunctionCall[] = []
+  const modelParts: Part[] = []
   let hasFunctionCallPart = false
   const seenKeys = new Set<string>()
   let usage: GeminiUsage = {
@@ -166,12 +172,14 @@ async function drainGeminiTurn(
         const fallback = chunk.text
         if (fallback) {
           text += fallback
+          modelParts.push({ text: fallback })
           controller.enqueue({ type: 'text_delta', text: fallback, turn: 'pending' })
         }
         continue
       }
 
       for (const part of parts) {
+        modelParts.push(part)
         if (part.functionCall) {
           hasFunctionCallPart = true
           const localId = ensureToolCallId(part.functionCall.id, 'gemini')
@@ -203,7 +211,7 @@ async function drainGeminiTurn(
     onIteratorChange(undefined)
   }
 
-  return { text, thinking, functionCalls, hasFunctionCallPart, usage, finishReason }
+  return { text, thinking, functionCalls, modelParts, hasFunctionCallPart, usage, finishReason }
 }
 
 /**
@@ -362,6 +370,15 @@ export function createGeminiStreamingToolLoopStream(
             }
 
             const turnTag = drained.functionCalls.length > 0 ? 'intermediate' : 'final'
+            await captureProviderConversationStep(
+              request,
+              'gemini',
+              {
+                role: 'model',
+                parts: drained.modelParts,
+              },
+              splitGeminiUsage(drained.usage)
+            )
             controller.enqueue({ type: 'turn_end', turn: turnTag })
             content = drained.text
 
@@ -430,6 +447,12 @@ export function createGeminiStreamingToolLoopStream(
 
                   const tool = request.tools?.find((t) => t.id === toolName)
                   if (!tool) {
+                    await recordProviderConversationToolError(
+                      request,
+                      functionCall.id,
+                      toolName,
+                      `Tool ${toolName} not found`
+                    )
                     const value = {
                       part,
                       toolCallId,
@@ -546,6 +569,12 @@ export function createGeminiStreamingToolLoopStream(
                     throw error
                   }
 
+                  await recordProviderConversationToolError(
+                    request,
+                    functionCall.id,
+                    toolName,
+                    getErrorMessage(error, 'Tool execution failed')
+                  )
                   logger.error('Error processing function call:', {
                     error: toError(error).message,
                     functionName: toolName,
@@ -587,7 +616,6 @@ export function createGeminiStreamingToolLoopStream(
              * model-provided ids must round-trip untouched). A functionResponse
              * id is attached only when the model itself provided one.
              */
-            const modelParts: Part[] = orderedResults.map((r) => r.part)
             const userParts: Part[] = orderedResults.map((r) => ({
               functionResponse: {
                 name: r.toolName,
@@ -598,7 +626,7 @@ export function createGeminiStreamingToolLoopStream(
 
             contents = [
               ...contents,
-              { role: 'model', parts: modelParts },
+              { role: 'model', parts: drained.modelParts },
               { role: 'user', parts: userParts },
             ]
 

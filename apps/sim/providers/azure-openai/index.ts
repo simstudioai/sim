@@ -27,8 +27,14 @@ import {
   isChatCompletionsEndpoint,
   isResponsesEndpoint,
 } from '@/providers/azure-openai/utils'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import { getNativeConversationMessage } from '@/providers/conversation-metadata'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -105,6 +111,11 @@ async function executeChatCompletionsRequest(
 
   if (request.messages) {
     for (const message of request.messages) {
+      const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
+      if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
+        allMessages.push({ ...message, ...nativeMessage } as ChatCompletionMessageParam)
+        continue
+      }
       if (!message.files?.length || message.role !== 'user') {
         allMessages.push(message as ChatCompletionMessageParam)
         continue
@@ -211,27 +222,31 @@ async function executeChatCompletionsRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createReadableStreamFromAzureOpenAIStream(
+            streamResponse,
+            (content, usage) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
 
-            finalizeTiming()
-          }),
+              finalizeTiming()
+            },
+            request
+          ),
       })
 
       return streamingResult
@@ -246,6 +261,14 @@ async function executeChatCompletionsRequest(
       payload,
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )) as ChatCompletion
+    if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
+    }
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
@@ -306,6 +329,12 @@ async function executeChatCompletionsRequest(
 
       const toolsStartTime = Date.now()
 
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
       const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
         const toolCallStartTime = Date.now()
         const toolName = toolCall.function.name
@@ -315,6 +344,12 @@ async function executeChatCompletionsRequest(
           const tool = request.tools?.find((t) => t.id === toolName)
 
           if (!tool) {
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              `Tool "${toolName}" is not available`
+            )
             const toolCallEndTime = Date.now()
             return {
               toolCall,
@@ -360,6 +395,12 @@ async function executeChatCompletionsRequest(
           if (isAbortError(error) || request.abortSignal?.aborted) {
             throw error
           }
+          await recordProviderConversationToolError(
+            request,
+            toolCall.id,
+            toolName,
+            getErrorMessage(error, 'Tool execution failed')
+          )
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -474,6 +515,14 @@ async function executeChatCompletionsRequest(
         nextPayload,
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
 
       const nextCheckResult = checkForForcedToolUsage(
         currentResponse,
@@ -535,6 +584,14 @@ async function executeChatCompletionsRequest(
         },
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          synthesisResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(synthesisResponse.usage)
+        )
+      }
       const synthesisEndTime = Date.now()
 
       timeSegments.push({

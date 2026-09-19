@@ -2549,6 +2549,13 @@
       "when": 1789773032501,
       "tag": "0364_workspace_file_search_direct_gin",
       "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1789782013242,
+      "tag": "0365_durable_agent_memory",
+      "breakpoints": true
     }
   ]
 }

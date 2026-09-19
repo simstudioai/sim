@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'agent-memory-history': {
+    description:
+      'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
+    fallback: 'AGENT_MEMORY_HISTORY',
+  },
   'slack-search-shared-app': {
     description:
       'Enable the official shared Slack app for existing Search customers. Supports orgId ' +
