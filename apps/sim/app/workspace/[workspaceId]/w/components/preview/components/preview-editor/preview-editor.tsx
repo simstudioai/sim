@@ -12,6 +12,7 @@ import {
   Input,
   Label,
   OverflowText,
+  OverlayActionButton,
   Tooltip,
 } from '@sim/emcn'
 import {
@@ -1235,22 +1236,20 @@ function PreviewEditorContent({
                     <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
                               <Clipboard className='size-[10px]' />
                             )}
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
                           {copiedSection === 'input' ? 'Copied' : 'Copy'}
@@ -1258,18 +1257,16 @@ function PreviewEditorContent({
                       </Tooltip.Root>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
                       </Tooltip.Root>
@@ -1309,22 +1306,20 @@ function PreviewEditorContent({
                     <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
                               <Clipboard className='size-[10px]' />
                             )}
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
                           {copiedSection === 'output' ? 'Copied' : 'Copy'}
@@ -1332,18 +1327,16 @@ function PreviewEditorContent({
                       </Tooltip.Root>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
                       </Tooltip.Root>
