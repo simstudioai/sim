@@ -10,8 +10,8 @@ const { mockDeleteFile, mockEnqueueOutboxEvents, mockProcessOutboxEventById } = 
 }))
 
 vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: vi.fn(),
   enqueueOutboxEvents: mockEnqueueOutboxEvents,
+  MAX_BULK_ENQUEUE_EVENTS: 2,
   processOutboxEventById: mockProcessOutboxEventById,
 }))
 
@@ -88,7 +88,7 @@ describe('batched workspace file storage cleanup', () => {
     vi.clearAllMocks()
   })
 
-  it('enqueues every released key in one insert', async () => {
+  it('enqueues released keys within the bulk limit in one insert', async () => {
     const executor = { insert: vi.fn() }
     mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])
 
@@ -99,6 +99,22 @@ describe('batched workspace file storage cleanup', () => {
       executor,
       WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
       [{ key: 'a' }, { key: 'b' }]
+    )
+  })
+
+  it('splits keys beyond the outbox bulk limit into several inserts', async () => {
+    const executor = { insert: vi.fn() }
+    mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])
+    mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-c'])
+
+    await expect(
+      enqueueWorkspaceFileStorageCleanups(executor as never, ['a', 'b', 'c'])
+    ).resolves.toEqual(['event-a', 'event-b', 'event-c'])
+    expect(mockEnqueueOutboxEvents).toHaveBeenNthCalledWith(
+      2,
+      executor,
+      WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
+      [{ key: 'c' }]
     )
   })
 

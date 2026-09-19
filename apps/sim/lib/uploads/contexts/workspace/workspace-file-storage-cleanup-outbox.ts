@@ -1,9 +1,10 @@
 import type { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import {
-  enqueueOutboxEvent,
   enqueueOutboxEvents,
+  MAX_BULK_ENQUEUE_EVENTS,
   type OutboxHandler,
   type OutboxHandlerRegistry,
   processOutboxEventById,
@@ -44,29 +45,25 @@ export const workspaceFileStorageCleanupOutboxHandlers = {
   [WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT]: cleanupWorkspaceFileStorage,
 } satisfies OutboxHandlerRegistry
 
-/** Enqueues storage deletion in the transaction that removes the corresponding metadata. */
-export function enqueueWorkspaceFileStorageCleanup(
-  executor: Pick<typeof db, 'insert'>,
-  payload: WorkspaceFileStorageCleanupPayload
-): Promise<string> {
-  return enqueueOutboxEvent(executor, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT, payload)
-}
-
-/** Attempts a newly committed cleanup immediately; the outbox worker retries incomplete work. */
-export function processWorkspaceFileStorageCleanupNow(eventId: string) {
-  return processOutboxEventById(eventId, workspaceFileStorageCleanupOutboxHandlers)
-}
-
-/** Enqueues deletion of several storage objects in one insert, inside the releasing transaction. */
-export function enqueueWorkspaceFileStorageCleanups(
+/**
+ * Enqueues deletion of storage objects inside the transaction that releases them, split into inserts
+ * the outbox accepts so a caller can release any number of keys at once.
+ */
+export async function enqueueWorkspaceFileStorageCleanups(
   executor: Pick<typeof db, 'insert'>,
   keys: readonly string[]
 ): Promise<string[]> {
-  return enqueueOutboxEvents(
-    executor,
-    WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
-    keys.map((key) => ({ key }))
-  )
+  const eventIds: string[] = []
+  for (const chunk of chunkArray([...keys], MAX_BULK_ENQUEUE_EVENTS)) {
+    eventIds.push(
+      ...(await enqueueOutboxEvents(
+        executor,
+        WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
+        chunk.map((key): WorkspaceFileStorageCleanupPayload => ({ key }))
+      ))
+    )
+  }
+  return eventIds
 }
 
 /**
@@ -79,7 +76,10 @@ export async function processWorkspaceFileStorageCleanupsNow(
 ): Promise<void> {
   for (const eventId of eventIds) {
     try {
-      const result = await processWorkspaceFileStorageCleanupNow(eventId)
+      const result = await processOutboxEventById(
+        eventId,
+        workspaceFileStorageCleanupOutboxHandlers
+      )
       if (result !== 'completed') {
         logger.warn('Storage cleanup deferred to outbox retry', { ...logContext, eventId, result })
       }

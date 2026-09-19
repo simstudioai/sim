@@ -1,9 +1,5 @@
 import { z } from 'zod'
-import {
-  INT4_MAX,
-  versionNumberPathSchema,
-  versionNumberSchema,
-} from '@/lib/api/contracts/primitives'
+import { versionNumberPathSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -25,17 +21,6 @@ export const deployedWorkflowStateSchema = z
     type: 'object',
     additionalProperties: true,
   })
-
-/**
- * Upper bound of `workflow_deployment_version.version`, whose column is a
- * Postgres `integer`. A larger value has no row to address and overflows the
- * comparison instead of missing, so every schema carrying a deployment version
- * — path param, request body, or cursor payload — must be bounded by this.
- */
-export const DEPLOYMENT_VERSION_MAX = INT4_MAX
-
-/** A deployment version number, bounded to the range its column can hold. */
-export const deploymentVersionNumberSchema = versionNumberSchema
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),

@@ -26299,12 +26299,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "content_updated_at": {
-          "name": "content_updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
         "superseded_at": {
           "name": "superseded_at",
           "type": "timestamp",

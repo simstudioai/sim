@@ -3,6 +3,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { readWorkspaceFileVersionText } from '@/lib/workspace-files/application/file-versions'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { toV2FileText } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,28 +28,5 @@ export const GET = defineV2JsonRoute({
     limit: query.limit,
   }),
   useCase: readWorkspaceFileVersionText,
-  present: ({
-    file,
-    version,
-    text,
-    truncated,
-    degraded,
-    degradedReason,
-    byteCount,
-    lineRange,
-  }) => ({
-    data: {
-      fileId: file.id,
-      version: version.version,
-      name: file.name,
-      type: version.contentType,
-      text,
-      truncated,
-      degraded,
-      degradedReason,
-      charCount: text.length,
-      byteCount,
-      ...(lineRange ? { lineRange } : {}),
-    },
-  }),
+  present: (result) => ({ data: { ...toV2FileText(result), version: result.version.version } }),
 })

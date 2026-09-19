@@ -335,7 +335,11 @@ export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
   .max(MAX_ID_LENGTH, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
 
-/** Upper bound of a Postgres `integer` column, the type every version number is stored as. */
+/**
+ * Upper bound of a Postgres `integer` column, the type every version number is stored as. A larger
+ * value has no row to address and overflows the comparison instead of missing, so every schema
+ * carrying a version — path param, request body, or cursor payload — must be bounded by this.
+ */
 export const INT4_MAX = 2147483647
 
 /** A version number in a body or cursor, bounded to the range its column can hold. */

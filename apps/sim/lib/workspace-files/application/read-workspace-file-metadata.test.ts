@@ -8,11 +8,7 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceFile: vi.fn(),
   getShareForResource: vi.fn(),
   resolvePermission: vi.fn(),
-  getVersionNumberForRecord: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
-  getWorkspaceFileVersionNumberForRecord: mocks.getVersionNumberForRecord,
+  getWorkspaceFileWithCurrentVersion: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -22,6 +18,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
+  getWorkspaceFileWithCurrentVersion: mocks.getWorkspaceFileWithCurrentVersion,
   loadActiveWorkspaceFileContext: mocks.loadContext,
 }))
 
@@ -177,42 +174,29 @@ describe('readWorkspaceFileMetadataWithVersion', () => {
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 
-  it('reports the version of the stored object the returned record describes', async () => {
-    mocks.getWorkspaceFile.mockResolvedValueOnce(file)
-    mocks.getVersionNumberForRecord.mockResolvedValueOnce(4)
+  it('returns the record with the version number read in the same statement', async () => {
+    const versioned = { ...file, currentVersion: 4 }
+    mocks.getWorkspaceFileWithCurrentVersion.mockResolvedValueOnce(versioned)
 
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', includeDeleted: true },
       })
-    ).resolves.toEqual({ file, share, currentVersion: 4 })
-    expect(mocks.getVersionNumberForRecord).toHaveBeenCalledWith(file)
+    ).resolves.toEqual({ file: versioned, share })
+    expect(mocks.getWorkspaceFileWithCurrentVersion).toHaveBeenCalledWith('workspace-1', 'file-1', {
+      includeDeleted: true,
+    })
   })
 
-  it('re-reads a record whose bytes a concurrent write already replaced', async () => {
-    const rewritten = { ...file, key: 'workspace/ws/data-2.csv' }
-    mocks.getWorkspaceFile.mockResolvedValueOnce(file).mockResolvedValueOnce(rewritten)
-    mocks.getVersionNumberForRecord.mockResolvedValueOnce(null).mockResolvedValueOnce(5)
+  it('answers not found when the file row is gone', async () => {
+    mocks.getWorkspaceFileWithCurrentVersion.mockResolvedValueOnce(null)
 
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal,
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
-    ).resolves.toEqual({ file: rewritten, share, currentVersion: 5 })
-  })
-
-  it('answers a retryable conflict when every read is already stale', async () => {
-    mocks.getWorkspaceFile.mockResolvedValue(file)
-    mocks.getVersionNumberForRecord.mockResolvedValue(null)
-
-    await expect(
-      readWorkspaceFileMetadataWithVersion.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.getVersionNumberForRecord).toHaveBeenCalledTimes(3)
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })

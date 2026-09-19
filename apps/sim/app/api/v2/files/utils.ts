@@ -1,5 +1,5 @@
 import type { V2FileVersion } from '@/lib/api/contracts/v2/file-versions'
-import type { V2File } from '@/lib/api/contracts/v2/files'
+import type { V2File, V2FileText } from '@/lib/api/contracts/v2/files'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildFolderPath } from '@/lib/folders/paths'
 import { workspaceResourceWebUrl } from '@/lib/resources'
@@ -10,6 +10,7 @@ import {
   getUserEmailsByIds,
   requireResolvedUserEmail,
 } from '@/lib/users/queries'
+import type { ReadWorkspaceFileTextResult } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Shared serialization for the v2 files surface. */
@@ -64,6 +65,30 @@ export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[
   return records.map((record) =>
     serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy), baseUrl)
   )
+}
+
+/** Serializes extracted text for the file or version the result was read from. */
+export function toV2FileText({
+  file,
+  text,
+  truncated,
+  degraded,
+  degradedReason,
+  byteCount,
+  lineRange,
+}: ReadWorkspaceFileTextResult): V2FileText {
+  return {
+    fileId: file.id,
+    name: file.name,
+    type: file.type,
+    text,
+    truncated,
+    degraded,
+    degradedReason,
+    charCount: text.length,
+    byteCount,
+    ...(lineRange ? { lineRange } : {}),
+  }
 }
 
 function serializeV2FileVersion(

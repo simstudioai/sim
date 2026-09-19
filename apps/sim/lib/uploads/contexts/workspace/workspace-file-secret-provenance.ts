@@ -622,7 +622,7 @@ export async function snapshotWorkspaceFileSecretProvenanceInTx(
  * verbatim so a revert restores exactly the classification its bytes carried. An untracked snapshot
  * binds as exact-empty — the reading an untracked marker already produced for those bytes.
  */
-export async function reinstateWorkspaceFileSecretProvenanceInTx(
+async function reinstateWorkspaceFileSecretProvenanceInTx(
   tx: DbTransaction,
   fileId: string,
   contentUpdatedAt: Date,
@@ -637,6 +637,58 @@ export async function reinstateWorkspaceFileSecretProvenanceInTx(
           ? { status: 'exact', entries: deserializeExactEntriesFromStorage(snapshot.entries) }
           : { status: 'unknown' }
   await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, contentUpdatedAt, provenance)
+}
+
+/**
+ * Binds a content write's provenance to its new content version as `policy` directs — no policy
+ * records the bytes as unknown — and returns the snapshot now bound, read back so a version records
+ * exactly what a reader of those bytes sees. `previous` is the file row before the write.
+ */
+export async function applyWorkspaceFileSecretProvenancePolicyInTx(
+  tx: DbTransaction,
+  fileId: string,
+  previous: { contentUpdatedAt: Date; secretProvenanceVersion: number | null },
+  nextContentUpdatedAt: Date,
+  policy: WorkspaceFileSecretProvenancePolicy | undefined
+): Promise<WorkspaceFileSecretProvenanceSnapshot> {
+  switch (policy?.mode) {
+    case 'replace':
+      await replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        policy.provenance
+      )
+      break
+    case 'reinstate':
+      await reinstateWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        policy.snapshot
+      )
+      break
+    case 'preserve':
+      await preserveWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        previous.contentUpdatedAt,
+        previous.secretProvenanceVersion,
+        nextContentUpdatedAt
+      )
+      /** An untracked file stays untracked; every other outcome binds a sidecar. */
+      return snapshotWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        previous.secretProvenanceVersion
+      )
+    default:
+      await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, {
+        status: 'unknown',
+      })
+  }
+  return snapshotWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, 1)
 }
 
 /** Copies exact provenance for a byte-identical, same-owner-scope file copy; otherwise unknown. */

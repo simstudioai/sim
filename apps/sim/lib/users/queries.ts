@@ -103,23 +103,11 @@ export async function getUserEmailById(userId: string): Promise<string> {
  * never replaced with the raw ID or a placeholder.
  */
 export async function getUserEmailsByIds(userIds: readonly string[]): Promise<Map<string, string>> {
-  const uniqueIds = Array.from(new Set(userIds))
-  if (uniqueIds.length === 0) return new Map()
-  if (uniqueIds.length > MAX_USER_EMAIL_BATCH) {
-    throw new Error(`Cannot resolve more than ${MAX_USER_EMAIL_BATCH} user emails at once`)
-  }
-
-  const rows = await db
-    .select({ id: user.id, email: user.email })
-    .from(user)
-    .where(inArray(user.id, uniqueIds))
-
-  const emailByUserId = new Map(rows.map((row) => [row.id, row.email]))
-  const missingIds = uniqueIds.filter((id) => !emailByUserId.has(id))
+  const emailByUserId = await findUserEmailsByIds(userIds)
+  const missingIds = Array.from(new Set(userIds)).filter((id) => !emailByUserId.has(id))
   if (missingIds.length > 0) {
     throw new Error(`Unable to resolve email for user IDs: ${missingIds.join(', ')}`)
   }
-
   return emailByUserId
 }
 

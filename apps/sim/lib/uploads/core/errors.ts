@@ -1,3 +1,5 @@
+import { findCause } from '@sim/utils/errors'
+
 const OBJECT_NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound', 'ENOENT'])
 
 /**
@@ -51,10 +53,5 @@ export function isObjectNotFoundError(error: unknown): boolean {
  * that read an object through a layer which re-wraps storage failures but keeps the original.
  */
 export function hasObjectNotFoundCause(error: unknown): boolean {
-  let current: unknown = error
-  for (let depth = 0; current && depth < 5; depth++) {
-    if (isObjectNotFoundError(current)) return true
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
+  return findCause(error, (value): value is unknown => isObjectNotFoundError(value)) !== undefined
 }

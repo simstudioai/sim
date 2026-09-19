@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   deleteStored: vi.fn(),
   getVersion: vi.fn(),
   getCurrentVersion: vi.fn(),
+  getProvenance: vi.fn(),
   streamRecord: vi.fn(),
   recordAudit: vi.fn(),
   notify: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
   getCurrentWorkspaceFileVersion: mocks.getCurrentVersion,
   getWorkspaceFileVersion: mocks.getVersion,
+  getWorkspaceFileVersionProvenance: mocks.getProvenance,
   queryWorkspaceFileVersions: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
@@ -106,7 +108,6 @@ function version(number: number, overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-01-02T00:00:00Z'),
     updatedAt: new Date('2026-01-02T00:00:00Z'),
     supersededAt: new Date('2026-01-03T00:00:00Z'),
-    secretProvenance: { status: 'exact', entries: [] },
     ...overrides,
   }
 }
@@ -130,6 +131,7 @@ describe('file version use cases', () => {
       number === 3 ? current : number === 2 ? version(2) : null
     )
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('old content'))
+    mocks.getProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mocks.updateContent.mockResolvedValue({ ...file, key: 'new-key', currentVersion: 4 })
     mocks.notify.mockResolvedValue(undefined)
   })
@@ -167,7 +169,6 @@ describe('file version use cases', () => {
       expect(result).toMatchObject({
         reverted: true,
         revertedFrom: 3,
-        revertedTo: 2,
         version: { version: 4, restoredFromVersion: 2 },
       })
       expect(mocks.recordAudit).toHaveBeenCalledWith(
@@ -180,7 +181,20 @@ describe('file version use cases', () => {
           }),
         })
       )
+      expect(mocks.getProvenance).toHaveBeenCalledWith('file-1', 2)
       expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
+    })
+
+    it('refuses to reinstate provenance it could not read', async () => {
+      mocks.getProvenance.mockResolvedValueOnce(null)
+
+      await expect(
+        revertWorkspaceFileVersion.execute({
+          principal,
+          input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', version: 2 },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      expect(mocks.updateContent).not.toHaveBeenCalled()
     })
 
     it('does nothing, audits nothing, and notifies no one when the version is already current', async () => {

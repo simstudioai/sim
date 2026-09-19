@@ -2755,8 +2755,6 @@ export const workspaceFileVersion = pgTable(
     contentType: text('content_type').notNull(),
     /** sha256 (hex) of the bytes; NULL for an implicit version materialized without reading them. */
     contentHash: text('content_hash'),
-    /** The file's `contentUpdatedAt` while these bytes were current (millisecond precision). */
-    contentUpdatedAt: timestamp('content_updated_at').notNull(),
     supersededAt: timestamp('superseded_at'),
     source: workspaceFileVersionSourceEnum('source').notNull(),
     /** Users who wrote these bytes, in first-contribution order; empty when unattributable. */

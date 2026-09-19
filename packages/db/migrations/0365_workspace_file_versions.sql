@@ -8,7 +8,6 @@ CREATE TABLE "workspace_file_version" (
 	"size_bytes" bigint NOT NULL,
 	"content_type" text NOT NULL,
 	"content_hash" text,
-	"content_updated_at" timestamp NOT NULL,
 	"superseded_at" timestamp,
 	"source" "workspace_file_version_source" NOT NULL,
 	"author_user_ids" text[] DEFAULT '{}'::text[] NOT NULL,

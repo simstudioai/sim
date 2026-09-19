@@ -5,14 +5,9 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import {
-  uploadSession,
-  type WorkspaceFileRow,
-  workspace,
-  workspaceFiles,
-  workspaceFileVersion,
-} from '@sim/db/schema'
+import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import {
   describeError,
   getErrorMessage,
@@ -68,24 +63,23 @@ import {
   processWorkspaceFileLiveDocReconciliationNow,
 } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import {
+  applyWorkspaceFileSecretProvenancePolicyInTx,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
-  preserveWorkspaceFileSecretProvenanceInTx,
-  reinstateWorkspaceFileSecretProvenanceInTx,
   replaceWorkspaceFileSecretProvenanceInTx,
   snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
-  enqueueWorkspaceFileStorageCleanup,
   enqueueWorkspaceFileStorageCleanups,
   processWorkspaceFileStorageCleanupsNow,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
+  currentWorkspaceFileVersionNumberSql,
   deleteWorkspaceFileVersionInTx,
-  hashWorkspaceFileContent,
   isVersionHeadCurrent,
+  listWorkspaceFileVersionKeysInTx,
   loadWorkspaceFileVersionHead,
   recordWorkspaceFileVersionInTx,
   type WorkspaceFileVersionWrite,
@@ -1660,18 +1654,10 @@ export async function getWorkspaceFile(
       .select()
       .from(workspaceFiles)
       .where(
-        includeDeleted
-          ? and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace')
-            )
-          : and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt)
-            )
+        and(
+          eq(workspaceFiles.id, fileId),
+          workspaceFileScopeCondition(workspaceId, includeDeleted ? 'all' : 'active')
+        )
       )
       .limit(1)
 
@@ -1682,6 +1668,35 @@ export async function getWorkspaceFile(
     logger.error(`Failed to get workspace file ${fileId}:`, error)
     if (options?.throwOnError) throw error
     return null
+  }
+}
+
+/**
+ * {@link getWorkspaceFile} plus the number of the version its record describes, read in one
+ * statement so a concurrent write can never pair this record with another write's version.
+ */
+export async function getWorkspaceFileWithCurrentVersion(
+  workspaceId: string,
+  fileId: string,
+  options?: { includeDeleted?: boolean }
+): Promise<(WorkspaceFileRecord & { currentVersion: number }) | null> {
+  const [row] = await db
+    .select({
+      file: workspaceFiles,
+      currentVersion: currentWorkspaceFileVersionNumberSql(),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        workspaceFileScopeCondition(workspaceId, options?.includeDeleted ? 'all' : 'active')
+      )
+    )
+    .limit(1)
+  if (!row) return null
+  return {
+    ...(await mapSingleWorkspaceFileRecord(row.file, workspaceId)),
+    currentVersion: row.currentVersion,
   }
 }
 
@@ -1819,7 +1834,7 @@ export async function updateWorkspaceFileContent(
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
-  const contentHash = hashWorkspaceFileContent(content)
+  const contentHash = sha256Hex(content)
 
   try {
     const metadata: Record<string, string> = {
@@ -1937,51 +1952,20 @@ export async function updateWorkspaceFileContent(
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
 
-        if (options.secretProvenancePolicy?.mode === 'replace') {
-          await replaceWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            updatedFile.contentUpdatedAt,
-            options.secretProvenancePolicy.provenance
-          )
-        } else if (options.secretProvenancePolicy?.mode === 'reinstate') {
-          await reinstateWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            updatedFile.contentUpdatedAt,
-            options.secretProvenancePolicy.snapshot
-          )
-        } else if (options.secretProvenancePolicy?.mode === 'preserve') {
-          await preserveWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            currentFile.contentUpdatedAt,
-            currentFile.secretProvenanceVersion,
-            updatedFile.contentUpdatedAt
-          )
-        } else {
-          await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, updatedFile.contentUpdatedAt, {
-            status: 'unknown',
-          })
-        }
-
-        /** Every policy but `preserve` binds a sidecar, which marks the file tracked. */
-        const secretProvenanceVersion =
-          options.secretProvenancePolicy?.mode === 'preserve'
-            ? currentFile.secretProvenanceVersion
-            : 1
+        const nextProvenance = await applyWorkspaceFileSecretProvenancePolicyInTx(
+          tx,
+          fileId,
+          currentFile,
+          updatedFile.contentUpdatedAt,
+          options.secretProvenancePolicy
+        )
         const recorded = await recordWorkspaceFileVersionInTx(tx, {
           workspaceId,
           head: versionHead,
           previous: currentFile,
           previousProvenance,
           next: updatedFile,
-          nextProvenance: await snapshotWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            updatedFile.contentUpdatedAt,
-            secretProvenanceVersion
-          ),
+          nextProvenance,
           contentHash,
           write: options.version,
           now,
@@ -2112,7 +2096,7 @@ export async function updateWorkspaceFileContent(
 
 /**
  * Deletes one superseded version of an active workspace file and releases its stored object. The
- * file row is locked so the delete serializes with content writes that renumber or prune history.
+ * file row is locked so the delete serializes with content writes that supersede or prune history.
  * Returns false when the file has no such superseded version (it never existed, retention removed
  * it, or it is the current version).
  */
@@ -2121,27 +2105,20 @@ export async function deleteWorkspaceFileVersion(
   fileId: string,
   version: number
 ): Promise<boolean> {
-  const cleanupEventId = await db.transaction(async (tx) => {
+  const cleanupEventIds = await db.transaction(async (tx) => {
     const [file] = await tx
       .select({ id: workspaceFiles.id })
       .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.id, fileId),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
+      .where(and(eq(workspaceFiles.id, fileId), workspaceFileScopeCondition(workspaceId, 'active')))
       .for('update')
       .limit(1)
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     const key = await deleteWorkspaceFileVersionInTx(tx, fileId, version)
-    return key ? enqueueWorkspaceFileStorageCleanup(tx, { key }) : null
+    return key ? enqueueWorkspaceFileStorageCleanups(tx, [key]) : null
   })
-  if (!cleanupEventId) return false
+  if (!cleanupEventIds) return false
 
-  await processWorkspaceFileStorageCleanupsNow([cleanupEventId], {
+  await processWorkspaceFileStorageCleanupsNow(cleanupEventIds, {
     workspaceId,
     fileId,
     reason: 'deleted version',
@@ -2359,10 +2336,7 @@ export async function purgeCreatedWorkspaceFile(params: {
       .limit(1)
     if (!lockedFile) return null
 
-    const versionKeys = await tx
-      .select({ key: workspaceFileVersion.key })
-      .from(workspaceFileVersion)
-      .where(eq(workspaceFileVersion.fileId, lockedFile.id))
+    const versionKeys = await listWorkspaceFileVersionKeysInTx(tx, lockedFile.id)
 
     const [deleted] = await tx
       .delete(workspaceFiles)
@@ -2375,7 +2349,7 @@ export async function purgeCreatedWorkspaceFile(params: {
       storageBillingContext,
       getWorkspaceFileSize(lockedFile)
     )
-    const keys = new Set([lockedFile.key, ...versionKeys.map((row) => row.key)])
+    const keys = new Set([lockedFile.key, ...versionKeys])
     return enqueueWorkspaceFileStorageCleanups(tx, [...keys])
   })
   if (!cleanupEventIds) return false

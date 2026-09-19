@@ -17,6 +17,7 @@ import {
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
+  getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -55,13 +56,11 @@ export interface ListWorkspaceFileVersionsInput extends FileVersionTarget {
 }
 
 export interface ListWorkspaceFileVersionsResult {
-  file: WorkspaceFileRecord
   versions: WorkspaceFileVersionRecord[]
   nextKeys: CursorKey[] | null
 }
 
 export interface ReadWorkspaceFileVersionResult {
-  file: WorkspaceFileRecord
   version: WorkspaceFileVersionRecord
 }
 
@@ -88,8 +87,6 @@ export interface RevertWorkspaceFileVersionResult {
   reverted: boolean
   /** The version that was current before the revert. */
   revertedFrom: number
-  /** The version whose bytes were requested. */
-  revertedTo: number
 }
 
 async function loadActiveFile(context: ActiveWorkspaceFileContext): Promise<WorkspaceFileRecord> {
@@ -111,15 +108,12 @@ async function loadVersion(
  * Runs a read of a version's stored object, answering 404 when the object is gone — retention or a
  * delete can remove a superseded version between loading its row and reading its bytes.
  */
-async function readVersionObject<T>(
-  version: WorkspaceFileVersionRecord,
-  read: () => Promise<T>
-): Promise<T> {
+async function readVersionObject<T>(version: number, read: () => Promise<T>): Promise<T> {
   try {
     return await read()
   } catch (error) {
     if (hasObjectNotFoundCause(error)) {
-      throw new OrchestrationError('not_found', `Version ${version.version} not found`)
+      throw new OrchestrationError('not_found', `Version ${version} not found`)
     }
     throw error
   }
@@ -155,7 +149,7 @@ export const listWorkspaceFileVersions = defineAuthorizedWorkspaceFileUseCase({
       limit: input.limit,
       after: input.after,
     })
-    return { file, versions, nextKeys }
+    return { versions, nextKeys }
   },
 })
 
@@ -165,7 +159,7 @@ export const readWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
     resolveActiveWorkspaceFileContext(input),
   async execute({ input, context }): Promise<ReadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
-    return { file, version: await loadVersion(file, input.version) }
+    return { version: await loadVersion(file, input.version) }
   },
 })
 
@@ -181,15 +175,11 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
   }): Promise<ReadWorkspaceFileVersionTextResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
-    const result = await readVersionObject(version, () =>
-      extractWorkspaceFileRecordText(
-        recordAtVersion(file, version),
-        input,
-        principal,
-        request?.signal
-      )
+    const fileAtVersion = recordAtVersion(file, version)
+    const result = await readVersionObject(version.version, () =>
+      extractWorkspaceFileRecordText(fileAtVersion, input, principal, request?.signal)
     )
-    return { ...result, file, version }
+    return { ...result, file: fileAtVersion, version }
   },
 })
 
@@ -200,7 +190,7 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
-    const result = await readVersionObject(version, () =>
+    const result = await readVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )
     return { ...result, file, version }
@@ -242,13 +232,7 @@ async function executeRevertWorkspaceFileVersion({
   }
   const target = await loadVersion(file, input.version)
   if (target.isCurrent) {
-    return {
-      file,
-      version: target,
-      reverted: false,
-      revertedFrom: current.version,
-      revertedTo: target.version,
-    }
+    return { file, version: target, reverted: false, revertedFrom: current.version }
   }
   if (target.size > MAX_BUFFERED_TRANSFER_BYTES) {
     throw new OrchestrationError(
@@ -257,11 +241,15 @@ async function executeRevertWorkspaceFileVersion({
     )
   }
 
-  const content = await readVersionObject(target, () =>
-    fetchWorkspaceFileBuffer(recordAtVersion(file, target), {
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-  )
+  const [content, provenance] = await Promise.all([
+    readVersionObject(target.version, () =>
+      fetchWorkspaceFileBuffer(recordAtVersion(file, target), {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
+    ),
+    getWorkspaceFileVersionProvenance(file.id, target.version),
+  ])
+  if (!provenance) throw new OrchestrationError('not_found', `Version ${target.version} not found`)
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,
   })
@@ -279,7 +267,7 @@ async function executeRevertWorkspaceFileVersion({
           restoredFromVersion: target.version,
         }),
         expectedUpdatedAt: file.contentUpdatedAt ?? file.updatedAt,
-        secretProvenancePolicy: { mode: 'reinstate', snapshot: target.secretProvenance },
+        secretProvenancePolicy: { mode: 'reinstate', snapshot: provenance },
       }
     )
   } catch (error) {
@@ -297,12 +285,9 @@ async function executeRevertWorkspaceFileVersion({
   })
   return {
     file: updated,
-    version:
-      (await getWorkspaceFileVersion(updated, updated.currentVersion)) ??
-      (await getCurrentWorkspaceFileVersion(updated)),
+    version: await loadVersion(updated, updated.currentVersion),
     reverted: true,
     revertedFrom: current.version,
-    revertedTo: target.version,
   }
 }
 
@@ -316,17 +301,17 @@ export const revertWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ input }: { input: RevertWorkspaceFileVersionInput }) =>
     resolveActiveWorkspaceFileContext(input),
   execute: executeRevertWorkspaceFileVersion,
-  projectAudit: ({ result }) =>
+  projectAudit: ({ input, result }) =>
     result.reverted
       ? {
           action: AuditAction.FILE_REVERTED,
           resourceType: AuditResourceType.FILE,
           resourceId: result.file.id,
           resourceName: result.file.name,
-          description: `Reverted file "${result.file.name}" to version ${result.revertedTo}`,
+          description: `Reverted file "${result.file.name}" to version ${input.version}`,
           metadata: {
             previousVersion: result.revertedFrom,
-            restoredVersion: result.revertedTo,
+            restoredVersion: input.version,
             newVersion: result.version.version,
           },
         }

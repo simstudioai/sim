@@ -23,9 +23,9 @@ import {
 /**
  * v2 file version history contracts. Every content write that changes the bytes — an upload, an
  * API or editor save, a Sim edit, a workflow write, a revert — records a version. Collaborative
- * edits and repeated workflow writes from one author fold into the current version until it is ten
- * minutes old or its writer has been idle for five. Renames and moves are metadata changes and never
- * create versions, so every version reads under the file's current name.
+ * edits, and repeated workflow writes from one author, fold into the current version until it is
+ * ten minutes old or its writers have been idle for five. Renames and moves are metadata changes
+ * and never create versions, so every version reads under the file's current name.
  */
 
 export const v2FileVersionSourceSchema = z

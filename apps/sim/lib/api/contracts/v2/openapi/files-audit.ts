@@ -447,7 +447,7 @@ const declaredRoutes = [
       operationId: 'listFileVersions',
       summary: 'List File Versions',
       description:
-        'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not, and collaborative edits or repeated workflow writes by one author within ten minutes fold into one. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten and removes older versions by plan, so numbers can have gaps.',
+        'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits within ten minutes fold into one version, as do repeated workflow writes by one author. Renames and moves are not versions. An empty file is version 1 until its first content replaces it. Retention keeps the newest ten and removes older versions by plan, so numbers can have gaps.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of file versions.' },
     }),
@@ -848,8 +848,8 @@ const declaredRoutes = [
       operationId: 'getFile',
       summary: 'Get File Metadata',
       description:
-        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts. A file rewritten continuously while it is read returns `409`; retry.',
-      errors: RESOURCE_CONFLICT_ERRORS,
+        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'File metadata and public-share state.' },
     }),
     {

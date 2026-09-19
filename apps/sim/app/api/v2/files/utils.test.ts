@@ -27,7 +27,6 @@ const version: WorkspaceFileVersionRecord = {
   createdAt: new Date('2026-01-02T00:00:00Z'),
   updatedAt: new Date('2026-01-02T00:05:00Z'),
   supersededAt: null,
-  secretProvenance: { status: 'exact', entries: [] },
 }
 
 describe('toV2FileVersions', () => {

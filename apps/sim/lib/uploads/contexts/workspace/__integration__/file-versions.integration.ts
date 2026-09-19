@@ -32,13 +32,13 @@ import {
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
+  getWorkspaceFileWithCurrentVersion,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
-  getWorkspaceFileVersionNumberForRecord,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -228,8 +228,35 @@ describe('workspace file version history in PostgreSQL', () => {
     const after = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
     if (!after) throw new Error('file missing')
     expect((await getCurrentWorkspaceFileVersion(after)).version).toBe(2)
-    expect(await getWorkspaceFileVersionNumberForRecord(before)).toBe(1)
-    expect(await getWorkspaceFileVersionNumberForRecord(after)).toBe(2)
+  })
+
+  it('reads a record with the version of the bytes it describes', async () => {
+    const fixture = await seedFile('original')
+    await expect(
+      getWorkspaceFileWithCurrentVersion(fixture.workspaceId, fixture.fileId)
+    ).resolves.toMatchObject({ key: fixture.firstKey, currentVersion: 1 })
+
+    const write = { source: 'collab', authorUserId: fixture.aliceId } as const
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('draft one'),
+      undefined,
+      { version: write }
+    )
+    const coalesced = await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('draft two'),
+      undefined,
+      { version: write }
+    )
+
+    await expect(
+      getWorkspaceFileWithCurrentVersion(fixture.workspaceId, fixture.fileId)
+    ).resolves.toMatchObject({ key: coalesced.key, currentVersion: 2 })
   })
 
   it('does not keep an empty shell as a version of its own', async () => {
@@ -269,34 +296,6 @@ describe('workspace file version history in PostgreSQL', () => {
 
     expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([2])
     expect(await objectExists(fixture.firstKey)).toBe(false)
-  })
-
-  it('reports a stale record as unresolvable once a coalesced write released its key', async () => {
-    const fixture = await seedFile('original')
-    const write = { source: 'collab', authorUserId: fixture.aliceId } as const
-    await updateWorkspaceFileContent(
-      fixture.workspaceId,
-      fixture.fileId,
-      fixture.aliceId,
-      Buffer.from('draft one'),
-      undefined,
-      { version: write }
-    )
-    const stale = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
-    if (!stale) throw new Error('file missing')
-    await updateWorkspaceFileContent(
-      fixture.workspaceId,
-      fixture.fileId,
-      fixture.aliceId,
-      Buffer.from('draft two'),
-      undefined,
-      { version: write }
-    )
-    const fresh = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
-    if (!fresh) throw new Error('file missing')
-
-    expect(await getWorkspaceFileVersionNumberForRecord(stale)).toBeNull()
-    expect(await getWorkspaceFileVersionNumberForRecord(fresh)).toBe(2)
   })
 
   it('never folds deliberate writes, and repoints the head for identical bytes', async () => {
@@ -385,7 +384,7 @@ describe('workspace file version history in PostgreSQL', () => {
       input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 2 },
     })
 
-    expect(result).toMatchObject({ reverted: true, revertedFrom: 3, revertedTo: 2 })
+    expect(result).toMatchObject({ reverted: true, revertedFrom: 3 })
     expect(result.version).toMatchObject({
       version: 4,
       source: 'revert',

@@ -6,9 +6,8 @@ import {
   workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
-import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, isNotNull, lt, notInArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, notInArray, sql } from 'drizzle-orm'
 import {
   type CursorKey,
   type KeysetKey,
@@ -60,22 +59,39 @@ export interface WorkspaceFileVersionWrite {
   restoredFromVersion?: number
 }
 
-/** sha256 (hex) of stored bytes — the identity used to detect rewrites of identical content. */
-export function hashWorkspaceFileContent(content: Buffer): string {
-  return sha256Hex(content)
+/**
+ * Every version column except the stored provenance entries, which can be large and are read only
+ * when a revert reinstates them.
+ */
+const versionSummaryColumns = {
+  id: workspaceFileVersion.id,
+  fileId: workspaceFileVersion.fileId,
+  version: workspaceFileVersion.version,
+  key: workspaceFileVersion.key,
+  sizeBytes: workspaceFileVersion.sizeBytes,
+  contentType: workspaceFileVersion.contentType,
+  contentHash: workspaceFileVersion.contentHash,
+  supersededAt: workspaceFileVersion.supersededAt,
+  source: workspaceFileVersion.source,
+  authorUserIds: workspaceFileVersion.authorUserIds,
+  restoredFromVersion: workspaceFileVersion.restoredFromVersion,
+  createdAt: workspaceFileVersion.createdAt,
+  updatedAt: workspaceFileVersion.updatedAt,
 }
 
-/**
- * The newest version row of a file. A writer reads it inside its transaction under the file row's
- * FOR UPDATE lock; a reader reads it on its own so it never pairs rows from after a concurrent first
- * write with a file record from before it.
- */
+/** A version row without its provenance snapshot. */
+export type WorkspaceFileVersionSummaryRow = Omit<
+  WorkspaceFileVersionRow,
+  'workspaceId' | 'secretProvenanceStatus' | 'secretProvenanceEntries'
+>
+
+/** The newest version row of a file; a writer must read it under the file row's FOR UPDATE lock. */
 export async function loadWorkspaceFileVersionHead(
   fileId: string,
   executor: DbOrTx = db
-): Promise<WorkspaceFileVersionRow | undefined> {
+): Promise<WorkspaceFileVersionSummaryRow | undefined> {
   const [head] = await executor
-    .select()
+    .select(versionSummaryColumns)
     .from(workspaceFileVersion)
     .where(eq(workspaceFileVersion.fileId, fileId))
     .orderBy(desc(workspaceFileVersion.version))
@@ -89,7 +105,7 @@ export async function loadWorkspaceFileVersionHead(
  * version before the new one is recorded, so the caller snapshots their provenance first.
  */
 export function isVersionHeadCurrent(
-  head: WorkspaceFileVersionRow | undefined,
+  head: WorkspaceFileVersionSummaryRow | undefined,
   file: Pick<WorkspaceFileRow, 'key'>
 ): boolean {
   return head !== undefined && head.supersededAt === null && head.key === file.key
@@ -106,7 +122,7 @@ function isOriginalUploadContent(
 }
 
 function canCoalesce(
-  head: WorkspaceFileVersionRow,
+  head: WorkspaceFileVersionSummaryRow,
   write: WorkspaceFileVersionWrite,
   now: Date
 ): boolean {
@@ -131,7 +147,6 @@ function contentColumns(file: WorkspaceFileRow, provenance: WorkspaceFileSecretP
     key: file.key,
     sizeBytes: getWorkspaceFileSize(file),
     contentType: file.contentType,
-    contentUpdatedAt: file.contentUpdatedAt,
     secretProvenanceStatus: provenance.status,
     secretProvenanceEntries: provenance.entries,
   }
@@ -148,10 +163,13 @@ interface RecordWorkspaceFileVersionParams {
   /** The workspace the write was scoped to; the file row's column is nullable for other contexts. */
   workspaceId: string
   /** Head row loaded before the file row was updated. */
-  head: WorkspaceFileVersionRow | undefined
+  head: WorkspaceFileVersionSummaryRow | undefined
   /** The file row as it was before this write (locked). */
   previous: WorkspaceFileRow
-  /** Provenance of `previous`'s bytes, captured before the provenance step; required when the head is not current. */
+  /**
+   * Provenance of `previous`'s bytes, captured before the provenance step; required when the head is
+   * not current.
+   */
   previousProvenance: WorkspaceFileSecretProvenanceSnapshot | undefined
   /** The file row after this write. */
   next: WorkspaceFileRow
@@ -209,7 +227,7 @@ export async function recordWorkspaceFileVersionInTx(
         createdAt: previous.contentUpdatedAt,
         updatedAt: previous.contentUpdatedAt,
       })
-      .returning()
+      .returning(versionSummaryColumns)
     head = materialized
   }
 
@@ -239,7 +257,7 @@ export async function recordWorkspaceFileVersionInTx(
   const version = head.version + 1
   await insertVersion(tx, params, version)
 
-  /** Version numbers are dense per file, so a file cannot exceed the ceiling before this number. */
+  /** Numbers are assigned consecutively, so a file cannot exceed the ceiling before this number. */
   const releasedKeys =
     version > MAX_SUPERSEDED_FILE_VERSIONS + 1
       ? await pruneExcessWorkspaceFileVersionsInTx(tx, next.id)
@@ -290,9 +308,6 @@ export async function deleteWorkspaceFileVersionInTx(
   return deleted?.key ?? null
 }
 
-/** Most cleanup events one outbox insert may carry. */
-const RELEASE_ENQUEUE_CHUNK_SIZE = 1000
-
 /**
  * Releases the history of soft-deleted files inside the transaction that purges their rows: it
  * locks the files still deleted before `deletedBefore`, deletes their superseded version rows, and
@@ -334,12 +349,10 @@ export async function releaseWorkspaceFileVersionsForPurgeInTx(
       )
     )
     .returning({ key: workspaceFileVersion.key })
-  for (let offset = 0; offset < released.length; offset += RELEASE_ENQUEUE_CHUNK_SIZE) {
-    await enqueueWorkspaceFileStorageCleanups(
-      tx,
-      released.slice(offset, offset + RELEASE_ENQUEUE_CHUNK_SIZE).map((row) => row.key)
-    )
-  }
+  await enqueueWorkspaceFileStorageCleanups(
+    tx,
+    released.map((row) => row.key)
+  )
 }
 
 /** Deletes superseded versions beyond {@link MAX_SUPERSEDED_FILE_VERSIONS}, returning their keys. */
@@ -388,7 +401,6 @@ export interface WorkspaceFileVersionRecord {
   createdAt: Date
   updatedAt: Date
   supersededAt: Date | null
-  secretProvenance: WorkspaceFileSecretProvenanceSnapshot
 }
 
 /** Reads a stored status back, treating anything unrecognized as unknown so a revert fails closed. */
@@ -399,7 +411,7 @@ function toSnapshotStatus(status: string | null): WorkspaceFileSecretProvenanceS
   return 'unknown'
 }
 
-function toVersionRecord(row: WorkspaceFileVersionRow): WorkspaceFileVersionRecord {
+function toVersionRecord(row: WorkspaceFileVersionSummaryRow): WorkspaceFileVersionRecord {
   return {
     fileId: row.fileId,
     version: row.version,
@@ -413,18 +425,13 @@ function toVersionRecord(row: WorkspaceFileVersionRow): WorkspaceFileVersionReco
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     supersededAt: row.supersededAt,
-    secretProvenance: {
-      status: toSnapshotStatus(row.secretProvenanceStatus),
-      entries: row.secretProvenanceEntries,
-    },
   }
 }
 
 /**
  * Version 1 of a file with no history yet — every file before its first content write. Attributed
  * exactly as {@link recordWorkspaceFileVersionInTx} will materialize it, so the version a reader sees
- * keeps its identity once it becomes a row. Its provenance is read live by callers that need it,
- * since the sidecar still describes these bytes.
+ * keeps its identity once it becomes a row.
  */
 function implicitFirstVersion(file: WorkspaceFileVersionSubject): WorkspaceFileVersionRecord {
   const contentUpdatedAt = file.contentUpdatedAt ?? file.updatedAt
@@ -442,7 +449,6 @@ function implicitFirstVersion(file: WorkspaceFileVersionSubject): WorkspaceFileV
     createdAt: contentUpdatedAt,
     updatedAt: contentUpdatedAt,
     supersededAt: null,
-    secretProvenance: { status: null, entries: [] },
   }
 }
 
@@ -457,7 +463,7 @@ export async function queryWorkspaceFileVersions(
 ): Promise<{ versions: WorkspaceFileVersionRecord[]; nextKeys: CursorKey[] | null }> {
   const resume = resumeKeyset(VERSION_KEYSET, options.after, options.sortOrder)
   const rows = await db
-    .select()
+    .select(versionSummaryColumns)
     .from(workspaceFileVersion)
     .where(and(eq(workspaceFileVersion.fileId, file.id), resume))
     .orderBy(...listOrderBy(keysetColumns(VERSION_KEYSET), options.sortOrder))
@@ -498,21 +504,19 @@ export async function getCurrentWorkspaceFileVersion(
 }
 
 /**
- * The version number of the content a file record describes, matched by the record's storage key so
- * it stays exact even if a write committed after the record was read. Returns null when the record
- * is stale in a way its key cannot answer — a later write replaced those bytes within their version
- * and released the key — so the caller re-reads the record rather than guess.
+ * The current version number of the enclosing query's `workspace_files` row, as a correlated
+ * subquery so the row and its number come from one statement's snapshot. Content writes record
+ * their version in the transaction that replaces the bytes, so the newest row describes the current
+ * content; a file with no rows is on its implicit version 1. Both sides of the correlation
+ * are table-qualified because Drizzle renders single-table columns bare, which would bind the outer
+ * `id` to this subquery's own table.
  */
-export async function getWorkspaceFileVersionNumberForRecord(
-  file: Pick<WorkspaceFileVersionSubject, 'id' | 'key'>
-): Promise<number | null> {
-  const [row] = await db
-    .select({ version: workspaceFileVersion.version })
-    .from(workspaceFileVersion)
-    .where(and(eq(workspaceFileVersion.fileId, file.id), eq(workspaceFileVersion.key, file.key)))
-    .limit(1)
-  if (row) return row.version
-  return (await loadWorkspaceFileVersionHead(file.id)) ? null : 1
+export function currentWorkspaceFileVersionNumberSql() {
+  const versionFileId = sql`${workspaceFileVersion}.${sql.identifier(workspaceFileVersion.fileId.name)}`
+  const outerFileId = sql`${workspaceFiles}.${sql.identifier(workspaceFiles.id.name)}`
+  return sql<number>`coalesce((select max(${workspaceFileVersion.version}) from ${workspaceFileVersion} where ${versionFileId} = ${outerFileId}), 1)`.mapWith(
+    Number
+  )
 }
 
 /** One version of a file, or null when it never existed or retention removed it. */
@@ -521,11 +525,43 @@ export async function getWorkspaceFileVersion(
   version: number
 ): Promise<WorkspaceFileVersionRecord | null> {
   const [row] = await db
-    .select()
+    .select(versionSummaryColumns)
     .from(workspaceFileVersion)
     .where(and(eq(workspaceFileVersion.fileId, file.id), eq(workspaceFileVersion.version, version)))
     .limit(1)
   if (row) return toVersionRecord(row)
   if (version !== 1 || (await loadWorkspaceFileVersionHead(file.id))) return null
   return implicitFirstVersion(file)
+}
+
+/**
+ * The provenance captured with one stored version's bytes, which a revert reinstates; null when the
+ * row is gone, so a caller never reinstates a classification it did not read.
+ */
+export async function getWorkspaceFileVersionProvenance(
+  fileId: string,
+  version: number
+): Promise<WorkspaceFileSecretProvenanceSnapshot | null> {
+  const [row] = await db
+    .select({
+      status: workspaceFileVersion.secretProvenanceStatus,
+      entries: workspaceFileVersion.secretProvenanceEntries,
+    })
+    .from(workspaceFileVersion)
+    .where(and(eq(workspaceFileVersion.fileId, fileId), eq(workspaceFileVersion.version, version)))
+    .limit(1)
+  if (!row) return null
+  return { status: toSnapshotStatus(row.status), entries: row.entries }
+}
+
+/** Storage keys of every version of a file, for releasing them with the file row. */
+export async function listWorkspaceFileVersionKeysInTx(
+  tx: DbTransaction,
+  fileId: string
+): Promise<string[]> {
+  const rows = await tx
+    .select({ key: workspaceFileVersion.key })
+    .from(workspaceFileVersion)
+    .where(eq(workspaceFileVersion.fileId, fileId))
+  return rows.map((row) => row.key)
 }

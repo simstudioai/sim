@@ -5,8 +5,11 @@ import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, count, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
-import type { PlanCategory } from '@/lib/billing/plan-helpers'
-import { DEFAULT_DELETE_CHUNK_SIZE } from '@/lib/cleanup/batch-delete'
+import {
+  DEFAULT_DELETE_CHUNK_SIZE,
+  DEFAULT_MAX_BATCHES_PER_TABLE,
+  DEFAULT_WORKSPACE_CHUNK_SIZE,
+} from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -16,31 +19,20 @@ const logger = createLogger('CleanupFileVersions')
 /** All cleanup queries run on the dedicated cleanup pool. */
 const cleanupDb = dbFor('cleanup')
 
-/** Workspaces whose candidate files are found in one query. */
-const WORKSPACES_PER_QUERY = 50
 /** Candidate files whose histories are ranked in one query. */
 const FILES_PER_QUERY = 500
-const VERSIONS_PER_BATCH = 1000
-/** Bounds one run's work per file chunk; the next daily run continues where this stopped. */
-const MAX_BATCHES_PER_CHUNK = 50
 
 /**
- * Most superseded versions a file keeps, per plan; any beyond it are pruned whatever their age. Free
- * keeps its newest 100 versions (the current one included); every other plan is bounded only by the
- * inline write-time ceiling.
+ * Superseded versions a free file keeps (its newest 100 with the current one); versions beyond it
+ * are pruned whatever their age. Paid plans are bounded only by the inline write-time ceiling.
  */
-const MAX_SUPERSEDED_VERSIONS_BY_PLAN: Record<PlanCategory, number> = {
-  free: 99,
-  pro: MAX_SUPERSEDED_FILE_VERSIONS,
-  team: MAX_SUPERSEDED_FILE_VERSIONS,
-  enterprise: MAX_SUPERSEDED_FILE_VERSIONS,
-}
+const FREE_MAX_SUPERSEDED_VERSIONS = 99
 
-/** Retention never prunes the newest versions of a file, whatever their age. */
-const FILE_VERSION_RETENTION_KEEP_LATEST = 10
-
-/** Newest superseded versions a file keeps whatever their age (the current version is the tenth). */
-const KEEP_SUPERSEDED = FILE_VERSION_RETENTION_KEEP_LATEST - 1
+/**
+ * Newest superseded versions retention never prunes, whatever their age, so a file always keeps its
+ * newest ten versions with the current one.
+ */
+const KEEP_SUPERSEDED = 9
 
 /**
  * Files in the group that can lose any version: more superseded versions than the keep-latest floor,
@@ -79,7 +71,7 @@ async function selectCandidateFileIds(
 
 /**
  * Superseded versions of the given files past retention: older than the cutoff or beyond the plan's
- * count, but never among the newest {@link FILE_VERSION_RETENTION_KEEP_LATEST} versions of a file.
+ * count, but never among the newest {@link KEEP_SUPERSEDED} superseded versions of a file.
  */
 function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: number) {
   const ranked = cleanupDb
@@ -108,7 +100,7 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
         or(lt(ranked.supersededAt, cutoff), gt(ranked.rank, maxSuperseded))
       )
     )
-    .limit(VERSIONS_PER_BATCH)
+    .limit(DEFAULT_DELETE_CHUNK_SIZE)
 }
 
 /**
@@ -116,30 +108,26 @@ function selectExpiredVersions(fileIds: string[], cutoff: Date, maxSuperseded: n
  * in the same transaction, so a row never outlives its release and every released object is
  * deleted durably — the outbox retries failures and treats an already-missing object as done.
  */
-async function deleteVersions(rows: Array<{ id: string }>) {
-  let deleted = 0
-  for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
-    deleted += await cleanupDb.transaction(async (tx) => {
-      const removed = await tx
-        .delete(workspaceFileVersion)
-        .where(
-          and(
-            inArray(
-              workspaceFileVersion.id,
-              batch.map((row) => row.id)
-            ),
-            isNotNull(workspaceFileVersion.supersededAt)
-          )
+function deleteVersions(rows: Array<{ id: string }>): Promise<number> {
+  return cleanupDb.transaction(async (tx) => {
+    const removed = await tx
+      .delete(workspaceFileVersion)
+      .where(
+        and(
+          inArray(
+            workspaceFileVersion.id,
+            rows.map((row) => row.id)
+          ),
+          isNotNull(workspaceFileVersion.supersededAt)
         )
-        .returning({ key: workspaceFileVersion.key })
-      await enqueueWorkspaceFileStorageCleanups(
-        tx,
-        removed.map((row) => row.key)
       )
-      return removed.length
-    })
-  }
-  return deleted
+      .returning({ key: workspaceFileVersion.key })
+    await enqueueWorkspaceFileStorageCleanups(
+      tx,
+      removed.map((row) => row.key)
+    )
+    return removed.length
+  })
 }
 
 export async function runCleanupFileVersions(payload: CleanupJobPayload): Promise<void> {
@@ -151,21 +139,22 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
   }
 
   const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
-  const maxSuperseded = MAX_SUPERSEDED_VERSIONS_BY_PLAN[plan]
+  const maxSuperseded =
+    plan === 'free' ? FREE_MAX_SUPERSEDED_VERSIONS : MAX_SUPERSEDED_FILE_VERSIONS
   logger.info(
     `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${cutoff.toISOString()}`
   )
 
   let deleted = 0
-  for (const group of chunkArray(workspaceIds, WORKSPACES_PER_QUERY)) {
+  for (const group of chunkArray(workspaceIds, DEFAULT_WORKSPACE_CHUNK_SIZE)) {
     const candidates = await selectCandidateFileIds(group, cutoff, maxSuperseded)
     for (const fileIds of chunkArray(candidates, FILES_PER_QUERY)) {
-      for (let batch = 0; batch < MAX_BATCHES_PER_CHUNK; batch++) {
+      for (let batch = 0; batch < DEFAULT_MAX_BATCHES_PER_TABLE; batch++) {
         const expired = await selectExpiredVersions(fileIds, cutoff, maxSuperseded)
         if (expired.length === 0) break
         const removed = await deleteVersions(expired)
         deleted += removed
-        if (expired.length < VERSIONS_PER_BATCH || removed === 0) break
+        if (expired.length < DEFAULT_DELETE_CHUNK_SIZE || removed === 0) break
       }
     }
   }
