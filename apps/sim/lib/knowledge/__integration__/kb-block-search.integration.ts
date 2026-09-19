@@ -140,9 +140,11 @@ describe('API-key KB block fan-out', () => {
         expect(matching('AS visible')).toHaveLength(bases.length)
         expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
         expect(matching('scored_search_candidates')).toHaveLength(bases.length)
-        /** The probe enumerates visible documents; it never ranks them. */
+        /** The probe enumerates visible documents and reports saturation; it never ranks them. */
         expect(
-          statements.filter((query) => query.includes('AS id FROM') && !query.includes('ORDER BY'))
+          statements.filter(
+            (query) => query.includes('AS saturated') && !query.includes('ORDER BY')
+          )
         ).toHaveLength(bases.length)
       } finally {
         db.$client.options.debug = previousDebug
