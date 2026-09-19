@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-17",
+  "updatedAt": "2026-09-19",
   "integrations": [
     {
       "type": "onepassword",
@@ -9814,6 +9814,10 @@
           "description": "Invite attendees to an existing Google Calendar event"
         },
         {
+          "name": "Respond to Invitation (RSVP)",
+          "description": "RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched."
+        },
+        {
           "name": "Check Free/Busy",
           "description": "Query free/busy information for one or more Google Calendars"
         },
@@ -9846,7 +9850,7 @@
           "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "google_calendar_poller",

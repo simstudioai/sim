@@ -311,6 +311,35 @@ Invite attendees to an existing Google Calendar event. Returns API-aligned field
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
+### Google Calendar Respond to Invitation
+
+RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID the invitation appears on \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to respond to. Use a recurring-event instance ID \(as returned by List Events or Get Recurring Instances\) to respond to a single occurrence; the series ID responds to every occurrence. |
+| `responseStatus` | string | Yes | Your response: accepted, declined, or tentative |
+| `comment` | string | No | Optional note to include with your response |
+| `sendUpdates` | string | No | Who to notify about your response: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `responseStatus` | string | Your confirmed response \(accepted, declined, or tentative\) |
+| `comment` | string | Your response comment |
+| `attendees` | json | Event attendees |
+| `organizer` | json | Event organizer |
+
 ### Google Calendar Free/Busy
 
 Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.
