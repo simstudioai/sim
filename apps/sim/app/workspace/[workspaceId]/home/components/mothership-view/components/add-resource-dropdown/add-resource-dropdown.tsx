@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  Button,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  TabStripAction,
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
@@ -30,10 +30,7 @@ import {
   byResourceMenuOrder,
   getResourceConfig,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -676,13 +673,9 @@ export function AddResourceDropdown({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant='subtle'
-              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label='Add resource tab'
-            >
+            <TabStripAction variant='subtle' aria-label='Add resource tab'>
               <Plus className={RESOURCE_TAB_ICON_CLASS} />
-            </Button>
+            </TabStripAction>
           </DropdownMenuTrigger>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
