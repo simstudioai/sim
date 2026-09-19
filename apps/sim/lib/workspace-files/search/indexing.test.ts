@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLogger } from '@sim/logger'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   begin: vi.fn(),
@@ -25,9 +27,27 @@ import {
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
+  FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
 import type { FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
+
+const logger = vi.mocked(createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkspaceFileSearchIndexer')
+].value as { warn: ReturnType<typeof vi.fn> }
+
+const FILE_TEXT = 'confidential customer text'
+
+function statementTimeout(): DrizzleQueryError {
+  const driverError = Object.assign(new Error('canceling statement due to statement timeout'), {
+    code: '57014',
+  })
+  return new DrizzleQueryError(
+    'insert into "workspace_file_search_chunk" values ($1)',
+    [FILE_TEXT],
+    driverError
+  )
+}
 
 const payload = {
   workspaceId: 'workspace',
@@ -105,6 +125,56 @@ describe('complete-file indexing worker', () => {
     expect(mocks.append.mock.invocationCallOrder.at(-1)).toBeLessThan(
       mocks.publish.mock.invocationCallOrder[0]
     )
+  })
+  it('skips mostly encoded text without writing chunks', async () => {
+    mocks.extract.mockResolvedValue({ text: 'iVBORw0KGgo'.repeat(10_000), partial: false })
+    await indexWorkspaceFileForSearch(payload, signal)
+    expect(mocks.append).not.toHaveBeenCalled()
+    expect(mocks.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      { status: 'skipped', failureReason: 'encoded_content' },
+      signal
+    )
+  })
+  it('reports a failed chunk query by error code without its bound file text', async () => {
+    mocks.append.mockRejectedValue(statementTimeout())
+    const thrown = await indexWorkspaceFileForSearch(payload, signal).catch((error) => error)
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown.message).toBe(
+      'Workspace file search database query failed (57014, statement_timeout)'
+    )
+    expect(thrown.stack).not.toContain(FILE_TEXT)
+    expect(thrown.cause).toBeInstanceOf(DrizzleQueryError)
+  })
+  it('rethrows errors that carry no query unchanged', async () => {
+    const storageError = new Error('storage unavailable')
+    mocks.load.mockRejectedValue(storageError)
+    await expect(indexWorkspaceFileForSearch(payload, signal)).rejects.toBe(storageError)
+  })
+  describe('slow batches', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+    it('logs the key load of a batch that times out, without its text', async () => {
+      mocks.append.mockImplementation(async () => {
+        vi.advanceTimersByTime(FILE_SEARCH_SLOW_INSERT_BATCH_MS)
+        throw statementTimeout()
+      })
+      await expect(indexWorkspaceFileForSearch(payload, signal)).rejects.toThrow('57014')
+      expect(logger.warn).toHaveBeenCalledWith('Workspace file search insert batch was slow', {
+        workspaceId: 'workspace',
+        fileId: 'file',
+        buildId: 'build',
+        firstOrdinal: 0,
+        rows: 1,
+        bytes: 6,
+        estimatedTrigramKeys: 7,
+        durationMs: FILE_SEARCH_SLOW_INSERT_BATCH_MS,
+      })
+    })
+    it('stays quiet for fast batches', async () => {
+      await indexWorkspaceFileForSearch(payload, signal)
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
   })
   it('stops immediately when a retry loses its build token', async () => {
     mocks.append.mockResolvedValue(false)

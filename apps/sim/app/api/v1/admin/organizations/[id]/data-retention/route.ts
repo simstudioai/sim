@@ -9,8 +9,8 @@
  * `DATA_RETENTION_ENABLED` (or `ENTERPRISE_ENABLED`) when billing is off.
  *
  * Body: any subset of `logRetentionHours`, `softDeleteRetentionHours`,
- * `taskCleanupHours`, `piiRedaction`, `retentionOverrides`. Omitted keys keep
- * their current value; `null` means "forever" for an hours field.
+ * `taskCleanupHours`, `fileVersionRetentionHours`, `piiRedaction`, `retentionOverrides`.
+ * Omitted keys keep their current value; `null` means "forever" for an hours field.
  *
  * Response: AdminSingleResponse<{ success, organizationId }>
  */
@@ -77,6 +77,9 @@ export const PATCH = withRouteHandler(
         merged.softDeleteRetentionHours = body.softDeleteRetentionHours
       }
       if (body.taskCleanupHours !== undefined) merged.taskCleanupHours = body.taskCleanupHours
+      if (body.fileVersionRetentionHours !== undefined) {
+        merged.fileVersionRetentionHours = body.fileVersionRetentionHours
+      }
 
       if (body.piiRedaction !== undefined) {
         merged.piiRedaction = body.piiRedaction

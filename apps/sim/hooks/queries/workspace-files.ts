@@ -200,8 +200,9 @@ export function useWorkspaceImageDimensionsAdapter(
 /**
  * A read that addressed a storage object the file no longer points at.
  *
- * A workspace file's bytes are rewritten under a NEW storage key on every content update and the
- * superseded object is deleted (`updateWorkspaceFileContent`), so a 404 from a content read means
+ * A workspace file's bytes are rewritten under a NEW storage key on every content update, and the
+ * serve route answers only for the key the file currently points at (a superseded object is either
+ * deleted or kept as a version reachable through the version API), so a 404 from a content read means
  * "the key you are holding has been replaced", not "the server is broken" — the serve route says as
  * much and logs it at `info`. Distinguished from a transport failure so {@link useStaleKeyRecovery}
  * can re-resolve the record instead of surfacing a dead end.

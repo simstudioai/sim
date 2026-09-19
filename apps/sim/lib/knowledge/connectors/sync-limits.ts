@@ -1,3 +1,5 @@
+import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
+
 /** Wall-clock ceiling for one worker; unfinished listings resume from their durable checkpoint. */
 export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
 
@@ -72,6 +74,23 @@ export const MEMBER_SYNC_SOFT_BUDGET_SECONDS = 2700
 
 /** Reclaim TTL for a members-mode lease; the same reasoning as {@link CONNECTOR_SYNC_STALE_LOCK_TTL_MS}. */
 export const MEMBER_SYNC_STALE_LOCK_TTL_MS = MEMBER_SYNC_MAX_DURATION_SECONDS * 2 * 1000
+
+/**
+ * Age at which a member's observations are renewed by access scope, for connectors that
+ * grant access per container: half the evidence window, so renewal lands well before
+ * evidence lapses while touching each observation at most twice a day.
+ */
+export const MEMBER_SCOPE_RENEW_AFTER_MS = SOURCE_ACL_MAX_AGE_MS / 2
+
+/** How much of a run one member's scope renewal may use before its listing starts. */
+export const MEMBER_SCOPE_RENEWAL_BUDGET_MS = 10 * 60 * 1000
+
+/**
+ * Container prefixes gathered from the source before one pass over the member's stale
+ * observations renews them, so that pass runs once per this many containers rather than
+ * once per source page.
+ */
+export const MEMBER_SCOPE_RENEWAL_PREFIX_BATCH = 5000
 
 /** Pages applied per member before its durable feed cursor is saved for continuation. */
 export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 25

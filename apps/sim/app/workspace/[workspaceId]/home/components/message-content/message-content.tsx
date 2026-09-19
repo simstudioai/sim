@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { CircleStop } from '@sim/emcn/icons'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -40,14 +41,7 @@ import type {
 import { SUBAGENT_LABELS } from '@/app/workspace/[workspaceId]/home/types'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { AgentGroupItem } from './components'
-import {
-  AgentGroup,
-  ChatContent,
-  CircleStop,
-  MessageSources,
-  Options,
-  PendingTagIndicator,
-} from './components'
+import { AgentGroup, ChatContent, MessageSources, Options, PendingTagIndicator } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'

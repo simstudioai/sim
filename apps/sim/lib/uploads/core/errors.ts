@@ -1,3 +1,5 @@
+import { findCause } from '@sim/utils/errors'
+
 const OBJECT_NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound', 'ENOENT'])
 
 /**
@@ -44,4 +46,12 @@ export function isObjectNotFoundError(error: unknown): boolean {
     $metadata?: { httpStatusCode?: unknown }
   }
   return code === 404 || statusCode === 404 || $metadata?.httpStatusCode === 404
+}
+
+/**
+ * True when `error`, or any error it wraps as its `cause`, reports a missing object. For callers
+ * that read an object through a layer which re-wraps storage failures but keeps the original.
+ */
+export function hasObjectNotFoundCause(error: unknown): boolean {
+  return findCause(error, (value): value is unknown => isObjectNotFoundError(value)) !== undefined
 }

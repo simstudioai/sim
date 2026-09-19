@@ -1556,6 +1556,7 @@ export interface RetentionOverride {
   logRetentionHours?: number | null
   softDeleteRetentionHours?: number | null
   taskCleanupHours?: number | null
+  fileVersionRetentionHours?: number | null
 }
 
 /**
@@ -1568,6 +1569,8 @@ export interface DataRetentionSettings {
   logRetentionHours?: number | null
   softDeleteRetentionHours?: number | null
   taskCleanupHours?: number | null
+  /** How long a superseded workspace file version is kept, measured from when it was superseded. */
+  fileVersionRetentionHours?: number | null
   /** Enterprise PII redaction rules applied to workflow logs on persist. */
   piiRedaction?: {
     rules?: PiiRedactionRule[]
@@ -2711,6 +2714,83 @@ export const workspaceFileCollabState = pgTable('workspace_file_collab_state', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+/** Where a workspace file version's bytes came from. */
+export const workspaceFileVersionSourceEnum = pgEnum('workspace_file_version_source', [
+  'upload',
+  'user',
+  'api',
+  'copilot',
+  'workflow',
+  'collab',
+  'revert',
+  'unknown',
+])
+
+export type WorkspaceFileVersionSource = (typeof workspaceFileVersionSourceEnum.enumValues)[number]
+
+/**
+ * One content state of a workspace file. Rows cover every state since versioning began, including
+ * the current one (the row whose `key` equals `workspace_files.key`); a file with no rows has an
+ * implicit version 1 that the first content write materializes. Each row owns an immutable storage
+ * object, so a key referenced here must never be deleted while the row exists.
+ *
+ * `supersededAt` is NULL only for the current version and is the age retention measures from.
+ * `secretProvenanceStatus` NULL means the bytes predate provenance tracking (reads as exact-empty,
+ * like `workspace_files.secret_provenance_version` NULL); otherwise the status and entries are a
+ * snapshot of the sidecar for exactly these bytes, which a revert must reinstate.
+ */
+export const workspaceFileVersion = pgTable(
+  'workspace_file_version',
+  {
+    id: text('id').primaryKey(),
+    fileId: text('file_id')
+      .notNull()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    key: text('key').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    contentType: text('content_type').notNull(),
+    /** sha256 (hex) of the bytes; NULL for an implicit version materialized without reading them. */
+    contentHash: text('content_hash'),
+    supersededAt: timestamp('superseded_at'),
+    source: workspaceFileVersionSourceEnum('source').notNull(),
+    /** Users who wrote these bytes, in first-contribution order; empty when unattributable. */
+    authorUserIds: text('author_user_ids').array().notNull().default(sql`'{}'::text[]`),
+    restoredFromVersion: integer('restored_from_version'),
+    secretProvenanceStatus: text('secret_provenance_status'),
+    secretProvenanceEntries: jsonb('secret_provenance_entries')
+      .$type<StoredWorkspaceFileSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    fileVersionUnique: uniqueIndex('workspace_file_version_file_version_unique').on(
+      table.fileId,
+      table.version
+    ),
+    keyUnique: uniqueIndex('workspace_file_version_key_unique').on(table.key),
+    /** Serves account deletion's keyset walk over every version in a set of workspaces. */
+    workspaceIdIdx: index('workspace_file_version_workspace_id_idx').on(
+      table.workspaceId,
+      table.id
+    ),
+    supersededIdx: index('workspace_file_version_workspace_superseded_idx')
+      .on(table.workspaceId, table.supersededAt)
+      .where(sql`${table.supersededAt} IS NOT NULL`),
+    provenanceStatusCheck: check(
+      'workspace_file_version_provenance_status_check',
+      sql`${table.secretProvenanceStatus} IS NULL OR ${table.secretProvenanceStatus} IN ('exact', 'unknown', 'unrecorded')`
+    ),
+  })
+)
+
+export type WorkspaceFileVersionRow = typeof workspaceFileVersion.$inferSelect
+
 /**
  * Public share links for workspace resources. Polymorphic on `resourceType` so a
  * single mechanism serves files now and folders later. One row per resource
@@ -3397,6 +3477,28 @@ export const embeddingKeywordSearch = pgTable(
     contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
   })
 )
+
+/** The Tin index over {@link embeddingKeywordTin}; valid only once the projection is backfilled. */
+export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
+
+/**
+ * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
+ * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
+ * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
+ * the index and stems exactly as the GIN projection does. Access never enters the row, so ACL
+ * changes never rewrite it. Script migration `0019_tin_keyword_projection` installs the extension,
+ * the index, and the embedding and knowledge base triggers that own these rows, and only where
+ * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
+ */
+export const embeddingKeywordTin = pgTable('embedding_keyword_tin', {
+  id: text('id')
+    .primaryKey()
+    .references(() => embedding.id, { onDelete: 'cascade' }),
+  knowledgeBaseId: text('knowledge_base_id').notNull(),
+  documentId: text('document_id').notNull(),
+  enabled: boolean('enabled').notNull(),
+  content: text('content').notNull(),
+})
 
 /**
  * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
@@ -5933,6 +6035,18 @@ export const knowledgeConnectorMember = pgTable(
     /** Authorization watermark: complete nonsuspect full listing or completely drained change feed. */
     memberSyncedThrough: timestamp('member_synced_through'),
     /**
+     * When every observation under the containers the source still grants this member
+     * was last renewed, for connectors that grant access per container; NULL until the
+     * first renewal completes.
+     */
+    scopeRenewedAt: timestamp('scope_renewed_at'),
+    /**
+     * Where an unfinished scope renewal resumes in the source's container listing,
+     * and when that renewal pass began; both NULL when no pass is in progress.
+     */
+    scopeRenewalCursor: text('scope_renewal_cursor'),
+    scopeRenewalStartedAt: timestamp('scope_renewal_started_at'),
+    /**
      * Where the member's change feed resumes. Opened just before a full listing
      * and stored once that listing lands, so every later run reads the feed
      * instead of relisting; NULL when the connector has no feed or the feed
@@ -6169,6 +6283,8 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
     docsHydratedOnce: integer('docs_hydrated_once').notNull().default(0),
     observationsAdded: integer('observations_added').notNull().default(0),
+    /** Observations kept fresh by per-container renewal rather than relisting. */
+    observationsRenewed: integer('observations_renewed').notNull().default(0),
     observationsRemoved: integer('observations_removed').notNull().default(0),
     docsTombstoned: integer('docs_tombstoned').notNull().default(0),
     docsResurrected: integer('docs_resurrected').notNull().default(0),

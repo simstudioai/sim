@@ -93,7 +93,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
                 isReadyExport ? (
                   <button
                     type='button'
-                    className='text-[var(--brand-primary)] hover-hover:underline'
+                    className='text-[var(--selection)] hover-hover:underline'
                     onClick={() => download(row)}
                   >
                     Download

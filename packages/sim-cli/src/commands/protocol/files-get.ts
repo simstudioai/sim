@@ -245,6 +245,61 @@ export function isTerminalSafeContentType(contentType: string | null): boolean {
   )
 }
 
+interface DownloadOutputOptions {
+  outputFile?: string
+  force?: boolean
+}
+
+type DownloadOperation = (typeof V2_OPERATIONS)['downloadFile' | 'downloadFileVersion']
+
+/**
+ * Streams a binary v2 download to stdout or atomically to `--output-file`. Shared by every
+ * command that downloads file bytes, so each gets the same terminal guard and overwrite rules.
+ */
+async function downloadToOutput(
+  command: Command,
+  operation: DownloadOperation,
+  pathParams: Record<string, string>,
+  options: DownloadOutputOptions
+): Promise<void> {
+  const target = options.outputFile
+  const writesToStdout = target === undefined || target === '-'
+  if (writesToStdout && options.force) {
+    throw new SimApiError('--force requires --output-file <path>', 0)
+  }
+
+  const { client, profile } = clientFrom(command)
+  const workspaceId = client.requireWorkspace()
+  const response = await client.requestRaw(resolvePath(operation.path, pathParams), {
+    method: operation.method,
+    query: { workspaceId },
+  })
+  if (!response.body) {
+    throw new SimApiError('File content response was empty.', response.status)
+  }
+
+  if (writesToStdout) {
+    const contentType = response.headers.get('content-type')
+    if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
+      await response.body.cancel()
+      throw new SimApiError(
+        `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
+        0
+      )
+    }
+
+    await streamToStdout(response.body)
+    return
+  }
+
+  await saveToFile(response.body, target, Boolean(options.force))
+  printProtocolResult(profile.output, {
+    id: pathParams.fileId,
+    path: target,
+    status: 'saved',
+  })
+}
+
 export function attachFileGet(files: Command): void {
   files
     .command('get')
@@ -253,50 +308,21 @@ export function attachFileGet(files: Command): void {
     .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
-    .action(
-      async (
-        fileId: string,
-        options: { outputFile?: string; force?: boolean },
-        command: Command
-      ) => {
-        const writesToStdout = options.outputFile === undefined || options.outputFile === '-'
-        if (writesToStdout && options.force) {
-          throw new SimApiError('--force requires --output-file <path>', 0)
-        }
+    .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
+    )
+}
 
-        const { client, profile } = clientFrom(command)
-        const workspaceId = client.requireWorkspace()
-        const operation = V2_OPERATIONS.downloadFile
-        const response = await client.requestRaw(resolvePath(operation.path, { fileId }), {
-          method: operation.method,
-          query: { workspaceId },
-        })
-        if (!response.body) {
-          throw new SimApiError('File content response was empty.', response.status)
-        }
-
-        if (options.outputFile === undefined || options.outputFile === '-') {
-          const contentType = response.headers.get('content-type')
-          if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
-            await response.body.cancel()
-            throw new SimApiError(
-              `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
-              0
-            )
-          }
-
-          await streamToStdout(response.body)
-          return
-        }
-
-        const target = options.outputFile
-
-        await saveToFile(response.body, target, Boolean(options.force))
-        printProtocolResult(profile.output, {
-          id: fileId,
-          path: target,
-          status: 'saved',
-        })
-      }
+export function attachFileVersionDownload(versions: Command): void {
+  versions
+    .command('download')
+    .argument('<fileId>', 'File identifier.')
+    .argument('<version>', 'Version number.')
+    .allowExcessArguments(false)
+    .description('Download the content of one version of a file')
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
     )
 }

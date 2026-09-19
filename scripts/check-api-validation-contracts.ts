@@ -105,6 +105,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/settings/allowed-mcp-domains/route.ts',
   'apps/sim/app/api/cron/scim-reconcile/route.ts',
   'apps/sim/app/api/cron/cleanup-tasks/route.ts',
+  'apps/sim/app/api/cron/cleanup-file-versions/route.ts',
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
   'apps/sim/app/api/cron/cleanup-table-row-ttl/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',

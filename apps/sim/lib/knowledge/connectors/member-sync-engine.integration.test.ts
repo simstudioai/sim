@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   getChangeCursor: vi.fn(),
   listChanges: vi.fn(),
   supportsChangeFeed: vi.fn(),
+  persistFailures: vi.fn(),
+  scopes: vi.fn(),
+  renew: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -59,14 +62,16 @@ vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   recordMemberObservations: mocks.observe,
   removeMemberObservationsForDocuments: vi.fn(async () => []),
   removeUnseenMemberObservations: mocks.removeUnseen,
+  renewMemberObservationsInScopes: mocks.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: mocks.add,
   updateDocument: mocks.update,
   persistSkippedDocuments: vi.fn(async () => []),
-  persistSourceDocumentFailures: vi.fn(async () => undefined),
-  persistSkippedRetryHashes: vi.fn(async () => []),
+  persistSourceDocumentFailures: mocks.persistFailures,
+  persistHashOnlyUpdates: vi.fn(async () => []),
+  resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   isTriggerAvailable: () => true,
@@ -85,6 +90,18 @@ vi.mock('@/connectors/registry.server', () => ({
       listDocuments: mocks.list,
       getDocument: mocks.get,
     },
+    scoped_listing: {
+      id: 'scoped_listing',
+      name: 'Container-scoped source',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
+      supportsSeparateContentCredential: true,
+      listDocuments: mocks.list,
+      getDocument: mocks.get,
+      listAccessibleScopes: mocks.scopes,
+      isListingCursorInvalidError: (error: unknown) =>
+        error instanceof Error && error.message === 'cursor expired',
+    },
     drive: {
       id: 'drive',
       name: 'Drive',
@@ -101,12 +118,20 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   loadScopedAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
-import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
+  beginListingCheckpoint,
+  listingFingerprint,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
+import {
+  MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+  SOURCE_CONTENT_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 
 const serviceDocument: ExternalDocument = {
   externalId: 'file-shared',
@@ -132,7 +157,7 @@ const member = {
 /** Real engine, content stages, pagination, classification, and leases; external I/O is mocked. */
 function arrange(
   options: {
-    connectorType?: 'drive' | 'full_listing'
+    connectorType?: 'drive' | 'full_listing' | 'scoped_listing'
     members?: boolean
     memberContent?: boolean
     existingDocument?: boolean
@@ -146,6 +171,9 @@ function arrange(
     changedIdentity?: boolean
     directoryCheckpoint?: Record<string, unknown>
     organizationId?: string
+    memberCheckpoint?: Record<string, unknown>
+    scopeRenewedAt?: Date
+    scopeRenewal?: { cursor: string; startedAt: Date }
   } = {}
 ) {
   const connector = {
@@ -190,7 +218,13 @@ function arrange(
         memberSyncedThrough: new Date(),
         changeCursor: 'old-cursor',
       }
-    : member
+    : {
+        ...member,
+        scopeRenewedAt: options.scopeRenewedAt ?? null,
+        scopeRenewalCursor: options.scopeRenewal?.cursor ?? null,
+        scopeRenewalStartedAt: options.scopeRenewal?.startedAt ?? null,
+        ...(options.memberCheckpoint ? { listingCheckpoint: options.memberCheckpoint } : {}),
+      }
   const claims = options.members && !options.noDueMembers ? [[memberRow], []] : [[]]
   dbChainMockFns.returning.mockImplementation(async () => {
     const values = dbChainMockFns.set.mock.calls.at(-1)?.[0]
@@ -288,6 +322,9 @@ function arrange(
   mocks.supportsChangeFeed.mockReturnValue(true)
   mocks.isCredentialInvalidError.mockReturnValue(false)
   mocks.rejectToken.mockResolvedValue(true)
+  mocks.persistFailures.mockResolvedValue(undefined)
+  mocks.renew.mockResolvedValue({ renewed: 0, finished: true })
+  mocks.lifecycle.mockResolvedValue({ tombstoned: 0, resurrected: 0, purged: 0, finished: true })
   return () =>
     executeMemberSync('connector', {
       forceContentRefresh: options.forceContentRefresh,
@@ -330,6 +367,9 @@ describe('member engine with a dedicated content credential', () => {
         subjectToken: 's:google-drive:-:different-person',
         memberSyncedThrough: null,
         lastCompleteListingAt: null,
+        scopeRenewedAt: null,
+        scopeRenewalCursor: null,
+        scopeRenewalStartedAt: null,
         listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
         changeCursor: null,
         nextAttemptAt: expect.any(Date),
@@ -677,6 +717,9 @@ describe('member engine with a dedicated content credential', () => {
         status: 'suspended',
         memberSyncedThrough: null,
         lastCompleteListingAt: null,
+        scopeRenewedAt: null,
+        scopeRenewalCursor: null,
+        scopeRenewalStartedAt: null,
         listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
       })
     )
@@ -795,4 +838,228 @@ describe('member engine with a dedicated content credential', () => {
       false
     )
   })
+
+  const scopeRenewal = () =>
+    dbChainMockFns.set.mock.calls.find(
+      ([value]) => 'scopeRenewedAt' in value || 'scopeRenewalCursor' in value
+    )?.[0]
+
+  it('renews member access by scope before listing and records when it finished', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 3, finished: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRenewed).toBe(3)
+    expect(mocks.renew).toHaveBeenCalledWith(
+      expect.objectContaining({ memberId: 'member', scopePrefixes: ['source:container-a:'] })
+    )
+    const memberListing = mocks.list.mock.calls.findIndex(([token]) => token === 'member-token')
+    expect(mocks.renew.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.list.mock.invocationCallOrder[memberListing]
+    )
+    expect(scopeRenewal()).toEqual({
+      scopeRenewedAt: expect.any(Date),
+      scopeRenewalCursor: null,
+      scopeRenewalStartedAt: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 3 })
+    )
+  })
+
+  it('records renewed observations on the log of a deferred run', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
+    mocks.list.mockRejectedValue(new ProviderCapacityDeferredError('admission_unavailable'))
+    expect((await run()).deferred).toBeDefined()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 2 })
+    )
+  })
+
+  it('gathers scope pages into one pass over the stale observations', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes
+      .mockResolvedValueOnce({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prefixes: ['source:container-b:'] })
+    mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
+    expect((await run()).observationsRenewed).toBe(2)
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual([undefined, 'page-2'])
+    expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes)).toEqual([
+      ['source:container-a:', 'source:container-b:'],
+    ])
+    expect(scopeRenewal()).toMatchObject({ scopeRenewedAt: expect.any(Date) })
+  })
+
+  it('renews a full batch of scopes before reading more, and resumes an unfinished batch', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    const fullBatch = Array.from(
+      { length: MEMBER_SCOPE_RENEWAL_PREFIX_BATCH },
+      (_, index) => `source:container-${index}:`
+    )
+    mocks.scopes
+      .mockResolvedValueOnce({ prefixes: fullBatch, nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prefixes: ['source:container-last:'] })
+    mocks.renew
+      .mockResolvedValueOnce({ renewed: 5, finished: true })
+      .mockResolvedValueOnce({ renewed: 1, finished: false })
+    expect((await run()).observationsRenewed).toBe(6)
+    expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes.length)).toEqual([
+      MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+      1,
+    ])
+    expect(scopeRenewal()).toEqual({
+      scopeRenewalCursor: 'page-2',
+      scopeRenewalStartedAt: expect.any(Date),
+    })
+  })
+
+  it('does not renew again while the last renewal is recent', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewedAt: new Date(),
+    })
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.scopes).not.toHaveBeenCalled()
+    expect(mocks.renew).not.toHaveBeenCalled()
+  })
+
+  it('stores the cursor of an unfinished page so the next run reads it again', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt: new Date('2026-09-01T00:00:00Z') },
+    })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1000, finished: false })
+    expect((await run()).observationsRenewed).toBe(1000)
+    expect(mocks.scopes.mock.calls[0]?.[2]).toBe('page-7')
+    expect(scopeRenewal()).toEqual({
+      scopeRenewalCursor: 'page-7',
+      scopeRenewalStartedAt: new Date('2026-09-01T00:00:00Z'),
+    })
+  })
+
+  it('resumes a stored pass and records its original start once every page is renewed', async () => {
+    const startedAt = new Date('2026-09-01T00:00:00Z')
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt },
+    })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-z:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    await run()
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual(['page-7'])
+    expect(scopeRenewal()).toEqual({
+      scopeRenewedAt: startedAt,
+      scopeRenewalCursor: null,
+      scopeRenewalStartedAt: null,
+    })
+  })
+
+  it('stops a scope listing whose cursor does not advance', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.scopes).toHaveBeenCalledTimes(2)
+    expect(mocks.renew).not.toHaveBeenCalled()
+    expect(mocks.observe).toHaveBeenCalled()
+  })
+
+  it('restarts a pass whose stored cursor expired', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt: new Date('2026-09-01T00:00:00Z') },
+    })
+    mocks.scopes
+      .mockRejectedValueOnce(new Error('cursor expired'))
+      .mockResolvedValueOnce({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    await run()
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual(['page-7', undefined])
+    expect(scopeRenewal()).toMatchObject({ scopeRenewalCursor: null })
+  })
+
+  it('still lists the member when their access scopes cannot be read', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockRejectedValue(new Error('provider unavailable'))
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersFailed).toBe(0)
+    expect(mocks.renew).not.toHaveBeenCalled()
+    expect(scopeRenewal()).toBeUndefined()
+    expect(mocks.observe).toHaveBeenCalled()
+  })
+
+  it('records every failed refresh through the shared failure policy', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.list.mockResolvedValue({
+      documents: [
+        { ...serviceDocument, contentHash: 'v2' },
+        { ...serviceDocument, externalId: 'member-only' },
+      ],
+      hasMore: false,
+    })
+    mocks.get.mockRejectedValue(new Error('provider unavailable'))
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(mocks.persistFailures).toHaveBeenCalledWith(
+      expect.objectContaining({ failedExternalIds: new Set(['file-shared', 'member-only']) })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastError: SOURCE_CONTENT_ERROR, consecutiveFailures: 0 })
+    )
+  })
+
+  it.each([
+    [true, null],
+    [false, SOURCE_CONTENT_ERROR],
+  ])(
+    'reports earlier content failures of a listing only once it completes (resuming=%s)',
+    async (resuming, lastError) => {
+      const checkpoint = {
+        ...beginListingCheckpoint({
+          fingerprint: listingFingerprint({
+            connectorType: 'full_listing',
+            sourceConfig: { folderId: 'shared-folder', adminEmail: 'admin@example.com' },
+            credentialId: member.credentialId,
+            subjectToken: member.subjectToken,
+          }),
+          generationId: 'earlier-run',
+          startedAt: new Date(),
+        }),
+        cursor: 'page-1',
+        contentFailures: true,
+      }
+      const run = arrange({
+        connectorType: 'full_listing',
+        members: true,
+        memberContent: true,
+        contentFresh: true,
+        memberCheckpoint: checkpoint,
+      })
+      mocks.list.mockImplementation(async (_token: string, _source: unknown, cursor?: string) => ({
+        documents: [],
+        hasMore: resuming,
+        ...(resuming ? { nextCursor: `${cursor}+` } : {}),
+      }))
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      const memberUpdate = dbChainMockFns.set.mock.calls.find(
+        ([value]) =>
+          'lastError' in value && 'consecutiveFailures' in value && 'nextAttemptAt' in value
+      )?.[0]
+      expect(memberUpdate).toMatchObject({ lastError })
+    }
+  )
 })

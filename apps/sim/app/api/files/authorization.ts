@@ -13,6 +13,7 @@ import {
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
@@ -220,6 +221,18 @@ export async function verifyFileAccess(
 }
 
 /**
+ * A retained file version keeps the storage metadata of the write that created it, so a metadata
+ * fallback would authorize a replaced or archived file's old bytes by key. Versions are served only
+ * through the version routes, which authorize against their file, so key-addressed access refuses
+ * them before any metadata fallback.
+ */
+async function isRetainedVersionKey(cloudKey: string, userId: string): Promise<boolean> {
+  if ((await findWorkspaceFileVersionKeys([cloudKey])).size === 0) return false
+  logger.warn('File access denied for a retained version key', { userId, cloudKey })
+  return true
+}
+
+/**
  * Verify access to workspace files
  * Priority: Database lookup > Metadata > Deny
  */
@@ -268,6 +281,8 @@ async function verifyWorkspaceFileAccess(
       })
       return false
     }
+
+    if (await isRetainedVersionKey(cloudKey, userId)) return false
 
     // Priority 2: Check metadata (works for both local and cloud files)
     const config: StorageConfig = customConfig || {}
@@ -744,6 +759,8 @@ async function verifyRegularFileAccess(
       })
       return false
     }
+
+    if (await isRetainedVersionKey(cloudKey, userId)) return false
 
     // Priority 2: Check metadata (works for both local and cloud files)
     const config: StorageConfig = customConfig || {}

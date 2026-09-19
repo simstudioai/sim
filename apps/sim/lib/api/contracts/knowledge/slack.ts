@@ -91,6 +91,24 @@ export const startSlackSearchOAuthContract = defineRouteContract({
   response: { mode: 'json', schema: z.object({ authorizationUrl: z.string().url().max(4000) }) },
 })
 
+export const connectCustomSlackSearchBodySchema = startSlackSearchOAuthBodySchema
+  .omit({ mode: true })
+  .extend({
+    botToken: z
+      .string()
+      .trim()
+      .min(1, 'Bot User OAuth Token is required')
+      .max(2000)
+      .startsWith('xoxb-', 'Use a Bot User OAuth Token (xoxb-) with token rotation disabled.'),
+  })
+export type ConnectCustomSlackSearchBody = z.input<typeof connectCustomSlackSearchBodySchema>
+export const connectCustomSlackSearchContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/slack/setup/connect',
+  body: connectCustomSlackSearchBodySchema,
+  response: { mode: 'json', schema: z.object({ organizationId: organizationIdSchema }) },
+})
+
 export const slackSearchOAuthCallbackQuerySchema = z.object({
   state: z.string().max(200).optional(),
   code: z.string().min(1).max(2000).optional(),

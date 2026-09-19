@@ -10,16 +10,16 @@ import { and, eq, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BUILD_LEASE_MS,
+  FILE_SEARCH_CHUNK_BYTES,
   FILE_SEARCH_CLEANUP_BATCH_BUILDS,
   FILE_SEARCH_CLEANUP_BATCH_ROWS,
   FILE_SEARCH_CLEANUP_BUDGET_MS,
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
   FILE_SEARCH_CLEANUP_MIN_BATCH_MS,
   FILE_SEARCH_INDEX_TRANSACTION_LIMITS,
-  FILE_SEARCH_INSERT_BATCH_BYTES,
-  FILE_SEARCH_INSERT_BATCH_ROWS,
 } from '@/lib/workspace-files/search/constants'
-import type { FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
+import { exceedsFileSearchBatchBudget } from '@/lib/workspace-files/search/index-batches'
+import { estimateTrigramKeys, type FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 export interface FileSearchRevision {
@@ -139,7 +139,7 @@ export async function beginFileSearchBuild(
   })
 }
 
-/** Each batch is fenced and byte-bounded; no file or parser work runs inside this transaction. */
+/** Each batch is fenced and work-bounded; no file or parser work runs inside this transaction. */
 export async function appendFileSearchChunks(
   build: FileSearchBuild,
   chunks: readonly FileSearchChunk[],
@@ -148,9 +148,12 @@ export async function appendFileSearchChunks(
   signal.throwIfAborted()
   if (!chunks.length) return true
   if (
-    chunks.length > FILE_SEARCH_INSERT_BATCH_ROWS ||
-    chunks.reduce((sum, c) => sum + Buffer.byteLength(c.content), 0) >
-      FILE_SEARCH_INSERT_BATCH_BYTES
+    chunks.some((chunk) => Buffer.byteLength(chunk.content) > FILE_SEARCH_CHUNK_BYTES) ||
+    exceedsFileSearchBatchBudget(
+      chunks.length,
+      chunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.content), 0),
+      chunks.reduce((sum, chunk) => sum + estimateTrigramKeys(chunk.content), 0)
+    )
   ) {
     throw new Error('File search insert batch exceeds its budget')
   }

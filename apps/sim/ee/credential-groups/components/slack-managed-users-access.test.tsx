@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   refetchApps: vi.fn(),
   manifest: vi.fn(),
   install: vi.fn(),
+  connect: vi.fn(),
   accounts: vi.fn(),
   refetchAccounts: vi.fn(),
 }))
@@ -31,6 +32,7 @@ vi.mock('@/hooks/queries/scoped-credentials', () => ({
 }))
 
 vi.mock('@/hooks/queries/slack-search', () => ({
+  useConnectCustomSlackSearch: () => ({ mutate: mocks.connect, isPending: false, reset: vi.fn() }),
   useSlackSearchInstallations: mocks.apps,
   useSlackSearchManifest: mocks.manifest,
   useStartSlackSearchOAuth: () => ({ mutate: mocks.install, isPending: false, reset: vi.fn() }),
@@ -387,6 +389,61 @@ describe('Slack member access selection', () => {
     await clickButton('Close', dialog)
     expect(document.body.textContent).toContain('Install Sim Search first')
     expect(mocks.onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('finishes manifest setup using the installed bot token without installing the app again', async () => {
+    await render(undefined, [], 'org-1')
+    await clickButton('Install Sim Search')
+    expect(document.querySelector('a')?.href).toBe('https://api.slack.com/apps')
+    await clickButton('Continue')
+    await fill('Paste your Slack app’s client ID', 'fixture-client')
+    await fill('Paste your Slack app’s client secret', 'fixture-secret')
+    await fill('Paste your Slack app’s signing secret', 'fixture-signing')
+    await clickButton('Continue')
+    expect(document.body.textContent).toContain('Connect installed Slack app')
+    expect(document.body.textContent).not.toContain('Install in Slack')
+    await fill('xoxb-...', 'xoxb-already-installed')
+    await clickButton('Connect app')
+    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith(
+      {
+        organizationId: 'org-1',
+        installationId: undefined,
+        name: 'Sim Search',
+        description: expect.any(String),
+        clientId: 'fixture-client',
+        clientSecret: 'fixture-secret',
+        signingSecret: 'fixture-signing',
+        botToken: 'xoxb-already-installed',
+      },
+      expect.any(Object)
+    )
+    /** The mutation refreshes installations before closing the nested wizard. */
+    mocks.apps.mockReturnValue({
+      isSuccess: true,
+      isPending: false,
+      error: null,
+      data: {
+        installations: [
+          {
+            id: 'installed',
+            appId: 'A1',
+            teamId: 'T1',
+            teamName: 'Test workspace',
+            appKind: 'custom',
+            enabled: true,
+            needsValidation: false,
+          },
+        ],
+        bots: [],
+      },
+    })
+    await act(async () => mocks.connect.mock.calls[0][1].onSuccess())
+    expect(document.body.textContent).toContain('Installed in Test workspace')
+    expect(document.body.textContent).not.toContain('Install Sim Search first')
+    expect(document.body.textContent).not.toContain('Connect installed Slack app')
+    expect(mocks.install).not.toHaveBeenCalled()
+    expect(mocks.start).not.toHaveBeenCalled()
+    expect(window.open).not.toHaveBeenCalled()
   })
 
   it('waits for the installed app lookup instead of offering a duplicate installation', async () => {

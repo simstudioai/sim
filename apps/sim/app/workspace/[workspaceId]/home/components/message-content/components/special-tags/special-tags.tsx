@@ -2,7 +2,14 @@
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from '@sim/emcn'
-import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } from '@sim/emcn/icons'
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Lock,
+  SquareArrowUpRight,
+  TerminalWindow,
+} from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
@@ -1986,24 +1993,6 @@ function getCredentialProviderDisplayName(provider: string): string {
   )
 }
 
-const LockIcon = (props: { className?: string }) => (
-  <svg
-    className={props.className}
-    viewBox='0 0 16 16'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <rect x='2' y='5' width='12' height='8' rx='1.5' stroke='currentColor' strokeWidth='1.3' />
-    <path
-      d='M5 5V3.5a3 3 0 1 1 6 0V5'
-      stroke='currentColor'
-      strokeWidth='1.3'
-      strokeLinecap='round'
-    />
-    <circle cx='8' cy='9.5' r='1.25' fill='currentColor' />
-  </svg>
-)
-
 /**
  * Inline "paste a secret" widget rendered for
  * `<credential>{"type":"secret_input","name":"OPENAI_API_KEY"}</credential>`.
@@ -2484,7 +2473,7 @@ function CredentialLinkDisplay({
   // The connect link value comes from the streamed model output, so only
   // render it as a clickable link when it resolves to a real http(s) URL.
   if (!data.value || !isSafeHttpUrl(data.value)) return null
-  const Icon = getCredentialIcon(data.provider) ?? LockIcon
+  const Icon = getCredentialIcon(data.provider) ?? Lock
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
     : hasExistingCredential
@@ -2550,7 +2539,7 @@ function PersonalCredentialLinkDisplay({
     onConnected,
   })
   if (!provider || (provider.toLowerCase() === 'gitlab' && !canEdit)) return null
-  const Icon = getCredentialIcon(provider) ?? LockIcon
+  const Icon = getCredentialIcon(provider) ?? Lock
   const connected = connection.status === 'connected'
   const label = connected
     ? `Connected ${name}`

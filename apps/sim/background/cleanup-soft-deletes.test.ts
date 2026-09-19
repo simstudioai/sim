@@ -82,6 +82,13 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
 
+const { mockReleaseWorkspaceFileVersionsForPurgeInTx } = vi.hoisted(() => ({
+  mockReleaseWorkspaceFileVersionsForPurgeInTx: vi.fn(),
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  releaseWorkspaceFileVersionsForPurgeInTx: mockReleaseWorkspaceFileVersionsForPurgeInTx,
+}))
+
 vi.mock('@/lib/workflows/utils', () => ({
   deduplicateWorkflowName: mockDeduplicateWorkflowName,
 }))
@@ -120,6 +127,48 @@ describe('cleanup soft deletes', () => {
       plan: 'free',
       customStorageLimitGB: null,
     })
+  })
+
+  it('releases version history inside the transaction that purges the file rows', async () => {
+    mockSelectRowsByIdChunks
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'file-purged',
+          key: 'workspace/ws-1/file-purged',
+          workspaceId: 'ws-1',
+          context: 'workspace',
+          sizeBytes: 5,
+        },
+        {
+          id: 'file-failed',
+          key: 'workspace/ws-1/file-failed',
+          workspaceId: 'ws-1',
+          context: 'workspace',
+          sizeBytes: 4,
+        },
+      ])
+    mockDeleteFiles.mockResolvedValueOnce({
+      deleted: 1,
+      failed: [{ key: 'workspace/ws-1/file-failed', error: 'storage unavailable' }],
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-purged', sizeBytes: 5 }])
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledOnce()
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledWith(
+      dbChainMock.db,
+      ['file-purged'],
+      expect.any(Date)
+    )
+    expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]
+    )
+    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[0]
+    )
   })
 
   it('keeps metadata rows whose object deletion failed', async () => {
