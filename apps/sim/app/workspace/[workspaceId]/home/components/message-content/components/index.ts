@@ -1,5 +1,5 @@
 export type { AgentGroupItem, NestedAgentGroup } from './agent-group'
-export { AgentGroup, CircleStop, isAgentGroupResolved } from './agent-group'
+export { AgentGroup, isAgentGroupResolved } from './agent-group'
 export { ChatContent } from './chat-content'
 export { MessageSources } from './message-sources'
 export { Options } from './options'
