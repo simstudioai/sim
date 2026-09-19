@@ -950,6 +950,14 @@ export const schemaMock = {
     enabled: 'embeddingKeywordSearch.enabled',
     contentTsv: 'embeddingKeywordSearch.contentTsv',
   },
+  EMBEDDING_KEYWORD_TIN_INDEX: 'embedding_keyword_tin_content_idx',
+  embeddingKeywordTin: {
+    id: 'embeddingKeywordTin.id',
+    knowledgeBaseId: 'embeddingKeywordTin.knowledgeBaseId',
+    documentId: 'embeddingKeywordTin.documentId',
+    enabled: 'embeddingKeywordTin.enabled',
+    content: 'embeddingKeywordTin.content',
+  },
   embeddingSearch: {
     id: 'embeddingSearch.id',
     knowledgeBaseId: 'embeddingSearch.knowledgeBaseId',

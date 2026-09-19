@@ -3,6 +3,7 @@ import {
   document,
   embedding,
   embeddingKeywordSearch,
+  embeddingKeywordTin,
   embeddingSearch,
   knowledgeConnector,
 } from '@sim/db/schema'
@@ -35,6 +36,7 @@ import {
 import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
+import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
 import {
   coerceTagFilterValue,
   escapeLikePattern,
@@ -490,6 +492,13 @@ export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTa
  * document terms resolve to the same lexemes in both keyword retrieval paths.
  */
 const FTS_CONFIG = 'english'
+
+/**
+ * Chunks Tin ranks before access is checked, widening while too few are readable to fill a page.
+ * A caller past the permitted-set limit reads a large share of the index, so the first window
+ * almost always fills; the widest bounds the work before the GIN ranking takes over.
+ */
+const TIN_KEYWORD_WINDOWS = [2000, 10_000, 50_000] as const
 
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
@@ -1348,6 +1357,96 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       ...tagFilterConditions,
     ]
     const candidateRank = sql<number>`ts_rank_cd(${embeddingKeywordSearch.contentTsv}, ${tsQuery})`
+    /**
+     * A caller reaching past the permitted-set limit reads much of the index, so ranking every
+     * match before checking access is the leg's whole cost for a common term. Where the Tin
+     * projection is complete, BM25 ranks inside the bases first and access is checked only on the
+     * top of that ranking.
+     */
+    const tinQuery =
+      params.permitted?.kind === 'unbounded' && tagFilterConditions.length === 0
+        ? await resolveTinKeywordQuery(knowledgeBaseIds, query, FTS_CONFIG, params.budget)
+        : null
+    annotateSearchDiagnostics({
+      ...(params.permitted?.kind === 'unbounded'
+        ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
+        : {}),
+    })
+    const documentConditions = (excludedSources: readonly string[]) =>
+      and(
+        ...candidateDocumentConditions(
+          knowledgeBaseIds,
+          access,
+          params.filters,
+          knowledgeMetadataCandidateAccessCondition(access)
+        ),
+        excludeSearchSources(excludedSources)
+      )
+    /**
+     * One page from the top of Tin's ranking. The window of ranked chunks widens while too few of
+     * them are readable to fill the page; if the widest window still cannot, the page is left to
+     * the GIN ranking, which covers every match.
+     */
+    const selectTinPage = async (
+      scopedQuery: SQL,
+      limit: number,
+      offset: number,
+      excludedSources: readonly string[]
+    ): Promise<SearchReadCandidatePage | null> => {
+      for (const window of TIN_KEYWORD_WINDOWS) {
+        if (window < offset + limit) continue
+        const [page] = await runSearchQuery(params.budget, 'keyword.tin', (executor) =>
+          executor.execute<{ ranked: number; candidates: SearchReadCandidate[] }>(sql`
+            WITH ranked_tin_chunks AS MATERIALIZED (
+              SELECT ${embeddingKeywordTin.id} AS id, ${embeddingKeywordTin.documentId} AS document_id,
+                ${embeddingKeywordTin.enabled} AS enabled,
+                tin.full_score(${embeddingKeywordTin}.ctid) AS keyword_rank
+              FROM ${embeddingKeywordTin}
+              WHERE ${embeddingKeywordTin.content} ==> (${scopedQuery})
+              ORDER BY keyword_rank DESC
+              LIMIT ${window}
+            ), visible_keyword_documents AS MATERIALIZED (
+              SELECT ${document.id} AS id FROM ${document}
+              WHERE ${and(
+                sql`${document.id} = ANY (ARRAY(SELECT document_id FROM ranked_tin_chunks))`,
+                documentConditions(excludedSources)
+              )}
+            ), page AS (
+              SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
+                ${document.connectorId} AS "connectorId",
+                ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource",
+                ranked_tin_chunks.keyword_rank
+              FROM ranked_tin_chunks INNER JOIN ${document}
+                ON ${document.id} = ranked_tin_chunks.document_id
+              WHERE ranked_tin_chunks.enabled
+                AND ranked_tin_chunks.document_id IN (SELECT id FROM visible_keyword_documents)
+              ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
+              LIMIT ${limit} OFFSET ${offset}
+            )
+            SELECT (SELECT count(*)::int FROM ranked_tin_chunks) AS ranked,
+              coalesce((
+                SELECT json_agg(json_build_object(
+                  'id', page.id, 'documentId', page."documentId", 'connectorId', page."connectorId",
+                  'liveAuthorizationSource', page."liveAuthorizationSource"
+                ) ORDER BY page.keyword_rank DESC, page.id)
+                FROM page
+              ), '[]'::json) AS candidates
+          `)
+        )
+        annotateSearchDiagnostics({ keywordTinWindow: window })
+        if (page.candidates.length === limit || page.ranked < window) {
+          return { candidates: page.candidates, nextOffset: offset + page.candidates.length }
+        }
+      }
+      return null
+    }
+    /** Parenthesized where used: `==>` binds tighter than `||`. */
+    const tinScope = tinQuery
+      ? sql`'(' || ${sql.join(
+          knowledgeBaseIds.map((id) => sql`knowledge_tin_base_token(${id}) || '^0'`),
+          sql` || ' OR ' || `
+        )} || ') AND (' || ${tinQuery} || ')'`
+      : undefined
     /** Keep readable identities and rank scalars separate so sorts never carry full text-search vectors. */
     return selectAuthorizedSearchResults({
       leg: 'keyword',
@@ -1368,6 +1467,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             ? permittedDocumentIds(params.permitted.documents, excludedSources)
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
+        if (tinScope && !permittedIds) {
+          const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
+          if (tinPage) return tinPage
+          annotateSearchDiagnostics({ keywordRanking: 'gin' })
+        }
         const baseScope = and(
           inArray(embeddingKeywordSearch.knowledgeBaseId, knowledgeBaseIds),
           eq(embeddingKeywordSearch.enabled, true)
@@ -1411,13 +1515,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               SELECT ${document.id} AS id FROM ${document}
               WHERE ${and(
                 sql`${document.id} = ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))`,
-                ...candidateDocumentConditions(
-                  knowledgeBaseIds,
-                  access,
-                  params.filters,
-                  knowledgeMetadataCandidateAccessCondition(access)
-                ),
-                excludeSearchSources(excludedSources)
+                documentConditions(excludedSources)
               )}
             ), ranked_keyword_candidates AS MATERIALIZED (
               SELECT matched_keyword_chunks.id, matched_keyword_chunks.document_id,

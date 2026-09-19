@@ -10,6 +10,15 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockResolveTinKeywordQuery } = vi.hoisted(() => ({
+  mockResolveTinKeywordQuery: vi.fn<() => Promise<string | null>>(async () => null),
+}))
+
+vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+  resolveTinKeywordQuery: mockResolveTinKeywordQuery,
+}))
+
 import {
   type KnowledgeAccessProvider,
   type UserAccessScope,
@@ -1487,6 +1496,106 @@ describe('permitted-document planner', () => {
     const keyword = statements().find((query) => query.sql.includes('WITH matched_keyword_chunks'))!
     /** The mock renders the whole WHERE as one parameter, so the restriction shows up in it. */
     expect(JSON.stringify(keyword)).toContain('doc-a')
+  })
+
+  describe('Tin keyword ranking for an unbounded caller', () => {
+    const unbounded: PermittedDocuments = { kind: 'unbounded' }
+    const keyword = (overrides: Partial<Parameters<typeof executeKeywordSearch>[0]> = {}) =>
+      executeKeywordSearch({
+        ...params,
+        topK: 1,
+        query: 'release',
+        queryVector: params.queryVector!,
+        permitted: unbounded,
+        ...overrides,
+      })
+    const tinStatements = () =>
+      statements().filter((query) => query.sql.includes('ranked_tin_chunks'))
+    const ginStatements = () =>
+      statements().filter((query) => query.sql.includes('WITH matched_keyword_chunks'))
+    let tinPages: Array<{ ranked: number; candidates: ReturnType<typeof hit>[] }>
+
+    beforeEach(() => {
+      mockResolveTinKeywordQuery.mockReset()
+      mockResolveTinKeywordQuery.mockResolvedValue('"releas"')
+      tinPages = []
+      dbChainMockFns.execute.mockImplementation(async (query) =>
+        render(query).sql.includes('ranked_tin_chunks')
+          ? [tinPages.shift() ?? { ranked: 0, candidates: [] }]
+          : []
+      )
+    })
+
+    it('ranks with Tin and checks access only on the top of that ranking', async () => {
+      tinPages = [{ ranked: 1500, candidates: [hit('a', null)] }]
+      queueTableRows(schemaMock.embedding, [{ ...hit('a', null), content: 'release notes' }])
+      const results = await keyword()
+      expect(results.map((row) => row.id)).toEqual(['a'])
+      expect(mockResolveTinKeywordQuery).toHaveBeenCalledWith(
+        ['org-index'],
+        'release',
+        'english',
+        params.budget
+      )
+      expect(ginStatements()).toHaveLength(0)
+      expect(JSON.stringify(tinStatements()[0])).toContain('2000')
+      /** `==>` binds tighter than `||`, so the concatenated query must be parenthesized. */
+      expect(tinStatements()[0].sql).toContain('==> (?)')
+    })
+
+    it('widens the ranked window while too few ranked chunks are readable', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 4000, candidates: [hit('b', null)] },
+      ]
+      queueTableRows(schemaMock.embedding, [{ ...hit('b', null), content: 'release notes' }])
+      expect((await keyword()).map((row) => row.id)).toEqual(['b'])
+      const windows = tinStatements().map((query) => JSON.stringify(query))
+      expect(windows[0]).toContain('2000')
+      expect(windows[1]).toContain('10000')
+      expect(ginStatements()).toHaveLength(0)
+    })
+
+    it('stops widening once Tin ranked every match', async () => {
+      tinPages = [{ ranked: 12, candidates: [] }]
+      expect(await keyword()).toEqual([])
+      expect(tinStatements()).toHaveLength(1)
+      expect(ginStatements()).toHaveLength(0)
+    })
+
+    it('leaves the page to the GIN ranking when the widest window cannot fill it', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 10_000, candidates: [] },
+        { ranked: 50_000, candidates: [] },
+      ]
+      await keyword()
+      expect(tinStatements()).toHaveLength(3)
+      expect(ginStatements()).toHaveLength(1)
+    })
+
+    it.each([
+      ['a bounded permitted set', { permitted: bounded({ id: 'doc-a', connectorId: null }) }],
+      [
+        'structured tag filters',
+        {
+          structuredFilters: [
+            { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'x' },
+          ] as StructuredFilter[],
+        },
+      ],
+    ])('keeps GIN ranking for %s', async (_case, overrides) => {
+      await keyword(overrides)
+      expect(mockResolveTinKeywordQuery).not.toHaveBeenCalled()
+      expect(tinStatements()).toHaveLength(0)
+    })
+
+    it('keeps GIN ranking when Tin is not ready or cannot express the query', async () => {
+      mockResolveTinKeywordQuery.mockResolvedValue(null)
+      await keyword()
+      expect(tinStatements()).toHaveLength(0)
+      expect(ginStatements()).toHaveLength(1)
+    })
   })
 
   it('skips keyword SQL entirely when nothing is permitted', async () => {
