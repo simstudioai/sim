@@ -22,6 +22,7 @@ const {
   mockResolveOrCreateChat,
   mockRunHeadlessCopilotLifecycle,
   mockSendInboxResponse,
+  mockBuildIntegrationToolSchemas,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockResolveOrCreateChat: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
+  mockBuildIntegrationToolSchemas: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -56,7 +58,7 @@ vi.mock('@/lib/mothership/chat/messages-store', () => ({
 }))
 
 vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: vi.fn().mockResolvedValue([]),
+  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
 }))
 
 vi.mock('@/lib/mothership/chat/persisted-message', () => ({
@@ -123,6 +125,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
 }))
 
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 
 const INBOX_TASK = {
@@ -152,6 +155,9 @@ describe('Inbox execution actor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockBuildIntegrationToolSchemas.mockResolvedValue([
+      { name: 'gmail_search_v2', input_schema: { type: 'object' } },
+    ])
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'write' })
     mockRunHeadlessCopilotLifecycle.mockResolvedValue({
       success: true,
@@ -170,6 +176,33 @@ describe('Inbox execution actor', () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'task-1' }])
       .mockResolvedValueOnce([{ model: 'claude-opus-4-8' }])
+  })
+
+  it('sends a valid inbox turn without eagerly loading integration schemas', async () => {
+    const chatId = '44444444-4444-4444-8444-444444444444'
+    const workspaceId = '55555555-5555-4555-8555-555555555555'
+    queueTableRows(schemaMock.mothershipInboxTask, [{ ...INBOX_TASK, chatId, workspaceId }])
+    queueTableRows(schemaMock.workspace, [{ ...WORKSPACE, id: workspaceId }])
+    queueTableRows(schemaMock.user, [{ id: 'member-1' }])
+    mockGetUserEntityPermissions.mockResolvedValue('write')
+
+    await executeInboxTask('task-1')
+
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledOnce()
+    const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    expect(ChatPayloadSchema.parse(payload)).toMatchObject({
+      userId: 'member-1',
+      chatId,
+      workspaceId,
+    })
+    expect(payload).not.toHaveProperty('integrationTools')
+    expect(mockBuildIntegrationToolSchemas).not.toHaveBeenCalled()
+    expect(options).toMatchObject({ interactive: false, autoExecuteTools: true })
+    expect(mockSendInboxResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId, workspaceId }),
+      expect.objectContaining({ success: true }),
+      expect.objectContaining({ workspaceId })
+    )
   })
 
   it('gives a workspace member their own raw-secret authority', async () => {

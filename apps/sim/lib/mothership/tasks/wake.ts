@@ -17,7 +17,6 @@ import {
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -57,11 +56,10 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
           ),
       input,
     })
-    const [access, integrationTools, billingAttribution] = await Promise.all([
+    const [access, billingAttribution] = await Promise.all([
       workspaceId
         ? checkWorkspaceAccess(workspaceId, userId)
         : Promise.resolve({ permission: undefined }),
-      buildIntegrationToolSchemas(userId, undefined, workspaceId),
       organizationId
         ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
         : resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! }),
@@ -74,7 +72,6 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       chatId,
       messageId: userMessageId,
       origin: 'task',
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
     }
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,

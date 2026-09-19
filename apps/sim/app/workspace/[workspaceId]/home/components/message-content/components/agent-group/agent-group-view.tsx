@@ -315,7 +315,7 @@ export function AgentGroupView({
           {activity}
         </ActivityStream>
       )}
-      {error && <p className='pl-6 text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <p className='pl-6 text-[var(--text-tertiary)] text-caption'>{error}</p>}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}

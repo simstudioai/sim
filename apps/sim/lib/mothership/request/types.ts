@@ -79,8 +79,8 @@ export const ContentBlockType = {
 } as const
 
 /**
- * A background task the turn armed (the worker's `run`/`task_armed` frame): the pill
- * under the turn. `status`/`summary` arrive with `task_delivered` when the task's
+ * A background task the turn armed (the worker's `run`/`task_armed` frame).
+ * `status`/`summary` arrive with `task_delivered` when the task's
  * notification is steered into this same turn; a wake-delivered one resolves on reload.
  */
 export interface TaskBlockInfo {

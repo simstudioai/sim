@@ -14,6 +14,8 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { getHiddenToolNames } from '@/lib/mothership/tools/client/hidden-tools'
@@ -1191,5 +1193,115 @@ describe('deriveThinkingLabel', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
     expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking…')
+  })
+})
+
+describe.each([undefined, 'main'])('watch presentation (%s)', (spanId) => {
+  const watch: ContentBlock = {
+    type: 'task',
+    task: {
+      taskId: 'timer-1',
+      kind: 'timer',
+      target: {},
+      note: 'Check results',
+      status: 'pending',
+    },
+  }
+  const registration: ContentBlock = {
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id: 'watch-call',
+      name: 'watch',
+      status: 'success',
+      result: { success: true, output: { ok: true, taskId: 'timer-1' } },
+    },
+  }
+
+  it('renders one watch row, preserving independent work and text ordering', () => {
+    const segments = parseBlocks([
+      mainText('Checking the result shortly.'),
+      registration,
+      watch,
+      { ...mainToolCall('other', 'cli_secrets_list'), spanId },
+      mainText('Continuing independent work.'),
+    ])
+    expect(segments).toMatchObject([
+      { type: 'text', content: 'Checking the result shortly.' },
+      watch,
+      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'other' } }] },
+      { type: 'text', content: 'Continuing independent work.' },
+    ])
+    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(false)
+  })
+
+  it.each(['pending', 'completed', 'stopped'] as const)(
+    'does not duplicate a %s watch on replay',
+    (status) => {
+      const recorded = { ...watch, task: { ...watch.task!, status } }
+      expect(parseBlocks([registration, recorded])).toEqual([{ type: 'task', task: recorded.task }])
+    }
+  )
+
+  it('preserves only the watch identity through persisted output stripping and reload', () => {
+    const stored = normalizeMessage({
+      id: 'message',
+      role: 'assistant',
+      content: '',
+      contentBlocks: [
+        {
+          type: 'tool',
+          spanId,
+          toolCall: {
+            id: 'watch-call',
+            name: 'watch',
+            state: 'success',
+            result: {
+              success: true,
+              output: { ok: true, taskId: 'timer-1', large: 'x'.repeat(10000) },
+            },
+          },
+        },
+        watch,
+      ],
+    })
+    const stripped = stripToolResultOutput(stored)
+    expect(stripped.contentBlocks[0].toolCall?.result?.output).toEqual({ taskId: 'timer-1' })
+    expect(stripToolResultOutput(stripped)).toBe(stripped)
+    expect(parseBlocks(toDisplayMessage(stripped).contentBlocks ?? [])).toEqual([watch])
+  })
+
+  it('keeps the registration tool until its durable watch is present', () => {
+    expect(parseBlocks([registration])).toMatchObject([
+      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'watch-call' } }] },
+    ])
+  })
+
+  it('does not hide failed, unmatched, or non-watch tools', () => {
+    const blocks = [
+      {
+        ...registration,
+        toolCall: { ...registration.toolCall!, id: 'failed', status: 'error' as const },
+      },
+      {
+        ...registration,
+        toolCall: {
+          ...registration.toolCall!,
+          id: 'unmatched',
+          result: { success: true, output: { taskId: 'timer-2' } },
+        },
+      },
+      {
+        ...registration,
+        toolCall: { ...registration.toolCall!, id: 'other', name: 'task_output' },
+      },
+      watch,
+    ]
+    const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
+    expect(
+      groups.flatMap((group) =>
+        group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+      )
+    ).toEqual(['failed', 'unmatched', 'other'])
   })
 })

@@ -4,7 +4,7 @@ import { act, type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill/task-pill'
+import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { mothershipTaskKeys } from '@/hooks/queries/mothership-tasks'
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
@@ -13,12 +13,6 @@ vi.mock('@/lib/mothership/tools/client/resource-display', () => ({
     id === 'workflow' ? 'Alfred' : undefined,
 }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: request }))
-vi.mock('@sim/emcn', () => ({
-  Check: () => null,
-  Clock: () => null,
-  X: () => null,
-  cn: (...values: string[]) => values.join(' '),
-}))
 const task = {
   taskId: '22222222-2222-4222-8222-222222222222',
   kind: 'timer',
@@ -55,27 +49,34 @@ afterEach(() => {
   client.clear()
 })
 
-it('updates a pill in an earlier message without needing an event in that turn', async () => {
+it('updates the same pending tool row in an earlier message without needing an event in that turn', async () => {
   render(
     <QueryClientProvider client={client}>
-      <TaskPill task={task} />
+      <WatchActivity task={task} />
     </QueryClientProvider>
   )
   await act(async () => vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1)))
+  const row = statusElement()
+  expect(row.parentElement?.getAttribute('aria-busy')).toBe('true')
+  expect(row.querySelector('[class*=shimmer]')).not.toBeNull()
+  expect(row.textContent).toBe('Waiting for timer')
   request.mockResolvedValue({ taskId: task.taskId, status: 'completed', summary: 'Timer elapsed' })
   await act(() => client.invalidateQueries({ queryKey: mothershipTaskKeys.detail(task.taskId) }))
   await act(async () =>
     vi.waitFor(() => {
-      expect(statusElement().textContent).toMatch(/Background watch.*Completed timer/)
+      expect(statusElement().textContent).toBe('Timer finished')
     })
   )
-  expect(statusElement().title).toContain('Timer elapsed')
+  expect(statusElement()).toBe(row)
+  expect(row.parentElement?.getAttribute('aria-busy')).toBe('false')
+  expect(row.querySelector('[class*=shimmer]')).toBeNull()
+  expect(row.parentElement?.title).toContain('Timer elapsed')
 })
 
 it('never replaces a live terminal event with a cached pending status', async () => {
   const view = render(
     <QueryClientProvider client={client}>
-      <TaskPill task={task} />
+      <WatchActivity task={task} />
     </QueryClientProvider>
   )
   await act(async () =>
@@ -85,10 +86,10 @@ it('never replaces a live terminal event with a cached pending status', async ()
   )
   view.rerender(
     <QueryClientProvider client={client}>
-      <TaskPill task={{ ...task, status: 'stopped' }} />
+      <WatchActivity task={{ ...task, status: 'stopped' }} />
     </QueryClientProvider>
   )
-  expect(statusElement().textContent).toMatch(/Stopped timer/)
+  expect(statusElement().textContent).toBe('Timer stopped')
 })
 
 it('shows completed workflow watches as status without duplicate run ids or action controls', () => {
@@ -96,7 +97,7 @@ it('shows completed workflow watches as status without duplicate run ids or acti
   const summary = `Workflow run ${executionId} of "Alfred" completed`
   render(
     <QueryClientProvider client={client}>
-      <TaskPill
+      <WatchActivity
         task={{
           ...task,
           kind: 'workflow_run',
@@ -108,8 +109,8 @@ it('shows completed workflow watches as status without duplicate run ids or acti
     </QueryClientProvider>
   )
   const status = statusElement()
-  expect(status.textContent).toBe('Background watch · Completed workflow run · Alfred')
-  expect(status.title).toContain(summary)
+  expect(status.textContent).toBe('Completed workflow run: Alfred')
+  expect(status.parentElement?.title).toContain(summary)
   expect(status.textContent).not.toContain(executionId)
   expect(container.querySelector('button')).toBeNull()
   expect(request).not.toHaveBeenCalled()
@@ -120,10 +121,36 @@ it.each(['failed', 'expired', 'stopped'] as const)(
   (status) => {
     render(
       <QueryClientProvider client={client}>
-        <TaskPill task={{ ...task, kind: 'workflow_run', status, summary: 'Run did not finish' }} />
+        <WatchActivity
+          task={{ ...task, kind: 'workflow_run', status, summary: 'Run did not finish' }}
+        />
       </QueryClientProvider>
     )
     expect(statusElement().textContent).not.toContain('Completed')
-    expect(statusElement().title).toContain('Run did not finish')
+    expect(statusElement().parentElement?.title).toContain('Run did not finish')
   }
 )
+
+it('renders a timer as a normal pending tool row without separate status chrome', () => {
+  const firesAt = '2026-09-18T17:32:00Z'
+  const time = new Date(firesAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  render(
+    <QueryClientProvider client={client}>
+      <WatchActivity task={{ ...task, target: { firesAt } }} />
+    </QueryClientProvider>
+  )
+  expect(statusElement().textContent).toBe(`Waiting until ${time}`)
+  expect(statusElement().querySelector('[class*=shimmer]')).not.toBeNull()
+  expect(container.textContent).not.toContain('Background watch')
+  expect(container.querySelector('svg')).toBeNull()
+})
+
+it('keeps pending workflow watches active even after the originating turn ends', () => {
+  render(
+    <QueryClientProvider client={client}>
+      <WatchActivity task={{ ...task, kind: 'workflow_run', target: { workflowId: 'workflow' } }} />
+    </QueryClientProvider>
+  )
+  expect(statusElement().textContent).toBe('Waiting for workflow run: Alfred')
+  expect(statusElement().querySelector('[class*=shimmer]')).not.toBeNull()
+})
