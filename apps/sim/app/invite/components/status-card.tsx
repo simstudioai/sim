@@ -2,6 +2,7 @@
 import { Chip, cn, Loader } from '@sim/emcn'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
+import { InviteHeading } from '@/app/invite/components/invite-heading'
 
 /** A document navigation, so the marketing surface initializes its own theme store. */
 function returnHome(): void {
@@ -37,10 +38,9 @@ export function InviteStatusCard({
   if (type === 'loading') {
     return (
       <>
-        <div className='space-y-1 text-center'>
-          <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>Loading</h1>
+        <InviteHeading title={'Loading'}>
           <p className='text-[var(--text-muted)]'>{description}</p>
-        </div>
+        </InviteHeading>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
           <Loader className='size-8 text-[var(--text-muted)]' animate />
         </div>
@@ -50,10 +50,9 @@ export function InviteStatusCard({
 
   return (
     <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>{title}</h1>
+      <InviteHeading title={title}>
         <p className='text-[var(--text-muted)]'>{description}</p>
-      </div>
+      </InviteHeading>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {details}
