@@ -743,7 +743,9 @@ async function selectAuthorizedSearchResults(input: {
         for (const row of ranked) results.set(row.id, row)
       }
       if (refill) {
+        /** The rebuilt pages are a new stream of candidates, so the scan budget starts over. */
         offset = 0
+        scanned = 0
         continue
       }
       /** A short page is the end of the candidates, whether or not they were reordered. */
