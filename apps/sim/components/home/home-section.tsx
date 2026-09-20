@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
