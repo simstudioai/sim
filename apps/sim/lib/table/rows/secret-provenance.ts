@@ -6,6 +6,7 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
@@ -119,12 +120,6 @@ function reportUnvouchedTableRowWrite(
     ...report,
     mode,
   })
-}
-
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
 }
 
 function serializedBytes(value: unknown): number {

@@ -1,5 +1,5 @@
 import { ChipLink } from '@sim/emcn'
-import { truncate } from '@sim/utils/string'
+import { escapeRegExp, truncate } from '@sim/utils/string'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -127,10 +127,6 @@ function sentenceWithTerminalPunctuation(value: string): string {
   return /[.!?]$/.test(trimmedValue) ? trimmedValue : `${trimmedValue}.`
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /**
  * Server-side rewrite of bare integration names in a curated template prompt
  * to `@`-mention form (`Slack` → `@Slack`) so the prompt chips with brand
@@ -152,7 +148,7 @@ function mentionifyPromptForNames(prompt: string, names: readonly string[]): str
   )
   if (unique.length === 0) return prompt
   const regex = new RegExp(
-    `(?<![A-Za-z0-9_@])(${unique.map(escapeRegex).join('|')})(?![A-Za-z0-9_])`,
+    `(?<![A-Za-z0-9_@])(${unique.map(escapeRegExp).join('|')})(?![A-Za-z0-9_])`,
     'gi'
   )
   return prompt.replace(regex, (match) => `@${match}`)

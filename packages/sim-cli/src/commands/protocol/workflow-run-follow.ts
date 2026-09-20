@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
@@ -99,10 +100,6 @@ export function resolveWorkflowRunSelection(
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function stringField(frame: Record<string, unknown>, key: string): string | null {
   const value = frame[key]
   return typeof value === 'string' ? value : null
@@ -125,14 +122,14 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
         response.status
       )
     }
-    if (!isRecord(envelope)) {
+    if (!isRecordLike(envelope)) {
       throw new SimApiError('Workflow run returned an invalid result envelope', response.status)
     }
-    return isRecord(envelope.data) ? envelope.data : envelope
+    return isRecordLike(envelope.data) ? envelope.data : envelope
   }
 
   for await (const value of readNdjson(response.body, 'Workflow result stream')) {
-    if (!isRecord(value) || typeof value.type !== 'string') {
+    if (!isRecordLike(value) || typeof value.type !== 'string') {
       throw new SimApiError('Workflow result stream returned an unknown event', response.status)
     }
     if (value.type === 'heartbeat') continue
@@ -143,7 +140,7 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
         typeof value.code === 'string' ? value.code : null
       )
     }
-    if (value.type === 'final' && isRecord(value.data)) return value.data
+    if (value.type === 'final' && isRecordLike(value.data)) return value.data
     throw new SimApiError('Workflow result stream returned an unknown event', response.status)
   }
 
@@ -285,7 +282,7 @@ export async function renderRunStream(
     }
 
     if (frame === DONE_SENTINEL) break
-    if (!isRecord(frame)) continue
+    if (!isRecordLike(frame)) continue
 
     if (frame.event === undefined && typeof frame.chunk === 'string') {
       commentary.inline(sanitize(frame.chunk))
@@ -318,7 +315,7 @@ export async function renderRunStream(
           0
         )
       case 'final':
-        if (isRecord(frame.data)) final = frame.data
+        if (isRecordLike(frame.data)) final = frame.data
         break
       default:
         break

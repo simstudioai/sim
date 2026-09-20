@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { isPrivateIpHost } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
 import {
@@ -576,10 +577,6 @@ export function describeSapConcurFetchError(error: unknown): string {
   return message
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
@@ -589,8 +586,8 @@ function nonEmptyString(value: unknown): string | undefined {
  * `{ Content: { Error: { Message } } }` or `{ Error: { Message } }`.
  */
 function legacyEnvelopeMessage(obj: Record<string, unknown>): string | undefined {
-  const container = isRecord(obj.Content) ? obj.Content : obj
-  const error = isRecord(container.Error) ? container.Error : undefined
+  const container = isRecordLike(obj.Content) ? obj.Content : obj
+  const error = isRecordLike(container.Error) ? container.Error : undefined
   return error ? nonEmptyString(error.Message) : undefined
 }
 
@@ -602,7 +599,7 @@ const SCIM_CONCUR_ERROR_URN = 'urn:ietf:params:scim:api:messages:concur:2.0:Erro
  * `errorType` is kept because it distinguishes a hard `ERROR` from a `WARNING`.
  */
 function formatErrorMessageListEntry(entry: unknown): string {
-  if (!isRecord(entry)) return String(entry)
+  if (!isRecordLike(entry)) return String(entry)
   const label = [nonEmptyString(entry.errorType), nonEmptyString(entry.errorCode)]
     .filter(Boolean)
     .join(' ')
@@ -612,7 +609,7 @@ function formatErrorMessageListEntry(entry: unknown): string {
 
 /** Render one Concur SCIM extension message (`{ code, message, schemaPath, type }`). */
 function formatScimExtensionMessage(entry: unknown): string {
-  if (!isRecord(entry)) return String(entry)
+  if (!isRecordLike(entry)) return String(entry)
   const code = nonEmptyString(entry.code)
   const message = nonEmptyString(entry.message) ?? ''
   const schemaPath = nonEmptyString(entry.schemaPath)
@@ -635,7 +632,7 @@ function joinNonEmpty(values: unknown[], format: (value: unknown) => string): st
  * `message` is unwrapped once before the string-valued `message` shape is considered.
  */
 function extractFromRecord(obj: Record<string, unknown>, depth: number): string | undefined {
-  if (depth === 0 && isRecord(obj.message)) {
+  if (depth === 0 && isRecordLike(obj.message)) {
     const nested = extractFromRecord(obj.message, depth + 1)
     if (nested) return nested
   }
@@ -652,7 +649,7 @@ function extractFromRecord(obj: Record<string, unknown>, depth: number): string 
   if (errorMessage) {
     const validationErrors = Array.isArray(obj.validationErrors)
       ? obj.validationErrors
-          .map((v) => (isRecord(v) ? nonEmptyString(v.message) : undefined))
+          .map((v) => (isRecordLike(v) ? nonEmptyString(v.message) : undefined))
           .filter((m): m is string => Boolean(m))
       : []
     return validationErrors.length > 0
@@ -672,7 +669,7 @@ function extractFromRecord(obj: Record<string, unknown>, depth: number): string 
   }
 
   const scimExtension = obj[SCIM_CONCUR_ERROR_URN]
-  if (isRecord(scimExtension) && Array.isArray(scimExtension.messages)) {
+  if (isRecordLike(scimExtension) && Array.isArray(scimExtension.messages)) {
     const joined = joinNonEmpty(scimExtension.messages, formatScimExtensionMessage)
     if (joined) return joined
   }
@@ -685,7 +682,7 @@ function extractFromRecord(obj: Record<string, unknown>, depth: number): string 
 
   if (Array.isArray(obj.errors) && obj.errors.length > 0) {
     return joinNonEmpty(obj.errors, (e) => {
-      if (!isRecord(e)) return String(e)
+      if (!isRecordLike(e)) return String(e)
       const code = nonEmptyString(e.errorCode)
       const msg = nonEmptyString(e.errorMessage) ?? ''
       return `${code ? `[${code}] ` : ''}${msg}`.trim()
@@ -717,7 +714,7 @@ export function extractSapConcurError(
   status: number,
   options: ExtractSapConcurErrorOptions = {}
 ): string {
-  if (isRecord(body)) {
+  if (isRecordLike(body)) {
     const message = extractFromRecord(body, 0)
     if (message) return message
   }

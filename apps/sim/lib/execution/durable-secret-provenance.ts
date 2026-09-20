@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import {
   isPrivateSecretProvenanceBundleV1,
   type PrivateSecretProvenanceBundleV1,
@@ -23,10 +24,6 @@ export const EXACT_EMPTY_DURABLE_SECRET_PROVENANCE = Object.freeze({
   status: 'exact' as const,
   entries: Object.freeze([]),
 })
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
-}
 
 /** Normalizes one private sidecar payload and enforces the shared resource bounds. */
 export function normalizeDurableSecretProvenanceEntries(

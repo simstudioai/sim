@@ -5,6 +5,7 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
@@ -161,10 +162,6 @@ export function mergeWorkspaceFileSecretProvenance(
     }
   }
   return { status: 'exact', entries: [...entries.values()] }
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function exactEntryByteSize(entry: WorkspaceFileSecretProvenanceEntry): number {
