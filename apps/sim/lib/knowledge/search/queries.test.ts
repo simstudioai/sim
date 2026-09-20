@@ -1594,6 +1594,45 @@ describe('permitted-document planner', () => {
       expect(JSON.stringify(tinStatements()[0])).toContain('1000')
     })
 
+    it('hydrates an oversized keyword page in slices and stops at the results it needs', async () => {
+      const ranked = Array.from({ length: 1000 }, (_, i) => hit(`k-${i}`, 'src-a'))
+      tinPages = [{ ranked: 20_000, candidates: ranked }]
+      /** The first slice — as many candidates as results are wanted — fills the page of results. */
+      queueTableRows(
+        schemaMock.embedding,
+        ranked.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+      )
+      const results = await keyword({
+        topK: 20,
+        permitted: { kind: 'unbounded', broad: false },
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results).toHaveLength(20)
+      expect(tinStatements()).toHaveLength(1)
+      /** One hydration, of one slice — never the whole page. */
+      const hydrations = dbChainMockFns.where.mock.calls.filter(([condition]) =>
+        hasMockCondition(
+          condition,
+          (node) => node.type === 'inArray' && node.column === schemaMock.embedding.id
+        )
+      )
+      expect(hydrations).toHaveLength(1)
+      expect(
+        hasMockCondition(
+          hydrations[0][0],
+          (node) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.embedding.id &&
+            Array.isArray(node.values) &&
+            node.values.length === 20
+        )
+      ).toBe(true)
+    })
+
     it('widens the ranked window while too few ranked chunks are readable', async () => {
       tinPages = [
         { ranked: 2000, candidates: [] },

@@ -701,6 +701,9 @@ async function selectAuthorizedSearchResults(input: {
   let excluded: ReadonlySet<string> = new Set()
   let scanned = 0
   let offset = 0
+  /** Candidates a ranking returned beyond the current hydration slice. */
+  let pending: SearchReadCandidate[] = []
+  let lastPageShort = false
   try {
     while (
       results.size < input.topK &&
@@ -709,18 +712,28 @@ async function selectAuthorizedSearchResults(input: {
     ) {
       input.signal?.throwIfAborted()
       input.budget?.remaining()
-      const page = await measureSearchStage(`${input.leg}.candidates`, () =>
-        input.selectPage(pageSize, offset, [...excluded])
-      )
-      if (!page.candidates.length) break
-      scanned += page.candidates.length
-      offset = page.nextOffset
-      const candidates = page.candidates.filter((candidate) => !considered.has(candidate.id))
-      for (const candidate of candidates) considered.add(candidate.id)
-      if (!candidates.length) {
-        if (page.candidates.length < pageSize) break
-        continue
+      /**
+       * A ranking may hand back more candidates than one hydration should read — a narrow
+       * reader's keyword window is ranked once for several pages' worth — so a page is drained in
+       * hydration-sized slices, and what is left waits, unread, until the results still need it.
+       */
+      if (!pending.length) {
+        const page = await measureSearchStage(`${input.leg}.candidates`, () =>
+          input.selectPage(pageSize, offset, [...excluded])
+        )
+        if (!page.candidates.length) break
+        scanned += page.candidates.length
+        offset = page.nextOffset
+        lastPageShort = page.candidates.length < pageSize
+        pending = page.candidates.filter((candidate) => !considered.has(candidate.id))
+        for (const candidate of pending) considered.add(candidate.id)
+        if (!pending.length) {
+          if (lastPageShort) break
+          continue
+        }
       }
+      const candidates = pending.slice(0, pageSize)
+      pending = pending.slice(pageSize)
       /**
        * A source that proves its reader live is asked for that proof only once a candidate of
        * its own reaches this page, and then once for the whole search: a scope that ranks none
@@ -766,10 +779,11 @@ async function selectAuthorizedSearchResults(input: {
         /** The rebuilt pages are a new stream of candidates, so the scan budget starts over. */
         offset = 0
         scanned = 0
+        pending = []
         continue
       }
       /** A short page is the end of the candidates, whether or not they were reordered. */
-      if (page.candidates.length < pageSize) break
+      if (!pending.length && lastPageShort) break
     }
   } catch (error) {
     if (!input.budget?.isTimeout(error)) throw error
