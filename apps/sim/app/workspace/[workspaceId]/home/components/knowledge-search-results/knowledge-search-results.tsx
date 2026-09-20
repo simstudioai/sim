@@ -214,8 +214,12 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
       : null
 
   const showResults = !noSources && !failed && !basesPending && documents.length > 0
+  /** A custom window waiting for its days must show the filters, or the picker is unreachable. */
   const showFilters =
-    hasShownFilters || showResults || (!noSources && !pending && !failed && !!search && !partial)
+    hasShownFilters ||
+    showResults ||
+    awaitingRange ||
+    (!noSources && !pending && !failed && !!search && !partial)
   if (showFilters && !hasShownFilters) setHasShownFilters(true)
 
   return noSources ? (

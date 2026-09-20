@@ -257,6 +257,8 @@ describe('result paging and the custom window', () => {
     await render(undefined, '?updated=custom')
     expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
     expect(container.textContent).toContain('Choose the days to search.')
+    /** The filters, and the picker among them, are shown so the days can be chosen. */
+    expect(container.textContent).toContain('Updated between')
     /** One day alone is not a window either; a deep link with only `from` waits for `to`. */
     await render(undefined, '?updated=custom&from=2026-09-01')
     expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
