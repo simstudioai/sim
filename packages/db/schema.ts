@@ -3253,6 +3253,10 @@ export const document = pgTable(
   (table) => ({
     // Primary access pattern - filter by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    /** Search's updated-after filter: the documents of a base changed since a time, without a base scan. */
+    sourceModifiedLookupIdx: index('doc_kb_source_modified_idx')
+      .on(table.knowledgeBaseId, table.sourceModifiedAt)
+      .where(sql`${table.deletedAt} IS NULL`),
     /**
      * Serves the access predicate (`acl && tokens`) when a token set is
      * selective — one member's subject over a large base — and the

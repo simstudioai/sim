@@ -2591,6 +2591,13 @@
       "when": 1789890789212,
       "tag": "0370_projection_acl",
       "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1789922529920,
+      "tag": "0371_document_modified_lookup",
+      "breakpoints": true
     }
   ]
 }

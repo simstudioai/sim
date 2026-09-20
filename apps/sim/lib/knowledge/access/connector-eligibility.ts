@@ -22,14 +22,15 @@ import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integra
  */
 async function resolveConnectorEligibility(
   knowledgeBaseIds: readonly string[]
-): Promise<KnowledgeConnectorEligibility> {
+): Promise<{ eligibility: KnowledgeConnectorEligibility; types: Map<string, string> }> {
   const eligibility: {
     workspace: string[]
     admin: string[]
     members: string[]
     liveProofRequired: string[]
   } = { workspace: [], admin: [], members: [], liveProofRequired: [] }
-  if (knowledgeBaseIds.length === 0) return eligibility
+  const types = new Map<string, string>()
+  if (knowledgeBaseIds.length === 0) return { eligibility, types }
   const rows = await db
     .select({
       id: knowledgeConnector.id,
@@ -53,12 +54,13 @@ async function resolveConnectorEligibility(
     else if (row.accessMode === 'admin') eligibility.admin.push(row.id)
     else if (row.accessMode === 'members') eligibility.members.push(row.id)
     else continue
+    types.set(row.id, row.connectorType)
     const live =
       (row.connectorType === 'github' && row.githubRepository) ||
       (row.connectorType === 'confluence' && row.accessMode === 'admin')
     if (live) eligibility.liveProofRequired.push(row.id)
   }
-  return eligibility
+  return { eligibility, types }
 }
 
 /**
@@ -116,7 +118,8 @@ export async function resolveSearchAccessPlan(
   knowledgeBaseIds: readonly string[],
   access: KnowledgeAccessScope
 ): Promise<SearchAccessPlan> {
-  const connectors = await resolveConnectorEligibility(knowledgeBaseIds)
+  const { eligibility: connectors, types: connectorTypes } =
+    await resolveConnectorEligibility(knowledgeBaseIds)
   const { observers, memberSources } = await resolveMemberObservers(access, connectors.members)
-  return { connectors, observers, memberSources }
+  return { connectors, observers, memberSources, connectorTypes, uploads: true }
 }

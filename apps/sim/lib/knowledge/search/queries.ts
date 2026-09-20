@@ -10,7 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { resolveSearchAccessPlan } from '@/lib/knowledge/access/connector-eligibility'
@@ -20,6 +20,7 @@ import {
   knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
   projectionCandidateAccessCondition,
+  restrictSearchAccessPlan,
   type SearchAccessPlan,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
@@ -997,13 +998,14 @@ async function probeVisibleDocuments(
   conditions: (SQL | undefined)[],
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined,
-  stage: 'vector.probe' | 'permitted_documents'
+  stage: 'vector.probe' | 'permitted_documents',
+  shape: 'reach-first' | 'direct' = 'reach-first'
 ): Promise<ProbeOutcome> {
   const probeBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
   try {
     const probed = await runSearchQuery(probeBudget, stage, (executor) =>
       executor.execute<PermittedDocument & { saturated: boolean }>(
-        visibleDocumentsQuery(knowledgeBaseIds, conditions, access)
+        visibleDocumentsQuery(knowledgeBaseIds, conditions, access, shape)
       )
     )
     /** The saturation sentinel is only ever emitted alone. */
@@ -1042,10 +1044,16 @@ async function probeVisibleDocuments(
 export function visibleDocumentsQuery(
   knowledgeBaseIds: string[],
   conditions: (SQL | undefined)[],
-  access: KnowledgeAccessScope
+  access: KnowledgeAccessScope,
+  shape: 'reach-first' | 'direct' = 'reach-first'
 ): SQL {
   const limit = VECTOR_PROBE_DOCUMENT_LIMIT + 1
-  if (access.kind !== 'user') {
+  /**
+   * `direct` applies the conditions as they are: a date filter is selective on its own and has
+   * its own index, and a resolved scope's tokens are base-wide, so counting the reach first would
+   * only report a broad caller as saturated before the filter was consulted.
+   */
+  if (access.kind !== 'user' || shape === 'direct') {
     return sql`
       SELECT ${document.id} AS id, ${document.connectorId} AS "connectorId", false AS saturated
       FROM ${document}
@@ -1145,6 +1153,24 @@ const indexDocumentCounts = new LRUCache<string, number>({
 })
 
 /**
+ * The planner's estimate of the bases' documents changed since a time, from the statistics on
+ * the date index: whether the filtered set is worth enumerating needs its order of magnitude.
+ */
+async function estimateDocumentsModifiedAfter(
+  knowledgeBaseIds: string[],
+  modifiedAfter: string
+): Promise<number> {
+  const [row] = await db.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
+    EXPLAIN (FORMAT JSON) SELECT 1 FROM ${document}
+    WHERE ${and(
+      inArray(document.knowledgeBaseId, knowledgeBaseIds),
+      isNull(document.deletedAt),
+      gte(document.sourceModifiedAt, new Date(modifiedAfter))
+    )}`)
+  return Number(row?.['QUERY PLAN']?.[0]?.Plan?.['Plan Rows'] ?? 0)
+}
+
+/**
  * Whether a saturated reach is broad: the caller reaches at least {@link BROAD_REACH_SHARE} of the
  * bases' documents. Counted once against that bound and remembered with the saturation, so the
  * first search after the window pays for it and the rest do not.
@@ -1152,7 +1178,8 @@ const indexDocumentCounts = new LRUCache<string, number>({
 async function reachIsBroad(
   knowledgeBaseIds: string[],
   access: KnowledgeAccessScope,
-  budget: SearchBudget | undefined
+  budget: SearchBudget | undefined,
+  plan: SearchAccessPlan | undefined
 ): Promise<boolean> {
   if (access.kind !== 'user') return true
   const total = (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','))) ?? 0
@@ -1162,21 +1189,47 @@ async function reachIsBroad(
     executor.execute<{ n: number }>(sql`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM ${document}
-        WHERE ${document.deletedAt} IS NULL AND ${knowledgeAclOverlapCondition(access)}
-          AND ${inArray(document.knowledgeBaseId, knowledgeBaseIds)}
+        WHERE ${and(
+          isNull(document.deletedAt),
+          knowledgeAclOverlapCondition(access),
+          inArray(document.knowledgeBaseId, knowledgeBaseIds),
+          planSourceCondition(plan)
+        )}
         LIMIT ${bound}
       ) reached`)
   )
   return Number(row?.n ?? 0) >= bound
 }
 
-/** Reach depends only on the bases and the caller's tokens; filters narrow the set, not the reach. */
+/**
+ * Reach depends on the bases, the caller's tokens and, when the plan is confined to one kind of
+ * source, which sources those are; a date filter narrows the set, not the reach.
+ */
 function reachKey(
   knowledgeBaseIds: readonly string[],
-  access: KnowledgeAccessScope
+  access: KnowledgeAccessScope,
+  plan: SearchAccessPlan | undefined
 ): string | null {
   if (access.kind !== 'user') return null
-  return `${[...knowledgeBaseIds].sort().join(',')}:${sha256Hex([...access.tokens].sort().join('\n'))}`
+  const sources = plan
+    ? `:${sha256Hex([...planSources(plan)].sort().join('\n'))}:${plan.uploads}`
+    : ''
+  return `${[...knowledgeBaseIds].sort().join(',')}:${sha256Hex([...access.tokens].sort().join('\n'))}${sources}`
+}
+
+/** Every connector the plan admits, whatever its access mode. */
+function planSources(plan: SearchAccessPlan): readonly string[] {
+  return [...plan.connectors.workspace, ...plan.connectors.admin, ...plan.connectors.members]
+}
+
+/** The documents a plan's sources own, on the document row; every source when unconfined. */
+function planSourceCondition(plan: SearchAccessPlan | undefined): SQL | undefined {
+  if (!plan) return undefined
+  const owned = planSources(plan)
+  const inSources = owned.length
+    ? sql`${document.connectorId} = ANY(${textArrayLiteral([...owned])})`
+    : sql`false`
+  return plan.uploads ? sql`(${document.connectorId} IS NULL OR ${inSources})` : inSources
 }
 
 /** Forgets every remembered reach, after the bases' documents or a caller's tokens changed. */
@@ -1189,13 +1242,14 @@ export function forgetSearchReach(): void {
 export async function resolveReach(
   knowledgeBaseIds: string[],
   access: KnowledgeAccessScope,
-  budget: SearchBudget | undefined
+  budget: SearchBudget | undefined,
+  plan: SearchAccessPlan
 ): Promise<PermittedDocuments> {
-  const key = reachKey(knowledgeBaseIds, access)
+  const key = reachKey(knowledgeBaseIds, access, plan)
   const remembered = key ? saturatedReach.get(key) : undefined
   if (remembered) return { kind: 'unbounded', broad: remembered.broad }
   try {
-    const broad = await reachIsBroad(knowledgeBaseIds, access, budget)
+    const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan)
     if (key) saturatedReach.set(key, { broad })
     return { kind: 'unbounded', broad }
   } catch (error) {
@@ -1220,10 +1274,17 @@ export async function resolvePermittedDocuments(params: {
   budget?: SearchBudget
   accessPlan?: SearchAccessPlan
 }): Promise<PermittedDocuments> {
-  const key = reachKey(params.knowledgeBaseIds, params.access)
+  const key = reachKey(params.knowledgeBaseIds, params.access, params.accessPlan)
   let probe: ProbeOutcome
   let broad = true
-  const remembered = key ? saturatedReach.get(key) : undefined
+  /**
+   * A remembered reach says how much of the bases the caller reads, which a date filter does not
+   * change; the filtered set still has to be enumerated, so under one the probe always runs.
+   */
+  const remembered =
+    key && !(params.accessPlan && params.filters?.modifiedAfter)
+      ? saturatedReach.get(key)
+      : undefined
   if (remembered) {
     probe = { kind: 'saturated' }
     broad = remembered.broad
@@ -1239,7 +1300,8 @@ export async function resolvePermittedDocuments(params: {
         ),
         params.access,
         params.budget,
-        'permitted_documents'
+        'permitted_documents',
+        params.accessPlan && params.filters?.modifiedAfter ? 'direct' : 'reach-first'
       )
     } catch (error) {
       if (!params.budget?.isTimeout(error)) throw error
@@ -1247,7 +1309,12 @@ export async function resolvePermittedDocuments(params: {
     }
     if (probe.kind === 'saturated') {
       try {
-        broad = await reachIsBroad(params.knowledgeBaseIds, params.access, params.budget)
+        broad = await reachIsBroad(
+          params.knowledgeBaseIds,
+          params.access,
+          params.budget,
+          params.accessPlan
+        )
       } catch (error) {
         if (!params.budget?.isTimeout(error)) throw error
       }
@@ -1331,7 +1398,7 @@ async function selectSourceVectorCandidates(input: {
   knowledgeBaseIds: string[]
   plan: SearchAccessPlan
   tagCondition: SQL | undefined
-  documentTagCondition: SQL | undefined
+  documentCondition: SQL | undefined
   candidateDistance: SQL<number>
   candidateLimit: number
   budget?: SearchBudget
@@ -1370,11 +1437,11 @@ async function selectSourceVectorCandidates(input: {
               base,
               scope,
               onRow,
-              input.documentTagCondition === undefined
+              input.documentCondition === undefined
                 ? undefined
                 : sql`EXISTS (
               SELECT 1 FROM ${document}
-              WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentTagCondition)}
+              WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentCondition)}
             )`
             )}
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
@@ -1403,9 +1470,9 @@ async function selectSourceVectorCandidates(input: {
         base,
         slicedScope,
         onRow,
-        input.documentTagCondition === undefined
+        input.documentCondition === undefined
           ? undefined
-          : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentTagCondition)})`
+          : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentCondition)})`
       )
       const rows = await runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
         executor.execute<{ id: string; distance: number; saturated: boolean }>(sql`
@@ -1493,6 +1560,17 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
   const documentTagCondition = chunkTagCondition(
     eq(embedding.documentId, document.id),
     tagConditions
+  )
+  /**
+   * What an on-row walk still has to ask the document: the tags, which live on chunks, and the
+   * date filter, which the row does not carry. A bounded set never walks, so this only runs when
+   * the filtered documents were too many to enumerate.
+   */
+  const documentCondition = and(
+    documentTagCondition,
+    params.filters?.modifiedAfter
+      ? gte(document.sourceModifiedAt, new Date(params.filters.modifiedAfter))
+      : undefined
   )
   /**
    * Candidate selection ignores the page offset — only the rerank pages over the pool — so a
@@ -1586,11 +1664,16 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         const walksASource = plan?.memberSources.some(
           (id) => plannedIndexedSources?.has(id) ?? false
         )
-        if (params.permitted?.kind === 'bounded' && !walksASource) {
+        if (
+          params.permitted?.kind === 'bounded' &&
+          (!walksASource || params.filters?.modifiedAfter)
+        ) {
           /**
            * A bounded permitted set is ranked exactly without walking the graph first: the walk
            * post-filters, so when the caller reads a small share of the index it spends its whole
-           * uninterruptible tuple budget and still returns almost none of their neighbours.
+           * uninterruptible tuple budget and still returns almost none of their neighbours. A
+           * member's indexed source is otherwise walked instead, but not under a date filter: the
+           * walk cannot see the date, and the set the filter admits is small by construction.
            */
           selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
         } else if (plan && !(params.permitted?.kind === 'unbounded' && params.permitted.broad)) {
@@ -1606,7 +1689,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             knowledgeBaseIds: params.knowledgeBaseIds,
             plan,
             tagCondition: candidateTagCondition,
-            documentTagCondition,
+            documentCondition,
             candidateDistance,
             candidateLimit,
             budget: params.budget,
@@ -1629,9 +1712,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             WHERE ${and(
               scopeOfWalk,
               projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
-              documentTagCondition === undefined
+              documentCondition === undefined
                 ? undefined
-                : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentTagCondition)})`
+                : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentCondition)})`
             )}
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
           `
@@ -1805,10 +1888,16 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
      * projection is complete, BM25 ranks inside the bases first and access is checked only on the
      * top of that ranking.
      */
-    const tinQuery =
-      params.permitted?.kind === 'unbounded' && tagFilterConditions.length === 0
-        ? await resolveTinKeywordQuery(knowledgeBaseIds, query, FTS_CONFIG, params.budget)
-        : null
+    let tinQuery: Awaited<ReturnType<typeof resolveTinKeywordQuery>> = null
+    if (params.permitted?.kind === 'unbounded' && tagFilterConditions.length === 0) {
+      try {
+        tinQuery = await resolveTinKeywordQuery(knowledgeBaseIds, query, FTS_CONFIG, params.budget)
+      } catch (error) {
+        /** A leg whose deadline passed before it ranked anything is short, not failed. */
+        if (!params.budget?.isTimeout(error)) throw error
+        return []
+      }
+    }
     annotateSearchDiagnostics({
       ...(params.permitted?.kind === 'unbounded'
         ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
@@ -1827,6 +1916,9 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           access,
           accessPlan!
         ),
+        params.filters?.modifiedAfter
+          ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, gte(document.sourceModifiedAt, new Date(params.filters.modifiedAfter)))})`
+          : undefined,
         excludedSources.length
           ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
           : undefined
@@ -2268,12 +2360,20 @@ export async function retrieveKnowledgeSearch(
    * Connector state is the same for every document a connector owns, so both legs read it from
    * one resolution instead of proving it per candidate.
    */
-  const accessPlan =
+  const resolvedPlan =
     access.kind === 'user' && params.accessProvider
       ? await measureSearchStage('access_plan', () =>
           resolveSearchAccessPlan(knowledgeBaseIds, access)
         )
       : undefined
+  /**
+   * A source filter confines the plan rather than the rows: with only that kind of source
+   * eligible, every predicate the plan builds and every source the legs walk is that kind.
+   */
+  const accessPlan =
+    resolvedPlan && params.filters?.source
+      ? restrictSearchAccessPlan(resolvedPlan, params.filters.source)
+      : resolvedPlan
   const liveSourceAccess = liveSourceAccessFor(
     access,
     accessPlan,
@@ -2307,16 +2407,28 @@ export async function retrieveKnowledgeSearch(
    * when it is small. Resolved scopes read whole bases, and explicit documents are already a
    * bounded scope with their own exhaustive ordering.
    */
+  /**
+   * The row does not carry the document's date, so a date filter's documents are enumerated off
+   * the date index and ranked exactly while the planner estimates the window within what the
+   * probe may enumerate; a wider window is walked instead, with the date tested through the
+   * document, since a window that wide holds most of the query's neighbours anyway.
+   */
+  const enumerateDated =
+    accessPlan && params.filters?.modifiedAfter
+      ? (await measureSearchStage('permitted_documents', () =>
+          estimateDocumentsModifiedAfter(knowledgeBaseIds, params.filters!.modifiedAfter!)
+        )) <= VECTOR_PROBE_DOCUMENT_LIMIT
+      : false
   const permitted =
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
-      ? accessPlan
+      ? accessPlan && !enumerateDated
         ? /**
            * With readability decided on the projection row, a resolved scope never needs its
            * readable documents enumerated ahead of ranking: its reach alone chooses between one
            * walk over the whole graph and a search of each source.
            */
           await measureSearchStage('permitted_documents', () =>
-            resolveReach(knowledgeBaseIds, access, budgets.vector)
+            resolveReach(knowledgeBaseIds, access, budgets.vector, accessPlan)
           )
         : await resolvePermittedDocuments({
             knowledgeBaseIds,
