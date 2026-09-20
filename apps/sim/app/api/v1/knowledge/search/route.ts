@@ -14,6 +14,7 @@ import {
   type KbEmbeddingTarget,
   recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   getDocumentMetadataByIds,
@@ -312,6 +313,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       tagDefinitionsMap[kbId] = map
     })
 
+    /** v1 cannot express an incomplete search, so a leg that ran out of time fails the request. */
+    if (retrieved.retrieval.status === 'partial') throw new SearchDeadlineError()
     const results = retrieved.rows
     const documentIds = results.map((r) => r.documentId)
     const documentMetadataMap = await getDocumentMetadataByIds(documentIds, retrieved.readAccess)
