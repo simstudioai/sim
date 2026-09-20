@@ -126,6 +126,11 @@ function isProbeStatement(sql: string) {
   return sql.includes('AS saturated')
 }
 
+/** A graph walk: visibility joined per visited row, or decided on the row it visits. */
+function isWalk(sql: string) {
+  return sql.includes('AS visible') || sql.includes('on-row visibility')
+}
+
 /** `+ 0` is what keeps the exact ranking off the ANN index, so it also identifies the statement. */
 function isExactRanking(sql: string) {
   return sql.includes(') + 0 LIMIT')
@@ -531,7 +536,7 @@ describe('workspace-scoped vector retrieval', () => {
   it('uses compact candidates for a large KB and applies full workspace access before its limit', async () => {
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
-    const candidate = statements().find((query) => query.sql.includes('AS visible'))!
+    const candidate = statements().find((query) => isWalk(query.sql))!
     expect(candidate.sql).toContain('CROSS JOIN LATERAL')
     expect(candidate.sql).toContain('LIMIT 1')
     const serialized = JSON.stringify(candidate)
@@ -595,7 +600,7 @@ describe('workspace-scoped vector retrieval', () => {
     const rows = await handleVectorOnlySearch({ ...params, topK: 1 })
 
     expect(rows.map((row) => row.id)).toEqual(['far'])
-    expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(1)
+    expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
@@ -607,7 +612,7 @@ describe('workspace-scoped vector retrieval', () => {
     })
     expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
     expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
-    const candidate = statements().find((query) => query.sql.includes('AS visible'))!
+    const candidate = statements().find((query) => isWalk(query.sql))!
     expect(JSON.stringify(candidate)).toContain('common')
     expect(JSON.stringify(candidate)).toContain(String(schemaMock.embedding.tag1))
     expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain('common')
@@ -623,7 +628,7 @@ describe('workspace-scoped vector retrieval', () => {
     const rows = await handleVectorOnlySearch({ ...params, knowledgeBaseIds })
     expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
     expect(rows.every((row) => row.knowledgeBaseId === 'kb-1')).toBe(true)
-    const candidateQueries = statements().filter((query) => query.sql.includes('AS visible'))
+    const candidateQueries = statements().filter((query) => isWalk(query.sql))
     expect(candidateQueries).toHaveLength(1)
     for (const id of knowledgeBaseIds) expect(JSON.stringify(candidateQueries[0])).toContain(id)
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
@@ -703,7 +708,7 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))).toHaveLength(
       1
     )
-    const queries = statements().filter((query) => query.sql.includes('AS visible'))
+    const queries = statements().filter((query) => isWalk(query.sql))
     expect(queries).toHaveLength(2)
     expect(JSON.stringify(queries[0])).toBe(JSON.stringify(queries[1]))
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
@@ -960,7 +965,7 @@ describe('hydration follows ranked candidates', () => {
       ])
       const rows = await handleVectorOnlySearch({ ...params, structuredFilters: undefined })
       expect(rows.map((row) => row.id)).toEqual(['chunk-0'])
-      expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(1)
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
       expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(1)
     }
   )
@@ -979,7 +984,7 @@ describe('hydration follows ranked candidates', () => {
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
       { id: 'selected', content: 'Verified fallback', distance: 0.1 },
     ])
-    const candidateQuery = statements().find((query) => query.sql.includes('AS visible'))!
+    const candidateQuery = statements().find((query) => isWalk(query.sql))!
     /** Widening the scan on underfill is what made this leg exceed its budget on a large corpus. */
     expect(candidateQuery.sql).not.toContain('UNION ALL')
     expect(candidateQuery.sql).not.toContain('filtered_scores')
@@ -1242,7 +1247,7 @@ describe('permitted-document planner', () => {
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
       if (statement.includes('pg_index')) return indexedSourceRows
-      if (statement.includes('AS visible')) return traversedRows
+      if (isWalk(statement)) return traversedRows
       if (statement.includes('WITH scored_search_candidates')) return rerankRows
       if (statement.includes('WITH readable_documents')) return sourceExactRows
       if (isExactRanking(statement)) return exactRows
@@ -1302,7 +1307,7 @@ describe('permitted-document planner', () => {
       },
     })
     /** One walk over every source, scoped to the bases alone — no source is singled out. */
-    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(1)
     expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
     expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(false)
@@ -1326,7 +1331,7 @@ describe('permitted-document planner', () => {
         memberSources: ['member-src'],
       },
     })
-    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    const walks = statements().filter((query) => isWalk(query.sql))
     /** One walk over everything, then one over the member's own source. */
     expect(walks).toHaveLength(2)
     expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
@@ -1385,7 +1390,7 @@ describe('permitted-document planner', () => {
         memberSources: ['member-src'],
       },
     })
-    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(1)
     expect(JSON.stringify(walks[0])).toContain('"right":"member-src"')
     expect(statements().some((q) => isExactRanking(q.sql))).toBe(false)
@@ -1410,7 +1415,7 @@ describe('permitted-document planner', () => {
       permitted: { kind: 'unbounded', broad: false },
       accessPlan: { connectors: eligibility, observers, memberSources },
     })
-    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(1)
     expect(
       walks[0].params.some((param) => JSON.stringify(param).includes('"right":"member-src"'))
@@ -1437,7 +1442,7 @@ describe('permitted-document planner', () => {
         memberSources: [],
       },
     })
-    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(1)
     expect(JSON.stringify(walks[0])).toContain('sliced-src')
     const reranked = JSON.stringify(
@@ -1485,7 +1490,7 @@ describe('permitted-document planner', () => {
         memberSources: [],
       },
     })
-    expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(0)
+    expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(0)
   })
 
   it('confines keyword matching to the bounded permitted set', async () => {
@@ -1544,6 +1549,25 @@ describe('permitted-document planner', () => {
       expect(JSON.stringify(tinStatements()[0])).toContain('2000')
       /** `==>` binds tighter than `||`, so the concatenated query must be parenthesized. */
       expect(tinStatements()[0].sql).toContain('==> (?)')
+    })
+
+    it('decides readability on the ranked row once the connectors are resolved', async () => {
+      tinPages = [{ ranked: 1500, candidates: [hit('a', 'src-a')] }]
+      queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+      const results = await keyword({
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results.map((row) => row.id)).toEqual(['a'])
+      const statement = JSON.stringify(tinStatements()[0])
+      expect(statement).toContain('on-row visibility')
+      expect(statement).not.toContain('visible_keyword_documents')
+      /** The ranked CTE carries the mirrored source and ACL the predicate tests. */
+      expect(statement).toContain('AS connector_id')
+      expect(statement).toContain('ranked_tin_chunks.acl')
     })
 
     it('widens the ranked window while too few ranked chunks are readable', async () => {

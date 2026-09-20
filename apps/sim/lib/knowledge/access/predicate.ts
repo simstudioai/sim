@@ -307,7 +307,7 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * returned — this predicate only decides what is worth ranking.
  */
 export function projectionCandidateAccessCondition(
-  projection: { connectorId: AnyPgColumn; acl: AnyPgColumn },
+  projection: { connectorId: AnyPgColumn | SQL; acl: AnyPgColumn | SQL },
   scope: KnowledgeAccessScope | SystemAccessScope,
   plan: SearchAccessPlan
 ): SQL {

@@ -19,6 +19,7 @@ import {
   knowledgeAclOverlapCondition,
   knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
+  projectionCandidateAccessCondition,
   type SearchAccessPlan,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
@@ -1270,7 +1271,13 @@ async function selectSourceVectorCandidates(input: {
   )
   const readable = and(...input.documentConditions, input.documentTagCondition)
   type RankedChunks = Promise<Array<{ id: string; distance: number }>>
-  /** Walks one source's own index, or the sliced sources together when their slice saturated. */
+  /**
+   * Walks one source's own index, or the sliced sources together when their slice saturated.
+   * Readability is decided on the row the walk visits — the source and ACL are mirrored there —
+   * so the graph is not stalled by a document lookup per candidate; the tag filter, which lives on
+   * the chunk, still joins.
+   */
+  const onRow = projectionCandidateAccessCondition(embeddingSearch, input.access, input.plan)
   const walk =
     (scope: SQL): (() => RankedChunks) =>
     () =>
@@ -1278,13 +1285,18 @@ async function selectSourceVectorCandidates(input: {
         (executor) =>
           executor.execute<{ id: string; distance: number }>(sql`
             SELECT ${embeddingSearch.id} AS id, ${input.candidateDistance} AS distance
-            FROM ${embeddingSearch}
-            CROSS JOIN LATERAL (
+            FROM ${embeddingSearch} -- on-row visibility
+            WHERE ${and(
+              base,
+              scope,
+              onRow,
+              input.documentTagCondition === undefined
+                ? undefined
+                : sql`EXISTS (
               SELECT 1 FROM ${document}
-              WHERE ${and(eq(document.id, embeddingSearch.documentId), readable)}
-              LIMIT 1
-            ) AS visible
-            WHERE ${and(base, scope)}
+              WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentTagCondition)}
+            )`
+            )}
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
         input.budget,
         'vector.source_walk'
@@ -1504,21 +1516,36 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
            * authorization downstream of the traversal, with a primary-key lookup per candidate.
            */
+          const scopeOfWalk = and(
+            inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+            eq(embeddingSearch.enabled, true)
+          )
           selected = await withVectorScanSettings(
             (executor) =>
-              executor.execute<{ id: string }>(sql`
+              executor.execute<{ id: string }>(
+                plan
+                  ? sql`
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} -- on-row visibility
+            WHERE ${and(
+              scopeOfWalk,
+              projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
+              documentTagCondition === undefined
+                ? undefined
+                : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentTagCondition)})`
+            )}
+            ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
+          `
+                  : sql`
             SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
             CROSS JOIN LATERAL (
               SELECT 1 FROM ${document}
               WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateDocumentVisibility, candidateTagCondition)}
               LIMIT 1
             ) AS visible
-            WHERE ${and(
-              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              eq(embeddingSearch.enabled, true)
-            )}
+            WHERE ${scopeOfWalk}
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
-          `),
+          `
+              ),
             params.budget
           )
           /**
@@ -1717,6 +1744,19 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
         : {}),
     })
+    const accessPlan = access.kind === 'user' ? params.accessPlan : undefined
+    /** The projection predicate over the ranked CTE's mirrored columns, plus any excluded source. */
+    const onRowKeywordVisibility = (excludedSources: readonly string[]) =>
+      and(
+        projectionCandidateAccessCondition(
+          { connectorId: sql`ranked_tin_chunks.connector_id`, acl: sql`ranked_tin_chunks.acl` },
+          access,
+          accessPlan!
+        ),
+        excludedSources.length
+          ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
+          : undefined
+      )
     const documentConditions = (excludedSources: readonly string[]) =>
       and(
         ...candidateDocumentConditions(
@@ -1744,28 +1784,39 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           executor.execute<{ ranked: number; candidates: SearchReadCandidate[] }>(sql`
             WITH ranked_tin_chunks AS MATERIALIZED (
               SELECT ${embeddingKeywordTin.id} AS id, ${embeddingKeywordTin.documentId} AS document_id,
-                ${embeddingKeywordTin.enabled} AS enabled,
+                ${embeddingKeywordTin.enabled} AS enabled, ${embeddingKeywordTin.connectorId} AS connector_id,
+                ${embeddingKeywordTin.acl} AS acl,
                 tin.full_score(${embeddingKeywordTin}.ctid) AS keyword_rank
               FROM ${embeddingKeywordTin}
               WHERE ${embeddingKeywordTin.content} ==> (${scopedQuery})
               ORDER BY keyword_rank DESC
               LIMIT ${window}
-            ), visible_keyword_documents AS MATERIALIZED (
-              SELECT ${document.id} AS id FROM ${document}
-              WHERE ${and(
-                sql`${document.id} = ANY (ARRAY(SELECT document_id FROM ranked_tin_chunks))`,
-                documentConditions(excludedSources)
-              )}
             ), page AS (
+              ${
+                accessPlan
+                  ? /**
+                     * Readability decided on the ranked row: its source and ACL are mirrored there,
+                     * so a window of mostly unreadable chunks costs an array test per row, not a
+                     * document lookup. The full predicate follows at hydration.
+                     */
+                    sql`
+              SELECT ranked_tin_chunks.id, ranked_tin_chunks.document_id AS "documentId",
+                ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank
+              FROM ranked_tin_chunks -- on-row visibility
+              WHERE ranked_tin_chunks.enabled AND ${onRowKeywordVisibility(excludedSources)}
+              ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
+              LIMIT ${limit} OFFSET ${offset}`
+                  : sql`
               SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
                 ${document.connectorId} AS "connectorId",
                 ranked_tin_chunks.keyword_rank
               FROM ranked_tin_chunks INNER JOIN ${document}
                 ON ${document.id} = ranked_tin_chunks.document_id
               WHERE ranked_tin_chunks.enabled
-                AND ranked_tin_chunks.document_id IN (SELECT id FROM visible_keyword_documents)
+                AND ${and(...candidateDocumentConditions(knowledgeBaseIds, access, params.filters, knowledgeAccessCondition(access)), excludeSearchSources(excludedSources))}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
-              LIMIT ${limit} OFFSET ${offset}
+              LIMIT ${limit} OFFSET ${offset}`
+              }
             )
             SELECT (SELECT count(*)::int FROM ranked_tin_chunks) AS ranked,
               coalesce((
