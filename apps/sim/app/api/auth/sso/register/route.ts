@@ -134,13 +134,24 @@ function checkKeyPair(cert: string | undefined, privateKey: string | undefined):
   return { certificate }
 }
 
-/** The stored decryption key of a SAML config, when it holds one. */
+/**
+ * The stored decryption key of a SAML config, when it holds one.
+ *
+ * `spMetadata.encPrivateKey` is where the SAML library reads it. The flat
+ * `decryptionPvk` is only ever found on rows written by the retired operator
+ * script, where it sat unread; an admin turning encryption on for such a
+ * provider already holds that key, so it is offered rather than demanded again.
+ * Either way the pair is validated against the submitted certificate before it
+ * is saved.
+ */
 function readStoredDecryptionKey(samlConfig: string | null | undefined): string | null {
   if (!samlConfig) return null
   try {
     const parsed = JSON.parse(samlConfig)
-    const stored = parsed?.spMetadata?.encPrivateKey
-    return typeof stored === 'string' && stored !== '' ? stored : null
+    for (const stored of [parsed?.spMetadata?.encPrivateKey, parsed?.decryptionPvk]) {
+      if (typeof stored === 'string' && stored !== '') return stored
+    }
+    return null
   } catch {
     return null
   }

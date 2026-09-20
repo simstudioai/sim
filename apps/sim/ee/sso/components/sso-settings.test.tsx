@@ -99,12 +99,14 @@ vi.mock('@sim/emcn', () => ({
     options,
     value,
     onChange,
+    'aria-label': ariaLabel,
   }: {
     options: Array<{ label: string; value: string }>
     value: string
     onChange: (value: string) => void
+    'aria-label'?: string
   }) => (
-    <div>
+    <div role='group' aria-label={ariaLabel}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -720,8 +722,13 @@ describe('SAML encrypted assertions', () => {
     })
   }
 
-  function toggle() {
-    return container.querySelector<HTMLButtonElement>('#sso-encrypt-assertions')
+  /** The chip switch renders one button per option; 'On' enables encryption. */
+  function turnEncryptionOn() {
+    const group = container.querySelector('[aria-label="Encrypt SAML assertions"]')
+    const on = Array.from(group?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'On'
+    )
+    act(() => on?.click())
   }
 
   it('hides the key pair until encryption is turned on', () => {
@@ -730,7 +737,7 @@ describe('SAML encrypted assertions', () => {
     expect(container.querySelector('#sso-sp-encryption-cert')).toBeNull()
     expect(container.querySelector('#sso-sp-decryption-key')).toBeNull()
 
-    act(() => toggle()?.click())
+    turnEncryptionOn()
 
     expect(container.querySelector('#sso-sp-encryption-cert')).not.toBeNull()
     expect(container.querySelector('#sso-sp-decryption-key')).not.toBeNull()

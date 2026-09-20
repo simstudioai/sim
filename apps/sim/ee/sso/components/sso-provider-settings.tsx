@@ -13,7 +13,6 @@ import {
   Expandable,
   ExpandableContent,
   Label,
-  Switch,
   toast,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
@@ -60,6 +59,12 @@ const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, 
 const CLIENT_SECRET_FIELD_ID = 'sso-client-secret'
 /** Fixed width, so the mask never leaks how long the stored secret is. */
 const CLIENT_SECRET_MASK = '••••••••••••'
+
+/** On/off options for the SAML toggles, the chip equivalent of a boolean switch. */
+const TOGGLE_OPTIONS = [
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+] as const
 
 interface ClientSecretFieldProps {
   /** A secret is already saved, so the field opens as a masked fact rather than an input. */
@@ -1109,22 +1114,24 @@ export function SsoProviderSettings({
                           <Label htmlFor='sso-signed-assertions'>
                             Require signed SAML assertions
                           </Label>
-                          <Switch
-                            id='sso-signed-assertions'
-                            checked={formData.wantAssertionsSigned}
-                            onCheckedChange={(checked) =>
-                              handleInputChange('wantAssertionsSigned', checked)
+                          <ChipSwitch
+                            aria-label='Require signed SAML assertions'
+                            options={TOGGLE_OPTIONS}
+                            value={formData.wantAssertionsSigned ? 'on' : 'off'}
+                            onChange={(value) =>
+                              handleInputChange('wantAssertionsSigned', value === 'on')
                             }
                           />
                         </div>
 
                         <div className='flex items-center justify-between gap-4'>
                           <Label htmlFor='sso-encrypt-assertions'>Encrypt SAML assertions</Label>
-                          <Switch
-                            id='sso-encrypt-assertions'
-                            checked={formData.encryptAssertions}
-                            onCheckedChange={(checked) =>
-                              handleInputChange('encryptAssertions', checked)
+                          <ChipSwitch
+                            aria-label='Encrypt SAML assertions'
+                            options={TOGGLE_OPTIONS}
+                            value={formData.encryptAssertions ? 'on' : 'off'}
+                            onChange={(value) =>
+                              handleInputChange('encryptAssertions', value === 'on')
                             }
                           />
                         </div>

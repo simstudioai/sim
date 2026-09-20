@@ -577,6 +577,33 @@ describe('POST /api/auth/sso/register', () => {
       expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
     })
 
+    it('reuses a key left behind by the retired registration script', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      /** Rows the script wrote kept the key flat, where the SAML library never read it. */
+      queueTableRows(schemaMock.ssoProvider, [
+        { samlConfig: JSON.stringify({ decryptionPvk: SP_KEY }) },
+      ])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockUpdateSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
+    })
+
     it('refuses the marker when no key is stored', async () => {
       queueMembers([{ organizationId: 'org1', role: 'owner' }])
       queueTableRows(schemaMock.ssoProvider, [])
