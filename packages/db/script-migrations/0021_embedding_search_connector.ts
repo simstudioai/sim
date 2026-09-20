@@ -184,8 +184,9 @@ export async function backfillProjectionSourceAcl(
         elapsedMs: Date.now() - startedAt,
       })
     }
-    if (Date.now() >= deadline) break
     if (pauseMs > 0) await sleep(pauseMs)
+    /** Checked after the pause, so the pause cannot carry a run past its budget into another page. */
+    if (Date.now() >= deadline) break
   }
   logger.info(
     done ? 'Projection source and ACL backfilled' : 'Projection source and ACL backfill paused',
