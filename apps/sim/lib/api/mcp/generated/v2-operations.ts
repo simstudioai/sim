@@ -2094,7 +2094,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateFileContentContract,
     summary: 'Replace File Content',
     description:
-      'Replace the complete contents of an existing file from UTF-8 or base64 input.\n\nOAuth scope: `api:write`.',
+      'Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/content/route').then((route) => route.PUT),
   },
   updateKnowledgeBase: {

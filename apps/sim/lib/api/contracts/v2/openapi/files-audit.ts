@@ -1168,8 +1168,9 @@ const declaredRoutes = [
       applicationOperation: fileOperations.updateContent,
       operationId: 'updateFileContent',
       summary: 'Replace File Content',
-      description: 'Replace the complete contents of an existing file from UTF-8 or base64 input.',
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      description:
+        'Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file.' },
     }),
     {

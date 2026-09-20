@@ -2744,7 +2744,7 @@
       "put": {
         "operationId": "updateFileContent",
         "summary": "Replace File Content",
-        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input.\n\nOAuth scope: `api:write`.",
+        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -2807,6 +2807,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
