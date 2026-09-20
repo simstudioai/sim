@@ -3,6 +3,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { X509Certificate } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -452,6 +453,27 @@ describe('POST /api/auth/sso/register', () => {
       expect(samlConfig.spMetadata.metadata).not.toContain('PRIVATE KEY')
     })
 
+    it('publishes only the certificate bytes, never the key, in the metadata', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      const published = samlConfig.spMetadata.metadata
+      /** Built from the parsed certificate's own DER, so it cannot echo pasted input. */
+      expect(published).toContain(new X509Certificate(SP_CERT).raw.toString('base64'))
+      expect(published).not.toContain(
+        SP_KEY.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, '')
+          .replace(/\s+/g, '')
+          .slice(0, 40)
+      )
+    })
+
     it('never writes the private key to a log line', async () => {
       queueMembers([{ organizationId: 'org1', role: 'owner' }])
       queueProviders([])
@@ -503,6 +525,19 @@ describe('POST /api/auth/sso/register', () => {
         { spEncryptionCert: 'not-a-cert', spDecryptionKey: SP_KEY },
       ],
       ['a private key that is not PEM', { spEncryptionCert: SP_CERT, spDecryptionKey: 'nope' }],
+      [
+        'a key pair whose halves do not match',
+        { spEncryptionCert: SP_CERT, spDecryptionKey: OTHER.key },
+      ],
+      /**
+       * A private key satisfies a public-key comparison, so anything short of
+       * X.509 parsing would accept it here and then publish it as the
+       * certificate in service provider metadata.
+       */
+      [
+        'a private key pasted into the certificate field',
+        { spEncryptionCert: SP_KEY, spDecryptionKey: SP_KEY },
+      ],
     ])('refuses %s', async (_label, overrides) => {
       queueMembers([{ organizationId: 'org1', role: 'owner' }])
       queueProviders([])

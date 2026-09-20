@@ -1,4 +1,4 @@
-import { createPrivateKey, createPublicKey } from 'node:crypto'
+import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto'
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
@@ -85,48 +85,53 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
   }
 }
 
-/** The base64 body of a PEM document, which is what SAML metadata carries. */
-function stripPemArmor(pem: string): string {
-  return pem
-    .replace(/-----(BEGIN|END)[^-]+-----/g, '')
-    .replace(/\s+/g, '')
-    .trim()
+/** The SubjectPublicKeyInfo of a private key, for comparing it with a certificate's. */
+function publicKeyOfPrivateKey(pem: string): string {
+  return createPublicKey(createPrivateKey(pem)).export({ type: 'spki', format: 'pem' }).toString()
 }
 
-/** The SubjectPublicKeyInfo of a certificate or private key, for comparing the two. */
-function publicKeyOf(pem: string, kind: 'certificate' | 'private key'): string {
-  const key = kind === 'certificate' ? createPublicKey(pem) : createPublicKey(createPrivateKey(pem))
-  return key.export({ type: 'spki', format: 'pem' }).toString()
-}
+type KeyPairCheck = { error: string } | { certificate: X509Certificate }
 
 /**
- * Names the first problem with an encryption key pair, or null when both parse
- * and belong together. A mismatched pair is the failure worth catching here:
- * each half is individually valid, so nothing complains until the identity
- * provider encrypts an assertion Sim cannot read, weeks later at sign-in.
+ * Parses an encryption key pair, or names the first problem with it.
+ *
+ * The certificate is parsed as X.509 rather than as "any key material": a
+ * private key PEM would otherwise satisfy a public-key comparison, and the
+ * metadata document would then publish that private key as the service
+ * provider's certificate. The parsed certificate is returned so the document is
+ * built from its own DER bytes rather than from re-serialized input.
+ *
+ * A mismatched pair is the other failure worth catching here — each half is
+ * individually valid, so nothing complains until the identity provider encrypts
+ * an assertion Sim cannot read.
  */
-function describeKeyPairProblem(
-  cert: string | undefined,
-  privateKey: string | undefined
-): string | null {
-  let certificatePublicKey: string
+function checkKeyPair(cert: string | undefined, privateKey: string | undefined): KeyPairCheck {
+  let certificate: X509Certificate
   try {
-    certificatePublicKey = publicKeyOf(cert ?? '', 'certificate')
+    certificate = new X509Certificate(cert ?? '')
   } catch {
-    return 'Service provider certificate must be a PEM X.509 certificate beginning with -----BEGIN CERTIFICATE-----'
+    return {
+      error:
+        'Service provider certificate must be a PEM X.509 certificate beginning with -----BEGIN CERTIFICATE-----',
+    }
   }
 
   let privateKeyPublicKey: string
   try {
-    privateKeyPublicKey = publicKeyOf(privateKey ?? '', 'private key')
+    privateKeyPublicKey = publicKeyOfPrivateKey(privateKey ?? '')
   } catch {
-    return 'Service provider private key must be a PEM private key beginning with -----BEGIN PRIVATE KEY-----'
+    return {
+      error:
+        'Service provider private key must be a PEM private key beginning with -----BEGIN PRIVATE KEY-----',
+    }
   }
 
-  if (certificatePublicKey !== privateKeyPublicKey) {
-    return 'Service provider certificate and private key are not a matching pair'
+  const certificatePublicKey = certificate.publicKey.export({ type: 'spki', format: 'pem' })
+  if (certificatePublicKey.toString() !== privateKeyPublicKey) {
+    return { error: 'Service provider certificate and private key are not a matching pair' }
   }
-  return null
+
+  return { certificate }
 }
 
 /** The stored decryption key of a SAML config, when it holds one. */
@@ -614,9 +619,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         decryptionKey = storedKey
       }
 
+      let encryptionCertificate: X509Certificate | null = null
       if (encryptAssertions) {
-        const keyPairProblem = describeKeyPairProblem(spEncryptionCert, decryptionKey)
-        if (keyPairProblem) return NextResponse.json({ error: keyPairProblem }, { status: 400 })
+        const keyPair = checkKeyPair(spEncryptionCert, decryptionKey)
+        if ('error' in keyPair) return NextResponse.json({ error: keyPair.error }, { status: 400 })
+        encryptionCertificate = keyPair.certificate
       }
 
       const computedCallbackUrl =
@@ -645,11 +652,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
        * the certificate goes in the document; the matching private key stays in
        * the provider row, encrypted.
        */
-      const encryptionKeyDescriptor =
-        encryptAssertions && spEncryptionCert
-          ? `
-    <md:KeyDescriptor use="encryption"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>${escapeXml(stripPemArmor(spEncryptionCert))}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
-          : ''
+      const encryptionKeyDescriptor = encryptionCertificate
+        ? `
+    <md:KeyDescriptor use="encryption"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>${encryptionCertificate.raw.toString('base64')}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
+        : ''
 
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
