@@ -1337,6 +1337,31 @@ describe('permitted-document planner', () => {
     expect(reranked).not.toContain('arbitrary-hit')
   })
 
+  it('ranks uploaded documents even when every connector source is walked', async () => {
+    const eligibility = { workspace: [], admin: [], members: ['member-src'] }
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    sourceExactRows = [{ id: 'upload-hit', distance: 0.05, saturated: false }]
+    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
+    rerankRows = [hit('upload-hit', null), hit('walked-hit', 'member-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      topK: 2,
+      permitted: { kind: 'unbounded' },
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: ['m-1'], observed: [] },
+        memberSources: ['member-src'],
+      },
+    })
+    /** Uploads carry no connector, so their slice runs even with no sliced source beside them. */
+    const exact = statements().filter((query) => query.sql.includes('WITH readable_documents'))
+    expect(exact).toHaveLength(1)
+    expect(
+      JSON.stringify(statements().find((q) => q.sql.includes('scored_search_candidates')))
+    ).toContain('upload-hit')
+  })
+
   it('ranks every source exactly when the caller is a member of none', async () => {
     sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
     rerankRows = [hit('sliced-hit', 'sliced-src')]

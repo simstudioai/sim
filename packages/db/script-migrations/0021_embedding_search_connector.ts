@@ -11,8 +11,10 @@ const BATCH_SIZE = 500
  * Carries a chunk's source onto the vector projection and keeps it there.
  *
  * The projection trigger reads it from the chunk's document on every write, and a document that
- * changes hands — a connector rewrite, a restore — fans the new source out to its chunks. Both are
- * primary-key lookups, so the cost is a fixed addition to a write that already touches the row.
+ * changes hands — a connector rewrite, a restore — fans the new source out to its chunks. The fan
+ * out touches only the chunks a search can reach, which is what the document lookup index covers;
+ * a disabled chunk takes its source from its document again when it is enabled, so it rejoins
+ * current rather than stale.
  */
 export async function installEmbeddingSearchConnector(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
@@ -21,7 +23,8 @@ export async function installEmbeddingSearchConnector(sql: Sql): Promise<void> {
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
         UPDATE embedding_search SET connector_id = NEW.connector_id
-        WHERE document_id = NEW.id AND connector_id IS DISTINCT FROM NEW.connector_id;
+        WHERE document_id = NEW.id AND enabled
+          AND connector_id IS DISTINCT FROM NEW.connector_id;
         RETURN NEW;
       END;
       $$`)
@@ -36,7 +39,7 @@ export async function installEmbeddingSearchConnector(sql: Sql): Promise<void> {
       END;
       $$`)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_connector_set
-      BEFORE INSERT OR UPDATE OF document_id ON embedding_search
+      BEFORE INSERT OR UPDATE OF document_id, enabled ON embedding_search
       FOR EACH ROW EXECUTE FUNCTION set_embedding_search_connector()`)
   })
 }

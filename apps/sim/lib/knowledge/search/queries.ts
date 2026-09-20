@@ -22,7 +22,13 @@ import {
   type SearchAccessPlan,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import {
+  type ConfluenceSiteReadGrant,
+  type GitHubInstallationReadGrant,
+  type KnowledgeAccessProvider,
+  type KnowledgeAccessScope,
+  MAX_KNOWLEDGE_ACCESS_CANDIDATES,
+} from '@/lib/knowledge/access/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import {
   type RetrievalLeg,
@@ -603,12 +609,32 @@ export function liveSourceAccessFor(
   const gated = new Set(plan?.connectors.liveProofRequired ?? [])
   if (!accessProvider || gated.size === 0) return undefined
   let pending: Promise<KnowledgeAccessScope> | undefined
+  /** The provider authorizes connectors in bounded pages, so a wide scope resolves page by page. */
+  const pages: string[][] = []
+  for (const id of gated) {
+    const last = pages.at(-1)
+    if (!last || last.length === MAX_KNOWLEDGE_ACCESS_CANDIDATES) pages.push([id])
+    else last.push(id)
+  }
   return {
     gates: (connectorId) => gated.has(connectorId),
     resolve: () => {
-      pending ??= measureSearchStage('live_source_grants', () =>
-        accessProvider.getForConnectors([...gated], signal)
-      )
+      pending ??= measureSearchStage('live_source_grants', async () => {
+        const scopes = await mapWithConcurrency(pages, SOURCE_RANKING_CONCURRENCY, (page) =>
+          accessProvider.getForConnectors(page, signal)
+        )
+        const [first] = scopes
+        if (scopes.length === 1 || first.kind !== 'user') return first
+        const githubInstallationGrants: GitHubInstallationReadGrant[] = []
+        const confluenceSiteGrants: ConfluenceSiteReadGrant[] = []
+        for (const scope of scopes) {
+          if (scope.kind !== 'user') continue
+          if (scope.githubInstallationGrants)
+            githubInstallationGrants.push(...scope.githubInstallationGrants)
+          if (scope.confluenceSiteGrants) confluenceSiteGrants.push(...scope.confluenceSiteGrants)
+        }
+        return { ...first, githubInstallationGrants, confluenceSiteGrants }
+      })
       return pending
     },
   }
@@ -1160,13 +1186,14 @@ async function selectSourceVectorCandidates(input: {
   const slicedScope = sql`(${embeddingSearch.connectorId} IS NULL
     OR ${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))`
   /** One statement for every sliced source: their readable documents, then exact ranking of those. */
-  const slice: Array<() => RankedChunks> =
-    sources.sliced.length === 0
-      ? []
-      : [
-          async () => {
-            const rows = await runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
-              executor.execute<{ id: string; distance: number; saturated: boolean }>(sql`
+  /**
+   * One statement for the sliced sources and, with them, every uploaded document: uploads carry no
+   * connector, so a caller who is a member of all the indexed sources would otherwise rank none.
+   */
+  const slice: Array<() => RankedChunks> = [
+    async () => {
+      const rows = await runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
+        executor.execute<{ id: string; distance: number; saturated: boolean }>(sql`
                 WITH readable_documents AS MATERIALIZED (
                   SELECT ${document.id} AS id FROM ${document}
                   WHERE (${document.connectorId} IS NULL
@@ -1180,17 +1207,17 @@ async function selectSourceVectorCandidates(input: {
                 JOIN readable_documents ON readable_documents.id = ${embeddingSearch.documentId}
                 WHERE ${base}
                 ORDER BY distance LIMIT ${input.candidateLimit}`)
-            )
-            /**
-             * The slice enumerates readable documents in no particular order, so a set past its
-             * bound would rank an arbitrary subset and could miss the nearest chunks entirely.
-             * Walk those sources instead: approximate, but drawn from the whole of them.
-             */
-            if (!rows.some((row) => row.saturated)) return rows
-            annotateSearchDiagnostics({ vectorSlicedSaturated: true })
-            return walk(slicedScope)()
-          },
-        ]
+      )
+      /**
+       * The slice enumerates readable documents in no particular order, so a set past its
+       * bound would rank an arbitrary subset and could miss the nearest chunks entirely.
+       * Walk those sources instead: approximate, but drawn from the whole of them.
+       */
+      if (!rows.some((row) => row.saturated)) return rows
+      annotateSearchDiagnostics({ vectorSlicedSaturated: true })
+      return walk(slicedScope)()
+    },
+  ]
   const scored = await mapWithConcurrency([...walks, ...slice], SOURCE_RANKING_CONCURRENCY, (run) =>
     run()
   )

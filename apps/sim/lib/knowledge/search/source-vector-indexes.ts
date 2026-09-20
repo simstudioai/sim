@@ -67,6 +67,20 @@ async function projectionColumn(connectorId: string): Promise<string | null> {
 }
 
 /**
+ * Drops an index only while it is unusable — a failed build leaves one behind, and the next build
+ * must clear it. Overlapping syncs make this the difference between clearing a leftover and
+ * dropping the index the other one just built: only the caller whose build failed removes
+ * anything, so a valid index always survives.
+ */
+async function dropInvalidIndex(name: string): Promise<void> {
+  const [row] = await db.execute<{ invalid: boolean }>(sql`
+    SELECT NOT i.indisvalid OR NOT i.indisready AS invalid
+    FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid
+    WHERE c.relname = ${name}`)
+  if (row?.invalid) await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`))
+}
+
+/**
  * Gives a source its own vector index once it holds enough documents to need one, called after a
  * sync that may have grown it. A member reads a source whole, so walking that source's index
  * returns their own neighbours, where a walk over every source spends its scan budget on chunks
@@ -90,7 +104,7 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
   const name = indexName(connectorId)
   const startedAt = Date.now()
   try {
-    await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`))
+    await dropInvalidIndex(name)
     await db.execute(sql`SET maintenance_work_mem = '2GB'`)
     await db.execute(
       sql.raw(`CREATE INDEX CONCURRENTLY "${name}" ON embedding_search
@@ -106,7 +120,7 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
     return true
   } catch (error) {
     logger.error('Source vector index build failed', { connectorId, error: getErrorMessage(error) })
-    await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`))
+    await dropInvalidIndex(name)
     return false
   } finally {
     await db.execute(sql`RESET maintenance_work_mem`)
