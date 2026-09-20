@@ -25,6 +25,10 @@ import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
+import {
+  TableSidebarHeader,
+  TableSidebarHeaderAction,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
 import { columnTypeOptionsForTable } from './column-types'
@@ -263,19 +267,12 @@ function ColumnConfigBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <TableSidebarHeader>
         <h2 className='text-[var(--text-primary)] text-small'>Configure column</h2>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onClose}
-          iconPadding='sm'
-          className='size-7'
-          aria-label='Close'
-        >
+        <TableSidebarHeaderAction onClick={onClose} aria-label='Close'>
           <X className='size-[14px]' />
-        </Button>
-      </div>
+        </TableSidebarHeaderAction>
+      </TableSidebarHeader>
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         {/* `disabled` on the fieldset reaches every native control inside,
