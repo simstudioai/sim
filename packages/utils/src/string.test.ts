@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  compareStrings,
+  escapeRegExp,
   forEachSearchOccurrence,
   formatQuotedNameList,
   isVersionedType,
@@ -244,5 +246,43 @@ describe('forEachSearchOccurrence', () => {
     // '\u0130'.toLowerCase() is TWO characters. A plain lowercase would slide every later index by
     // one, so the caller would slice the wrong span out of the string it passed in.
     expect(spans('\u0130xyz target', 'target')).toEqual(['target'])
+  })
+})
+
+describe('escapeRegExp', () => {
+  it('escapes every regex metacharacter', () => {
+    const metacharacters = `.*+?^$${'{}'}()|[]\\`
+    expect(escapeRegExp(metacharacters)).toBe('\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(escapeRegExp('plain text 42')).toBe('plain text 42')
+  })
+
+  it('matches the literal value once interpolated', () => {
+    const pattern = new RegExp(escapeRegExp('a.b'))
+    expect(pattern.test('a.b')).toBe(true)
+    expect(pattern.test('axb')).toBe(false)
+  })
+
+  it('escapes every occurrence, not just the first', () => {
+    expect(escapeRegExp('a.b.c')).toBe('a\\.b\\.c')
+  })
+})
+
+describe('compareStrings', () => {
+  it('orders by code unit', () => {
+    expect(compareStrings('a', 'b')).toBe(-1)
+    expect(compareStrings('b', 'a')).toBe(1)
+    expect(compareStrings('a', 'a')).toBe(0)
+  })
+
+  it('sorts uppercase before lowercase, unlike localeCompare', () => {
+    expect(compareStrings('Z', 'a')).toBe(-1)
+    expect(['a', 'Z'].sort(compareStrings)).toEqual(['Z', 'a'])
+  })
+
+  it('orders digit-led keys lexically, not numerically', () => {
+    expect(['2', '10'].sort(compareStrings)).toEqual(['10', '2'])
   })
 })

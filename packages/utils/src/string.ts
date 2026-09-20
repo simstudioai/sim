@@ -337,3 +337,26 @@ function identityStarts(length: number): number[] {
   for (let index = 0; index <= length; index += 1) starts[index] = index
   return starts
 }
+
+/**
+ * Escapes every regex metacharacter in `value` so it matches only itself when
+ * interpolated into a `RegExp`.
+ *
+ * @example
+ * new RegExp(escapeRegExp('a.b')) // matches the literal 'a.b', not 'axb'
+ */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Compares two strings by code unit, the ordering `Array.prototype.sort` applies
+ * by default. Deliberately not `localeCompare`: ordering that feeds a hash, a
+ * fingerprint, or a value compared across processes must not vary with the
+ * host's locale.
+ */
+export function compareStrings(left: string, right: string): number {
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
+}
