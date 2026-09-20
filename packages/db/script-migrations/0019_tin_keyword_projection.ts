@@ -233,12 +233,28 @@ export const tinKeywordProjectionMigration: ScriptMigration = {
   up: installTinKeywordProjection,
 }
 
+/**
+ * Installs the projection where this database allows it, treating a refused extension as a no-op:
+ * run directly — `db:push`, or adopting Tin after a cluster gains it — there is no migration
+ * record to leave unwritten, and keyword search keeps the GIN projection either way.
+ */
+export async function adoptTinKeywordProjection(sql: Sql): Promise<void> {
+  try {
+    await installTinKeywordProjection(sql)
+  } catch (error) {
+    if (!(error instanceof ScriptMigrationDeferred)) throw error
+    logger.warn('Tin projection deferred; keyword search keeps the GIN projection', {
+      reason: error.message,
+    })
+  }
+}
+
 if (import.meta.main) {
   const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required to install the Tin keyword projection')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
-    await installTinKeywordProjection(sql)
+    await adoptTinKeywordProjection(sql)
   } finally {
     await sql.end()
   }

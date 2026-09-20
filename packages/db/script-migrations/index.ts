@@ -55,10 +55,17 @@ export const scriptMigrations: readonly ScriptMigration[] = [
  * Fails fast: a missing required env var or a throwing `up` aborts the run
  * before the name is recorded, so the migration retries on the next upgrade.
  * A deferred `up` is not recorded either, but lets the later migrations run.
+ *
+ * `migrations` defaults to the registry and exists so a test can apply a
+ * synthetic list: a deferral followed by a later migration is otherwise
+ * uncoverable while the only deferring migration is the last registered entry.
  */
-export async function runScriptMigrations(sql: Sql): Promise<void> {
+export async function runScriptMigrations(
+  sql: Sql,
+  migrations: readonly ScriptMigration[] = scriptMigrations
+): Promise<void> {
   const names = new Set<string>()
-  for (const migration of scriptMigrations) {
+  for (const migration of migrations) {
     if (names.has(migration.name)) {
       throw new Error(`Duplicate script migration name: ${migration.name}`)
     }
@@ -86,7 +93,7 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
   const appliedRows = await sql<{ name: string }[]>`SELECT name FROM script_migrations`
   const applied = new Set(appliedRows.map((row) => row.name))
 
-  const pending = scriptMigrations.filter((migration) => !applied.has(migration.name))
+  const pending = migrations.filter((migration) => !applied.has(migration.name))
   if (pending.length === 0) {
     console.log('No pending script migrations.')
     return

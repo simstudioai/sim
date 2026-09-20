@@ -3,7 +3,10 @@
  */
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
-import { installTinKeywordProjection } from './0019_tin_keyword_projection'
+import {
+  adoptTinKeywordProjection,
+  installTinKeywordProjection,
+} from './0019_tin_keyword_projection'
 import { ScriptMigrationDeferred } from './types'
 
 /** A session that offers `tin` or not, and answers `CREATE EXTENSION` with `createError`. */
@@ -41,6 +44,20 @@ describe('installTinKeywordProjection', () => {
       expect(statements.at(-1)).toBe('CREATE EXTENSION IF NOT EXISTS tin')
     }
   )
+
+  it('is a no-op when run directly against a database that refuses the extension', async () => {
+    const { sql, statements } = createSqlHarness({
+      available: true,
+      createError: { code: '42501' },
+    })
+    await expect(adoptTinKeywordProjection(sql)).resolves.toBeUndefined()
+    expect(statements.at(-1)).toBe('CREATE EXTENSION IF NOT EXISTS tin')
+  })
+
+  it('fails a direct run on any other extension error', async () => {
+    const { sql } = createSqlHarness({ available: true, createError: { code: '53100' } })
+    await expect(adoptTinKeywordProjection(sql)).rejects.toEqual({ code: '53100' })
+  })
 
   it('fails the migration on any other extension error', async () => {
     const { sql } = createSqlHarness({ available: true, createError: { code: '53100' } })
