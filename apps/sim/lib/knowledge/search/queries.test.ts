@@ -35,6 +35,7 @@ import {
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import {
   executeKeywordSearch,
+  forgetProjectionFilled,
   forgetSearchReach,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
@@ -1262,6 +1263,7 @@ describe('permitted-document planner', () => {
     indexedSourceRows = []
     forgetIndexedVectorSources()
     forgetSearchReach()
+    forgetProjectionFilled()
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
       if (statement.includes('pg_index')) return indexedSourceRows
@@ -2120,6 +2122,7 @@ describe('filters on a resolved scope', () => {
     resetDbChainMock()
     forgetIndexedVectorSources()
     forgetSearchReach()
+    forgetProjectionFilled()
     probeRows = []
     traversedRows = []
     rerankRows = []
@@ -2266,6 +2269,7 @@ describe('filters on a resolved scope', () => {
     expect(probes()).toHaveLength(1)
     estimated = 1_000_000
     forgetSearchReach()
+    forgetProjectionFilled()
     dbChainMockFns.execute.mockClear()
     await search()
     expect(probes()).toHaveLength(0)
@@ -2313,6 +2317,29 @@ describe('filters on a resolved scope', () => {
     expect(
       statements().filter((query) => query.sql.includes('WITH matched_keyword_chunks'))
     ).toHaveLength(1)
+  })
+
+  it('keeps the default scan while the projection still holds unfilled rows', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'src-a')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
+      if (isWalk(statement)) return traversedRows
+      if (statement.includes('WITH scored_search_candidates')) return rerankRows
+      return []
+    })
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: plan(),
+    })
+    /** An unfilled row is decided through its document, so the walk keeps the cap sized for that. */
+    const caps = statements()
+      .filter((query) => query.sql.includes('hnsw.max_scan_tuples'))
+      .map((query) => query.params.find((param) => param === '20000' || param === '100000'))
+    expect(caps.at(-1)).toBe('20000')
   })
 
   it('tests the date through the document inside an on-row walk when the filtered set is unbounded', async () => {

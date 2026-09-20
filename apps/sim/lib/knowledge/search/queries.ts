@@ -92,14 +92,40 @@ const ON_ROW_WALK_SCAN_TUPLES = 100_000
 
 /**
  * How far a walk may go when readability is on the row: the on-row cap, unless the walk still
- * has to ask the document about each tuple — a tag or date filter — in which case a tuple costs
- * what it did before the columns were mirrored, and the default cap keeps a walk through a
- * mostly-excluded neighbourhood at a short answer rather than a missed deadline.
+ * has to ask the document about tuples — a tag or date filter, or rows the backfill has not
+ * filled yet — in which case such a tuple costs what it did before the columns were mirrored,
+ * and the default cap keeps a walk through a mostly-excluded neighbourhood at a short answer
+ * rather than a missed deadline.
  */
-function onRowWalkScanTuples(documentCondition: SQL | undefined): number {
-  return documentCondition === undefined
+function onRowWalkScanTuples(
+  documentCondition: SQL | undefined,
+  projectionFilled: boolean
+): number {
+  return documentCondition === undefined && projectionFilled
     ? ON_ROW_WALK_SCAN_TUPLES
     : Number(CANDIDATE_HNSW_MAX_SCAN_TUPLES)
+}
+
+/** How long a fully filled projection is taken on trust before its unfilled rows are looked for again. */
+const PROJECTION_FILLED_TTL_MS = 60_000
+
+/**
+ * Whether the ranking projection still holds rows the backfill has not filled. Read off the
+ * unfilled-rows index in microseconds and remembered briefly: the answer only ever changes once.
+ */
+const projectionFilled = new LRUCache<string, boolean>({
+  max: 1,
+  ttl: PROJECTION_FILLED_TTL_MS,
+  fetchMethod: async () => {
+    const [row] = await db.execute<{ unfilled: boolean }>(sql`
+      SELECT EXISTS (SELECT 1 FROM ${embeddingSearch} WHERE ${embeddingSearch.acl} IS NULL) AS unfilled`)
+    return !row?.unfilled
+  },
+})
+
+/** Forgets whether the projection was filled, after its rows changed. */
+export function forgetProjectionFilled(): void {
+  projectionFilled.clear()
 }
 /**
  * Beam width per iteration. A beam is the granularity of cancellation: pgvector calls
@@ -1442,6 +1468,8 @@ async function selectSourceVectorCandidates(input: {
   plan: SearchAccessPlan
   tagCondition: SQL | undefined
   documentCondition: SQL | undefined
+  /** Whether every projection row carries its mirrored columns, so a walk needs no document. */
+  projectionFilled: boolean
   candidateDistance: SQL<number>
   candidateLimit: number
   budget?: SearchBudget
@@ -1490,7 +1518,7 @@ async function selectSourceVectorCandidates(input: {
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
         input.budget,
         'vector.source_walk',
-        onRowWalkScanTuples(input.documentCondition)
+        onRowWalkScanTuples(input.documentCondition, input.projectionFilled)
       )
   const walks: Array<() => RankedChunks> = sources.walked.map((connectorId) =>
     walk(eq(embeddingSearch.connectorId, connectorId))
@@ -1697,6 +1725,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         }
         let selected: Array<{ id: string }>
         const plan = params.access.kind === 'user' ? params.accessPlan : undefined
+        const filled = plan ? ((await projectionFilled.fetch('embedding_search')) ?? false) : false
         /**
          * A source the caller is a member of that has its own index is walked on its own, which
          * beats ranking it exactly once it is large enough to have earned that index.
@@ -1728,6 +1757,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             access: params.access,
             knowledgeBaseIds: params.knowledgeBaseIds,
             plan,
+            projectionFilled: filled,
             tagCondition: candidateTagCondition,
             documentCondition,
             candidateDistance,
@@ -1771,7 +1801,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
               ),
             params.budget,
             'vector.candidate_search',
-            plan ? onRowWalkScanTuples(documentCondition) : undefined
+            plan ? onRowWalkScanTuples(documentCondition, filled) : undefined
           )
           /**
            * A full traversal is already the nearest permitted chunks, so nothing else is worth

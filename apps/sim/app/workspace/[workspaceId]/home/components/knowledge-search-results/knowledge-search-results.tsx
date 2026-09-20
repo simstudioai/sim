@@ -160,15 +160,17 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
       : {}),
-    ...(custom && filters.from
-      ? { modifiedAfter: startOfLocalDay(filters.from).toISOString() }
+    ...(custom && filters.from && filters.to
+      ? {
+          modifiedAfter: startOfLocalDay(filters.from).toISOString(),
+          modifiedBefore: endOfLocalDay(filters.to).toISOString(),
+        }
       : {}),
-    ...(custom && filters.to ? { modifiedBefore: endOfLocalDay(filters.to).toISOString() } : {}),
   }
   const filtersKey = JSON.stringify(searchFilters)
   const expanded = expandedFor === filtersKey
-  /** A custom window with no days chosen yet is not "any time": nothing is searched until it has them. */
-  const awaitingRange = custom && !filters.from && !filters.to
+  /** A custom window is two-ended: until both days are chosen, nothing is searched. */
+  const awaitingRange = custom && !(filters.from && filters.to)
   const {
     data: search,
     isPending,
@@ -312,7 +314,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           {custom && (
             <ChipDatePicker
               mode='range'
-              label='Updated between'
+              placeholder='Updated between'
               startDate={filters.from?.toISOString().slice(0, 10)}
               endDate={filters.to?.toISOString().slice(0, 10)}
               onRangeChange={(start, end) =>
