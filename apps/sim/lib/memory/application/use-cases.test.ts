@@ -11,9 +11,15 @@ const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
   resolvePermission: vi.fn(),
   readBoundProvenance: vi.fn(),
+  readPlainMemoryTail: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+
+vi.mock('@/lib/memory/conversation-store', () => ({
+  readPlainMemoryTail: mocks.readPlainMemoryTail,
+  appendMemoryMessages: vi.fn(),
+}))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) => {
@@ -39,6 +45,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 }))
 
 import { listMemoriesUseCase } from '@/lib/memory/application/use-cases'
+import type { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
 
 const WORKSPACE_ID = 'workspace-canonical'
 const BILLING_OWNER_ID = 'billing-owner'
@@ -157,5 +164,33 @@ describe('Memory application use cases', () => {
       resolveBillingAttribution.mock.invocationCallOrder[0]
     )
     expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
+  })
+  it('enforces one appended-history budget across the entire list response', async () => {
+    queueTableRows(
+      schemaMock.memory,
+      [1, 2, 3].map((index) => ({
+        id: `memory-${index}`,
+        key: `conversation-${index}`,
+        data: [],
+        storageVersion: 2,
+        secretProvenanceVersion: null,
+      }))
+    )
+    mocks.readPlainMemoryTail.mockImplementation(
+      async (_id: string, _workspaceId: string, budget: PlainMemoryReadBudget) => {
+        budget.reserve(6000, 1024)
+        return { messages: [], provenance: { status: 'exact', entries: [] } }
+      }
+    )
+    await expect(
+      listMemoriesUseCase.execute({
+        principal: ACTORLESS_DEPLOYED_PRINCIPAL,
+        input: { workspaceId: WORKSPACE_ID, limit: 50 },
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+    expect(mocks.readPlainMemoryTail).toHaveBeenCalledTimes(2)
+    expect(mocks.readPlainMemoryTail.mock.calls[0][2]).toBe(
+      mocks.readPlainMemoryTail.mock.calls[1][2]
+    )
   })
 })

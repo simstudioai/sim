@@ -4,6 +4,7 @@ import { requireKnowledgeBaseOwnerMigration } from '@sim/db/script-migrations/00
 import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import { indexSearchDocumentsMigration } from '@sim/db/script-migrations/0017_index_search_documents'
 import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
+import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -41,6 +42,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   indexSearchDocumentsMigration,
   /** 0358 stops new sub-millisecond revisions; this retires the ones that predate it. */
   repairWorkspaceFileContentRevisionMigration,
+  tinKeywordProjectionMigration,
 ]
 
 /**

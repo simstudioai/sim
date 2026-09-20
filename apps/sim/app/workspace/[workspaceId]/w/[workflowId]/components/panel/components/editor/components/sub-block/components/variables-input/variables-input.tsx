@@ -11,7 +11,7 @@ import {
   OverflowText,
   Textarea,
 } from '@sim/emcn'
-import { Plus, Trash } from '@sim/emcn/icons'
+import { FileText, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
@@ -337,19 +337,7 @@ export function VariablesInput({
   if (isPreview && (!assignments || assignments.length === 0)) {
     return (
       <div className='flex flex-col items-center justify-center rounded-md border border-border/40 bg-muted/20 py-8 text-center'>
-        <svg
-          className='mb-3 size-10 text-muted-foreground/40'
-          fill='none'
-          viewBox='0 0 24 24'
-          stroke='currentColor'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={1.5}
-            d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-          />
-        </svg>
+        <FileText className='mb-3 size-10 text-muted-foreground/40' />
         <p className='mb-1 text-foreground text-sm'>No variable assignments defined</p>
         <p className='text-muted-foreground text-xs'>
           Add variables in the Variables panel to get started

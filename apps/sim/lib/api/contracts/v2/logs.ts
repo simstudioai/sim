@@ -338,7 +338,7 @@ export const v2LogParamsSchema = z.object({
  * Upper bound of `workflow_execution_logs.total_duration_ms`, whose column is a
  * Postgres `integer`.
  *
- * The same rule `DEPLOYMENT_VERSION_MAX` states for deployment versions: a
+ * The same rule `INT4_MAX` states for version numbers: a
  * comparison against an `integer` column is an `integer` comparison, so a bound
  * outside int4 — or one carrying a fractional part — is not a filter that
  * matches nothing, it is a value Postgres refuses to parse. `1.5`,

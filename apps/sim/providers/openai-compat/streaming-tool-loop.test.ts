@@ -14,9 +14,19 @@ import {
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
 
-const { mockExecuteTool, mockPrepareToolExecution } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
-  mockPrepareToolExecution: vi.fn(),
+const { mockExecuteTool, mockPrepareToolExecution, mockCapture, mockRecordError } = vi.hoisted(
+  () => ({
+    mockExecuteTool: vi.fn(),
+    mockPrepareToolExecution: vi.fn(),
+    mockCapture: vi.fn(),
+    mockRecordError: vi.fn(),
+  })
+)
+
+vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationToolError: mockRecordError,
 }))
 
 vi.mock('@/tools', () => ({
@@ -186,6 +196,21 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     })
 
     await collectEvents(stream)
+
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    expect(mockCapture.mock.calls[0][2]).toMatchObject({
+      role: 'assistant',
+      reasoning_content: 'I should call the tool. ',
+      tool_calls: [{ id: 'call_1', function: { name: 'lookup', arguments: '{}' } }],
+    })
+    expect(mockCapture.mock.invocationCallOrder[0]).toBeLessThan(
+      mockExecuteTool.mock.invocationCallOrder[0]
+    )
+    expect(mockCapture.mock.calls[1][2]).toMatchObject({
+      role: 'assistant',
+      content: 'done',
+      reasoning_content: 'final thought',
+    })
 
     expect(createStream).toHaveBeenCalledTimes(2)
     const secondTurnMessages = messageHistory[1] as Array<Record<string, unknown>>

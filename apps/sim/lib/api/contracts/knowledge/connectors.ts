@@ -206,6 +206,8 @@ export const memberSyncLogDataSchema = z
     docsUnchanged: z.number(),
     docsHydratedOnce: z.number(),
     observationsAdded: z.number(),
+    /** Absent from responses served by older deployments. */
+    observationsRenewed: z.number().int().nonnegative().optional(),
     observationsRemoved: z.number(),
     docsTombstoned: z.number(),
     docsResurrected: z.number(),

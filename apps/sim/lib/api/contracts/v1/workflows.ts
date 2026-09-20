@@ -3,9 +3,12 @@ import {
   activeDeploymentSummarySchema,
   deploymentOperationSummarySchema,
   deploymentVersionMetadataFieldsSchema,
-  deploymentVersionNumberSchema,
 } from '@/lib/api/contracts/deployments'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  versionNumberSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema, workflowStateSchema } from '@/lib/api/contracts/workflows'
 
@@ -79,7 +82,7 @@ export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
  * `parseOptionalJsonBody`, so it is not attached to the contract.
  */
 export const v1RollbackWorkflowBodySchema = z.object({
-  version: deploymentVersionNumberSchema.optional(),
+  version: versionNumberSchema.optional(),
 })
 
 export type V1RollbackWorkflowBody = z.input<typeof v1RollbackWorkflowBodySchema>

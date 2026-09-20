@@ -787,7 +787,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
             {isResourceCollapsed && resourceActivityIds.size > 0 && (
               <span
                 aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]'
+                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
               />
             )}
           </span>

@@ -137,7 +137,8 @@ describe('createReadableStreamFromResponses', () => {
         cacheWriteTokens: 0,
         reasoningTokens: 0,
       },
-      undefined
+      undefined,
+      expect.objectContaining({ status: 'incomplete', output: [] })
     )
   })
 

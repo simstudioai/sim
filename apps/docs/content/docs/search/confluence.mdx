@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search pages, blog posts, and their PDF and Word attachments from selected Confluence Cloud spaces. A Sim organization admin enables Confluence; **each teammate connects their own account**.
+Search pages, blog posts, and their PDF, Word, Excel, and PowerPoint attachments from selected Confluence Cloud spaces. A Sim organization admin enables Confluence; **each teammate connects their own account**.
 
 | Method | How it works |
 | --- | --- |
@@ -125,9 +125,9 @@ See Atlassian's [account setup](https://support.atlassian.com/user-management/do
 | **Filter by Label** | Optional comma-separated labels; content can match any listed label. |
 | **Metadata tags** | Labels, version, and last-modified tags. |
 
-Search manages the schedule and hides item limits. It indexes published/current content and each page's own text, including supported local callouts and code blocks. PDF, Word `.docx`, and Word 97–2003 `.doc` attachments on the selected pages and blog posts are indexed as separate documents with their parent content's permissions. Space, content-type, and label filters apply to the parent content. Attachment changes are checked on each sync, even when the parent text has not changed.
+Search manages the schedule and hides item limits. It indexes published/current content and each page's own text, including supported local callouts and code blocks. PDF, Word `.docx`, Word 97–2003 `.doc`, Excel `.xlsx`, and PowerPoint `.pptx` attachments on the selected pages and blog posts are indexed as separate documents with their parent content's permissions. Space, content-type, and label filters apply to the parent content. Attachment changes are checked on each sync, even when the parent text has not changed.
 
-Archived content, comments, other attachment formats, and expanded Include Page, Excerpt Include, or third-party macro output are excluded. Referenced pages can be indexed separately with their own permissions. Attachments over 100 MB are shown as skipped; convert older Word 6/95 files to `.docx` before attaching them.
+Archived content, comments, other attachment formats, and expanded Include Page, Excerpt Include, or third-party macro output are excluded. Referenced pages can be indexed separately with their own permissions. Attachments over 100 MB are shown as skipped; convert older Word 6/95 files to `.docx`, and `.xls` and `.ppt` files to `.xlsx` and `.pptx`, before attaching them. Spaces that were already connected pick up newly supported formats on their next sync.
 
 ## Manage access and sync
 
@@ -151,7 +151,7 @@ In **Sync history**, **Continuing** means a healthy listing needs another batch.
 | A new page, blog post, or label is missing | Confluence search can take time to update. Once the content appears in Confluence search with the selected label, sync again. |
 | A restricted page is missing | Both your account and the crawling account need access to the page and its ancestors. |
 | Embedded content is missing | Index the referenced page separately; remote macro output is excluded. |
-| PDF or Word attachments are missing | Check `read:attachment:confluence` and access to the parent page. Existing service-account tokens may need to be replaced with one that includes this scope. Attachment access failures are reported as a partial sync. |
+| Attachments are missing | Check `read:attachment:confluence` and access to the parent page. Existing service-account tokens may need to be replaced with one that includes this scope. Attachment access failures are reported as a partial sync. |
 | **Reconnect** or email mismatch | Authorize with the Atlassian account matching your verified Sim email and grant all requested permissions. |
 
 Open a missing page as the affected teammate, check its space and page restrictions, then sync again after correcting access. See Atlassian's [content access](https://support.atlassian.com/confluence-cloud/docs/add-or-remove-page-restrictions/) and [permission inspection](https://support.atlassian.com/confluence-cloud/docs/inspect-a-users-permissions/) guides.

@@ -56,7 +56,7 @@ Open **Settings → Sources → Add source** and select **Slack**. Complete **Se
 
 ### Configure an app in Slack
 
-Select **Install Sim Search** to open setup. In **Create Slack app**, select **Create app** and choose the target workspace. Sim supplies a manifest with the required scopes, redirects, events, and interactivity URL. Keep **Token Rotation** disabled.
+Select **Install Sim Search** to open setup. In **Create Slack app**, select **Create app**, choose the target workspace, and complete Slack's app creation and installation flow. Sim supplies a manifest with the required scopes, redirects, events, and interactivity URL. Keep **Token Rotation** disabled and complete any required Slack administrator approval.
 
 You can also open this wizard from **Settings → Sim Search in Slack → Set up**.
 
@@ -64,7 +64,7 @@ Return to Sim and select **Continue**. In **Slack app credentials**, paste **Cli
 
 <Image className="mx-auto h-auto w-full max-w-md" src="/static/search/slack-setup.png" alt="Sim Search in Slack setup with placeholders for Client ID, Client Secret, and Signing Secret" width={515} height={375} />
 
-Select **Continue**, then **Install in Slack**. Approve the installation in Slack. Sim saves the bot connection and opens **Settings → Sim Search in Slack**. Complete any required Slack administrator approval before continuing.
+Select **Continue**. In **Connect installed Slack app**, paste the **Bot User OAuth Token** from the app's **OAuth & Permissions** page, then select **Connect app**. If Slack requests updated permissions, approve them there first. Sim validates and saves the existing bot connection without starting another installation.
 
 </Step>
 <Step>

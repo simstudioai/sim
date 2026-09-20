@@ -235,6 +235,7 @@ export {
   tabStripItemSelector,
   tabStripWheelPosition,
 } from './tab-strip/tab-strip'
+export { TabStripAction, type TabStripActionProps } from './tab-strip/tab-strip-action'
 export {
   Table,
   TableBody,
@@ -261,4 +262,8 @@ export {
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
+export {
+  UploadPreviewButton,
+  type UploadPreviewButtonProps,
+} from './upload-preview-button/upload-preview-button'
 export { Wizard } from './wizard/wizard'

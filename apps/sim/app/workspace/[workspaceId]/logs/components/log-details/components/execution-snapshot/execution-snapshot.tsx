@@ -135,7 +135,7 @@ export function ExecutionSnapshot({
           className={cn('flex flex-col items-center justify-center gap-4 p-8', className)}
           style={{ height, width }}
         >
-          <div className='flex items-center gap-3 text-[var(--text-warning)]'>
+          <div className='flex items-center gap-3 text-[var(--warning)]'>
             <CircleAlert className='size-[20px]' />
             <span className='text-base'>Logged State Not Found</span>
           </div>
