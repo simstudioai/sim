@@ -33,21 +33,6 @@ const operationName = z
   .max(128)
   .describe('Operation name from search_operations, e.g. "listTables".')
 
-const operationArgs = {
-  params: z
-    .record(z.string(), z.string())
-    .optional()
-    .describe('Path parameters by name, e.g. { "tableId": "..." }.'),
-  query: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
-    .optional()
-    .describe('Query-string parameters by name.'),
-  headers: z
-    .record(z.string(), z.string())
-    .optional()
-    .describe('Request headers the operation declares, such as upload-token.'),
-}
-
 const searchInput = z
   .object({
     query: z
@@ -65,12 +50,22 @@ const searchInput = z
 
 const describeInput = z.object({ operation: operationName }).strict()
 
-const readInput = z.object({ operation: operationName, ...operationArgs }).strict()
-
-const writeInput = z
+/** Shared because a read is not always a GET: searching and querying post their filter as JSON. */
+const callInput = z
   .object({
     operation: operationName,
-    ...operationArgs,
+    params: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe('Path parameters by name, e.g. { "tableId": "..." }.'),
+    query: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .optional()
+      .describe('Query-string parameters by name.'),
+    headers: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe('Request headers the operation declares, such as upload-token.'),
     body: z.unknown().optional().describe('JSON request body, as describe_operation specifies.'),
   })
   .strict()
@@ -142,7 +137,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       title: 'Read from Sim',
       description:
         'Run a Sim API operation that only reads, such as listWorkspaces, listTables, queryRows, or getWorkflowRun. search_operations says which tool runs each operation.',
-      inputSchema: readInput,
+      inputSchema: callInput,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },
     async (input, extra) => call('read', input, extra.signal)
@@ -154,7 +149,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       title: 'Change Sim',
       description:
         'Run a Sim API operation that creates, changes, runs, or deletes something, such as createTable, executeWorkflow, or deleteFile.',
-      inputSchema: writeInput,
+      inputSchema: callInput,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
