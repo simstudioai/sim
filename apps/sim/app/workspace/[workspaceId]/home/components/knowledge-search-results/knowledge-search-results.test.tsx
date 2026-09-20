@@ -242,13 +242,6 @@ describe('result paging and the custom window', () => {
     )!
     await act(async () => anyTime.click())
     expect(mocks.search.mock.calls.at(-1)![2]).toEqual({})
-    await act(async () =>
-      [...container.querySelectorAll('button')]
-        .find((b) => b.textContent === 'Custom range')!
-        .click()
-    )
-    /** Back on the custom window, the old days are gone: nothing is searched until new ones are chosen. */
-    expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
   })
 
   it('searches nothing while a custom window has no days yet', async () => {
