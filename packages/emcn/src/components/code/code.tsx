@@ -10,12 +10,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { escapeRegExp } from '@sim/utils/string'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import './code.css'
-import { escapeRegExp } from '@sim/utils/string'
 
 /**
  * Shape of the lazily-loaded Prism module (`./prism`), narrowed to the two

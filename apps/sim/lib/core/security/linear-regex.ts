@@ -1,4 +1,4 @@
-import { escapeRegExp } from '@sim/utils/string'
+import { escapeRegExp, hasRegexMetacharacter } from '@sim/utils/string'
 import { RE2JS } from 're2js'
 
 /**
@@ -44,11 +44,9 @@ export interface LinearRegex {
   iterateSplits(text: string): IterableIterator<string>
 }
 
-const METACHARACTERS = /[.*+?^${}()|[\]\\]/
-
 /** True when `pattern` has no metacharacter, so both engines behave identically. */
 export function isPlainText(pattern: string): boolean {
-  return !METACHARACTERS.test(pattern)
+  return !hasRegexMetacharacter(pattern)
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   escapeRegExp,
   forEachSearchOccurrence,
   formatQuotedNameList,
+  hasRegexMetacharacter,
   isVersionedType,
   normalizeEmail,
   projectEscapedMarkdownForSearch,
@@ -251,7 +252,7 @@ describe('forEachSearchOccurrence', () => {
 
 describe('escapeRegExp', () => {
   it('escapes every regex metacharacter', () => {
-    const metacharacters = `.*+?^$${'{}'}()|[]\\`
+    const metacharacters = '.*+?^$' + '{}()|[]\\'
     expect(escapeRegExp(metacharacters)).toBe('\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\')
   })
 
@@ -284,5 +285,22 @@ describe('compareStrings', () => {
 
   it('orders digit-led keys lexically, not numerically', () => {
     expect(['2', '10'].sort(compareStrings)).toEqual(['10', '2'])
+  })
+})
+
+describe('hasRegexMetacharacter', () => {
+  it('reports the characters escapeRegExp would escape', () => {
+    expect(hasRegexMetacharacter('a.b')).toBe(true)
+    expect(hasRegexMetacharacter('a|b')).toBe(true)
+  })
+
+  it('reports plain text as free of them', () => {
+    expect(hasRegexMetacharacter('plain text 42')).toBe(false)
+  })
+
+  it('agrees with escapeRegExp about what needs escaping', () => {
+    for (const value of ['plain', 'a.b', 'a|b', '', 'x-y']) {
+      expect(hasRegexMetacharacter(value)).toBe(escapeRegExp(value) !== value)
+    }
   })
 })

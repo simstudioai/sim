@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+
 /**
  * Tolerances for what identity providers actually send, as distinct from what
  * RFC 7644 describes.
