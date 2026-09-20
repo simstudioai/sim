@@ -1,6 +1,7 @@
 import { resolveDbUrl } from '@sim/db'
 import {
   backfillProjectionSourceAcl,
+  PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT,
   PROJECTION_SOURCE_ACL_TABLES,
   type ProjectionSourceAclTable,
 } from '@sim/db/script-migrations/0021_embedding_search_connector'
@@ -9,6 +10,8 @@ import postgres from 'postgres'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import type { OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import { runDetached } from '@/lib/core/utils/background'
 
 const logger = createLogger('ProjectionSourceAclBackfill')
 
@@ -76,8 +79,9 @@ export async function runProjectionSourceAclBackfill(
 
 /**
  * Starts the backfill the way the table backfill is started: on the deployment's Trigger.dev
- * worker when there is one, where bounded runs chain until both projections are filled, and inline
- * otherwise. Safe to call again at any time — a run only fills rows still unset.
+ * worker when there is one, where bounded runs chain until both projections are filled, and
+ * detached in this process otherwise. Safe to call again at any time — a run only fills rows still
+ * unset.
  */
 export async function enqueueProjectionSourceAclBackfill(
   payload: ProjectionSourceAclBackfillPayload = {},
@@ -91,6 +95,16 @@ export async function enqueueProjectionSourceAclBackfill(
     logger.info('Projection source and ACL backfill enqueued', { runId: handle.id })
     return { runId: handle.id }
   }
-  await runProjectionSourceAclBackfill(payload)
+  runDetached(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, () => runProjectionSourceAclBackfill(payload))
   return null
+}
+
+/**
+ * The event script migration `0021_embedding_search_connector` leaves behind, so the backfill it
+ * hands off starts once the app that ships this handler is up, on every deployment.
+ */
+export const projectionSourceAclBackfillOutboxHandlers: OutboxHandlerRegistry = {
+  [PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT]: async () => {
+    await enqueueProjectionSourceAclBackfill()
+  },
 }

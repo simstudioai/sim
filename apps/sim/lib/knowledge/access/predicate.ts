@@ -313,13 +313,18 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * under the full predicate, before content is returned — this predicate only decides what is worth
  * ranking.
  *
- * A row the backfill has not reached yet carries no ACL (`acl IS NULL`) and passes: it is decided at
- * hydration under the full document predicate, exactly as every candidate was before the columns
- * existed. The backfill runs in the background, so search never waits on it and never loses a
- * document to it.
+ * A row the backfill has not reached yet carries no ACL (`acl IS NULL`) and is decided on its
+ * document instead, under {@link knowledgeCandidateAccessConditionForConnectors} — the join per
+ * candidate that every row paid before the columns existed. The backfill runs in the background,
+ * so search never waits on it, never loses a document to it, and never ranks an unreadable one
+ * into a bounded candidate pool because of it.
  */
 export function projectionCandidateAccessCondition(
-  projection: { connectorId: AnyPgColumn | SQL; acl: AnyPgColumn | SQL },
+  projection: {
+    connectorId: AnyPgColumn | SQL
+    acl: AnyPgColumn | SQL
+    documentId: AnyPgColumn | SQL
+  },
   scope: KnowledgeAccessScope | SystemAccessScope,
   plan: SearchAccessPlan
 ): SQL {
@@ -335,7 +340,12 @@ export function projectionCandidateAccessCondition(
     ...plan.connectors.admin,
     ...plan.connectors.members,
   ]
-  return sql`(${projection.acl} IS NULL OR (${projection.acl} && ${tokens}
+  const unfilled = sql`(${projection.acl} IS NULL AND EXISTS (
+    SELECT 1 FROM ${document}
+    WHERE ${document.id} = ${projection.documentId}
+      AND ${knowledgeCandidateAccessConditionForConnectors(scope, plan)}
+  ))`
+  return sql`(${unfilled} OR (${projection.acl} && ${tokens}
     AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)})))`
 }
 

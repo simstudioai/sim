@@ -40,6 +40,10 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
     await sql`CREATE TABLE document (
       id text PRIMARY KEY, connector_id text, acl text[] NOT NULL DEFAULT '{ws}'
     )`
+    await sql`CREATE TABLE outbox_event (
+      id text PRIMARY KEY, event_type text NOT NULL, payload json NOT NULL,
+      status text NOT NULL DEFAULT 'pending'
+    )`
     for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
       await sql`CREATE TABLE ${sql(projection)} (
         id text PRIMARY KEY, document_id text NOT NULL, enabled boolean NOT NULL DEFAULT true,
@@ -61,17 +65,27 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
     await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
   })
 
-  it('installs its triggers and indexes again without failing, so a cut-short deploy completes', async () => {
+  it('installs its triggers, indexes and start event again without failing, so a cut-short deploy completes', async () => {
     await expect(embeddingSearchConnectorMigration.up(sql)).resolves.toBeUndefined()
     const indexes = await sql<{ indexname: string }[]>`
       SELECT indexname FROM pg_indexes WHERE schemaname = ${schemaName} ORDER BY indexname`
     expect(indexes.map((row) => row.indexname)).toEqual(
       expect.arrayContaining([
         'embedding_keyword_tin_acl_gin_idx',
+        'embedding_keyword_tin_acl_unfilled_idx',
         'embedding_search_acl_gin_idx',
+        'embedding_search_acl_unfilled_idx',
         'embedding_search_source_idx',
       ])
     )
+    /** Two runs of the migration leave the app one event, so the backfill is started once. */
+    expect(await sql`SELECT id, event_type, status FROM outbox_event`).toEqual([
+      {
+        id: 'projection-source-acl-backfill:0021',
+        event_type: 'knowledge.projection.source_acl.backfill',
+        status: 'pending',
+      },
+    ])
   })
 
   it('fills only the rows still unset, in pages, and leaves a chunk that changed documents to its trigger', async () => {

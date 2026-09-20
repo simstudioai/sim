@@ -34,7 +34,7 @@ describe('projectionCandidateAccessCondition', () => {
     memberSources: [],
   }
 
-  it('admits a row the backfill has not filled, and decides a filled row on its mirrored columns', () => {
+  it('decides a filled row on its mirrored columns and an unfilled row on its document', () => {
     const { sql, params } = render(
       projectionCandidateAccessCondition(
         embeddingSearch,
@@ -42,11 +42,16 @@ describe('projectionCandidateAccessCondition', () => {
         plan
       )
     )
-    expect(sql).toBe(
-      '("embedding_search"."acl" IS NULL OR ("embedding_search"."acl" && ARRAY[$1, $2]::text[]\n' +
-        '    AND ("embedding_search"."connector_id" IS NULL OR "embedding_search"."connector_id" = ANY(ARRAY[$3]::text[]))))'
+    expect(sql).toContain(
+      '("embedding_search"."acl" IS NULL AND EXISTS (\n    SELECT 1 FROM "document"\n    WHERE "document"."id" = "embedding_search"."document_id"\n      AND ('
     )
-    expect(params).toEqual(['ws', 'u:alice', 'ws-src'])
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
+    expect(sql).toMatch(
+      /OR \("embedding_search"\."acl" && ARRAY\[\$\d+, \$\d+\]::text\[\]\n {4}AND \("embedding_search"\."connector_id" IS NULL OR "embedding_search"\."connector_id" = ANY\(ARRAY\[\$\d+\]::text\[\]\)\)\)\)$/
+    )
+    expect(params.slice(0, 2)).toEqual(['ws', 'u:alice'])
+    expect(params.slice(-3)).toEqual(['ws', 'u:alice', 'ws-src'])
+    for (const param of params) expect(Array.isArray(param)).toBe(false)
   })
 
   it('still denies everything for an empty token set', () => {

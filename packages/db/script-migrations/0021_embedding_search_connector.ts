@@ -21,6 +21,15 @@ const PAGE_STATEMENT_TIMEOUT = '60s'
 /** Pages between progress log lines. */
 const PROGRESS_EVERY_PAGES = 100
 
+/**
+ * The outbox event the migration leaves for the app, whose handler starts the backfill on the
+ * deployment's worker. Written once, under a fixed id, so a rerun of the migration does not start
+ * it twice.
+ */
+export const PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT =
+  'knowledge.projection.source_acl.backfill'
+const PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_ID = 'projection-source-acl-backfill:0021'
+
 /** The projections that carry their document's source and ACL. */
 export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
@@ -108,8 +117,8 @@ export interface ProjectionSourceAclBackfillProgress {
  * On `embedding_search` every filled row is re-inserted into each HNSW index, which is the whole
  * cost of a page and far more than a deploy can wait for; the run paces itself with a pause between
  * pages and stops at its budget so a background task can chain runs until the projection is filled.
- * Search does not wait: an unfilled row passes the on-row candidate predicate and is decided at
- * hydration under the full document predicate.
+ * Search does not wait: an unfilled row is decided on its document by the on-row candidate
+ * predicate, the join per candidate every row paid before the columns existed.
  */
 export async function backfillProjectionSourceAcl(
   sql: Sql,
@@ -154,6 +163,8 @@ export async function backfillProjectionSourceAcl(
     })
     if (page.last_id === null) {
       done = true
+      /** The planner last saw every row unfilled; it should see the finished projection. */
+      await sql.unsafe(`ANALYZE ${projection}`)
       break
     }
     afterId = page.last_id
@@ -191,16 +202,23 @@ export async function backfillProjectionSourceAcl(
  * caller's tokens alone would match most of the index. Built concurrently, so the triggers and the
  * backfill keep writing. `CONCURRENTLY` cannot run in a transaction, and the pool's lock timeout
  * would cancel a build that merely waits for a long transaction to finish.
+ *
+ * The unfilled index on each projection lists the rows the backfill has not reached: each page
+ * reads its rows from it instead of walking past every filled one, and the on-row predicate's
+ * unfilled branch, an `OR` beside the ACL overlap, stays an index probe for the planner — once the
+ * projection is filled, a probe of an empty index.
  */
 export async function indexProjectionAcl(sql: Sql): Promise<void> {
   const [{ timeout }] = await sql`SELECT current_setting('lock_timeout') AS timeout`
   await sql.unsafe('SET lock_timeout = 0')
   try {
     const builds: Array<[name: string, definition: string]> = [
-      ...PROJECTION_SOURCE_ACL_TABLES.map((projection): [string, string] => [
-        `${projection}_acl_gin_idx`,
-        `ON ${projection} USING gin (acl) WHERE enabled`,
-      ]),
+      ...PROJECTION_SOURCE_ACL_TABLES.flatMap(
+        (projection): Array<[string, string]> => [
+          [`${projection}_acl_gin_idx`, `ON ${projection} USING gin (acl) WHERE enabled`],
+          [`${projection}_acl_unfilled_idx`, `ON ${projection} (id) WHERE acl IS NULL`],
+        ]
+      ),
       ['embedding_search_source_idx', 'ON embedding_search (connector_id) WHERE enabled'],
     ]
     for (const [name, definition] of builds) {
@@ -223,34 +241,49 @@ export async function indexProjectionAcl(sql: Sql): Promise<void> {
 }
 
 /**
- * Installs the triggers and builds the indexes; both are idempotent, so a run that was cut short
- * completes on the next deploy. The columns are not filled here: on `embedding_search` every
- * filled row is re-inserted into each HNSW index, which puts the full projection far beyond what a
- * deploy job can wait for. The backfill runs afterwards from the `projection-source-acl-backfill`
- * Trigger.dev task, started once after the deploy with
- * `bun apps/sim/scripts/backfill-projection-source-acl.ts` (or a test run of the task from the
- * Trigger.dev dashboard); it chains bounded runs until both projections are filled and is safe to
- * start again at any time. Until it completes, an unfilled row passes the on-row candidate
- * predicate and is decided at hydration under the full document predicate.
+ * Leaves the app one outbox event to start the backfill from. The outbox processor runs on every
+ * deployment, so the backfill starts on its own once the app that ships the handler is up —
+ * on the Trigger.dev worker where there is one, detached in the app otherwise — without an
+ * operator remembering to. Idempotent under its fixed id.
+ */
+export async function enqueueProjectionSourceAclBackfillEvent(sql: Sql): Promise<void> {
+  await sql`
+    INSERT INTO outbox_event (id, event_type, payload)
+    VALUES (${PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_ID}, ${PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT}, '{}'::json)
+    ON CONFLICT (id) DO NOTHING`
+}
+
+/**
+ * Installs the triggers, builds the indexes and leaves the outbox event that starts the backfill;
+ * all three are idempotent, so a run that was cut short completes on the next deploy. The columns
+ * are not filled here: on `embedding_search` every filled row is re-inserted into each HNSW index,
+ * which puts the full projection far beyond what a deploy job can wait for. The backfill runs
+ * afterwards from the `projection-source-acl-backfill` Trigger.dev task, which the outbox handler
+ * starts and which chains bounded runs until both projections are filled. It is safe to start again
+ * at any time, with `bun apps/sim/scripts/backfill-projection-source-acl.ts` or a test run of the
+ * task from the Trigger.dev dashboard. Until it completes, an unfilled row is decided on its
+ * document, the join per candidate every row paid before the columns existed.
  */
 export const embeddingSearchConnectorMigration: ScriptMigration = {
   name: '0021_embedding_search_connector',
   async up(sql) {
     await installProjectionSourceAcl(sql)
     await indexProjectionAcl(sql)
+    await enqueueProjectionSourceAclBackfillEvent(sql)
   },
 }
 
 /**
- * Run directly — `db:push`, or a deployment without Trigger.dev — the projections are filled here
- * as well, paced the same way, since there is no task to hand the backfill to.
+ * Run directly — `db:push`, or an operator filling a database by hand — the projections are filled
+ * here, paced the same way, rather than left to the app.
  */
 if (import.meta.main) {
   const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required to backfill the projection source and ACL')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
-    await embeddingSearchConnectorMigration.up(sql)
+    await installProjectionSourceAcl(sql)
+    await indexProjectionAcl(sql)
     for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
       await backfillProjectionSourceAcl(sql, projection)
     }

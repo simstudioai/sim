@@ -13,14 +13,21 @@ const { mockBackfill, mockEnd, mockPostgres, mockTasksTrigger } = vi.hoisted(() 
 vi.mock('@sim/db', () => ({ resolveDbUrl: () => 'postgres://localhost:5432/sim' }))
 vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
   PROJECTION_SOURCE_ACL_TABLES: ['embedding_search', 'embedding_keyword_tin'],
+  PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT: 'knowledge.projection.source_acl.backfill',
   backfillProjectionSourceAcl: mockBackfill,
 }))
 vi.mock('postgres', () => ({ default: mockPostgres }))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTasksTrigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
+vi.mock('@/lib/core/utils/background', () => ({
+  runDetached: (_label: string, work: () => Promise<unknown>) => {
+    void work()
+  },
+}))
 
 import {
   enqueueProjectionSourceAclBackfill,
+  projectionSourceAclBackfillOutboxHandlers,
   runProjectionSourceAclBackfill,
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
@@ -110,9 +117,15 @@ describe('enqueueProjectionSourceAclBackfill', () => {
     expect(mockBackfill).not.toHaveBeenCalled()
   })
 
-  it('fills the projections inline without one', async () => {
+  it('fills the projections detached in this process without one', async () => {
     await expect(enqueueProjectionSourceAclBackfill({}, false)).resolves.toBeNull()
     expect(mockTasksTrigger).not.toHaveBeenCalled()
-    expect(mockBackfill).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(mockBackfill).toHaveBeenCalledTimes(2))
+  })
+
+  it('starts from the outbox event the migration leaves behind', () => {
+    expect(Object.keys(projectionSourceAclBackfillOutboxHandlers)).toEqual([
+      'knowledge.projection.source_acl.backfill',
+    ])
   })
 })
