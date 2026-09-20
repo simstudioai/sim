@@ -299,7 +299,8 @@ sim files versions revert <fileId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number. |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
 
 </CommandTable>
 

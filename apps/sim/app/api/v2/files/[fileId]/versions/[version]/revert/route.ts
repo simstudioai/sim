@@ -25,6 +25,7 @@ export const POST = defineV2JsonRoute({
     assertedWorkspaceId: body.workspaceId,
     version: params.version,
     expectedCurrentVersion: body.expectedCurrentVersion,
+    expectedRevision: body.expectedRevision,
   }),
   useCase: revertWorkspaceFileVersion,
   present: async ({ file, version, reverted }) => {

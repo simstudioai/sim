@@ -4162,6 +4162,7 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
+  revision: string | null
   currentVersion: number
 }
 
@@ -9314,6 +9315,7 @@ export type RevertFileVersionQuery = Record<string, unknown>
 export type RevertFileVersionBody = {
   workspaceId: string
   expectedCurrentVersion?: number
+  expectedRevision?: string
 }
 
 type RevertFileVersionResponseRef0 = {
@@ -16536,7 +16538,12 @@ export const V2_OPERATIONS = {
       expectedCurrentVersion: {
         kind: 'integer',
         describe:
-          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number.',
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
       },
     },
   },

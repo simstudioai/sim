@@ -61,6 +61,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-text', () => ({
 vi.mock('@/lib/uploads', () => ({ getServePathPrefix: () => '/api/files/serve/' }))
 
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import {
   deleteWorkspaceFileVersion,
   downloadWorkspaceFileVersion,
@@ -207,6 +208,43 @@ describe('file version use cases', () => {
       expect(mocks.updateContent).not.toHaveBeenCalled()
       expect(mocks.recordAudit).not.toHaveBeenCalled()
       expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /** The revision guards content, so it catches an edit that folded into the current version. */
+    it('guards the revert with the revision the caller read', async () => {
+      const callerRevision = new Date('2026-01-02T00:00:00Z')
+      mocks.getVersion.mockImplementation(async (_file: unknown, number: number) =>
+        number === 2 ? version(2) : number === 4 ? version(4, { isCurrent: true }) : current
+      )
+
+      await revertWorkspaceFileVersion.execute({
+        principal,
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-1',
+          version: 2,
+          expectedRevision: workspaceFileRevision({ ...file, contentUpdatedAt: callerRevision }),
+        },
+      })
+
+      expect(mocks.updateContent.mock.calls[0][5]).toMatchObject({
+        expectedUpdatedAt: callerRevision,
+      })
+    })
+
+    it('refuses a revision issued for a different file', async () => {
+      await expect(
+        revertWorkspaceFileVersion.execute({
+          principal,
+          input: {
+            fileId: 'file-1',
+            assertedWorkspaceId: 'workspace-1',
+            version: 2,
+            expectedRevision: workspaceFileRevision({ ...file, id: 'file-2' }),
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.updateContent).not.toHaveBeenCalled()
     })
 
     it('refuses a stale expected current version without writing', async () => {

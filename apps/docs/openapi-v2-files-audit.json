@@ -4988,10 +4988,15 @@
             "description": "Workspace that owns the file."
           },
           "expectedCurrentVersion": {
-            "description": "Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number.",
+            "description": "Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.",
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647
+          },
+          "expectedRevision": {
+            "description": "Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["workspaceId"],
@@ -5315,6 +5320,17 @@
             ],
             "description": "Current public-share state, or null when the file has never been shared."
           },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Null for a file with no recorded content version."
+          },
           "currentVersion": {
             "type": "integer",
             "minimum": 1,
@@ -5335,6 +5351,7 @@
           "updatedAt",
           "deletedAt",
           "share",
+          "revision",
           "currentVersion"
         ],
         "additionalProperties": false,
@@ -5368,7 +5385,8 @@
               "updatedAt": "2026-01-15T10:30:00Z",
               "deletedAt": null,
               "share": null,
-              "currentVersion": 1
+              "currentVersion": 1,
+              "revision": "d2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
             }
           },
           {
@@ -5395,7 +5413,8 @@
                 "hasPassword": false,
                 "allowedEmails": []
               },
-              "currentVersion": 3
+              "currentVersion": 3,
+              "revision": "d2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
             }
           }
         ]

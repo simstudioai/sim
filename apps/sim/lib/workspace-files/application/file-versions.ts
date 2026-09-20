@@ -29,6 +29,7 @@ import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
 } from '@/lib/workspace-files/application/download-workspace-file'
+import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
@@ -78,6 +79,11 @@ export interface DownloadWorkspaceFileVersionResult extends DownloadWorkspaceFil
 export interface RevertWorkspaceFileVersionInput extends FileVersionRef {
   /** When set, the revert commits only while this is still the file's current version. */
   expectedCurrentVersion?: number
+  /**
+   * When set, the revert commits only while the file still holds the content this revision
+   * names. Unlike a version number it also catches an edit that folded into the current version.
+   */
+  expectedRevision?: string
 }
 
 export interface RevertWorkspaceFileVersionResult {
@@ -266,7 +272,9 @@ async function executeRevertWorkspaceFileVersion({
           source: 'revert',
           restoredFromVersion: target.version,
         }),
-        expectedUpdatedAt: file.contentUpdatedAt ?? file.updatedAt,
+        expectedUpdatedAt: input.expectedRevision
+          ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
+          : (file.contentUpdatedAt ?? file.updatedAt),
         secretProvenancePolicy: { mode: 'reinstate', snapshot: provenance },
       }
     )

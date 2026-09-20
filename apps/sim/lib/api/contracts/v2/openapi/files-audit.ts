@@ -871,8 +871,22 @@ const declaredRoutes = [
         'File metadata response',
         'File metadata enriched with its current nullable public-share state.',
         [
-          { data: { ...FILE_EXAMPLE, share: null, currentVersion: 1 } },
-          { data: { ...FILE_EXAMPLE, share: SHARE_EXAMPLE, currentVersion: 3 } },
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              share: null,
+              currentVersion: 1,
+              revision: 'd2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
+            },
+          },
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              share: SHARE_EXAMPLE,
+              currentVersion: 3,
+              revision: 'd2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg',
+            },
+          },
         ]
       ),
     }
