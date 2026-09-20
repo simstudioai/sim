@@ -395,11 +395,22 @@ function countTraceSpans(traceSpans?: TraceSpan[]): number {
   return traceSpans.reduce((count, span) => count + 1 + countTraceSpans(span.children), 0)
 }
 
+/** The fields a traversed value carries when it is recognized as a file reference. */
+interface TraversedFile {
+  id: unknown
+  name: unknown
+  size: unknown
+  type: unknown
+  url: unknown
+  key: unknown
+  version?: unknown
+}
+
 /**
  * One recorded file entry in the log's `files` column. `version` rides along only for a workspace
  * file read with it, so an execution-scoped file simply carries none.
  */
-function recordedFile(file: any) {
+function recordedFile(file: TraversedFile) {
   return {
     id: file.id,
     name: file.name,

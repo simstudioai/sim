@@ -71,6 +71,13 @@ import {
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+
+/** The revision a response advertises, omitted for a record that cannot name its content. */
+function revisionField(file: Parameters<typeof workspaceFileRevision>[0]) {
+  const revision = workspaceFileRevision(file)
+  return revision === null ? {} : { revision }
+}
+
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
@@ -836,10 +843,10 @@ async function loadSelectedWorkspaceFileMetadata(args: {
   fileIds: string[]
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
-}): Promise<WorkspaceFileRecord[]> {
+}): Promise<(WorkspaceFileRecord & { currentVersion?: number })[]> {
   const folderFiles = await expandFolderPathsToFiles(args)
   const folderFileById = new Map(folderFiles.map((file) => [file.id, file]))
-  const files: WorkspaceFileRecord[] = []
+  const files: (WorkspaceFileRecord & { currentVersion?: number })[] = []
   const seen = new Set<string>()
 
   for (const id of args.fileIds) {
@@ -853,7 +860,7 @@ async function loadSelectedWorkspaceFileMetadata(args: {
     try {
       files.push(
         (
-          await readWorkspaceFileMetadata.execute({
+          await readWorkspaceFileMetadataWithVersion.execute({
             principal: args.principal,
             input: { fileId: id, assertedWorkspaceId: args.workspaceId },
           })
@@ -1046,7 +1053,7 @@ export async function executeFileManageOperation(
           data: {
             file: workspaceFileToUserFile(file),
             /** The token a conditional write sends back; see `expectedRevision`. */
-            revision: workspaceFileRevision(file),
+            ...revisionField(file),
           },
         })
       }
@@ -1408,9 +1415,23 @@ export async function executeFileManageOperation(
                 size: overwritten.size,
                 url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
                 version: overwritten.currentVersion,
+                ...revisionField(overwritten),
               },
             })
           }
+        }
+
+        /**
+         * A revision names the content of an existing file, so a write that found no target to
+         * overwrite cannot satisfy it. Refused here rather than answering a conditional write by
+         * creating a second file — the earliest this is knowable, since resolving the target
+         * needs the folder this request already ensured.
+         */
+        if (expectedRevision !== undefined) {
+          throw new OrchestrationError(
+            'conflict',
+            'No file to overwrite at the requested location, so its expectedRevision cannot hold'
+          )
         }
 
         const result = await createWorkspaceFile.execute({
@@ -1446,6 +1467,7 @@ export async function executeFileManageOperation(
             url: ensureAbsoluteUrl(result.file.url ?? result.file.path),
             /** A file created with its content has no history yet, so those bytes are version 1. */
             version: INITIAL_WORKSPACE_FILE_VERSION,
+            ...revisionField(result.file),
           },
         })
       }
@@ -1646,6 +1668,7 @@ export async function executeFileManageOperation(
               size: fileBuffer.length,
               url: ensureAbsoluteUrl(existing.path),
               version: appended.currentVersion,
+              ...revisionField(appended),
             },
           })
         } finally {
@@ -1763,7 +1786,7 @@ export async function executeFileManageOperation(
             size: file.size,
             lineCount,
             version: file.currentVersion,
-            revision: workspaceFileRevision(file),
+            ...revisionField(file),
           },
         })
       }

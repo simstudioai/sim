@@ -21,7 +21,7 @@ const { ContentVersionConflictError } = vi.hoisted(() => ({
   ContentVersionConflictError: class ContentVersionConflictError extends Error {},
 }))
 
-/* Both specifiers are mocked: the context resolver imports the manager directly, not the barrel. */
+/** Both specifiers are mocked: the context resolver imports the manager directly, not the barrel. */
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   ContentVersionConflictError,
   getWorkspaceFileWithCurrentVersion: (...args: unknown[]) =>
@@ -66,6 +66,7 @@ vi.mock('@sim/audit', () => ({
 }))
 
 import type { Principal } from '@sim/auth/principal'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 
 const CONTENT_UPDATED_AT = new Date('2026-01-01T00:00:00.000Z')
@@ -138,7 +139,7 @@ describe('updateWorkspaceFileContent', () => {
    * conditional write needs no pre-read of its own and cannot race between checking and writing.
    */
   it('guards the write with the content the revision names', async () => {
-    await write(CONTENT_UPDATED_AT.toISOString())
+    await write(workspaceFileRevision(storedFile()))
 
     expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
       expectedUpdatedAt: CONTENT_UPDATED_AT,
@@ -151,10 +152,18 @@ describe('updateWorkspaceFileContent', () => {
     expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })
 
+  /** A token names one file's content; another file's must not satisfy this write. */
+  it('refuses a revision issued for a different file', async () => {
+    await expect(
+      write(workspaceFileRevision({ ...storedFile(), id: 'file-2' }))
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockUpdateStoredContent).not.toHaveBeenCalled()
+  })
+
   it('surfaces the storage conflict when the content moved on', async () => {
     mockUpdateStoredContent.mockRejectedValueOnce(new ContentVersionConflictError('stale'))
 
-    await expect(write(CONTENT_UPDATED_AT.toISOString())).rejects.toMatchObject({
+    await expect(write(workspaceFileRevision(storedFile()))).rejects.toMatchObject({
       code: 'conflict',
     })
   })

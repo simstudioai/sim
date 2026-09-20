@@ -62,7 +62,7 @@ async function updateAuthorizedWorkspaceFileContent({
     workspaceBillingOwnerUserId: canonical.billedAccountUserId,
   })
   const expectedUpdatedAt = input.expectedRevision
-    ? parseWorkspaceFileRevision(input.expectedRevision)
+    ? parseWorkspaceFileRevision(input.expectedRevision, canonical.fileId)
     : input.expectedUpdatedAt
   let file: VersionedWorkspaceFileRecord
   try {

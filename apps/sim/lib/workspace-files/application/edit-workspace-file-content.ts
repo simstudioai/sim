@@ -192,7 +192,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
              * the content it read — not merely since this use case loaded the file.
              */
             expectedUpdatedAt: input.expectedRevision
-              ? parseWorkspaceFileRevision(input.expectedRevision)
+              ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
               : file.contentUpdatedAt,
             secretProvenancePolicy: input.secretProvenance
               ? { mode: 'replace' as const, provenance: input.secretProvenance }

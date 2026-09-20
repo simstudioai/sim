@@ -89,6 +89,7 @@ import {
   type EditWorkspaceFileContentEdit,
   editWorkspaceFileContent,
 } from '@/lib/workspace-files/application/edit-workspace-file-content'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 
 const CONTENT_UPDATED_AT = new Date('2025-01-01T00:00:00.000Z')
 
@@ -188,7 +189,7 @@ describe('editWorkspaceFileContent', () => {
     ).resolves.toMatchObject({ file: { currentVersion: 5 } })
   })
 
-  /*
+  /**
    * The caller's own revision, not the one this use case just read: the guard has to cover
    * everything since the content the caller edited against.
    */
@@ -197,7 +198,7 @@ describe('editWorkspaceFileContent', () => {
 
     await edit(
       { mode: 'search_replace', search: 'NYC', content: 'SF' },
-      callerRevision.toISOString()
+      workspaceFileRevision({ ...storedFile(), contentUpdatedAt: callerRevision })
     )
 
     expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
