@@ -10,11 +10,11 @@ import {
   Label,
   OverflowText,
   Textarea,
-  Tooltip,
 } from '@sim/emcn'
-import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
+import { Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
+import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -472,36 +472,17 @@ export function VariablesInput({
                   <div className='flex items-center justify-between'>
                     <Label className='text-small'>Value</Label>
                     {assignment.type === 'boolean' && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <button
-                            type='button'
-                            className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                            onClick={() =>
-                              setManualBooleanModes((prev) => ({
-                                ...prev,
-                                [assignment.id]: !isManualBoolean,
-                              }))
-                            }
-                            disabled={isReadOnly}
-                            aria-label={
-                              isManualBoolean ? 'Switch to selector' : 'Switch to manual value'
-                            }
-                          >
-                            <ArrowLeftRight
-                              className={cn(
-                                'h-[12px]! w-[12px]!',
-                                isManualBoolean
-                                  ? 'text-[var(--text-primary)]'
-                                  : 'text-[var(--text-secondary)]'
-                              )}
-                            />
-                          </button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>
-                          <p>{isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                      <FieldModeToggle
+                        active={isManualBoolean}
+                        label={isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}
+                        disabled={isReadOnly}
+                        onClick={() =>
+                          setManualBooleanModes((prev) => ({
+                            ...prev,
+                            [assignment.id]: !isManualBoolean,
+                          }))
+                        }
+                      />
                     )}
                   </div>
                   {assignment.type === 'boolean' && !isManualBoolean ? (
