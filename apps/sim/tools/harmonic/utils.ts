@@ -1,3 +1,4 @@
+import { toBooleanOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import type {
   HarmonicContact,
@@ -158,10 +159,6 @@ function asOpaqueString(value: unknown): string | null {
 
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function asBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function uniqueStrings(values: unknown[]): string[] {
@@ -490,7 +487,7 @@ export function normalizePerson(raw: HarmonicPersonOutput): HarmonicContact {
     country: asString(location.country),
     profilePictureUrl: asString(raw.profile_picture_url),
     summary: null,
-    isRedacted: asBoolean(raw.is_redacted),
+    isRedacted: toBooleanOrNull(raw.is_redacted),
   }
 }
 
@@ -565,7 +562,7 @@ export function normalizeSavedSearch(raw: HarmonicSavedSearchOutput): HarmonicSa
     savedSearchId,
     savedSearchUrn,
     name,
-    isPrivate: asBoolean(raw.is_private),
+    isPrivate: toBooleanOrNull(raw.is_private),
     savedSearchType: 'PERSONS',
     userSavedSearchType: requireUserSavedSearchType(raw.user_saved_search_type),
     creatorUrn: requireUserUrn(raw.creator),

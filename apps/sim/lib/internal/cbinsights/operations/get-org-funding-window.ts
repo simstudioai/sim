@@ -1,7 +1,8 @@
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asNumber, asString, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
+import { cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsGetOrgFundingWindowOperation: InternalToolOperationImplementation<
   CbInsightsOrgParams
@@ -17,9 +18,9 @@ export const executeCbinsightsGetOrgFundingWindowOperation: InternalToolOperatio
     params,
     { path: `/v2/organizations/${orgId}/fundingwindow` },
     (data) => ({
-      windowStart: asString(data.windowStart),
-      windowEnd: asString(data.windowEnd),
-      cohortNextRoundRate: asNumber(data.cohortNextRoundRate),
+      windowStart: toStringOrNull(data.windowStart),
+      windowEnd: toStringOrNull(data.windowEnd),
+      cohortNextRoundRate: toNumberOrNull(data.cohortNextRoundRate),
       cohortCriteria: toRecordOrNull(data.cohortCriteria),
       latestFunding: toRecordOrNull(data.latestFunding),
     }),

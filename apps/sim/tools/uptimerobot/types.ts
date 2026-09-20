@@ -1,5 +1,6 @@
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toRecordOrNull } from '@sim/utils/object'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the UptimeRobot v3 REST API. */
@@ -180,26 +181,6 @@ export interface UptimeRobotAccount {
 
 type Raw = Record<string, unknown>
 
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
-}
-
-function asBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
-}
-
-function asEnum(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 // endregion
 
 // region Request body builders
@@ -309,145 +290,145 @@ export function buildMaintenanceWindowBody(
 export function mapMonitor(raw: Raw): UptimeRobotMonitor {
   const lastIncident = toRecordOrNull(raw.lastIncident)
   return {
-    id: asNumber(raw.id) ?? 0,
-    friendlyName: asString(raw.friendlyName) ?? '',
-    url: asString(raw.url),
-    type: asEnum(raw.type),
-    status: asEnum(raw.status),
-    interval: asNumber(raw.interval),
-    timeout: asNumber(raw.timeout),
-    port: asNumber(raw.port),
-    keywordType: asEnum(raw.keywordType),
-    keywordValue: asString(raw.keywordValue),
-    httpMethodType: asEnum(raw.httpMethodType),
-    authType: asEnum(raw.authType),
-    successHttpResponseCodes: asArray(raw.successHttpResponseCodes).filter(
+    id: toNumberOrNull(raw.id) ?? 0,
+    friendlyName: toStringOrNull(raw.friendlyName) ?? '',
+    url: toStringOrNull(raw.url),
+    type: toStringOrNull(raw.type),
+    status: toStringOrNull(raw.status),
+    interval: toNumberOrNull(raw.interval),
+    timeout: toNumberOrNull(raw.timeout),
+    port: toNumberOrNull(raw.port),
+    keywordType: toStringOrNull(raw.keywordType),
+    keywordValue: toStringOrNull(raw.keywordValue),
+    httpMethodType: toStringOrNull(raw.httpMethodType),
+    authType: toStringOrNull(raw.authType),
+    successHttpResponseCodes: toArray(raw.successHttpResponseCodes).filter(
       (code): code is string => typeof code === 'string'
     ),
-    checkSSLErrors: asBoolean(raw.checkSSLErrors),
-    followRedirections: asBoolean(raw.followRedirections),
-    sslExpirationReminder: asBoolean(raw.sslExpirationReminder),
-    domainExpirationReminder: asBoolean(raw.domainExpirationReminder),
-    responseTimeThreshold: asNumber(raw.responseTimeThreshold),
-    currentStateDuration: asNumber(raw.currentStateDuration),
-    lastIncidentId: asString(raw.lastIncidentId),
-    groupId: asNumber(raw.groupId),
-    tags: asArray(raw.tags).map((tag) => {
+    checkSSLErrors: toBooleanOrNull(raw.checkSSLErrors),
+    followRedirections: toBooleanOrNull(raw.followRedirections),
+    sslExpirationReminder: toBooleanOrNull(raw.sslExpirationReminder),
+    domainExpirationReminder: toBooleanOrNull(raw.domainExpirationReminder),
+    responseTimeThreshold: toNumberOrNull(raw.responseTimeThreshold),
+    currentStateDuration: toNumberOrNull(raw.currentStateDuration),
+    lastIncidentId: toStringOrNull(raw.lastIncidentId),
+    groupId: toNumberOrNull(raw.groupId),
+    tags: toArray(raw.tags).map((tag) => {
       const t = toRecordOrNull(tag) ?? {}
       return {
-        id: asNumber(t.id) ?? 0,
-        name: asString(t.name) ?? '',
-        color: asString(t.color),
+        id: toNumberOrNull(t.id) ?? 0,
+        name: toStringOrNull(t.name) ?? '',
+        color: toStringOrNull(t.color),
       }
     }),
-    assignedAlertContacts: asArray(raw.assignedAlertContacts).map((contact) => {
+    assignedAlertContacts: toArray(raw.assignedAlertContacts).map((contact) => {
       const c = toRecordOrNull(contact) ?? {}
       return {
-        alertContactId: asNumber(c.alertContactId) ?? 0,
-        threshold: asNumber(c.threshold) ?? 0,
-        recurrence: asNumber(c.recurrence) ?? 0,
+        alertContactId: toNumberOrNull(c.alertContactId) ?? 0,
+        threshold: toNumberOrNull(c.threshold) ?? 0,
+        recurrence: toNumberOrNull(c.recurrence) ?? 0,
       }
     }),
     lastIncident: lastIncident
       ? {
-          id: asString(lastIncident.id) ?? '',
-          status: asEnum(lastIncident.status),
-          cause: asNumber(lastIncident.cause),
-          reason: asString(lastIncident.reason),
-          startedAt: asString(lastIncident.startedAt),
-          duration: asNumber(lastIncident.duration),
+          id: toStringOrNull(lastIncident.id) ?? '',
+          status: toStringOrNull(lastIncident.status),
+          cause: toNumberOrNull(lastIncident.cause),
+          reason: toStringOrNull(lastIncident.reason),
+          startedAt: toStringOrNull(lastIncident.startedAt),
+          duration: toNumberOrNull(lastIncident.duration),
         }
       : null,
-    createDateTime: asString(raw.createDateTime),
+    createDateTime: toStringOrNull(raw.createDateTime),
   }
 }
 
 export function mapMaintenanceWindow(raw: Raw): UptimeRobotMaintenanceWindow {
   return {
-    id: asNumber(raw.id) ?? 0,
-    userId: asNumber(raw.userId),
-    name: asString(raw.name) ?? '',
-    interval: asEnum(raw.interval),
-    date: asString(raw.date),
-    time: asString(raw.time),
-    duration: asNumber(raw.duration),
-    autoAddMonitors: asBoolean(raw.autoAddMonitors),
-    monitorIds: asArray(raw.monitorIds).filter((id): id is number => typeof id === 'number'),
-    days: asArray(raw.days).filter((day): day is number => typeof day === 'number'),
-    status: asEnum(raw.status),
-    created: asString(raw.created),
+    id: toNumberOrNull(raw.id) ?? 0,
+    userId: toNumberOrNull(raw.userId),
+    name: toStringOrNull(raw.name) ?? '',
+    interval: toStringOrNull(raw.interval),
+    date: toStringOrNull(raw.date),
+    time: toStringOrNull(raw.time),
+    duration: toNumberOrNull(raw.duration),
+    autoAddMonitors: toBooleanOrNull(raw.autoAddMonitors),
+    monitorIds: toArray(raw.monitorIds).filter((id): id is number => typeof id === 'number'),
+    days: toArray(raw.days).filter((day): day is number => typeof day === 'number'),
+    status: toStringOrNull(raw.status),
+    created: toStringOrNull(raw.created),
   }
 }
 
 export function mapAlertContact(raw: Raw): UptimeRobotAlertContact {
   const notify = raw.enableNotificationsFor
   return {
-    id: asNumber(raw.id) ?? 0,
-    friendlyName: asString(raw.friendlyName),
-    type: asEnum(raw.type),
-    value: asString(raw.value),
-    customValue: asString(raw.customValue),
-    status: asEnum(raw.status),
+    id: toNumberOrNull(raw.id) ?? 0,
+    friendlyName: toStringOrNull(raw.friendlyName),
+    type: toStringOrNull(raw.type),
+    value: toStringOrNull(raw.value),
+    customValue: toStringOrNull(raw.customValue),
+    status: toStringOrNull(raw.status),
     enableNotificationsFor:
       typeof notify === 'number' || typeof notify === 'string' ? notify : null,
-    sslExpirationReminder: asBoolean(raw.sslExpirationReminder),
+    sslExpirationReminder: toBooleanOrNull(raw.sslExpirationReminder),
   }
 }
 
 export function mapPsp(raw: Raw): UptimeRobotPsp {
   return {
-    id: asNumber(raw.id) ?? 0,
-    friendlyName: asString(raw.friendlyName) ?? '',
-    customDomain: asString(raw.customDomain),
-    isPasswordSet: asBoolean(raw.isPasswordSet),
-    monitorIds: asArray(raw.monitorIds).filter((id): id is number => typeof id === 'number'),
-    tagIds: asArray(raw.tagIds).filter((id): id is number => typeof id === 'number'),
-    monitorsCount: asNumber(raw.monitorsCount),
-    status: asEnum(raw.status),
-    urlKey: asString(raw.urlKey),
-    homepageLink: asString(raw.homepageLink),
-    gaCode: asString(raw.gaCode),
-    icon: asString(raw.icon),
-    logo: asString(raw.logo),
-    noIndex: asBoolean(raw.noIndex),
-    hideUrlLinks: asBoolean(raw.hideUrlLinks),
-    subscription: asBoolean(raw.subscription),
+    id: toNumberOrNull(raw.id) ?? 0,
+    friendlyName: toStringOrNull(raw.friendlyName) ?? '',
+    customDomain: toStringOrNull(raw.customDomain),
+    isPasswordSet: toBooleanOrNull(raw.isPasswordSet),
+    monitorIds: toArray(raw.monitorIds).filter((id): id is number => typeof id === 'number'),
+    tagIds: toArray(raw.tagIds).filter((id): id is number => typeof id === 'number'),
+    monitorsCount: toNumberOrNull(raw.monitorsCount),
+    status: toStringOrNull(raw.status),
+    urlKey: toStringOrNull(raw.urlKey),
+    homepageLink: toStringOrNull(raw.homepageLink),
+    gaCode: toStringOrNull(raw.gaCode),
+    icon: toStringOrNull(raw.icon),
+    logo: toStringOrNull(raw.logo),
+    noIndex: toBooleanOrNull(raw.noIndex),
+    hideUrlLinks: toBooleanOrNull(raw.hideUrlLinks),
+    subscription: toBooleanOrNull(raw.subscription),
   }
 }
 
 export function mapIncidentSummary(raw: Raw): UptimeRobotIncidentSummary {
   const monitor = toRecordOrNull(raw.monitor) ?? {}
   return {
-    id: asString(raw.id) ?? '',
-    status: asEnum(raw.status),
-    type: asEnum(raw.type),
-    cause: asNumber(raw.cause),
-    reason: asString(raw.reason),
-    monitorId: asNumber(monitor.id),
-    monitorName: asString(monitor.friendlyName),
-    commentsCount: asNumber(raw.commentsCount),
-    startedAt: asString(raw.startedAt),
-    resolvedAt: asString(raw.resolvedAt),
-    duration: asNumber(raw.duration),
-    includeInReports: asBoolean(raw.includeInReports),
+    id: toStringOrNull(raw.id) ?? '',
+    status: toStringOrNull(raw.status),
+    type: toStringOrNull(raw.type),
+    cause: toNumberOrNull(raw.cause),
+    reason: toStringOrNull(raw.reason),
+    monitorId: toNumberOrNull(monitor.id),
+    monitorName: toStringOrNull(monitor.friendlyName),
+    commentsCount: toNumberOrNull(raw.commentsCount),
+    startedAt: toStringOrNull(raw.startedAt),
+    resolvedAt: toStringOrNull(raw.resolvedAt),
+    duration: toNumberOrNull(raw.duration),
+    includeInReports: toBooleanOrNull(raw.includeInReports),
   }
 }
 
 export function mapIncidentDetail(raw: Raw): UptimeRobotIncidentDetail {
   const rootCause = toRecordOrNull(raw.rootCause)
   return {
-    id: asString(raw.id) ?? '',
-    status: asEnum(raw.status),
-    cause: asNumber(raw.cause),
-    reason: asString(raw.reason),
-    duration: asNumber(raw.duration),
-    startedAt: asString(raw.startedAt),
-    resolvedAt: asString(raw.resolvedAt),
+    id: toStringOrNull(raw.id) ?? '',
+    status: toStringOrNull(raw.status),
+    cause: toNumberOrNull(raw.cause),
+    reason: toStringOrNull(raw.reason),
+    duration: toNumberOrNull(raw.duration),
+    startedAt: toStringOrNull(raw.startedAt),
+    resolvedAt: toStringOrNull(raw.resolvedAt),
     rootCause: rootCause
       ? {
-          url: asString(rootCause.url),
-          httpResponseCode: asNumber(rootCause.httpResponseCode),
-          responseDownloadUrl: asString(rootCause.responseDownloadUrl),
+          url: toStringOrNull(rootCause.url),
+          httpResponseCode: toNumberOrNull(rootCause.httpResponseCode),
+          responseDownloadUrl: toStringOrNull(rootCause.responseDownloadUrl),
         }
       : null,
   }
@@ -456,14 +437,14 @@ export function mapIncidentDetail(raw: Raw): UptimeRobotIncidentDetail {
 export function mapAccount(raw: Raw): UptimeRobotAccount {
   const subscription = toRecordOrNull(raw.activeSubscription) ?? {}
   return {
-    email: asString(raw.email),
-    fullName: asString(raw.fullName),
-    monitorsCount: asNumber(raw.monitorsCount),
-    monitorLimit: asNumber(raw.monitorLimit),
-    smsCredits: asNumber(raw.smsCredits),
-    plan: asString(subscription.plan),
-    subscriptionStatus: asString(subscription.status),
-    subscriptionExpiresAt: asString(subscription.expirationDate),
+    email: toStringOrNull(raw.email),
+    fullName: toStringOrNull(raw.fullName),
+    monitorsCount: toNumberOrNull(raw.monitorsCount),
+    monitorLimit: toNumberOrNull(raw.monitorLimit),
+    smsCredits: toNumberOrNull(raw.smsCredits),
+    plan: toStringOrNull(subscription.plan),
+    subscriptionStatus: toStringOrNull(subscription.status),
+    subscriptionExpiresAt: toStringOrNull(subscription.expirationDate),
   }
 }
 

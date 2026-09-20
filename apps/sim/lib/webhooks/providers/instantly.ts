@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
@@ -278,16 +279,8 @@ function extractInstantlyError(body: Record<string, unknown> | null): string | n
   return null
 }
 
-function toStringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 function toNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function toBooleanOrNull(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function optionalId(value: unknown): string | undefined {

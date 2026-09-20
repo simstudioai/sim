@@ -1,4 +1,4 @@
-import { toRecord } from '@sim/utils/object'
+import { toArray, toRecord } from '@sim/utils/object'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
@@ -22,7 +22,7 @@ export function asObject(value: unknown): JsonObject {
 }
 
 export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return toArray(value)
 }
 
 export function nested(object: JsonObject, ...keys: string[]): unknown {
