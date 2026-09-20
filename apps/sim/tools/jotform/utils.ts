@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 
 /**
@@ -234,7 +234,7 @@ export function normalizeSubmissionAnswers(
     const qid = key.slice(0, separator)
     const subField = key.slice(separator + 1)
     const existing = normalized[qid]
-    const target = isRecordLike(existing) ? existing : {}
+    const target = toRecord(existing)
     target[subField] = value
     normalized[qid] = target
   }

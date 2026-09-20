@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ResendOperationError } from '@/lib/internal/resend/errors'
@@ -6,7 +6,7 @@ import { ResendOperationError } from '@/lib/internal/resend/errors'
 const MAX_RESEND_ERROR_BYTES = 64 * 1024
 
 function record(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 function message(value: unknown): string {

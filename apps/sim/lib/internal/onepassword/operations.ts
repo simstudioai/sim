@@ -1,5 +1,6 @@
 import type { ItemCreateParams } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import type { ContractBody } from '@/lib/api/contracts'
 import type {
   onePasswordCreateItemContract,
@@ -53,14 +54,8 @@ type DeleteItemInput = ContractBody<typeof onePasswordDeleteItemContract>
 type ResolveSecretInput = ContractBody<typeof onePasswordResolveSecretContract>
 type GetItemFileInput = ContractBody<typeof onePasswordGetItemFileContract>
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function providerMessage(data: unknown, fallback: string): string {
-  const message = asRecord(data).message
+  const message = toRecord(data).message
   return typeof message === 'string' && message ? message : fallback
 }
 
@@ -210,7 +205,7 @@ export async function executeOnePasswordCreateItem(
       : undefined
     const fields = input.fields
       ? (JSON.parse(input.fields) as Array<Record<string, unknown>>).map((field) => {
-          const section = asRecord(field.section)
+          const section = toRecord(field.section)
           return {
             id: (field.id as string) || generateId().slice(0, 8),
             title: (field.label as string) || (field.title as string) || '',
@@ -412,7 +407,7 @@ export async function executeOnePasswordGetItemFile(
       error: providerMessage(data, 'Failed to get file metadata'),
     })
   }
-  const metadata = asRecord(await metadataResponse.json())
+  const metadata = toRecord(await metadataResponse.json())
   context.signal?.throwIfAborted()
 
   const contentResponse = await connectRequest({

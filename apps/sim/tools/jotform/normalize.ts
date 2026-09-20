@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type {
   JotformFile,
   JotformForm,
@@ -22,8 +22,8 @@ import { toJsonArray, toStringOrNull } from '@/tools/jotform/utils'
 
 /** Unwraps the single-element array form some endpoints document for one resource. */
 export function unwrapSingle(content: unknown): Record<string, unknown> | null {
-  if (Array.isArray(content)) return isRecordLike(content[0]) ? content[0] : null
-  return isRecordLike(content) ? content : null
+  if (Array.isArray(content)) return toRecordOrNull(content[0])
+  return toRecordOrNull(content)
 }
 
 export function toList(content: unknown): Record<string, unknown>[] {

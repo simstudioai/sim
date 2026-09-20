@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   CLICKUP_API_BASE_URL,
   CLICKUP_TIME_ENTRY_OUTPUT_PROPERTIES,
@@ -68,7 +68,7 @@ export const clickupGetRunningTimerTool: ToolConfig<
       return { success: false, output: { error }, error }
     }
 
-    const entry = isRecordLike(data) && isRecordLike(data.data) ? data.data : null
+    const entry = isRecordLike(data) && toRecordOrNull(data.data)
 
     return {
       success: true,

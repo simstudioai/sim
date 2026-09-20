@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type {
   ClickUpAttachment,
   ClickUpChecklist,
@@ -491,7 +491,7 @@ export function mapClickUpCustomField(value: unknown): ClickUpCustomField {
     id: getRequiredString(value.id, 'id'),
     name: getOptionalString(value.name),
     type: getOptionalString(value.type),
-    typeConfig: isRecordLike(value.type_config) ? value.type_config : null,
+    typeConfig: toRecordOrNull(value.type_config),
     dateCreated: getOptionalString(value.date_created),
     hideFromGuests: getOptionalBoolean(value.hide_from_guests),
   }
@@ -542,7 +542,7 @@ export function mapClickUpTimeEntry(value: unknown): ClickUpTimeEntry {
 
   const rawTags = Array.isArray(value.tags) ? value.tags : []
   const rawTaskTags = Array.isArray(value.task_tags) ? value.task_tags : []
-  const rawLocation = isRecordLike(value.task_location) ? value.task_location : null
+  const rawLocation = toRecordOrNull(value.task_location)
 
   return {
     id: getRequiredString(value.id, 'id'),

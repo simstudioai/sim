@@ -10,7 +10,7 @@
 import { type BrowserToolName, browserToolRendererTimeoutMs } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import {
   cancelBrowserTool,
@@ -143,7 +143,7 @@ function compactCompletionForPageExit(
   const serialized = JSON.stringify({ toolCallId, ...completion })
   if (new Blob([serialized]).size <= PAGE_EXIT_COMPLETION_MAX_BYTES) return completion
 
-  const data = isRecordLike(completion.data) ? completion.data : {}
+  const data = toRecord(completion.data)
   return {
     status: completion.status,
     message: truncate(completion.message, 1024),
@@ -164,7 +164,7 @@ function compactCompletionForRetry(
   const serialized = JSON.stringify({ toolCallId, ...completion })
   if (new Blob([serialized]).size <= RETAINED_COMPLETION_MAX_BYTES) return completion
 
-  const data = isRecordLike(completion.data) ? completion.data : {}
+  const data = toRecord(completion.data)
   return {
     status: completion.status,
     message: truncate(completion.message, 1024),

@@ -1,5 +1,5 @@
 import type { Logger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
 
 function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, unknown>): z.ZodType {
@@ -12,7 +12,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, unknown>): z
         : []
     )
     for (const [key, property] of Object.entries(jsonSchema.properties)) {
-      const propertySchema = isRecordLike(property) ? property : {}
+      const propertySchema = toRecord(property)
       let fieldSchema = jsonSchemaToZod(logger, propertySchema)
       if (typeof propertySchema.description === 'string') {
         fieldSchema = fieldSchema.describe(propertySchema.description)

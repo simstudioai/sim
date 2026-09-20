@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   CapturedConversationStep,
   ConversationProtocol,
@@ -23,7 +23,7 @@ function capture(
   protocol: ConversationProtocol,
   value: unknown
 ): ReturnType<ProviderHistoryAdapter['capture']> {
-  const message = isRecordLike(value) ? value : {}
+  const message = toRecord(value)
   const calls: CapturedConversationStep['calls'] = []
   const text: string[] = []
   const add = (id: unknown, name: unknown, args: unknown) => {

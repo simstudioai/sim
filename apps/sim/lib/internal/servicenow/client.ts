@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithValidation,
@@ -45,7 +45,7 @@ export async function uploadServiceNowAttachment(
   )
   const data = await response.json().catch(() => null)
   if (!response.ok) {
-    const error = isRecordLike(data) && isRecordLike(data.error) ? data.error : null
+    const error = isRecordLike(data) && toRecordOrNull(data.error)
     const message =
       error && typeof error.message === 'string'
         ? error.message

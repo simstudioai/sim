@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -90,7 +90,7 @@ export const instantlyHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecordLike(body) ? body : {}
+    const payload = toRecord(body)
 
     return {
       input: {
@@ -265,7 +265,7 @@ export const instantlyHandler: WebhookProviderHandler = {
 async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecordLike(body) ? body : null
+    return toRecordOrNull(body)
   } catch {
     return null
   }

@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { CrowdStrikeBaseParams, CrowdStrikeCloud } from '@/tools/crowdstrike/types'
@@ -47,7 +47,7 @@ export function getRecordArray(value: unknown): JsonRecord[] {
 }
 
 export function getRecord(value: unknown): JsonRecord | null {
-  return isRecordLike(value) ? value : null
+  return toRecordOrNull(value)
 }
 
 /**

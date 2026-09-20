@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
@@ -327,7 +327,7 @@ function withCommittedIds(
 ): CrowdStrikeCallResult {
   if (committed.length === 0) return result
 
-  const envelope = isRecordLike(result.data) ? result.data : {}
+  const envelope = toRecord(result.data)
   const existing = getRecordArray(envelope.errors)
   const reason = getFalconErrorMessage(result.data, 'CrowdStrike rejected a later batch.')
   const message =

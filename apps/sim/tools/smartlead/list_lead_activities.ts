@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SmartleadBaseParams, SmartleadPaginatedRowsResponse } from '@/tools/smartlead/types'
 import {
@@ -58,7 +58,7 @@ export const listLeadActivitiesTool: ToolConfig<
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'lead activities')
     const rows = opaqueRows(record.data)
-    const pagination = isRecordLike(record.pagination) ? record.pagination : {}
+    const pagination = toRecord(record.pagination)
 
     return {
       success: true,
