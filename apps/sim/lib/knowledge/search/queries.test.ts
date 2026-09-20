@@ -1249,7 +1249,7 @@ describe('permitted-document planner', () => {
       if (statement.includes('pg_index')) return indexedSourceRows
       if (isWalk(statement)) return traversedRows
       if (statement.includes('WITH scored_search_candidates')) return rerankRows
-      if (statement.includes('WITH readable_documents')) return sourceExactRows
+      if (statement.includes('WITH readable_chunks')) return sourceExactRows
       if (isExactRanking(statement)) return exactRows
       if (isProbeStatement(statement)) return probeRows
       return []
@@ -1310,7 +1310,7 @@ describe('permitted-document planner', () => {
     const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(1)
     expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
-    expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(false)
+    expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(false)
   })
 
   it('searches the sources of a broad caller whose whole-graph walk came back short', async () => {
@@ -1336,7 +1336,7 @@ describe('permitted-document planner', () => {
     expect(walks).toHaveLength(2)
     expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
     expect(JSON.stringify(walks[1])).toContain('"right":"member-src"')
-    expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(true)
+    expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(true)
   })
 
   it('keeps what a short broad walk found when searching its sources runs out of budget', async () => {
@@ -1350,7 +1350,7 @@ describe('permitted-document planner', () => {
     const base = dbChainMockFns.execute.getMockImplementation()!
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
-      if (statement.includes('WITH readable_documents')) {
+      if (statement.includes('WITH readable_chunks')) {
         throw Object.assign(new Error('canceling statement due to statement timeout'), {
           code: '57014',
         })
@@ -1421,7 +1421,7 @@ describe('permitted-document planner', () => {
       walks[0].params.some((param) => JSON.stringify(param).includes('"right":"member-src"'))
     ).toBe(true)
     /** The sliced sources resolve their documents inside one statement, not through the app. */
-    const exact = statements().filter((query) => query.sql.includes('WITH readable_documents'))
+    const exact = statements().filter((query) => query.sql.includes('WITH readable_chunks'))
     expect(exact).toHaveLength(1)
     expect(JSON.stringify(exact[0])).toContain('sliced-src')
   })
@@ -1470,7 +1470,7 @@ describe('permitted-document planner', () => {
       },
     })
     /** Uploads carry no connector, so their slice runs even with no sliced source beside them. */
-    const exact = statements().filter((query) => query.sql.includes('WITH readable_documents'))
+    const exact = statements().filter((query) => query.sql.includes('WITH readable_chunks'))
     expect(exact).toHaveLength(1)
     expect(
       JSON.stringify(statements().find((q) => q.sql.includes('scored_search_candidates')))

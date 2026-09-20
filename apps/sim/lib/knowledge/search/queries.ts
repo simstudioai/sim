@@ -1197,11 +1197,11 @@ function chunkTagCondition(join: SQL, tagConditions: SQL[]): SQL | undefined {
 }
 
 /**
- * How many documents the sliced sources contribute to exact ranking. A caller's slice of mirrored
+ * How many chunks the sliced sources contribute to exact ranking. A caller's slice of mirrored
  * sources — their mail, their files, the spaces they belong to — sits below this, and ranking that
- * many exactly measures in the low hundreds of milliseconds.
+ * many exactly, on the projection's half-precision vectors, measures in tens of milliseconds.
  */
-const SOURCE_EXACT_DOCUMENT_LIMIT = 50_000
+const SOURCE_EXACT_CHUNK_LIMIT = 150_000
 
 /** Sources whose own index a caller's ranking walks, and whether anything is left to rank exactly. */
 interface SourceVectorPlan {
@@ -1248,7 +1248,6 @@ async function selectSourceVectorCandidates(input: {
   access: KnowledgeAccessScope
   knowledgeBaseIds: string[]
   plan: SearchAccessPlan
-  documentConditions: (SQL | undefined)[]
   tagCondition: SQL | undefined
   documentTagCondition: SQL | undefined
   candidateDistance: SQL<number>
@@ -1269,7 +1268,6 @@ async function selectSourceVectorCandidates(input: {
     eq(embeddingSearch.enabled, true),
     input.tagCondition
   )
-  const readable = and(...input.documentConditions, input.documentTagCondition)
   type RankedChunks = Promise<Array<{ id: string; distance: number }>>
   /**
    * Walks one source's own index, or the sliced sources together when their slice saturated.
@@ -1306,33 +1304,43 @@ async function selectSourceVectorCandidates(input: {
   )
   const slicedScope = sql`(${embeddingSearch.connectorId} IS NULL
     OR ${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))`
-  /** One statement for every sliced source: their readable documents, then exact ranking of those. */
+  /** One statement for every sliced source: their readable chunks, ranked exactly on the row. */
   /**
    * One statement for the sliced sources and, with them, every uploaded document: uploads carry no
    * connector, so a caller who is a member of all the indexed sources would otherwise rank none.
    */
   const slice: Array<() => RankedChunks> = [
     async () => {
+      /**
+       * The sliced sources' readable chunks, decided on the row, ranked exactly: the ACL index
+       * enumerates them and `+ 0` keeps the planner off the graph. The chunks are counted one past
+       * the bound in the same statement, so a set too large to rank exactly is known before it is.
+       */
+      const readableChunks = and(
+        base,
+        slicedScope,
+        onRow,
+        input.documentTagCondition === undefined
+          ? undefined
+          : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), input.documentTagCondition)})`
+      )
       const rows = await runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
         executor.execute<{ id: string; distance: number; saturated: boolean }>(sql`
-                WITH readable_documents AS MATERIALIZED (
-                  SELECT ${document.id} AS id FROM ${document}
-                  WHERE (${document.connectorId} IS NULL
-                      OR ${document.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))
-                    AND ${readable}
-                  LIMIT ${SOURCE_EXACT_DOCUMENT_LIMIT + 1}
+                WITH readable_chunks AS MATERIALIZED (
+                  SELECT ${embeddingSearch.id} AS id, ${input.candidateDistance} AS distance
+                  FROM ${embeddingSearch}
+                  WHERE ${readableChunks}
+                  LIMIT ${SOURCE_EXACT_CHUNK_LIMIT + 1}
                 )
-                SELECT ${embeddingSearch.id} AS id, (${input.candidateDistance}) + 0 AS distance,
-                  (SELECT count(*) FROM readable_documents) > ${SOURCE_EXACT_DOCUMENT_LIMIT} AS saturated
-                FROM ${embeddingSearch}
-                JOIN readable_documents ON readable_documents.id = ${embeddingSearch.documentId}
-                WHERE ${base}
+                SELECT id, distance + 0 AS distance,
+                  (SELECT count(*) FROM readable_chunks) > ${SOURCE_EXACT_CHUNK_LIMIT} AS saturated
+                FROM readable_chunks
                 ORDER BY distance LIMIT ${input.candidateLimit}`)
       )
       /**
-       * The slice enumerates readable documents in no particular order, so a set past its
-       * bound would rank an arbitrary subset and could miss the nearest chunks entirely.
-       * Walk those sources instead: approximate, but drawn from the whole of them.
+       * The slice enumerates readable chunks in no particular order, so a set past its bound
+       * would rank an arbitrary subset and could miss the nearest chunks entirely. Walk those
+       * sources instead: approximate, but drawn from the whole of them.
        */
       if (!rows.some((row) => row.saturated)) return rows
       annotateSearchDiagnostics({ vectorSlicedSaturated: true })
@@ -1504,7 +1512,6 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             access: params.access,
             knowledgeBaseIds: params.knowledgeBaseIds,
             plan,
-            documentConditions: candidateDocumentVisibility,
             tagCondition: candidateTagCondition,
             documentTagCondition,
             candidateDistance,
@@ -1582,7 +1589,6 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
                 access: params.access,
                 knowledgeBaseIds: params.knowledgeBaseIds,
                 plan,
-                documentConditions: candidateDocumentVisibility,
                 tagCondition: candidateTagCondition,
                 documentTagCondition,
                 candidateDistance,
