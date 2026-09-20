@@ -80,6 +80,12 @@ const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
  */
 const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '20000'
 /**
+ * The scan a broad reader's walk widens to when its neighbourhood turns out mostly unreadable:
+ * five times the usual budget reaches past such a neighbourhood at a few hundred milliseconds,
+ * where enumerating that reader's readable chunks instead would cost a bitmap over most of the index.
+ */
+const WIDE_WALK_SCAN_TUPLES = 100_000
+/**
  * Beam width per iteration. A beam is the granularity of cancellation: pgvector calls
  * `CHECK_FOR_INTERRUPTS` only while building an index, never inside `hnswgettuple`, so neither
  * `statement_timeout` nor a cancellation request can interrupt one. A narrower beam that iterates
@@ -131,7 +137,8 @@ let hnswSettingsUnsupportedUntil = 0
 async function withVectorScanSettings<T>(
   run: (executor: SearchExecutor) => Promise<T>,
   budget?: SearchBudget,
-  stage: SearchStage = 'vector.candidate_search'
+  stage: SearchStage = 'vector.candidate_search',
+  maxScanTuples: number = Number(CANDIDATE_HNSW_MAX_SCAN_TUPLES)
 ): Promise<T> {
   const untuned = () => runSearchQuery(budget, stage, run)
   if (Date.now() < hnswSettingsUnsupportedUntil) return untuned()
@@ -144,7 +151,7 @@ async function withVectorScanSettings<T>(
       applyingSettings = true
       await measureSearchStage('vector.settings', () =>
         tx.execute(
-          sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${CANDIDATE_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
+          sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${String(maxScanTuples)}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
         )
       )
       applyingSettings = false
@@ -1610,23 +1617,33 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           ) {
             annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
             /**
-             * What the walk did find is kept: the per-source search adds to it, and if that search
-             * runs out of the leg's budget the walk's candidates still stand rather than nothing.
+             * The query sits in a neighbourhood the caller mostly cannot read. A broad reader's own
+             * sources are already in this walk, so searching them again finds nothing new, and
+             * enumerating their readable chunks is a bitmap over most of the index; the same walk
+             * with a wider scan is what reaches past that neighbourhood. What it found is kept, and
+             * if the wider walk runs out of the leg's budget the first walk's candidates stand.
              */
             const walked = selected
             try {
-              const recovered = await selectSourceVectorCandidates({
-                access: params.access,
-                knowledgeBaseIds: params.knowledgeBaseIds,
-                plan,
-                tagCondition: candidateTagCondition,
-                documentTagCondition,
-                candidateDistance,
-                candidateLimit,
-                budget: params.budget,
-              })
+              const wider = await withVectorScanSettings(
+                (executor) =>
+                  executor.execute<{ id: string }>(sql`
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} /* on-row visibility */
+            WHERE ${and(
+              scopeOfWalk,
+              projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
+              documentTagCondition === undefined
+                ? undefined
+                : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentTagCondition)})`
+            )}
+            ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
+          `),
+                params.budget,
+                'vector.candidate_search',
+                WIDE_WALK_SCAN_TUPLES
+              )
               const seen = new Set(walked.map(({ id }) => id))
-              selected = [...walked, ...recovered.filter(({ id }) => !seen.has(id))]
+              selected = [...walked, ...wider.filter(({ id }) => !seen.has(id))]
             } catch (error) {
               if (!params.budget?.isTimeout(error)) throw error
               selected = walked
@@ -1815,11 +1832,15 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       excludedSources: readonly string[]
     ): Promise<SearchReadCandidatePage | null> => {
       /**
-       * A resolved scope decides readability on the ranked row, so one wide window costs about
-       * what Tin's own ranking of it costs, and there is no cheaper narrow one worth trying first;
-       * what it cannot fill is left short rather than handed to a ranking over every match.
+       * A resolved scope decides readability on the ranked row. A broad reader fills a page from a
+       * narrow window, so the windows widen as before; a narrow reader fills it only from a wide
+       * one, so that is the only window tried. Either way what a resolved scope cannot fill is
+       * left short rather than handed to a ranking over every match.
        */
-      const windows = accessPlan ? [TIN_KEYWORD_WINDOWS.at(-1)!] : TIN_KEYWORD_WINDOWS
+      const windows =
+        accessPlan && params.permitted?.kind === 'unbounded' && !params.permitted.broad
+          ? [TIN_KEYWORD_WINDOWS.at(-1)!]
+          : TIN_KEYWORD_WINDOWS
       for (const window of windows) {
         if (window < offset + limit) continue
         const [page] = await runSearchQuery(params.budget, 'keyword.tin', (executor) =>

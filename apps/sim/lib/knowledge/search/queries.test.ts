@@ -1316,13 +1316,12 @@ describe('permitted-document planner', () => {
     expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(false)
   })
 
-  it('searches the sources of a broad caller whose whole-graph walk came back short', async () => {
+  it('widens the walk of a broad caller whose whole-graph walk came back short', async () => {
     const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
     /** The graph walk finds one readable neighbour where the pool wants hundreds. */
     traversedRows = [{ id: 'short-hit', distance: 0.4 }]
-    sourceExactRows = [{ id: 'sliced-hit', distance: 0.1, saturated: false }]
-    rerankRows = [hit('sliced-hit', 'other-src'), hit('short-hit', 'member-src')]
+    rerankRows = [hit('short-hit', 'member-src')]
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
@@ -1334,15 +1333,16 @@ describe('permitted-document planner', () => {
         memberSources: ['member-src'],
       },
     })
+    /** The same walk twice, the second with the wider scan; no source is searched on its own. */
     const walks = statements().filter((query) => isWalk(query.sql))
-    /** One walk over everything, then one over the member's own source. */
     expect(walks).toHaveLength(2)
-    expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
-    expect(JSON.stringify(walks[1])).toContain('"right":"member-src"')
-    expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(true)
+    expect(JSON.stringify(walks[1])).not.toContain('"right":"member-src"')
+    const settings = statements().filter((query) => query.sql.includes('hnsw.max_scan_tuples'))
+    expect(JSON.stringify(settings.at(-1))).toContain('100000')
+    expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(false)
   })
 
-  it('keeps what a short broad walk found when searching its sources runs out of budget', async () => {
+  it('keeps what a short broad walk found when the wider walk runs out of budget', async () => {
     const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
     traversedRows = [{ id: 'short-hit', distance: 0.4 }]
@@ -1351,9 +1351,10 @@ describe('permitted-document planner', () => {
     /** The per-source search is cancelled by the server's statement timeout; the leg has time left. */
     const budget = new SearchBudget('vector', performance.now() + 10_000)
     const base = dbChainMockFns.execute.getMockImplementation()!
+    let walksSeen = 0
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
-      if (statement.includes('WITH readable_chunks')) {
+      if (isWalk(statement) && walksSeen++ > 0) {
         throw Object.assign(new Error('canceling statement due to statement timeout'), {
           code: '57014',
         })
