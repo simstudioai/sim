@@ -62,12 +62,21 @@ export async function backfillEmbeddingSearchConnector(sql: Sql): Promise<number
         SELECT id FROM embedding_search WHERE id > ${afterId} ORDER BY id LIMIT ${BATCH_SIZE}`
       if (rows.length === 0) return null
       const ids = rows.map((row) => row.id)
+      /**
+       * The documents are share-locked before their source is copied, so a detachment in flight
+       * waits for this page to commit and then fans its own change out through the trigger — the
+       * chunk can never keep a source its document no longer has.
+       */
       const [{ filled }] = await tx<Array<{ filled: number }>>`
-        WITH updated AS (
-          UPDATE embedding_search s SET connector_id = d.connector_id
-          FROM document d
-          WHERE s.id = ANY(${ids}::text[]) AND d.id = s.document_id
+        WITH page AS (
+          SELECT s.id, d.connector_id
+          FROM embedding_search s JOIN document d ON d.id = s.document_id
+          WHERE s.id = ANY(${ids}::text[])
             AND s.connector_id IS NULL AND d.connector_id IS NOT NULL
+          FOR SHARE OF d
+        ), updated AS (
+          UPDATE embedding_search s SET connector_id = page.connector_id
+          FROM page WHERE s.id = page.id AND s.connector_id IS NULL
           RETURNING s.id
         ) SELECT count(*)::int AS filled FROM updated`
       return { afterId: ids[ids.length - 1], scanned: ids.length, filled }

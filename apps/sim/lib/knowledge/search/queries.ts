@@ -596,7 +596,8 @@ const SEARCH_READ_CANDIDATE_FIELDS = {
  */
 export interface LiveSourceAccess {
   gates: (connectorId: string) => boolean
-  resolve: () => Promise<KnowledgeAccessScope>
+  /** The caller's scope with its grants, and the gated sources those grants do not cover. */
+  resolve: () => Promise<{ access: KnowledgeAccessScope; denied: ReadonlySet<string> }>
 }
 
 /** Binds a search's gated sources to one memoized resolution of the caller's grants. */
@@ -608,7 +609,7 @@ export function liveSourceAccessFor(
 ): LiveSourceAccess | undefined {
   const gated = new Set(plan?.connectors.liveProofRequired ?? [])
   if (!accessProvider || gated.size === 0) return undefined
-  let pending: Promise<KnowledgeAccessScope> | undefined
+  let pending: Promise<{ access: KnowledgeAccessScope; denied: ReadonlySet<string> }> | undefined
   /** The provider authorizes connectors in bounded pages, so a wide scope resolves page by page. */
   const pages: string[][] = []
   for (const id of gated) {
@@ -624,7 +625,6 @@ export function liveSourceAccessFor(
           accessProvider.getForConnectors(page, signal)
         )
         const [first] = scopes
-        if (scopes.length === 1 || first.kind !== 'user') return first
         const githubInstallationGrants: GitHubInstallationReadGrant[] = []
         const confluenceSiteGrants: ConfluenceSiteReadGrant[] = []
         for (const scope of scopes) {
@@ -633,7 +633,16 @@ export function liveSourceAccessFor(
             githubInstallationGrants.push(...scope.githubInstallationGrants)
           if (scope.confluenceSiteGrants) confluenceSiteGrants.push(...scope.confluenceSiteGrants)
         }
-        return { ...first, githubInstallationGrants, confluenceSiteGrants }
+        const granted = new Set([
+          ...githubInstallationGrants.map((grant) => grant.connectorId),
+          ...confluenceSiteGrants.map((grant) => grant.connectorId),
+        ])
+        const denied = new Set([...gated].filter((id) => !granted.has(id)))
+        const merged =
+          first.kind === 'user'
+            ? { ...first, githubInstallationGrants, confluenceSiteGrants }
+            : first
+        return { access: merged, denied }
       })
       return pending
     },
@@ -655,7 +664,11 @@ async function selectAuthorizedSearchResults(input: {
   signal?: AbortSignal
   budget?: SearchBudget
   topK: number
-  selectPage: (limit: number, offset: number) => Promise<SearchReadCandidatePage>
+  selectPage: (
+    limit: number,
+    offset: number,
+    excludedSources: readonly string[]
+  ) => Promise<SearchReadCandidatePage>
   compareResults?: (a: SearchResult, b: SearchResult) => number
   hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
   liveSourceAccess?: LiveSourceAccess
@@ -664,6 +677,8 @@ async function selectAuthorizedSearchResults(input: {
   const pageSize = Math.min(AUTHORIZED_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
   const results = new Map<string, SearchResult>()
   const considered = new Set<string>()
+  /** Gated sources the caller turned out not to hold: left out of every page once that is known. */
+  let excluded: ReadonlySet<string> = new Set()
   let scanned = 0
   let offset = 0
   try {
@@ -675,7 +690,7 @@ async function selectAuthorizedSearchResults(input: {
       input.signal?.throwIfAborted()
       input.budget?.remaining()
       const page = await measureSearchStage(`${input.leg}.candidates`, () =>
-        input.selectPage(pageSize, offset)
+        input.selectPage(pageSize, offset, [...excluded])
       )
       if (!page.candidates.length) break
       scanned += page.candidates.length
@@ -691,11 +706,25 @@ async function selectAuthorizedSearchResults(input: {
        * its own reaches this page, and then once for the whole search: a scope that ranks none
        * of them — most scopes — never asks, and one that ranks many asks once.
        */
-      const access = candidates.some(
-        (candidate) => candidate.connectorId && input.liveSourceAccess?.gates(candidate.connectorId)
-      )
-        ? await input.liveSourceAccess!.resolve()
-        : input.access
+      const proof = input.liveSourceAccess
+      const gatedOnPage =
+        proof !== undefined &&
+        candidates.some((candidate) => candidate.connectorId && proof.gates(candidate.connectorId))
+      let access = input.access
+      let refill = false
+      if (gatedOnPage && proof) {
+        const resolved = await proof.resolve()
+        access = resolved.access
+        /**
+         * A denied source's candidates cannot hydrate, yet they took the slots of sources the
+         * caller does hold. Once the denial is known the pages are rebuilt without that source,
+         * from the start; the ids already seen are not read twice.
+         */
+        if (resolved.denied.size > excluded.size) {
+          excluded = resolved.denied
+          refill = true
+        }
+      }
       const hydrated = await measureSearchStage(`${input.leg}.hydration`, () =>
         input.hydrate(
           candidates.map((candidate) => candidate.id),
@@ -713,6 +742,10 @@ async function selectAuthorizedSearchResults(input: {
         results.clear()
         for (const row of ranked) results.set(row.id, row)
       }
+      if (refill) {
+        offset = 0
+        continue
+      }
       /** A short page is the end of the candidates, whether or not they were reordered. */
       if (page.candidates.length < pageSize) break
     }
@@ -721,6 +754,13 @@ async function selectAuthorizedSearchResults(input: {
   }
   input.signal?.throwIfAborted()
   return [...results.values()]
+}
+
+/** Keeps the candidates of sources the caller turned out not to hold out of a page. */
+function excludeSearchSources(sourceIds: readonly string[]): SQL | undefined {
+  return sourceIds.length
+    ? sql`(${document.connectorId} IS NULL OR NOT (${inArray(document.connectorId, [...sourceIds])}))`
+    : undefined
 }
 
 /**
@@ -799,7 +839,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
       signal: params.signal,
       budget: params.budget,
       topK,
-      selectPage: async (limit, offset) => {
+      selectPage: async (limit, offset, excludedSources) => {
         const candidates = await runSearchQuery(params.budget, 'tags.sql', (executor) =>
           executor
             .select(SEARCH_READ_CANDIDATE_FIELDS)
@@ -812,7 +852,8 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
                   access,
                   params.filters,
                   candidateAccessCondition(access, params.accessPlan)
-                )
+                ),
+                excludeSearchSources(excludedSources)
               )
             )
             .orderBy(embedding.id)
@@ -1277,7 +1318,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
    * refill reuses the pool it already has. Excluding another source is the only thing that
    * changes which candidates belong in it, and that resets the offset to zero anyway.
    */
-  let candidatePool: Array<{ id: string }> | undefined
+  let candidatePool: { excludedKey: string; ids: Array<{ id: string }> } | undefined
   return selectAuthorizedSearchResults({
     leg: 'vector',
     access: params.access,
@@ -1287,9 +1328,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
     budget: params.budget,
     topK: params.topK,
     compareResults: (a, b) => a.distance - b.distance,
-    selectPage: async (limit, offset) => {
+    selectPage: async (limit, offset, excludedSources) => {
+      const excludedKey = [...excludedSources].sort().join(',')
       const visibility = [
         ...getVisibilityConditions(params.access, params.filters, candidateAccess),
+        excludeSearchSources(excludedSources),
       ]
       const candidateDocumentVisibility = [
         ...candidateDocumentConditions(
@@ -1298,6 +1341,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           params.filters,
           candidateAccess
         ),
+        excludeSearchSources(excludedSources),
       ]
       /** Explicit document IDs are already a bounded scope, and retain exhaustive ordering. */
       const exactPage = async () => {
@@ -1315,7 +1359,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length) return exactPage()
-      if (!candidatePool) {
+      if (candidatePool?.excludedKey !== excludedKey) {
         annotateSearchDiagnostics({
           vectorRanking: 'candidate-rerank',
           vectorCandidateStorage: 'stored-halfvec',
@@ -1421,13 +1465,13 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             }
           }
         }
-        candidatePool = selected
+        candidatePool = { excludedKey, ids: selected }
         annotateSearchDiagnostics({
           vectorCandidateCount: selected.length,
           vectorCandidateScan: selected.length < candidateLimit ? 'underfilled' : 'planned',
         })
       }
-      const identities = candidatePool
+      const identities = candidatePool.ids
       if (!identities.length) return { candidates: [], nextOffset: offset }
       /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */
       const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>
@@ -1555,14 +1599,15 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
         : {}),
     })
-    const documentConditions = () =>
+    const documentConditions = (excludedSources: readonly string[]) =>
       and(
         ...candidateDocumentConditions(
           knowledgeBaseIds,
           access,
           params.filters,
           candidateAccessCondition(access, params.accessPlan)
-        )
+        ),
+        excludeSearchSources(excludedSources)
       )
     /**
      * One page from the top of Tin's ranking. The window of ranked chunks widens while too few of
@@ -1572,7 +1617,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     const selectTinPage = async (
       scopedQuery: SQL,
       limit: number,
-      offset: number
+      offset: number,
+      excludedSources: readonly string[]
     ): Promise<SearchReadCandidatePage | null> => {
       for (const window of TIN_KEYWORD_WINDOWS) {
         if (window < offset + limit) continue
@@ -1590,7 +1636,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               SELECT ${document.id} AS id FROM ${document}
               WHERE ${and(
                 sql`${document.id} = ANY (ARRAY(SELECT document_id FROM ranked_tin_chunks))`,
-                documentConditions()
+                documentConditions(excludedSources)
               )}
             ), page AS (
               SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
@@ -1635,7 +1681,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       signal: params.signal,
       budget: params.budget,
       topK,
-      selectPage: async (limit, offset) => {
+      selectPage: async (limit, offset, excludedSources) => {
         /**
          * A bounded permitted set confines matching to the chunks the caller may read, so a term
          * common across the index is ranked only where it can surface. The visibility CTE below
@@ -1647,7 +1693,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
         if (tinScope && !permittedIds) {
-          const tinPage = await selectTinPage(tinScope, limit, offset)
+          const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
           if (tinPage) return tinPage
           annotateSearchDiagnostics({ keywordRanking: 'gin' })
         }
@@ -1694,7 +1740,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               SELECT ${document.id} AS id FROM ${document}
               WHERE ${and(
                 sql`${document.id} = ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))`,
-                documentConditions()
+                documentConditions(excludedSources)
               )}
             ), ranked_keyword_candidates AS MATERIALIZED (
               SELECT matched_keyword_chunks.id, matched_keyword_chunks.document_id,

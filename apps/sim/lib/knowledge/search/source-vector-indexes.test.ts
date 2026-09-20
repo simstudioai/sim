@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -26,6 +27,18 @@ describe('source vector indexes', () => {
       if (text.includes('pg_index')) return indexed
       if (text.includes('sampled')) return [{ column: 'vector_512' }]
       return []
+    })
+    /** The build reserves one connection; its statements are recorded with the rest. */
+    Object.assign(db, {
+      $client: {
+        reserve: async () => ({
+          unsafe: async (text: string) => {
+            statements.push(text)
+            return []
+          },
+          release: () => undefined,
+        }),
+      },
     })
     /** Warms the catalog cache with this case's state, so a build decision is not a stale read. */
     expect((await indexedVectorSources()).size).toBe(indexed.length)

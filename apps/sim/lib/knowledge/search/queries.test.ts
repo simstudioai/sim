@@ -1660,6 +1660,48 @@ describe('permitted-document planner', () => {
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
+  it('rebuilds the pages without a gated source the caller turns out not to hold', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'gated-src',
+        accessMode: 'admin',
+        connectorType: 'confluence',
+        githubRepository: false,
+      },
+    ])
+    /**
+     * The first pool is filled by the gated source alone; only a pool built without it — the
+     * exclusion carries the source id into the statement — reaches the accessible candidate.
+     */
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      /** The exclusion is the only clause that negates a connector membership. */
+      const rebuilt = JSON.stringify(query).includes('OR NOT (')
+      if (statement.includes('WITH scored_search_candidates'))
+        return rebuilt ? [hit('b', 'other-src')] : [hit('a', 'gated-src')]
+      if (isExactRanking(statement)) return [{ id: rebuilt ? 'b' : 'a' }]
+      if (isProbeStatement(statement))
+        return [{ id: 'doc-a', connectorId: 'gated-src', saturated: false }]
+      return []
+    })
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [hit('b', 'other-src')])
+    /** No grants come back, so the gated source is denied. */
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    const result = await retrieveKnowledgeSearch({
+      ...liveSearch,
+      searchMode: 'vector',
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(getForConnectors).toHaveBeenCalledOnce()
+    expect(result.rows.map((row) => row.id)).toEqual(['b'])
+    const reranks = statements().filter((query) => query.sql.includes('scored_search_candidates'))
+    expect(reranks).toHaveLength(2)
+    expect(JSON.stringify(reranks[0])).not.toContain('OR NOT (')
+    expect(JSON.stringify(reranks[1])).toContain('OR NOT (')
+  })
+
   it('asks a live source for its grants once, when a candidate of its own is read', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {

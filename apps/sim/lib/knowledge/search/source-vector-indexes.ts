@@ -103,14 +103,18 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
   if (!column) return false
   const name = indexName(connectorId)
   const startedAt = Date.now()
+  /**
+   * The memory setting and the build must share a session, and `CONCURRENTLY` forbids a
+   * transaction, so one connection is reserved from the pool for the whole build and its setting
+   * is reset before the connection goes back.
+   */
+  const session = await db.$client.reserve()
   try {
     await dropInvalidIndex(name)
-    await db.execute(sql`SET maintenance_work_mem = '2GB'`)
-    await db.execute(
-      sql.raw(`CREATE INDEX CONCURRENTLY "${name}" ON embedding_search
+    await session.unsafe("SET maintenance_work_mem = '2GB'")
+    await session.unsafe(`CREATE INDEX CONCURRENTLY "${name}" ON embedding_search
         USING hnsw (${column} halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
         WHERE connector_id = '${connectorId}' AND enabled`)
-    )
     logger.info('Built a source vector index', {
       connectorId,
       documents,
@@ -123,7 +127,8 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
     await dropInvalidIndex(name)
     return false
   } finally {
-    await db.execute(sql`RESET maintenance_work_mem`)
+    await session.unsafe('RESET maintenance_work_mem').catch(() => undefined)
+    session.release()
   }
 }
 
