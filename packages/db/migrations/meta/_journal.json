@@ -2570,6 +2570,13 @@
       "when": 1789837174274,
       "tag": "0367_tin_keyword_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1789842468472,
+      "tag": "0368_durable_agent_memory",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,9 @@ import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from 
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { type AgentTurnSession, openAgentTurnSession } from '@/lib/memory/agent-turn-session'
+import { MEMORY } from '@/lib/memory/constants'
+import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 import {
   type AutoMediaKind,
   type AutoRoutingResult,
@@ -59,7 +62,11 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
 import { isRetryableBlockError } from '@/executor/execution/block-retry'
-import { memoryService } from '@/executor/handlers/agent/memory'
+import {
+  getMemoryMessageAppendKey,
+  getMemoryMessageTurnId,
+  memoryService,
+} from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
   buildSkillsSystemPromptSection,
@@ -106,6 +113,10 @@ import {
   supportsFileAttachments,
 } from '@/providers/attachments'
 import {
+  copyNativeConversationMessage,
+  isConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
+import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
@@ -116,7 +127,7 @@ import {
   registerProviderToolModelInputRegistry,
 } from '@/providers/tool-input-provenance'
 import type { ProviderToolConfig } from '@/providers/types'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import { getProviderFromModel, isDeepResearchModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { buildJsonSchemaParamShapes, decodeToolParams } from '@/tools/param-shape'
 import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
@@ -213,6 +224,7 @@ interface ExecuteAcrossModelsConfig {
   settledInputRegistry: ResolvedSecretTraceRegistry | undefined
   resultRegistry: ResolvedSecretTraceRegistry | undefined
   providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
+  agentConversation?: AgentTurnSession
 }
 
 interface FormattedAgentTools {
@@ -464,12 +476,29 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
+      const agentConversation =
+        filteredInputs.memoryType &&
+        filteredInputs.memoryType !== 'none' &&
+        filteredInputs.conversationId &&
+        nodeMetadata &&
+        nodeMetadata.executionOrder !== undefined &&
+        !modelInputs.previousInteractionId &&
+        !isDeepResearchModel(model)
+          ? await openAgentTurnSession({
+              ctx,
+              blockId: block.id,
+              nodeId: nodeMetadata.nodeId,
+              executionOrder: nodeMetadata.executionOrder,
+              conversationId: filteredInputs.conversationId,
+            })
+          : undefined
       const messagesWithInputFiles = await this.buildMessages(
         ctx,
         filteredInputs,
         modelInputs,
         skillMetadata,
-        fileProjection
+        fileProjection,
+        agentConversation
       )
       /**
        * The primary hydrates before the registries settle and fork, as it always
@@ -573,6 +602,7 @@ export class AgentBlockHandler implements BlockHandler {
         settledInputRegistry,
         resultRegistry,
         providerErrorRegistry,
+        agentConversation,
       })
       if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
 
@@ -592,13 +622,25 @@ export class AgentBlockHandler implements BlockHandler {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-          return this.wrapStreamForMemoryPersistence(ctx, filteredInputs, streamingResult)
+          return this.wrapStreamForMemoryPersistence(
+            ctx,
+            filteredInputs,
+            streamingResult,
+            servedModel,
+            agentConversation
+          )
         }
         return streamingResult
       }
 
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+        await this.persistResponseToMemory(
+          ctx,
+          filteredInputs,
+          result as BlockOutput,
+          servedModel,
+          agentConversation
+        )
       }
 
       return result
@@ -1379,11 +1421,13 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: AgentInputs,
     modelInputs: AgentInputs,
     skillMetadata: Array<{ name: string; description: string }>,
-    fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
+    fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>,
+    agentConversation?: AgentTurnSession
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
-    const pendingMemoryMessages: Array<{ raw: Message; model: Message }> = []
+    const pendingMemoryMessages: Array<{ raw: Message; model: Message; appendKey: string }> = []
+    let persistedUserPrompt = false
     let seedMessageCount = 0
 
     // 1. Extract and validate messages from messages-input subblock
@@ -1398,9 +1442,22 @@ export class AgentBlockHandler implements BlockHandler {
       const memoryMessages = await memoryService.fetchMemoryMessages(
         ctx,
         inputs,
-        fileProjection.projectedNameByFile
+        fileProjection.projectedNameByFile,
+        {
+          richHistory: Boolean(agentConversation),
+          excludeTurnId: agentConversation?.turnId,
+          memoryId: agentConversation?.memoryId,
+        }
       )
       const hasExisting = memoryMessages.length > 0
+      persistedUserPrompt = Boolean(
+        agentConversation &&
+          memoryMessages.some(
+            (message) =>
+              getMemoryMessageTurnId(message) === agentConversation.turnId &&
+              getMemoryMessageAppendKey(message) === 'user-prompt'
+          )
+      )
 
       if (!hasExisting && conversationMessages.length > 0) {
         const taggedMessages = conversationMessages.map((m) =>
@@ -1413,6 +1470,7 @@ export class AgentBlockHandler implements BlockHandler {
           pendingMemoryMessages.push({
             raw: rawTaggedMessages[index],
             model: taggedMessages[index],
+            appendKey: `seed:${index}`,
           })
         }
         seedMessageCount = taggedMessages.length
@@ -1435,7 +1493,12 @@ export class AgentBlockHandler implements BlockHandler {
               })
             }
             const userMessageInThisRun = memoryMessages.some(
-              (m) => m.role === 'user' && m.executionId === ctx.executionId
+              (m) =>
+                m.role === 'user' &&
+                (agentConversation
+                  ? getMemoryMessageTurnId(m) === agentConversation.turnId &&
+                    getMemoryMessageAppendKey(m) !== 'user-prompt'
+                  : m.executionId === ctx.executionId)
             )
             if (!userMessageInThisRun) {
               const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
@@ -1443,6 +1506,7 @@ export class AgentBlockHandler implements BlockHandler {
               pendingMemoryMessages.push({
                 raw: { ...latestRawUserFromInput, executionId: ctx.executionId },
                 model: taggedMessage,
+                appendKey: 'input',
               })
             }
           }
@@ -1472,7 +1536,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     // 6. Handle legacy userPrompt - this is NEW input each run
-    if (inputs.userPrompt) {
+    if (inputs.userPrompt && !persistedUserPrompt) {
       this.addUserPrompt(messages, modelInputs.userPrompt)
 
       if (memoryEnabled) {
@@ -1482,6 +1546,7 @@ export class AgentBlockHandler implements BlockHandler {
           pendingMemoryMessages.push({
             raw: { ...lastUserMessage, content: this.formatUserPrompt(inputs.userPrompt) },
             model: lastUserMessage,
+            appendKey: 'user-prompt',
           })
         }
       }
@@ -1517,20 +1582,32 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     /** Persist the complete turn before provider hydration adds bytes or transient handles. */
-    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)
+    const lastUserMessage = messages
+      .filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
     const attachedUserMessage = messagesWithFiles
-      ?.filter((message) => message.role === 'user')
+      ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       .at(-1)
     const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
       model === lastUserMessage && attachedUserMessage?.files
         ? { ...raw, files: attachedUserMessage.files }
         : raw
     )
-    if (seedMessageCount > 0) {
+    if (agentConversation?.memoryId) {
+      for (let index = 0; index < messagesToStore.length; index++) {
+        await memoryService.appendToMemory(ctx, inputs, messagesToStore[index], {
+          memoryId: agentConversation.memoryId,
+          turnId: agentConversation.turnId,
+          appendKey: pendingMemoryMessages[index].appendKey,
+        })
+      }
+    } else if (seedMessageCount > 0) {
       await memoryService.seedMemory(ctx, inputs, messagesToStore.slice(0, seedMessageCount))
     }
-    for (const message of messagesToStore.slice(seedMessageCount)) {
-      await memoryService.appendToMemory(ctx, inputs, message)
+    if (!agentConversation?.memoryId) {
+      for (const message of messagesToStore.slice(seedMessageCount)) {
+        await memoryService.appendToMemory(ctx, inputs, message)
+      }
     }
 
     return messagesWithFiles
@@ -1564,7 +1641,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     let lastUserMessageIndex = -1
     for (let index = messages.length - 1; index >= 0; index--) {
-      if (messages[index].role === 'user') {
+      if (messages[index].role === 'user' && !isConversationHistoryNotice(messages[index])) {
         lastUserMessageIndex = index
         break
       }
@@ -1610,6 +1687,7 @@ export class AgentBlockHandler implements BlockHandler {
       ...lastUserMessage,
       files: Array.from(filesByKey.values()),
     }
+    copyNativeConversationMessage(lastUserMessage, nextMessages[lastUserMessageIndex])
 
     return nextMessages
   }
@@ -1753,10 +1831,11 @@ export class AgentBlockHandler implements BlockHandler {
         ...message,
         content:
           omittedCount > 0
-            ? appendUnavailableAttachmentNotice(message.content, omittedCount)
+            ? appendUnavailableAttachmentNotice(message.content ?? '', omittedCount)
             : message.content,
         files: modelSafeHydratedFiles,
       }
+      copyNativeConversationMessage(message, nextMessages[messageIndex])
     }
 
     return nextMessages
@@ -2617,13 +2696,18 @@ export class AgentBlockHandler implements BlockHandler {
           block,
           config.responseFormat,
           resultRegistry,
-          config.providerErrorRegistry
+          config.providerErrorRegistry,
+          config.agentConversation
         )
         if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
           result = await this.primeStreamingExecution(result as StreamingExecution)
         }
         recordModelFallbacks(ctx, block, failedModels)
-        return { result, servedModel: candidate.model, resultRegistry }
+        return {
+          result,
+          servedModel: config.agentConversation?.getFinalResponse()?.model ?? candidate.model,
+          resultRegistry,
+        }
       } catch (error) {
         lastError = error
         failedModels.push(candidate.traceName ?? candidate.model)
@@ -2750,6 +2834,7 @@ export class AgentBlockHandler implements BlockHandler {
       config
 
     const validMessages = this.validateMessages(messages)
+    const configuredHistoryTokens = Number(inputs.slidingWindowTokens)
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
@@ -2780,7 +2865,17 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       executionId: ctx.executionId,
       stream: streaming,
-      messages: messages?.map(({ executionId, ...msg }) => msg),
+      memoryHistoryTokens:
+        inputs.memoryType === 'sliding_window_tokens'
+          ? Number.isFinite(configuredHistoryTokens) && configuredHistoryTokens > 0
+            ? Math.floor(configuredHistoryTokens)
+            : MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+          : undefined,
+      messages: messages?.map((message) => {
+        const { executionId, ...providerMessage } = message
+        copyNativeConversationMessage(message, providerMessage)
+        return providerMessage
+      }),
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData,
@@ -2817,7 +2912,8 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     responseFormat: any,
     modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
-    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
+    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
+    agentConversation?: AgentTurnSession
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -2837,6 +2933,12 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
+      const agentMemoryRetrieval = agentConversation?.memoryId
+        ? createAgentMemoryRetrievalTool({
+            executionContext: ctx,
+            memoryId: agentConversation.memoryId,
+          })
+        : undefined
 
       const response = await executeProviderRequest(
         providerId,
@@ -2845,7 +2947,9 @@ export class AgentBlockHandler implements BlockHandler {
           systemPrompt:
             'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
           context: 'context' in providerRequest ? providerRequest.context : undefined,
-          tools: providerRequest.tools,
+          tools: agentMemoryRetrieval
+            ? [...(providerRequest.tools ?? []), agentMemoryRetrieval.tool]
+            : providerRequest.tools,
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
           apiKey: finalApiKey,
@@ -2886,6 +2990,11 @@ export class AgentBlockHandler implements BlockHandler {
         {
           resolvedSecretTraceRegistry: modelRuntimeRegistry,
           executionContext: ctx,
+          agentConversation,
+          agentMemoryRetrieval,
+          agentMemoryContext: agentConversation
+            ? { historyTokens: providerRequest.memoryHistoryTokens }
+            : undefined,
         }
       )
 
@@ -2974,14 +3083,31 @@ export class AgentBlockHandler implements BlockHandler {
   private wrapStreamForMemoryPersistence(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    streamingExec: StreamingExecution
+    streamingExec: StreamingExecution,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): StreamingExecution {
     return {
       ...streamingExec,
       onFullContent: async (content: string) => {
-        if (!content.trim()) return
         try {
-          await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+          await streamingExec.onFullContent?.(content)
+        } catch (error) {
+          logger.error(
+            'Streaming completion callback failed',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
+        }
+        if (!content.trim()) {
+          await agentConversation?.finalize('', servedModel)
+          return
+        }
+        try {
+          await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
         } catch (error) {
           logger.error(
             'Failed to persist streaming response',
@@ -2999,18 +3125,20 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput
+    result: BlockOutput,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): Promise<void> {
-    const content = (result as any)?.content
+    const content =
+      agentConversation?.getFinalAssistantContent() ??
+      (isPlainRecord(result) ? result.content : undefined)
     if (!content || typeof content !== 'string') {
+      await agentConversation?.finalize('', servedModel)
       return
     }
 
     try {
-      await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
-      logger.debug('Persisted assistant response to memory', {
-        workflowId: ctx.workflowId,
-      })
+      await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
     } catch (error) {
       logger.error(
         'Failed to persist response to memory',
@@ -3021,6 +3149,21 @@ export class AgentBlockHandler implements BlockHandler {
         )
       )
     }
+  }
+
+  private async appendFinalMemory(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    content: string,
+    model: string,
+    agentConversation?: AgentTurnSession
+  ): Promise<void> {
+    if (agentConversation?.memoryId) {
+      await agentConversation.finalize(content, model)
+      return
+    }
+    await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+    await agentConversation?.finalize(content, model)
   }
 
   private processProviderResponse(

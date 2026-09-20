@@ -30,6 +30,7 @@ vi.mock('@/providers/trace-enrichment', () => ({
   enrichLastModelSegmentFromChatCompletions: vi.fn(),
 }))
 vi.mock('@/providers/runtime-context', () => ({
+  getProviderRuntimeContext: () => undefined,
   executeProviderTool: vi.fn().mockResolvedValue({
     rawResponse: { success: true, output: { result: 'found' } },
     modelResponse: { success: true, output: { result: 'found' } },

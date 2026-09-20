@@ -26,7 +26,6 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 }))
 
 import {
-  type DurableSecretProvenance,
   hashDurableSecretProvenanceValue,
   importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
@@ -37,6 +36,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { readMemoryWriteProvenance } from '@/lib/internal/memory/provenance'
 import { appendMemoryUseCase } from '@/lib/memory/application/use-cases'
+import * as conversationStore from '@/lib/memory/conversation-store'
 import {
   bindMemorySecretProvenanceToMessages,
   createMemorySecretProvenanceSelector,
@@ -74,21 +74,6 @@ function queueStoredMemory(data: Message[], entries: readonly DurableSecretProve
       provenanceEntries: entries,
     },
   ])
-}
-
-interface MemoryWrites {
-  appendMessage(
-    workspaceId: string,
-    key: string,
-    message: Message,
-    provenance: DurableSecretProvenance | undefined
-  ): Promise<void>
-  seedMemoryRecord(
-    workspaceId: string,
-    key: string,
-    messages: Message[],
-    provenance: DurableSecretProvenance | undefined
-  ): Promise<void>
 }
 
 function principal(): WorkflowExecutionDelegatedPrincipal {
@@ -193,9 +178,10 @@ describe('memory message provenance', () => {
     'binds %s messages after removing transient attachment fields',
     async (mode) => {
       const service = new Memory()
-      const writes = service as unknown as MemoryWrites
-      const append = vi.spyOn(writes, 'appendMessage').mockResolvedValue(undefined)
-      const seed = vi.spyOn(writes, 'seedMemoryRecord').mockResolvedValue(undefined)
+      const append = vi
+        .spyOn(conversationStore, 'appendMemoryMessages')
+        .mockResolvedValue(undefined)
+      const seed = vi.spyOn(conversationStore, 'seedMemoryMessages').mockResolvedValue(undefined)
       const registry = new ResolvedSecretTraceRegistry(
         [{ name: 'TOKEN', plaintext: SECRET, encryptedValue: 'ciphertext' }],
         SCOPE
@@ -221,8 +207,9 @@ describe('memory message provenance', () => {
         await service.appendToMemory(executionContext(registry), INPUTS, message)
       else await service.seedMemory(executionContext(registry), INPUTS, [message])
 
-      const stored = mode === 'append' ? [append.mock.calls[0][2]] : seed.mock.calls[0][2]
-      const provenance = mode === 'append' ? append.mock.calls[0][3] : seed.mock.calls[0][3]
+      const written = mode === 'append' ? append.mock.calls[0][0] : seed.mock.calls[0][0]
+      const stored = written.messages
+      const provenance = written.provenance
       expect(stored).toEqual([
         {
           role: 'user',
