@@ -92,7 +92,7 @@ export const clickupStartTimerTool: ToolConfig<ClickUpStartTimerParams, ClickUpT
         return { success: false, output: { error }, error }
       }
 
-      const entry = isRecordLike(data) && toRecordOrNull(data.data)
+      const entry = isRecordLike(data) ? toRecordOrNull(data.data) : null
 
       return {
         success: true,

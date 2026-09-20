@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { validateAlphanumericId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { createJiraClient, type JiraClient } from '@/lib/internal/jira/client'
 import { JiraOperationError } from '@/lib/internal/jira/errors'
@@ -26,9 +27,7 @@ export interface JiraOperationContext {
 type JsonObject = Record<string, unknown>
 
 function asObject(value: unknown): JsonObject {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonObject)
-    : {}
+  return toRecord(value)
 }
 
 function parseObject(text: string): JsonObject {

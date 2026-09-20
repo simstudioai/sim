@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type {
   SlackDeleteMessageBody,
   SlackDownloadBody,
@@ -49,9 +50,7 @@ function providerError(data: SlackJsonObject, status: number, fallback: string):
 }
 
 function record(value: unknown): SlackJsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as SlackJsonObject)
-    : {}
+  return toRecord(value)
 }
 
 function mapReaction(value: unknown) {

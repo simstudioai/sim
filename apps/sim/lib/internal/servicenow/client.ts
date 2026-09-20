@@ -45,7 +45,7 @@ export async function uploadServiceNowAttachment(
   )
   const data = await response.json().catch(() => null)
   if (!response.ok) {
-    const error = isRecordLike(data) && toRecordOrNull(data.error)
+    const error = isRecordLike(data) ? toRecordOrNull(data.error) : null
     const message =
       error && typeof error.message === 'string'
         ? error.message

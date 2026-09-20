@@ -41,7 +41,7 @@ export async function uploadDataverseFile(
     return
   }
   const data = await response.json().catch(() => null)
-  const error = isRecordLike(data) && toRecordOrNull(data.error)
+  const error = isRecordLike(data) ? toRecordOrNull(data.error) : null
   const message =
     error && typeof error.message === 'string'
       ? error.message
