@@ -312,6 +312,11 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * observation's freshness, and requirement clauses live on the document. Both are refused there,
  * under the full predicate, before content is returned — this predicate only decides what is worth
  * ranking.
+ *
+ * A row the backfill has not reached yet carries no ACL (`acl IS NULL`) and passes: it is decided at
+ * hydration under the full document predicate, exactly as every candidate was before the columns
+ * existed. The backfill runs in the background, so search never waits on it and never loses a
+ * document to it.
  */
 export function projectionCandidateAccessCondition(
   projection: { connectorId: AnyPgColumn | SQL; acl: AnyPgColumn | SQL },
@@ -330,8 +335,8 @@ export function projectionCandidateAccessCondition(
     ...plan.connectors.admin,
     ...plan.connectors.members,
   ]
-  return sql`(${projection.acl} && ${tokens}
-    AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)}))`
+  return sql`(${projection.acl} IS NULL OR (${projection.acl} && ${tokens}
+    AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)})))`
 }
 
 /**

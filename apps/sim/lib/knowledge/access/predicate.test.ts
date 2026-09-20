@@ -17,12 +17,50 @@ vi.unmock('@sim/db/schema')
 process.env.DATABASE_URL ??= 'postgresql://user:pass@localhost:5432/test'
 
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
+const { embeddingSearch } = await import('@sim/db/schema')
+const { knowledgeAccessCondition, projectionCandidateAccessCondition } = await import(
+  '@/lib/knowledge/access/predicate'
+)
 const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/types')
 
 function render(condition: ReturnType<typeof knowledgeAccessCondition>) {
   return new PgDialect().sqlToQuery(condition)
 }
+
+describe('projectionCandidateAccessCondition', () => {
+  const plan = {
+    connectors: { workspace: ['ws-src'], admin: [], members: [], liveProofRequired: [] },
+    observers: { confirmed: [], observed: [] },
+    memberSources: [],
+  }
+
+  it('admits a row the backfill has not filled, and decides a filled row on its mirrored columns', () => {
+    const { sql, params } = render(
+      projectionCandidateAccessCondition(
+        embeddingSearch,
+        { kind: 'user', userId: 'user-1', tokens: ['ws', 'u:alice'] },
+        plan
+      )
+    )
+    expect(sql).toBe(
+      '("embedding_search"."acl" IS NULL OR ("embedding_search"."acl" && ARRAY[$1, $2]::text[]\n' +
+        '    AND ("embedding_search"."connector_id" IS NULL OR "embedding_search"."connector_id" = ANY(ARRAY[$3]::text[]))))'
+    )
+    expect(params).toEqual(['ws', 'u:alice', 'ws-src'])
+  })
+
+  it('still denies everything for an empty token set', () => {
+    expect(
+      render(
+        projectionCandidateAccessCondition(
+          embeddingSearch,
+          { kind: 'user', userId: 'user-1', tokens: [] },
+          plan
+        )
+      ).sql
+    ).toBe('false')
+  })
+})
 
 describe('knowledgeAccessCondition', () => {
   it('overlaps the ACL with the tokens as a literal array of scalar binds', () => {

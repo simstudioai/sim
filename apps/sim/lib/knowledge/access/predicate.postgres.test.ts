@@ -623,6 +623,20 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     expect(await admits(perRow, 'members-other')).toBe(false)
     expect(await onRowAdmits('members-other')).toBe(false)
     /**
+     * A chunk the backfill has not reached carries no source or ACL yet. It is ranked, and decided
+     * at hydration under the full predicate, exactly as every candidate was before the columns
+     * existed — search must not depend on the backfill, and must not lose a document to it.
+     */
+    await connection.unsafe(
+      "INSERT INTO document(id, connector_id, acl, acl_verified_at) VALUES ('unfilled-other', 'members', ARRAY['s:slack:-:bob'], statement_timestamp())"
+    )
+    await connection.unsafe(
+      "INSERT INTO embedding_search(id, document_id) VALUES ('unfilled-other-chunk', 'unfilled-other'), ('admin-current-unfilled', 'admin-current')"
+    )
+    expect(await onRowAdmits('unfilled-other')).toBe(true)
+    expect(await admits(perRow, 'unfilled-other')).toBe(false)
+    expect(await onRowAdmits('admin-current')).toBe(true)
+    /**
      * Candidate ranking defers the live source proof, as the per-row candidate predicate does: a
      * caller holds those grants only after authorization, so applying the clause during ranking
      * would drop every candidate of a gated source before it could be proven.
