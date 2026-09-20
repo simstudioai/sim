@@ -10,7 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { resolveSearchAccessPlan } from '@/lib/knowledge/access/connector-eligibility'
@@ -1152,6 +1152,19 @@ const indexDocumentCounts = new LRUCache<string, number>({
   },
 })
 
+/** The date window a filter asks for, on the document row; nothing when none is asked. */
+function dateFilterCondition(filters: WorkspaceSearchFilters | undefined): SQL | undefined {
+  if (!filters?.modifiedAfter && !filters?.modifiedBefore) return undefined
+  return and(
+    filters.modifiedAfter
+      ? gte(document.sourceModifiedAt, new Date(filters.modifiedAfter))
+      : undefined,
+    filters.modifiedBefore
+      ? lte(document.sourceModifiedAt, new Date(filters.modifiedBefore))
+      : undefined
+  )
+}
+
 /**
  * The planner's estimate of the documents a filter leaves in the bases — a date filter from the
  * statistics on its index, a source filter from its connectors' — so whether the filtered set is
@@ -1169,9 +1182,7 @@ async function estimateFilteredDocuments(
     WHERE ${and(
       inArray(document.knowledgeBaseId, knowledgeBaseIds),
       isNull(document.deletedAt),
-      filters.modifiedAfter
-        ? gte(document.sourceModifiedAt, new Date(filters.modifiedAfter))
-        : undefined,
+      dateFilterCondition(filters),
       filters.source ? planSourceCondition(plan) : undefined
     )}`)
   )
@@ -1290,7 +1301,7 @@ export async function resolvePermittedDocuments(params: {
    * change; the filtered set still has to be enumerated, so under one the probe always runs.
    */
   const remembered =
-    key && !(params.accessPlan && (params.filters?.modifiedAfter || params.filters?.source))
+    key && !(params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source))
       ? saturatedReach.get(key)
       : undefined
   if (remembered) {
@@ -1309,7 +1320,7 @@ export async function resolvePermittedDocuments(params: {
         params.access,
         params.budget,
         'permitted_documents',
-        params.accessPlan && (params.filters?.modifiedAfter || params.filters?.source)
+        params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
           ? 'direct'
           : 'reach-first'
       )
@@ -1576,12 +1587,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
    * date filter, which the row does not carry. A bounded set never walks, so this only runs when
    * the filtered documents were too many to enumerate.
    */
-  const documentCondition = and(
-    documentTagCondition,
-    params.filters?.modifiedAfter
-      ? gte(document.sourceModifiedAt, new Date(params.filters.modifiedAfter))
-      : undefined
-  )
+  const documentCondition = and(documentTagCondition, dateFilterCondition(params.filters))
   /**
    * Candidate selection ignores the page offset — only the rerank pages over the pool — so a
    * refill reuses the pool it already has. Excluding another source is the only thing that
@@ -1676,7 +1682,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         )
         if (
           params.permitted?.kind === 'bounded' &&
-          (!walksASource || params.filters?.modifiedAfter || params.filters?.source)
+          (!walksASource || dateFilterCondition(params.filters) || params.filters?.source)
         ) {
           /**
            * A bounded permitted set is ranked exactly without walking the graph first: the walk
@@ -1926,8 +1932,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           access,
           accessPlan!
         ),
-        params.filters?.modifiedAfter
-          ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, gte(document.sourceModifiedAt, new Date(params.filters.modifiedAfter)))})`
+        dateFilterCondition(params.filters)
+          ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, dateFilterCondition(params.filters))})`
           : undefined,
         excludedSources.length
           ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
@@ -2427,13 +2433,8 @@ export async function retrieveKnowledgeSearch(
   /** Planning only, so a short cap of its own: running past it answers as the wide window it may be. */
   const estimateBudget = budgets.vector.capped(VECTOR_PROBE_BUDGET_MS)
   const enumerateFiltered =
-    accessPlan && (params.filters?.modifiedAfter || params.filters?.source)
-      ? await estimateFilteredDocuments(
-          knowledgeBaseIds,
-          params.filters,
-          accessPlan,
-          estimateBudget
-        )
+    accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
+      ? await estimateFilteredDocuments(knowledgeBaseIds, params.filters, accessPlan, estimateBudget)
           .then((estimate) => estimate <= VECTOR_PROBE_DOCUMENT_LIMIT)
           .catch((error) => {
             if (!estimateBudget.isTimeout(error)) throw error

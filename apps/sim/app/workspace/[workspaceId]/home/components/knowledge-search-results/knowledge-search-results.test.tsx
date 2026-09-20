@@ -48,10 +48,13 @@ afterEach(() => {
   act(() => root.unmount())
   vi.unstubAllGlobals()
 })
-async function render(scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' }) {
+async function render(
+  scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' },
+  searchParams = ''
+) {
   await act(async () =>
     root.render(
-      <NuqsTestingAdapter>
+      <NuqsTestingAdapter searchParams={searchParams}>
         <KnowledgeSearchResults scope={scope} query='launch' onSummarize={vi.fn()} />
       </NuqsTestingAdapter>
     )
@@ -146,5 +149,55 @@ describe('source setup navigation', () => {
     await render(scope)
     expect(container.textContent).toContain('No sources are set up yet.')
     expect(container.querySelector('a')?.getAttribute('href')).toBe(href)
+  })
+})
+
+describe('result paging and the custom window', () => {
+  const result = (n: number) => ({
+    documentId: `doc-${n}`,
+    knowledgeBaseId: 'kb',
+    knowledgeBaseName: 'Index',
+    documentName: `Document ${n}`,
+    sourceUrl: null,
+    connectorType: 'slack',
+    sourceModifiedAt: null,
+    author: null,
+    content: 'launch notes',
+    chunkIndex: 0,
+    similarity: 0.5,
+  })
+
+  it('shows ten documents at a time and reveals more on request', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: {
+        query: 'launch',
+        results: Array.from({ length: 25 }, (_, n) => result(n)),
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render()
+    expect(container.textContent).toContain('Document 9')
+    expect(container.textContent).not.toContain('Document 10')
+    const more = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show more'
+    )!
+    expect(more).toBeDefined()
+    await act(async () => more.click())
+    expect(container.textContent).toContain('Document 19')
+    expect(container.textContent).not.toContain('Document 20')
+  })
+
+  it('searches a custom window as an inclusive range of days', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
+    const filters = mocks.search.mock.calls.at(-1)![2]
+    expect(filters.modifiedAfter).toBe('2026-09-01T00:00:00.000Z')
+    expect(filters.modifiedBefore).toBe('2026-09-10T23:59:59.999Z')
   })
 })

@@ -172,11 +172,26 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 })
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
-export const workspaceSearchFiltersSchema = z.object({
-  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
-  modifiedAfter: z.string().datetime({ offset: true }).optional(),
-  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
-})
+export const workspaceSearchFiltersSchema = z
+  .object({
+    source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
+    modifiedAfter: z.string().datetime({ offset: true }).optional(),
+    modifiedBefore: z.string().datetime({ offset: true }).optional(),
+    documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
+  })
+  .superRefine((filters, ctx) => {
+    if (
+      filters.modifiedAfter &&
+      filters.modifiedBefore &&
+      Date.parse(filters.modifiedBefore) < Date.parse(filters.modifiedAfter)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['modifiedBefore'],
+        message: 'modifiedBefore must not precede modifiedAfter',
+      })
+    }
+  })
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
 export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({

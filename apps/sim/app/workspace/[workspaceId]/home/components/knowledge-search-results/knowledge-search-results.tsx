@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipLink, cn } from '@sim/emcn'
+import { Chip, ChipDatePicker, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type {
@@ -27,6 +27,8 @@ import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/conn
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+/** Cards shown before the reader asks for more; the search itself returns several pages' worth. */
+const RESULTS_PAGE_SIZE = 10
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
 
@@ -127,6 +129,7 @@ interface SearchResultsProps {
 function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
+  const [shown, setShown] = useState(RESULTS_PAGE_SIZE)
   const {
     data: index,
     isPending: basesPending,
@@ -136,10 +139,16 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   } = useSearchIndex(scope)
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
+  /** A custom window is inclusive of both days; `to` runs to the end of its day. */
+  const custom = filters.updated === 'custom'
   const searchFilters: WorkspaceSearchFilters = {
     ...(filters.source ? { source: filters.source } : {}),
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
+      : {}),
+    ...(custom && filters.from ? { modifiedAfter: filters.from.toISOString() } : {}),
+    ...(custom && filters.to
+      ? { modifiedBefore: new Date(filters.to.getTime() + DAY_MS - 1).toISOString() }
       : {}),
   }
   const {
@@ -262,6 +271,17 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               {window.label}
             </Chip>
           ))}
+          {custom && (
+            <ChipDatePicker
+              mode='range'
+              label='Updated between'
+              startDate={filters.from?.toISOString()}
+              endDate={filters.to?.toISOString()}
+              onRangeChange={(start, end) =>
+                void setFilters({ from: new Date(start), to: new Date(end) })
+              }
+            />
+          )}
         </div>
       )}
       {showResults && (
@@ -272,7 +292,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           className={cn('flex flex-col', isPlaceholderData && 'opacity-60')}
           onKeyDown={handleResultsKeyDown}
         >
-          {documents.map((result) => {
+          {documents.slice(0, shown).map((result) => {
             const source = toSource(result, query, scope)
             return (
               <SourceCard
@@ -291,6 +311,13 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               />
             )
           })}
+          {documents.length > shown && (
+            <div className='flex px-2 py-2'>
+              <Chip variant='border' onClick={() => setShown((count) => count + RESULTS_PAGE_SIZE)}>
+                Show more
+              </Chip>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -89,6 +89,8 @@ export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
 export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
+/** Chunks one search asks for: several pages of documents once collapsed to one card each. */
+export const WORKSPACE_KNOWLEDGE_SEARCH_RESULT_LIMIT = 50
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
@@ -1229,6 +1231,7 @@ export function useWorkspaceKnowledgeSearch(
           ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
+          topK: WORKSPACE_KNOWLEDGE_SEARCH_RESULT_LIMIT,
         },
         signal
       ),

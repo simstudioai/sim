@@ -6,6 +6,9 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }))
+const { mockHasRotatingApiKey } = vi.hoisted(() => ({ mockHasRotatingApiKey: vi.fn(() => true) }))
+vi.mock('@/lib/core/config/api-keys', () => ({ hasRotatingApiKey: mockHasRotatingApiKey }))
+
 vi.mock('@/lib/knowledge/application/workspace-search', () => ({
   searchScopedKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
 }))
@@ -47,6 +50,10 @@ describe('workspace search route', () => {
     expect(call.input.signal).toBe(request.signal)
     expect(call.input.allowPartialResults).toBe(true)
     expect(call.input.vectorBudgetMs).toBe(3000)
+    /** A person's search is reranked by the platform's cross-encoder whenever one is configured. */
+    expect(mockHasRotatingApiKey).toHaveBeenCalledWith('cohere')
+    expect(call.input.rerankerEnabled).toBe(true)
+    expect(call.input.rerankerModel).toBe('rerank-v4.0-fast')
     controller.abort()
     expect(call.input.signal.aborted).toBe(true)
     await expect(response.json()).resolves.toEqual({
