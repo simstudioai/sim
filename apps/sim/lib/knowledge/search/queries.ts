@@ -520,6 +520,12 @@ const TIN_KEYWORD_WINDOWS = [2000, 10_000, 50_000] as const
 const NARROW_KEYWORD_PAGE = 1000
 
 /**
+ * The one window a narrow reader ranks: wide enough that a few percent of it fills their page
+ * several times over, and less than half the cost of the widest window the broad readers reach.
+ */
+const NARROW_KEYWORD_WINDOW = 20_000
+
+/**
  * Row visibility predicates shared by every search leg: a chunk is only
  * retrievable when both it and its document are enabled, the document finished
  * processing, it has not been excluded, archived, or soft-deleted, and its ACL
@@ -1613,18 +1619,20 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * their own instead, so the misjudgement costs one walk rather than their neighbours.
            */
           if (
-            selected.length < candidateLimit &&
+            selected.length < params.topK &&
             params.permitted?.kind === 'unbounded' &&
             params.permitted.broad &&
             plan
           ) {
             annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
             /**
-             * The query sits in a neighbourhood the caller mostly cannot read. A broad reader's own
-             * sources are already in this walk, so searching them again finds nothing new, and
-             * enumerating their readable chunks is a bitmap over most of the index; the same walk
-             * with a wider scan is what reaches past that neighbourhood. What it found is kept, and
-             * if the wider walk runs out of the leg's budget the first walk's candidates stand.
+             * The query sits in a neighbourhood the caller mostly cannot read, and the walk found
+             * fewer candidates than there are results to return — a pool short of its limit but past
+             * that need is reranked as it is. A broad reader's own sources are already in this walk,
+             * so searching them again finds nothing new, and enumerating their readable chunks is a
+             * bitmap over most of the index; the same walk with a wider scan is what reaches past
+             * that neighbourhood. What it found is kept, and if the wider walk runs out of the leg's
+             * budget the first walk's candidates stand.
              */
             const walked = selected
             try {
@@ -1844,7 +1852,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         accessPlan !== undefined &&
         params.permitted?.kind === 'unbounded' &&
         !params.permitted.broad
-      const windows = narrow ? [TIN_KEYWORD_WINDOWS.at(-1)!] : TIN_KEYWORD_WINDOWS
+      const windows = narrow ? [NARROW_KEYWORD_WINDOW] : TIN_KEYWORD_WINDOWS
       /**
        * A narrow reader's page is the readable remainder of a wide ranking, and that ranking is
        * the cost: each page would rank the window again to find the next few readable rows, so one

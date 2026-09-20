@@ -1575,7 +1575,7 @@ describe('permitted-document planner', () => {
     })
 
     it('takes one wide window for a narrow resolved scope and leaves a short page short', async () => {
-      tinPages = [{ ranked: 50_000, candidates: [hit('a', 'src-a')] }]
+      tinPages = [{ ranked: 20_000, candidates: [hit('a', 'src-a')] }]
       queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
       const results = await keyword({
         permitted: { kind: 'unbounded', broad: false },
@@ -1588,7 +1588,7 @@ describe('permitted-document planner', () => {
       expect(results.map((row) => row.id)).toEqual(['a'])
       /** One statement, at the widest window; nothing narrower first, and no ranking of every match after. */
       expect(tinStatements()).toHaveLength(1)
-      expect(JSON.stringify(tinStatements()[0])).toContain('50000')
+      expect(JSON.stringify(tinStatements()[0])).toContain('20000')
       expect(ginStatements()).toHaveLength(0)
       /** The window is ranked once for several pages' worth of readable rows, not once per page. */
       expect(JSON.stringify(tinStatements()[0])).toContain('1000')
