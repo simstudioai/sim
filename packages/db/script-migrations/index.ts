@@ -5,7 +5,7 @@ import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_b
 import { indexSearchDocumentsMigration } from '@sim/db/script-migrations/0017_index_search_documents'
 import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
 import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
-import { embeddingSearchConnectorMigration } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -44,7 +44,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   /** 0358 stops new sub-millisecond revisions; this retires the ones that predate it. */
   repairWorkspaceFileContentRevisionMigration,
   tinKeywordProjectionMigration,
-  embeddingSearchConnectorMigration,
+  /** 0022 supersedes 0021, whose synchronous backfill could not finish inside a deploy. */
+  projectionSourceAclBackfillMigration,
 ]
 
 /**

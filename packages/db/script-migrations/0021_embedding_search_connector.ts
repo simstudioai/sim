@@ -1,4 +1,3 @@
-import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import postgres, { type Sql } from 'postgres'
@@ -15,20 +14,15 @@ export const PROJECTION_SOURCE_ACL_PAGE_SIZE = 100
 /** Pause between pages, so the backfill shares the database with the search it serves. */
 export const PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS = 250
 
-/** Longest a page may run before the database cancels it; the run then fails and resumes. */
-const PAGE_STATEMENT_TIMEOUT = '60s'
+/**
+ * Longest a page may run before the database cancels it; the run then fails and resumes. A caller
+ * that bounds a run leaves at least this much headroom after its budget, since the budget is
+ * checked between pages and the page in flight runs to this limit.
+ */
+export const PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS = 60_000
 
 /** Pages between progress log lines. */
 const PROGRESS_EVERY_PAGES = 100
-
-/**
- * The outbox event the migration leaves for the app, whose handler starts the backfill on the
- * deployment's worker. Written once, under a fixed id, so a rerun of the migration does not start
- * it twice.
- */
-export const PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT =
-  'knowledge.projection.source_acl.backfill'
-const PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_ID = 'projection-source-acl-backfill:0021'
 
 /** The projections that carry their document's source and ACL. */
 export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
@@ -138,7 +132,7 @@ export async function backfillProjectionSourceAcl(
   for (;;) {
     const page = await sql.begin(async (tx) => {
       await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-      await tx.unsafe(`SET LOCAL statement_timeout = '${PAGE_STATEMENT_TIMEOUT}'`)
+      await tx.unsafe(`SET LOCAL statement_timeout = ${PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}`)
       const [row] = await tx.unsafe<
         Array<{ scanned: number; filled: number; last_id: string | null }>
       >(
@@ -245,41 +239,9 @@ export async function indexProjectionAcl(pool: Sql): Promise<void> {
 }
 
 /**
- * Leaves the app one outbox event to start the backfill from. The outbox processor runs on every
- * deployment, so the backfill starts on its own once the app that ships the handler is up —
- * enqueued on the Trigger.dev worker where there is one, run in bounded slices by the outbox
- * itself otherwise — without an operator remembering to. Idempotent under its fixed id.
- */
-export async function enqueueProjectionSourceAclBackfillEvent(sql: Sql): Promise<void> {
-  await sql`
-    INSERT INTO outbox_event (id, event_type, payload)
-    VALUES (${PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_ID}, ${PROJECTION_SOURCE_ACL_BACKFILL_OUTBOX_EVENT}, '{}'::json)
-    ON CONFLICT (id) DO NOTHING`
-}
-
-/**
- * Installs the triggers, builds the indexes and leaves the outbox event that starts the backfill;
- * all three are idempotent, so a run that was cut short completes on the next deploy. The columns
- * are not filled here: on `embedding_search` every filled row is re-inserted into each HNSW index,
- * which puts the full projection far beyond what a deploy job can wait for. The backfill runs
- * afterwards from the `projection-source-acl-backfill` Trigger.dev task, which the outbox handler
- * starts and which chains bounded runs until both projections are filled. It is safe to start again
- * at any time, with `bun apps/sim/scripts/backfill-projection-source-acl.ts` or a test run of the
- * task from the Trigger.dev dashboard. Until it completes, an unfilled row is decided on its
- * document, the join per candidate every row paid before the columns existed.
- */
-export const embeddingSearchConnectorMigration: ScriptMigration = {
-  name: '0021_embedding_search_connector',
-  async up(sql) {
-    await installProjectionSourceAcl(sql)
-    await indexProjectionAcl(sql)
-    await enqueueProjectionSourceAclBackfillEvent(sql)
-  },
-}
-
-/**
  * Run directly — `db:push`, or an operator filling a database by hand — the projections are filled
- * here, paced the same way, rather than left to the app.
+ * here, paced the same way, rather than left to the app. The registered migration is
+ * `0022_projection_source_acl_backfill`, which supersedes this file's earlier, synchronous shape.
  */
 if (import.meta.main) {
   const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL

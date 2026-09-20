@@ -33,9 +33,6 @@ vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
 vi.mock('@/lib/knowledge/documents/processing-outbox-handler', () => ({
   knowledgeDocumentProcessingOutboxHandlers: {},
 }))
-vi.mock('@/lib/knowledge/search/projection-source-acl-backfill', () => ({
-  projectionSourceAclBackfillOutboxHandlers: {},
-}))
 vi.mock('@/lib/mothership/inbox/cleanup-outbox', () => ({ inboxCleanupOutboxHandlers: {} }))
 vi.mock('@/lib/organizations/resource-cleanup', () => ({
   organizationResourceCleanupOutboxHandlers: {},
