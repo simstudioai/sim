@@ -7,8 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
-import { InviteLayout } from '@/app/invite/components'
-import { InviteHeading } from '@/app/invite/components/invite-heading'
+import { InviteHeading, InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
 function UnsubscribeContent() {
