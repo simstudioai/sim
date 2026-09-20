@@ -1,15 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import {
-  Button,
-  Chip,
-  ChipCombobox,
-  ChipDropdown,
-  type ComboboxOption,
-  Label,
-  Tooltip,
-} from '@sim/emcn'
+import { Button, Chip, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
@@ -188,7 +180,7 @@ const FallbackRow = memo(function FallbackRow({
       </div>
 
       <div className='flex flex-col gap-2.5 rounded-b-[4px] border-[var(--border)] border-t bg-[var(--surface-2)] p-2'>
-        <ChipCombobox
+        <Combobox
           options={modelOptions}
           value={row.model}
           onChange={(model) => onChangeModel(row.id, model)}
@@ -203,7 +195,7 @@ const FallbackRow = memo(function FallbackRow({
         {needsApiKey && (
           <div className='flex flex-col gap-2.5'>
             <Label className='pl-0.5'>API key</Label>
-            <ChipCombobox
+            <Combobox
               options={envVarOptions}
               value={apiKeyValue}
               onChange={(apiKey) => onChangeApiKey(row.id, apiKey)}
@@ -220,7 +212,7 @@ const FallbackRow = memo(function FallbackRow({
         {tuningFields.map(({ knob, options }) => (
           <div key={knob} className='flex flex-col gap-2.5'>
             <Label className='pl-0.5'>{FALLBACK_TUNING_LABELS[knob]}</Label>
-            <ChipDropdown
+            <Combobox
               options={options}
               value={row[knob] ?? options[0]?.value ?? ''}
               onChange={(value) => onChangeTuning(row.id, knob, value)}
