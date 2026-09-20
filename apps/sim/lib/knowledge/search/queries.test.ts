@@ -33,6 +33,7 @@ import {
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import {
   executeKeywordSearch,
+  forgetSearchReach,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -122,8 +123,9 @@ function render(condition: unknown) {
 }
 
 /** The permitted-document probe is the only statement that reports whether it saturated. */
+/** The permitted-documents probe: the reach count and the saturation sentinel, never a slice. */
 function isProbeStatement(sql: string) {
-  return sql.includes('AS saturated')
+  return sql.includes('AS saturated') && !sql.includes('readable_chunks')
 }
 
 /** A graph walk: visibility joined per visited row, or decided on the row it visits. */
@@ -1244,6 +1246,7 @@ describe('permitted-document planner', () => {
     sourceExactRows = []
     indexedSourceRows = []
     forgetIndexedVectorSources()
+    forgetSearchReach()
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
       if (statement.includes('pg_index')) return indexedSourceRows
@@ -1688,7 +1691,8 @@ describe('permitted-document planner', () => {
         const statement = render(query).sql
         if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
         if (statement.includes(') reached')) return [{ n: counts.reached }]
-        if (statement.includes('count(*) AS n')) return [{ n: counts.index }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': counts.index } }] }]
         return []
       })
       const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
@@ -1750,7 +1754,7 @@ describe('permitted-document planner', () => {
     expect(budget.timedOut).toBe(true)
   })
 
-  it('resolves the permitted set once, before both legs, for live user scopes only', async () => {
+  it('resolves a live user scope by its reach, before both legs, without enumerating documents', async () => {
     const search = {
       knowledgeBaseIds: ['org-index'],
       topK: 1,
@@ -1759,12 +1763,9 @@ describe('permitted-document planner', () => {
       queryVector: params.queryVector!,
     }
     await retrieveKnowledgeSearch({ ...search, access: reader, accessProvider: provider })
-    /** Budgeted statements open with their transaction's `set_config`; the SQL that follows is ordered. */
-    const userSqls = statements()
-      .map((query) => query.sql)
-      .filter((sql) => !sql.includes('set_config'))
-    expect(isProbeStatement(userSqls[0])).toBe(true)
-    expect(userSqls.filter(isProbeStatement)).toHaveLength(1)
+    /** Readability is decided on the row, so no readable set is enumerated ahead of ranking. */
+    expect(statements().some((query) => isProbeStatement(query.sql))).toBe(false)
+    expect(statements().some((query) => isWalk(query.sql))).toBe(true)
 
     resetDbChainMock()
     dbChainMockFns.execute.mockImplementation(async () => [])
@@ -1836,9 +1837,12 @@ describe('permitted-document planner', () => {
       const rebuilt = JSON.stringify(query).includes('OR NOT (')
       if (statement.includes('WITH scored_search_candidates'))
         return rebuilt ? [hit('b', 'other-src')] : [hit('a', 'gated-src')]
-      if (isExactRanking(statement)) return [{ id: rebuilt ? 'b' : 'a' }]
-      if (isProbeStatement(statement))
-        return [{ id: 'doc-a', connectorId: 'gated-src', saturated: false }]
+      /** The first walk's pool is the gated source's; the rebuilt one reaches the accessible chunk. */
+      if (isWalk(statement))
+        return Array.from({ length: 400 }, (_, i) => ({
+          id: i === 0 ? (rebuilt ? 'b' : 'a') : `w-${i}`,
+          distance: 0.1,
+        }))
       return []
     })
     queueTableRows(schemaMock.embedding, [])
@@ -1868,8 +1872,10 @@ describe('permitted-document planner', () => {
         githubRepository: false,
       },
     ])
-    probeRows = [{ id: 'doc-a', connectorId: 'gated-src', saturated: false }]
-    exactRows = [{ id: 'a' }]
+    traversedRows = Array.from({ length: 400 }, (_, i) => ({
+      id: i === 0 ? 'a' : `w-${i}`,
+      distance: 0.1,
+    }))
     rerankRows = [hit('a', 'gated-src')]
     queueTableRows(schemaMock.embedding, [hit('a', 'gated-src')])
     const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)

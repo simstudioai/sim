@@ -1078,13 +1078,18 @@ const saturatedReach = new LRUCache<string, { broad: boolean }>({
 const indexDocumentCounts = new LRUCache<string, number>({
   max: 1000,
   ttl: SATURATED_REACH_TTL_MS,
+  /**
+   * The planner's estimate of the bases' documents, from the statistics it already keeps: a share
+   * threshold needs the order of magnitude, and counting every row to learn it costs more than the
+   * search it serves.
+   */
   fetchMethod: async (key) => {
-    const [row] = await db.execute<{ n: number }>(sql`
-      SELECT count(*) AS n FROM ${document}
+    const [row] = await db.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
+      EXPLAIN (FORMAT JSON) SELECT 1 FROM ${document}
       WHERE ${document.knowledgeBaseId} = ANY(${textArrayLiteral(key.split(','))})
         AND ${document.deletedAt} IS NULL`)
-    /** An empty answer is not remembered; the bases may simply not have been read yet. */
-    return Number(row?.n ?? 0) || undefined
+    /** An empty answer is not remembered; the bases may simply not have been analyzed yet. */
+    return Number(row?.['QUERY PLAN']?.[0]?.Plan?.['Plan Rows'] ?? 0) || undefined
   },
 })
 
@@ -1121,6 +1126,31 @@ function reachKey(
 ): string | null {
   if (access.kind !== 'user') return null
   return `${[...knowledgeBaseIds].sort().join(',')}:${sha256Hex([...access.tokens].sort().join('\n'))}`
+}
+
+/** Forgets every remembered reach, after the bases' documents or a caller's tokens changed. */
+export function forgetSearchReach(): void {
+  saturatedReach.clear()
+  indexDocumentCounts.clear()
+}
+
+/** A resolved scope's reach, remembered per bases and tokens, with no document enumerated. */
+async function resolveReach(
+  knowledgeBaseIds: string[],
+  access: KnowledgeAccessScope,
+  budget: SearchBudget | undefined
+): Promise<PermittedDocuments> {
+  const key = reachKey(knowledgeBaseIds, access)
+  const remembered = key ? saturatedReach.get(key) : undefined
+  if (remembered) return { kind: 'unbounded', broad: remembered.broad }
+  let broad = true
+  try {
+    broad = await reachIsBroad(knowledgeBaseIds, access, budget)
+  } catch (error) {
+    if (!budget?.isTimeout(error)) throw error
+  }
+  if (key) saturatedReach.set(key, { broad })
+  return { kind: 'unbounded', broad }
 }
 
 /**
@@ -1283,7 +1313,7 @@ async function selectSourceVectorCandidates(input: {
         (executor) =>
           executor.execute<{ id: string; distance: number }>(sql`
             SELECT ${embeddingSearch.id} AS id, ${input.candidateDistance} AS distance
-            FROM ${embeddingSearch} -- on-row visibility
+            FROM ${embeddingSearch} /* on-row visibility */
             WHERE ${and(
               base,
               scope,
@@ -1532,7 +1562,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
               executor.execute<{ id: string }>(
                 plan
                   ? sql`
-            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} -- on-row visibility
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} /* on-row visibility */
             WHERE ${and(
               scopeOfWalk,
               projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
@@ -1808,7 +1838,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
                     sql`
               SELECT ranked_tin_chunks.id, ranked_tin_chunks.document_id AS "documentId",
                 ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank
-              FROM ranked_tin_chunks -- on-row visibility
+              FROM ranked_tin_chunks /* on-row visibility */
               WHERE ranked_tin_chunks.enabled AND ${onRowKeywordVisibility(excludedSources)}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
               LIMIT ${limit} OFFSET ${offset}`
@@ -1867,7 +1897,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             ? params.permitted.documents.map((entry) => entry.id)
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
-        if (tinScope && !permittedIds) {
+        if (tinScope && (accessPlan || !permittedIds)) {
           const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
           if (tinPage) return tinPage
           annotateSearchDiagnostics({ keywordRanking: 'gin' })
@@ -2221,13 +2251,22 @@ export async function retrieveKnowledgeSearch(
    */
   const permitted =
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
-      ? await resolvePermittedDocuments({
-          knowledgeBaseIds,
-          access,
-          filters: params.filters,
-          budget: budgets.vector,
-          accessPlan,
-        })
+      ? accessPlan
+        ? /**
+           * With readability decided on the projection row, a resolved scope never needs its
+           * readable documents enumerated ahead of ranking: its reach alone chooses between one
+           * walk over the whole graph and a search of each source.
+           */
+          await measureSearchStage('permitted_documents', () =>
+            resolveReach(knowledgeBaseIds, access, budgets.vector)
+          )
+        : await resolvePermittedDocuments({
+            knowledgeBaseIds,
+            access,
+            filters: params.filters,
+            budget: budgets.vector,
+            accessPlan,
+          })
       : undefined
   const vectorParams = {
     ...common,
