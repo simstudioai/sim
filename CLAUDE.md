@@ -17,6 +17,8 @@ You are a professional software engineer. All code must follow best practices: a
   - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
   - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
   - `isRecordLike(value)` from `@sim/utils/object` — never redeclare `typeof value === 'object' && value !== null && !Array.isArray(value)`
+  - `toRecord(value)` / `toRecordOrNull(value)` / `toArray(value)` from `@sim/utils/object` — coerce an untyped payload value to a record or array; never inline `isRecordLike(v) ? v : {}` or `Array.isArray(v) ? v : []`. Where the source is already typed, keep the inline `Array.isArray` check: it narrows, while `toArray` asserts
+  - `toStringOrNull(value)` / `toNumberOrNull(value)` / `toBooleanOrNull(value)` from `@sim/utils/coerce` — read one scalar out of an untyped payload; never declare a local one-liner byte-identical to one of these. Keep a local helper that differs: `undefined` instead of `null` changes the wire shape, and a `Number.isFinite` or string-parse variant is a stricter check these omit
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `escapeRegExp(value)` from `@sim/utils/string` — never inline `replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
