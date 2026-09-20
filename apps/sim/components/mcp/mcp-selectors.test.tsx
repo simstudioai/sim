@@ -1,11 +1,11 @@
 /** @vitest-environment node */
 import type { ComponentProps } from 'react'
-import type { ChipCombobox } from '@sim/emcn'
+import type { Combobox } from '@sim/emcn'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  combobox: vi.fn<(props: ComponentProps<typeof ChipCombobox>) => null>(() => null),
+  combobox: vi.fn<(props: ComponentProps<typeof Combobox>) => null>(() => null),
   setValue: vi.fn(),
   longInput: vi.fn(() => null),
   shortInput: vi.fn(() => null),
@@ -38,7 +38,7 @@ vi.mock('@/stores/workflow-diff/store', () => ({
       },
     }),
 }))
-vi.mock('@sim/emcn', () => ({ ChipCombobox: mocks.combobox, Label: () => null }))
+vi.mock('@sim/emcn', () => ({ Combobox: mocks.combobox, Label: () => null }))
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input',
   () => ({ LongInput: mocks.longInput })

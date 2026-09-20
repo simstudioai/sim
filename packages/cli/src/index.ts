@@ -280,8 +280,6 @@ async function main() {
     'POSTGRES_DB=simstudio',
     '-v',
     `${dataDir}/postgres:/var/lib/postgresql/data`,
-    '-p',
-    '5432:5432',
     'pgvector/pgvector:pg17',
   ])
 

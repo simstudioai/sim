@@ -785,13 +785,6 @@ const Combobox = memo(
                   <div className='group relative'>
                     <Input
                       ref={inputRef}
-                      className={cn(
-                        'w-full pr-10 transition-colors',
-                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
-                        SelectedIcon && !overlayContent && 'pl-7',
-                        open && 'focus-visible:border-[var(--border-1)]',
-                        className
-                      )}
                       placeholder={placeholder}
                       value={value ?? ''}
                       onChange={handleInputChange}
@@ -805,6 +798,14 @@ const Combobox = memo(
                       aria-required={ariaRequired}
                       aria-invalid={ariaInvalid}
                       {...inputProps}
+                      className={cn(
+                        'w-full pr-10 transition-colors',
+                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
+                        SelectedIcon && !overlayContent && 'pl-7',
+                        open && 'focus-visible:border-[var(--border-1)]',
+                        className,
+                        inputProps?.className
+                      )}
                       role='combobox'
                       aria-expanded={open}
                       aria-haspopup='listbox'

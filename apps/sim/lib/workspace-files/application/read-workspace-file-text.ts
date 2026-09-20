@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -97,7 +98,19 @@ async function executeReadWorkspaceFileText({
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
   signal?.throwIfAborted()
   if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return extractWorkspaceFileRecordText(file, input, principal, signal)
+}
 
+/**
+ * Extracts the text of the bytes a record points at. Version reads pass a record whose key, size,
+ * and type describe a previous version, so both surfaces extract through one path.
+ */
+export async function extractWorkspaceFileRecordText(
+  file: WorkspaceFileRecord,
+  input: Pick<ReadWorkspaceFileTextInput, 'maxBytes' | 'offset' | 'limit'>,
+  principal: Principal,
+  signal?: AbortSignal
+): Promise<ReadWorkspaceFileTextResult> {
   const extension = getFileExtension(file.name)
   if (!isSupportedFileType(extension)) {
     throw new OrchestrationError(

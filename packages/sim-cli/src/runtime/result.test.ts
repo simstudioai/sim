@@ -197,6 +197,77 @@ describe('a similarity score, at a width a person can read', () => {
   })
 })
 
+describe('file version authors and reverts', () => {
+  const version = {
+    fileId: 'f_1',
+    version: 4,
+    isCurrent: true,
+    size: 42,
+    contentType: 'text/markdown',
+    source: 'revert',
+    authors: [
+      { id: 'usr_1', email: 'ada@example.com' },
+      { id: 'usr_gone', email: null },
+    ],
+    restoredFromVersion: 1,
+    createdAt: '2026-09-19T17:20:39.920Z',
+    updatedAt: '2026-09-19T17:20:39.920Z',
+    supersededAt: null,
+  }
+
+  it('lists authors by email, keeping the id of an account that is gone', () => {
+    renderPage(
+      'table',
+      { data: [version], nextCursor: null },
+      CLI_CONTRACT.listFileVersions as CommandSpec
+    )
+    const [header, row] = tableLines()
+    expect(header).toContain('AUTHORS')
+    expect(row).toContain('ada@example.com, usr_gone')
+  })
+
+  it('names the authors in a version record', () => {
+    renderResult('getFileVersion', 'text', version, CLI_CONTRACT.getFileVersion as CommandSpec)
+    expect(logged).toContain('authors\tada@example.com, usr_gone')
+  })
+
+  it('shows a version with no recorded author as empty', () => {
+    renderResult(
+      'getFileVersion',
+      'text',
+      { ...version, authors: [] },
+      CLI_CONTRACT.getFileVersion as CommandSpec
+    )
+    expect(logged).toContain('authors\t')
+  })
+
+  it('prints a revert as fields rather than the nested objects as JSON', () => {
+    renderResult(
+      'revertFileVersion',
+      'text',
+      { reverted: true, file: { id: 'f_1', name: 'notes.md' }, version },
+      CLI_CONTRACT.revertFileVersion as CommandSpec
+    )
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        'reverted\tyes',
+        'file\tf_1',
+        'name\tnotes.md',
+        'version\t4',
+        'source\trevert',
+        'restored from\t1',
+        'authors\tada@example.com, usr_gone',
+      ])
+    )
+    expect(logged.join('\n')).not.toContain('{')
+  })
+
+  it('keeps the raw authors in json', () => {
+    renderResult('getFileVersion', 'json', version, CLI_CONTRACT.getFileVersion as CommandSpec)
+    expect(JSON.parse(logged[0]).authors).toEqual(version.authors)
+  })
+})
+
 describe('file-content search results', () => {
   const response = {
     results: [{ fileId: 'file_1', lineNumber: 7, text: 'quarterly revenue' }],

@@ -909,6 +909,175 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
+### sim files versions delete
+
+Permanently delete a previous version of a file
+
+```bash
+sim files versions delete <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files versions describe
+
+Show the metadata of one version of a file
+
+```bash
+sim files versions describe <fileId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+### sim files versions list
+
+List the recorded versions of a file
+
+```bash
+sim files versions list <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim files versions read
+
+Read the text content of one version of a file
+
+```bash
+sim files versions read <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
+
+</CommandTable>
+
+### sim files versions revert
+
+Make a previous version of a file current again
+
+```bash
+sim files versions revert <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number. |
+
+</CommandTable>
+
+### sim files versions download
+
+Download the content of one version of a file
+
+```bash
+sim files versions download <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
 ### sim files edit
 
 Apply one exact or anchor-based edit to a text file

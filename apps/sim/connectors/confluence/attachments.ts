@@ -26,7 +26,13 @@ const PAGE_SIZE = 50
 const REQUESTS_PER_CALL = 5
 const MAX_CURSOR_BYTES = 512 * 1024
 const MAX_METADATA_BYTES = 2 * 1024 * 1024
-const FILE_EXTENSIONS = new Set(['pdf', 'doc', 'docx'])
+/**
+ * Attachment formats listed for indexing: a deliberate subset of the shared
+ * `PIPELINE_PARSED_MIME_TYPES`, limited to the headline PDF, Word, Excel and
+ * PowerPoint extensions. Macro-enabled, template, legacy binary (`.xls`, `.ppt`)
+ * and OpenDocument variants are not listed for Confluence.
+ */
+const FILE_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'pptx', 'xlsx'])
 const boundedId = z.string().min(1).max(254)
 const providerCursor = z.string().min(1).max(8192)
 const parentSchema = z.object({ id: boundedId, type: z.enum(['page', 'blogpost']) })
@@ -406,7 +412,7 @@ function assertDownloadUrl(value: string): void {
   }
 }
 
-/** Downloads a version-pinned original for the shared PDF/OCR and Word parsing pipeline. */
+/** Downloads a version-pinned original for the shared PDF/OCR, Word, Excel and PowerPoint parsing pipeline. */
 export async function getConfluenceAttachment(
   input: AttachmentRequest,
   sourceConfig: Record<string, unknown>,
@@ -420,7 +426,7 @@ export async function getConfluenceAttachment(
   const mimeType = attachmentMimeType(attachment)
   if (!mimeType) {
     return {
-      ...markSkipped(stub, 'Attachment is no longer a PDF or Word document'),
+      ...markSkipped(stub, 'Attachment is no longer a PDF, Word, Excel or PowerPoint document'),
       skippedExistingDisposition: 'replace',
     }
   }

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   configure: vi.fn(),
   remove: vi.fn(),
   install: vi.fn(),
+  connect: vi.fn(),
   refetch: vi.fn(),
   copy: vi.fn(),
   removeError: null as Error | null,
@@ -25,6 +26,7 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
 }))
 vi.mock('@/hooks/queries/slack-search', () => ({
+  useConnectCustomSlackSearch: () => ({ mutate: mocks.connect, isPending: false, reset: vi.fn() }),
   useSlackSearchInstallations: mocks.list,
   useSlackSearchManifest: mocks.manifest,
   useConfigureSlackSearch: () => ({ mutate: mocks.configure, isPending: false }),
@@ -395,8 +397,17 @@ describe('Slack Search settings and shared wizard', () => {
       document.querySelectorAll('input[placeholder="Leave blank to keep the saved value"]')
     ).toHaveLength(3)
     await click('Continue')
-    await click('Reconnect in Slack')
-    expect(mocks.install).toHaveBeenCalledWith(
+    expect(button('Connect app')).toBeDisabled()
+    await act(async () => {
+      const input = document.querySelector<HTMLInputElement>('input[placeholder="xoxb-..."]')!
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'xoxb-installed'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Connect app')
+    expect(mocks.connect).toHaveBeenCalledWith(
       expect.objectContaining({
         installationId: 'installation-1',
         organizationId: 'org-1',
@@ -404,7 +415,8 @@ describe('Slack Search settings and shared wizard', () => {
       }),
       expect.any(Object)
     )
-    expect(mocks.install.mock.calls[0][0]).not.toHaveProperty('clientSecret')
+    expect(mocks.connect.mock.calls[0][0]).not.toHaveProperty('clientSecret')
+    expect(mocks.install).not.toHaveBeenCalled()
   })
 
   it('keeps the update action available when clipboard access fails', async () => {

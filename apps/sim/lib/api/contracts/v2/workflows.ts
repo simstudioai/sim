@@ -9,7 +9,6 @@ import {
   activeDeploymentSummarySchema,
   deployedWorkflowStateSchema,
   deploymentOperationSummarySchema,
-  deploymentVersionNumberSchema,
   deploymentVersionOrActiveParamsSchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
@@ -21,6 +20,7 @@ import {
   missingFieldError,
   noInputSchema,
   runIdSchema,
+  versionNumberSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -763,7 +763,7 @@ export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersions
  */
 export const v2WorkflowVersionCursorSchema = z
   .object({
-    version: deploymentVersionNumberSchema.describe('Version at which the next page begins.'),
+    version: versionNumberSchema.describe('Version at which the next page begins.'),
   })
   .strict()
 export type V2WorkflowVersionCursor = z.output<typeof v2WorkflowVersionCursorSchema>

@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The handler map is a wiring table from tool id to implementation. Only its
@@ -54,6 +55,7 @@ import {
   getToolEntry,
   isSimExecuted,
   toolRequiresApproval,
+  toolRequiresApprovalLane,
 } from '@/lib/copilot/tool-executor/router'
 import { executeCancelWorkflowRun } from '@/lib/copilot/tools/handlers/workflow/mutations'
 
@@ -73,5 +75,36 @@ describe('workflow-run cancellation tool routing', () => {
     expect(hasHandler('cancel_workflow_run')).toBe(true)
     expect(executeCancelWorkflowRun).toBeTypeOf('function')
     expect(buildHandlerMap().cancel_workflow_run).toBe(executeCancelWorkflowRun)
+  })
+})
+
+describe('toolRequiresApprovalLane', () => {
+  afterEach(resetEnvFlagsMock)
+
+  /**
+   * Asked by lanes that cannot hold a prompt, so it answers from the catalog and the
+   * feature flag alone: there is no streaming context to consult, and the stored
+   * auto-allow list is deliberately not read (an auto-allowed tool is admitted on the
+   * checkpoint lane without prompting anyone).
+   */
+  it('is false while copilot tool permissions are off, whatever the catalog says', () => {
+    expect(toolRequiresApproval('run_function')).toBe(true)
+    expect(toolRequiresApprovalLane('run_function')).toBe(false)
+  })
+
+  it('is true for a catalog-gated tool once the feature is on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApprovalLane('run_function')).toBe(true)
+  })
+
+  it('is false for a tool the catalog does not gate, feature on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApproval('read')).toBe(false)
+    expect(toolRequiresApprovalLane('read')).toBe(false)
+  })
+
+  it('is false for a tool that is not in the catalog at all', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApprovalLane('not_a_real_tool')).toBe(false)
   })
 })

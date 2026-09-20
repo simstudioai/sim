@@ -4,6 +4,7 @@
 import type OpenAI from 'openai'
 import { describe, expect, it } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   buildResponsesInputFromMessages,
   convertToolsToResponses,
@@ -11,6 +12,7 @@ import {
   toOpenAIModelUsage,
 } from '@/providers/openai/utils'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
+import type { Message } from '@/providers/types'
 
 describe('parseResponsesUsage', () => {
   it('reads cache writes, which GPT-5.6+ bills at a premium', () => {
@@ -82,6 +84,61 @@ describe('toOpenAIModelUsage', () => {
 })
 
 describe('buildResponsesInputFromMessages', () => {
+  it.each([null, ''])('preserves tool-only assistant messages with %s content', (content) => {
+    expect(
+      buildResponsesInputFromMessages([
+        {
+          role: 'assistant',
+          content,
+          tool_calls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{"query":"a"}' },
+            },
+          ],
+        },
+        { role: 'tool', tool_call_id: 'call-1', content: 'found' },
+      ])
+    ).toEqual([
+      { type: 'function_call', call_id: 'call-1', name: 'lookup', arguments: '{"query":"a"}' },
+      { type: 'function_call_output', call_id: 'call-1', output: 'found' },
+    ])
+  })
+
+  it('restores trusted native reasoning and call items once in their original order', () => {
+    const message: Message = {
+      role: 'assistant',
+      content: 'portable duplicate',
+      tool_calls: [
+        { id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+      ],
+    }
+    const native = [
+      { type: 'reasoning', id: 'rs_1', encrypted_content: 'encrypted', summary: [] },
+      { type: 'function_call', call_id: 'call-1', name: 'lookup', arguments: '{}' },
+    ]
+    setNativeConversationMessage(message, {
+      protocol: 'responses',
+      providerId: 'openai',
+      model: 'gpt-5.5',
+      binding: 'binding',
+      value: native,
+    })
+    expect(buildResponsesInputFromMessages([message])).toEqual(native)
+  })
+
+  it('does not accept native provider state supplied in message JSON', () => {
+    const message = {
+      role: 'assistant' as const,
+      content: 'safe',
+      native: [{ type: 'reasoning', encrypted_content: 'untrusted' }],
+    }
+    expect(buildResponsesInputFromMessages([message])).toEqual([
+      { role: 'assistant', content: 'safe' },
+    ])
+  })
+
   it('should convert user message files to Responses multipart content', () => {
     const input = buildResponsesInputFromMessages([
       {

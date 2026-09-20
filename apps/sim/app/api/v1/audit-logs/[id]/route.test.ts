@@ -9,12 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckRateLimit,
-  mockValidateEnterpriseAuditAccess,
+  mockValidateV1EnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
-  mockValidateEnterpriseAuditAccess: vi.fn(),
+  mockValidateV1EnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
 }))
@@ -25,7 +25,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
-  validateEnterpriseAuditAccess: mockValidateEnterpriseAuditAccess,
+  validateV1EnterpriseAuditAccess: mockValidateV1EnterpriseAuditAccess,
 }))
 
 vi.mock('@/lib/audit-logs/query', () => ({
@@ -76,8 +76,9 @@ describe('GET /api/v1/audit-logs/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'admin-1' })
-    mockValidateEnterpriseAuditAccess.mockResolvedValue({
+    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({
       success: true,
+      userId: 'admin-1',
       context: { organizationId: ORG_ID, orgMemberIds: MEMBER_IDS },
     })
     mockGetOrgWorkspaceIds.mockResolvedValue(ORG_WORKSPACE_IDS)
@@ -123,5 +124,29 @@ describe('GET /api/v1/audit-logs/[id]', () => {
     expect(body.data.id).toBe('log-1')
     expect(body.data.ipAddress).toBeUndefined()
     expect(body.data.userAgent).toBeUndefined()
+  })
+
+  it('returns the refusal for a workspace key without querying', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      userId: 'admin-1',
+      keyType: 'workspace',
+      workspaceId: 'ws-org-1',
+    })
+    const denied = new Response(
+      JSON.stringify({ error: 'Audit logs require a personal API key' }),
+      {
+        status: 403,
+      }
+    )
+    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({ success: false, response: denied })
+
+    const response = await callRoute('log-1')
+
+    expect(response.status).toBe(403)
+    expect(mockValidateV1EnterpriseAuditAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ keyType: 'workspace' })
+    )
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

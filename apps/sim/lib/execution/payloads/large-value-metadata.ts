@@ -3,6 +3,8 @@ import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
   executionLargeValues,
+  memory,
+  memoryArtifact,
   pausedExecutions,
   workflowExecutionLogs,
 } from '@sim/db/schema'
@@ -551,6 +553,15 @@ export function unreferencedLargeValuePredicate() {
   return sql`
     NOT EXISTS (
       SELECT 1
+      FROM ${memoryArtifact} AS memory_artifact
+      INNER JOIN ${memory} AS conversation ON conversation.id = memory_artifact.memory_id
+      WHERE memory_artifact.key = ${executionLargeValues.key}
+        AND conversation.workspace_id = ${executionLargeValues.workspaceId}
+        AND conversation.deleted_at IS NULL
+    )
+    AND
+    NOT EXISTS (
+      SELECT 1
       FROM ${executionLargeValueReferences} AS elvr
       WHERE elvr.key = ${executionLargeValues.key}
         AND (
@@ -593,6 +604,16 @@ export function unreferencedLargeValuePredicate() {
       WHERE dependency.workspace_id = ${executionLargeValues.workspaceId}
         AND dependency.child_key = ${executionLargeValues.key}
         AND (
+          EXISTS (
+            SELECT 1
+            FROM ${memoryArtifact} AS parent_memory_artifact
+            INNER JOIN ${memory} AS parent_conversation
+              ON parent_conversation.id = parent_memory_artifact.memory_id
+            WHERE parent_memory_artifact.key = parent_value.key
+              AND parent_conversation.workspace_id = parent_value.workspace_id
+              AND parent_conversation.deleted_at IS NULL
+          )
+          OR
           EXISTS (
             SELECT 1
             FROM ${workflowExecutionLogs} AS parent_owner_wel

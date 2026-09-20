@@ -131,7 +131,7 @@ function truncateForPreview(text: string): { text: string; truncated: boolean } 
 
 function renderStructuredValuePreview(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
+    return <span className='text-[var(--text-muted)] text-caption'>—</span>
   }
 
   if (typeof value === 'object') {
@@ -158,7 +158,7 @@ function renderStructuredValuePreview(value: unknown) {
   const { text: stringValue, truncated } = truncateForPreview(String(value))
   return (
     <div className='max-w-full'>
-      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
+      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[var(--text-primary)] text-caption leading-4 [white-space:pre-wrap] [word-break:break-word]'>
         {truncated ? `${stringValue}…` : stringValue}
       </div>
       {truncated && (
@@ -806,7 +806,7 @@ export default function ResumeExecutionPage({
             </div>
             <div>
               {pausePoints.length === 0 ? (
-                <div className='px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]'>
+                <div className='px-4 py-8 text-center text-[var(--text-secondary)] text-small'>
                   No pause points
                 </div>
               ) : (
@@ -821,7 +821,7 @@ export default function ResumeExecutionPage({
                     }}
                     className='w-full justify-between rounded-none px-4 py-3'
                   >
-                    <span className='text-[13px]'>{getBlockName(pause)}</span>
+                    <span className='text-small'>{getBlockName(pause)}</span>
                     <StatusBadge status={pause.resumeStatus} />
                   </Button>
                 ))
@@ -833,17 +833,17 @@ export default function ResumeExecutionPage({
           <div>
             {loadingDetail && !selectedDetail ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>Loading…</span>
+                <span className='text-[var(--text-secondary)] text-small'>Loading…</span>
               </div>
             ) : !selectedContextId ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   Select a pause point
                 </span>
               </div>
             ) : !selectedDetail ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   Could not load details
                 </span>
               </div>
@@ -853,7 +853,7 @@ export default function ResumeExecutionPage({
                 <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                   <div>
                     <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
-                    <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
+                    <p className='mt-[2px] text-[var(--text-muted)] text-caption'>
                       Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
                     </p>
                   </div>
@@ -870,10 +870,10 @@ export default function ResumeExecutionPage({
                 {selectedDetail.pausePoint.automaticResumeWaitingReason && (
                   <div className='rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                     <Label>Waiting to resume automatically</Label>
-                    <p className='mt-1 text-[13px] text-[var(--text-secondary)]'>
+                    <p className='mt-1 text-[var(--text-secondary)] text-small'>
                       {selectedDetail.pausePoint.automaticResumeWaitingReason}
                     </p>
-                    <p className='mt-1 text-[12px] text-[var(--text-muted)]'>
+                    <p className='mt-1 text-[var(--text-muted)] text-caption'>
                       Sim will retry automatically.
                     </p>
                   </div>
@@ -898,7 +898,7 @@ export default function ResumeExecutionPage({
                           <div key={field.id} className='flex flex-col gap-[9px]'>
                             <Label>{field.label}</Label>
                             {field.description && (
-                              <p className='text-[12px] text-[var(--text-muted)]'>
+                              <p className='text-[var(--text-muted)] text-caption'>
                                 {field.description}
                               </p>
                             )}
@@ -922,7 +922,7 @@ export default function ResumeExecutionPage({
                           rows={6}
                         />
                       ) : (
-                        <p className='text-[13px] text-[var(--text-muted)]'>
+                        <p className='text-[var(--text-muted)] text-small'>
                           No input data provided
                         </p>
                       )}
@@ -963,7 +963,7 @@ export default function ResumeExecutionPage({
                           <Label>Display Data</Label>
                         </div>
                         <div className='p-4'>
-                          <p className='text-[13px] text-[var(--text-muted)]'>
+                          <p className='text-[var(--text-muted)] text-small'>
                             No display data configured
                           </p>
                         </div>
@@ -986,7 +986,7 @@ export default function ResumeExecutionPage({
                                 )}
                               </Label>
                               {field.description && (
-                                <p className='text-[12px] text-[var(--text-muted)]'>
+                                <p className='text-[var(--text-muted)] text-caption'>
                                   {field.description}
                                 </p>
                               )}

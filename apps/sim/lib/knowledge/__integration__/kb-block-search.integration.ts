@@ -3,14 +3,18 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
-import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
+import {
+  resolvePermittedDocuments,
+  retrieveKnowledgeSearch,
+  VECTOR_PROBE_DOCUMENT_LIMIT,
+} from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 
 describe('API-key KB block fan-out', () => {
@@ -140,13 +144,45 @@ describe('API-key KB block fan-out', () => {
         expect(matching('AS visible')).toHaveLength(bases.length)
         expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
         expect(matching('scored_search_candidates')).toHaveLength(bases.length)
-        /** The probe enumerates visible documents; it never ranks them. */
+        /** The probe enumerates visible documents and reports saturation; it never ranks them. */
         expect(
-          statements.filter((query) => query.includes('AS id FROM') && !query.includes('ORDER BY'))
+          statements.filter(
+            (query) => query.includes('AS saturated') && !query.includes('ORDER BY')
+          )
         ).toHaveLength(bases.length)
       } finally {
         db.$client.options.debug = previousDebug
       }
     }
   )
+
+  it('bounds the permitted set by the requested bases, not by what the tokens reach elsewhere', async () => {
+    const crowded = generateId()
+    await db.insert(knowledgeBase).values({
+      id: crowded,
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      name: 'Crowded neighbour',
+    })
+    try {
+      /** Baseline tokens are shared by every tenant, so another base can hold more than the limit. */
+      await db.execute(sql`
+        INSERT INTO ${document} (id, knowledge_base_id, filename, file_url, file_size, mime_type,
+          processing_status, acl)
+        SELECT 'crowded-' || n, ${crowded}, 'crowded', 'https://fixture.invalid/crowded', 1,
+          'text/plain', 'completed', ARRAY['ws']::text[]
+        FROM generate_series(1, ${VECTOR_PROBE_DOCUMENT_LIMIT + 1}) AS n
+      `)
+      const permitted = await resolvePermittedDocuments({
+        knowledgeBaseIds: [bases[0].id],
+        access: { kind: 'user', userId: ids.bobId, tokens: ['pub', 'ws'] },
+      })
+      expect(permitted).toEqual({
+        kind: 'bounded',
+        documents: [{ id: bases[0].visible, connectorId: null }],
+      })
+    } finally {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, crowded))
+    }
+  })
 })

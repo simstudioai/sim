@@ -14,11 +14,11 @@ import {
   Expandable,
   ExpandableContent,
   Label,
-  Loader,
   Switch,
   toast,
+  UploadPreviewButton,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, ImageUp as ImageIcon, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
@@ -522,21 +522,16 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
             <div className='flex items-center gap-4'>
               <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
-                <button
+                <UploadPreviewButton
                   aria-label={iconUrl ? 'Change icon' : 'Upload icon'}
-                  type='button'
                   onClick={iconUpload.handleThumbnailClick}
-                  disabled={iconUpload.isUploading || !canManageBlock}
-                  className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  loading={iconUpload.isUploading}
+                  disabled={!canManageBlock}
                 >
-                  {iconUpload.isUploading ? (
-                    <Loader className='size-5 text-[var(--text-muted)]' animate />
-                  ) : iconUrl ? (
+                  {iconUrl ? (
                     <img src={iconUrl} alt='' className='size-full object-contain p-1.5' />
-                  ) : (
-                    <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                  )}
-                </button>
+                  ) : null}
+                </UploadPreviewButton>
               </DropZone>
               <div className='flex gap-2'>
                 <Button

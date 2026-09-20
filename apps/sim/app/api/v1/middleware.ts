@@ -19,6 +19,7 @@ import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   getWorkspaceBilledAccountUserId,
@@ -510,6 +511,34 @@ export async function checkWorkspaceScope(
     (await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)) ??
     (await resolvePersonalKeyGroupRefusal(rateLimit, requestedWorkspaceId, null, requiredLevel))
   return failure ? workspaceAccessErrorResponse(failure) : null
+}
+
+/**
+ * The `personal_api_key.use` refusal for a v1 surface that authorizes against
+ * an organization rather than a workspace, such as the audit log.
+ *
+ * {@link checkWorkspaceScope} has no workspace to key the group decision on
+ * there, so this applies the user-global form, which falls back to the
+ * organization's default group — the same decision the v2 audit-log use case
+ * makes. Call it only after the caller's organization role verified, for the
+ * same disclosure reason {@link resolvePersonalKeyGroupRefusal} runs after the
+ * workspace role.
+ */
+export async function checkOrganizationPersonalKeyRefusal(
+  rateLimit: RateLimitResult
+): Promise<NextResponse | null> {
+  const governedUserId = capabilityGovernedUserId(rateLimit)
+  if (!governedUserId) return null
+
+  // permission-group-enforced: personal_api_key.use — organization-scoped v1 surfaces have no workspace for the funnel to key on
+  if (!(await isCapabilityWithheldForUser(governedUserId, 'personal_api_key.use'))) return null
+
+  return workspaceAccessErrorResponse({
+    status: 403,
+    code: 'FORBIDDEN',
+    message: PERSONAL_KEY_DENIED,
+    details: { code: CAPABILITY_RULES['personal_api_key.use'].detailCode },
+  })
 }
 
 /**

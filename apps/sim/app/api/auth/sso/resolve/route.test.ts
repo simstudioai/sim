@@ -26,17 +26,17 @@ describe('POST /api/auth/sso/resolve', () => {
   })
 
   it('names the provider that serves the address domain', async () => {
-    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-okta', samlConfig: null }])
+    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-okta' }])
     const res = await POST(createMockRequest('POST', { email: 'Ada@Acme.com' }))
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ providerId: 'acme-okta', providerType: 'oidc' })
+    await expect(res.json()).resolves.toEqual({ providerId: 'acme-okta' })
     const [condition] = dbChainMockFns.where.mock.calls[0]
     expect(JSON.stringify(condition)).toContain('acme.com')
     expect(JSON.stringify(condition)).toContain('domainVerified')
   })
 
   it('prefers the provider the verified domain names, then provider id', async () => {
-    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-okta', samlConfig: null }])
+    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-okta' }])
     await POST(createMockRequest('POST', { email: 'ada@acme.com' }))
     expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(schemaMock.ssoDomain, expect.anything())
     const [named, byId] = dbChainMockFns.orderBy.mock.calls[0]
@@ -46,7 +46,7 @@ describe('POST /api/auth/sso/resolve', () => {
   })
 
   it('honors a test link only for a provider that serves the address domain', async () => {
-    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-entra', samlConfig: null }])
+    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-entra' }])
     const res = await POST(
       createMockRequest('POST', { email: 'ada@acme.com', providerId: 'acme-entra' })
     )
@@ -63,12 +63,6 @@ describe('POST /api/auth/sso/resolve', () => {
       createMockRequest('POST', { email: 'ada@acme.com', providerId: 'someone-elses-idp' })
     )
     expect(res.status).toBe(404)
-  })
-
-  it('reports SAML providers as such', async () => {
-    queueTableRows(schemaMock.ssoProvider, [{ providerId: 'acme-adfs', samlConfig: '{}' }])
-    const res = await POST(createMockRequest('POST', { email: 'ada@acme.com' }))
-    await expect(res.json()).resolves.toMatchObject({ providerType: 'saml' })
   })
 
   it('answers 404 when no provider serves the domain', async () => {

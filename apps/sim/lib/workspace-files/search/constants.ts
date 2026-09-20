@@ -19,6 +19,21 @@ export const FILE_SEARCH_MAX_RESULTS = 200
 
 export const FILE_SEARCH_MAX_SOURCE_BYTES = 25 * 1024 * 1024
 export const FILE_SEARCH_MAX_EXTRACTED_BYTES = 25 * 1024 * 1024
+/**
+ * Unbroken base64-alphabet runs at least this long are encoded payloads (data URIs, binaries
+ * stored as base64 text), not searchable text. Each chunk of one yields thousands of distinct
+ * rare trigrams, which makes its direct GIN insert far slower than ordinary text.
+ */
+export const FILE_SEARCH_ENCODED_RUN_MIN_CHARS = 256
+/**
+ * A run continues across a line break when it fills a line at least this wide, so base64 wrapped
+ * at the usual 64 or 76 columns (MIME, PEM, Python's `encodebytes`) counts as one payload.
+ */
+export const FILE_SEARCH_ENCODED_WRAP_MIN_CHARS = 60
+/** Text is excluded when encoded runs are at least this share of it... */
+export const FILE_SEARCH_ENCODED_EXCLUSION_RATIO = 0.5
+/** ...and span more than a few chunks, so a small config carrying one signature stays searchable. */
+export const FILE_SEARCH_ENCODED_EXCLUSION_MIN_BYTES = 32 * 1024
 export const FILE_SEARCH_MAX_PREVIEW_BYTES = 2 * 1024
 export const FILE_SEARCH_CHUNK_BYTES = 8 * 1024
 export const FILE_SEARCH_CANDIDATE_PAGE_SIZE = 16
@@ -46,7 +61,22 @@ export const FILE_SEARCH_CLEANUP_MIN_BATCH_MS =
   FILE_SEARCH_CLEANUP_BUDGET_MS / FILE_SEARCH_CLEANUP_MAX_BATCHES
 export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
-export const FILE_SEARCH_INSERT_BATCH_BYTES = 1024 * 1024
+/** Bounds the text payload independently of its index work. */
+export const FILE_SEARCH_INSERT_BATCH_BYTES = 128 * 1024
+/**
+ * Sum of each chunk's distinct trigram keys, bounding direct GIN posting updates per insert.
+ * A single 8 KiB chunk may exceed this target slightly due to word padding and is written alone.
+ */
+export const FILE_SEARCH_INSERT_BATCH_TRIGRAM_KEYS = 8 * 1024
+/** Batches at least this slow are logged with their estimated trigram key count. */
+export const FILE_SEARCH_SLOW_INSERT_BATCH_MS = 2000
+
+/** Index writes allow statement cancellation before the outer transaction terminates its session. */
+export const FILE_SEARCH_INDEX_TRANSACTION_LIMITS = {
+  statementTimeout: 10 * 1000,
+  lockTimeout: 5 * 1000,
+  transactionTimeout: 30 * 1000,
+} as const
 
 export const FILE_SEARCH_INDEX_GLOBAL_CONCURRENCY = 10
 export const FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING = 2

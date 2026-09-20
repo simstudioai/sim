@@ -28,7 +28,7 @@ function ChartErrorCard({ message, content }: { message: string; content: string
         <span className='text-[11px] text-[var(--text-muted)]'>{message}</span>
       </div>
       <div className='code-editor-theme bg-[var(--surface-5)]'>
-        <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+        <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[1.6]'>
           <code>{content}</code>
         </pre>
       </div>

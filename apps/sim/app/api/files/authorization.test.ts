@@ -18,13 +18,21 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFileMetadataByKey, mockGetUserEntityPermissions, mockGetFileMetadata } = vi.hoisted(
-  () => ({
-    mockGetFileMetadataByKey: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-    mockGetFileMetadata: vi.fn(),
-  })
-)
+const {
+  mockGetFileMetadataByKey,
+  mockGetUserEntityPermissions,
+  mockGetFileMetadata,
+  mockFindWorkspaceFileVersionKeys,
+} = vi.hoisted(() => ({
+  mockGetFileMetadataByKey: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockGetFileMetadata: vi.fn(),
+  mockFindWorkspaceFileVersionKeys: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  findWorkspaceFileVersionKeys: mockFindWorkspaceFileVersionKeys,
+}))
 
 vi.mock('@/lib/uploads', () => ({
   getFileMetadata: mockGetFileMetadata,
@@ -257,6 +265,7 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
     // come from the binding itself rather than a fallback happening to grant.
     dbChainMockFns.limit.mockResolvedValue([])
     mockGetFileMetadata.mockResolvedValue({})
+    mockFindWorkspaceFileVersionKeys.mockResolvedValue(new Set())
   })
 
   function read(cloudKey: string, context: 'workspace' | 'mothership') {
@@ -341,6 +350,25 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
     mockGetUserEntityPermissions.mockResolvedValue(null)
 
     await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
+  })
+
+  it('still authorizes an unbound key from its object metadata', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(null)
+    mockGetFileMetadata.mockResolvedValue({ workspaceId: 'ws-1' })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(true)
+  })
+
+  it('denies a retained version key instead of authorizing it from its object metadata', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(null)
+    mockGetFileMetadata.mockResolvedValue({ workspaceId: 'ws-1' })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockFindWorkspaceFileVersionKeys.mockResolvedValue(new Set([ATTACHMENT_KEY]))
+
+    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
+    expect(mockFindWorkspaceFileVersionKeys).toHaveBeenCalledWith([ATTACHMENT_KEY])
+    expect(mockGetFileMetadata).not.toHaveBeenCalled()
   })
 
   it('does not accept a binding whose context is not workspace-scoped', async () => {

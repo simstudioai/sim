@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   isCanonicalBase64,
   noInputSchema,
+  versionNumberSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
@@ -155,6 +156,9 @@ export const v2FileMetadataSchema = v2FileSchema
     share: v2FileShareSchema
       .nullable()
       .describe('Current public-share state, or null when the file has never been shared.'),
+    currentVersion: versionNumberSchema.describe(
+      'Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since.'
+    ),
   })
   .meta({
     id: 'V2FileMetadata',

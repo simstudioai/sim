@@ -567,9 +567,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate text-[13px] text-[var(--text-primary)]'>
-            Search and replace
-          </span>
+          <span className='truncate text-[var(--text-primary)] text-small'>Search and replace</span>
         </div>
         <div
           role='presentation'

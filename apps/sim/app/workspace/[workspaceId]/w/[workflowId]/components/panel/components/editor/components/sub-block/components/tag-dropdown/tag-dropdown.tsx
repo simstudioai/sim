@@ -12,6 +12,7 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
@@ -862,14 +863,7 @@ const TagDropdownBackButton: React.FC<{ setSelectedIndex: (index: number) => voi
       }}
       onMouseEnter={handleMouseEnter}
     >
-      <svg
-        className={cn('shrink-0', size === 'sm' ? 'size-3' : 'h-3.5 w-3.5')}
-        fill='none'
-        viewBox='0 0 24 24'
-        stroke='currentColor'
-      >
-        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
-      </svg>
+      <ChevronLeft className={cn('shrink-0', size === 'sm' ? 'size-3' : 'size-3.5')} />
       <span className='shrink-0'>Back</span>
     </PopoverItem>
   )
