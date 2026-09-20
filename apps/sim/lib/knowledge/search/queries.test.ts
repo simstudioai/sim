@@ -1923,6 +1923,46 @@ describe('permitted-document planner', () => {
     expect(JSON.stringify(reranks[1])).toContain('OR NOT (')
   })
 
+  it('hands back the unread slices of a page a denied source made it rebuild', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'gated-src',
+        accessMode: 'admin',
+        connectorType: 'confluence',
+        githubRepository: false,
+      },
+    ])
+    /**
+     * A ranked page far larger than one hydration: its first slice is the denied source's, and
+     * the readable candidate sits in a later slice that is discarded by the refill. The rebuilt
+     * page must be allowed to return it.
+     */
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      const rebuilt = JSON.stringify(query).includes('OR NOT (')
+      if (statement.includes('WITH scored_search_candidates'))
+        return rebuilt
+          ? [hit('b', 'other-src')]
+          : [
+              ...Array.from({ length: 20 }, (_, i) => hit(`denied-${i}`, 'gated-src')),
+              hit('b', 'other-src'),
+            ]
+      if (isWalk(statement))
+        return Array.from({ length: 400 }, (_, i) => ({ id: `w-${i}`, distance: 0.1 }))
+      return []
+    })
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [hit('b', 'other-src')])
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    const result = await retrieveKnowledgeSearch({
+      ...liveSearch,
+      searchMode: 'vector',
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(result.rows.map((row) => row.id)).toEqual(['b'])
+  })
+
   it('asks a live source for its grants once, when a candidate of its own is read', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {

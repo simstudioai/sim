@@ -726,14 +726,21 @@ async function selectAuthorizedSearchResults(input: {
         offset = page.nextOffset
         lastPageShort = page.candidates.length < pageSize
         pending = page.candidates.filter((candidate) => !considered.has(candidate.id))
-        for (const candidate of pending) considered.add(candidate.id)
         if (!pending.length) {
           if (lastPageShort) break
           continue
         }
       }
-      const candidates = pending.slice(0, pageSize)
+      /**
+       * A candidate counts as considered only once its slice is read: the slices a refill discards
+       * were never read, so the rebuilt pages may hand their readable candidates back.
+       */
+      const candidates = pending
+        .slice(0, pageSize)
+        .filter((candidate) => !considered.has(candidate.id))
       pending = pending.slice(pageSize)
+      for (const candidate of candidates) considered.add(candidate.id)
+      if (!candidates.length) continue
       /**
        * A source that proves its reader live is asked for that proof only once a candidate of
        * its own reaches this page, and then once for the whole search: a scope that ranks none
