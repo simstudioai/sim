@@ -4,8 +4,8 @@ import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('EmbeddingSearchConnector')
 
-/** Chunks backfilled per statement; each batch commits on its own. */
-const BATCH_SIZE = 20_000
+/** Chunks read per page; each page commits on its own, as the other projection backfills do. */
+const BATCH_SIZE = 500
 
 /**
  * Carries a chunk's source onto the vector projection and keeps it there.
@@ -41,37 +41,52 @@ export async function installEmbeddingSearchConnector(sql: Sql): Promise<void> {
   })
 }
 
-/** Fills the column for chunks written before the trigger existed. Keyset batched and idempotent. */
-export async function backfillEmbeddingSearchConnector(sql: Sql): Promise<void> {
+/**
+ * Fills the column for chunks written before the trigger existed, in independently committed
+ * keyset pages. Each page bounds its own locking and runtime, and writes only rows still unset, so
+ * an interrupted run resumes by rerunning and a row the trigger has since written is left alone.
+ */
+export async function backfillEmbeddingSearchConnector(sql: Sql): Promise<number> {
   const startedAt = Date.now()
-  let after = ''
+  let afterId = ''
+  let scanned = 0
   let written = 0
   for (;;) {
-    const rows = await sql<{ id: string }[]>`
-      WITH page AS (
-        SELECT s.id, d.connector_id
-        FROM embedding_search s
-        JOIN document d ON d.id = s.document_id
-        WHERE s.id > ${after} AND s.connector_id IS NULL AND d.connector_id IS NOT NULL
-        ORDER BY s.id
-        LIMIT ${BATCH_SIZE}
-      ), updated AS (
-        UPDATE embedding_search s SET connector_id = page.connector_id
-        FROM page WHERE s.id = page.id AND s.connector_id IS NULL
-        RETURNING s.id
-      )
-      SELECT id FROM page ORDER BY id`
-    if (rows.length === 0) break
-    after = rows[rows.length - 1].id
-    written += rows.length
-    if (written % (BATCH_SIZE * 10) === 0) {
-      logger.info('Embedding search connector backfill progress', { scanned: written })
+    const page = await sql.begin(async (tx) => {
+      await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+      await tx.unsafe("SET LOCAL statement_timeout = '60s'")
+      const rows = await tx<Array<{ id: string }>>`
+        SELECT id FROM embedding_search WHERE id > ${afterId} ORDER BY id LIMIT ${BATCH_SIZE}`
+      if (rows.length === 0) return null
+      const ids = rows.map((row) => row.id)
+      const [{ filled }] = await tx<Array<{ filled: number }>>`
+        WITH updated AS (
+          UPDATE embedding_search s SET connector_id = d.connector_id
+          FROM document d
+          WHERE s.id = ANY(${ids}::text[]) AND d.id = s.document_id
+            AND s.connector_id IS NULL AND d.connector_id IS NOT NULL
+          RETURNING s.id
+        ) SELECT count(*)::int AS filled FROM updated`
+      return { afterId: ids[ids.length - 1], scanned: ids.length, filled }
+    })
+    if (!page) break
+    afterId = page.afterId
+    scanned += page.scanned
+    written += page.filled
+    if (scanned % (BATCH_SIZE * 100) === 0) {
+      logger.info('Embedding search connector backfill progress', {
+        scanned,
+        written,
+        elapsedMs: Date.now() - startedAt,
+      })
     }
   }
   logger.info('Embedding search connector backfilled', {
-    scanned: written,
+    scanned,
+    written,
     elapsedMs: Date.now() - startedAt,
   })
+  return written
 }
 
 export const embeddingSearchConnectorMigration: ScriptMigration = {

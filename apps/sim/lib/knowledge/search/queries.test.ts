@@ -368,14 +368,12 @@ describe('workspace-scoped vector retrieval', () => {
       id: 'near',
       documentId: 'near-doc',
       connectorId: null,
-      liveAuthorizationSource: false,
       distance: 0.1,
     },
     {
       id: 'far',
       documentId: 'far-doc',
       connectorId: null,
-      liveAuthorizationSource: false,
       distance: 0.2,
     },
   ]
@@ -505,7 +503,6 @@ describe('workspace-scoped vector retrieval', () => {
     expect(
       statements().filter((query) => query.sql.includes('WITH scored_search_candidates'))
     ).toHaveLength(0)
-    expect(getForConnectors).not.toHaveBeenCalled()
   })
 
   it('spends only its own share of the leg on a probe that runs long', async () => {
@@ -561,7 +558,6 @@ describe('workspace-scoped vector retrieval', () => {
       id: `initial-${index}`,
       distance: index / 100,
       connectorId: 'workspace-source',
-      liveAuthorizationSource: true,
     }))
     const next = { ...initial[1], id: 'next', distance: 0.3 }
     queueTableRows(schemaMock.embedding, initial)
@@ -832,36 +828,22 @@ describe('workspace search filters before ranking', () => {
   })
 })
 
-describe('live repository authorization follows ranked candidates', () => {
+describe('hydration follows ranked candidates', () => {
   const identity: UserAccessScope = {
     kind: 'user',
     userId: 'reader',
     tokens: ['org', 's:github-repositories:-:42'],
   }
-  const allowed: UserAccessScope = {
-    ...identity,
-    githubInstallationGrants: [
-      {
-        connectorId: 'allowed-source',
-        contentCredentialId: 'installation-credential',
-        readerCredentialId: 'reader-credential',
-        repositoryId: '101',
-        readerSubjectToken: 's:github-repositories:-:42',
-      },
-    ],
-  }
   const candidate = (id: string, connectorId: string) => ({
     id,
     documentId: `doc-${id}`,
     connectorId,
-    liveAuthorizationSource: true,
     distance: 0.1,
   })
-  const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>()
   const provider: KnowledgeAccessProvider = {
     get: async () => identity,
-    getForConnectors,
-    getForDocuments: async () => allowed,
+    getForConnectors: async () => identity,
+    getForDocuments: async () => identity,
     liveSourceConnectorCondition: async () => null,
   }
   const params: SearchParams = {
@@ -902,10 +884,7 @@ describe('live repository authorization follows ranked candidates', () => {
       if (isProbeStatement(statement)) return probePages.shift() ?? []
       return []
     })
-    getForConnectors.mockReset().mockResolvedValue(allowed)
   })
-
-  afterEach(() => vi.useRealTimers())
 
   it('bounds broad vector ranking before metadata and reorders relaxed candidates before trimming', async () => {
     probePages.push(
@@ -938,13 +917,9 @@ describe('live repository authorization follows ranked candidates', () => {
       render(query).sql.includes('WITH scored_search_candidates')
     )![0]
     expect(render(rankQuery).sql).toContain('MATERIALIZED')
-    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
-      'github_read_grant'
-    )
   })
 
-  it('finishes a scope the probe finds nothing in without ranking or calling providers', async () => {
+  it('finishes a scope the probe finds nothing in without ranking it', async () => {
     probePages.push([])
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([])
     const probe = statements().find((query) => isProbeStatement(query.sql))!
@@ -954,7 +929,6 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(
       statements().filter((query) => query.sql.includes('WITH scored_search_candidates'))
     ).toHaveLength(0)
-    expect(getForConnectors).not.toHaveBeenCalled()
   })
 
   it('ranks the permitted set exactly when the traversal comes back underfilled', async () => {
@@ -970,7 +944,6 @@ describe('live repository authorization follows ranked candidates', () => {
     const exact = statements().find((query) => isExactRanking(query.sql))!
     expect(exact.sql).not.toContain('CROSS JOIN LATERAL')
     expect(JSON.stringify(exact)).toContain('doc-selected')
-    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
   })
 
   it.each([1, 200, 399])(
@@ -1009,9 +982,6 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(candidateQuery.sql).not.toContain('filtered_scores')
     expect(candidateQuery.sql).toContain('CROSS JOIN LATERAL')
     expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
-      'github_read_grant'
-    )
   })
 
   it('advances past candidate pages that hydrate no current readable content', async () => {
@@ -1036,7 +1006,6 @@ describe('live repository authorization follows ranked candidates', () => {
         render(query).sql.includes('WITH scored_search_candidates')
       )
     ).toHaveLength(2)
-    expect(getForConnectors).toHaveBeenCalledTimes(2)
   })
 
   it('sorts hydrated candidates across pages by their original-vector distance', async () => {
@@ -1112,7 +1081,6 @@ describe('live repository authorization follows ranked candidates', () => {
                   queryVector: params.queryVector!,
                 })
       expect(rows).toEqual([{ id: 'selected', content: 'verified result' }])
-      expect(getForConnectors).toHaveBeenCalledWith(['allowed-source'], undefined)
       if (mode === 'keyword') {
         const ranking = render(dbChainMockFns.execute.mock.calls[0][0]).sql
         expect(ranking).toContain('matched_keyword_chunks AS MATERIALIZED')
@@ -1121,7 +1089,7 @@ describe('live repository authorization follows ranked candidates', () => {
         expect(ranking).not.toContain('"content"')
       } else if (mode === 'tags') {
         expect(Object.keys(dbChainMockFns.select.mock.calls[0][0]).sort()).toEqual(
-          ['id', 'documentId', 'connectorId', 'liveAuthorizationSource'].sort()
+          ['id', 'documentId', 'connectorId'].sort()
         )
       } else {
         const ranking = statements().find((query) => isExactRanking(query.sql))!
@@ -1132,15 +1100,9 @@ describe('live repository authorization follows ranked candidates', () => {
         mode === 'tags'
           ? dbChainMockFns.select.mock.invocationCallOrder[0]
           : dbChainMockFns.execute.mock.invocationCallOrder[0]
-      expect(rankingOrder).toBeLessThan(getForConnectors.mock.invocationCallOrder[0])
-      expect(getForConnectors.mock.invocationCallOrder[0]).toBeLessThan(
-        dbChainMockFns.select.mock.invocationCallOrder.at(-1)!
-      )
+      expect(rankingOrder).toBeLessThan(dbChainMockFns.select.mock.invocationCallOrder.at(-1)!)
       const fullPredicate = dbChainMockFns.where.mock.calls.at(-1)![0]
-      const serializedPredicate = JSON.stringify(fullPredicate)
-      expect(serializedPredicate).toContain('github_read_grant')
-      expect(serializedPredicate).toContain('allowed-source')
-      expect(serializedPredicate).toContain('reader-credential')
+      expect(JSON.stringify(fullPredicate)).toContain('acl')
       expect(
         hasMockCondition(
           fullPredicate,
@@ -1156,10 +1118,9 @@ describe('live repository authorization follows ranked candidates', () => {
   )
 
   it.each(['vector', 'tag-vector', 'tags', 'keyword'] as const)(
-    '%s skips discovery for an explicit non-GitHub source and retains full hydration',
+    '%s restricts an explicit source and retains full hydration',
     async (mode) => {
-      getForConnectors.mockResolvedValue(identity)
-      const candidates = [{ ...candidate('gmail', 'gmail-source'), installationSource: false }]
+      const candidates = [candidate('gmail', 'gmail-source')]
       if (mode === 'vector' || mode === 'tag-vector') {
         probePages.push([{ id: 'doc-gmail' }])
         exactPages.push([{ id: 'gmail' }])
@@ -1184,7 +1145,6 @@ describe('live repository authorization follows ranked candidates', () => {
                 })
 
       expect(rows).toEqual(hydrated)
-      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith([], undefined)
       for (const [condition] of dbChainMockFns.where.mock.calls) {
         expect(JSON.stringify(condition)).toContain('gmail')
       }
@@ -1198,60 +1158,6 @@ describe('live repository authorization follows ranked candidates', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(mode === 'tags' ? 2 : 1)
     }
   )
-
-  it.each([undefined, '', 'github'])(
-    'retains discovery for classic GitHub when source is %s',
-    async (source) => {
-      queueTableRows(schemaMock.embedding, [
-        { ...candidate('selected', 'allowed-source'), installationSource: false },
-        { ...candidate('second', 'allowed-source'), installationSource: false },
-      ])
-      queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-
-      expect(await handleTagOnlySearch({ ...params, filters: { source } })).toEqual([
-        { id: 'selected', content: 'verified result' },
-      ])
-      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
-      expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).toContain('github_read_grant')
-    }
-  )
-
-  it('retains every connector in unfiltered mixed pages', async () => {
-    queueTableRows(schemaMock.embedding, [
-      { ...candidate('gmail', 'gmail-source'), installationSource: false },
-      { ...candidate('classic', 'classic-source'), installationSource: false },
-      candidate('selected', 'allowed-source'),
-      candidate('selected-second-chunk', 'allowed-source'),
-      { ...candidate('upload', 'unused'), connectorId: null, installationSource: false },
-    ])
-    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-
-    expect(await handleTagOnlySearch(params)).toEqual([
-      { id: 'selected', content: 'verified result' },
-    ])
-    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(
-      ['gmail-source', 'classic-source', 'allowed-source'],
-      undefined
-    )
-  })
-
-  it('refills after a denied repository instead of letting its matches consume the result limit', async () => {
-    getForConnectors.mockResolvedValueOnce(identity)
-    queueTableRows(schemaMock.embedding, [candidate('denied', 'revoked-source')])
-    queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
-    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-    const rows = await handleTagOnlySearch(params)
-    expect(rows).toEqual([{ id: 'selected', content: 'verified result' }])
-    expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
-      ['revoked-source'],
-      ['allowed-source'],
-    ])
-    expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0]])
-    const refillPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[2][0])
-    expect(refillPredicate).toContain('NOT')
-    expect(refillPredicate).toContain('revoked-source')
-  })
 
   it('matches keyword chunks before the visibility predicate and ranks only what survives it', async () => {
     keywordPages.push([candidate('selected', 'allowed-source')])
@@ -1269,131 +1175,16 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(fragments).toContain('= ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))')
   })
 
-  it('drops an excluded source from the bounded permitted set on refill', async () => {
-    getForConnectors.mockResolvedValueOnce(identity)
-    keywordPages.push(
-      [candidate('denied', 'revoked-source')],
-      [candidate('selected', 'allowed-source')]
-    )
-    queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-    await executeKeywordSearch({
-      ...params,
-      query: 'release',
-      queryVector: params.queryVector!,
-      permitted: {
-        kind: 'bounded',
-        documents: [
-          { id: 'doc-denied', connectorId: 'revoked-source' },
-          { id: 'doc-selected', connectorId: 'allowed-source' },
-          { id: 'doc-uploaded', connectorId: null },
-        ],
-      },
-    })
-    const [first, refill] = dbChainMockFns.execute.mock.calls.map(([query]) =>
-      JSON.stringify(query)
-    )
-    expect(first).toContain('doc-denied')
-    expect(refill).not.toContain('doc-denied')
-    expect(refill).toContain('doc-selected')
-    expect(refill).toContain('doc-uploaded')
-  })
-
-  it('recomputes keyword candidates after excluding a revoked source and rechecks content access', async () => {
-    getForConnectors.mockResolvedValueOnce(identity)
-    keywordPages.push(
-      [candidate('denied', 'revoked-source')],
-      [candidate('selected', 'allowed-source')]
-    )
-    queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-    expect(
-      await executeKeywordSearch({ ...params, query: 'release', queryVector: params.queryVector! })
-    ).toEqual([{ id: 'selected', content: 'verified result' }])
-    expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
-      ['revoked-source'],
-      ['allowed-source'],
-    ])
-    const refill = JSON.stringify(dbChainMockFns.execute.mock.calls[1][0])
-    expect(refill).toContain('revoked-source')
-    expect(refill).toContain('NOT')
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
-      'github_read_grant'
-    )
-  })
-
-  it.each([undefined, 'confluence'])(
-    'refills a denied Confluence site under its exact reader proof with source filter %s',
-    async (source) => {
-      getForConnectors.mockResolvedValueOnce(identity).mockResolvedValueOnce({
-        ...identity,
-        confluenceSiteGrants: [
-          {
-            connectorId: 'allowed-site',
-            contentCredentialId: 'crawler',
-            readerCredentialId: 'confluence-reader',
-            readerSubjectToken: 's:confluence:-:alice',
-            domain: 'company.atlassian.net',
-            cloudId: 'cloud-1',
-          },
-        ],
-      })
-      queueTableRows(schemaMock.embedding, [candidate('denied', 'revoked-site')])
-      queueTableRows(schemaMock.embedding, [])
-      queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-site')])
-      queueTableRows(schemaMock.embedding, [
-        { id: 'selected', content: 'authorized Confluence page' },
-      ])
-      expect(await handleTagOnlySearch({ ...params, filters: { source } })).toEqual([
-        { id: 'selected', content: 'authorized Confluence page' },
-      ])
-      expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
-        ['revoked-site'],
-        ['allowed-site'],
-      ])
-      expect(dbChainMockFns.offset.mock.calls).toEqual([[0], [0]])
-      expect(JSON.stringify(dbChainMockFns.where.mock.calls[2][0])).toContain('revoked-site')
-      const readPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[3][0])
-      expect(readPredicate).toContain('confluence_read_grant')
-      expect(readPredicate).toContain('confluence-reader')
-      expect(readPredicate).toContain('company.atlassian.net')
-    }
-  )
-  it('retains a completed authorized result when the next candidate page exhausts its deadline', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(10000))
-    getForConnectors.mockImplementation(async () => {
-      vi.setSystemTime(new Date(19000))
-      return allowed
-    })
-    queueTableRows(schemaMock.embedding, [
-      candidate('selected', 'allowed-source'),
-      candidate('slow', 'slow-source'),
-    ])
-    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
-    expect(await handleTagOnlySearch({ ...params, topK: 2 })).toEqual([
-      { id: 'selected', content: 'verified result' },
-    ])
-    expect(getForConnectors).toHaveBeenCalledOnce()
-  })
-
   it.each([undefined, 'gmail'])(
-    'propagates caller cancellation before hydration with source %s',
+    'propagates caller cancellation before ranking with source %s',
     async (source) => {
       const cancellation = new AbortController()
-      getForConnectors.mockImplementation(async () => {
-        cancellation.abort(new Error('Search cancelled'))
-        return allowed
-      })
+      cancellation.abort(new Error('Search cancelled'))
       queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
       await expect(
         handleTagOnlySearch({ ...params, filters: { source }, signal: cancellation.signal })
       ).rejects.toThrow('Search cancelled')
-      expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(
-        source ? [] : ['allowed-source'],
-        cancellation.signal
-      )
-      expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
     }
   )
 })
@@ -1423,7 +1214,6 @@ describe('permitted-document planner', () => {
     id,
     documentId: `doc-${id}`,
     connectorId,
-    liveAuthorizationSource: false,
     distance: 0.1,
   })
   const bounded = (
@@ -1496,7 +1286,6 @@ describe('permitted-document planner', () => {
       workspace: [],
       admin: ['sliced-src'],
       members: ['member-src'],
-      liveProofRequired: [],
     }
     /** Membership decides the walk; the sliced source contributes enumerated documents. */
     const memberSources = ['member-src']
@@ -1530,7 +1319,7 @@ describe('permitted-document planner', () => {
       ...params,
       permitted: { kind: 'unbounded' },
       accessPlan: {
-        connectors: { workspace: [], admin: ['sliced-src'], members: [], liveProofRequired: [] },
+        connectors: { workspace: [], admin: ['sliced-src'], members: [] },
         observers: { confirmed: [], observed: [] },
         memberSources: [],
       },
@@ -1778,5 +1567,41 @@ describe('permitted-document planner', () => {
       filters: { documentIds: ['doc-a'] },
     })
     expect(statements().some((query) => isProbeStatement(query.sql))).toBe(false)
+  })
+
+  const liveSearch = {
+    knowledgeBaseIds: ['org-index'],
+    topK: 1,
+    searchMode: 'hybrid' as const,
+    query: 'release',
+    queryVector: params.queryVector!,
+  }
+
+  it('never asks a source for live grants when the scope reads none', async () => {
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    await retrieveKnowledgeSearch({
+      ...liveSearch,
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('asks a live source for its grants once, before either leg', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'gated-src',
+        accessMode: 'admin',
+        connectorType: 'confluence',
+        githubRepository: false,
+      },
+    ])
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    await retrieveKnowledgeSearch({
+      ...liveSearch,
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['gated-src'], undefined)
   })
 })

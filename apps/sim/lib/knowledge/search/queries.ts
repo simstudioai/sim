@@ -177,20 +177,13 @@ export interface DocumentMetadata {
  */
 export async function getDocumentMetadataByIds(
   documentIds: string[],
-  access: KnowledgeAccessScope,
-  accessProvider?: KnowledgeAccessProvider,
-  signal?: AbortSignal
+  access: KnowledgeAccessScope
 ): Promise<Record<string, DocumentMetadata>> {
   if (documentIds.length === 0) {
     return {}
   }
 
   const uniqueIds = [...new Set(documentIds)]
-  const authorizedAccess = accessProvider
-    ? await measureSearchStage('metadata.authorization', () =>
-        accessProvider.getForDocuments(uniqueIds, signal)
-      )
-    : access
   const documents = await measureSearchStage('metadata.sql', () =>
     db
       .select({
@@ -208,7 +201,7 @@ export async function getDocumentMetadataByIds(
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
-          knowledgeAccessCondition(authorizedAccess)
+          knowledgeMetadataCandidateAccessCondition(access)
         )
       )
   )
@@ -582,7 +575,6 @@ type SearchReadCandidate = {
   id: string
   documentId: string
   connectorId: string | null
-  liveAuthorizationSource: boolean
 }
 
 /** Only opaque identifiers leave candidate ranking; content stays behind the full read predicate. */
@@ -590,16 +582,6 @@ const SEARCH_READ_CANDIDATE_FIELDS = {
   id: embedding.id,
   documentId: document.id,
   connectorId: document.connectorId,
-  liveAuthorizationSource: sql<boolean>`EXISTS (
-    SELECT 1 FROM ${knowledgeConnector}
-    WHERE ${knowledgeConnector.id} = ${document.connectorId}
-      AND (
-        (${knowledgeConnector.connectorType} = 'github'
-          AND ${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId')
-        OR (${knowledgeConnector.connectorType} = 'confluence'
-          AND ${knowledgeConnector.accessMode} = 'admin')
-      )
-  )`,
 }
 
 const AUTHORIZED_SEARCH_PAGE_SIZE = 200
@@ -613,23 +595,17 @@ const AUTHORIZED_SEARCH_BUDGET_MS = 8000
 async function selectAuthorizedSearchResults(input: {
   leg: 'vector' | 'keyword' | 'tags'
   access: KnowledgeAccessScope
-  accessProvider?: KnowledgeAccessProvider
   filters?: WorkspaceSearchFilters
   signal?: AbortSignal
   budget?: SearchBudget
   topK: number
-  selectPage: (
-    limit: number,
-    offset: number,
-    excludedSources: readonly string[]
-  ) => Promise<SearchReadCandidatePage>
+  selectPage: (limit: number, offset: number) => Promise<SearchReadCandidatePage>
   compareResults?: (a: SearchResult, b: SearchResult) => number
   hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
 }): Promise<SearchResult[]> {
   const deadline = Date.now() + AUTHORIZED_SEARCH_BUDGET_MS
   const pageSize = Math.min(AUTHORIZED_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
   const results = new Map<string, SearchResult>()
-  const excludedSources = new Set<string>()
   const considered = new Set<string>()
   let scanned = 0
   let offset = 0
@@ -642,7 +618,7 @@ async function selectAuthorizedSearchResults(input: {
       input.signal?.throwIfAborted()
       input.budget?.remaining()
       const page = await measureSearchStage(`${input.leg}.candidates`, () =>
-        input.selectPage(pageSize, offset, [...excludedSources])
+        input.selectPage(pageSize, offset)
       )
       if (!page.candidates.length) break
       scanned += page.candidates.length
@@ -653,47 +629,10 @@ async function selectAuthorizedSearchResults(input: {
         if (page.candidates.length < pageSize) break
         continue
       }
-      /** Candidate and hydration queries enforce this source filter; connector types are immutable. */
-      const connectorIds =
-        input.filters?.source &&
-        input.filters.source !== 'github' &&
-        input.filters.source !== 'confluence'
-          ? []
-          : [
-              ...new Set(
-                candidates.flatMap((candidate) =>
-                  candidate.connectorId ? [candidate.connectorId] : []
-                )
-              ),
-            ]
-      const access = await measureSearchStage(`${input.leg}.authorization`, () =>
-        input.accessProvider
-          ? input.accessProvider.getForConnectors(connectorIds, input.signal)
-          : input.access
-      )
-      input.signal?.throwIfAborted()
-      const grantedSources = new Set(
-        access.kind === 'user'
-          ? [
-              ...(access.githubInstallationGrants?.map((grant) => grant.connectorId) ?? []),
-              ...(access.confluenceSiteGrants?.map((grant) => grant.connectorId) ?? []),
-            ]
-          : []
-      )
-      const excludedBefore = excludedSources.size
-      for (const candidate of candidates) {
-        if (
-          input.accessProvider &&
-          candidate.liveAuthorizationSource &&
-          candidate.connectorId &&
-          !grantedSources.has(candidate.connectorId)
-        )
-          excludedSources.add(candidate.connectorId)
-      }
       const hydrated = await measureSearchStage(`${input.leg}.hydration`, () =>
         input.hydrate(
           candidates.map((candidate) => candidate.id),
-          access
+          input.access
         )
       )
       const byId = new Map(hydrated.map((row) => [row.id, row]))
@@ -707,8 +646,8 @@ async function selectAuthorizedSearchResults(input: {
         results.clear()
         for (const row of ranked) results.set(row.id, row)
       }
-      if (excludedSources.size > excludedBefore) offset = 0
-      else if (page.candidates.length < pageSize) break
+      /** A short page is the end of the candidates, whether or not they were reordered. */
+      if (page.candidates.length < pageSize) break
     }
   } catch (error) {
     if (!input.budget?.isTimeout(error)) throw error
@@ -717,19 +656,13 @@ async function selectAuthorizedSearchResults(input: {
   return [...results.values()]
 }
 
-function excludeSearchSources(sourceIds: readonly string[]): SQL | undefined {
-  return sourceIds.length
-    ? sql`(${document.connectorId} IS NULL OR NOT (${inArray(document.connectorId, [...sourceIds])}))`
-    : undefined
-}
-
 /**
- * Loads the content of candidates that passed authorization, under the read predicate in full.
+ * Loads the content of candidates that survived ranking, under the read predicate.
  *
  * Where the search resolved its connectors, the predicate takes them from that resolution instead
- * of proving each one again per row: the same documents, without the lookup this page already
- * paid for once. The caller's live source proofs ride on `access`, so a gated source is still
- * checked here, which is what makes this the last gate rather than a formality.
+ * of proving each one again per row: the same documents, without the lookup this page already paid
+ * for once. Mirrored permissions decide a reader here exactly as they did during ranking — a
+ * document's own source is asked again when its content is read directly, not on this path.
  */
 function hydrateSearchCandidates(
   ids: string[],
@@ -801,12 +734,11 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     return selectAuthorizedSearchResults({
       leg: 'tags',
       access: params.access,
-      accessProvider: params.accessProvider,
       filters: params.filters,
       signal: params.signal,
       budget: params.budget,
       topK,
-      selectPage: async (limit, offset, excludedSources) => {
+      selectPage: async (limit, offset) => {
         const candidates = await runSearchQuery(params.budget, 'tags.sql', (executor) =>
           executor
             .select(SEARCH_READ_CANDIDATE_FIELDS)
@@ -819,8 +751,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
                   access,
                   params.filters,
                   candidateAccessCondition(access, params.accessPlan)
-                ),
-                excludeSearchSources(excludedSources)
+                )
               )
             )
             .orderBy(embedding.id)
@@ -1082,18 +1013,6 @@ export async function resolvePermittedDocuments(params: {
   return permitted
 }
 
-/** The permitted documents still eligible after live authorization excluded some sources. */
-function permittedDocumentIds(
-  documents: readonly PermittedDocument[],
-  excludedSources: readonly string[]
-): string[] {
-  if (!excludedSources.length) return documents.map((entry) => entry.id)
-  const excluded = new Set(excludedSources)
-  return documents
-    .filter((entry) => entry.connectorId === null || !excluded.has(entry.connectorId))
-    .map((entry) => entry.id)
-}
-
 /**
  * Tags live on chunks, so a row qualifies when a chunk it joins to carries them — and only a
  * chunk the search can actually return counts, or a document whose sole match is disabled would
@@ -1281,20 +1200,18 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
    * refill reuses the pool it already has. Excluding another source is the only thing that
    * changes which candidates belong in it, and that resets the offset to zero anyway.
    */
-  let candidatePool: { excludedKey: string; identities: Array<{ id: string }> } | undefined
+  let candidatePool: Array<{ id: string }> | undefined
   return selectAuthorizedSearchResults({
     leg: 'vector',
     access: params.access,
-    accessProvider,
     filters: params.filters,
     signal: params.signal,
     budget: params.budget,
     topK: params.topK,
     compareResults: (a, b) => a.distance - b.distance,
-    selectPage: async (limit, offset, excludedSources) => {
+    selectPage: async (limit, offset) => {
       const visibility = [
         ...getVisibilityConditions(params.access, params.filters, candidateAccess),
-        excludeSearchSources(excludedSources),
       ]
       const candidateDocumentVisibility = [
         ...candidateDocumentConditions(
@@ -1303,7 +1220,6 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           params.filters,
           candidateAccess
         ),
-        excludeSearchSources(excludedSources),
       ]
       /** Explicit document IDs are already a bounded scope, and retain exhaustive ordering. */
       const exactPage = async () => {
@@ -1321,8 +1237,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length) return exactPage()
-      const excludedKey = excludedSources.join('\u0000')
-      if (candidatePool?.excludedKey !== excludedKey) {
+      if (!candidatePool) {
         annotateSearchDiagnostics({
           vectorRanking: 'candidate-rerank',
           vectorCandidateStorage: 'stored-halfvec',
@@ -1362,9 +1277,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * post-filters, so when the caller reads a small share of the index it spends its whole
            * uninterruptible tuple budget and still returns almost none of their neighbours.
            */
-          selected = await rankPermittedExactly(
-            permittedDocumentIds(params.permitted.documents, excludedSources)
-          )
+          selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
         } else if (params.accessPlan && params.access.kind === 'user') {
           /**
            * Readability follows sources, so each readable source is searched in its own index and
@@ -1430,13 +1343,13 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             }
           }
         }
-        candidatePool = { excludedKey, identities: selected }
+        candidatePool = selected
         annotateSearchDiagnostics({
           vectorCandidateCount: selected.length,
           vectorCandidateScan: selected.length < candidateLimit ? 'underfilled' : 'planned',
         })
       }
-      const { identities } = candidatePool
+      const identities = candidatePool
       if (!identities.length) return { candidates: [], nextOffset: offset }
       /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */
       const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>
@@ -1444,7 +1357,6 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           WITH scored_search_candidates AS MATERIALIZED (
             SELECT ${embedding.id} AS id, ${document.id} AS "documentId",
               ${document.connectorId} AS "connectorId",
-              ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource",
               ${distance} AS distance
             FROM ${embedding} INNER JOIN ${document} ON ${document.id} = ${embedding.documentId}
             WHERE ${and(
@@ -1565,15 +1477,14 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
         : {}),
     })
-    const documentConditions = (excludedSources: readonly string[]) =>
+    const documentConditions = () =>
       and(
         ...candidateDocumentConditions(
           knowledgeBaseIds,
           access,
           params.filters,
           candidateAccessCondition(access, params.accessPlan)
-        ),
-        excludeSearchSources(excludedSources)
+        )
       )
     /**
      * One page from the top of Tin's ranking. The window of ranked chunks widens while too few of
@@ -1583,8 +1494,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     const selectTinPage = async (
       scopedQuery: SQL,
       limit: number,
-      offset: number,
-      excludedSources: readonly string[]
+      offset: number
     ): Promise<SearchReadCandidatePage | null> => {
       for (const window of TIN_KEYWORD_WINDOWS) {
         if (window < offset + limit) continue
@@ -1602,12 +1512,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               SELECT ${document.id} AS id FROM ${document}
               WHERE ${and(
                 sql`${document.id} = ANY (ARRAY(SELECT document_id FROM ranked_tin_chunks))`,
-                documentConditions(excludedSources)
+                documentConditions()
               )}
             ), page AS (
               SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
                 ${document.connectorId} AS "connectorId",
-                ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource",
                 ranked_tin_chunks.keyword_rank
               FROM ranked_tin_chunks INNER JOIN ${document}
                 ON ${document.id} = ranked_tin_chunks.document_id
@@ -1619,8 +1528,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             SELECT (SELECT count(*)::int FROM ranked_tin_chunks) AS ranked,
               coalesce((
                 SELECT json_agg(json_build_object(
-                  'id', page.id, 'documentId', page."documentId", 'connectorId', page."connectorId",
-                  'liveAuthorizationSource', page."liveAuthorizationSource"
+                  'id', page.id, 'documentId', page."documentId", 'connectorId', page."connectorId"
                 ) ORDER BY page.keyword_rank DESC, page.id)
                 FROM page
               ), '[]'::json) AS candidates
@@ -1644,12 +1552,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     return selectAuthorizedSearchResults({
       leg: 'keyword',
       access: params.access,
-      accessProvider: params.accessProvider,
       filters: params.filters,
       signal: params.signal,
       budget: params.budget,
       topK,
-      selectPage: async (limit, offset, excludedSources) => {
+      selectPage: async (limit, offset) => {
         /**
          * A bounded permitted set confines matching to the chunks the caller may read, so a term
          * common across the index is ranked only where it can surface. The visibility CTE below
@@ -1657,11 +1564,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
          */
         const permittedIds =
           params.permitted?.kind === 'bounded'
-            ? permittedDocumentIds(params.permitted.documents, excludedSources)
+            ? params.permitted.documents.map((entry) => entry.id)
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
         if (tinScope && !permittedIds) {
-          const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
+          const tinPage = await selectTinPage(tinScope, limit, offset)
           if (tinPage) return tinPage
           annotateSearchDiagnostics({ keywordRanking: 'gin' })
         }
@@ -1708,7 +1615,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               SELECT ${document.id} AS id FROM ${document}
               WHERE ${and(
                 sql`${document.id} = ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))`,
-                documentConditions(excludedSources)
+                documentConditions()
               )}
             ), ranked_keyword_candidates AS MATERIALIZED (
               SELECT matched_keyword_chunks.id, matched_keyword_chunks.document_id,
@@ -1720,8 +1627,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               LIMIT ${limit} OFFSET ${offset}
             )
             SELECT ranked_keyword_candidates.id, ${document.id} AS "documentId",
-              ${document.connectorId} AS "connectorId",
-              ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource"
+              ${document.connectorId} AS "connectorId"
             FROM ranked_keyword_candidates INNER JOIN ${document}
               ON ${document.id} = ranked_keyword_candidates.document_id
             ORDER BY ranked_keyword_candidates.keyword_rank DESC, ranked_keyword_candidates.id
@@ -1966,27 +1872,6 @@ export async function retrieveKnowledgeSearch(
       retrieval: { status: timedOutLegs.length ? 'partial' : 'complete', timedOutLegs },
     }
   }
-  const common = {
-    knowledgeBaseIds,
-    access,
-    accessProvider: params.accessProvider,
-    signal: params.signal,
-    filters: params.filters,
-    structuredFilters,
-  }
-  const hasQuery = Boolean(query?.trim())
-  const hasFilters = Boolean(structuredFilters?.length)
-  if (!hasQuery) {
-    if (!hasFilters) throw new Error('A search query or tag filters are required')
-    return finish(
-      await measureSearchStage('tags', () =>
-        handleTagOnlySearch({ ...common, topK, budget: budgets.tags })
-      )
-    )
-  }
-  if (!queryVector) throw new Error('Query vector is required when searching with a query')
-  const { distanceThreshold } = getQueryStrategy(knowledgeBaseIds.length, topK)
-  const legTopK = searchMode === 'hybrid' ? hybridCandidateCount(topK) : topK
   /**
    * Connector state is the same for every document a connector owns, so both legs read it from
    * one resolution instead of proving it per candidate.
@@ -1998,6 +1883,41 @@ export async function retrieveKnowledgeSearch(
         )
       : undefined
   /**
+   * A source whose reader access is proven live is asked for once, before either leg, and only
+   * when this scope actually reads one: the proof is a fact about the caller and the connector,
+   * not about any candidate, so a search that touches no such source never asks at all.
+   */
+  const readAccess =
+    accessPlan && params.accessProvider && accessPlan.connectors.liveProofRequired.length > 0
+      ? await measureSearchStage('live_source_grants', () =>
+          params.accessProvider!.getForConnectors(
+            accessPlan.connectors.liveProofRequired,
+            params.signal
+          )
+        )
+      : access
+  const common = {
+    knowledgeBaseIds,
+    access: readAccess,
+    accessProvider: params.accessProvider,
+    signal: params.signal,
+    filters: params.filters,
+    structuredFilters,
+  }
+  const hasQuery = Boolean(query?.trim())
+  const hasFilters = Boolean(structuredFilters?.length)
+  if (!hasQuery) {
+    if (!hasFilters) throw new Error('A search query or tag filters are required')
+    return finish(
+      await measureSearchStage('tags', () =>
+        handleTagOnlySearch({ ...common, topK, budget: budgets.tags, accessPlan })
+      )
+    )
+  }
+  if (!queryVector) throw new Error('Query vector is required when searching with a query')
+  const { distanceThreshold } = getQueryStrategy(knowledgeBaseIds.length, topK)
+  const legTopK = searchMode === 'hybrid' ? hybridCandidateCount(topK) : topK
+  /**
    * Live user scopes resolve what they may read once, before either leg, so both rank inside it
    * when it is small. Resolved scopes read whole bases, and explicit documents are already a
    * bounded scope with their own exhaustive ordering.
@@ -2006,7 +1926,7 @@ export async function retrieveKnowledgeSearch(
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
       ? await resolvePermittedDocuments({
           knowledgeBaseIds,
-          access,
+          access: readAccess,
           filters: params.filters,
           budget: budgets.vector,
           accessPlan,

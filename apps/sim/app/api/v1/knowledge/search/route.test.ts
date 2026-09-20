@@ -165,7 +165,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
         accessProvider: provider,
       })
     )
-    expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith([], access, provider)
+    expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith([], access)
   })
 
   it.each([
@@ -224,8 +224,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       expect(response.status).toBe(200)
       expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith(
         ['revoked-document', 'allowed-document'],
-        access,
-        provider
+        access
       )
       expect(body.data.results).toEqual(
         allDenied

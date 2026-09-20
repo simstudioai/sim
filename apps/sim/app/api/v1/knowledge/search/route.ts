@@ -312,7 +312,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access, accessProvider)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access)
     const readableResults = results.filter((result) => documentMetadataMap[result.documentId])
 
     return NextResponse.json({
