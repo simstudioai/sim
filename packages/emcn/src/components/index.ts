@@ -130,6 +130,7 @@ export {
   type ComposerActionButtonProps,
   composerActionButtonVariants,
 } from './composer-action-button/composer-action-button'
+export { DetailsPanel, type DetailsPanelProps } from './details-panel/details-panel'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
