@@ -103,7 +103,22 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay. If you delete the primary provider and the domain has another verified provider, that one becomes primary; otherwise people at the domain sign in another way until a provider serves it again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Provider secrets — the OIDC client secret, and SAML signing and decryption keys — are encrypted with `ENCRYPTION_KEY` before they are stored, so a copy of the database alone does not expose them. Select **Update** to save the provider, or **Discard** to abandon changes.
 
-**Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
+**Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, encrypted assertions, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
+
+### Encrypted assertions
+
+Turn on **Encrypt SAML assertions** when your identity provider encrypts the assertion, which some organizations require for assertions carrying personal data. It takes a key pair you generate:
+
+- **Service provider certificate** — the public half. Sim publishes it in its service provider metadata, and you upload it to the identity provider as the encryption certificate.
+- **Service provider private key** — the half Sim decrypts with. It is encrypted with `ENCRYPTION_KEY` before it is stored, and the form shows only a mask afterwards; **Replace** takes a new key.
+
+Generate a pair with `openssl req -x509 -newkey rsa:2048 -keyout sp-key.pem -out sp-cert.pem -days 3650 -nodes`. Turning the setting off clears the stored key.
+
+<Callout type="info">
+  Signing the authentication request Sim sends is not supported. Identity providers that
+  can require signed requests — Entra ID's **Require verification certificates**, for
+  example — must leave that off for Sim's application, which is their default.
+</Callout>
 
 SCIM settings save immediately in the **Provisioning** tab. Its **Disable just-in-time provisioning** rule overrides Automatic first-sign-in membership while the connection is active and entitled. Existing members can still sign in. See [directory provisioning](/platform/enterprise/scim#provisioning-and-sso-together).
 
@@ -417,48 +432,4 @@ SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
   depend on your IdP asserting `email_verified`.
 </Callout>
 
-You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
-
-### Script-based registration
-
-Use this when you need to register an SSO provider without going through the UI — for example, during initial deployment or CI/CD automation.
-
-```bash
-# OIDC example (Okta)
-SSO_ENABLED=true \
-NEXT_PUBLIC_APP_URL=https://your-instance.com \
-SSO_PROVIDER_TYPE=oidc \
-SSO_PROVIDER_ID=okta \
-SSO_ISSUER=https://dev-1234567.okta.com \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
-SSO_OIDC_CLIENT_ID=your-client-id \
-SSO_OIDC_CLIENT_SECRET=your-client-secret \
-bun run packages/db/scripts/register-sso-provider.ts
-```
-
-```bash
-# SAML example (ADFS)
-SSO_ENABLED=true \
-NEXT_PUBLIC_APP_URL=https://your-instance.com \
-SSO_PROVIDER_TYPE=saml \
-SSO_PROVIDER_ID=adfs \
-SSO_ISSUER=https://adfs.company.com/adfs/services/trust \
-SSO_SAML_AUDIENCE=https://your-instance.com \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
-SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \
-SSO_SAML_CERT="-----BEGIN CERTIFICATE-----
-...
------END CERTIFICATE-----" \
-bun run packages/db/scripts/register-sso-provider.ts
-```
-
-The script outputs the callback URL to configure in your IdP once it completes.
-
-To remove a provider:
-
-```bash
-SSO_USER_EMAIL=admin@company.com \
-bun run packages/db/scripts/deregister-sso-provider.ts
-```
+Register providers through the **Settings UI**, the same flow as cloud. Verify the email domain first: a provider is only saved against a domain the organization has verified, which is what authorizes it to sign people in.

@@ -118,17 +118,37 @@ vi.mock('@sim/emcn', () => ({
     </div>
   ),
   ChipTextarea: ({
+    id,
     value,
     onChange,
   }: {
+    id?: string
     value?: string
     onChange?: ChangeEventHandler<HTMLTextAreaElement>
-  }) => <textarea value={value ?? ''} onChange={onChange} />,
+  }) => <textarea id={id} value={value ?? ''} onChange={onChange} />,
   Expandable: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   ExpandableContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Info: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Switch: () => <button type='button'>Switch</button>,
+  Switch: ({
+    id,
+    checked,
+    onCheckedChange,
+  }: {
+    id?: string
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <button
+      type='button'
+      id={id}
+      role='switch'
+      aria-checked={checked ?? false}
+      onClick={() => onCheckedChange?.(!checked)}
+    >
+      Switch
+    </button>
+  ),
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
   toast: {
     error: vi.fn(),
@@ -682,6 +702,62 @@ describe('SAML callback URLs', () => {
       expect(callbackValue()).toMatch(/\/api\/auth\/sso\/saml2\/callback\/provider-a$/)
     }
   )
+})
+
+describe('SAML encrypted assertions', () => {
+  function editSaml(samlConfig: string) {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [{ ...provider('org-a'), providerType: 'saml', samlConfig }] },
+      isLoading: false,
+    })
+    renderSso('org-a')
+    startEditing()
+    /** Both protocols render an advanced chip; the SAML form only renders its own. */
+    act(() => {
+      container
+        .querySelectorAll<HTMLButtonElement>('[aria-controls="sso-advanced"]')
+        .forEach((chip) => chip.click())
+    })
+  }
+
+  function toggle() {
+    return container.querySelector<HTMLButtonElement>('#sso-encrypt-assertions')
+  }
+
+  it('hides the key pair until encryption is turned on', () => {
+    editSaml(JSON.stringify({ entryPoint: 'https://idp.test/sso', cert: 'IDP' }))
+
+    expect(container.querySelector('#sso-sp-encryption-cert')).toBeNull()
+    expect(container.querySelector('#sso-sp-decryption-key')).toBeNull()
+
+    act(() => toggle()?.click())
+
+    expect(container.querySelector('#sso-sp-encryption-cert')).not.toBeNull()
+    expect(container.querySelector('#sso-sp-decryption-key')).not.toBeNull()
+  })
+
+  it('shows the saved certificate and masks the stored private key', () => {
+    const cert = '-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----'
+    editSaml(
+      JSON.stringify({
+        entryPoint: 'https://idp.test/sso',
+        cert: 'IDP',
+        spMetadata: {
+          isAssertionEncrypted: true,
+          encryptionCert: cert,
+          encPrivateKey: '[REDACTED]',
+        },
+      })
+    )
+
+    expect(container.querySelector<HTMLTextAreaElement>('#sso-sp-encryption-cert')?.value).toBe(
+      cert
+    )
+    const keyField = container.querySelector<HTMLInputElement>('#sso-sp-decryption-key')
+    expect(keyField?.value).not.toContain('PRIVATE KEY')
+    expect(keyField?.value).toMatch(/^•+$/)
+    expect(findButton('Replace')).toBeDefined()
+  })
 })
 
 describe('SSO provider list', () => {

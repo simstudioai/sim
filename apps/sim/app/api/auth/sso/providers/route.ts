@@ -11,7 +11,11 @@ import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
-import { decryptProviderConfig } from '@/lib/auth/sso-provider-secrets'
+import {
+  decryptProviderConfig,
+  resolveHolder,
+  SECRET_FIELDS,
+} from '@/lib/auth/sso-provider-secrets'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -58,17 +62,23 @@ async function redactOidcConfig(oidcConfig: string | null): Promise<string | nul
 }
 
 /**
- * Drops the SAML key material an admin never needs back. Unlike the OIDC secret
- * these carry no hint: they are the service provider's own signing and
- * decryption keys, they are only ever set by the operator registration script,
- * and the settings form does not read them.
+ * Drops the SAML key material an admin never needs back: the service provider's
+ * own signing and decryption keys. Unlike the OIDC secret these carry no hint —
+ * the admin holds the key pair already, and the certificate half stays readable.
+ * The same field list drives encryption at rest, so the two cannot drift.
  */
 function redactSamlConfig(samlConfig: string | null): string | null {
   if (!samlConfig) return samlConfig
   try {
     const parsed = JSON.parse(samlConfig)
-    for (const field of ['privateKey', 'decryptionPvk']) {
-      if (typeof parsed[field] === 'string' && parsed[field] !== '') parsed[field] = REDACTED_MARKER
+    if (!parsed || typeof parsed !== 'object') return null
+    for (const path of SECRET_FIELDS.samlConfig) {
+      const holder = resolveHolder(parsed, path)
+      if (!holder) continue
+      const field = path[path.length - 1]
+      if (typeof holder[field] === 'string' && holder[field] !== '') {
+        holder[field] = REDACTED_MARKER
+      }
     }
     return JSON.stringify(parsed)
   } catch {

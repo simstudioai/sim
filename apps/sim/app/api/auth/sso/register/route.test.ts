@@ -345,6 +345,155 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['no client secret', JSON.stringify({ clientId: 'client' })],
+    ['an empty client secret', JSON.stringify({ clientId: 'client', clientSecret: '' })],
+  ])('refuses to reuse a stored config with %s', async (_label, oidcConfig) => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ oidcConfig }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: expect.stringContaining('Re-enter your client secret'),
+    })
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+  })
+
+  describe('SAML encrypted assertions', () => {
+    const SP_CERT = `-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----`
+    const SP_KEY = `-----BEGIN PRIVATE KEY-----\nREVG\n-----END PRIVATE KEY-----`
+    const samlBody = (overrides: Record<string, unknown> = {}) => ({
+      providerType: 'saml' as const,
+      providerId: 'acme-saml',
+      issuer: 'https://idp.acme.com',
+      domain: 'acme.com',
+      orgId: 'org1',
+      entryPoint: 'https://idp.acme.com/sso',
+      cert: 'IDP-CERT',
+      ...overrides,
+    })
+
+    it('publishes the certificate and keeps the private key for decryption', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata).toMatchObject({
+        isAssertionEncrypted: true,
+        encPrivateKey: SP_KEY,
+        encryptionCert: SP_CERT,
+      })
+      /** The certificate travels in the metadata document, stripped of its PEM armor. */
+      expect(samlConfig.spMetadata.metadata).toContain('use="encryption"')
+      expect(samlConfig.spMetadata.metadata).toContain('QUJD')
+      expect(samlConfig.spMetadata.metadata).not.toContain('BEGIN CERTIFICATE')
+      expect(samlConfig.spMetadata.metadata).not.toContain('REVG')
+    })
+
+    it('leaves the metadata and key material alone when encryption is off', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody()))
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata).not.toHaveProperty('encPrivateKey')
+      expect(samlConfig.spMetadata).not.toHaveProperty('isAssertionEncrypted')
+      expect(samlConfig.spMetadata).not.toHaveProperty('encryptionCert')
+      expect(samlConfig.spMetadata.metadata).not.toContain('use="encryption"')
+    })
+
+    it.each([
+      ['no certificate', { spDecryptionKey: SP_KEY }],
+      ['no private key', { spEncryptionCert: SP_CERT }],
+    ])('refuses to enable encryption with %s', async (_label, overrides) => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody({ encryptAssertions: true, ...overrides })))
+
+      expect(res.status).toBe(400)
+      expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [
+        'a certificate that is not PEM',
+        { spEncryptionCert: 'not-a-cert', spDecryptionKey: SP_KEY },
+      ],
+      ['a private key that is not PEM', { spEncryptionCert: SP_CERT, spDecryptionKey: 'nope' }],
+    ])('refuses %s', async (_label, overrides) => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody({ encryptAssertions: true, ...overrides })))
+
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({ error: expect.stringContaining('PEM') })
+      expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    })
+
+    it('keeps the stored private key when the update sends the marker', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [
+        { samlConfig: JSON.stringify({ spMetadata: { encPrivateKey: SP_KEY } }) },
+      ])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockUpdateSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
+    })
+
+    it('refuses the marker when no key is stored', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ samlConfig: JSON.stringify({ spMetadata: {} }) }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringContaining('no stored service provider private key'),
+      })
+    })
+  })
+
   /** updateSSOProvider resets domainVerified to false whenever the domain changes. */
   it('re-marks the provider domain-verified after an update', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])

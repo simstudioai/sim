@@ -5,15 +5,26 @@ import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 const logger = createLogger('SsoProviderSecrets')
 
 /**
- * The secret-bearing fields inside each provider config column. Everything else
- * an IdP config carries — endpoints, scopes, the SAML certificate, attribute
- * mapping — is public configuration and stays readable, so the column remains
- * ordinary JSON for the readers that only need those.
+ * Paths to the secret-bearing fields inside each provider config column, as
+ * property chains. Everything else an IdP config carries — endpoints, scopes,
+ * the SAML certificate, attribute mapping — is public configuration and stays
+ * readable, so the column remains ordinary JSON for the readers that only need
+ * those.
+ *
+ * The service-provider keys are nested: Better Auth's SAML support signs
+ * requests with `spMetadata.privateKey` and decrypts assertions with
+ * `spMetadata.encPrivateKey`. The two flat names are the shapes the operator
+ * registration script writes, kept so rows it created are covered too.
  */
-const SECRET_FIELDS = {
-  oidcConfig: ['clientSecret'],
-  samlConfig: ['privateKey', 'decryptionPvk'],
-} as const
+export const SECRET_FIELDS = {
+  oidcConfig: [['clientSecret']],
+  samlConfig: [
+    ['privateKey'],
+    ['decryptionPvk'],
+    ['spMetadata', 'privateKey'],
+    ['spMetadata', 'encPrivateKey'],
+  ],
+} as const satisfies Record<string, readonly (readonly string[])[]>
 
 export type SsoConfigColumn = keyof typeof SECRET_FIELDS
 
@@ -61,16 +72,33 @@ async function mapSecretFields(
   if (!parsed) return config
 
   let changed = false
-  for (const field of SECRET_FIELDS[column]) {
-    const value = parsed[field]
+  for (const path of SECRET_FIELDS[column]) {
+    const holder = resolveHolder(parsed, path)
+    if (!holder) continue
+    const field = path[path.length - 1]
+    const value = holder[field]
     if (typeof value !== 'string' || value === '') continue
     const next = await transform(value)
     if (next === value) continue
-    parsed[field] = next
+    holder[field] = next
     changed = true
   }
 
   return changed ? JSON.stringify(parsed) : config
+}
+
+/** The object holding the last segment of `path`, or null when the chain is absent. */
+export function resolveHolder(
+  parsed: Record<string, unknown>,
+  path: readonly string[]
+): Record<string, unknown> | null {
+  let holder: Record<string, unknown> = parsed
+  for (const segment of path.slice(0, -1)) {
+    const next = holder[segment]
+    if (!next || typeof next !== 'object' || Array.isArray(next)) return null
+    holder = next as Record<string, unknown>
+  }
+  return holder
 }
 
 /**

@@ -69,6 +69,49 @@ describe('provider secrets', () => {
     expect(parsed.decryptionPvk).toBe(envelope(Buffer.from('pvk').toString('hex')))
   })
 
+  it('encrypts the service-provider keys Better Auth signs and decrypts with', async () => {
+    const stored = await encryptProviderConfig(
+      JSON.stringify({
+        entryPoint: 'https://idp.test/sso',
+        cert: 'public-cert',
+        spMetadata: {
+          entityID: 'https://sim.test',
+          isAssertionEncrypted: true,
+          privateKey: 'sp-signing-key',
+          encPrivateKey: 'sp-encryption-key',
+        },
+      }),
+      'samlConfig'
+    )
+
+    const parsed = JSON.parse(stored as string)
+    expect(parsed.spMetadata.privateKey).toBe(
+      envelope(Buffer.from('sp-signing-key').toString('hex'))
+    )
+    expect(parsed.spMetadata.encPrivateKey).toBe(
+      envelope(Buffer.from('sp-encryption-key').toString('hex'))
+    )
+    expect(parsed.spMetadata).toMatchObject({
+      entityID: 'https://sim.test',
+      isAssertionEncrypted: true,
+    })
+    expect(parsed.cert).toBe('public-cert')
+
+    const loaded = JSON.parse((await decryptProviderConfig(stored, 'samlConfig')) as string)
+    expect(loaded.spMetadata.privateKey).toBe('sp-signing-key')
+    expect(loaded.spMetadata.encPrivateKey).toBe('sp-encryption-key')
+  })
+
+  it('passes through a config whose spMetadata is absent or not an object', async () => {
+    for (const config of [
+      JSON.stringify({ cert: 'public-cert' }),
+      JSON.stringify({ spMetadata: 'not-an-object' }),
+      JSON.stringify({ spMetadata: null }),
+    ]) {
+      await expect(encryptProviderConfig(config, 'samlConfig')).resolves.toBe(config)
+    }
+  })
+
   it('leaves a value stored before encryption existed untouched', async () => {
     const legacy = JSON.stringify({ clientId: 'client', clientSecret: 'plain-text-secret' })
 

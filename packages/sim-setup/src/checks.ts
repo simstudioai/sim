@@ -478,7 +478,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       label: 'native Slack triggers',
       disableFields: ['SLACK_EXTENDED_SCOPES', 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'],
     },
-    { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {
     if (!isTruthy(sim.vars.get(rule.flag))) continue

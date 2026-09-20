@@ -2,7 +2,7 @@
 
 /**
  * Registers an OAuth client with Sim's authorization server by writing the
- * `oauth_client` row directly, the way `register-sso-provider.ts` registers
+ * `oauth_client` row directly, the way an operator registers
  * an SSO provider. Better Auth's own `adminCreateOAuthClient` endpoint needs a
  * signed-in session, and dynamic registration is deliberately switched off,
  * so an operator creates clients here.

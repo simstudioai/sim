@@ -29,7 +29,7 @@ type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
  * Prefers client_secret_post over client_secret_basic when an IdP supports both:
  * better-auth sends client_secret_basic credentials without URL-encoding per
  * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
- * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ * invalid_client errors.
  */
 function selectTokenEndpointAuthMethod(
   supportedMethods: unknown,
@@ -84,6 +84,47 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
   }
 }
 
+/** The base64 body of a PEM document, which is what SAML metadata carries. */
+function stripPemArmor(pem: string): string {
+  return pem
+    .replace(/-----(BEGIN|END)[^-]+-----/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+/**
+ * Names the first problem with an encryption key pair, or null when both look
+ * like PEM documents of the right kind. Catching it here turns what would
+ * otherwise be a failed sign-in weeks later into an error on the save.
+ */
+function describePemProblem(
+  cert: string | undefined,
+  privateKey: string | undefined
+): string | null {
+  if (!cert?.includes('BEGIN CERTIFICATE')) {
+    return 'Service provider certificate must be a PEM certificate beginning with -----BEGIN CERTIFICATE-----'
+  }
+  if (!privateKey?.includes('PRIVATE KEY')) {
+    return 'Service provider private key must be a PEM private key beginning with -----BEGIN PRIVATE KEY-----'
+  }
+  if (!stripPemArmor(cert) || !stripPemArmor(privateKey)) {
+    return 'Service provider certificate and private key cannot be empty'
+  }
+  return null
+}
+
+/** The stored decryption key of a SAML config, when it holds one. */
+function readStoredDecryptionKey(samlConfig: string | null | undefined): string | null {
+  if (!samlConfig) return null
+  try {
+    const parsed = JSON.parse(samlConfig)
+    const stored = parsed?.spMetadata?.encPrivateKey
+    return typeof stored === 'string' && stored !== '' ? stored : null
+  } catch {
+    return null
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     if (!isSsoEnabled) {
@@ -120,8 +161,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { providerId, issuer, providerType, mapping, orgId, jitProvisioningEnabled } = body
 
     /**
-     * Always org-scoped: an org-less provider has no `sso_domain` proof, so only
-     * operators create one, via `packages/db/scripts/register-sso-provider.ts`.
+     * Always org-scoped: an org-less provider has no `sso_domain` proof, and the
+     * verified domain is what authorizes a provider to sign anyone in.
      */
     const [membership] = await db
       .select({ organizationId: member.organizationId, role: member.role })
@@ -313,7 +354,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
         try {
           const stored = await decryptProviderConfig(existing.oidcConfig, 'oidcConfig')
-          clientSecret = JSON.parse(stored as string).clientSecret
+          const storedSecret = JSON.parse(stored as string).clientSecret
+          /**
+           * A stored config without a usable secret cannot be reused: letting it
+           * through would save the provider with no client secret at all, and the
+           * failure would only appear at the next sign-in.
+           */
+          if (typeof storedSecret !== 'string' || storedSecret === '') {
+            throw new Error('stored OIDC config has no client secret')
+          }
+          clientSecret = storedSecret
         } catch {
           return NextResponse.json(
             {
@@ -516,7 +566,42 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         digestAlgorithm,
         identifierFormat,
         idpMetadata,
+        encryptAssertions,
+        spEncryptionCert,
+        spDecryptionKey,
       } = body
+
+      /**
+       * The private key half of the encryption pair. Like the OIDC client
+       * secret, an update may send the redaction marker to keep the stored one
+       * rather than re-pasting it.
+       */
+      let decryptionKey = spDecryptionKey
+      if (encryptAssertions && spDecryptionKey === REDACTED_MARKER) {
+        const [existing] = await db
+          .select({ samlConfig: ssoProvider.samlConfig })
+          .from(ssoProvider)
+          .where(ownerClause)
+          .limit(1)
+        const storedKey = existing?.samlConfig
+          ? readStoredDecryptionKey(await decryptProviderConfig(existing.samlConfig, 'samlConfig'))
+          : null
+        if (!storedKey) {
+          return NextResponse.json(
+            {
+              error:
+                'Cannot update: no stored service provider private key. Re-enter the key to keep encrypted assertions on.',
+            },
+            { status: 400 }
+          )
+        }
+        decryptionKey = storedKey
+      }
+
+      if (encryptAssertions) {
+        const pemProblem = describePemProblem(spEncryptionCert, decryptionKey)
+        if (pemProblem) return NextResponse.json({ error: pemProblem }, { status: 400 })
+      }
 
       const computedCallbackUrl =
         callbackUrl || `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
@@ -539,9 +624,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         })
 
+      /**
+       * Published so the identity provider can encrypt assertions to Sim. Only
+       * the certificate goes in the document; the matching private key stays in
+       * the provider row, encrypted.
+       */
+      const encryptionKeyDescriptor =
+        encryptAssertions && spEncryptionCert
+          ? `
+    <md:KeyDescriptor use="encryption"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>${escapeXml(stripPemArmor(spEncryptionCert))}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
+          : ''
+
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
-  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">${encryptionKeyDescriptor}
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
@@ -550,8 +646,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         entryPoint,
         cert,
         callbackUrl: computedCallbackUrl,
+        /**
+         * Rebuilt on every save, and Better Auth replaces the whole object
+         * rather than merging its keys, so turning encryption off here clears
+         * the key material with it.
+         */
         spMetadata: {
           metadata: spMetadataXml,
+          ...(encryptAssertions && decryptionKey
+            ? {
+                isAssertionEncrypted: true,
+                encPrivateKey: decryptionKey,
+                /**
+                 * The certificate as the admin pasted it. The metadata document
+                 * carries it stripped of its PEM armor, which is what the
+                 * identity provider reads; keeping the original lets the
+                 * settings form show it back without parsing that XML. Better
+                 * Auth ignores keys it does not know.
+                 */
+                encryptionCert: spEncryptionCert,
+              }
+            : {}),
         },
       }
 
