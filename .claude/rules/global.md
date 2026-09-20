@@ -52,6 +52,9 @@ Use shared helpers from `@sim/utils` instead of writing inline implementations:
 - `omit(obj, keys)` from `@sim/utils/object` — remove keys from object
 - `filterUndefined(obj)` from `@sim/utils/object` — strip undefined-valued keys. Never write `Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))`
 - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — safe string truncation with ellipsis
+- `escapeRegExp(value)` from `@sim/utils/string` — escape regex metacharacters. Never inline `replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`
+- `compareStrings(left, right)` from `@sim/utils/string` — code-unit string comparator for hashes, fingerprints, and values compared across processes. Never `localeCompare` there
+- `isRecordLike(value)` from `@sim/utils/object` — indexable-object guard. Never redeclare `typeof value === 'object' && value !== null && !Array.isArray(value)`
 - `backoffWithJitter(attempt, retryAfterMs, options?)` from `@sim/utils/retry` — exponential backoff with jitter
 - `parseRetryAfter(header)` from `@sim/utils/retry` — parse HTTP `Retry-After` header to milliseconds
 
