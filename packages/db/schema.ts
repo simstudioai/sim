@@ -3584,6 +3584,12 @@ export const embeddingKeywordTin = pgTable('embedding_keyword_tin', {
   documentId: text('document_id').notNull(),
   enabled: boolean('enabled').notNull(),
   content: text('content').notNull(),
+  /**
+   * The document's source and ACL, mirrored by trigger so ranking decides readability on the row it
+   * scores rather than through a join per ranked chunk. Hydration still reads under the full predicate.
+   */
+  connectorId: text('connector_id'),
+  acl: text('acl').array(),
 })
 
 /**
@@ -3608,6 +3614,8 @@ export const embeddingSearch = pgTable(
      * NULL for uploads.
      */
     connectorId: text('connector_id'),
+    /** The document's ACL, mirrored by trigger, so a walk can test readability on the row it visits. */
+    acl: text('acl').array(),
     /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),

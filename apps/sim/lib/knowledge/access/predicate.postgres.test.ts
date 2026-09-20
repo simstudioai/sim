@@ -29,6 +29,7 @@ const { PgDialect } = await import('drizzle-orm/pg-core')
 const {
   knowledgeAccessCondition,
   knowledgeCandidateAccessConditionForConnectors,
+  projectionCandidateAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
 } = await import('@/lib/knowledge/access/predicate')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
@@ -560,6 +561,27 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, plan)
     for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
       expect([id, await admits(perQuery, id)]).toEqual([id, await admits(perRow, id)])
+    }
+    /**
+     * The projection predicate decides on the ranking row alone, from the source and ACL mirrored
+     * there. It must never refuse a document the per-row predicate admits: whatever it admits beyond
+     * that is refused at hydration, under the full predicate, before content is returned.
+     */
+    await connection.unsafe(`CREATE TABLE IF NOT EXISTS embedding_search(
+      id text PRIMARY KEY, document_id text, connector_id text, acl text[])`)
+    await connection.unsafe('DELETE FROM embedding_search')
+    await connection.unsafe(
+      "INSERT INTO embedding_search SELECT id || '-chunk', id, connector_id, acl FROM document"
+    )
+    const onRow = new PgDialect().sqlToQuery(
+      projectionCandidateAccessCondition(schema.embeddingSearch, scope, plan)
+    )
+    for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
+      const rows = await connection.unsafe(
+        `SELECT 1 FROM embedding_search WHERE ${onRow.sql} AND document_id = $${onRow.params.length + 1}`,
+        [...(onRow.params as string[]), id]
+      )
+      if (await admits(perRow, id)) expect([id, rows.length > 0]).toEqual([id, true])
     }
     /**
      * Candidate ranking defers the live source proof, as the per-row candidate predicate does: a

@@ -11,6 +11,7 @@ import {
   user,
 } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { confluenceReaderGroupCondition } from '@/lib/knowledge/access/group-membership'
@@ -292,6 +293,40 @@ export function knowledgeCandidateAccessConditionForConnectors(
       OR ${mirrored(eligibility.admin, sql`${document.aclVerifiedAt} > ${cutoff}`)}
       OR ${mirrored(eligibility.members, resolvedObservationCondition(plan.observers, cutoff))}
     )
+  )`
+}
+
+/**
+ * The candidate predicate on a ranking projection's own row, for a scope whose connectors were
+ * resolved: `connectorId` and `acl` are mirrored there from the document, so a walk or a keyword
+ * window decides readability on the row it scores instead of joining `document` per candidate.
+ *
+ * It admits a superset of the document predicate, never a subset: a member's source is admitted
+ * whole (the observation that vouches for each document is checked at hydration), and requirement
+ * clauses live on the document. Both are refused there, under the full predicate, before content is
+ * returned — this predicate only decides what is worth ranking.
+ */
+export function projectionCandidateAccessCondition(
+  projection: { connectorId: AnyPgColumn; acl: AnyPgColumn },
+  scope: KnowledgeAccessScope | SystemAccessScope,
+  plan: SearchAccessPlan
+): SQL {
+  if (scope.kind === 'system') return sql`true`
+  if (scope.tokens.length === 0) return sql`false`
+  const tokens = textArrayLiteral(scope.tokens)
+  const inSources = (ids: readonly string[]): SQL =>
+    ids.length === 0
+      ? sql`false`
+      : sql`${projection.connectorId} = ANY(${textArrayLiteral([...ids])})`
+  const mirrored = [
+    ...plan.connectors.workspace,
+    ...plan.connectors.admin,
+    ...plan.connectors.members,
+  ]
+  return sql`(
+    ${inSources(plan.memberSources)}
+    OR (${projection.acl} && ${tokens}
+      AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)}))
   )`
 }
 
