@@ -30,6 +30,7 @@ const {
   knowledgeAccessCondition,
   knowledgeCandidateAccessConditionForConnectors,
   projectionCandidateAccessCondition,
+  restrictSearchAccessPlan,
   knowledgeMetadataCandidateAccessCondition,
 } = await import('@/lib/knowledge/access/predicate')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
@@ -557,7 +558,17 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     /** What `resolveSearchAccessPlan` resolves for this caller: their member identity, confirmed. */
     const observers = { confirmed: [{ id: 'm-alice', connectorId: 'members' }], observed: [] }
     const perRow = knowledgeMetadataCandidateAccessCondition(scope)
-    const plan = { connectors: eligibility, observers, memberSources: ['members'] }
+    const plan = {
+      connectors: eligibility,
+      observers,
+      memberSources: ['members'],
+      connectorTypes: new Map([
+        ['ws-mode', 'slack'],
+        ['admin', 'google_drive'],
+        ['members', 'slack'],
+      ]),
+      uploads: true,
+    }
     const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, plan)
     for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
       expect([id, await admits(perQuery, id)]).toEqual([id, await admits(perRow, id)])
@@ -655,6 +666,44 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
         'admin-current'
       )
     ).toBe(false)
+    /**
+     * A plan confined to one kind of source admits that kind alone, on the document and on the
+     * row, and a plan confined to uploads admits only documents without a source.
+     */
+    const drive = restrictSearchAccessPlan(plan, 'google_drive')
+    const driveOnRow = new PgDialect().sqlToQuery(
+      projectionCandidateAccessCondition(schema.embeddingSearch, scope, drive)
+    )
+    const driveOnRowAdmits = async (id: string) => {
+      const rows = await connection.unsafe(
+        `SELECT 1 FROM embedding_search WHERE ${driveOnRow.sql} AND document_id = $${driveOnRow.params.length + 1}`,
+        [...(driveOnRow.params as string[]), id]
+      )
+      return rows.length > 0
+    }
+    const drivePerQuery = knowledgeCandidateAccessConditionForConnectors(scope, drive)
+    for (const [id, expected] of [
+      ['admin-current', true],
+      ['workspace-doc', false],
+      ['members-current', false],
+      ['upload-doc', false],
+    ] as const) {
+      expect([id, await admits(drivePerQuery, id)]).toEqual([id, expected])
+      expect([id, await driveOnRowAdmits(id)]).toEqual([id, expected])
+    }
+    /** Uploads carry the workspace ACL, so a caller with that token reads them and nothing sourced. */
+    await connection.unsafe("INSERT INTO document(id, acl) VALUES ('upload-mine', ARRAY['ws'])")
+    const wsScope = { ...scope, tokens: [...scope.tokens, 'ws'] }
+    const uploadsPerQuery = knowledgeCandidateAccessConditionForConnectors(
+      wsScope,
+      restrictSearchAccessPlan(plan, 'upload')
+    )
+    expect(await admits(knowledgeMetadataCandidateAccessCondition(wsScope), 'upload-mine')).toBe(
+      true
+    )
+    expect(await admits(uploadsPerQuery, 'upload-mine')).toBe(true)
+    expect(await admits(uploadsPerQuery, 'workspace-doc')).toBe(false)
+    expect(await admits(uploadsPerQuery, 'admin-current')).toBe(false)
     /** A connector left out of the resolution is refused, however current its documents are. */
     expect(
       await admits(

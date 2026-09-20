@@ -232,6 +232,35 @@ export interface SearchAccessPlan {
   observers: KnowledgeMemberObservers
   /** Connectors the caller is an active member of, whose documents they read broadly. */
   memberSources: readonly string[]
+  /** Each eligible connector's type, so a search may be confined to one kind of source. */
+  connectorTypes: ReadonlyMap<string, string>
+  /** Whether documents without a source — uploads — are in scope. */
+  uploads: boolean
+}
+
+/**
+ * The plan confined to one kind of source: the connectors of that type keep their eligibility and
+ * the rest lose it, so every predicate built from the plan — on the row and on the document — and
+ * every source the legs walk or rank are that kind alone. `upload` keeps only source-less documents.
+ */
+export function restrictSearchAccessPlan(plan: SearchAccessPlan, source: string): SearchAccessPlan {
+  const keep = (id: string) => source !== 'upload' && plan.connectorTypes.get(id) === source
+  const kept = (ids: readonly string[]) => ids.filter(keep)
+  return {
+    connectors: {
+      workspace: kept(plan.connectors.workspace),
+      admin: kept(plan.connectors.admin),
+      members: kept(plan.connectors.members),
+      liveProofRequired: kept(plan.connectors.liveProofRequired),
+    },
+    observers: {
+      confirmed: plan.observers.confirmed.filter((observer) => keep(observer.connectorId)),
+      observed: plan.observers.observed.filter((observer) => keep(observer.connectorId)),
+    },
+    memberSources: kept(plan.memberSources),
+    connectorTypes: plan.connectorTypes,
+    uploads: source === 'upload',
+  }
 }
 
 export interface KnowledgeConnectorEligibility {
@@ -290,12 +319,14 @@ export function knowledgeCandidateAccessConditionForConnectors(
       ))
     )`
   }
+  const workspaceOwned = plan.uploads
+    ? sql`(${document.connectorId} IS NULL OR ${inConnectors(eligibility.workspace)})`
+    : inConnectors(eligibility.workspace)
   return sql`(
     ${aclOverlap(tokens)}
     AND ${aclRequirementsSatisfied(tokens)}
     AND (
-      ((${document.connectorId} IS NULL OR ${inConnectors(eligibility.workspace)})
-        AND ${document.acl} = ARRAY['ws']::text[])
+      (${workspaceOwned} AND ${document.acl} = ARRAY['ws']::text[])
       OR ${mirrored(eligibility.admin, sql`${document.aclVerifiedAt} > ${cutoff}`)}
       OR ${mirrored(eligibility.members, resolvedObservationCondition(plan.observers, cutoff))}
     )
@@ -340,13 +371,15 @@ export function projectionCandidateAccessCondition(
     ...plan.connectors.admin,
     ...plan.connectors.members,
   ]
+  const owned = plan.uploads
+    ? sql`(${projection.connectorId} IS NULL OR ${inSources(mirrored)})`
+    : inSources(mirrored)
   const unfilled = sql`(${projection.acl} IS NULL AND EXISTS (
     SELECT 1 FROM ${document}
     WHERE ${document.id} = ${projection.documentId}
       AND ${knowledgeCandidateAccessConditionForConnectors(scope, plan)}
   ))`
-  return sql`(${unfilled} OR (${projection.acl} && ${tokens}
-    AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)})))`
+  return sql`(${unfilled} OR (${projection.acl} && ${tokens} AND ${owned}))`
 }
 
 /**
