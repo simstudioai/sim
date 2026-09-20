@@ -19,7 +19,6 @@ import {
   knowledgeAclOverlapCondition,
   knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
-  liveSourceAccessCondition,
   type SearchAccessPlan,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
@@ -659,10 +658,10 @@ async function selectAuthorizedSearchResults(input: {
 /**
  * Loads the content of candidates that survived ranking, under the read predicate.
  *
- * Where the search resolved its connectors, the predicate takes them from that resolution instead
- * of proving each one again per row: the same documents, without the lookup this page already paid
- * for once. Mirrored permissions decide a reader here exactly as they did during ranking — a
- * document's own source is asked again when its content is read directly, not on this path.
+ * The resolved connector state bounds ranking, never this. A page of ranked identifiers is small,
+ * so its content is read under the full predicate, which re-reads each connector's own lifecycle
+ * and approval: a source deleted, archived or unapproved while the search was running stops
+ * answering here, at the gate that returns content.
  */
 function hydrateSearchCandidates(
   ids: string[],
@@ -671,16 +670,9 @@ function hydrateSearchCandidates(
   filters: WorkspaceSearchFilters | undefined,
   conditions: (SQL | undefined)[],
   leg: RetrievalLeg,
-  budget?: SearchBudget,
-  plan?: SearchAccessPlan
+  budget?: SearchBudget
 ) {
-  const accessCondition = plan
-    ? knowledgeCandidateAccessConditionForConnectors(
-        access,
-        plan,
-        liveSourceAccessCondition(access)
-      )
-    : knowledgeAccessCondition(access)
+  const accessCondition = knowledgeAccessCondition(access)
   return runSearchQuery(budget, `${leg}.sql`, (executor) =>
     executor
       .select(getSearchResultFields(distance))
@@ -768,8 +760,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           params.filters,
           conditions,
           'tags',
-          params.budget,
-          params.accessPlan
+          params.budget
         ),
     })
   }
@@ -1101,8 +1092,10 @@ async function selectSourceVectorCandidates(input: {
   )
   const readable = and(...input.documentConditions, input.documentTagCondition)
   type RankedChunks = Promise<Array<{ id: string; distance: number }>>
-  const walks: Array<() => RankedChunks> = sources.walked.map(
-    (connectorId) => () =>
+  /** Walks one source's own index, or the sliced sources together when their slice saturated. */
+  const walk =
+    (scope: SQL): (() => RankedChunks) =>
+    () =>
       withVectorScanSettings(
         (executor) =>
           executor.execute<{ id: string; distance: number }>(sql`
@@ -1113,33 +1106,47 @@ async function selectSourceVectorCandidates(input: {
               WHERE ${and(eq(document.id, embeddingSearch.documentId), readable)}
               LIMIT 1
             ) AS visible
-            WHERE ${and(base, eq(embeddingSearch.connectorId, connectorId))}
+            WHERE ${and(base, scope)}
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
         input.budget,
         'vector.source_walk'
       )
+  const walks: Array<() => RankedChunks> = sources.walked.map((connectorId) =>
+    walk(eq(embeddingSearch.connectorId, connectorId))
   )
+  const slicedScope = sql`(${embeddingSearch.connectorId} IS NULL
+    OR ${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))`
   /** One statement for every sliced source: their readable documents, then exact ranking of those. */
   const slice: Array<() => RankedChunks> =
     sources.sliced.length === 0
       ? []
       : [
-          () =>
-            runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
-              executor.execute<{ id: string; distance: number }>(sql`
+          async () => {
+            const rows = await runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
+              executor.execute<{ id: string; distance: number; saturated: boolean }>(sql`
                 WITH readable_documents AS MATERIALIZED (
                   SELECT ${document.id} AS id FROM ${document}
                   WHERE (${document.connectorId} IS NULL
                       OR ${document.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))
                     AND ${readable}
-                  LIMIT ${SOURCE_EXACT_DOCUMENT_LIMIT}
+                  LIMIT ${SOURCE_EXACT_DOCUMENT_LIMIT + 1}
                 )
-                SELECT ${embeddingSearch.id} AS id, (${input.candidateDistance}) + 0 AS distance
+                SELECT ${embeddingSearch.id} AS id, (${input.candidateDistance}) + 0 AS distance,
+                  (SELECT count(*) FROM readable_documents) > ${SOURCE_EXACT_DOCUMENT_LIMIT} AS saturated
                 FROM ${embeddingSearch}
                 JOIN readable_documents ON readable_documents.id = ${embeddingSearch.documentId}
                 WHERE ${base}
                 ORDER BY distance LIMIT ${input.candidateLimit}`)
-            ),
+            )
+            /**
+             * The slice enumerates readable documents in no particular order, so a set past its
+             * bound would rank an arbitrary subset and could miss the nearest chunks entirely.
+             * Walk those sources instead: approximate, but drawn from the whole of them.
+             */
+            if (!rows.some((row) => row.saturated)) return rows
+            annotateSearchDiagnostics({ vectorSlicedSaturated: true })
+            return walk(slicedScope)()
+          },
         ]
   const scored = await mapWithConcurrency([...walks, ...slice], SOURCE_RANKING_CONCURRENCY, (run) =>
     run()
@@ -1383,8 +1390,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         params.filters,
         conditions,
         'vector',
-        params.budget,
-        params.accessPlan
+        params.budget
       ),
   })
 }
@@ -1643,8 +1649,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           params.filters,
           conditions,
           'keyword',
-          params.budget,
-          params.accessPlan
+          params.budget
         ),
     })
   }

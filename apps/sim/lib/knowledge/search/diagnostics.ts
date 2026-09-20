@@ -105,6 +105,8 @@ export interface SearchDiagnosticMetadata {
   /** Documents in a bounded permitted set. */
   permittedDocumentCount?: number
   vectorSourcesSliced?: number
+  /** The sliced sources held more readable documents than one exact ranking may enumerate. */
+  vectorSlicedSaturated?: boolean
   vectorSourcesWalked?: number
   /**
    * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top

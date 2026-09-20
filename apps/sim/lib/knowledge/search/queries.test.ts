@@ -1311,6 +1311,32 @@ describe('permitted-document planner', () => {
     expect(JSON.stringify(exact[0])).toContain('sliced-src')
   })
 
+  it('walks the sliced sources when more documents are readable than one ranking may enumerate', async () => {
+    const eligibility = { workspace: [], admin: ['sliced-src'], members: [] }
+    /** The slice enumerates in no order, so a saturated one would rank an arbitrary subset. */
+    sourceExactRows = [{ id: 'arbitrary-hit', distance: 0.4, saturated: true }]
+    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
+    rerankRows = [hit('walked-hit', 'sliced-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded' },
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
+      },
+    })
+    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    expect(walks).toHaveLength(1)
+    expect(JSON.stringify(walks[0])).toContain('sliced-src')
+    const reranked = JSON.stringify(
+      statements().find((query) => query.sql.includes('scored_search_candidates'))
+    )
+    expect(reranked).toContain('walked-hit')
+    expect(reranked).not.toContain('arbitrary-hit')
+  })
+
   it('ranks every source exactly when the caller is a member of none', async () => {
     sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
     rerankRows = [hit('sliced-hit', 'sliced-src')]
