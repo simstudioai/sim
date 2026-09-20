@@ -604,6 +604,36 @@ describe('POST /api/auth/sso/register', () => {
       expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
     })
 
+    it('asks for the key again when the stored one cannot be decrypted', async () => {
+      mockDecryptSecret.mockRejectedValue(new Error('auth tag mismatch'))
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [
+        {
+          samlConfig: JSON.stringify({
+            spMetadata: { encPrivateKey: `sim.sso.v1:${'a'.repeat(32)}:dead:${'b'.repeat(32)}` },
+          }),
+        },
+      ])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      /** A key the app can no longer read is an operator action, not a server fault. */
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringContaining('Re-enter it'),
+      })
+    })
+
     it('refuses the marker when no key is stored', async () => {
       queueMembers([{ organizationId: 'org1', role: 'owner' }])
       queueTableRows(schemaMock.ssoProvider, [])

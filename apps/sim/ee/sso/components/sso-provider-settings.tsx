@@ -170,7 +170,9 @@ function hasStoredSpDecryptionKey(samlConfig: string | null | undefined): boolea
     const config: unknown = JSON.parse(samlConfig)
     if (!isRecordLike(config)) return false
     const spMetadata = config.spMetadata
-    return isRecordLike(spMetadata) && typeof spMetadata.encPrivateKey === 'string'
+    if (isRecordLike(spMetadata) && typeof spMetadata.encPrivateKey === 'string') return true
+    /** Rows from the retired registration script kept the key flat; the server reuses it too. */
+    return typeof config.decryptionPvk === 'string'
   } catch {
     return false
   }
@@ -1191,22 +1193,36 @@ export function SsoProviderSettings({
                                   </Chip>
                                 </div>
                               ) : (
-                                <ChipTextarea
-                                  id='sso-sp-decryption-key'
-                                  placeholder={
-                                    '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
-                                  }
-                                  value={formData.spDecryptionKey}
-                                  autoComplete='off'
-                                  autoCapitalize='none'
-                                  spellCheck={false}
-                                  onChange={(e) =>
-                                    handleInputChange('spDecryptionKey', e.target.value)
-                                  }
-                                  className='min-h-20'
-                                  error={showErrors && errors.spDecryptionKey?.length > 0}
-                                  rows={3}
-                                />
+                                <div className='flex flex-col gap-2'>
+                                  <ChipTextarea
+                                    id='sso-sp-decryption-key'
+                                    placeholder={
+                                      '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+                                    }
+                                    value={formData.spDecryptionKey}
+                                    autoComplete='off'
+                                    autoCapitalize='none'
+                                    spellCheck={false}
+                                    onChange={(e) =>
+                                      handleInputChange('spDecryptionKey', e.target.value)
+                                    }
+                                    className='min-h-20'
+                                    error={showErrors && errors.spDecryptionKey?.length > 0}
+                                    rows={3}
+                                  />
+                                  {/** The pair to Replace, as on the client secret: put the saved key back. */}
+                                  {hasStoredDecryptionKey && (
+                                    <Chip
+                                      className='w-fit'
+                                      onClick={() => {
+                                        setIsReplacingDecryptionKey(false)
+                                        handleInputChange('spDecryptionKey', '')
+                                      }}
+                                    >
+                                      Keep saved
+                                    </Chip>
+                                  )}
+                                </div>
                               )}
                             </SettingRow>
                           </>

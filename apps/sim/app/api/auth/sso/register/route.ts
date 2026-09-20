@@ -615,9 +615,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .from(ssoProvider)
           .where(ownerClause)
           .limit(1)
-        const storedKey = existing?.samlConfig
-          ? readStoredDecryptionKey(await decryptProviderConfig(existing.samlConfig, 'samlConfig'))
-          : null
+        let storedKey: string | null = null
+        if (existing?.samlConfig) {
+          try {
+            storedKey = readStoredDecryptionKey(
+              await decryptProviderConfig(existing.samlConfig, 'samlConfig')
+            )
+          } catch {
+            /** A key the app can no longer read is re-entered, not a 500. */
+            return NextResponse.json(
+              {
+                error:
+                  'Cannot update: failed to read the saved service provider private key. Re-enter it.',
+              },
+              { status: 400 }
+            )
+          }
+        }
         if (!storedKey) {
           return NextResponse.json(
             {

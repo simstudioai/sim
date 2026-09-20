@@ -743,6 +743,36 @@ describe('SAML encrypted assertions', () => {
     expect(container.querySelector('#sso-sp-decryption-key')).not.toBeNull()
   })
 
+  it('offers to keep the saved key after choosing Replace', () => {
+    editSaml(
+      JSON.stringify({
+        entryPoint: 'https://idp.test/sso',
+        cert: 'IDP',
+        spMetadata: { isAssertionEncrypted: true, encPrivateKey: '[REDACTED]' },
+      })
+    )
+
+    act(() => findButton('Replace')?.click())
+
+    expect(container.querySelector('#sso-sp-decryption-key')).not.toBeNull()
+    expect(findButton('Keep saved')).toBeDefined()
+  })
+
+  it('recognizes a key stored by the retired registration script', () => {
+    editSaml(
+      JSON.stringify({
+        entryPoint: 'https://idp.test/sso',
+        cert: 'IDP',
+        decryptionPvk: '[REDACTED]',
+        spMetadata: { isAssertionEncrypted: true },
+      })
+    )
+
+    /** Masked rather than demanding a fresh paste, because the server reuses that key. */
+    const keyField = container.querySelector<HTMLInputElement>('#sso-sp-decryption-key')
+    expect(keyField?.value).toMatch(/^•+$/)
+  })
+
   it('shows the saved certificate and masks the stored private key', () => {
     const cert = '-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----'
     editSaml(
