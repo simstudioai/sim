@@ -48,7 +48,7 @@ EOF
 </Callout>
 
 <Callout type="error">
-  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
+  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, deployment/chat secrets, and SSO provider secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
 </Callout>
 
 The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `POSTGRES_PASSWORD` is missing, rather than booting with empty or well-known values. Postgres applies `POSTGRES_PASSWORD` only when it first creates the database volume — see [Postgres on Compose](/platform/self-hosting/security#postgres-on-compose) before changing it on an existing install. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works.

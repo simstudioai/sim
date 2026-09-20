@@ -19,7 +19,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 `openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more. The Sim app never checks — it runs its env schema with validation skipped — but the realtime service validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and refuses to start if either is shorter.
 
 <Callout type="error">
-  `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
+  `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, deployment/chat secrets, and SSO provider secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
 </Callout>
 
 ## Strongly recommended

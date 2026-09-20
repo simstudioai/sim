@@ -22,6 +22,7 @@ const {
   mockHasSSOAccess,
   mockValidateUrlWithDNS,
   mockSecureFetchWithPinnedIP,
+  mockDecryptSecret,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRegisterSSOProvider: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockHasSSOAccess: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
   mockSecureFetchWithPinnedIP: vi.fn(),
+  mockDecryptSecret: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -76,6 +78,12 @@ vi.mock('@sim/utils/sso-domain', () => ({
   },
 }))
 
+/** The shared env mock's ENCRYPTION_KEY is not 64 hex characters, so real crypto would throw. */
+vi.mock('@/lib/core/security/encryption', () => ({
+  encryptSecret: vi.fn(),
+  decryptSecret: mockDecryptSecret,
+}))
+
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
   secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
@@ -115,6 +123,9 @@ describe('POST /api/auth/sso/register', () => {
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
+    mockDecryptSecret.mockImplementation(async (value: string) => ({
+      decrypted: Buffer.from(value.split(':')[1], 'hex').toString('utf8'),
+    }))
     mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
     mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // The trust UPDATE reports the row it matched; by default the provider exists.
@@ -286,6 +297,52 @@ describe('POST /api/auth/sso/register', () => {
       domainVerified: true,
       jitProvisioningEnabled: true,
     })
+  })
+
+  /**
+   * Leaving the secret field blank sends the redaction marker back, and the
+   * route lifts the stored secret into the new config. It reads the column
+   * directly rather than through Better Auth, so it decrypts it itself.
+   */
+  it('reuses the stored client secret, decrypting it first', async () => {
+    const sealed = `${'a'.repeat(32)}:${Buffer.from('stored-secret').toString('hex')}:${'b'.repeat(32)}`
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    // In route order: providerId conflict and domain refusal, the reuse read,
+    // both checks again before the write, then the pre-image being updated.
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [
+      { oidcConfig: JSON.stringify({ clientId: 'client', clientSecret: sealed }) },
+    ])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(200)
+    const sent = mockUpdateSSOProvider.mock.calls[0][0].body
+    expect(sent.oidcConfig.clientSecret).toBe('stored-secret')
+  })
+
+  it('reuses a client secret stored before encryption existed', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [
+      { oidcConfig: JSON.stringify({ clientId: 'client', clientSecret: 'legacy-plain-secret' }) },
+    ])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(200)
+    expect(mockUpdateSSOProvider.mock.calls[0][0].body.oidcConfig.clientSecret).toBe(
+      'legacy-plain-secret'
+    )
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
   /** updateSSOProvider resets domainVerified to false whenever the domain changes. */

@@ -8,6 +8,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
+import { decryptProviderConfig } from '@/lib/auth/sso/provider-secrets'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { hasSSOAccess } from '@/lib/billing'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
@@ -311,7 +312,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
         try {
-          clientSecret = JSON.parse(existing.oidcConfig).clientSecret
+          const stored = await decryptProviderConfig(existing.oidcConfig, 'oidcConfig')
+          clientSecret = JSON.parse(stored as string).clientSecret
         } catch {
           return NextResponse.json(
             {
@@ -695,6 +697,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
     if (existingOwnedProvider) {
+      /**
+       * Restores the columns exactly as they were read, including whatever
+       * encoding their secrets were stored in. Re-encrypting would wrap an
+       * already-encrypted value twice; decrypting would downgrade the row to
+       * plain text.
+       */
       const revertProviderUpdate = async (): Promise<void> => {
         await db
           .update(ssoProvider)

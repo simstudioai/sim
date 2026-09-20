@@ -233,7 +233,7 @@ There is a short window where the app is unavailable while containers restart. C
 
 ### Verify
 
-Run the [verification checklist](/platform/self-hosting/verify). At minimum: sign in, open a workflow, execute it, upload a file, and confirm the [background jobs](/platform/self-hosting/background-jobs) are still firing.
+Run the [verification checklist](/platform/self-hosting/verify). At minimum: sign in, open a workflow, execute it, upload a file, and confirm the [background jobs](/platform/self-hosting/background-jobs) are still firing. If the deployment uses [SSO](/platform/enterprise/sso), complete one SSO sign-in too — provider secrets are encrypted with `ENCRYPTION_KEY`, so a key that does not match the one they were saved under surfaces here.
 
 </Step>
 

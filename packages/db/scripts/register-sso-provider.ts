@@ -10,6 +10,8 @@
  * Usage: bun run packages/db/scripts/register-sso-provider.ts
  *
  * Required Environment Variables:
+ *   ENCRYPTION_KEY=<the app's 64-character hex key> (provider secrets are stored encrypted
+ *     with it; a different key makes them unreadable at sign-in)
  *   SSO_ENABLED=true
  *   SSO_PROVIDER_TYPE=oidc|saml
  *   SSO_PROVIDER_ID=your-provider-id
@@ -38,6 +40,7 @@
  *   SSO_SAML_WANT_ASSERTIONS_SIGNED=true (optional, defaults to false)
  */
 
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
@@ -145,6 +148,51 @@ const CONNECTION_STRING = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
 if (!CONNECTION_STRING) {
   console.error('❌ POSTGRES_URL or DATABASE_URL environment variable is required')
   process.exit(1)
+}
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
+if (!ENCRYPTION_KEY || !/^[0-9a-f]{64}$/i.test(ENCRYPTION_KEY)) {
+  console.error(
+    '❌ ENCRYPTION_KEY must be set to the 64-character hex key the app uses; provider secrets are stored encrypted with it'
+  )
+  process.exit(1)
+}
+
+const ENCRYPTION_KEY_BUFFER = Buffer.from(ENCRYPTION_KEY, 'hex')
+
+/**
+ * AES-256-GCM in the `iv:ciphertext:authTag` envelope the app reads back. This
+ * package cannot import from `apps/*`, so the primitive is repeated here rather
+ * than shared; {@link assertCryptoRoundTrip} proves the key produces a readable
+ * value before any row is written.
+ */
+function encryptSecretValue(secret: string): string {
+  const iv = randomBytes(16)
+  const cipher = createCipheriv('aes-256-gcm', ENCRYPTION_KEY_BUFFER, iv, { authTagLength: 16 })
+  let encrypted = cipher.update(secret, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  return `${iv.toString('hex')}:${encrypted}:${cipher.getAuthTag().toString('hex')}`
+}
+
+function decryptSecretValue(envelope: string): string {
+  const [ivHex, ciphertext, authTagHex] = envelope.split(':')
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    ENCRYPTION_KEY_BUFFER,
+    Buffer.from(ivHex, 'hex'),
+    {
+      authTagLength: 16,
+    }
+  )
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
+  return decipher.update(ciphertext, 'hex', 'utf8') + decipher.final('utf8')
+}
+
+function assertCryptoRoundTrip(): void {
+  const sample = 'sso-provider-registration-self-test'
+  if (decryptSecretValue(encryptSecretValue(sample)) !== sample) {
+    throw new Error('Crypto self-test failed; refusing to write provider secrets')
+  }
 }
 
 const postgresClient = postgres(CONNECTION_STRING, {
@@ -590,7 +638,7 @@ async function registerSSOProvider(): Promise<boolean> {
       const oidcConfig = {
         issuer: ssoConfig.issuer,
         clientId: ssoConfig.oidcConfig.clientId,
-        clientSecret: ssoConfig.oidcConfig.clientSecret,
+        clientSecret: encryptSecretValue(ssoConfig.oidcConfig.clientSecret),
         authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
         tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
         // Default to client_secret_post: better-auth sends client_secret_basic
@@ -624,8 +672,12 @@ async function registerSSOProvider(): Promise<boolean> {
         signatureAlgorithm: ssoConfig.samlConfig.signatureAlgorithm,
         digestAlgorithm: ssoConfig.samlConfig.digestAlgorithm,
         identifierFormat: ssoConfig.samlConfig.identifierFormat,
-        privateKey: ssoConfig.samlConfig.privateKey,
-        decryptionPvk: ssoConfig.samlConfig.decryptionPvk,
+        privateKey: ssoConfig.samlConfig.privateKey
+          ? encryptSecretValue(ssoConfig.samlConfig.privateKey)
+          : undefined,
+        decryptionPvk: ssoConfig.samlConfig.decryptionPvk
+          ? encryptSecretValue(ssoConfig.samlConfig.decryptionPvk)
+          : undefined,
         additionalParams: ssoConfig.samlConfig.additionalParams,
         mapping: ssoConfig.mapping,
       }
@@ -761,6 +813,10 @@ async function main() {
   console.log('====================================================================')
   console.log('This script directly inserts SSO provider records into the database.')
   console.log("It follows Better Auth's exact registerSSOProvider logic.\n")
+
+  // Before any row is written: a key that cannot round-trip would store secrets
+  // the app can never read back, and SSO would fail only at the first sign-in.
+  assertCryptoRoundTrip()
 
   const success = await registerSSOProvider()
 

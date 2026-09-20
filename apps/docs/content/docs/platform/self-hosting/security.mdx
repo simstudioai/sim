@@ -13,7 +13,7 @@ Five secrets drive the security of a deployment. Generate each with `openssl ran
 | Secret | Protects | Rotatable |
 |---|---|---|
 | `BETTER_AUTH_SECRET` | Session tokens | Yes — invalidates all sessions |
-| `ENCRYPTION_KEY` | Workspace env vars, stored provider keys, MCP OAuth credentials, deployment/chat secrets | **No** — see below |
+| `ENCRYPTION_KEY` | Workspace env vars, stored provider keys, MCP OAuth credentials, deployment/chat secrets, SSO provider secrets | **No** — see below |
 | `API_ENCRYPTION_KEY` | Reversible stored copy of user-generated API keys | **No** — existing keys keep authenticating, but their stored copy can no longer be displayed |
 | `INTERNAL_API_SECRET` | Service-to-service calls | Yes — roll app and realtime together |
 | `CRON_SECRET` | Background job endpoints | Yes — roll app and cron together |
