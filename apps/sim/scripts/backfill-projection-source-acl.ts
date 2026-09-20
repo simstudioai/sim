@@ -14,19 +14,18 @@
 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
   enqueueProjectionSourceAclBackfill,
+  projectionSourceAclBackfillUsesTrigger,
   runProjectionSourceAclBackfill,
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
 const logger = createLogger('BackfillProjectionSourceAcl')
 
 async function main(): Promise<void> {
-  if (isTriggerDevEnabled && env.TRIGGER_SECRET_KEY) {
-    const handle = await enqueueProjectionSourceAclBackfill({}, true)
-    logger.info('Backfill enqueued on the Trigger.dev worker', handle ?? {})
+  if (projectionSourceAclBackfillUsesTrigger()) {
+    const handle = await enqueueProjectionSourceAclBackfill()
+    logger.info('Backfill enqueued on the Trigger.dev worker', handle)
     return
   }
   await runProjectionSourceAclBackfill({})

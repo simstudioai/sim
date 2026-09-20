@@ -201,14 +201,17 @@ export async function backfillProjectionSourceAcl(
  * vector projection the source index that lets the planner lead with a few sources when the
  * caller's tokens alone would match most of the index. Built concurrently, so the triggers and the
  * backfill keep writing. `CONCURRENTLY` cannot run in a transaction, and the pool's lock timeout
- * would cancel a build that merely waits for a long transaction to finish.
+ * would cancel a build that merely waits for a long transaction to finish. The timeout is a
+ * session setting, so one connection is reserved for it, the builds, and the reset — a pool
+ * would otherwise hand the builds to connections that never saw the setting.
  *
  * The unfilled index on each projection lists the rows the backfill has not reached: each page
  * reads its rows from it instead of walking past every filled one, and the on-row predicate's
  * unfilled branch, an `OR` beside the ACL overlap, stays an index probe for the planner — once the
  * projection is filled, a probe of an empty index.
  */
-export async function indexProjectionAcl(sql: Sql): Promise<void> {
+export async function indexProjectionAcl(pool: Sql): Promise<void> {
+  const sql = await pool.reserve()
   const [{ timeout }] = await sql`SELECT current_setting('lock_timeout') AS timeout`
   await sql.unsafe('SET lock_timeout = 0')
   try {
@@ -237,14 +240,15 @@ export async function indexProjectionAcl(sql: Sql): Promise<void> {
     for (const projection of PROJECTION_SOURCE_ACL_TABLES) await sql.unsafe(`ANALYZE ${projection}`)
   } finally {
     await sql`SELECT set_config('lock_timeout', ${timeout}, false)`
+    sql.release()
   }
 }
 
 /**
  * Leaves the app one outbox event to start the backfill from. The outbox processor runs on every
  * deployment, so the backfill starts on its own once the app that ships the handler is up —
- * on the Trigger.dev worker where there is one, detached in the app otherwise — without an
- * operator remembering to. Idempotent under its fixed id.
+ * enqueued on the Trigger.dev worker where there is one, run in bounded slices by the outbox
+ * itself otherwise — without an operator remembering to. Idempotent under its fixed id.
  */
 export async function enqueueProjectionSourceAclBackfillEvent(sql: Sql): Promise<void> {
   await sql`

@@ -3,11 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBackfill, mockEnd, mockPostgres, mockTasksTrigger } = vi.hoisted(() => ({
+const { mockBackfill, mockEnd, mockPostgres, mockTasksTrigger, envState } = vi.hoisted(() => ({
   mockBackfill: vi.fn(),
   mockEnd: vi.fn(async () => undefined),
   mockPostgres: vi.fn(),
   mockTasksTrigger: vi.fn(async () => ({ id: 'run-1' })),
+  envState: { triggerEnabled: false, secret: undefined as string | undefined },
 }))
 
 vi.mock('@sim/db', () => ({ resolveDbUrl: () => 'postgres://localhost:5432/sim' }))
@@ -19,10 +20,26 @@ vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
 vi.mock('postgres', () => ({ default: mockPostgres }))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTasksTrigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
-vi.mock('@/lib/core/utils/background', () => ({
-  runDetached: (_label: string, work: () => Promise<unknown>) => {
-    void work()
+vi.mock('@/lib/core/config/env', () => ({
+  env: {
+    get TRIGGER_SECRET_KEY() {
+      return envState.secret
+    },
   },
+}))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isTriggerDevEnabled() {
+    return envState.triggerEnabled
+  },
+}))
+vi.mock('@/lib/core/outbox/service', () => ({
+  continueOutboxHandler: (reason: string) => ({
+    outcome: 'deferred',
+    reason,
+    consumeAttempt: false,
+  }),
+  withOutboxHandlerTimeout: (handler: unknown, timeoutMs: number) =>
+    Object.assign(handler as object, { timeoutMs }),
 }))
 
 import {
@@ -32,6 +49,9 @@ import {
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
 const connection = { end: mockEnd }
+const handler =
+  projectionSourceAclBackfillOutboxHandlers['knowledge.projection.source_acl.backfill']
+const context = { eventId: 'e', eventType: 'knowledge.projection.source_acl.backfill' }
 
 describe('runProjectionSourceAclBackfill', () => {
   beforeEach(() => {
@@ -92,7 +112,7 @@ describe('runProjectionSourceAclBackfill', () => {
   })
 })
 
-describe('enqueueProjectionSourceAclBackfill', () => {
+describe('the outbox event the migration leaves behind', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPostgres.mockReturnValue(connection)
@@ -106,7 +126,9 @@ describe('enqueueProjectionSourceAclBackfill', () => {
   })
 
   it('hands the backfill to the Trigger.dev worker when there is one', async () => {
-    await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 }, true)).resolves.toEqual({
+    envState.triggerEnabled = true
+    envState.secret = 'tr_secret'
+    await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 })).resolves.toEqual({
       runId: 'run-1',
     })
     expect(mockTasksTrigger).toHaveBeenCalledWith(
@@ -114,18 +136,29 @@ describe('enqueueProjectionSourceAclBackfill', () => {
       { pageSize: 25 },
       { region: 'us-east-1' }
     )
+    await expect(handler({}, context as never)).resolves.toBeUndefined()
+    expect(mockTasksTrigger).toHaveBeenCalledTimes(2)
     expect(mockBackfill).not.toHaveBeenCalled()
   })
 
-  it('fills the projections detached in this process without one', async () => {
-    await expect(enqueueProjectionSourceAclBackfill({}, false)).resolves.toBeNull()
+  it('runs a bounded slice per outbox run without one, and stays pending until it is filled', async () => {
+    envState.triggerEnabled = false
+    envState.secret = undefined
+    mockBackfill.mockResolvedValueOnce({
+      projection: 'embedding_search',
+      scanned: 100,
+      written: 100,
+      afterId: 'chunk-100',
+      done: false,
+    })
+    await expect(handler({}, context as never)).resolves.toMatchObject({
+      outcome: 'deferred',
+      consumeAttempt: false,
+    })
     expect(mockTasksTrigger).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(mockBackfill).toHaveBeenCalledTimes(2))
-  })
-
-  it('starts from the outbox event the migration leaves behind', () => {
-    expect(Object.keys(projectionSourceAclBackfillOutboxHandlers)).toEqual([
-      'knowledge.projection.source_acl.backfill',
-    ])
+    expect(mockBackfill).toHaveBeenCalledTimes(1)
+    expect(mockBackfill.mock.calls[0][2].budgetMs).toBeLessThanOrEqual(handler.timeoutMs!)
+    await expect(handler({}, context as never)).resolves.toBeUndefined()
+    expect(mockBackfill).toHaveBeenCalledTimes(3)
   })
 })
