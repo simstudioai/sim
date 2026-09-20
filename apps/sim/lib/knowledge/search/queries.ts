@@ -268,6 +268,7 @@ export interface SearchParams {
   /** What the caller may read; every leg applies it. Required so no leg can be written without it. */
   access: KnowledgeAccessScope
   accessProvider?: KnowledgeAccessProvider
+  liveSourceAccess?: LiveSourceAccess
   signal?: AbortSignal
   budget?: SearchBudget
   structuredFilters?: StructuredFilter[]
@@ -583,6 +584,36 @@ const SEARCH_READ_CANDIDATE_FIELDS = {
   connectorId: document.connectorId,
 }
 
+/**
+ * The caller's proof of reader access to the sources that require one, resolved at most once per
+ * search and only when a candidate from such a source is about to be read.
+ */
+export interface LiveSourceAccess {
+  gates: (connectorId: string) => boolean
+  resolve: () => Promise<KnowledgeAccessScope>
+}
+
+/** Binds a search's gated sources to one memoized resolution of the caller's grants. */
+export function liveSourceAccessFor(
+  access: KnowledgeAccessScope,
+  plan: SearchAccessPlan | undefined,
+  accessProvider: KnowledgeAccessProvider | undefined,
+  signal?: AbortSignal
+): LiveSourceAccess | undefined {
+  const gated = new Set(plan?.connectors.liveProofRequired ?? [])
+  if (!accessProvider || gated.size === 0) return undefined
+  let pending: Promise<KnowledgeAccessScope> | undefined
+  return {
+    gates: (connectorId) => gated.has(connectorId),
+    resolve: () => {
+      pending ??= measureSearchStage('live_source_grants', () =>
+        accessProvider.getForConnectors([...gated], signal)
+      )
+      return pending
+    },
+  }
+}
+
 const AUTHORIZED_SEARCH_PAGE_SIZE = 200
 const AUTHORIZED_SEARCH_BUDGET_MS = 8000
 
@@ -601,6 +632,7 @@ async function selectAuthorizedSearchResults(input: {
   selectPage: (limit: number, offset: number) => Promise<SearchReadCandidatePage>
   compareResults?: (a: SearchResult, b: SearchResult) => number
   hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
+  liveSourceAccess?: LiveSourceAccess
 }): Promise<SearchResult[]> {
   const deadline = Date.now() + AUTHORIZED_SEARCH_BUDGET_MS
   const pageSize = Math.min(AUTHORIZED_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
@@ -628,10 +660,20 @@ async function selectAuthorizedSearchResults(input: {
         if (page.candidates.length < pageSize) break
         continue
       }
+      /**
+       * A source that proves its reader live is asked for that proof only once a candidate of
+       * its own reaches this page, and then once for the whole search: a scope that ranks none
+       * of them — most scopes — never asks, and one that ranks many asks once.
+       */
+      const access = candidates.some(
+        (candidate) => candidate.connectorId && input.liveSourceAccess?.gates(candidate.connectorId)
+      )
+        ? await input.liveSourceAccess!.resolve()
+        : input.access
       const hydrated = await measureSearchStage(`${input.leg}.hydration`, () =>
         input.hydrate(
           candidates.map((candidate) => candidate.id),
-          input.access
+          access
         )
       )
       const byId = new Map(hydrated.map((row) => [row.id, row]))
@@ -726,6 +768,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     return selectAuthorizedSearchResults({
       leg: 'tags',
       access: params.access,
+      liveSourceAccess: params.liveSourceAccess,
       filters: params.filters,
       signal: params.signal,
       budget: params.budget,
@@ -1211,6 +1254,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
   return selectAuthorizedSearchResults({
     leg: 'vector',
     access: params.access,
+    liveSourceAccess: params.liveSourceAccess,
     filters: params.filters,
     signal: params.signal,
     budget: params.budget,
@@ -1400,6 +1444,7 @@ export interface KeywordSearchParams {
   topK: number
   access: KnowledgeAccessScope
   accessProvider?: KnowledgeAccessProvider
+  liveSourceAccess?: LiveSourceAccess
   signal?: AbortSignal
   budget?: SearchBudget
   query: string
@@ -1558,6 +1603,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     return selectAuthorizedSearchResults({
       leg: 'keyword',
       access: params.access,
+      liveSourceAccess: params.liveSourceAccess,
       filters: params.filters,
       signal: params.signal,
       budget: params.budget,
@@ -1813,6 +1859,7 @@ export interface ExecuteKnowledgeSearchParams {
   /** What the caller may read; resolved from the principal by the use case, never from input. */
   access: KnowledgeAccessScope
   accessProvider?: KnowledgeAccessProvider
+  liveSourceAccess?: LiveSourceAccess
   signal?: AbortSignal
   searchMode: KnowledgeSearchMode
   /** Lets a recently modified document edge past a stale one of similar relevance; off by default. */
@@ -1887,27 +1934,20 @@ export async function retrieveKnowledgeSearch(
           resolveSearchAccessPlan(knowledgeBaseIds, access)
         )
       : undefined
-  /**
-   * A source whose reader access is proven live is asked for once, before either leg, and only
-   * when this scope actually reads one: the proof is a fact about the caller and the connector,
-   * not about any candidate, so a search that touches no such source never asks at all.
-   */
-  const readAccess =
-    accessPlan && params.accessProvider && accessPlan.connectors.liveProofRequired.length > 0
-      ? await measureSearchStage('live_source_grants', () =>
-          params.accessProvider!.getForConnectors(
-            accessPlan.connectors.liveProofRequired,
-            params.signal
-          )
-        )
-      : access
+  const liveSourceAccess = liveSourceAccessFor(
+    access,
+    accessPlan,
+    params.accessProvider,
+    params.signal
+  )
   const common = {
     knowledgeBaseIds,
-    access: readAccess,
+    access,
     accessProvider: params.accessProvider,
     signal: params.signal,
     filters: params.filters,
     structuredFilters,
+    liveSourceAccess,
   }
   const hasQuery = Boolean(query?.trim())
   const hasFilters = Boolean(structuredFilters?.length)
@@ -1931,7 +1971,7 @@ export async function retrieveKnowledgeSearch(
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
       ? await resolvePermittedDocuments({
           knowledgeBaseIds,
-          access: readAccess,
+          access,
           filters: params.filters,
           budget: budgets.vector,
           accessPlan,

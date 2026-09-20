@@ -1613,7 +1613,7 @@ describe('permitted-document planner', () => {
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
-  it('asks a live source for its grants once, before either leg', async () => {
+  it('never asks a live source for grants while no candidate of its own is read', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         id: 'gated-src',
@@ -1622,6 +1622,32 @@ describe('permitted-document planner', () => {
         githubRepository: false,
       },
     ])
+    probeRows = [{ id: 'doc-a', connectorId: 'other-src', saturated: false }]
+    exactRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'other-src')]
+    queueTableRows(schemaMock.embedding, [hit('a', 'other-src')])
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    await retrieveKnowledgeSearch({
+      ...liveSearch,
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('asks a live source for its grants once, when a candidate of its own is read', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'gated-src',
+        accessMode: 'admin',
+        connectorType: 'confluence',
+        githubRepository: false,
+      },
+    ])
+    probeRows = [{ id: 'doc-a', connectorId: 'gated-src', saturated: false }]
+    exactRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'gated-src')]
+    queueTableRows(schemaMock.embedding, [hit('a', 'gated-src')])
     const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
     await retrieveKnowledgeSearch({
       ...liveSearch,
