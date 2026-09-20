@@ -5659,7 +5659,7 @@
           ],
           "isUnique": false,
           "where": "\"document\".\"deleted_at\" IS NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
