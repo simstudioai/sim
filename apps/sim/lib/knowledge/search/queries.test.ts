@@ -2236,6 +2236,50 @@ describe('filters on a resolved scope', () => {
     expect(probes()).toHaveLength(0)
   })
 
+  it('enumerates a small source and ranks its keyword matches over every chunk it holds', async () => {
+    mockResolveTinKeywordQuery.mockResolvedValue('"releas"')
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'src-small', accessMode: 'admin', connectorType: 'slack', githubRepository: false },
+      {
+        id: 'src-large',
+        accessMode: 'admin',
+        connectorType: 'google_drive',
+        githubRepository: false,
+      },
+    ])
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = JSON.stringify(render(query))
+      if (statement.includes('EXPLAIN'))
+        return [
+          {
+            'QUERY PLAN': [
+              { Plan: { 'Plan Rows': statement.includes('src-small') ? 900 : 1_000_000 } },
+            ],
+          },
+        ]
+      if (statement.includes(') reached')) return [{ n: 250_000 }]
+      if (statement.includes('AS saturated'))
+        return [{ id: 'doc-small', connectorId: 'src-small', saturated: false }]
+      if (statement.includes('ranked_tin_chunks')) return [{ ranked: 0, candidates: [] }]
+      return []
+    })
+    await retrieveKnowledgeSearch({
+      ...params,
+      accessProvider: provider,
+      searchMode: 'hybrid',
+      query: 'release',
+      filters: { source: 'slack' },
+    })
+    /** The confined set is enumerated once, and the keyword leg ranks inside it, never a base-wide window. */
+    const probes = statements().filter((query) => query.sql.includes('AS saturated'))
+    expect(probes).toHaveLength(1)
+    expect(probes[0].sql).not.toContain('WITH reach')
+    expect(statements().filter((query) => query.sql.includes('ranked_tin_chunks'))).toHaveLength(0)
+    expect(
+      statements().filter((query) => query.sql.includes('WITH matched_keyword_chunks'))
+    ).toHaveLength(1)
+  })
+
   it('tests the date through the document inside an on-row walk when the filtered set is unbounded', async () => {
     traversedRows = [{ id: 'a' }]
     rerankRows = [hit('a', 'src-a')]

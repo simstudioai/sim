@@ -1153,19 +1153,24 @@ const indexDocumentCounts = new LRUCache<string, number>({
 })
 
 /**
- * The planner's estimate of the bases' documents changed since a time, from the statistics on
- * the date index: whether the filtered set is worth enumerating needs its order of magnitude.
+ * The planner's estimate of the documents a filter leaves in the bases — a date filter from the
+ * statistics on its index, a source filter from its connectors' — so whether the filtered set is
+ * worth enumerating is decided from its order of magnitude, without reading a row.
  */
-async function estimateDocumentsModifiedAfter(
+async function estimateFilteredDocuments(
   knowledgeBaseIds: string[],
-  modifiedAfter: string
+  filters: WorkspaceSearchFilters,
+  plan: SearchAccessPlan
 ): Promise<number> {
   const [row] = await db.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
     EXPLAIN (FORMAT JSON) SELECT 1 FROM ${document}
     WHERE ${and(
       inArray(document.knowledgeBaseId, knowledgeBaseIds),
       isNull(document.deletedAt),
-      gte(document.sourceModifiedAt, new Date(modifiedAfter))
+      filters.modifiedAfter
+        ? gte(document.sourceModifiedAt, new Date(filters.modifiedAfter))
+        : undefined,
+      filters.source ? planSourceCondition(plan) : undefined
     )}`)
   return Number(row?.['QUERY PLAN']?.[0]?.Plan?.['Plan Rows'] ?? 0)
 }
@@ -1282,7 +1287,7 @@ export async function resolvePermittedDocuments(params: {
    * change; the filtered set still has to be enumerated, so under one the probe always runs.
    */
   const remembered =
-    key && !(params.accessPlan && params.filters?.modifiedAfter)
+    key && !(params.accessPlan && (params.filters?.modifiedAfter || params.filters?.source))
       ? saturatedReach.get(key)
       : undefined
   if (remembered) {
@@ -1301,7 +1306,9 @@ export async function resolvePermittedDocuments(params: {
         params.access,
         params.budget,
         'permitted_documents',
-        params.accessPlan && params.filters?.modifiedAfter ? 'direct' : 'reach-first'
+        params.accessPlan && (params.filters?.modifiedAfter || params.filters?.source)
+          ? 'direct'
+          : 'reach-first'
       )
     } catch (error) {
       if (!params.budget?.isTimeout(error)) throw error
@@ -1666,14 +1673,14 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         )
         if (
           params.permitted?.kind === 'bounded' &&
-          (!walksASource || params.filters?.modifiedAfter)
+          (!walksASource || params.filters?.modifiedAfter || params.filters?.source)
         ) {
           /**
            * A bounded permitted set is ranked exactly without walking the graph first: the walk
            * post-filters, so when the caller reads a small share of the index it spends its whole
            * uninterruptible tuple budget and still returns almost none of their neighbours. A
-           * member's indexed source is otherwise walked instead, but not under a date filter: the
-           * walk cannot see the date, and the set the filter admits is small by construction.
+           * member's indexed source is otherwise walked instead, but not under a filter: the walk
+           * cannot see the date, and a filtered set is small by construction.
            */
           selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
         } else if (plan && !(params.permitted?.kind === 'unbounded' && params.permitted.broad)) {
@@ -2408,20 +2415,21 @@ export async function retrieveKnowledgeSearch(
    * bounded scope with their own exhaustive ordering.
    */
   /**
-   * The row does not carry the document's date, so a date filter's documents are enumerated off
-   * the date index and ranked exactly while the planner estimates the window within what the
-   * probe may enumerate; a wider window is walked instead, with the date tested through the
-   * document, since a window that wide holds most of the query's neighbours anyway.
+   * A filter that leaves few documents is enumerated and ranked exactly inside them, both legs:
+   * the row does not carry the document's date, and a keyword ranking of the whole base may hold
+   * few of a small source's matches. A filter that leaves many is ranked as the scope is — the
+   * source confined on the row, the date tested through the document — since a set that large
+   * holds most of the query's neighbours anyway. The planner's estimate decides which.
    */
-  const enumerateDated =
-    accessPlan && params.filters?.modifiedAfter
+  const enumerateFiltered =
+    accessPlan && (params.filters?.modifiedAfter || params.filters?.source)
       ? (await measureSearchStage('permitted_documents', () =>
-          estimateDocumentsModifiedAfter(knowledgeBaseIds, params.filters!.modifiedAfter!)
+          estimateFilteredDocuments(knowledgeBaseIds, params.filters!, accessPlan)
         )) <= VECTOR_PROBE_DOCUMENT_LIMIT
       : false
   const permitted =
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
-      ? accessPlan && !enumerateDated
+      ? accessPlan && !enumerateFiltered
         ? /**
            * With readability decided on the projection row, a resolved scope never needs its
            * readable documents enumerated ahead of ranking: its reach alone chooses between one
