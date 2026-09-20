@@ -2456,9 +2456,10 @@ export async function retrieveKnowledgeSearch(
    */
   /** Planning only, so a short cap of its own: running past it answers as the wide window it may be. */
   const estimateBudget = budgets.vector.capped(VECTOR_PROBE_BUDGET_MS)
+  const filters = params.filters
   const enumerateFiltered =
-    accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
-      ? await estimateFilteredDocuments(knowledgeBaseIds, params.filters, accessPlan, estimateBudget)
+    accessPlan && filters && (dateFilterCondition(filters) || filters.source)
+      ? await estimateFilteredDocuments(knowledgeBaseIds, filters, accessPlan, estimateBudget)
           .then((estimate) => estimate <= VECTOR_PROBE_DOCUMENT_LIMIT)
           .catch((error) => {
             if (!estimateBudget.isTimeout(error)) throw error
