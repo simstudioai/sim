@@ -17,12 +17,55 @@ vi.unmock('@sim/db/schema')
 process.env.DATABASE_URL ??= 'postgresql://user:pass@localhost:5432/test'
 
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
+const { embeddingSearch } = await import('@sim/db/schema')
+const { knowledgeAccessCondition, projectionCandidateAccessCondition } = await import(
+  '@/lib/knowledge/access/predicate'
+)
 const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/types')
 
 function render(condition: ReturnType<typeof knowledgeAccessCondition>) {
   return new PgDialect().sqlToQuery(condition)
 }
+
+describe('projectionCandidateAccessCondition', () => {
+  const plan = {
+    connectors: { workspace: ['ws-src'], admin: [], members: [], liveProofRequired: [] },
+    observers: { confirmed: [], observed: [] },
+    memberSources: [],
+  }
+
+  it('decides a filled row on its mirrored columns and an unfilled row on its document', () => {
+    const { sql, params } = render(
+      projectionCandidateAccessCondition(
+        embeddingSearch,
+        { kind: 'user', userId: 'user-1', tokens: ['ws', 'u:alice'] },
+        plan
+      )
+    )
+    expect(sql).toContain(
+      '("embedding_search"."acl" IS NULL AND EXISTS (\n    SELECT 1 FROM "document"\n    WHERE "document"."id" = "embedding_search"."document_id"\n      AND ('
+    )
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
+    expect(sql).toMatch(
+      /OR \("embedding_search"\."acl" && ARRAY\[\$\d+, \$\d+\]::text\[\]\n {4}AND \("embedding_search"\."connector_id" IS NULL OR "embedding_search"\."connector_id" = ANY\(ARRAY\[\$\d+\]::text\[\]\)\)\)\)$/
+    )
+    expect(params.slice(0, 2)).toEqual(['ws', 'u:alice'])
+    expect(params.slice(-3)).toEqual(['ws', 'u:alice', 'ws-src'])
+    for (const param of params) expect(Array.isArray(param)).toBe(false)
+  })
+
+  it('still denies everything for an empty token set', () => {
+    expect(
+      render(
+        projectionCandidateAccessCondition(
+          embeddingSearch,
+          { kind: 'user', userId: 'user-1', tokens: [] },
+          plan
+        )
+      ).sql
+    ).toBe('false')
+  })
+})
 
 describe('knowledgeAccessCondition', () => {
   it('overlaps the ACL with the tokens as a literal array of scalar binds', () => {

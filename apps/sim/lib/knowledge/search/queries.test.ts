@@ -1527,6 +1527,9 @@ describe('permitted-document planner', () => {
       /** The ranked CTE carries the mirrored source and ACL the predicate tests. */
       expect(statement).toContain('AS connector_id')
       expect(statement).toContain('ranked_tin_chunks.acl')
+      /** A row the backfill has not filled (`acl IS NULL`) is decided on its document instead. */
+      expect(statement).toContain('IS NULL AND EXISTS (')
+      expect(statement).toContain('ranked_tin_chunks.document_id')
     })
 
     it('widens the window for a broad resolved scope whose first page came back short', async () => {

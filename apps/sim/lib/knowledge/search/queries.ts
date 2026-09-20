@@ -1819,7 +1819,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     const onRowKeywordVisibility = (excludedSources: readonly string[]) =>
       and(
         projectionCandidateAccessCondition(
-          { connectorId: sql`ranked_tin_chunks.connector_id`, acl: sql`ranked_tin_chunks.acl` },
+          {
+            connectorId: sql`ranked_tin_chunks.connector_id`,
+            acl: sql`ranked_tin_chunks.acl`,
+            documentId: sql`ranked_tin_chunks.document_id`,
+          },
           access,
           accessPlan!
         ),
