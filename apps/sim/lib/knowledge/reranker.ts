@@ -34,9 +34,14 @@ const RERANK_OPERATION_TIMEOUT_MS = 30_000
  * Whether a search for this workspace could be reranked at all: a workspace key, or one of the
  * platform's. A surface that reranks "when configured" asks this before spending a call on it.
  */
-export async function hasRerankerCredential(workspaceId?: string): Promise<boolean> {
-  if (workspaceId && (await getBYOKKey(workspaceId, 'cohere'))) return true
-  return Boolean(env.COHERE_API_KEY) || hasRotatingApiKey('cohere')
+export async function hasRerankerCredential(
+  workspaceId?: string,
+  userApiKey?: string
+): Promise<boolean> {
+  /** The same policy as the key resolver: a caller's own key counts only off hosted Sim. */
+  if (!isHosted && userApiKey) return true
+  if (env.COHERE_API_KEY || hasRotatingApiKey('cohere')) return true
+  return Boolean(workspaceId && (await getBYOKKey(workspaceId, 'cohere')))
 }
 
 /**

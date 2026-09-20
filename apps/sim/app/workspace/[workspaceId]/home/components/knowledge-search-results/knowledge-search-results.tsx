@@ -167,6 +167,8 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   }
   const filtersKey = JSON.stringify(searchFilters)
   const expanded = expandedFor === filtersKey
+  /** A custom window with no days chosen yet is not "any time": nothing is searched until it has them. */
+  const awaitingRange = custom && !filters.from && !filters.to
   const {
     data: search,
     isPending,
@@ -176,7 +178,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     refetch: refetchSearch,
   } = useWorkspaceKnowledgeSearch(
     scope,
-    query,
+    awaitingRange ? '' : query,
     searchFilters,
     expanded
       ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
@@ -231,7 +233,11 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <div className='min-w-0 flex-1'>
-          {fetching || (pending && !failed) ? (
+          {awaitingRange ? (
+            <p role='status' className='text-[var(--text-muted)] text-caption'>
+              Choose the days to search.
+            </p>
+          ) : fetching || (pending && !failed) ? (
             <ActivityStatus label={pending ? 'Searching…' : 'Updating results…'} isActive />
           ) : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
@@ -292,7 +298,13 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               shape='round'
               active={filters.updated === window.id}
               aria-pressed={filters.updated === window.id}
-              onClick={() => setFilters({ updated: window.id })}
+              onClick={() =>
+                setFilters(
+                  window.id === 'custom'
+                    ? { updated: window.id }
+                    : { updated: window.id, from: null, to: null }
+                )
+              }
             >
               {window.label}
             </Chip>
@@ -301,11 +313,12 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
             <ChipDatePicker
               mode='range'
               label='Updated between'
-              startDate={filters.from?.toISOString()}
-              endDate={filters.to?.toISOString()}
+              startDate={filters.from?.toISOString().slice(0, 10)}
+              endDate={filters.to?.toISOString().slice(0, 10)}
               onRangeChange={(start, end) =>
                 void setFilters({ from: new Date(start), to: new Date(end) })
               }
+              onClear={() => void setFilters({ from: null, to: null })}
             />
           )}
         </div>

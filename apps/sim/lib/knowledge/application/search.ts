@@ -394,7 +394,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
     /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
     const useReranker =
       Boolean(input.rerankerEnabled && hasQuery) &&
-      (Boolean(input.rerankerApiKey) || (await hasRerankerCredential(context.workspaceId)))
+      (await hasRerankerCredential(context.workspaceId, input.rerankerApiKey))
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
         ? Math.min(

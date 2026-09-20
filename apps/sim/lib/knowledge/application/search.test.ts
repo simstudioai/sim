@@ -873,6 +873,8 @@ describe('knowledge search application use case', () => {
 
       const result = await rerankedSearch(true)
 
+      /** A caller's own key is judged by the same policy the resolver applies, not taken on faith. */
+      expect(mocks.hasRerankerCredential).toHaveBeenLastCalledWith(expect.anything(), undefined)
       expect(mocks.rerank).not.toHaveBeenCalled()
       expect(result.rerankerStatus).toBe('unavailable')
       expect(result.results[0]).not.toHaveProperty('rerankerScore')

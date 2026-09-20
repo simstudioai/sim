@@ -225,6 +225,47 @@ describe('result paging and the custom window', () => {
     expect(mocks.search.mock.calls.at(-1)![3]).toBe(20)
   })
 
+  it('drops the custom days when another window is chosen', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
+    expect(mocks.search.mock.calls.at(-1)![2]).toHaveProperty('modifiedBefore')
+    const anyTime = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Any time'
+    )!
+    await act(async () => anyTime.click())
+    expect(mocks.search.mock.calls.at(-1)![2]).toEqual({})
+    await act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((b) => b.textContent === 'Custom range')!
+        .click()
+    )
+    /** Back on the custom window, the old days are gone: nothing is searched until new ones are chosen. */
+    expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
+  })
+
+  it('searches nothing while a custom window has no days yet', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render(undefined, '?updated=custom')
+    expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
+    expect(container.textContent).toContain('Choose the days to search.')
+  })
+
   it('searches a custom window as an inclusive range of days', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
     mocks.search.mockReturnValue({
