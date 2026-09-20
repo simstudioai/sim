@@ -82,9 +82,11 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {
-      // Only the text branch carries caller-authored content. A stored file's
-      // bytes come from an already-tracked object, whose own provenance follows
-      // it rather than being re-derived from this request.
+      /**
+       * Only the text branch carries caller-authored content. A stored file's bytes come from an
+       * already-tracked object, whose own provenance follows it rather than being re-derived from
+       * this request.
+       */
       request: () => [{ key: 'content', inputPaths: [['content']] }],
     },
   },

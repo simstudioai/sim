@@ -46,6 +46,7 @@ import type {
   getWorkspaceFileWithCurrentVersion,
   WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
@@ -875,9 +876,21 @@ async function loadSelectedWorkspaceFileMetadata(args: {
     }
   }
 
-  for (const file of folderFiles) {
-    if (seen.has(file.id)) continue
-    files.push(file)
+  /*
+   * Folder rows come from a listing that does not read versions. They are numbered here in one
+   * statement, and only where the stored key still matches the row — a file rewritten since the
+   * listing keeps no version rather than being given one for bytes it no longer holds.
+   */
+  const unseenFolderFiles = folderFiles.filter((file) => !seen.has(file.id))
+  const folderVersions = await getWorkspaceFileVersionsByKey(
+    args.workspaceId,
+    unseenFolderFiles.map((file) => file.id)
+  )
+  for (const file of unseenFolderFiles) {
+    const versioned = folderVersions.get(file.id)
+    files.push(
+      versioned?.key === file.key ? { ...file, currentVersion: versioned.currentVersion } : file
+    )
     seen.add(file.id)
   }
   if (files.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {

@@ -1711,6 +1711,31 @@ export async function getWorkspaceFileWithCurrentVersion(
 }
 
 /**
+ * Current version numbers for files already loaded elsewhere, keyed by id, read in one statement.
+ *
+ * Each entry carries the storage key the number describes, so a caller pairs it with its own row
+ * only when the two still name the same bytes; a file rewritten since that row was read is left
+ * without a version rather than given one for content it no longer holds.
+ */
+export async function getWorkspaceFileVersionsByKey(
+  workspaceId: string,
+  fileIds: readonly string[]
+): Promise<Map<string, { key: string; currentVersion: number }>> {
+  if (fileIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      id: workspaceFiles.id,
+      key: workspaceFiles.key,
+      currentVersion: currentWorkspaceFileVersionNumberSql(),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(inArray(workspaceFiles.id, [...fileIds]), workspaceFileScopeCondition(workspaceId, 'all'))
+    )
+  return new Map(rows.map((row) => [row.id, { key: row.key, currentVersion: row.currentVersion }]))
+}
+
+/**
  * Download the bytes a user should actually receive for a workspace file.
  *
  * Generated docs (docx/pptx/pdf/xlsx) store their GENERATION SOURCE as the primary
