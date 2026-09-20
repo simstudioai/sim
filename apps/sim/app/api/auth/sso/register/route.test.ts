@@ -381,6 +381,34 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
   })
 
+  /** The SAML branch carries a superRefine now; these prove the union still narrows cleanly. */
+  it.each([
+    ['an empty certificate', { cert: '' }, /Certificate is required for SAML/],
+    ['a malformed entry point', { entryPoint: 'not-a-url' }, /[Ee]ntry point/],
+    /** A missing field reports the type error; the point is that it narrows to SAML at all. */
+    ['a missing certificate', { cert: undefined }, /expected string/],
+  ])('rejects a SAML body with %s', async (_label, overrides, expected) => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+
+    const res = await POST(
+      request({
+        providerType: 'saml',
+        providerId: 'acme-saml',
+        issuer: 'https://idp.acme.com',
+        domain: 'acme.com',
+        orgId: 'org1',
+        entryPoint: 'https://idp.acme.com/sso',
+        cert: 'IDP-CERT',
+        ...overrides,
+      })
+    )
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: expect.stringMatching(expected) })
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
   describe('SAML encrypted assertions', () => {
     /**
      * Real key material, because the route parses both halves and checks they

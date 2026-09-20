@@ -384,19 +384,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        let storedSecret: unknown
         try {
           const stored = await decryptProviderConfig(existing.oidcConfig, 'oidcConfig')
-          const storedSecret = JSON.parse(stored as string).clientSecret
-          /**
-           * A stored config without a usable secret cannot be reused: letting it
-           * through would save the provider with no client secret at all, and the
-           * failure would only appear at the next sign-in.
-           */
-          if (typeof storedSecret !== 'string' || storedSecret === '') {
-            throw new Error('stored OIDC config has no client secret')
-          }
-          clientSecret = storedSecret
+          storedSecret = JSON.parse(stored as string).clientSecret
         } catch {
+          storedSecret = null
+        }
+
+        /**
+         * Unreadable, or readable but holding no secret: either way there is
+         * nothing to carry forward, and saving without one would surface only at
+         * the next sign-in.
+         */
+        if (typeof storedSecret !== 'string' || storedSecret === '') {
           return NextResponse.json(
             {
               error: 'Cannot update: failed to read existing secret. Re-enter your client secret.',
@@ -404,6 +405,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        clientSecret = storedSecret
       }
 
       const oidcConfig: any = {

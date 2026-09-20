@@ -44,14 +44,16 @@ function buildClientSecretHint(clientSecret: unknown): string | null {
  */
 async function redactOidcConfig(oidcConfig: string | null): Promise<string | null> {
   if (!oidcConfig) return oidcConfig
-  /**
-   * Outside the catch: a config that will not decrypt is a key problem, and
-   * reporting it as a provider with no config would hide it behind a healthy
-   * 200. Unreadable JSON stays tolerated below, as it was before.
-   */
-  const decrypted = await decryptProviderConfig(oidcConfig, 'oidcConfig')
   try {
-    const parsed = JSON.parse(decrypted as string)
+    /**
+     * A secret that will not decrypt — a lost or rotated `ENCRYPTION_KEY` —
+     * reports as a provider with no config rather than failing the request.
+     * `decryptProviderConfig` has already logged the cause, and listing the
+     * provider is what keeps the settings form reachable: it still offers
+     * Replace, which is how an admin restores a working secret. A 500 here
+     * would take the whole page down and leave no way back.
+     */
+    const parsed = JSON.parse((await decryptProviderConfig(oidcConfig, 'oidcConfig')) as string)
     const hint = buildClientSecretHint(parsed.clientSecret)
     parsed.clientSecret = REDACTED_MARKER
     if (hint) parsed.clientSecretHint = hint

@@ -94,14 +94,20 @@ describe('GET /api/auth/sso/providers', () => {
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
-  it('fails the request when a stored secret cannot be decrypted', async () => {
+  it('still lists a provider whose secret cannot be decrypted', async () => {
     mockDecryptSecret.mockRejectedValue(new Error('auth tag mismatch'))
     queueTableRows(schemaMock.ssoProvider, [providerRow])
 
     const res = await GET(createMockRequest('GET'))
 
-    /** Reporting a key problem as a provider with no config would hide it behind a 200. */
-    expect(res.status).toBe(500)
+    /**
+     * The settings form stays reachable, which is where an admin replaces the
+     * secret; the decryption failure is logged rather than 500ing the page.
+     */
+    expect(res.status).toBe(200)
+    const { providers } = await res.json()
+    expect(providers).toHaveLength(1)
+    expect(providers[0]).toMatchObject({ providerId: 'acme-okta', oidcConfig: null })
   })
 
   it('redacts SAML key material and keeps the certificate', async () => {
