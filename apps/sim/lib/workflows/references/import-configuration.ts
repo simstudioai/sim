@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getSelectorManifestEntry,
@@ -106,7 +106,7 @@ export async function inspectImportConfiguration(
           subBlocks = Object.fromEntries(
             Object.entries({
               operation: tool.operation,
-              ...(isRecordLike(tool.params) ? tool.params : {}),
+              ...toRecord(tool.params),
             }).map(([key, value]) => [key, { value }])
           )
           canonicalModes = scopeCanonicalModesForTool(

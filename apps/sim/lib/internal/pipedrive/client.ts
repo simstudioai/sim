@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
@@ -76,9 +76,8 @@ export async function listPipedriveFiles(
   const files = Array.isArray(data.data)
     ? data.data.filter((file): file is PipedriveFile => isRecordLike(file))
     : []
-  const additionalData = isRecordLike(data.additional_data) ? data.additional_data : null
-  const pagination =
-    additionalData && isRecordLike(additionalData.pagination) ? additionalData.pagination : null
+  const additionalData = toRecordOrNull(data.additional_data)
+  const pagination = additionalData ? toRecordOrNull(additionalData.pagination) : null
   return {
     files,
     hasMore: pagination?.more_items_in_collection === true,

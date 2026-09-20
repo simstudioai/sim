@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import type {
   JotformFormPropertiesResponse,
   JotformGetFormPropertiesParams,
@@ -70,7 +70,7 @@ export const getFormPropertiesTool: ToolConfig<
     return {
       success: true,
       output: {
-        properties: isRecordLike(envelope.content) ? envelope.content : {},
+        properties: toRecord(envelope.content),
       },
     }
   },

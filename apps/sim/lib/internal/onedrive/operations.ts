@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import * as XLSX from 'xlsx'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import {
@@ -261,7 +261,7 @@ async function writeExcelValues(
       }
     }
     const written = await readGraphJson(writeResponse, context.signal)
-    const data = isRecordLike(written) ? written : {}
+    const data = toRecord(written)
     const returnedValues = Array.isArray(data.values) ? data.values : []
     const firstRow = Array.isArray(returnedValues[0]) ? returnedValues[0] : []
     return {

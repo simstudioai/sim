@@ -1,7 +1,7 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import {
-  asRecord,
   asString,
   cbInsightsRequest,
   requireOrgId,
@@ -23,7 +23,7 @@ export const executeCbinsightsGetScoutingReportOperation: InternalToolOperationI
       timeoutMs: SCOUTING_REPORT_TIMEOUT_MS,
     },
     (data) => ({
-      orgInfo: asRecord(data.orgInfo),
+      orgInfo: toRecordOrNull(data.orgInfo),
       reportMarkdown: asString(data.reportMarkdown),
       reportJson: asString(data.reportJson),
     }),

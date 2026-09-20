@@ -3,7 +3,7 @@ import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -3548,7 +3548,7 @@ export class PauseResumeManager {
 
     const { entry, pausedExecution } = pendingEntry
     const resumeMetadata = parsePausedExecutionResumeMetadata(pausedExecution.metadata)
-    const pausedMetadata = isRecordLike(pausedExecution.metadata) ? pausedExecution.metadata : {}
+    const pausedMetadata = toRecord(pausedExecution.metadata)
 
     PauseResumeManager.startResumeExecution({
       resumeEntryId: entry.id,

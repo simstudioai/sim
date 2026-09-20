@@ -1,12 +1,7 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asNumber,
-  asRecord,
-  asString,
-  cbInsightsRequest,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
+import { asNumber, asString, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsGetOrgFundingWindowOperation: InternalToolOperationImplementation<
   CbInsightsOrgParams
@@ -25,8 +20,8 @@ export const executeCbinsightsGetOrgFundingWindowOperation: InternalToolOperatio
       windowStart: asString(data.windowStart),
       windowEnd: asString(data.windowEnd),
       cohortNextRoundRate: asNumber(data.cohortNextRoundRate),
-      cohortCriteria: asRecord(data.cohortCriteria),
-      latestFunding: asRecord(data.latestFunding),
+      cohortCriteria: toRecordOrNull(data.cohortCriteria),
+      latestFunding: toRecordOrNull(data.latestFunding),
     }),
     signal
   )

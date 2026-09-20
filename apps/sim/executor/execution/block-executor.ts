@@ -1,7 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -970,7 +970,7 @@ export class BlockExecutor {
               }
             })()
           : mapping
-      inputs = isRecordLike(parsed) ? parsed : {}
+      inputs = toRecord(parsed)
     }
 
     const result: Record<string, any> = {}

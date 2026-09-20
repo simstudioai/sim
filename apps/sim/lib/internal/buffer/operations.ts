@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -166,7 +166,7 @@ async function executePostMutation(args: {
     })
     const data = await parseBufferGraphQLResponse(response)
     const candidate = data.createPost ?? data.editPost
-    result = isRecordLike(candidate) ? candidate : {}
+    result = toRecord(candidate)
   } catch (error) {
     context.signal?.throwIfAborted()
     const message = getErrorMessage(error, 'Buffer API request failed')

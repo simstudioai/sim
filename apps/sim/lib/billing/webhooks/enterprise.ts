@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { foldedEmail, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
@@ -57,9 +57,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
 async function processManualEnterpriseSubscription(event: Stripe.Event) {
   const eventSubscription = event.data.object as Stripe.Subscription
   const rawPreviousAttributes: unknown = event.data.previous_attributes
-  const previousAttributes: Record<string, unknown> = isRecordLike(rawPreviousAttributes)
-    ? rawPreviousAttributes
-    : {}
+  const previousAttributes: Record<string, unknown> = toRecord(rawPreviousAttributes)
   return withEnterpriseReconciliationLease(eventSubscription.id, (lease) =>
     reconcileManualEnterpriseSubscription(eventSubscription, lease, {
       created: event.type === 'customer.subscription.created',

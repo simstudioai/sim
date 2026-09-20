@@ -1,4 +1,4 @@
-import { filterUndefined, isRecordLike, toRecord } from '@sim/utils/object'
+import { filterUndefined, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   InstantlyCampaign,
   InstantlyEmail,
@@ -55,23 +55,18 @@ export async function parseInstantlyResponse(response: Response): Promise<unknow
   return data
 }
 
-/** Thin re-export of the shared {@link toRecord} helper, kept for existing importers. */
-export function asRecord(value: unknown): JsonRecord {
-  return toRecord(value)
-}
-
 export function getItems(value: unknown): JsonRecord[] {
-  const data = asRecord(value)
-  return Array.isArray(data.items) ? data.items.map(asRecord) : []
+  const data = toRecord(value)
+  return Array.isArray(data.items) ? data.items.map(toRecord) : []
 }
 
 export function getNextStartingAfter(value: unknown): string | null {
-  const data = asRecord(value)
+  const data = toRecord(value)
   return asString(data.next_starting_after)
 }
 
 export function mapLead(value: unknown): InstantlyLead {
-  const lead = asRecord(value)
+  const lead = toRecord(value)
 
   return {
     id: asString(lead.id),
@@ -92,13 +87,13 @@ export function mapLead(value: unknown): InstantlyLead {
     email_reply_count: asNumber(lead.email_reply_count),
     email_click_count: asNumber(lead.email_click_count),
     company_domain: asString(lead.company_domain),
-    payload: isRecordLike(lead.payload) ? lead.payload : null,
+    payload: toRecordOrNull(lead.payload),
     lt_interest_status: asNumber(lead.lt_interest_status),
   }
 }
 
 export function mapCampaign(value: unknown): InstantlyCampaign {
-  const campaign = asRecord(value)
+  const campaign = toRecord(value)
 
   return {
     id: asString(campaign.id),
@@ -114,13 +109,13 @@ export function mapCampaign(value: unknown): InstantlyCampaign {
     open_tracking: asBoolean(campaign.open_tracking),
     stop_on_reply: asBoolean(campaign.stop_on_reply),
     sequences: Array.isArray(campaign.sequences) ? campaign.sequences : [],
-    campaign_schedule: isRecordLike(campaign.campaign_schedule) ? campaign.campaign_schedule : null,
+    campaign_schedule: toRecordOrNull(campaign.campaign_schedule),
   }
 }
 
 export function mapEmail(value: unknown): InstantlyEmail {
-  const email = asRecord(value)
-  const body = asRecord(email.body)
+  const email = toRecord(value)
+  const body = toRecord(email.body)
 
   return {
     id: asString(email.id),
@@ -154,7 +149,7 @@ export function mapEmail(value: unknown): InstantlyEmail {
 }
 
 export function mapLeadList(value: unknown): InstantlyLeadList {
-  const leadList = asRecord(value)
+  const leadList = toRecord(value)
 
   return {
     id: asString(leadList.id),
@@ -349,12 +344,12 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
 }
 
 export function getMessage(value: unknown): string | null {
-  const data = asRecord(value)
+  const data = toRecord(value)
   return typeof data.message === 'string' ? data.message : null
 }
 
 function extractInstantlyError(value: unknown, fallback: string): string {
-  const data = asRecord(value)
+  const data = toRecord(value)
   if (typeof data.message === 'string') return data.message
   if (typeof data.error === 'string') return data.error
   return fallback

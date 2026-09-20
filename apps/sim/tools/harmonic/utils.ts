@@ -1,3 +1,4 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type {
   HarmonicContact,
   HarmonicDroppedIdentifier,
@@ -143,11 +144,6 @@ export function harmonicHeaders(
     Accept: 'application/json',
     ...(options.json ? { 'Content-Type': 'application/json' } : {}),
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-  return value as Record<string, unknown>
 }
 
 function asString(value: unknown): string | null {
@@ -437,11 +433,11 @@ function normalizeLinkedinProfileUrl(value: unknown): string | null {
 }
 
 function linkedinUrl(socials: HarmonicPersonOutput['socials']): string | null {
-  const socialRecord = asRecord(socials)
+  const socialRecord = toRecordOrNull(socials)
   if (!socialRecord) return null
 
   for (const metadata of Object.values(socialRecord)) {
-    const normalized = normalizeLinkedinProfileUrl(asRecord(metadata)?.url)
+    const normalized = normalizeLinkedinProfileUrl(toRecordOrNull(metadata)?.url)
     if (normalized) return normalized
   }
   return null
@@ -449,8 +445,8 @@ function linkedinUrl(socials: HarmonicPersonOutput['socials']): string | null {
 
 export function normalizePerson(raw: HarmonicPersonOutput): HarmonicContact {
   const normalizedPersonId = requirePersonId(raw.id)
-  const contact = asRecord(raw.contact)
-  const location = (asRecord(raw.location) ?? {}) as HarmonicLocationMetadata
+  const contact = toRecordOrNull(raw.contact)
+  const location = (toRecordOrNull(raw.location) ?? {}) as HarmonicLocationMetadata
   const experiences = currentExperience(raw)
   const primaryEmail = asString(contact?.primary_email)
   const contactEmails = nullableStringArray(contact?.emails)
@@ -531,7 +527,7 @@ export function normalizeScoutPerson(raw: HarmonicScoutPerson): HarmonicContact 
 
 export function normalizePageInfo(value: unknown): HarmonicPageInfo | null {
   if (value === undefined || value === null) return null
-  const pageInfo = asRecord(value) as HarmonicPaginationMetadata | null
+  const pageInfo = toRecordOrNull(value) as HarmonicPaginationMetadata | null
   if (!pageInfo) throw new Error('Harmonic returned invalid page_info metadata')
   if (typeof pageInfo.has_next !== 'boolean') {
     throw new Error('Harmonic returned page_info without a boolean has_next value')
@@ -592,7 +588,7 @@ export function normalizePeopleResults(value: unknown): {
       continue
     }
 
-    const person = asRecord(result) as HarmonicPersonOutput | null
+    const person = toRecordOrNull(result) as HarmonicPersonOutput | null
     const urn = personUrn(person?.entity_urn)
     if (!person || !urn) {
       throw new Error('Harmonic saved search returned a non-person result')
@@ -607,7 +603,7 @@ export function normalizePeopleResults(value: unknown): {
 export function normalizePersonArray(value: unknown): HarmonicContact[] {
   if (!Array.isArray(value)) throw new Error('Harmonic returned an invalid people array')
   return value.map((item) => {
-    const person = asRecord(item) as HarmonicPersonOutput | null
+    const person = toRecordOrNull(item) as HarmonicPersonOutput | null
     if (!person || !personUrn(person.entity_urn)) {
       throw new Error('Harmonic returned an invalid person record')
     }
@@ -616,7 +612,7 @@ export function normalizePersonArray(value: unknown): HarmonicContact[] {
 }
 
 export function responseRecord(value: unknown, context: string): Record<string, unknown> {
-  const record = asRecord(value)
+  const record = toRecordOrNull(value)
   if (!record) throw new Error(`Harmonic returned an invalid ${context} response`)
   return record
 }
@@ -937,7 +933,7 @@ export function normalizePersonUrnList(value: unknown, context: string): string[
 
 export function normalizeOptionalPerson(value: unknown): HarmonicContact | null {
   if (value === undefined || value === null) return null
-  const person = asRecord(value)
+  const person = toRecordOrNull(value)
   if (!person) throw new Error('Harmonic returned an invalid person record')
   return normalizePerson(person)
 }

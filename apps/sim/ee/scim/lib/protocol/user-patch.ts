@@ -1,5 +1,5 @@
 import type { ScimUserAttributes, ScimUserEmail } from '@sim/db/schema'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { invalidPath, invalidValue, mutability, noTarget } from '@/ee/scim/lib/protocol/errors'
 import {
@@ -331,7 +331,7 @@ function applyExtraOperation(
       else {
         if (!isRecordLike(value)) throw invalidValue(`${path} requires an object value`)
         const current = user.extra[extension.schema]
-        user.extra[extension.schema] = { ...(isRecordLike(current) ? current : {}), ...value }
+        user.extra[extension.schema] = { ...toRecord(current), ...value }
       }
       return
     }

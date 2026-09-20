@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import {
   AgentContextLimitError,
   type ConversationContextGroup,
@@ -248,8 +248,8 @@ function tokenCount(value: unknown, model: string): number {
 }
 
 function outputTokens(request: ProviderRequest, payload: Record<string, unknown>): number {
-  const config = isRecordLike(payload.config) ? payload.config : {}
-  const inference = isRecordLike(payload.inferenceConfig) ? payload.inferenceConfig : {}
+  const config = toRecord(payload.config)
+  const inference = toRecord(payload.inferenceConfig)
   for (const value of [
     payload.max_output_tokens,
     payload.max_completion_tokens,

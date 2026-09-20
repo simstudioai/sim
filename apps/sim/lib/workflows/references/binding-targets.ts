@@ -16,7 +16,7 @@ import {
   workspaceFiles,
   workspaceSandbox,
 } from '@sim/db/schema'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -129,7 +129,7 @@ export async function validateWorkflowBindingTargets(
               type: tool.type,
               operation: typeof tool.operation === 'string' ? tool.operation : undefined,
               toolId: typeof tool.toolId === 'string' ? tool.toolId : undefined,
-              params: isRecordLike(tool.params) ? tool.params : {},
+              params: toRecord(tool.params),
             },
             toolIndex: typeof path[0] === 'number' ? path[0] : undefined,
             parentCanonicalModes: block.data?.canonicalModes,

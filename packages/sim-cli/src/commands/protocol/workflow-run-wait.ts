@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import chalk from 'chalk'
 import { type Command, Option } from 'commander'
 import { clientFrom } from '../../context'
@@ -102,7 +102,7 @@ function readRun(raw: unknown): RunSnapshot {
   if (!isRecordLike(run) || typeof run.status !== 'string') {
     throw new SimApiError('Run status response carried no status.', 0)
   }
-  const paused = isRecordLike(run.paused) ? run.paused : null
+  const paused = toRecordOrNull(run.paused)
   return {
     status: run.status,
     pauseKind: paused ? optionalString(paused.pauseKind) : null,

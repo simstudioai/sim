@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 
 export const MAX_WHATSAPP_GRAPH_RESPONSE_BYTES = 256 * 1024
@@ -14,5 +14,5 @@ export async function readWhatsAppGraphResponse(
     signal,
   })
   const parsed = text ? (JSON.parse(text) as unknown) : {}
-  return isRecordLike(parsed) ? parsed : {}
+  return toRecord(parsed)
 }

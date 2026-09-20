@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   VantaControl,
   VantaControlDetail,
@@ -34,7 +34,7 @@ type JsonRecord = Record<string, unknown>
  * normalizers can run on it; non-object bodies normalize to all-null fields.
  */
 export function asVantaRecord(value: unknown): JsonRecord {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 function getString(value: unknown): string | null {

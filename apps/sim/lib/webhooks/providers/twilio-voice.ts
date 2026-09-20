@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { verifyTwilioAuth } from '@/lib/webhooks/providers/twilio-signature'
 import type {
@@ -80,7 +80,7 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecordLike(body) ? body : {}
+    const b = toRecord(body)
     return {
       input: {
         callSid: b.CallSid,

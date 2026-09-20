@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type {
   TrelloAction,
   TrelloActionBoardTarget,
@@ -226,7 +226,7 @@ export function mapTrelloAction(value: unknown): TrelloAction {
     throw new Error('Trello returned an invalid action object')
   }
 
-  const data = isRecordLike(value.data) ? value.data : null
+  const data = toRecordOrNull(value.data)
 
   return {
     id: getRequiredString(value.id, 'id'),

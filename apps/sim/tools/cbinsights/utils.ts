@@ -562,13 +562,6 @@ export function asStringArray(value: unknown): string[] {
     : []
 }
 
-/** Narrows an optional object field. */
-export function asRecord(value: unknown): CbInsightsRecord | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as CbInsightsRecord)
-    : null
-}
-
 /** Narrows an optional string field. */
 export function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null
