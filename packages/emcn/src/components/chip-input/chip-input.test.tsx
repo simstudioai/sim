@@ -29,6 +29,27 @@ afterEach(() => {
 })
 
 describe('ChipInput', () => {
+  it('keeps the focused input mounted when custom leading content changes', () => {
+    const input = mount()
+    const render = (color: string) => (
+      <ChipInput
+        aria-label='Color'
+        startAdornment={<span aria-hidden style={{ backgroundColor: color }} />}
+        endAdornment={<button type='button'>Reset</button>}
+      />
+    )
+    act(() => root?.render(render('#123456')))
+    input.focus()
+    input.value = '#123456'
+    act(() => root?.render(render('#abcdef')))
+
+    expect(container?.querySelector('input')).toBe(input)
+    expect(document.activeElement).toBe(input)
+    expect(input.value).toBe('#123456')
+    expect(input.previousElementSibling?.getAttribute('style')).toContain('rgb(171, 205, 239)')
+    expect(input.nextElementSibling?.textContent).toBe('Reset')
+  })
+
   it('reserves paintable clearance for a leading glyph without shifting its alignment', () => {
     const input = mount()
 
