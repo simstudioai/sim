@@ -2331,6 +2331,12 @@ describe('filters on a resolved scope', () => {
     /** The mock renders a nested condition into the params; the date test is the only `gte`. */
     const datesDocument = (statement: unknown) => JSON.stringify(statement).includes('"type":"gte"')
     expect(datesDocument(walks[0])).toBe(true)
+    /** A walk that asks the document per tuple keeps the default scan cap, not the on-row one. */
+    const scanCaps = () =>
+      statements()
+        .filter((query) => query.sql.includes('hnsw.max_scan_tuples'))
+        .map((query) => query.params.find((param) => param === '20000' || param === '100000'))
+    expect(scanCaps().at(-1)).toBe('20000')
     resetDbChainMock()
     queueTableRows(schemaMock.embedding, rerankRows)
     dbChainMockFns.execute.mockImplementation(async (query) => {
@@ -2345,6 +2351,7 @@ describe('filters on a resolved scope', () => {
       accessPlan: plan(),
     })
     expect(datesDocument(statements().filter((query) => isWalk(query.sql))[0])).toBe(false)
+    expect(scanCaps().at(-1)).toBe('100000')
   })
 
   it('leaves the keyword leg short when its deadline passes before the ranking is resolved', async () => {

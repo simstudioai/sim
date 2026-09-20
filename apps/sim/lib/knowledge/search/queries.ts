@@ -89,6 +89,18 @@ const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '20000'
  * left with what the neighbourhood happened to hold.
  */
 const ON_ROW_WALK_SCAN_TUPLES = 100_000
+
+/**
+ * How far a walk may go when readability is on the row: the on-row cap, unless the walk still
+ * has to ask the document about each tuple — a tag or date filter — in which case a tuple costs
+ * what it did before the columns were mirrored, and the default cap keeps a walk through a
+ * mostly-excluded neighbourhood at a short answer rather than a missed deadline.
+ */
+function onRowWalkScanTuples(documentCondition: SQL | undefined): number {
+  return documentCondition === undefined
+    ? ON_ROW_WALK_SCAN_TUPLES
+    : Number(CANDIDATE_HNSW_MAX_SCAN_TUPLES)
+}
 /**
  * Beam width per iteration. A beam is the granularity of cancellation: pgvector calls
  * `CHECK_FOR_INTERRUPTS` only while building an index, never inside `hnswgettuple`, so neither
@@ -1478,7 +1490,7 @@ async function selectSourceVectorCandidates(input: {
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
         input.budget,
         'vector.source_walk',
-        ON_ROW_WALK_SCAN_TUPLES
+        onRowWalkScanTuples(input.documentCondition)
       )
   const walks: Array<() => RankedChunks> = sources.walked.map((connectorId) =>
     walk(eq(embeddingSearch.connectorId, connectorId))
@@ -1597,7 +1609,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
    * date filter, which the row does not carry. A bounded set never walks, so this only runs when
    * the filtered documents were too many to enumerate.
    */
-  const documentCondition = and(documentTagCondition, dateFilterCondition(params.filters))
+  const dateCondition = dateFilterCondition(params.filters)
+  const documentCondition =
+    documentTagCondition || dateCondition ? and(documentTagCondition, dateCondition) : undefined
   /**
    * Candidate selection ignores the page offset — only the rerank pages over the pool — so a
    * refill reuses the pool it already has. Excluding another source is the only thing that
@@ -1757,7 +1771,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
               ),
             params.budget,
             'vector.candidate_search',
-            plan ? ON_ROW_WALK_SCAN_TUPLES : undefined
+            plan ? onRowWalkScanTuples(documentCondition) : undefined
           )
           /**
            * A full traversal is already the nearest permitted chunks, so nothing else is worth
