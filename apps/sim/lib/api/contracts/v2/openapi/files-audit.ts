@@ -871,8 +871,23 @@ const declaredRoutes = [
         'File metadata response',
         'File metadata enriched with its current nullable public-share state.',
         [
-          { data: { ...FILE_EXAMPLE, share: null, currentVersion: 1 } },
-          { data: { ...FILE_EXAMPLE, share: SHARE_EXAMPLE, currentVersion: 3 } },
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              share: null,
+              currentVersion: 1,
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
+            },
+          },
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              share: SHARE_EXAMPLE,
+              updatedAt: '2026-01-16T09:12:00Z',
+              currentVersion: 3,
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg',
+            },
+          },
         ]
       ),
     }
@@ -1153,8 +1168,9 @@ const declaredRoutes = [
       applicationOperation: fileOperations.updateContent,
       operationId: 'updateFileContent',
       summary: 'Replace File Content',
-      description: 'Replace the complete contents of an existing file from UTF-8 or base64 input.',
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      description:
+        'Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file.' },
     }),
     {
@@ -1179,10 +1195,17 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2UpdateFileContentContract.response.schema,
-        'V2FileResponse',
-        'File response',
-        'A single workspace file.',
-        [{ data: FILE_EXAMPLE }]
+        'V2WrittenFileResponse',
+        'Written file response',
+        'A workspace file after a content replacement, with the revision the write produced.',
+        [
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
+            },
+          },
+        ]
       ),
     }
   ),

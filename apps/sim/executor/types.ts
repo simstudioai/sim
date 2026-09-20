@@ -29,6 +29,12 @@ export interface UserFile {
   key: string
   context?: string
   base64?: string
+  /**
+   * Version number of a workspace file's content, present when the record was read with it. Each
+   * version owns its own storage key, so `key` already pins the bytes; this is the number that
+   * names them in the file version API.
+   */
+  version?: number
   /** Provider Files API handle (OpenAI/Anthropic `file_...` id) set when a large file is uploaded instead of inlined as base64. */
   providerFileId?: string
   /** Provider File API uri (Gemini `fileUri`) set when a large file is uploaded instead of inlined as base64. */

@@ -191,6 +191,8 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-03T00:00:00.000Z',
         deletedAt: null,
+        /** The token for the content this write produced, for the caller's next conditional write. */
+        revision: expect.any(String),
       },
     })
     expect(mocks.updateContent).toHaveBeenCalledWith({

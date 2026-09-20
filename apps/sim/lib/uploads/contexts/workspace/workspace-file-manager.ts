@@ -162,6 +162,11 @@ export interface WorkspaceFileRecord {
   share?: ShareRecord | null
 }
 
+/** A file record paired with the version number of the content it describes. */
+export interface VersionedWorkspaceFileRecord extends WorkspaceFileRecord {
+  currentVersion: number
+}
+
 export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
   url: string
   context: 'workspace'
@@ -1537,6 +1542,10 @@ async function getWorkspaceFileByExactReference(
 
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
+ *
+ * A reference that is already a file id resolves through the versioned read, so the record
+ * carries the version of the very bytes it describes. The name and listing fallbacks return
+ * records without one rather than pairing a row with a version a second query read later.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
@@ -1545,7 +1554,7 @@ export async function resolveWorkspaceFileReference(
   const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
   const normalizedReference = referenceSegments.join('/')
   if (normalizedReference.startsWith('wf_')) {
-    const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
+    const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference)
     if (file) return file
   }
 
@@ -1680,7 +1689,7 @@ export async function getWorkspaceFileWithCurrentVersion(
   workspaceId: string,
   fileId: string,
   options?: { includeDeleted?: boolean }
-): Promise<(WorkspaceFileRecord & { currentVersion: number }) | null> {
+): Promise<VersionedWorkspaceFileRecord | null> {
   const [row] = await db
     .select({
       file: workspaceFiles,
@@ -1699,6 +1708,31 @@ export async function getWorkspaceFileWithCurrentVersion(
     ...(await mapSingleWorkspaceFileRecord(row.file, workspaceId)),
     currentVersion: row.currentVersion,
   }
+}
+
+/**
+ * Current version numbers for files already loaded elsewhere, keyed by id, read in one statement.
+ *
+ * Each entry carries the storage key the number describes, so a caller pairs it with its own row
+ * only when the two still name the same bytes; a file rewritten since that row was read is left
+ * without a version rather than given one for content it no longer holds.
+ */
+export async function getWorkspaceFileVersionsByKey(
+  workspaceId: string,
+  fileIds: readonly string[]
+): Promise<Map<string, { key: string; currentVersion: number }>> {
+  if (fileIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      id: workspaceFiles.id,
+      key: workspaceFiles.key,
+      currentVersion: currentWorkspaceFileVersionNumberSql(),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(inArray(workspaceFiles.id, [...fileIds]), workspaceFileScopeCondition(workspaceId, 'all'))
+    )
+  return new Map(rows.map((row) => [row.id, { key: row.key, currentVersion: row.currentVersion }]))
 }
 
 /**
@@ -1821,7 +1855,7 @@ export async function updateWorkspaceFileContent(
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
-): Promise<WorkspaceFileRecord & { currentVersion: number }> {
+): Promise<VersionedWorkspaceFileRecord> {
   if (options.collabDocState && !options.expectedUpdatedAt) {
     throw new Error('Collaborative state updates require an expected content version')
   }

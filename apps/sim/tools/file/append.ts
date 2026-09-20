@@ -81,5 +81,11 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
     name: { type: 'string', description: 'File name' },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
+    version: { type: 'number', description: 'Version number of the content this write recorded' },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since.',
+    },
   },
 }

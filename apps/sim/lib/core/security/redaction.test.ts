@@ -633,6 +633,26 @@ describe('redactApiKeys', () => {
       expect(result.processedFiles[0]).not.toHaveProperty('key')
       expect(result.processedFiles[0]).not.toHaveProperty('context')
     })
+
+    it.concurrent('should keep the workspace file version, which names the exposed bytes', () => {
+      const result = redactApiKeys({
+        files: [
+          {
+            id: 'file-123',
+            name: 'notes.md',
+            url: 'http://localhost/api/files/serve/notes.md',
+            size: 12,
+            type: 'text/markdown',
+            key: 'workspace/ws/notes.md',
+            context: 'workspace',
+            version: 4,
+          },
+        ],
+      })
+
+      expect(result.files[0].version).toBe(4)
+      expect(result.files[0]).not.toHaveProperty('key')
+    })
   })
 
   describe('primitive handling', () => {

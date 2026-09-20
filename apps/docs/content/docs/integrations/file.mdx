@@ -139,6 +139,7 @@ Create a new workspace file, either from text content or from an existing file. 
 | `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
 | `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
 | `overwrite` | boolean | No | Replace the contents of an existing file at the exact target path \(folder and name\) instead of creating a suffixed copy. Creates the file when that path does not exist yet. |
+| `expectedRevision` | string | No | Refuse the write unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else’s change. |
 
 #### Output
 
@@ -148,6 +149,8 @@ Create a new workspace file, either from text content or from an existing file. 
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
+| `version` | number | Version number of the content this write recorded |
+| `revision` | string | Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
 ### File Append
 
@@ -171,6 +174,8 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
+| `version` | number | Version number of the content this write recorded |
+| `revision` | string | Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
 ### Apply File Edit
 
@@ -194,6 +199,7 @@ Apply one precise edit to an existing text file without rewriting it. Use search
 | `startAnchor` | string | No | For delete_between, the complete first line to delete. The start anchor is removed. |
 | `endAnchor` | string | No | For delete_between, the complete ending boundary line. The end anchor remains in the file. |
 | `occurrence` | number | No | For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1. |
+| `expectedRevision` | string | No | Refuse the edit unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else’s change. |
 
 #### Output
 
@@ -203,6 +209,8 @@ Apply one precise edit to an existing text file without rewriting it. Use search
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `lineCount` | number | Lines in the file after the edit |
+| `version` | number | Version number of the content this edit recorded |
+| `revision` | string | Opaque token for the content this edit produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
 ### File Compress
 

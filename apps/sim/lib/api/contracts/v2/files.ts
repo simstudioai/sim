@@ -66,6 +66,27 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  */
 
 /** A workspace file as exposed by the v2 surface. */
+/**
+ * Makes a content write conditional on the file still holding the content the caller read, named
+ * by the `revision` Get File Metadata returns. A version number cannot express this: collaborative
+ * and workflow writes fold into the current version rather than adding one.
+ */
+/** The token naming the content a write produced, for the caller's next conditional write. */
+const writtenFileRevisionSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.'
+  )
+
+const expectedFileRevisionSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.'
+  )
+
 export const v2FileSchema = z
   .object({
     id: z
@@ -156,6 +177,12 @@ export const v2FileMetadataSchema = v2FileSchema
     share: v2FileShareSchema
       .nullable()
       .describe('Current public-share state, or null when the file has never been shared.'),
+    revision: z
+      .string()
+      .optional()
+      .describe(
+        "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version."
+      ),
     currentVersion: versionNumberSchema.describe(
       'Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since.'
     ),
@@ -691,6 +718,7 @@ export const v2UpdateFileContentBodySchema = z
       .enum(['utf-8', 'base64'])
       .default('utf-8')
       .describe('Encoding of the content field.'),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -1206,6 +1234,7 @@ export const v2EditFileContentBodySchema = z
       .describe(
         'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.'
       ),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .strict()
 
@@ -1215,6 +1244,7 @@ export const v2EditedFileSchema = z
   .object({
     file: v2FileSchema.describe('The file after the edit.'),
     lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
+    revision: writtenFileRevisionSchema,
   })
   .strict()
   .meta({
@@ -1445,6 +1475,14 @@ export const v2EditFileContentContract = defineRouteContract({
   },
 })
 
+export const v2WrittenFileSchema = v2FileSchema
+  .extend({ revision: writtenFileRevisionSchema })
+  .meta({
+    id: 'V2WrittenFile',
+    title: 'Written file',
+    description: 'A workspace file after a content replacement, with the revision it produced.',
+  })
+
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
@@ -1453,6 +1491,6 @@ export const v2UpdateFileContentContract = defineRouteContract({
   body: v2UpdateFileContentBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2WrittenFileSchema),
   },
 })

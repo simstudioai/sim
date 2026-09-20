@@ -3572,6 +3572,7 @@ export type EditFileContentBody = {
         endAnchor: string
         occurrence?: number
       }
+  expectedRevision?: string
 }
 
 type EditFileContentResponseRef0 = {
@@ -3591,6 +3592,7 @@ type EditFileContentResponseRef0 = {
 type EditFileContentResponseRef1 = {
   file: EditFileContentResponseRef0
   lineCount: number
+  revision?: string
 }
 
 export type EditFileContentResponse = {
@@ -4162,6 +4164,7 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
+  revision?: string
   currentVersion: number
 }
 
@@ -9314,6 +9317,7 @@ export type RevertFileVersionQuery = Record<string, unknown>
 export type RevertFileVersionBody = {
   workspaceId: string
   expectedCurrentVersion?: number
+  expectedRevision?: string
 }
 
 type RevertFileVersionResponseRef0 = {
@@ -9979,6 +9983,7 @@ export type UpdateFileContentBody = {
   workspaceId: string
   content: string
   encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
 }
 
 type UpdateFileContentResponseRef0 = {
@@ -9993,6 +9998,7 @@ type UpdateFileContentResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type UpdateFileContentResponse = {
@@ -12997,6 +13003,11 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -16536,7 +16547,12 @@ export const V2_OPERATIONS = {
       expectedCurrentVersion: {
         kind: 'integer',
         describe:
-          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number.',
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
       },
     },
   },
@@ -16951,6 +16967,11 @@ export const V2_OPERATIONS = {
         values: ['utf-8', 'base64'] as const,
         default: 'utf-8',
         describe: 'Encoding of the content field.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },

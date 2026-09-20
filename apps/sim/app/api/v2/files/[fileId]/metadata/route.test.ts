@@ -148,6 +148,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         deletedAt: null,
         share: SHARE,
         currentVersion: 3,
+        revision: expect.any(String),
       },
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith({
@@ -206,6 +207,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         deletedAt: '2024-01-03T00:00:00.000Z',
         share: SHARE,
         currentVersion: 3,
+        revision: expect.any(String),
       },
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith(

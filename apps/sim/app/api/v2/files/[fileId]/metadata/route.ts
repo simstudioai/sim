@@ -1,6 +1,7 @@
 import { v2GetFileContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMetadataWithVersion } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { toV2File } from '@/app/api/v2/files/utils'
@@ -29,7 +30,15 @@ export const GET = defineV2JsonRoute({
     includeDeleted: query.scope === 'archived',
   }),
   useCase: readWorkspaceFileMetadataWithVersion,
-  present: async ({ file, share }) => ({
-    data: { ...(await toV2File(file)), share, currentVersion: file.currentVersion },
-  }),
+  present: async ({ file, share }) => {
+    const revision = workspaceFileRevision(file)
+    return {
+      data: {
+        ...(await toV2File(file)),
+        share,
+        currentVersion: file.currentVersion,
+        ...(revision === null ? {} : { revision }),
+      },
+    }
+  },
 })
