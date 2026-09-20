@@ -4,6 +4,7 @@ import { type KeyboardEvent, useState } from 'react'
 import { ChipInput, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { PublicAuthHeader } from '@/components/auth/public-auth-header'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { chatSSOContract } from '@/lib/api/contracts/chats'
@@ -98,14 +99,10 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
     <div className='flex flex-1 items-center justify-center px-4 py-16'>
       <div className='w-full max-w-[410px]'>
         <div className='flex flex-col items-center justify-center'>
-          <div className='space-y-1 text-center'>
-            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-              SSO Authentication
-            </h1>
-            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-              This chat requires SSO authentication
-            </p>
-          </div>
+          <PublicAuthHeader
+            title='SSO Authentication'
+            description='This chat requires SSO authentication'
+          />
 
           <form
             onSubmit={(e) => {

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cn, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { PublicAuthHeader } from '@/components/auth/public-auth-header'
 import { AuthSubmitButton, PasswordInput } from '@/app/(auth)/components'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
 
@@ -44,14 +45,10 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
     <div className='flex flex-1 items-center justify-center px-4 py-16'>
       <div className='w-full max-w-[410px]'>
         <div className='flex flex-col items-center justify-center'>
-          <div className='space-y-1 text-center'>
-            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-              Password Required
-            </h1>
-            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-              This chat is password-protected
-            </p>
-          </div>
+          <PublicAuthHeader
+            title='Password Required'
+            description='This chat is password-protected'
+          />
 
           <form
             onSubmit={(e) => {
