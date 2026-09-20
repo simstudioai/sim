@@ -129,9 +129,11 @@ export async function backfillProjectionSourceAcl(
 }
 
 /**
- * The ACL index each projection needs for exact ranking of a small readable set, built after the bulk
- * load and concurrently, so the triggers keep writing. `CONCURRENTLY` cannot run in a transaction, and
- * the pool's lock timeout would cancel a build that merely waits for a long transaction to finish.
+ * The indexes exact ranking of a readable set needs: the ACL index on each projection, and on the
+ * vector projection the source index that lets the planner lead with a few sources when the
+ * caller's tokens alone would match most of the index. Built after the bulk load and concurrently,
+ * so the triggers keep writing. `CONCURRENTLY` cannot run in a transaction, and the pool's lock
+ * timeout would cancel a build that merely waits for a long transaction to finish.
  */
 export async function indexProjectionAcl(sql: Sql): Promise<void> {
   const [{ timeout }] = await sql`SELECT current_setting('lock_timeout') AS timeout`
@@ -143,6 +145,10 @@ export async function indexProjectionAcl(sql: Sql): Promise<void> {
           ON ${projection} USING gin (acl) WHERE enabled`
       )
     }
+    await sql.unsafe(
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS embedding_search_source_idx
+        ON embedding_search (connector_id) WHERE enabled`
+    )
   } finally {
     await sql`SELECT set_config('lock_timeout', ${timeout}, false)`
   }

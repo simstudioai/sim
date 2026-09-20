@@ -516,6 +516,9 @@ const FTS_CONFIG = 'english'
  */
 const TIN_KEYWORD_WINDOWS = [2000, 10_000, 50_000] as const
 
+/** Readable rows one wide window returns for a narrow reader: several pages' worth, ranked once. */
+const NARROW_KEYWORD_PAGE = 1000
+
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
  * retrievable when both it and its document are enabled, the document finished
@@ -1837,10 +1840,17 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
        * one, so that is the only window tried. Either way what a resolved scope cannot fill is
        * left short rather than handed to a ranking over every match.
        */
-      const windows =
-        accessPlan && params.permitted?.kind === 'unbounded' && !params.permitted.broad
-          ? [TIN_KEYWORD_WINDOWS.at(-1)!]
-          : TIN_KEYWORD_WINDOWS
+      const narrow =
+        accessPlan !== undefined &&
+        params.permitted?.kind === 'unbounded' &&
+        !params.permitted.broad
+      const windows = narrow ? [TIN_KEYWORD_WINDOWS.at(-1)!] : TIN_KEYWORD_WINDOWS
+      /**
+       * A narrow reader's page is the readable remainder of a wide ranking, and that ranking is
+       * the cost: each page would rank the window again to find the next few readable rows, so one
+       * statement returns as many as several pages could ask for.
+       */
+      const pageLimit = narrow ? Math.max(limit, NARROW_KEYWORD_PAGE) : limit
       for (const window of windows) {
         if (window < offset + limit) continue
         const [page] = await runSearchQuery(params.budget, 'keyword.tin', (executor) =>
@@ -1868,7 +1878,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               FROM ranked_tin_chunks /* on-row visibility */
               WHERE ranked_tin_chunks.enabled AND ${onRowKeywordVisibility(excludedSources)}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
-              LIMIT ${limit} OFFSET ${offset}`
+              LIMIT ${pageLimit} OFFSET ${offset}`
                   : sql`
               SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
                 ${document.connectorId} AS "connectorId",
@@ -1878,7 +1888,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
               WHERE ranked_tin_chunks.enabled
                 AND ${and(...candidateDocumentConditions(knowledgeBaseIds, access, params.filters, knowledgeAccessCondition(access)), excludeSearchSources(excludedSources))}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
-              LIMIT ${limit} OFFSET ${offset}`
+              LIMIT ${pageLimit} OFFSET ${offset}`
               }
             )
             SELECT (SELECT count(*)::int FROM ranked_tin_chunks) AS ranked,
