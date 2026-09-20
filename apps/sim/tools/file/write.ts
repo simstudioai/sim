@@ -7,6 +7,7 @@ interface FileWriteParams {
   fileInput?: unknown
   contentType?: string
   overwrite?: boolean
+  expectedRevision?: string
   workspaceId?: string
 }
 
@@ -59,6 +60,13 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       description:
         'Replace the contents of an existing file at the exact target path (folder and name) instead of creating a suffixed copy. Creates the file when that path does not exist yet.',
     },
+    expectedRevision: {
+      type: 'string',
+      required: false,
+      visibility: 'llm-only',
+      description:
+        'Refuse the write unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else\u2019s change.',
+    },
   },
 
   operation: {
@@ -70,6 +78,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       fileInput: params.fileInput,
       contentType: params.contentType,
       overwrite: params.overwrite,
+      expectedRevision: params.expectedRevision,
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {
@@ -93,5 +102,11 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
     name: { type: 'string', description: 'File name' },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
+    version: { type: 'number', description: 'Version number of the content this write recorded' },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since.',
+    },
   },
 }

@@ -43,6 +43,7 @@ import {
 import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import type {
   getWorkspaceFile,
+  getWorkspaceFileWithCurrentVersion,
   WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -51,6 +52,7 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
@@ -68,6 +70,7 @@ import {
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
@@ -75,7 +78,10 @@ import {
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import {
+  readWorkspaceFileMetadata,
+  readWorkspaceFileMetadataWithVersion,
+} from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
@@ -177,7 +183,14 @@ async function assertOperationFileAccess(
   }
 }
 
-const workspaceFileToUserFile = (file: Awaited<ReturnType<typeof getWorkspaceFile>>) => {
+/**
+ * A workspace file record as an execution file. `version` rides along only when the record was
+ * read with it — a file addressed by id — so the number always describes the very bytes this row
+ * carries rather than a version a second query might have raced ahead to.
+ */
+const workspaceFileToUserFile = (
+  file: (WorkspaceFileRecord & { currentVersion?: number }) | null
+) => {
   if (!file) return null
 
   return {
@@ -188,6 +201,7 @@ const workspaceFileToUserFile = (file: Awaited<ReturnType<typeof getWorkspaceFil
     type: file.type,
     key: file.key,
     context: 'workspace' as const,
+    ...(file.currentVersion === undefined ? {} : { version: file.currentVersion }),
   }
 }
 
@@ -1004,10 +1018,10 @@ export async function executeFileManageOperation(
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
         }
 
-        let file: Awaited<ReturnType<typeof getWorkspaceFile>>
+        let file: Awaited<ReturnType<typeof getWorkspaceFileWithCurrentVersion>>
         try {
           file = (
-            await readWorkspaceFileMetadata.execute({
+            await readWorkspaceFileMetadataWithVersion.execute({
               principal,
               input: { fileId: selectedFileId, assertedWorkspaceId: workspaceId },
             })
@@ -1031,6 +1045,8 @@ export async function executeFileManageOperation(
           success: true,
           data: {
             file: workspaceFileToUserFile(file),
+            /** The token a conditional write sends back; see `expectedRevision`. */
+            revision: workspaceFileRevision(file),
           },
         })
       }
@@ -1224,7 +1240,15 @@ export async function executeFileManageOperation(
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType, overwrite, folderPath } = body
+        const {
+          fileName,
+          content,
+          fileInput,
+          contentType,
+          overwrite,
+          folderPath,
+          expectedRevision,
+        } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -1365,6 +1389,7 @@ export async function executeFileManageOperation(
                 contentType: mimeType,
                 provenanceMode: 'replace_empty',
                 expectedUpdatedAt: existing.contentUpdatedAt ?? undefined,
+                expectedRevision,
                 ...(overwriteProvenance ? { secretProvenance: overwriteProvenance } : {}),
               },
             })
@@ -1382,6 +1407,7 @@ export async function executeFileManageOperation(
                 name: overwritten.name,
                 size: overwritten.size,
                 url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
+                version: overwritten.currentVersion,
               },
             })
           }
@@ -1418,6 +1444,8 @@ export async function executeFileManageOperation(
             name: result.file.name,
             size: fileBuffer.length,
             url: ensureAbsoluteUrl(result.file.url ?? result.file.path),
+            /** A file created with its content has no history yet, so those bytes are version 1. */
+            version: INITIAL_WORKSPACE_FILE_VERSION,
           },
         })
       }
@@ -1591,7 +1619,7 @@ export async function executeFileManageOperation(
           })
           const finalContent = existingBuffer.toString('utf-8') + content
           const fileBuffer = Buffer.from(finalContent, 'utf-8')
-          await updateWorkspaceFileContent.execute({
+          const { file: appended } = await updateWorkspaceFileContent.execute({
             principal,
             input: {
               fileId: existing.id,
@@ -1617,6 +1645,7 @@ export async function executeFileManageOperation(
               name: existing.name,
               size: fileBuffer.length,
               url: ensureAbsoluteUrl(existing.path),
+              version: appended.currentVersion,
             },
           })
         } finally {
@@ -1721,13 +1750,21 @@ export async function executeFileManageOperation(
             fileId: target.id,
             assertedWorkspaceId: workspaceId,
             ...(secretProvenance ? { secretProvenance } : {}),
+            expectedRevision: body.expectedRevision,
             edit,
           },
         })
 
         return Response.json({
           success: true,
-          data: { id: file.id, name: file.name, size: file.size, lineCount },
+          data: {
+            id: file.id,
+            name: file.name,
+            size: file.size,
+            lineCount,
+            version: file.currentVersion,
+            revision: workspaceFileRevision(file),
+          },
         })
       }
 

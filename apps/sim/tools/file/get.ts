@@ -119,6 +119,11 @@ export const fileGetTool: InternalToolConfig<FileGetParams, ToolResponse> = {
 
   outputs: {
     file: { type: 'file', description: 'Workspace file object' },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content read. Pass it back as expectedRevision on a write or edit so the change is refused if the file moved on.',
+    },
   },
 }
 

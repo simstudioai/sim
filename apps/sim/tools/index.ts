@@ -221,6 +221,7 @@ function toUserFileFromWorkspaceRecord(record: {
   size: number
   type: string
   key: string
+  currentVersion?: number
 }): UserFile {
   return {
     id: record.id,
@@ -230,6 +231,8 @@ function toUserFileFromWorkspaceRecord(record: {
     type: record.type,
     key: record.key,
     context: 'workspace',
+    // Only a record read together with its version carries one; see resolveWorkspaceFileReference.
+    ...(record.currentVersion === undefined ? {} : { version: record.currentVersion }),
   }
 }
 

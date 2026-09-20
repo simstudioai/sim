@@ -162,6 +162,11 @@ export interface WorkspaceFileRecord {
   share?: ShareRecord | null
 }
 
+/** A file record paired with the version number of the content it describes. */
+export interface VersionedWorkspaceFileRecord extends WorkspaceFileRecord {
+  currentVersion: number
+}
+
 export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
   url: string
   context: 'workspace'
@@ -1537,6 +1542,10 @@ async function getWorkspaceFileByExactReference(
 
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
+ *
+ * A reference that is already a file id resolves through the versioned read, so the record
+ * carries the version of the very bytes it describes. The name and listing fallbacks return
+ * records without one rather than pairing a row with a version a second query read later.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
@@ -1545,7 +1554,7 @@ export async function resolveWorkspaceFileReference(
   const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
   const normalizedReference = referenceSegments.join('/')
   if (normalizedReference.startsWith('wf_')) {
-    const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
+    const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference)
     if (file) return file
   }
 
@@ -1680,7 +1689,7 @@ export async function getWorkspaceFileWithCurrentVersion(
   workspaceId: string,
   fileId: string,
   options?: { includeDeleted?: boolean }
-): Promise<(WorkspaceFileRecord & { currentVersion: number }) | null> {
+): Promise<VersionedWorkspaceFileRecord | null> {
   const [row] = await db
     .select({
       file: workspaceFiles,
@@ -1821,7 +1830,7 @@ export async function updateWorkspaceFileContent(
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
-): Promise<WorkspaceFileRecord & { currentVersion: number }> {
+): Promise<VersionedWorkspaceFileRecord> {
   if (options.collabDocState && !options.expectedUpdatedAt) {
     throw new Error('Collaborative state updates require an expected content version')
   }

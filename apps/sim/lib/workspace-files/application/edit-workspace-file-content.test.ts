@@ -7,6 +7,7 @@ const {
   mockAcquireLock,
   mockReleaseLock,
   mockGetWorkspaceFile,
+  mockGetWorkspaceFileWithCurrentVersion,
   mockFetchWorkspaceFileBuffer,
   mockUpdateStoredContent,
   mockResolveEffectiveWorkspacePermission,
@@ -16,6 +17,7 @@ const {
   mockAcquireLock: vi.fn(),
   mockReleaseLock: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
+  mockGetWorkspaceFileWithCurrentVersion: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockUpdateStoredContent: vi.fn(),
   mockResolveEffectiveWorkspacePermission: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock('@/lib/core/config/redis', () => ({
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   ContentVersionConflictError,
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  getWorkspaceFileWithCurrentVersion: (...args: unknown[]) =>
+    mockGetWorkspaceFileWithCurrentVersion(...args),
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateStoredContent(...args),
   loadActiveWorkspaceFileContext: (...args: unknown[]) =>
@@ -48,6 +52,8 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   ContentVersionConflictError,
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  getWorkspaceFileWithCurrentVersion: (...args: unknown[]) =>
+    mockGetWorkspaceFileWithCurrentVersion(...args),
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateStoredContent(...args),
   loadActiveWorkspaceFileContext: (...args: unknown[]) =>
@@ -104,6 +110,7 @@ function storedFile(overrides: Record<string, unknown> = {}) {
     size: NOTE.length,
     uploadedBy: 'user-1',
     contentUpdatedAt: CONTENT_UPDATED_AT,
+    currentVersion: 4,
     ...overrides,
   }
 }
@@ -113,10 +120,15 @@ function storedFile(overrides: Record<string, unknown> = {}) {
  * change to the edit contract fails here at compile time instead of letting
  * these tests keep passing against a shape the operation no longer accepts.
  */
-async function edit(edit: EditWorkspaceFileContentEdit) {
+async function edit(edit: EditWorkspaceFileContentEdit, expectedRevision?: string) {
   return editWorkspaceFileContent.execute({
     principal,
-    input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', edit },
+    input: {
+      fileId: 'file-1',
+      assertedWorkspaceId: 'workspace-1',
+      edit,
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+    },
   })
 }
 
@@ -134,7 +146,7 @@ describe('editWorkspaceFileContent', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'user-1',
     })
-    mockGetWorkspaceFile.mockResolvedValue(storedFile())
+    mockGetWorkspaceFileWithCurrentVersion.mockResolvedValue(storedFile())
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from(NOTE, 'utf-8'))
     mockUpdateStoredContent.mockImplementation(async () => storedFile())
   })
@@ -168,6 +180,38 @@ describe('editWorkspaceFileContent', () => {
     })
   })
 
+  it('reports the version its write recorded', async () => {
+    mockUpdateStoredContent.mockResolvedValue(storedFile({ currentVersion: 5 }))
+
+    await expect(
+      edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })
+    ).resolves.toMatchObject({ file: { currentVersion: 5 } })
+  })
+
+  /*
+   * The caller's own revision, not the one this use case just read: the guard has to cover
+   * everything since the content the caller edited against.
+   */
+  it('guards the write with the revision the caller edited against', async () => {
+    const callerRevision = new Date('2024-12-31T00:00:00.000Z')
+
+    await edit(
+      { mode: 'search_replace', search: 'NYC', content: 'SF' },
+      callerRevision.toISOString()
+    )
+
+    expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
+      expectedUpdatedAt: callerRevision,
+    })
+  })
+
+  it('refuses a revision this surface never issued', async () => {
+    await expect(
+      edit({ mode: 'search_replace', search: 'NYC', content: 'SF' }, 'not-a-revision')
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockUpdateStoredContent).not.toHaveBeenCalled()
+  })
+
   it('surfaces a losing race as a conflict rather than a crash', async () => {
     mockUpdateStoredContent.mockRejectedValue(new ContentVersionConflictError('stale'))
 
@@ -177,7 +221,7 @@ describe('editWorkspaceFileContent', () => {
   })
 
   it('refuses a file with no recorded content version', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(storedFile({ contentUpdatedAt: null }))
+    mockGetWorkspaceFileWithCurrentVersion.mockResolvedValue(storedFile({ contentUpdatedAt: null }))
 
     await expect(edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })).rejects.toThrow(
       /content version/
