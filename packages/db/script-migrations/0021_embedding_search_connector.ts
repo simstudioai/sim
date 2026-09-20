@@ -121,6 +121,16 @@ export async function backfillProjectionSourceAcl(
 ): Promise<ProjectionSourceAclBackfillProgress> {
   const pageSize = options.pageSize ?? PROJECTION_SOURCE_ACL_PAGE_SIZE
   const pauseMs = options.pauseMs ?? PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS
+  /**
+   * The page size is interpolated into the statement and a page of nothing would report the
+   * projection filled; a payload that asks for either is refused rather than quietly reshaped.
+   */
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
+    throw new Error(`Projection backfill page size must be a positive integer, got ${pageSize}`)
+  }
+  if (!Number.isFinite(pauseMs) || pauseMs < 0) {
+    throw new Error(`Projection backfill pause must be a non-negative number, got ${pauseMs}`)
+  }
   const startedAt = Date.now()
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : startedAt + options.budgetMs
