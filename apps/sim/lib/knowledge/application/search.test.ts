@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
+  hasRerankerCredential: vi.fn(async () => true),
   resolveWorkspace: vi.fn(),
   resolveOrganization: vi.fn(),
   requireOrganizationSearch: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('@/lib/knowledge/search/activity', () => ({
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
+  hasRerankerCredential: mocks.hasRerankerCredential,
   rerank: mocks.rerank,
 }))
 
@@ -866,6 +868,18 @@ describe('knowledge search application use case', () => {
      * `rerank`, the use case swallowed it, and the caller got a 200 whose results
      * were byte-identical to an unreranked search with nothing to distinguish them.
      */
+    it('never calls the reranker when neither the workspace nor the platform holds a key', async () => {
+      mocks.hasRerankerCredential.mockResolvedValueOnce(false)
+
+      const result = await rerankedSearch(true)
+
+      /** A caller's own key is judged by the same policy the resolver applies, not taken on faith. */
+      expect(mocks.hasRerankerCredential).toHaveBeenLastCalledWith(expect.anything(), undefined)
+      expect(mocks.rerank).not.toHaveBeenCalled()
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
     it('reports unavailable rather than silently falling back to vector ordering', async () => {
       mocks.rerank.mockRejectedValueOnce(new Error('No Cohere API key configured.'))
 

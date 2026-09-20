@@ -7,6 +7,7 @@ import {
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
+import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 
 const DIRECT_SEARCH_VECTOR_BUDGET_MS = 3000
@@ -28,6 +29,13 @@ export const POST = defineInternalJsonRoute({
     topK: body.topK,
     allowPartialResults: true,
     vectorBudgetMs: DIRECT_SEARCH_VECTOR_BUDGET_MS,
+    /**
+     * A person's search is reranked by a cross-encoder whenever the workspace or the platform
+     * holds a key for one; the use case checks that before spending a call, and reranking stays
+     * best-effort, so a provider outage leaves the fused order in place.
+     */
+    rerankerEnabled: true,
+    rerankerModel: DEFAULT_RERANKER_MODEL,
     surface: 'dashboard' as const,
     signal: request.signal,
   }),

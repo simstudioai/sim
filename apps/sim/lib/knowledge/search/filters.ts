@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 export interface WorkspaceSearchFilters {
   source?: string
   modifiedAfter?: string
+  modifiedBefore?: string
   documentIds?: string[]
 }
 
@@ -27,9 +28,18 @@ export function intersectWorkspaceSearchFilters(
     .filter((value): value is string => Boolean(value))
     .sort((a, b) => Date.parse(a) - Date.parse(b))
     .at(-1)
+  /** The narrower end of each bound wins, so the intersection can only shrink the window. */
+  const modifiedBefore = [requested.modifiedBefore, scope.modifiedBefore]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => Date.parse(a) - Date.parse(b))
+    .at(0)
+  if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
+    throw new OrchestrationError('validation', 'The requested dates are outside this search')
+  }
   return {
     ...(scope.source || requested.source ? { source: scope.source ?? requested.source } : {}),
     ...(modifiedAfter ? { modifiedAfter } : {}),
+    ...(modifiedBefore ? { modifiedBefore } : {}),
     ...(documentIds ? { documentIds: [...new Set(documentIds)] } : {}),
   }
 }

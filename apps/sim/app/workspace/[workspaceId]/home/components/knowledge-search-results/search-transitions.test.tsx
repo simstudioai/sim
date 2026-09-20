@@ -212,6 +212,7 @@ describe('search refinement with the real query cache and URL state', () => {
       expect(requests.at(-1)?.body).toEqual({
         organizationId: 'organization',
         query: 'launch',
+        topK: 20,
         filters: expectedFilters,
       })
       expect(container.querySelector('h1')).toBeNull()
