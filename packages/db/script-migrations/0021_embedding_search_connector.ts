@@ -34,7 +34,8 @@ export async function installEmbeddingSearchConnector(sql: Sql): Promise<void> {
     await tx.unsafe(`CREATE OR REPLACE FUNCTION set_embedding_search_connector()
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
-        SELECT connector_id INTO NEW.connector_id FROM document WHERE id = NEW.document_id;
+        SELECT connector_id INTO NEW.connector_id FROM document
+        WHERE id = NEW.document_id FOR SHARE;
         RETURN NEW;
       END;
       $$`)
@@ -65,18 +66,21 @@ export async function backfillEmbeddingSearchConnector(sql: Sql): Promise<number
       /**
        * The documents are share-locked before their source is copied, so a detachment in flight
        * waits for this page to commit and then fans its own change out through the trigger — the
-       * chunk can never keep a source its document no longer has.
+       * chunk can never keep a source its document no longer has. A chunk that moved to another
+       * document in the meantime is left to that document's trigger: the write requires the
+       * document the source was read for.
        */
       const [{ filled }] = await tx<Array<{ filled: number }>>`
         WITH page AS (
-          SELECT s.id, d.connector_id
+          SELECT s.id, s.document_id, d.connector_id
           FROM embedding_search s JOIN document d ON d.id = s.document_id
           WHERE s.id = ANY(${ids}::text[])
             AND s.connector_id IS NULL AND d.connector_id IS NOT NULL
           FOR SHARE OF d
         ), updated AS (
           UPDATE embedding_search s SET connector_id = page.connector_id
-          FROM page WHERE s.id = page.id AND s.connector_id IS NULL
+          FROM page
+          WHERE s.id = page.id AND s.document_id = page.document_id AND s.connector_id IS NULL
           RETURNING s.id
         ) SELECT count(*)::int AS filled FROM updated`
       return { afterId: ids[ids.length - 1], scanned: ids.length, filled }
