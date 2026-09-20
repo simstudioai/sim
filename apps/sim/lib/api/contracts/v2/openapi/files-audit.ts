@@ -883,6 +883,7 @@ const declaredRoutes = [
             data: {
               ...FILE_EXAMPLE,
               share: SHARE_EXAMPLE,
+              updatedAt: '2026-01-16T09:12:00Z',
               currentVersion: 3,
               revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg',
             },

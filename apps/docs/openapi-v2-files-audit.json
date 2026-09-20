@@ -5392,7 +5392,7 @@
               "folderPath": "/Engineering",
               "uploadedByEmail": "jane@example.com",
               "uploadedAt": "2026-01-15T10:30:00Z",
-              "updatedAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-16T09:12:00Z",
               "deletedAt": null,
               "share": {
                 "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
@@ -5976,6 +5976,11 @@
               }
             ],
             "description": "One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between."
+          },
+          "expectedRevision": {
+            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["workspaceId", "edit"],
@@ -6151,6 +6156,11 @@
             "description": "Encoding of the content field.",
             "type": "string",
             "enum": ["utf-8", "base64"]
+          },
+          "expectedRevision": {
+            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["workspaceId", "content"],

@@ -66,6 +66,19 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  */
 
 /** A workspace file as exposed by the v2 surface. */
+/**
+ * Makes a content write conditional on the file still holding the content the caller read, named
+ * by the `revision` Get File Metadata returns. A version number cannot express this: collaborative
+ * and workflow writes fold into the current version rather than adding one.
+ */
+const expectedFileRevisionSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.'
+  )
+
 export const v2FileSchema = z
   .object({
     id: z
@@ -697,6 +710,7 @@ export const v2UpdateFileContentBodySchema = z
       .enum(['utf-8', 'base64'])
       .default('utf-8')
       .describe('Encoding of the content field.'),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -1212,6 +1226,7 @@ export const v2EditFileContentBodySchema = z
       .describe(
         'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.'
       ),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .strict()
 

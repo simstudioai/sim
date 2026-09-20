@@ -3572,6 +3572,7 @@ export type EditFileContentBody = {
         endAnchor: string
         occurrence?: number
       }
+  expectedRevision?: string
 }
 
 type EditFileContentResponseRef0 = {
@@ -9981,6 +9982,7 @@ export type UpdateFileContentBody = {
   workspaceId: string
   content: string
   encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
 }
 
 type UpdateFileContentResponseRef0 = {
@@ -12999,6 +13001,11 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -16958,6 +16965,11 @@ export const V2_OPERATIONS = {
         values: ['utf-8', 'base64'] as const,
         default: 'utf-8',
         describe: 'Encoding of the content field.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
