@@ -44,6 +44,7 @@ import {
   VECTOR_PROBE_DOCUMENT_LIMIT,
   visibleDocumentsQuery,
 } from '@/lib/knowledge/search/queries'
+import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 /**
@@ -1235,6 +1236,7 @@ describe('permitted-document planner', () => {
     rerankRows = []
     sourceExactRows = []
     indexedSourceRows = []
+    forgetIndexedVectorSources()
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
       if (statement.includes('pg_index')) return indexedSourceRows
@@ -1274,11 +1276,59 @@ describe('permitted-document planner', () => {
     traversedRows = [{ id: 'a' }]
     rerankRows = [hit('a', null)]
     queueTableRows(schemaMock.embedding, [hit('a', null)])
-    await handleVectorOnlySearch({ ...params, permitted: { kind: 'unbounded' } })
+    await handleVectorOnlySearch({ ...params, permitted: { kind: 'unbounded', broad: false } })
     const sqls = statements().map((query) => query.sql)
     expect(sqls.some((sql) => sql.includes('AS visible'))).toBe(true)
     expect(sqls.some(isProbeStatement)).toBe(false)
     expect(sqls.some(isExactRanking)).toBe(false)
+  })
+
+  it('walks the whole graph once for a caller whose reach is broad', async () => {
+    const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
+    rerankRows = [hit('walked-hit', 'member-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: ['m-1'], observed: [] },
+        memberSources: ['member-src'],
+      },
+    })
+    /** One walk over every source, scoped to the bases alone — no source is singled out. */
+    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    expect(walks).toHaveLength(1)
+    expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
+    expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(false)
+  })
+
+  it('walks an indexed source a bounded caller is a member of instead of ranking it exactly', async () => {
+    const eligibility = { workspace: [], admin: ['small-src'], members: ['member-src'] }
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    sourceExactRows = [{ id: 'small-hit', distance: 0.3, saturated: false }]
+    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
+    rerankRows = [hit('walked-hit', 'member-src'), hit('small-hit', 'small-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      topK: 2,
+      permitted: bounded(
+        { id: 'doc-a', connectorId: 'member-src' },
+        { id: 'doc-b', connectorId: 'small-src' }
+      ),
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: ['m-1'], observed: [] },
+        memberSources: ['member-src'],
+      },
+    })
+    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    expect(walks).toHaveLength(1)
+    expect(JSON.stringify(walks[0])).toContain('"right":"member-src"')
+    expect(statements().some((q) => isExactRanking(q.sql))).toBe(false)
   })
 
   it('walks a source the caller is a member of and ranks every other source exactly', async () => {
@@ -1297,7 +1347,7 @@ describe('permitted-document planner', () => {
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
-      permitted: { kind: 'unbounded' },
+      permitted: { kind: 'unbounded', broad: false },
       accessPlan: { connectors: eligibility, observers, memberSources },
     })
     const walks = statements().filter((query) => query.sql.includes('AS visible'))
@@ -1320,7 +1370,7 @@ describe('permitted-document planner', () => {
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
-      permitted: { kind: 'unbounded' },
+      permitted: { kind: 'unbounded', broad: false },
       accessPlan: {
         connectors: eligibility,
         observers: { confirmed: [], observed: [] },
@@ -1347,7 +1397,7 @@ describe('permitted-document planner', () => {
     await handleVectorOnlySearch({
       ...params,
       topK: 2,
-      permitted: { kind: 'unbounded' },
+      permitted: { kind: 'unbounded', broad: false },
       accessPlan: {
         connectors: eligibility,
         observers: { confirmed: ['m-1'], observed: [] },
@@ -1368,7 +1418,7 @@ describe('permitted-document planner', () => {
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
-      permitted: { kind: 'unbounded' },
+      permitted: { kind: 'unbounded', broad: false },
       accessPlan: {
         connectors: { workspace: [], admin: ['sliced-src'], members: [] },
         observers: { confirmed: [], observed: [] },
@@ -1546,6 +1596,29 @@ describe('permitted-document planner', () => {
     const resolve = (access: UserAccessScope, knowledgeBaseIds = ['org-index']) =>
       resolvePermittedDocuments({ knowledgeBaseIds, access })
     const probes = () => statements().filter((query) => isProbeStatement(query.sql)).length
+
+    it('counts a saturated reach against the broad bound once, and remembers the answer', async () => {
+      /** The index holds a million documents; the bound is a quarter of them. */
+      const counts = { index: 1_000_000, reached: 250_000 }
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes(') reached')) return [{ n: counts.reached }]
+        if (statement.includes('count(*) AS n')) return [{ n: counts.index }]
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const broad = await resolve(scope('broad-reach'))
+      expect(broad).toEqual({ kind: 'unbounded', broad: true })
+      expect(reachCounts()).toHaveLength(1)
+      expect(JSON.stringify(reachCounts()[0])).toContain('250000')
+      await resolve(scope('broad-reach'))
+      expect(reachCounts()).toHaveLength(1)
+      counts.reached = 120_000
+      const narrow = await resolve(scope('narrow-reach'))
+      expect(narrow).toEqual({ kind: 'unbounded', broad: false })
+      expect(reachCounts()).toHaveLength(2)
+    })
 
     it('is remembered, so a broad caller skips the probe on the next search', async () => {
       probeRows = [{ id: null, connectorId: null, saturated: true }]

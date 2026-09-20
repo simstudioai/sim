@@ -1046,7 +1046,16 @@ type PermittedDocument = {
  */
 export type PermittedDocuments =
   | { kind: 'bounded'; documents: readonly PermittedDocument[] }
-  | { kind: 'unbounded' }
+  | { kind: 'unbounded'; broad: boolean }
+
+/**
+ * The share of the index a caller must reach before the whole graph is walked for them. pgvector
+ * post-filters, so a walk returns a caller's own neighbours in proportion to their reach: above
+ * this share almost every neighbour the graph visits is theirs and one walk is the cheapest exact
+ * answer there is; below it the walk spends its budget on chunks they cannot read, and each
+ * readable source is searched on its own instead.
+ */
+export const BROAD_REACH_SHARE = 0.25
 
 /**
  * How long a caller's saturated reach is remembered. Reach counts the documents a caller's tokens
@@ -1055,7 +1064,51 @@ export type PermittedDocuments =
  */
 const SATURATED_REACH_TTL_MS = 5 * 60 * 1000
 
-const saturatedReach = new LRUCache<string, true>({ max: 10_000, ttl: SATURATED_REACH_TTL_MS })
+/** A saturated reach, and whether it is broad enough to walk the whole graph for. */
+const saturatedReach = new LRUCache<string, { broad: boolean }>({
+  max: 10_000,
+  ttl: SATURATED_REACH_TTL_MS,
+})
+
+/** How many documents the bases hold: the denominator of a reach share, and it moves slowly. */
+const indexDocumentCounts = new LRUCache<string, number>({
+  max: 1000,
+  ttl: SATURATED_REACH_TTL_MS,
+  fetchMethod: async (key) => {
+    const [row] = await db.execute<{ n: number }>(sql`
+      SELECT count(*) AS n FROM ${document}
+      WHERE ${document.knowledgeBaseId} = ANY(${textArrayLiteral(key.split(','))})
+        AND ${document.deletedAt} IS NULL`)
+    /** An empty answer is not remembered; the bases may simply not have been read yet. */
+    return Number(row?.n ?? 0) || undefined
+  },
+})
+
+/**
+ * Whether a saturated reach is broad: the caller reaches at least {@link BROAD_REACH_SHARE} of the
+ * bases' documents. Counted once against that bound and remembered with the saturation, so the
+ * first search after the window pays for it and the rest do not.
+ */
+async function reachIsBroad(
+  knowledgeBaseIds: string[],
+  access: KnowledgeAccessScope,
+  budget: SearchBudget | undefined
+): Promise<boolean> {
+  if (access.kind !== 'user') return true
+  const total = (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','))) ?? 0
+  const bound = Math.ceil(total * BROAD_REACH_SHARE)
+  if (bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
+  const [row] = await runSearchQuery(budget, 'permitted_documents', (executor) =>
+    executor.execute<{ n: number }>(sql`
+      SELECT count(*) AS n FROM (
+        SELECT 1 FROM ${document}
+        WHERE ${document.deletedAt} IS NULL AND ${knowledgeAclOverlapCondition(access)}
+          AND ${inArray(document.knowledgeBaseId, knowledgeBaseIds)}
+        LIMIT ${bound}
+      ) reached`)
+  )
+  return Number(row?.n ?? 0) >= bound
+}
 
 /** Reach depends only on the bases and the caller's tokens; filters narrow the set, not the reach. */
 function reachKey(
@@ -1083,8 +1136,11 @@ export async function resolvePermittedDocuments(params: {
 }): Promise<PermittedDocuments> {
   const key = reachKey(params.knowledgeBaseIds, params.access)
   let probe: ProbeOutcome
-  if (key && saturatedReach.get(key)) {
+  let broad = true
+  const remembered = key ? saturatedReach.get(key) : undefined
+  if (remembered) {
     probe = { kind: 'saturated' }
+    broad = remembered.broad
   } else {
     try {
       probe = await probeVisibleDocuments(
@@ -1103,12 +1159,19 @@ export async function resolvePermittedDocuments(params: {
       if (!params.budget?.isTimeout(error)) throw error
       probe = { kind: 'timed_out' }
     }
-    if (key && probe.kind === 'saturated') saturatedReach.set(key, true)
+    if (probe.kind === 'saturated') {
+      try {
+        broad = await reachIsBroad(params.knowledgeBaseIds, params.access, params.budget)
+      } catch (error) {
+        if (!params.budget?.isTimeout(error)) throw error
+      }
+      if (key) saturatedReach.set(key, { broad })
+    }
   }
   const permitted: PermittedDocuments =
     probe.kind === 'documents'
       ? { kind: 'bounded', documents: probe.documents }
-      : { kind: 'unbounded' }
+      : { kind: 'unbounded', broad }
   annotateSearchDiagnostics({
     permittedDocuments: permitted.kind,
     ...(probe.kind === 'documents' ? { permittedDocumentCount: probe.documents.length } : {}),
@@ -1362,6 +1425,10 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
       }
       if (params.filters?.documentIds?.length) return exactPage()
       if (candidatePool?.excludedKey !== excludedKey) {
+        const plannedIndexedSources =
+          params.access.kind === 'user' && params.accessPlan?.memberSources.length
+            ? await indexedVectorSources()
+            : undefined
         annotateSearchDiagnostics({
           vectorRanking: 'candidate-rerank',
           vectorCandidateStorage: 'stored-halfvec',
@@ -1395,24 +1462,33 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           )
         }
         let selected: Array<{ id: string }>
-        if (params.permitted?.kind === 'bounded') {
+        const plan = params.access.kind === 'user' ? params.accessPlan : undefined
+        /**
+         * A source the caller is a member of that has its own index is walked on its own, which
+         * beats ranking it exactly once it is large enough to have earned that index.
+         */
+        const walksASource = plan?.memberSources.some(
+          (id) => plannedIndexedSources?.has(id) ?? false
+        )
+        if (params.permitted?.kind === 'bounded' && !walksASource) {
           /**
            * A bounded permitted set is ranked exactly without walking the graph first: the walk
            * post-filters, so when the caller reads a small share of the index it spends its whole
            * uninterruptible tuple budget and still returns almost none of their neighbours.
            */
           selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
-        } else if (params.accessPlan && params.access.kind === 'user') {
+        } else if (plan && !(params.permitted?.kind === 'unbounded' && params.permitted.broad)) {
           /**
            * Readability follows sources, so each readable source is searched in its own index and
            * the results merged. A member reads a source whole or barely at all: walking one source
            * spends its budget among chunks they can read, where a walk over every source spends it
-           * on the sources they cannot.
+           * on the sources they cannot. A caller whose reach is broad skips this: for them the
+           * whole graph's neighbours are mostly theirs already, and one walk is the cheaper answer.
            */
           selected = await selectSourceVectorCandidates({
             access: params.access,
             knowledgeBaseIds: params.knowledgeBaseIds,
-            plan: params.accessPlan,
+            plan,
             documentConditions: candidateDocumentVisibility,
             tagCondition: candidateTagCondition,
             documentTagCondition,

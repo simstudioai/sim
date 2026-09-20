@@ -31,6 +31,11 @@ function indexName(connectorId: string): string {
  */
 const indexedSources = new LRUCache<'sources', ReadonlySet<string>>({ max: 1, ttl: 60 * 1000 })
 
+/** Forgets the cached answer, after an index was built or dropped. */
+export function forgetIndexedVectorSources(): void {
+  indexedSources.clear()
+}
+
 export async function indexedVectorSources(): Promise<ReadonlySet<string>> {
   const cached = indexedSources.get('sources')
   if (cached) return cached
@@ -120,7 +125,7 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
       documents,
       elapsedMs: Date.now() - startedAt,
     })
-    indexedSources.clear()
+    forgetIndexedVectorSources()
     return true
   } catch (error) {
     logger.error('Source vector index build failed', { connectorId, error: getErrorMessage(error) })
@@ -136,5 +141,5 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
 export async function dropSourceVectorIndex(connectorId: string): Promise<void> {
   if (!CONNECTOR_ID.test(connectorId)) return
   await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${indexName(connectorId)}"`))
-  indexedSources.clear()
+  forgetIndexedVectorSources()
 }
