@@ -10,6 +10,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { toolRequiresApprovalLane } from '@/lib/copilot/request/tools/permission'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
@@ -125,6 +126,29 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.ToolCallId]: toolCallId,
         [TraceAttr.UserId]: userId,
       })
+
+      /**
+       * Cheap admission, before any work: this lane cannot hold an approval prompt. The
+       * dispatch handler gates `requiresApproval` tools against a streaming context and a
+       * decision row, then deliberately declines to dispatch anything the mothership marks
+       * in-band — so a gated tool arriving here has no waiter behind it and would run on
+       * consent nobody gave. Refuse instead, and let the mothership take the checkpoint lane
+       * where the gate lives. Inert while copilot tool permissions are disabled, which keeps
+       * enabling the flag from silently leaving background lanes ungated.
+       */
+      if (toolRequiresApprovalLane(toolName)) {
+        logger.warn('Refusing an approval-gated tool on the in-band lane', {
+          toolName,
+          toolCallId,
+          userId,
+        })
+        rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        return NextResponse.json({
+          success: false,
+          error: `${toolName} was not run: it requires user approval, and this lane cannot hold an approval prompt. Dispatch it on the checkpoint lane instead.`,
+          output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
+        })
+      }
 
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry

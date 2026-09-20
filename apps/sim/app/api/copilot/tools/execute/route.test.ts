@@ -1,13 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockCheckInternalApiKey, mockPrepareEnvironmentContext, mockHandler } = vi.hoisted(() => ({
+const {
+  mockCheckInternalApiKey,
+  mockPrepareEnvironmentContext,
+  mockHandler,
+  mockToolRequiresApproval,
+} = vi.hoisted(() => ({
   mockCheckInternalApiKey: vi.fn(),
   mockPrepareEnvironmentContext: vi.fn(),
   mockHandler: vi.fn(),
+  mockToolRequiresApproval: vi.fn().mockReturnValue(false),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => ({
@@ -20,6 +27,7 @@ vi.mock('@/lib/copilot/environment-context', () => ({
 
 vi.mock('@/lib/copilot/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
+  toolRequiresApproval: mockToolRequiresApproval,
 }))
 
 vi.mock('@/lib/copilot/tool-executor/executor', () => ({
@@ -67,6 +75,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckInternalApiKey.mockReturnValue({ success: true })
+    mockToolRequiresApproval.mockReturnValue(false)
     // A fresh, complete registry per test: the module-level turn cache is keyed
     // by messageId, so each test uses a distinct messageId to avoid cross-test
     // cache hits.
@@ -158,6 +167,68 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     await expect(res.json()).resolves.toEqual({
       success: true,
       output: { key: 'lookup-key', value: 42 },
+    })
+  })
+
+  describe('approval-gated tools', () => {
+    afterEach(resetEnvFlagsMock)
+
+    /**
+     * This lane cannot hold an approval prompt: the dispatch handler owns the gate and
+     * declines to dispatch in-band calls, so a gated tool arriving here has no waiter behind
+     * it. Refuse before running anything rather than execute on consent nobody gave.
+     */
+    it('refuses an approval-gated tool without executing it when permissions are enabled', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockToolRequiresApproval.mockReturnValue(true)
+      mockHandler.mockResolvedValue({ success: true, output: { ran: true } })
+
+      const res = await POST(
+        makeRequest({
+          ...BASE_BODY,
+          toolName: 'run_function',
+          params: { code: 'return 1' },
+          messageId: 'msg-gated',
+        }) as never
+      )
+      const body = await res.json()
+
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(body.success).toBe(false)
+      expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+      expect(body.error).toContain('requires user approval')
+      expect(body.error).toContain('checkpoint lane')
+    })
+
+    it('still runs a tool the catalog does not gate when permissions are enabled', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockHandler.mockResolvedValue({ success: true, output: { content: 'hello' } })
+
+      const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-ungated' }) as never)
+
+      expect(mockHandler).toHaveBeenCalledTimes(1)
+      await expect(res.json()).resolves.toEqual({ success: true, output: { content: 'hello' } })
+    })
+
+    /**
+     * The guard is inert while the feature is off, which is the state this ships in — enabling
+     * the flag is what makes it bite, so it cannot change in-band behavior today.
+     */
+    it('runs an approval-gated tool unchanged while permissions are disabled', async () => {
+      mockToolRequiresApproval.mockReturnValue(true)
+      mockHandler.mockResolvedValue({ success: true, output: { ran: true } })
+
+      const res = await POST(
+        makeRequest({
+          ...BASE_BODY,
+          toolName: 'run_function',
+          params: { code: 'return 1' },
+          messageId: 'msg-gated-flag-off',
+        }) as never
+      )
+
+      expect(mockHandler).toHaveBeenCalledTimes(1)
+      await expect(res.json()).resolves.toEqual({ success: true, output: { ran: true } })
     })
   })
 

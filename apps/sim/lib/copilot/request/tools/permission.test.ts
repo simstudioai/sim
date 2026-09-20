@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 
 const { toolRequiresApproval, waitForToolPermissionDecision } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ import { createStreamingContext } from '@/lib/copilot/request/context/request-co
 import {
   runGatedToolExecution,
   toolCallNeedsApproval,
+  toolRequiresApprovalLane,
 } from '@/lib/copilot/request/tools/permission'
 import type { StreamEvent, ToolCallState } from '@/lib/copilot/request/types'
 
@@ -72,6 +74,38 @@ function gate(
     execute as () => Promise<never>
   )
 }
+
+describe('toolRequiresApprovalLane', () => {
+  // vi.clearAllMocks() clears calls but not implementations, so a mockReturnValue
+  // set here would otherwise outlive this block and silently flip the suites below.
+  afterEach(() => {
+    resetEnvFlagsMock()
+    toolRequiresApproval.mockReturnValue(true)
+  })
+
+  /**
+   * Asked by lanes that cannot hold a prompt, so it answers from the catalog and the
+   * feature flag alone — there is no streaming context to consult, and the stored
+   * auto-allow list is deliberately not read (an auto-allowed tool is admitted on the
+   * checkpoint lane without prompting anyone).
+   */
+  it('is false while the feature is off, whatever the catalog says', () => {
+    toolRequiresApproval.mockReturnValue(true)
+    expect(toolRequiresApprovalLane('run_function')).toBe(false)
+  })
+
+  it('is true for a catalog-gated tool once the feature is on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    toolRequiresApproval.mockReturnValue(true)
+    expect(toolRequiresApprovalLane('run_function')).toBe(true)
+  })
+
+  it('is false for an ungated tool once the feature is on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    toolRequiresApproval.mockReturnValue(false)
+    expect(toolRequiresApprovalLane('read')).toBe(false)
+  })
+})
 
 describe('toolCallNeedsApproval', () => {
   const runCall = { operation: 'run', args: { command: 'ls' } }
