@@ -2199,6 +2199,38 @@ describe('filters on a resolved scope', () => {
     expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(1)
   })
 
+  it("estimates a filter under the leg's deadline and walks when the estimate runs out of time", async () => {
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('EXPLAIN') && JSON.stringify(render(query)).includes('"type":"gte"'))
+        throw Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      if (statement.includes('EXPLAIN'))
+        return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+      if (statement.includes(') reached')) return [{ n: 250_000 }]
+      if (isWalk(statement)) return traversedRows
+      if (statement.includes('WITH scored_search_candidates')) return rerankRows
+      return []
+    })
+    const result = await retrieveKnowledgeSearch({
+      ...params,
+      accessProvider: provider,
+      searchMode: 'vector',
+      query: 'release',
+      filters: { modifiedAfter: '2026-09-13T00:00:00.000Z' },
+    })
+    /** The estimate ran inside a deadline statement; its own timeout chose the walk and cost the leg nothing. */
+    const estimateAt = statements().findIndex((query) =>
+      JSON.stringify(query).includes('"type":"gte"')
+    )
+    expect(estimateAt).toBeGreaterThan(0)
+    expect(statements()[estimateAt - 1].sql).toContain('statement_timeout')
+    expect(statements().filter((query) => query.sql.includes('AS saturated'))).toHaveLength(0)
+    expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+    expect(result.retrieval.status).toBe('complete')
+  })
+
   it('enumerates a date filter only while the planner estimates its documents few', async () => {
     let estimated = 50_000
     dbChainMockFns.execute.mockImplementation(async (query) => {

@@ -1160,9 +1160,11 @@ const indexDocumentCounts = new LRUCache<string, number>({
 async function estimateFilteredDocuments(
   knowledgeBaseIds: string[],
   filters: WorkspaceSearchFilters,
-  plan: SearchAccessPlan
+  plan: SearchAccessPlan,
+  budget: SearchBudget | undefined
 ): Promise<number> {
-  const [row] = await db.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
+  const [row] = await runSearchQuery(budget, 'permitted_documents', (executor) =>
+    executor.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
     EXPLAIN (FORMAT JSON) SELECT 1 FROM ${document}
     WHERE ${and(
       inArray(document.knowledgeBaseId, knowledgeBaseIds),
@@ -1172,6 +1174,7 @@ async function estimateFilteredDocuments(
         : undefined,
       filters.source ? planSourceCondition(plan) : undefined
     )}`)
+  )
   return Number(row?.['QUERY PLAN']?.[0]?.Plan?.['Plan Rows'] ?? 0)
 }
 
@@ -2421,11 +2424,21 @@ export async function retrieveKnowledgeSearch(
    * source confined on the row, the date tested through the document — since a set that large
    * holds most of the query's neighbours anyway. The planner's estimate decides which.
    */
+  /** Planning only, so a short cap of its own: running past it answers as the wide window it may be. */
+  const estimateBudget = budgets.vector.capped(VECTOR_PROBE_BUDGET_MS)
   const enumerateFiltered =
     accessPlan && (params.filters?.modifiedAfter || params.filters?.source)
-      ? (await measureSearchStage('permitted_documents', () =>
-          estimateFilteredDocuments(knowledgeBaseIds, params.filters!, accessPlan)
-        )) <= VECTOR_PROBE_DOCUMENT_LIMIT
+      ? await estimateFilteredDocuments(
+          knowledgeBaseIds,
+          params.filters,
+          accessPlan,
+          estimateBudget
+        )
+          .then((estimate) => estimate <= VECTOR_PROBE_DOCUMENT_LIMIT)
+          .catch((error) => {
+            if (!estimateBudget.isTimeout(error)) throw error
+            return false
+          })
       : false
   const permitted =
     access.kind === 'user' && params.accessProvider && !params.filters?.documentIds?.length
