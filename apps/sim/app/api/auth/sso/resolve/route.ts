@@ -16,11 +16,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
  * Names the identity provider that signs in an email address.
  *
  * Unauthenticated by nature, like the sign-in page that calls it, and admitted
- * per address. It discloses nothing the public provider list does not: which
- * domains have SSO, and the provider id that already appears in the callback
- * URL. Only a provider whose domain is verified is named: an unverified claim
- * has no authority over the address, and sending someone to its IdP would fail
- * at the callback anyway.
+ * per address. It answers for the one domain asked about, and names only the
+ * provider id that the sign-in redirect and callback URL expose anyway; there is
+ * deliberately no way to list every domain with SSO. Only a provider whose domain
+ * is verified is named: an unverified claim has no authority over the address,
+ * and sending someone to its IdP would fail at the callback anyway.
  *
  * The provider the domain names as primary wins, then the first verified by id,
  * which is also the only one when a domain has a single provider. A test sign-in
@@ -46,7 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const requestedProviderId = parsed.data.body.providerId
   const [provider] = await db
-    .select({ providerId: ssoProvider.providerId, samlConfig: ssoProvider.samlConfig })
+    .select({ providerId: ssoProvider.providerId })
     .from(ssoProvider)
     .leftJoin(ssoDomain, verifiedDomainOfProvider)
     .where(
@@ -68,8 +68,5 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  return NextResponse.json({
-    providerId: provider.providerId,
-    providerType: provider.samlConfig ? 'saml' : 'oidc',
-  })
+  return NextResponse.json({ providerId: provider.providerId })
 })

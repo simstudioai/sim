@@ -10,6 +10,15 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockResolveTinKeywordQuery } = vi.hoisted(() => ({
+  mockResolveTinKeywordQuery: vi.fn<() => Promise<string | null>>(async () => null),
+}))
+
+vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+  resolveTinKeywordQuery: mockResolveTinKeywordQuery,
+}))
+
 import {
   type KnowledgeAccessProvider,
   type UserAccessScope,
@@ -28,9 +37,12 @@ import {
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
+  type PermittedDocuments,
+  resolvePermittedDocuments,
   retrieveKnowledgeSearch,
   type SearchParams,
   VECTOR_PROBE_DOCUMENT_LIMIT,
+  visibleDocumentsQuery,
 } from '@/lib/knowledge/search/queries'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
@@ -58,7 +70,8 @@ describe('retrieval leg budgets', () => {
       vi.spyOn(SearchBudget.prototype, 'remaining').mockImplementation(function (
         this: SearchBudget
       ) {
-        if (!deadlines.has(this.leg)) deadlines.set(this.leg, this.deadline)
+        /** Capped steps like the permitted-document probe carry the leg with a shorter deadline. */
+        deadlines.set(this.leg, Math.max(deadlines.get(this.leg) ?? 0, this.deadline))
         return remaining.call(this)
       })
       const access: UserAccessScope = {
@@ -107,9 +120,9 @@ function render(condition: unknown) {
   return (condition as { toSQL: () => { sql: string; params: unknown[] } }).toSQL()
 }
 
-/** The document probe is the only vector statement that selects ids without ordering them. */
+/** The permitted-document probe is the only statement that reports whether it saturated. */
 function isProbeStatement(sql: string) {
-  return sql.includes('AS id FROM') && !sql.includes('ORDER BY')
+  return sql.includes('AS saturated')
 }
 
 /** `+ 0` is what keeps the exact ranking off the ANN index, so it also identifies the statement. */
@@ -392,7 +405,7 @@ describe('workspace-scoped vector retrieval', () => {
       }
       if (statement.includes('WITH scored_search_candidates')) return ranked
       if (isExactRanking(statement)) return exactRows
-      if (statement.includes('AS id FROM')) return probeRows
+      if (isProbeStatement(statement)) return probeRows
       return []
     })
   })
@@ -886,7 +899,7 @@ describe('live repository authorization follows ranked candidates', () => {
       if (statement.includes('WITH scored_search_candidates')) return rerankPages.shift() ?? []
       if (statement.includes('WITH matched_keyword_chunks')) return keywordPages.shift() ?? []
       if (isExactRanking(statement)) return exactPages.shift() ?? []
-      if (statement.includes('AS id FROM')) return probePages.shift() ?? []
+      if (isProbeStatement(statement)) return probePages.shift() ?? []
       return []
     })
     getForConnectors.mockReset().mockResolvedValue(allowed)
@@ -1256,6 +1269,36 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(fragments).toContain('= ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))')
   })
 
+  it('drops an excluded source from the bounded permitted set on refill', async () => {
+    getForConnectors.mockResolvedValueOnce(identity)
+    keywordPages.push(
+      [candidate('denied', 'revoked-source')],
+      [candidate('selected', 'allowed-source')]
+    )
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
+    await executeKeywordSearch({
+      ...params,
+      query: 'release',
+      queryVector: params.queryVector!,
+      permitted: {
+        kind: 'bounded',
+        documents: [
+          { id: 'doc-denied', connectorId: 'revoked-source' },
+          { id: 'doc-selected', connectorId: 'allowed-source' },
+          { id: 'doc-uploaded', connectorId: null },
+        ],
+      },
+    })
+    const [first, refill] = dbChainMockFns.execute.mock.calls.map(([query]) =>
+      JSON.stringify(query)
+    )
+    expect(first).toContain('doc-denied')
+    expect(refill).not.toContain('doc-denied')
+    expect(refill).toContain('doc-selected')
+    expect(refill).toContain('doc-uploaded')
+  })
+
   it('recomputes keyword candidates after excluding a revoked source and rechecks content access', async () => {
     getForConnectors.mockResolvedValueOnce(identity)
     keywordPages.push(
@@ -1353,4 +1396,334 @@ describe('live repository authorization follows ranked candidates', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledOnce()
     }
   )
+})
+
+describe('permitted-document planner', () => {
+  const reader: UserAccessScope = {
+    kind: 'user',
+    userId: 'reader',
+    tokens: ['u:reader@example.com'],
+  }
+  const workspace = { kind: 'workspace' as const, tokens: WORKSPACE_ACCESS_TOKENS }
+  const provider: KnowledgeAccessProvider = {
+    get: async () => reader,
+    getForConnectors: async () => reader,
+    getForDocuments: async () => reader,
+    liveSourceConnectorCondition: async () => null,
+  }
+  const params: SearchParams = {
+    knowledgeBaseIds: ['org-index'],
+    topK: 1,
+    access: reader,
+    accessProvider: provider,
+    queryVector: { vector: '[0.1,0.2]', dimensions: 1536, model: 'text-embedding-3-small' },
+    distanceThreshold: 1,
+  }
+  const hit = (id: string, connectorId: string | null) => ({
+    id,
+    documentId: `doc-${id}`,
+    connectorId,
+    liveAuthorizationSource: false,
+    distance: 0.1,
+  })
+  const bounded = (
+    ...documents: Array<{ id: string; connectorId: string | null }>
+  ): PermittedDocuments => ({ kind: 'bounded', documents })
+
+  let probeRows: Array<{ id: string | null; connectorId: string | null; saturated: boolean }>
+  let exactRows: Array<{ id: string }>
+  let traversedRows: Array<{ id: string }>
+  let rerankRows: Array<ReturnType<typeof hit>>
+
+  beforeEach(() => {
+    resetDbChainMock()
+    probeRows = []
+    exactRows = []
+    traversedRows = []
+    rerankRows = []
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('AS visible')) return traversedRows
+      if (statement.includes('WITH scored_search_candidates')) return rerankRows
+      if (isExactRanking(statement)) return exactRows
+      if (isProbeStatement(statement)) return probeRows
+      return []
+    })
+  })
+
+  it('ranks a bounded permitted set exactly without walking the graph', async () => {
+    exactRows = [{ id: 'a' }]
+    rerankRows = [hit('a', null)]
+    queueTableRows(schemaMock.embedding, [hit('a', null)])
+    const results = await handleVectorOnlySearch({
+      ...params,
+      permitted: bounded({ id: 'doc-a', connectorId: null }, { id: 'doc-b', connectorId: 'src' }),
+    })
+    expect(results.map((row) => row.id)).toEqual(['a'])
+    const sqls = statements().map((query) => query.sql)
+    expect(sqls.some((sql) => sql.includes('hnsw.iterative_scan'))).toBe(false)
+    expect(sqls.some((sql) => sql.includes('AS visible'))).toBe(false)
+    expect(sqls.some(isProbeStatement)).toBe(false)
+    const exact = JSON.stringify(statements().find((query) => isExactRanking(query.sql)))
+    expect(exact).toContain('doc-a')
+    expect(exact).toContain('doc-b')
+  })
+
+  it('ranks nothing when the bounded permitted set is empty', async () => {
+    expect(await handleVectorOnlySearch({ ...params, permitted: bounded() })).toEqual([])
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+
+  it('does not probe again after an underfilled walk of an unbounded permitted set', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', null)]
+    queueTableRows(schemaMock.embedding, [hit('a', null)])
+    await handleVectorOnlySearch({ ...params, permitted: { kind: 'unbounded' } })
+    const sqls = statements().map((query) => query.sql)
+    expect(sqls.some((sql) => sql.includes('AS visible'))).toBe(true)
+    expect(sqls.some(isProbeStatement)).toBe(false)
+    expect(sqls.some(isExactRanking)).toBe(false)
+  })
+
+  it('confines keyword matching to the bounded permitted set', async () => {
+    await executeKeywordSearch({
+      ...params,
+      topK: 1,
+      query: 'release',
+      queryVector: params.queryVector!,
+      permitted: bounded({ id: 'doc-a', connectorId: null }),
+    })
+    const keyword = statements().find((query) => query.sql.includes('WITH matched_keyword_chunks'))!
+    /** The mock renders the whole WHERE as one parameter, so the restriction shows up in it. */
+    expect(JSON.stringify(keyword)).toContain('doc-a')
+  })
+
+  describe('Tin keyword ranking for an unbounded caller', () => {
+    const unbounded: PermittedDocuments = { kind: 'unbounded' }
+    const keyword = (overrides: Partial<Parameters<typeof executeKeywordSearch>[0]> = {}) =>
+      executeKeywordSearch({
+        ...params,
+        topK: 1,
+        query: 'release',
+        queryVector: params.queryVector!,
+        permitted: unbounded,
+        ...overrides,
+      })
+    const tinStatements = () =>
+      statements().filter((query) => query.sql.includes('ranked_tin_chunks'))
+    const ginStatements = () =>
+      statements().filter((query) => query.sql.includes('WITH matched_keyword_chunks'))
+    let tinPages: Array<{ ranked: number; candidates: ReturnType<typeof hit>[] }>
+
+    beforeEach(() => {
+      mockResolveTinKeywordQuery.mockReset()
+      mockResolveTinKeywordQuery.mockResolvedValue('"releas"')
+      tinPages = []
+      dbChainMockFns.execute.mockImplementation(async (query) =>
+        render(query).sql.includes('ranked_tin_chunks')
+          ? [tinPages.shift() ?? { ranked: 0, candidates: [] }]
+          : []
+      )
+    })
+
+    it('ranks with Tin and checks access only on the top of that ranking', async () => {
+      tinPages = [{ ranked: 1500, candidates: [hit('a', null)] }]
+      queueTableRows(schemaMock.embedding, [{ ...hit('a', null), content: 'release notes' }])
+      const results = await keyword()
+      expect(results.map((row) => row.id)).toEqual(['a'])
+      expect(mockResolveTinKeywordQuery).toHaveBeenCalledWith(
+        ['org-index'],
+        'release',
+        'english',
+        params.budget
+      )
+      expect(ginStatements()).toHaveLength(0)
+      expect(JSON.stringify(tinStatements()[0])).toContain('2000')
+      /** `==>` binds tighter than `||`, so the concatenated query must be parenthesized. */
+      expect(tinStatements()[0].sql).toContain('==> (?)')
+    })
+
+    it('widens the ranked window while too few ranked chunks are readable', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 4000, candidates: [hit('b', null)] },
+      ]
+      queueTableRows(schemaMock.embedding, [{ ...hit('b', null), content: 'release notes' }])
+      expect((await keyword()).map((row) => row.id)).toEqual(['b'])
+      const windows = tinStatements().map((query) => JSON.stringify(query))
+      expect(windows[0]).toContain('2000')
+      expect(windows[1]).toContain('10000')
+      expect(ginStatements()).toHaveLength(0)
+    })
+
+    it('stops widening once Tin ranked every match', async () => {
+      tinPages = [{ ranked: 12, candidates: [] }]
+      expect(await keyword()).toEqual([])
+      expect(tinStatements()).toHaveLength(1)
+      expect(ginStatements()).toHaveLength(0)
+    })
+
+    it('leaves the page to the GIN ranking when the widest window cannot fill it', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 10_000, candidates: [] },
+        { ranked: 50_000, candidates: [] },
+      ]
+      await keyword()
+      expect(tinStatements()).toHaveLength(3)
+      expect(ginStatements()).toHaveLength(1)
+    })
+
+    it.each([
+      ['a bounded permitted set', { permitted: bounded({ id: 'doc-a', connectorId: null }) }],
+      [
+        'structured tag filters',
+        {
+          structuredFilters: [
+            { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'x' },
+          ] as StructuredFilter[],
+        },
+      ],
+    ])('keeps GIN ranking for %s', async (_case, overrides) => {
+      await keyword(overrides)
+      expect(mockResolveTinKeywordQuery).not.toHaveBeenCalled()
+      expect(tinStatements()).toHaveLength(0)
+    })
+
+    it('keeps GIN ranking when Tin is not ready or cannot express the query', async () => {
+      mockResolveTinKeywordQuery.mockResolvedValue(null)
+      await keyword()
+      expect(tinStatements()).toHaveLength(0)
+      expect(ginStatements()).toHaveLength(1)
+    })
+  })
+
+  it('skips keyword SQL entirely when nothing is permitted', async () => {
+    expect(
+      await executeKeywordSearch({
+        ...params,
+        query: 'release',
+        queryVector: params.queryVector!,
+        permitted: bounded(),
+      })
+    ).toEqual([])
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+
+  it('reads a user scope through its reachable documents and reports saturation', () => {
+    const user = render(visibleDocumentsQuery(['org-index'], [], reader))
+    const userSql = user.sql
+    expect(userSql).toContain('WITH reach AS MATERIALIZED')
+    expect(userSql).toContain('reachable AS MATERIALIZED')
+    expect(userSql).toContain('FROM reachable AS')
+    expect(userSql).toContain('AS saturated')
+    /**
+     * Baseline tokens reach every tenant's org-wide, public, and uploaded documents, so both the
+     * count and the rows are confined to the requested bases, outside the fence around the index.
+     */
+    const [reach, reachable] = userSql.split('reachable AS MATERIALIZED')
+    for (const cte of [reach, reachable.split('FROM reachable AS')[0]]) {
+      expect(cte).toMatch(/OFFSET 0\s*\) AS \?\s*WHERE \?/)
+    }
+    expect(JSON.stringify(user.params)).toContain('org-index')
+    const workspaceSql = render(visibleDocumentsQuery(['org-index'], [], workspace)).sql
+    expect(workspaceSql).not.toContain('reachable')
+    expect(workspaceSql).toContain('AS saturated')
+  })
+
+  it.each([
+    [[{ id: null, connectorId: null, saturated: true }], 'unbounded'],
+    [[{ id: 'doc-a', connectorId: null, saturated: false }], 'bounded'],
+  ] as const)('resolves %j as %s', async (rows, kind) => {
+    probeRows = [...rows]
+    const permitted = await resolvePermittedDocuments({
+      knowledgeBaseIds: ['org-index'],
+      access: { ...reader, tokens: [`u:resolves-${kind}@example.com`] },
+    })
+    expect(permitted.kind).toBe(kind)
+    if (permitted.kind === 'bounded')
+      expect(permitted.documents).toEqual([{ id: 'doc-a', connectorId: null }])
+  })
+
+  describe('saturated reach', () => {
+    const scope = (name: string): UserAccessScope => ({
+      ...reader,
+      tokens: [`u:${name}@example.com`],
+    })
+    const resolve = (access: UserAccessScope, knowledgeBaseIds = ['org-index']) =>
+      resolvePermittedDocuments({ knowledgeBaseIds, access })
+    const probes = () => statements().filter((query) => isProbeStatement(query.sql)).length
+
+    it('is remembered, so a broad caller skips the probe on the next search', async () => {
+      probeRows = [{ id: null, connectorId: null, saturated: true }]
+      const broad = scope('broad')
+      expect((await resolve(broad)).kind).toBe('unbounded')
+      expect((await resolve({ ...broad, tokens: [...broad.tokens].reverse() })).kind).toBe(
+        'unbounded'
+      )
+      expect(probes()).toBe(1)
+    })
+
+    it('is remembered per set of bases and tokens', async () => {
+      probeRows = [{ id: null, connectorId: null, saturated: true }]
+      await resolve(scope('per-key'))
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      expect((await resolve(scope('per-key'), ['other-index'])).kind).toBe('bounded')
+      expect((await resolve(scope('per-key-other'))).kind).toBe('bounded')
+      expect(probes()).toBe(3)
+    })
+
+    it('is not inferred from a bounded set or a probe that ran out of time', async () => {
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      await resolve(scope('bounded'))
+      await resolve(scope('bounded'))
+      expect(probes()).toBe(2)
+      const budget = new SearchBudget('vector', performance.now() - 1)
+      await resolvePermittedDocuments({
+        knowledgeBaseIds: ['org-index'],
+        access: scope('timed-out'),
+        budget,
+      })
+      probeRows = [{ id: 'doc-a', connectorId: null, saturated: false }]
+      expect((await resolve(scope('timed-out'))).kind).toBe('bounded')
+    })
+  })
+
+  it('reports an exhausted vector budget as unbounded instead of failing both legs', async () => {
+    const budget = new SearchBudget('vector', performance.now() - 1)
+    const permitted = await resolvePermittedDocuments({
+      knowledgeBaseIds: ['org-index'],
+      access: reader,
+      budget,
+    })
+    expect(permitted.kind).toBe('unbounded')
+    expect(budget.timedOut).toBe(true)
+  })
+
+  it('resolves the permitted set once, before both legs, for live user scopes only', async () => {
+    const search = {
+      knowledgeBaseIds: ['org-index'],
+      topK: 1,
+      searchMode: 'hybrid' as const,
+      query: 'release',
+      queryVector: params.queryVector!,
+    }
+    await retrieveKnowledgeSearch({ ...search, access: reader, accessProvider: provider })
+    /** Budgeted statements open with their transaction's `set_config`; the SQL that follows is ordered. */
+    const userSqls = statements()
+      .map((query) => query.sql)
+      .filter((sql) => !sql.includes('set_config'))
+    expect(isProbeStatement(userSqls[0])).toBe(true)
+    expect(userSqls.filter(isProbeStatement)).toHaveLength(1)
+
+    resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [])
+    await retrieveKnowledgeSearch({
+      ...search,
+      access: reader,
+      accessProvider: provider,
+      filters: { documentIds: ['doc-a'] },
+    })
+    expect(statements().some((query) => isProbeStatement(query.sql))).toBe(false)
+  })
 })

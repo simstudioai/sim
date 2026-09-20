@@ -237,6 +237,16 @@ export type ExternalChange =
   | { kind: 'upsert'; externalId: string; document: ExternalDocument }
   | { kind: 'removed'; externalId: string }
 
+/**
+ * One page of the containers a caller can still read, as external-ID prefixes.
+ * Each listed prefix proves access on its own; `nextCursor` continues the
+ * listing and is absent on its last page.
+ */
+export interface AccessibleScopePage {
+  prefixes: string[]
+  nextCursor?: string
+}
+
 export interface ExternalChangeList {
   changes: ExternalChange[]
   /**
@@ -555,6 +565,34 @@ export interface ConnectorConfig extends ConnectorMeta {
   isChangeCursorInvalidError?: (error: unknown) => boolean
   /** Whether a saved full-listing cursor expired and must restart from a new generation. */
   isListingCursorInvalidError?: (error: unknown) => boolean
+
+  /**
+   * Whether `candidate` describes the content `stored` already holds, for a
+   * connector whose hashes are not compared by equality alone. `current` means
+   * the stored document is up to date; `equivalent` means it holds the same
+   * content under an older hash, which is advanced without re-indexing; `stale`
+   * means the document must be refreshed. Consulted for listing hashes, which
+   * may identify a source version without its content, and for hydrated hashes.
+   * Without it, hashes match only when identical.
+   */
+  matchContentHash?: (candidate: string, stored: string) => 'current' | 'equivalent' | 'stale'
+
+  /**
+   * External-ID prefixes of everything the caller can still read, when access is
+   * granted to whole containers (a Slack channel) rather than item by item. A
+   * members-mode crawl renews the caller's observations under these prefixes
+   * without relisting each item, so access stays fresh while a large listing is
+   * still in progress, and lapses for containers the caller has lost. Paged, so
+   * a renewal can resume where an earlier run stopped; an expired cursor is
+   * recognised by {@link ConnectorConfig.isListingCursorInvalidError}. Only
+   * meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
+   */
+  listAccessibleScopes?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor?: string,
+    syncContext?: Record<string, unknown>
+  ) => Promise<AccessibleScopePage>
 
   /**
    * Opens the external directory whose groups this connector's mirrored ACLs

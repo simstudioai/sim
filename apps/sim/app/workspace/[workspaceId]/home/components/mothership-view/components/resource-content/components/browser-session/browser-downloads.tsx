@@ -134,21 +134,20 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
           size='sm'
           aria-label={label}
           title={label}
-          className={cn(
-            'relative size-[30px] shrink-0 overflow-hidden p-0',
-            hasUnviewedCompletion && 'text-[var(--brand-primary)]'
-          )}
+          className='relative size-[30px] shrink-0 overflow-hidden p-0'
           onClick={() => setHasUnviewedCompletion(false)}
         >
           {hasActiveDownloads ? (
-            <Loader animate className='size-[14px] text-[var(--brand-primary)]' />
+            <Loader animate className='size-[14px] text-[var(--brand-blue)]' />
           ) : completionAnimationVersion > 0 ? (
             <CircleCheck
               key={completionAnimationVersion}
               className='zoom-in-50 size-[14px] animate-in text-[var(--badge-success-text)] duration-150 motion-reduce:animate-none'
             />
           ) : (
-            <Download className='size-[14px]' />
+            <Download
+              className={cn('size-[14px]', hasUnviewedCompletion && 'text-[var(--brand-blue)]')}
+            />
           )}
           {hasActiveDownloads && aggregatePercent !== null && (
             <span
@@ -156,7 +155,7 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
               className='absolute inset-x-1.5 bottom-1 h-0.5 overflow-hidden rounded-full bg-[var(--surface-6)]'
             >
               <span
-                className='block h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-150'
+                className='block h-full rounded-full bg-[var(--brand-blue)] transition-[width] duration-150'
                 style={{ width: `${aggregatePercent}%` }}
               />
             </span>

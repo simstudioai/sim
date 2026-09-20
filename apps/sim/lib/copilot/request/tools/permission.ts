@@ -56,6 +56,11 @@ export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiti
  *
  * Headless one-shot executions are never gated: nobody is there to answer, and
  * blocking them would hang the run until the orchestration timeout.
+ *
+ * This is the dispatch lane's answer, and it needs a streaming context. A lane
+ * that has none — the in-band route — asks `toolRequiresApprovalLane` instead,
+ * which lives beside the tool router so a caller needing only the predicate does
+ * not pull this module's permission pub/sub in with it.
  */
 export function toolCallNeedsApproval(
   toolName: string,

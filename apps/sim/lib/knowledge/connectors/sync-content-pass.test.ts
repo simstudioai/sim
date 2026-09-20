@@ -286,6 +286,7 @@ async function runPass(
     access?: ConnectorAccessMode
     readCurrent?: boolean
     forceRehydrate?: boolean
+    fullSync?: boolean
     checkpoint?: ListingCheckpoint
     databaseTime?: Date
     getDocument?: () => Promise<ExternalDocument | null>
@@ -387,6 +388,7 @@ async function runPass(
     getAccessToken: async () => 'token',
     hydration: { getDocument: hydrate },
     forceRehydrate: options.forceRehydrate ?? false,
+    fullSync: options.fullSync,
     deadlineAt: Date.now() + 60_000,
     onPage: mocks.onPage,
   })
@@ -600,6 +602,36 @@ describe('content pass checkpoint intent', () => {
       )
     }
   )
+
+  it('restarts an ordinary checkpoint as a full sync when Full resync is requested without rehydration', async () => {
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: 'a'.repeat(64),
+        generationId: 'previous-run',
+        startedAt: new Date('2026-09-08T11:00:00Z'),
+      }),
+      cursor: 'saved-cursor',
+      listedCount: 1,
+    }
+    const { pass, listDocuments } = await runPass({
+      existing: {
+        ...EXISTING,
+        contentHash: 'confluence:view-text-v2:page:3',
+        storageKey: 'kb/old.txt',
+        sourceSeenAt: new Date(checkpoint.startedAt),
+      },
+      checkpoint,
+      fullSync: true,
+    })
+
+    expect(listDocuments.mock.calls[0]?.[2]).toBeUndefined()
+    expect(listDocuments.mock.calls[0]?.[3]).toMatchObject({ fullSync: true })
+    expect(pass.checkpoint).toMatchObject({
+      generationId: 'run',
+      forceRehydrate: false,
+      fullSync: true,
+    })
+  })
 
   it.each([
     { name: 'ordinary automatic retry', savedRehydrate: false, requestedRehydrate: false },

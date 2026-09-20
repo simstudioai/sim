@@ -17,7 +17,8 @@ export interface UserPresence {
   joinedAt: number
   lastActivity: number
   role: string
-  cursor?: { x: number; y: number }
+  /** The viewer's pointer position. `null` clears it (the pointer left the canvas). */
+  cursor?: { x: number; y: number } | null
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
   /** The viewer's current table cell selection, for table presence rooms. */
   cell?: TableCellSelection

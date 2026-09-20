@@ -11,6 +11,7 @@ import {
   user,
   workspaceFile,
   workspaceFiles,
+  workspaceFileVersion,
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -489,6 +490,23 @@ async function collectAccountStorageKeys(
         .limit(STORAGE_PAGE_SIZE),
     batches,
     (row) => (row.context as StorageContext | null) ?? 'workspace'
+  )
+
+  await collectPages(
+    (afterId) =>
+      db
+        .select({ id: workspaceFileVersion.id, key: workspaceFileVersion.key })
+        .from(workspaceFileVersion)
+        .where(
+          and(
+            inArray(workspaceFileVersion.workspaceId, workspaceIds),
+            gt(workspaceFileVersion.id, afterId)
+          )
+        )
+        .orderBy(workspaceFileVersion.id)
+        .limit(STORAGE_PAGE_SIZE),
+    batches,
+    () => 'workspace'
   )
 
   await collectPages(

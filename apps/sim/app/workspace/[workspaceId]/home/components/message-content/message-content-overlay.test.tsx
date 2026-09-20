@@ -31,7 +31,6 @@ vi.mock('./components', () => ({
     </div>
   ),
   ChatContent: () => null,
-  CircleStop: () => null,
   Options: () => null,
   PendingTagIndicator: () => null,
 }))

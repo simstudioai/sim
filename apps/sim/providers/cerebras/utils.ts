@@ -1,6 +1,7 @@
 import type { CompletionUsage } from 'openai/resources/completions'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { ProviderRequest } from '@/providers/types'
 
 interface CerebrasChunk {
   choices?: Array<{
@@ -21,9 +22,11 @@ interface CerebrasChunk {
  */
 export function createReadableStreamFromCerebrasStream(
   cerebrasStream: AsyncIterable<CerebrasChunk>,
-  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void,
+  request?: ProviderRequest
 ): ReadableStream<AgentStreamEvent> {
   return createOpenAICompatibleAgentEventStream(cerebrasStream as any, {
+    request,
     providerName: 'Cerebras',
     onComplete: onComplete
       ? (result) => onComplete(result.content, result.usage, result.thinking)

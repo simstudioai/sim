@@ -1,10 +1,3 @@
-/**
- * Icon-only controls in the resource header — add, preview mode, the per-resource
- * actions — fill the tab strip's control band, so they match the strip's own
- * new-tab button and the panel's collapse toggle and the header reads as one row.
- */
-export const RESOURCE_TAB_ICON_BUTTON_CLASS = 'size-[var(--tab-strip-band,30px)] shrink-0 p-0'
-
 export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 
 /** Shared geometry for the resource header and controls positioned over it. */

@@ -38,6 +38,7 @@ import { FileParserError, isFileParserError } from '@/lib/file-parsers/errors'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseMetadata, FileParseResult } from '@/lib/file-parsers/types'
 import { getMistralOcrPagesPerRequest } from '@/lib/internal/mistral/capacity'
+import { getOcrResponseDiagnostic } from '@/lib/internal/mistral/error-diagnostics'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { mistralParseInputSchema } from '@/lib/internal/mistral/input'
 import { executeMistralParse } from '@/lib/internal/mistral/operations'
@@ -651,6 +652,12 @@ async function makeOCRRequest(
     }
 
     if (!response.ok) {
+      logger.warn('OCR provider request failed', {
+        provider: 'azure-mistral',
+        operation: 'ocr',
+        status: response.status,
+        ...getOcrResponseDiagnostic(response.headers, responseText),
+      })
       if ([400, 415, 422].includes(response.status)) {
         throw new OcrRequestRejectedError(response.status)
       }

@@ -2,6 +2,10 @@ import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
@@ -158,6 +162,12 @@ export function buildResponsesInputFromMessages(
   const input: ResponsesInputItem[] = []
 
   for (const message of messages) {
+    const nativeMessage = getNativeConversationMessage(message, 'responses')
+    if (Array.isArray(nativeMessage)) {
+      input.push(...(nativeMessage as ResponsesInputItem[]))
+      continue
+    }
+
     if (message.role === 'tool' && message.tool_call_id) {
       input.push({
         type: 'function_call_output',
@@ -172,17 +182,9 @@ export function buildResponsesInputFromMessages(
         message.role === 'user'
           ? buildOpenAIMessageContent(message.content, message.files, providerId)
           : (message.content ?? '')
-      if (
-        (typeof content === 'string' && !content) ||
-        (Array.isArray(content) && content.length === 0)
-      ) {
-        continue
+      if (content.length > 0) {
+        input.push(retainConversationMessageSource(message, { role: message.role, content }))
       }
-
-      input.push({
-        role: message.role,
-        content,
-      })
     }
 
     if (message.tool_calls?.length) {
@@ -430,7 +432,12 @@ export function parseResponsesUsage(
  */
 export function createReadableStreamFromResponses(
   response: Response,
-  onComplete?: (content: string, usage?: ResponsesUsageTokens, thinking?: string) => void
+  onComplete?: (
+    content: string,
+    usage?: ResponsesUsageTokens,
+    thinking?: string,
+    response?: OpenAI.Responses.Response
+  ) => void | Promise<void>
 ): ReadableStream<AgentStreamEvent> {
   const streamAbortController = new AbortController()
 
@@ -441,6 +448,7 @@ export function createReadableStreamFromResponses(
         let fullThinking = ''
         let finalUsage: ResponsesUsageTokens | undefined
         let completed = false
+        let terminalResponse: OpenAI.Responses.Response | undefined
         let sawFunctionCall = false
 
         try {
@@ -466,6 +474,7 @@ export function createReadableStreamFromResponses(
               ) {
                 throw new Error(`OpenAI Responses stream incomplete: ${reason}`)
               }
+              terminalResponse = event.response
               finalUsage = parseResponsesUsage(event.response.usage)
               completed = true
               continue
@@ -492,6 +501,7 @@ export function createReadableStreamFromResponses(
               continue
             }
             if (event.type === 'response.completed') {
+              terminalResponse = event.response
               finalUsage = parseResponsesUsage(event.response.usage)
               completed = true
             }
@@ -501,7 +511,7 @@ export function createReadableStreamFromResponses(
             throw new Error('OpenAI Responses stream ended without a completed response')
           }
 
-          onComplete?.(fullContent, finalUsage, fullThinking || undefined)
+          await onComplete?.(fullContent, finalUsage, fullThinking || undefined, terminalResponse)
           controller.close()
         } catch (error) {
           if (!streamAbortController.signal.aborted) {

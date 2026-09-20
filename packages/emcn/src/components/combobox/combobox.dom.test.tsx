@@ -76,6 +76,22 @@ afterEach(() => {
 })
 
 describe('Combobox onOpenChange', () => {
+  it('preserves trigger styling when an editable input adds padding for a clear button', () => {
+    render(
+      <Combobox
+        options={OPTIONS}
+        editable
+        className='min-w-0'
+        inputProps={{ className: 'pr-[60px]' }}
+      />
+    )
+
+    const control = trigger()
+    expect(control.classList.contains('min-w-0')).toBe(true)
+    expect(control.classList.contains('pr-[60px]')).toBe(true)
+    expect(control.classList.contains('pr-10')).toBe(false)
+  })
+
   it.each([false, true])(
     'puts the field name and validation ARIA on the interactive control (editable=%s)',
     (editable) => {

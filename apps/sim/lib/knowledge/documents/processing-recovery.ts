@@ -18,8 +18,10 @@ import {
 } from '@/lib/knowledge/documents/processing-payload'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
-  documentRecoveryGenerationCondition,
-  filterAbandonedDocumentProcessing,
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
 } from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const logger = createLogger('KnowledgeDocumentRecovery')
@@ -73,7 +75,7 @@ async function recoverStoredDocumentBatch(
   limit: number
 ): Promise<number> {
   /** Discovery does not claim work. Ownership is rechecked under lifecycle locks below. */
-  const candidates = await db.transaction(async (tx) => {
+  const observedCandidates = await db.transaction(async (tx) => {
     signal.throwIfAborted()
     await tx.execute(
       sql`SELECT set_config('statement_timeout', '5000', true), set_config('lock_timeout', '1000', true)`
@@ -81,11 +83,7 @@ async function recoverStoredDocumentBatch(
     signal.throwIfAborted()
     return tx
       .select({
-        id: document.id,
-        processingQueueToken: document.processingQueueToken,
-        processingQueuedAt: document.processingQueuedAt,
-        processingStartedAt: document.processingStartedAt,
-        uploadedAt: document.uploadedAt,
+        ...processingSnapshotColumns,
         knowledgeBaseId: document.knowledgeBaseId,
         connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
@@ -110,16 +108,16 @@ async function recoverStoredDocumentBatch(
         )
       )
       .orderBy(asc(document.uploadedAt), asc(document.id))
-      .limit(limit)
+      .limit(Math.min(limit, DOCUMENT_LIVENESS_BATCH_SIZE))
   })
   signal.throwIfAborted()
+  for (const candidate of observedCandidates) attemptedConnectors.add(candidate.connectorId)
+  const candidates = await findAbandonedDocumentProcessing(observedCandidates, signal)
   if (candidates.length === 0) return 0
 
-  const abandoned = await filterAbandonedDocumentProcessing(candidates, signal)
-  for (const candidate of candidates) attemptedConnectors.add(candidate.connectorId)
   let recovered = 0
   const groups = new Map<string, typeof candidates>()
-  for (const candidate of abandoned) {
+  for (const candidate of candidates) {
     const group = groups.get(candidate.knowledgeBaseId) ?? []
     group.push(candidate)
     groups.set(candidate.knowledgeBaseId, group)
@@ -192,13 +190,13 @@ async function recoverStoredDocumentBatch(
                 document.id,
                 group.map((row) => row.id)
               ),
+              or(...group.map(documentProcessingSnapshotCondition)),
               eq(document.knowledgeBaseId, knowledgeBaseId),
               inArray(
                 document.connectorId,
                 connectors.map((row) => row.id)
               ),
-              documentProcessingRecoveryCondition(now),
-              or(...group.map(documentRecoveryGenerationCondition))
+              documentProcessingRecoveryCondition(now)
             )
           )
           .orderBy(asc(document.id))

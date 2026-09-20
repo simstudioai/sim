@@ -152,19 +152,19 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
-      if (item.id === 'connected-accounts') {
-        return Boolean(
-          hostContext.hostOrganizationId &&
-            isOrgAdminOrOwner &&
-            hostContext.features?.credentialGroups
-        )
-      }
       if (
         hostContext.hostOrganizationId &&
         ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) &&
         (organizationSettingsId || !hostContext.viewer.isHostOrganizationMember)
       ) {
         return false
+      }
+      if (item.id === 'connected-accounts') {
+        return Boolean(
+          hostContext.hostOrganizationId &&
+            isOrgAdminOrOwner &&
+            hostContext.features?.credentialGroups
+        )
       }
       if (item.id === 'organization') {
         return Boolean(

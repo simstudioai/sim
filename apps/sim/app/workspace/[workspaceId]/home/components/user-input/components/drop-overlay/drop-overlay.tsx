@@ -34,7 +34,7 @@ export const DropOverlay = memo(function DropOverlay({ imagesOnly = false }: Dro
   return (
     <div className='pointer-events-none absolute inset-[6px] z-10 flex items-center justify-center rounded-[14px] border-[1.5px] border-[var(--border-1)] border-dashed bg-[var(--white)] dark:bg-[var(--surface-4)]'>
       <div className='flex flex-col items-center gap-2'>
-        <span className='text-[13px] text-[var(--text-secondary)]'>
+        <span className='text-[var(--text-secondary)] text-small'>
           {imagesOnly ? 'Drop images' : 'Drop files'}
         </span>
         <div className='flex items-center gap-2 text-[var(--text-icon)]'>
