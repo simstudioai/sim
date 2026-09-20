@@ -1,7 +1,15 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Chip, ChipCombobox, ChipDropdown, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
+import {
+  Button,
+  Chip,
+  ChipCombobox,
+  ChipDropdown,
+  type ComboboxOption,
+  Label,
+  Tooltip,
+} from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
@@ -123,34 +131,39 @@ const FallbackRow = memo(function FallbackRow({
   const apiKeyValue = isWholeEnvVarReference(row.apiKey) ? row.apiKey : ''
 
   return (
-    <div
-      data-fallback-row-id={row.id}
-      className='space-y-3 rounded-lg border border-[var(--border)] p-3'
-    >
-      <div className='flex items-center justify-between'>
-        <span className='text-[var(--text-muted)] text-small'>{ordinalChoiceLabel(index)}</span>
-        <div className='flex items-center'>
+    <div data-fallback-row-id={row.id} className='min-w-0 rounded-sm border border-[var(--border)]'>
+      <div className='flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-1'>
+        <span className='text-[var(--text-secondary)] text-small'>{ordinalChoiceLabel(index)}</span>
+        <div className='flex shrink-0 items-center gap-1'>
           {canMove && (
             <>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Chip
-                    leftIcon={ChevronUp}
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
                     onClick={() => onMove(row.id, -1)}
                     disabled={readOnly || index === 0}
                     aria-label='Move up'
-                  />
+                  >
+                    <ChevronUp className='size-[14px]' />
+                  </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>Move up</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Chip
-                    leftIcon={ChevronDown}
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
                     onClick={() => onMove(row.id, 1)}
                     disabled={readOnly || isLast}
                     aria-label='Move down'
-                  />
+                  >
+                    <ChevronDown className='size-[14px]' />
+                  </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>Move down</Tooltip.Content>
               </Tooltip.Root>
@@ -158,19 +171,23 @@ const FallbackRow = memo(function FallbackRow({
           )}
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Chip
-                leftIcon={Trash}
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
                 onClick={() => onRemove(row.id)}
                 disabled={readOnly}
                 aria-label='Remove fallback model'
-              />
+              >
+                <Trash className='size-[14px]' />
+              </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>Remove</Tooltip.Content>
           </Tooltip.Root>
         </div>
       </div>
 
-      <div className='flex flex-col gap-3'>
+      <div className='flex flex-col gap-2.5 rounded-b-[4px] border-[var(--border)] border-t bg-[var(--surface-2)] p-2'>
         <ChipCombobox
           options={modelOptions}
           value={row.model}
@@ -184,8 +201,8 @@ const FallbackRow = memo(function FallbackRow({
           emptyMessage='No models available'
         />
         {needsApiKey && (
-          <div className='flex flex-col gap-1.5'>
-            <Label>API key</Label>
+          <div className='flex flex-col gap-2.5'>
+            <Label className='pl-0.5'>API key</Label>
             <ChipCombobox
               options={envVarOptions}
               value={apiKeyValue}
@@ -201,8 +218,8 @@ const FallbackRow = memo(function FallbackRow({
           </div>
         )}
         {tuningFields.map(({ knob, options }) => (
-          <div key={knob} className='flex flex-col gap-1.5'>
-            <Label>{FALLBACK_TUNING_LABELS[knob]}</Label>
+          <div key={knob} className='flex flex-col gap-2.5'>
+            <Label className='pl-0.5'>{FALLBACK_TUNING_LABELS[knob]}</Label>
             <ChipDropdown
               options={options}
               value={row[knob] ?? options[0]?.value ?? ''}
@@ -387,7 +404,7 @@ export function ModelFallbackList({
   )
 
   return (
-    <div className='space-y-2'>
+    <div className='flex w-full min-w-0 flex-col gap-2.5'>
       {rows.map((row, index) => (
         <FallbackRow
           key={row.id}
@@ -410,9 +427,8 @@ export function ModelFallbackList({
       ))}
       {!readOnly && (
         <Chip
-          variant='outline'
           leftIcon={Plus}
-          fullWidth
+          className='self-start'
           onClick={handleAdd}
           disabled={rows.length >= MAX_FALLBACK_MODELS}
         >

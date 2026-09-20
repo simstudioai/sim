@@ -30,6 +30,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
   Chip: ({
     children,
     disabled,
