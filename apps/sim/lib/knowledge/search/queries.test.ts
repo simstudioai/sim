@@ -1334,6 +1334,37 @@ describe('permitted-document planner', () => {
     expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(true)
   })
 
+  it('keeps what a short broad walk found when searching its sources runs out of budget', async () => {
+    const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    traversedRows = [{ id: 'short-hit', distance: 0.4 }]
+    rerankRows = [hit('short-hit', 'member-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    /** The per-source search is cancelled by the server's statement timeout; the leg has time left. */
+    const budget = new SearchBudget('vector', performance.now() + 10_000)
+    const base = dbChainMockFns.execute.getMockImplementation()!
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('WITH readable_documents')) {
+        throw Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      }
+      return base(query)
+    })
+    const rows = await handleVectorOnlySearch({
+      ...params,
+      budget,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: ['m-1'], observed: [] },
+        memberSources: ['member-src'],
+      },
+    })
+    expect(rows.map((row) => row.id)).toEqual(['short-hit'])
+  })
+
   it('walks an indexed source a bounded caller is a member of instead of ranking it exactly', async () => {
     const eligibility = { workspace: [], admin: ['small-src'], members: ['member-src'] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]

@@ -1545,17 +1545,29 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             plan
           ) {
             annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
-            selected = await selectSourceVectorCandidates({
-              access: params.access,
-              knowledgeBaseIds: params.knowledgeBaseIds,
-              plan,
-              documentConditions: candidateDocumentVisibility,
-              tagCondition: candidateTagCondition,
-              documentTagCondition,
-              candidateDistance,
-              candidateLimit,
-              budget: params.budget,
-            })
+            /**
+             * What the walk did find is kept: the per-source search adds to it, and if that search
+             * runs out of the leg's budget the walk's candidates still stand rather than nothing.
+             */
+            const walked = selected
+            try {
+              const recovered = await selectSourceVectorCandidates({
+                access: params.access,
+                knowledgeBaseIds: params.knowledgeBaseIds,
+                plan,
+                documentConditions: candidateDocumentVisibility,
+                tagCondition: candidateTagCondition,
+                documentTagCondition,
+                candidateDistance,
+                candidateLimit,
+                budget: params.budget,
+              })
+              const seen = new Set(walked.map(({ id }) => id))
+              selected = [...walked, ...recovered.filter(({ id }) => !seen.has(id))]
+            } catch (error) {
+              if (!params.budget?.isTimeout(error)) throw error
+              selected = walked
+            }
           }
           if (selected.length < candidateLimit && params.permitted?.kind !== 'unbounded') {
             const probe = await probeVisibleDocuments(
