@@ -1666,6 +1666,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
              * budget the first walk's candidates stand.
              */
             const walked = selected
+            /**
+             * The wider walk gets half of what the leg has left, so the rerank and hydration of
+             * whatever is found — the first walk's candidates at least — still have the rest.
+             */
+            const wideBudget = params.budget?.capped(Math.floor(params.budget.remaining() / 2))
             try {
               const wider = await withVectorScanSettings(
                 (executor) =>
@@ -1680,14 +1685,16 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             )}
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
           `),
-                params.budget,
+                wideBudget,
                 'vector.candidate_search',
                 WIDE_WALK_SCAN_TUPLES
               )
               const seen = new Set(walked.map(({ id }) => id))
               selected = [...walked, ...wider.filter(({ id }) => !seen.has(id))]
             } catch (error) {
-              if (!params.budget?.isTimeout(error)) throw error
+              if (!wideBudget?.isTimeout(error)) throw error
+              /** Only the wider walk's share was spent; the leg's own deadline still governs. */
+              params.budget?.remaining()
               selected = walked
             }
           }

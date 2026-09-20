@@ -1372,6 +1372,15 @@ describe('permitted-document planner', () => {
       },
     })
     expect(rows.map((row) => row.id)).toEqual(['short-hit'])
+    /** The wider walk ran under a share of the leg's budget, not all of it. */
+    const timeouts = statements()
+      .filter((query) => query.sql.includes("'statement_timeout'"))
+      .map((query) =>
+        Number(query.params.find((param) => typeof param === 'string' && /^\d+$/.test(param)))
+      )
+      .filter((value) => Number.isFinite(value))
+    expect(Math.min(...timeouts)).toBeLessThanOrEqual(5000)
+    expect(Math.max(...timeouts)).toBeGreaterThan(5000)
   })
 
   it('walks an indexed source a bounded caller is a member of instead of ranking it exactly', async () => {
