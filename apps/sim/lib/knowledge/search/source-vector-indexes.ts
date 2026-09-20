@@ -8,11 +8,12 @@ import { LRUCache } from 'lru-cache'
 const logger = createLogger('SourceVectorIndexes')
 
 /**
- * Documents a source needs before it earns its own vector index. Below it, the caller's documents
- * in that source are few enough to rank exactly, which is faster than a graph walk and exact by
- * construction.
+ * Documents a source needs before it earns its own vector index. A walk of a source's own index
+ * costs a few milliseconds whatever its size once readability is decided on the row, where ranking
+ * a source exactly grows with it; below this a source is small enough that the difference does not
+ * matter, and its index would be maintenance without a return.
  */
-export const SOURCE_INDEX_MIN_DOCUMENTS = 15_000
+export const SOURCE_INDEX_MIN_DOCUMENTS = 1_000
 
 /**
  * An index's name and predicate are spelled into DDL, which takes no parameters, so a connector id

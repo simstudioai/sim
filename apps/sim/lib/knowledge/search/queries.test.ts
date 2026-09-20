@@ -1573,6 +1573,23 @@ describe('permitted-document planner', () => {
       expect(statement).toContain('ranked_tin_chunks.acl')
     })
 
+    it('takes one wide window for a resolved scope and leaves a short page short', async () => {
+      tinPages = [{ ranked: 50_000, candidates: [hit('a', 'src-a')] }]
+      queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+      const results = await keyword({
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results.map((row) => row.id)).toEqual(['a'])
+      /** One statement, at the widest window; nothing narrower first, and no ranking of every match after. */
+      expect(tinStatements()).toHaveLength(1)
+      expect(JSON.stringify(tinStatements()[0])).toContain('50000')
+      expect(ginStatements()).toHaveLength(0)
+    })
+
     it('widens the ranked window while too few ranked chunks are readable', async () => {
       tinPages = [
         { ranked: 2000, candidates: [] },

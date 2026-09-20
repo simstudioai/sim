@@ -1814,7 +1814,13 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       offset: number,
       excludedSources: readonly string[]
     ): Promise<SearchReadCandidatePage | null> => {
-      for (const window of TIN_KEYWORD_WINDOWS) {
+      /**
+       * A resolved scope decides readability on the ranked row, so one wide window costs about
+       * what Tin's own ranking of it costs, and there is no cheaper narrow one worth trying first;
+       * what it cannot fill is left short rather than handed to a ranking over every match.
+       */
+      const windows = accessPlan ? [TIN_KEYWORD_WINDOWS.at(-1)!] : TIN_KEYWORD_WINDOWS
+      for (const window of windows) {
         if (window < offset + limit) continue
         const [page] = await runSearchQuery(params.budget, 'keyword.tin', (executor) =>
           executor.execute<{ ranked: number; candidates: SearchReadCandidate[] }>(sql`
@@ -1864,7 +1870,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           `)
         )
         annotateSearchDiagnostics({ keywordTinWindow: window })
-        if (page.candidates.length === limit || page.ranked < window) {
+        if (page.candidates.length === limit || page.ranked < window || accessPlan) {
           return { candidates: page.candidates, nextOffset: offset + page.candidates.length }
         }
       }
