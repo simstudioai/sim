@@ -51,8 +51,10 @@ import {
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
+  WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
   type WorkspaceKnowledgeSearchBody,
   type WorkspaceKnowledgeSearchData,
+  type WorkspaceKnowledgeSearchLimit,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import { useSession } from '@/lib/auth/auth-client'
@@ -89,8 +91,6 @@ export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
 export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
-/** Chunks one search asks for: several pages of documents once collapsed to one card each. */
-export const WORKSPACE_KNOWLEDGE_SEARCH_RESULT_LIMIT = 50
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
@@ -1209,7 +1209,8 @@ async function searchWorkspaceKnowledge(
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
-  filters?: WorkspaceSearchFilters
+  filters?: WorkspaceSearchFilters,
+  limit: WorkspaceKnowledgeSearchLimit = WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
 ) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -1224,14 +1225,15 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, userId),
+    /** The limit is the key's last part, so asking for more never evicts the first paint. */
+    queryKey: [...knowledgeKeys.search(scopeKey, trimmed, filters, userId), limit],
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
           ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
-          topK: WORKSPACE_KNOWLEDGE_SEARCH_RESULT_LIMIT,
+          topK: limit,
         },
         signal
       ),

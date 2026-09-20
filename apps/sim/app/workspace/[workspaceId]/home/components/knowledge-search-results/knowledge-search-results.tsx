@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { Chip, ChipDatePicker, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import type {
-  WorkspaceKnowledgeSearchResult,
-  WorkspaceSearchFilters,
+import {
+  WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
+  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceSearchFilters,
 } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/auth-client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
@@ -27,8 +28,6 @@ import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/conn
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-/** Cards shown before the reader asks for more; the search itself returns several pages' worth. */
-const RESULTS_PAGE_SIZE = 10
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
 
@@ -129,7 +128,8 @@ interface SearchResultsProps {
 function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
-  const [shown, setShown] = useState(RESULTS_PAGE_SIZE)
+  /** More results are a second, wider search: the first paint stays as quick as it is. */
+  const [expanded, setExpanded] = useState(false)
   const {
     data: index,
     isPending: basesPending,
@@ -158,7 +158,17 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     isPlaceholderData,
     isError: searchFailed,
     refetch: refetchSearch,
-  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
+  } = useWorkspaceKnowledgeSearch(
+    scope,
+    query,
+    searchFilters,
+    expanded
+      ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
+      : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+  )
+  /** A full first page may collapse to few cards, yet more documents may still match. */
+  const mayHaveMore =
+    !expanded && (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
   const { data: overview } = useSearchSourceOverview(scope)
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)
@@ -292,7 +302,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           className={cn('flex flex-col', isPlaceholderData && 'opacity-60')}
           onKeyDown={handleResultsKeyDown}
         >
-          {documents.slice(0, shown).map((result) => {
+          {documents.map((result) => {
             const source = toSource(result, query, scope)
             return (
               <SourceCard
@@ -311,9 +321,9 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               />
             )
           })}
-          {documents.length > shown && (
+          {mayHaveMore && (
             <div className='flex px-2 py-2'>
-              <Chip variant='border' onClick={() => setShown((count) => count + RESULTS_PAGE_SIZE)}>
+              <Chip variant='border' disabled={isFetching} onClick={() => setExpanded(true)}>
                 Show more
               </Chip>
             </div>

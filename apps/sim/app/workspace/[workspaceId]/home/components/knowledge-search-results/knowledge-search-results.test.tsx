@@ -167,12 +167,12 @@ describe('result paging and the custom window', () => {
     similarity: 0.5,
   })
 
-  it('shows ten documents at a time and reveals more on request', async () => {
+  it('offers more only after a full first page, and asks for the wider search on request', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
-    mocks.search.mockReturnValue({
+    const page = (length: number) => ({
       data: {
         query: 'launch',
-        results: Array.from({ length: 25 }, (_, n) => result(n)),
+        results: Array.from({ length }, (_, n) => result(n)),
         retrieval: { status: 'complete', timedOutLegs: [] },
       },
       isPending: false,
@@ -181,20 +181,31 @@ describe('result paging and the custom window', () => {
       isError: false,
       refetch: mocks.retry,
     })
+    mocks.search.mockReturnValue(page(20))
     await render()
-    expect(container.textContent).toContain('Document 9')
-    expect(container.textContent).not.toContain('Document 10')
-    const more = [...container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Show more'
-    )!
-    expect(more).toBeDefined()
-    await act(async () => more.click())
-    expect(container.textContent).toContain('Document 19')
-    expect(container.textContent).not.toContain('Document 20')
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(20)
+    const more = () =>
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Show more')
+    expect(more()).toBeDefined()
+    await act(async () => more()!.click())
+    /** The wider search is its own request; the first paint was never widened. */
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(50)
+    expect(more()).toBeUndefined()
+    mocks.search.mockReturnValue(page(7))
+    await render()
+    expect(more()).toBeUndefined()
   })
 
   it('searches a custom window as an inclusive range of days', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
     await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
     const filters = mocks.search.mock.calls.at(-1)![2]
     expect(filters.modifiedAfter).toBe('2026-09-01T00:00:00.000Z')

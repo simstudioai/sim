@@ -194,6 +194,11 @@ export const workspaceSearchFiltersSchema = z
   })
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
+/** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
+export const WORKSPACE_KNOWLEDGE_SEARCH_LIMITS = { initial: 20, expanded: 50 } as const
+export type WorkspaceKnowledgeSearchLimit =
+  (typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS)[keyof typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS]
+
 export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({
   filters: workspaceSearchFiltersSchema.optional(),
   query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
