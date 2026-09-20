@@ -139,16 +139,27 @@ export async function indexProjectionAcl(sql: Sql): Promise<void> {
   const [{ timeout }] = await sql`SELECT current_setting('lock_timeout') AS timeout`
   await sql.unsafe('SET lock_timeout = 0')
   try {
-    for (const projection of PROJECTIONS) {
-      await sql.unsafe(
-        `CREATE INDEX CONCURRENTLY IF NOT EXISTS ${projection}_acl_gin_idx
-          ON ${projection} USING gin (acl) WHERE enabled`
-      )
+    const builds: Array<[name: string, definition: string]> = [
+      ...PROJECTIONS.map((projection): [string, string] => [
+        `${projection}_acl_gin_idx`,
+        `ON ${projection} USING gin (acl) WHERE enabled`,
+      ]),
+      ['embedding_search_source_idx', 'ON embedding_search (connector_id) WHERE enabled'],
+    ]
+    for (const [name, definition] of builds) {
+      /**
+       * An interrupted concurrent build leaves an invalid index behind, and `IF NOT EXISTS` would
+       * then keep it; only a leftover that cannot be used is dropped before building again.
+       */
+      const [leftover] = await sql<Array<{ invalid: boolean }>>`
+        SELECT NOT i.indisvalid OR NOT i.indisready AS invalid
+        FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid
+        WHERE c.relname = ${name}`
+      if (leftover?.invalid) await sql.unsafe(`DROP INDEX CONCURRENTLY IF EXISTS ${name}`)
+      await sql.unsafe(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name} ${definition}`)
     }
-    await sql.unsafe(
-      `CREATE INDEX CONCURRENTLY IF NOT EXISTS embedding_search_source_idx
-        ON embedding_search (connector_id) WHERE enabled`
-    )
+    /** The new columns carry no statistics until analyzed; the reach and source predicates plan on them. */
+    for (const projection of PROJECTIONS) await sql.unsafe(`ANALYZE ${projection}`)
   } finally {
     await sql`SELECT set_config('lock_timeout', ${timeout}, false)`
   }

@@ -34,6 +34,8 @@ describe('source vector indexes', () => {
         reserve: async () => ({
           unsafe: async (text: string) => {
             statements.push(text)
+            /** The session lock is granted; no invalid leftover exists. */
+            if (text.includes('pg_try_advisory_lock')) return [{ acquired: true }]
             return []
           },
           release: () => undefined,
@@ -53,6 +55,27 @@ describe('source vector indexes', () => {
     const created = statements.find((text) => text.includes('CREATE INDEX CONCURRENTLY'))
     expect(created).toContain(`connector_id = '${CONNECTOR}'`)
     expect(created).toContain('vector_512 halfvec_cosine_ops')
+  })
+
+  it('leaves the build to another sync that already holds the source', async () => {
+    dbChainMockFns.select.mockReturnValue({
+      from: () => ({ where: async () => [{ documents: SOURCE_INDEX_MIN_DOCUMENTS }] }),
+    } as never)
+    Object.assign(db, {
+      $client: {
+        reserve: async () => ({
+          unsafe: async (text: string) => {
+            statements.push(text)
+            if (text.includes('pg_try_advisory_lock')) return [{ acquired: false }]
+            return []
+          },
+          release: () => undefined,
+        }),
+      },
+    })
+    expect(await ensureSourceVectorIndex(CONNECTOR)).toBe(false)
+    expect(statements.some((text) => text.includes('CREATE INDEX'))).toBe(false)
+    expect(statements.some((text) => text.includes('DROP INDEX'))).toBe(false)
   })
 
   it('leaves a source below the threshold to exact ranking', async () => {

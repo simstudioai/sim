@@ -555,13 +555,37 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       liveProofRequired: [],
     }
     /** What `resolveSearchAccessPlan` resolves for this caller: their member identity, confirmed. */
-    const observers = { confirmed: ['m-alice'], observed: [] }
+    const observers = { confirmed: [{ id: 'm-alice', connectorId: 'members' }], observed: [] }
     const perRow = knowledgeMetadataCandidateAccessCondition(scope)
     const plan = { connectors: eligibility, observers, memberSources: ['members'] }
     const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, plan)
     for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
       expect([id, await admits(perQuery, id)]).toEqual([id, await admits(perRow, id)])
     }
+    /**
+     * A document that changed hands keeps its old observations. The caller's member observed it
+     * while its old connector held it; under its new connector, of which the caller is no member,
+     * neither predicate may carry it on that observation.
+     */
+    await connection.unsafe(
+      "INSERT INTO knowledge_connector(id, access_mode) VALUES ('members-elsewhere', 'members')"
+    )
+    await connection.unsafe(
+      `INSERT INTO document(id, connector_id, acl, acl_verified_at)
+       VALUES ('moved-doc', 'members-elsewhere', ARRAY[$1], statement_timestamp())`,
+      [alice]
+    )
+    await connection.unsafe(
+      "INSERT INTO knowledge_document_observation VALUES ('moved-doc', 'm-alice', statement_timestamp())"
+    )
+    const movedPlan = {
+      ...plan,
+      connectors: { ...eligibility, members: [...eligibility.members, 'members-elsewhere'] },
+    }
+    expect(await admits(perRow, 'moved-doc')).toBe(false)
+    expect(
+      await admits(knowledgeCandidateAccessConditionForConnectors(scope, movedPlan), 'moved-doc')
+    ).toBe(false)
     /**
      * The projection predicate decides on the ranking row alone, from the source and ACL mirrored
      * there. It must never refuse a document the per-row predicate admits: whatever it admits beyond

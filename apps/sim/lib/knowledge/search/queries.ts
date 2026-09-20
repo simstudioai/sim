@@ -1414,8 +1414,18 @@ async function selectSourceVectorCandidates(input: {
       return walk(slicedScope)()
     },
   ]
-  const scored = await mapWithConcurrency([...walks, ...slice], SOURCE_RANKING_CONCURRENCY, (run) =>
-    run()
+  /** A source whose search runs out of budget marks the leg partial; the others' results stand. */
+  const scored = await mapWithConcurrency(
+    [...walks, ...slice],
+    SOURCE_RANKING_CONCURRENCY,
+    async (run) => {
+      try {
+        return await run()
+      } catch (error) {
+        if (!input.budget?.isTimeout(error)) throw error
+        return []
+      }
+    }
   )
   const ranked: Array<{ id: string; distance: number }> = scored.flat()
   return ranked
@@ -1640,7 +1650,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * their own instead, so the misjudgement costs one walk rather than their neighbours.
            */
           if (
-            selected.length < params.topK &&
+            selected.length < MIN_VECTOR_RERANK_CANDIDATES &&
             params.permitted?.kind === 'unbounded' &&
             params.permitted.broad &&
             plan
@@ -1648,8 +1658,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
             /**
              * The query sits in a neighbourhood the caller mostly cannot read, and the walk found
-             * fewer candidates than there are results to return — a pool short of its limit but past
-             * that need is reranked as it is. A broad reader's own sources are already in this walk,
+             * fewer candidates than the smallest pool worth reranking — a pool past that but short
+             * of its limit is reranked as it is. A broad reader's own sources are already in this walk,
              * so searching them again finds nothing new, and enumerating their readable chunks is a
              * bitmap over most of the index; the same walk with a wider scan is what reaches past
              * that neighbourhood. What it found is kept, and if the wider walk runs out of the leg's

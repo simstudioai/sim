@@ -215,9 +215,15 @@ export function liveSourceAccessCondition(scope: KnowledgeAccessScope): SQL {
  * so every observation they hold stands; `observed` members are trusted only where the observation
  * itself is recent.
  */
+/** One of the caller's member identities and the connector it belongs to. */
+export interface KnowledgeMemberObserver {
+  id: string
+  connectorId: string
+}
+
 export interface KnowledgeMemberObservers {
-  confirmed: readonly string[]
-  observed: readonly string[]
+  confirmed: readonly KnowledgeMemberObserver[]
+  observed: readonly KnowledgeMemberObserver[]
 }
 
 /** What a search resolves once about its sources and the caller's standing in them. */
@@ -344,8 +350,15 @@ export function projectionCandidateAccessCondition(
  */
 function resolvedObservationCondition(observers: KnowledgeMemberObservers, cutoff: SQL): SQL {
   if (observers.confirmed.length === 0 && observers.observed.length === 0) return sql`false`
-  const byMember = (ids: readonly string[]): SQL =>
-    sql`${knowledgeDocumentObservation.memberId} = ANY(${textArrayLiteral([...ids])})`
+  /**
+   * An observation vouches for a document only from a member of the document's own connector: a
+   * document that changed hands keeps its old observations, which must not carry it.
+   */
+  const byMember = (members: readonly KnowledgeMemberObserver[]): SQL =>
+    sql`(${knowledgeDocumentObservation.memberId}, ${document.connectorId}) IN (${sql.join(
+      members.map((member) => sql`(${member.id}, ${member.connectorId})`),
+      sql`, `
+    )})`
   const current =
     observers.confirmed.length === 0
       ? sql`${byMember(observers.observed)} AND ${knowledgeDocumentObservation.lastSeenAt} > ${cutoff}`

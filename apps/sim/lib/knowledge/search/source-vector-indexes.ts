@@ -74,17 +74,19 @@ async function projectionColumn(connectorId: string): Promise<string | null> {
 
 /**
  * Drops an index only while it is unusable — a failed build leaves one behind, and the next build
- * must clear it. Overlapping syncs make this the difference between clearing a leftover and
- * dropping the index the other one just built: only the caller whose build failed removes
- * anything, so a valid index always survives.
+ * must clear it — on the session that goes on to build, so the check and the drop cannot straddle
+ * another session's build.
  */
-async function dropInvalidIndex(name: string): Promise<void> {
-  const [row] = await db.execute<{ invalid: boolean }>(sql`
-    SELECT NOT i.indisvalid OR NOT i.indisready AS invalid
-    FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid
-    WHERE c.relname = ${name}`)
-  if (row?.invalid) await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`))
+async function dropInvalidIndex(session: ReservedSession, name: string): Promise<void> {
+  const [row] = await session.unsafe<Array<{ invalid: boolean }>>(
+    `SELECT NOT i.indisvalid OR NOT i.indisready AS invalid
+     FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname = $1`,
+    [name]
+  )
+  if (row?.invalid) await session.unsafe(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`)
 }
+
+type ReservedSession = Awaited<ReturnType<typeof db.$client.reserve>>
 
 /**
  * Gives a source its own vector index once it holds enough documents to need one, called after a
@@ -110,13 +112,21 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
   const name = indexName(connectorId)
   const startedAt = Date.now()
   /**
-   * The memory setting and the build must share a session, and `CONCURRENTLY` forbids a
-   * transaction, so one connection is reserved from the pool for the whole build and its setting
-   * is reset before the connection goes back.
+   * The memory setting, the lock and the build must share a session, and `CONCURRENTLY` forbids a
+   * transaction, so one connection is reserved from the pool for the whole build. The session lock
+   * makes one build per source at a time: a sync that finds another build under way leaves it to
+   * that build, since the source is ranked exactly until an index exists either way.
    */
   const session = await db.$client.reserve()
+  let locked = false
   try {
-    await dropInvalidIndex(name)
+    const [lock] = await session.unsafe<Array<{ acquired: boolean }>>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [`source_vector_index:${connectorId}`]
+    )
+    locked = Boolean(lock?.acquired)
+    if (!locked) return false
+    await dropInvalidIndex(session, name)
     await session.unsafe("SET maintenance_work_mem = '2GB'")
     await session.unsafe(`CREATE INDEX CONCURRENTLY "${name}" ON embedding_search
         USING hnsw (${column} halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
@@ -130,10 +140,14 @@ export async function ensureSourceVectorIndex(connectorId: string): Promise<bool
     return true
   } catch (error) {
     logger.error('Source vector index build failed', { connectorId, error: getErrorMessage(error) })
-    await dropInvalidIndex(name)
+    await dropInvalidIndex(session, name).catch(() => undefined)
     return false
   } finally {
     await session.unsafe('RESET maintenance_work_mem').catch(() => undefined)
+    if (locked)
+      await session
+        .unsafe('SELECT pg_advisory_unlock(hashtext($1))', [`source_vector_index:${connectorId}`])
+        .catch(() => undefined)
     session.release()
   }
 }

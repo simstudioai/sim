@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import {
   type KnowledgeConnectorEligibility,
+  type KnowledgeMemberObserver,
   type KnowledgeMemberObservers,
   type SearchAccessPlan,
   textArrayLiteral,
@@ -93,12 +94,13 @@ async function resolveMemberObservers(
       )
     )
   const cutoff = Date.now() - SOURCE_ACL_MAX_AGE_MS
-  const confirmed: string[] = []
-  const observed: string[] = []
+  const confirmed: KnowledgeMemberObserver[] = []
+  const observed: KnowledgeMemberObserver[] = []
   const memberSources = new Set<string>()
   for (const row of rows) {
-    if (row.syncedThrough !== null && row.syncedThrough.getTime() > cutoff) confirmed.push(row.id)
-    else observed.push(row.id)
+    const member = { id: row.id, connectorId: row.connectorId }
+    if (row.syncedThrough !== null && row.syncedThrough.getTime() > cutoff) confirmed.push(member)
+    else observed.push(member)
     memberSources.add(row.connectorId)
   }
   return { observers: { confirmed, observed }, memberSources: [...memberSources] }

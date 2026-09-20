@@ -1305,7 +1305,7 @@ describe('permitted-document planner', () => {
       permitted: { kind: 'unbounded', broad: true },
       accessPlan: {
         connectors: eligibility,
-        observers: { confirmed: ['m-1'], observed: [] },
+        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
         memberSources: ['member-src'],
       },
     })
@@ -1329,7 +1329,7 @@ describe('permitted-document planner', () => {
       permitted: { kind: 'unbounded', broad: true },
       accessPlan: {
         connectors: eligibility,
-        observers: { confirmed: ['m-1'], observed: [] },
+        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
         memberSources: ['member-src'],
       },
     })
@@ -1367,7 +1367,7 @@ describe('permitted-document planner', () => {
       permitted: { kind: 'unbounded', broad: true },
       accessPlan: {
         connectors: eligibility,
-        observers: { confirmed: ['m-1'], observed: [] },
+        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
         memberSources: ['member-src'],
       },
     })
@@ -1390,7 +1390,7 @@ describe('permitted-document planner', () => {
       ),
       accessPlan: {
         connectors: eligibility,
-        observers: { confirmed: ['m-1'], observed: [] },
+        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
         memberSources: ['member-src'],
       },
     })
@@ -1408,7 +1408,7 @@ describe('permitted-document planner', () => {
     }
     /** Membership decides the walk; the sliced source contributes enumerated documents. */
     const memberSources = ['member-src']
-    const observers = { confirmed: ['m-1'], observed: [] }
+    const observers = { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
     sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
     traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
@@ -1469,7 +1469,7 @@ describe('permitted-document planner', () => {
       permitted: { kind: 'unbounded', broad: false },
       accessPlan: {
         connectors: eligibility,
-        observers: { confirmed: ['m-1'], observed: [] },
+        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
         memberSources: ['member-src'],
       },
     })
