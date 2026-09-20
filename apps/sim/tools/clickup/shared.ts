@@ -1,3 +1,4 @@
+import { toBooleanOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type {
   ClickUpAttachment,
@@ -59,10 +60,6 @@ function getOptionalString(value: unknown): string | null {
   }
 
   return null
-}
-
-function getOptionalBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function getOptionalNumber(value: unknown): number | null {
@@ -377,7 +374,7 @@ export function mapClickUpComment(value: unknown): ClickUpComment {
   return {
     id: getRequiredString(value.id, 'id'),
     commentText: getOptionalString(value.comment_text),
-    resolved: getOptionalBoolean(value.resolved),
+    resolved: toBooleanOrNull(value.resolved),
     user: mapClickUpUser(value.user),
     assignee: mapClickUpUser(value.assignee),
     date: getOptionalString(value.date),
@@ -408,8 +405,8 @@ export function mapClickUpSpace(value: unknown): ClickUpSpace {
   return {
     id: getRequiredString(value.id, 'id'),
     name: getOptionalString(value.name),
-    private: getOptionalBoolean(value.private),
-    archived: getOptionalBoolean(value.archived),
+    private: toBooleanOrNull(value.private),
+    archived: toBooleanOrNull(value.archived),
     statuses: rawStatuses
       .map((status) => mapClickUpStatus(status))
       .filter((status): status is ClickUpStatus => status !== null),
@@ -424,7 +421,7 @@ export function mapClickUpFolder(value: unknown): ClickUpFolder {
   return {
     id: getRequiredString(value.id, 'id'),
     name: getOptionalString(value.name),
-    hidden: getOptionalBoolean(value.hidden),
+    hidden: toBooleanOrNull(value.hidden),
     taskCount: getOptionalString(value.task_count),
     space: mapIdName(value.space),
   }
@@ -439,7 +436,7 @@ export function mapClickUpList(value: unknown): ClickUpList {
     id: getRequiredString(value.id, 'id'),
     name: getOptionalString(value.name),
     taskCount: getOptionalString(value.task_count),
-    archived: getOptionalBoolean(value.archived),
+    archived: toBooleanOrNull(value.archived),
   }
 }
 
@@ -493,7 +490,7 @@ export function mapClickUpCustomField(value: unknown): ClickUpCustomField {
     type: getOptionalString(value.type),
     typeConfig: toRecordOrNull(value.type_config),
     dateCreated: getOptionalString(value.date_created),
-    hideFromGuests: getOptionalBoolean(value.hide_from_guests),
+    hideFromGuests: toBooleanOrNull(value.hide_from_guests),
   }
 }
 
@@ -507,7 +504,7 @@ function mapClickUpChecklistItem(value: unknown): ClickUpChecklistItem {
     name: getOptionalString(value.name),
     orderIndex: getOptionalNumber(value.orderindex),
     assignee: mapClickUpUser(value.assignee),
-    resolved: getOptionalBoolean(value.resolved),
+    resolved: toBooleanOrNull(value.resolved),
     parent: getOptionalString(value.parent),
     dateCreated: getOptionalString(value.date_created),
     children: Array.isArray(value.children)
@@ -549,7 +546,7 @@ export function mapClickUpTimeEntry(value: unknown): ClickUpTimeEntry {
     task: mapIdName(value.task),
     workspaceId: getOptionalString(value.wid),
     user: mapClickUpUser(value.user),
-    billable: getOptionalBoolean(value.billable),
+    billable: toBooleanOrNull(value.billable),
     start: getOptionalString(value.start),
     end: getOptionalString(value.end),
     duration: getOptionalNumber(value.duration),

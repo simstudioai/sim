@@ -22,6 +22,10 @@
       "types": "./src/client-info.ts",
       "default": "./src/client-info.ts"
     },
+    "./coerce": {
+      "types": "./src/coerce.ts",
+      "default": "./src/coerce.ts"
+    },
     "./color": {
       "types": "./src/color.ts",
       "default": "./src/color.ts"

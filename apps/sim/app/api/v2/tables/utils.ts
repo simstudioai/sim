@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   V2ApiTable,
   V2EnrichmentProviderOutcome,
@@ -238,11 +239,6 @@ function storedNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-/** Reads a stored field that the published shape declares as a nullable string. */
-function storedNullableString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Reads a stored timestamp, keeping only a value the published `date-time`
  * format will accept. A Postgres literal or a half-written blob becomes `null`
@@ -257,13 +253,13 @@ function storedTimestamp(value: unknown): string | null {
 function toApiEnrichmentProvider(value: unknown): V2EnrichmentProviderOutcome {
   const provider = (value ?? {}) as Record<string, unknown>
   return {
-    id: storedNullableString(provider.id) ?? '',
-    label: storedNullableString(provider.label) ?? '',
-    toolId: storedNullableString(provider.toolId) ?? '',
-    status: storedNullableString(provider.status) ?? 'not_run',
+    id: toStringOrNull(provider.id) ?? '',
+    label: toStringOrNull(provider.label) ?? '',
+    toolId: toStringOrNull(provider.toolId) ?? '',
+    status: toStringOrNull(provider.status) ?? 'not_run',
     cost: storedNumber(provider.cost),
     durationMs: storedNumber(provider.durationMs),
-    error: storedNullableString(provider.error),
+    error: toStringOrNull(provider.error),
   }
 }
 
@@ -287,7 +283,7 @@ export function toApiEnrichmentDetail(
     completedAt: storedTimestamp(stored.completedAt),
     durationMs: storedNumber(stored.durationMs),
     totalCost: storedNumber(stored.totalCost),
-    matchedProvider: storedNullableString(stored.matchedProvider),
+    matchedProvider: toStringOrNull(stored.matchedProvider),
     aborted: stored.aborted === true,
     providers: Array.isArray(stored.providers) ? stored.providers.map(toApiEnrichmentProvider) : [],
   }

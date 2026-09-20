@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import {
   BITBUCKET_PULL_REQUEST_OUTPUT_PROPERTIES,
@@ -22,10 +23,6 @@ interface BitbucketMergeTaskOutput {
   taskStatus: 'PENDING' | 'SUCCESS'
   selfUrl: string | null
   mergeResult: BitbucketPullRequest | null
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
 }
 
 export const bitbucketGetMergeTaskStatusTool: ToolConfig<
@@ -57,9 +54,9 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
     const data = await bitbucketJson(response)
     if (data.type === 'error') {
       const error = toRecordOrNull(data.error)
-      const message = stringField(error?.message)?.trim()
+      const message = toStringOrNull(error?.message)?.trim()
       if (!message) throw new Error('Bitbucket returned a malformed merge task error')
-      const detail = stringField(error?.detail)?.trim()
+      const detail = toStringOrNull(error?.detail)?.trim()
       throw new Error(detail && detail !== message ? `${message}: ${detail}` : message)
     }
 
@@ -81,7 +78,7 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
       success: true,
       output: {
         taskStatus,
-        selfUrl: stringField(self?.href),
+        selfUrl: toStringOrNull(self?.href),
         mergeResult,
       },
     }

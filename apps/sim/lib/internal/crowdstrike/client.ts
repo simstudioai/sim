@@ -1,3 +1,4 @@
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -16,18 +17,6 @@ const CLOUD_BASE_URLS: Record<CrowdStrikeCloud, string> = {
 
 export function getCloudBaseUrl(cloud: CrowdStrikeCloud): string {
   return CLOUD_BASE_URLS[cloud]
-}
-
-export function getString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-export function getNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
-}
-
-export function getBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 export function getStringArray(value: unknown): string[] {
@@ -83,9 +72,9 @@ export function getPagination(data: unknown) {
   const { pagination } = data.meta
 
   return {
-    limit: getNumber(pagination.limit),
-    offset: getNumber(pagination.offset),
-    total: getNumber(pagination.total),
+    limit: toNumberOrNull(pagination.limit),
+    offset: toNumberOrNull(pagination.offset),
+    total: toNumberOrNull(pagination.total),
   }
 }
 
@@ -98,10 +87,10 @@ export function getCursorPagination(data: unknown) {
   const { pagination } = data.meta
 
   return {
-    after: getString(pagination.after),
-    limit: getNumber(pagination.limit),
-    offset: getNumber(pagination.offset),
-    total: getNumber(pagination.total),
+    after: toStringOrNull(pagination.after),
+    limit: toNumberOrNull(pagination.limit),
+    offset: toNumberOrNull(pagination.offset),
+    total: toNumberOrNull(pagination.total),
   }
 }
 
@@ -114,9 +103,9 @@ export function getSpotlightPagination(data: unknown) {
   const { pagination } = data.meta
 
   return {
-    after: getString(pagination.after),
-    limit: getNumber(pagination.limit),
-    total: getNumber(pagination.total),
+    after: toStringOrNull(pagination.after),
+    limit: toNumberOrNull(pagination.limit),
+    total: toNumberOrNull(pagination.total),
   }
 }
 
@@ -130,9 +119,9 @@ export function getEnvelopeErrors(data: unknown) {
   }
 
   return getRecordArray(data.errors).map((entry) => ({
-    code: getNumber(entry.code),
-    id: getString(entry.id),
-    message: getString(entry.message),
+    code: toNumberOrNull(entry.code),
+    id: toStringOrNull(entry.id),
+    message: toStringOrNull(entry.message),
   }))
 }
 
@@ -144,16 +133,16 @@ export function getFalconErrorMessage(data: unknown, fallback: string): string {
   const errors = Array.isArray(data.errors) ? data.errors : []
   const firstError = errors[0]
   if (isRecordLike(firstError)) {
-    const firstMessage = getString(firstError.message) ?? getString(firstError.code)
+    const firstMessage = toStringOrNull(firstError.message) ?? toStringOrNull(firstError.code)
     if (firstMessage) {
       return firstMessage
     }
   }
 
   return (
-    getString(data.message) ??
-    getString(data.error_description) ??
-    getString(data.error) ??
+    toStringOrNull(data.message) ??
+    toStringOrNull(data.error_description) ??
+    toStringOrNull(data.error) ??
     fallback
   )
 }

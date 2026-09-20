@@ -1,9 +1,9 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkListIndexesParams, SplunkListIndexesResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
   asNumber,
-  asString,
   buildSplunkHeaders,
   buildSplunkUrl,
   getEntryContent,
@@ -65,20 +65,20 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
           const content = getEntryContent(entry)
           return {
             name: getEntryName(entry),
-            id: asString(entry.id),
-            updated: asString(entry.updated),
-            datatype: asString(content.datatype),
+            id: toStringOrNull(entry.id),
+            updated: toStringOrNull(entry.updated),
+            datatype: toStringOrNull(content.datatype),
             disabled: asBoolean(content.disabled),
             isInternal: asBoolean(content.isInternal),
             totalEventCount: asNumber(content.totalEventCount),
             currentDBSizeMB: asNumber(content.currentDBSizeMB),
             maxTotalDataSizeMB: asNumber(content.maxTotalDataSizeMB),
             frozenTimePeriodInSecs: asNumber(content.frozenTimePeriodInSecs),
-            minTime: asString(content.minTime),
-            maxTime: asString(content.maxTime),
-            homePath: asString(content.homePath),
-            coldPath: asString(content.coldPath),
-            thawedPath: asString(content.thawedPath),
+            minTime: toStringOrNull(content.minTime),
+            maxTime: toStringOrNull(content.maxTime),
+            homePath: toStringOrNull(content.homePath),
+            coldPath: toStringOrNull(content.coldPath),
+            thawedPath: toStringOrNull(content.thawedPath),
           }
         }),
         total: paging.total,

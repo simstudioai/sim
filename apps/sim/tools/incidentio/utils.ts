@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toArray } from '@sim/utils/object'
 import type { Workflow } from '@/tools/incidentio/types'
 
 function toStringValue(value: unknown): string {
@@ -15,10 +16,6 @@ function toNumberValue(value: unknown): number {
 
 function toBooleanValue(value: unknown): boolean {
   return value === true
-}
-
-function toArrayValue<T = unknown>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : []
 }
 
 export function parseIncidentioJsonParam(
@@ -51,14 +48,14 @@ export function mapIncidentioWorkflow(workflow: Record<string, unknown>): Workfl
     id: toStringValue(workflow.id),
     name: toStringValue(workflow.name),
     trigger: toStringValue(workflow.trigger),
-    once_for: toArrayValue(workflow.once_for),
+    once_for: toArray(workflow.once_for),
     version: toNumberValue(workflow.version),
-    expressions: toArrayValue(workflow.expressions),
-    condition_groups: toArrayValue(workflow.condition_groups),
-    steps: toArrayValue(workflow.steps),
+    expressions: toArray(workflow.expressions),
+    condition_groups: toArray(workflow.condition_groups),
+    steps: toArray(workflow.steps),
     include_private_incidents: toBooleanValue(workflow.include_private_incidents),
     include_private_escalations: toBooleanValue(workflow.include_private_escalations),
-    runs_on_incident_modes: toArrayValue<string>(workflow.runs_on_incident_modes),
+    runs_on_incident_modes: toArray<string>(workflow.runs_on_incident_modes),
     continue_on_step_error: toBooleanValue(workflow.continue_on_step_error),
     runs_on_incidents: toStringValue(workflow.runs_on_incidents) as Workflow['runs_on_incidents'],
     state: toStringValue(workflow.state) as Workflow['state'],

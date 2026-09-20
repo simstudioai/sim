@@ -1,3 +1,4 @@
+import { toArray } from '@sim/utils/object'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -20,7 +21,7 @@ export function asObject(value: unknown): JsonObject {
 }
 
 export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return toArray(value)
 }
 
 export function nested(object: JsonObject, ...keys: string[]): unknown {
