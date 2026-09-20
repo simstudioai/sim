@@ -28,6 +28,10 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
+  | 'connector_eligibility'
+  | 'vector.source_plan'
+  | 'vector.source_exact'
+  | 'vector.source_walk'
   | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
@@ -81,7 +85,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank' | 'per-source'
   vectorCandidateStorage?: 'stored-halfvec'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
@@ -101,6 +105,8 @@ export interface SearchDiagnosticMetadata {
   permittedDocuments?: 'bounded' | 'unbounded'
   /** Documents in a bounded permitted set. */
   permittedDocumentCount?: number
+  vectorSourcesSliced?: number
+  vectorSourcesWalked?: number
   /**
    * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
    * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.

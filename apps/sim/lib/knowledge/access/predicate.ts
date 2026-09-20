@@ -176,9 +176,7 @@ function githubInstallationAccessCondition(scope: KnowledgeAccessScope): SQL {
 export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAccessScope): SQL {
   return storedKnowledgeAccessCondition(
     scope,
-    scope.kind === 'system'
-      ? sql`true`
-      : sql`(${githubInstallationAccessCondition(scope)} AND ${confluenceSiteAccessCondition(scope)})`
+    scope.kind === 'system' ? sql`true` : liveSourceAccessCondition(scope)
   )
 }
 
@@ -191,6 +189,90 @@ export function knowledgeMetadataCandidateAccessCondition(
   scope: KnowledgeAccessScope | SystemAccessScope
 ): SQL {
   return storedKnowledgeAccessCondition(scope, sql`true`)
+}
+
+/** Every requirement clause must reach the caller, which preserves source permission intersections. */
+function aclRequirementsSatisfied(tokens: SQL): SQL {
+  return sql`NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements(${document.aclRequirements}) AS required_clause(tokens)
+      WHERE NOT (required_clause.tokens ?| ${tokens})
+    )`
+}
+
+/** The live source proofs this request carries, as the connector-scoped clause both shapes apply. */
+export function liveSourceAccessCondition(scope: KnowledgeAccessScope): SQL {
+  return sql`(${githubInstallationAccessCondition(scope)} AND ${confluenceSiteAccessCondition(scope)})`
+}
+
+/**
+ * The connectors a search may read from, resolved once per query: their ids grouped by the shape
+ * their documents' ACLs take, and separately those whose reader access is proven live per request.
+ */
+export interface KnowledgeConnectorEligibility {
+  /** Documents carry the workspace ACL. */
+  workspace: readonly string[]
+  /** Documents carry mirrored source permissions verified as a whole. */
+  admin: readonly string[]
+  /** Documents carry the subject tokens of the members who observe them. */
+  members: readonly string[]
+  /** Of the above, those that additionally require this request's live source proof. */
+  liveProofRequired: readonly string[]
+}
+
+/**
+ * The candidate predicate with connector state resolved ahead of the query instead of per row.
+ *
+ * Deletion, archival, a pending access rewrite, the organization's integration approval and the
+ * access mode are facts about a connector, not a document, so checking them once per query leaves
+ * each candidate an id comparison plus its own columns.
+ *
+ * `liveSourceAccess` is the caller's live source proof, and defaults to admitting everything:
+ * candidate ranking defers that proof until after ranking, exactly as
+ * {@link knowledgeMetadataCandidateAccessCondition} does, and only a reader that already holds the
+ * grants — content hydration — passes it. The connectors it would gate are listed separately so
+ * that clause is applied to those alone.
+ *
+ * Either way it narrows exactly as the predicate it stands in for: the eligible ids are the
+ * connectors that predicate's `EXISTS` would admit, and every document-level clause is carried
+ * over unchanged.
+ */
+export function knowledgeCandidateAccessConditionForConnectors(
+  scope: KnowledgeAccessScope | SystemAccessScope,
+  eligibility: KnowledgeConnectorEligibility,
+  liveSourceAccess: SQL = sql`true`
+): SQL {
+  if (scope.kind === 'system') return documentConnectorIsActive()
+  if (scope.tokens.length === 0) return sql`false`
+  const tokens = textArrayLiteral(scope.tokens)
+  const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+  const liveProof = new Set(eligibility.liveProofRequired)
+  const inConnectors = (ids: readonly string[]): SQL =>
+    ids.length === 0
+      ? sql`false`
+      : sql`${document.connectorId} = ANY(${textArrayLiteral([...ids])})`
+  const mirrored = (ids: readonly string[], current: SQL): SQL => {
+    const direct = ids.filter((id) => !liveProof.has(id))
+    const gated = ids.filter((id) => liveProof.has(id))
+    const currentAndMirrored = sql`${document.acl} <> ARRAY['ws']::text[] AND ${current}`
+    return sql`(
+      (${inConnectors(direct)} AND ${currentAndMirrored})
+      OR (${inConnectors(gated)} AND ${currentAndMirrored} AND EXISTS (
+        SELECT 1 FROM ${knowledgeConnector}
+        WHERE ${knowledgeConnector.id} = ${document.connectorId}
+          AND ${liveSourceAccess}
+      ))
+    )`
+  }
+  return sql`(
+    ${aclOverlap(tokens)}
+    AND ${aclRequirementsSatisfied(tokens)}
+    AND (
+      ((${document.connectorId} IS NULL OR ${inConnectors(eligibility.workspace)})
+        AND ${document.acl} = ARRAY['ws']::text[])
+      OR ${mirrored(eligibility.admin, sql`${document.aclVerifiedAt} > ${cutoff}`)}
+      OR ${mirrored(eligibility.members, memberObservationCondition(tokens, cutoff))}
+    )
+  )`
 }
 
 /**
@@ -223,10 +305,7 @@ function storedKnowledgeAccessCondition(
   const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
   return sql`(
     ${aclOverlap(tokens)}
-    AND NOT EXISTS (
-      SELECT 1 FROM jsonb_array_elements(${document.aclRequirements}) AS required_clause(tokens)
-      WHERE NOT (required_clause.tokens ?| ${tokens})
-    )
+    AND ${aclRequirementsSatisfied(tokens)}
     AND (
       (${document.connectorId} IS NULL AND ${document.acl} = ARRAY['ws']::text[])
       OR EXISTS (

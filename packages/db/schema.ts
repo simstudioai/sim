@@ -3600,6 +3600,14 @@ export const embeddingSearch = pgTable(
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     enabled: boolean('enabled').notNull(),
+    /**
+     * The connector whose documents this chunk belongs to, copied from the document so a vector
+     * index can cover one source. A member reads a source whole or barely at all, so searching
+     * each readable source in its own index finds their nearest chunks; one index over every
+     * source spends its scan budget on chunks the graph reached but the member cannot read.
+     * NULL for uploads.
+     */
+    connectorId: text('connector_id'),
     /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),

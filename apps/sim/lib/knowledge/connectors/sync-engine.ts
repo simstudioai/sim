@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -85,6 +85,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { ensureSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -391,7 +392,7 @@ export async function completeSuccessfulSync(
   const completionNotice =
     [directoryNotice, listingNotice, contentNotice].filter(Boolean).join('\n') || null
   try {
-    return await db.transaction(async (tx) => {
+    const completed = await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
@@ -493,6 +494,18 @@ export async function completeSuccessfulSync(
 
       return true
     })
+    /**
+     * A source that has grown past the threshold gets its own vector index, so a member who reads
+     * it whole is ranked through a walk of their own documents. Retrieval ranks exactly without
+     * it, so a failure here is logged and left for the next sync.
+     */
+    await ensureSourceVectorIndex(connectorId).catch((error: unknown) => {
+      logger.warn('Could not ensure the source vector index', {
+        connectorId,
+        error: getErrorMessage(error),
+      })
+    })
+    return completed
   } catch (error) {
     if (error instanceof SyncCompletionOwnershipLost) return false
     throw error

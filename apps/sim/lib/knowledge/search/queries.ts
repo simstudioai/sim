@@ -6,16 +6,22 @@ import {
   embeddingKeywordTin,
   embeddingSearch,
   knowledgeConnector,
+  knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { resolveConnectorEligibility } from '@/lib/knowledge/access/connector-eligibility'
 import {
+  type KnowledgeConnectorEligibility,
   knowledgeAccessCondition,
   knowledgeAclOverlapCondition,
+  knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
+  liveSourceAccessCondition,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -32,10 +38,12 @@ import {
   annotateSearchDiagnostics,
   measureSearchStage,
   recordSearchStageDuration,
+  type SearchStage,
 } from '@/lib/knowledge/search/diagnostics'
 import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
+import { indexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
 import {
   coerceTagFilterValue,
@@ -117,9 +125,9 @@ let hnswSettingsUnsupportedUntil = 0
  */
 async function withVectorScanSettings<T>(
   run: (executor: SearchExecutor) => Promise<T>,
-  budget?: SearchBudget
+  budget?: SearchBudget,
+  stage: SearchStage = 'vector.candidate_search'
 ): Promise<T> {
-  const stage = 'vector.candidate_search'
   const untuned = () => runSearchQuery(budget, stage, run)
   if (Date.now() < hnswSettingsUnsupportedUntil) return untuned()
   const acquireStarted = performance.now()
@@ -277,6 +285,8 @@ export interface SearchParams {
   distanceThreshold?: number
   /** Resolved once per user-scoped search; absent for resolved scopes and explicit documents. */
   permitted?: PermittedDocuments
+  /** Connector state resolved once per search, so no candidate re-derives it. */
+  connectorEligibility?: KnowledgeConnectorEligibility
 }
 
 /** All valid tag slot keys */
@@ -536,6 +546,19 @@ function getDocumentVisibilityConditions(
 }
 
 /**
+ * The candidate predicate a leg applies, with connector state resolved ahead of the query when the
+ * search resolved it. Both shapes admit exactly the same documents.
+ */
+function candidateAccessCondition(
+  access: KnowledgeAccessScope,
+  eligibility: KnowledgeConnectorEligibility | undefined
+): SQL {
+  return eligibility
+    ? knowledgeCandidateAccessConditionForConnectors(access, eligibility)
+    : knowledgeMetadataCandidateAccessCondition(access)
+}
+
+/**
  * The document-level candidate predicate every ranked leg applies. The permitted set is resolved
  * with the same list, which is what lets a leg rank inside it without admitting anything more.
  */
@@ -701,6 +724,14 @@ function excludeSearchSources(sourceIds: readonly string[]): SQL | undefined {
     : undefined
 }
 
+/**
+ * Loads the content of candidates that passed authorization, under the read predicate in full.
+ *
+ * Where the search resolved its connectors, the predicate takes them from that resolution instead
+ * of proving each one again per row: the same documents, without the lookup this page already
+ * paid for once. The caller's live source proofs ride on `access`, so a gated source is still
+ * checked here, which is what makes this the last gate rather than a formality.
+ */
 function hydrateSearchCandidates(
   ids: string[],
   access: KnowledgeAccessScope,
@@ -708,15 +739,27 @@ function hydrateSearchCandidates(
   filters: WorkspaceSearchFilters | undefined,
   conditions: (SQL | undefined)[],
   leg: RetrievalLeg,
-  budget?: SearchBudget
+  budget?: SearchBudget,
+  eligibility?: KnowledgeConnectorEligibility
 ) {
+  const accessCondition = eligibility
+    ? knowledgeCandidateAccessConditionForConnectors(
+        access,
+        eligibility,
+        liveSourceAccessCondition(access)
+      )
+    : knowledgeAccessCondition(access)
   return runSearchQuery(budget, `${leg}.sql`, (executor) =>
     executor
       .select(getSearchResultFields(distance))
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(inArray(embedding.id, ids), ...getVisibilityConditions(access, filters), ...conditions)
+        and(
+          inArray(embedding.id, ids),
+          ...getVisibilityConditions(access, filters, accessCondition),
+          ...conditions
+        )
       )
   )
 }
@@ -776,7 +819,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
                 ...getVisibilityConditions(
                   access,
                   params.filters,
-                  knowledgeMetadataCandidateAccessCondition(access)
+                  candidateAccessCondition(access, params.connectorEligibility)
                 ),
                 excludeSearchSources(excludedSources)
               )
@@ -795,7 +838,8 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           params.filters,
           conditions,
           'tags',
-          params.budget
+          params.budget,
+          params.connectorEligibility
         ),
     })
   }
@@ -1002,6 +1046,7 @@ export async function resolvePermittedDocuments(params: {
   access: KnowledgeAccessScope
   filters?: WorkspaceSearchFilters
   budget?: SearchBudget
+  connectorEligibility?: KnowledgeConnectorEligibility
 }): Promise<PermittedDocuments> {
   const key = reachKey(params.knowledgeBaseIds, params.access)
   let probe: ProbeOutcome
@@ -1015,7 +1060,7 @@ export async function resolvePermittedDocuments(params: {
           params.knowledgeBaseIds,
           params.access,
           params.filters,
-          knowledgeMetadataCandidateAccessCondition(params.access)
+          candidateAccessCondition(params.access, params.connectorEligibility)
         ),
         params.access,
         params.budget,
@@ -1064,6 +1109,153 @@ function chunkTagCondition(join: SQL, tagConditions: SQL[]): SQL | undefined {
 }
 
 /**
+ * How many documents the sliced sources contribute to exact ranking. A caller's slice of mirrored
+ * sources — their mail, their files, the spaces they belong to — sits below this, and ranking that
+ * many exactly measures in the low hundreds of milliseconds.
+ */
+const SOURCE_EXACT_DOCUMENT_LIMIT = 50_000
+
+/** Sources whose own index a caller's ranking walks, and whether anything is left to rank exactly. */
+interface SourceVectorPlan {
+  walked: readonly string[]
+  sliced: readonly string[]
+}
+
+/**
+ * How each readable source contributes its nearest chunks.
+ *
+ * Membership decides it, not a count: a member of a source reads essentially all of it, so its own
+ * index is walked and the graph's neighbours are chunks they can read. Every other source is
+ * sliced — mirrored permissions give a caller their own mail, their own files — and those slices
+ * are ranked exactly together, which is cheaper than a walk and exact by construction. A source
+ * the caller is a member of but which has no index of its own is sliced too.
+ */
+async function planSourceVectorCandidates(input: {
+  access: KnowledgeAccessScope
+  eligibility: KnowledgeConnectorEligibility
+  indexedSources: ReadonlySet<string>
+  budget?: SearchBudget
+}): Promise<SourceVectorPlan> {
+  const eligible = [
+    ...new Set([
+      ...input.eligibility.workspace,
+      ...input.eligibility.admin,
+      ...input.eligibility.members,
+    ]),
+  ]
+  const membered =
+    input.access.kind === 'user' && input.eligibility.members.length > 0
+      ? await runSearchQuery(input.budget, 'vector.source_plan', (executor) =>
+          executor
+            .select({ connectorId: knowledgeConnectorMember.connectorId })
+            .from(knowledgeConnectorMember)
+            .where(
+              and(
+                inArray(knowledgeConnectorMember.connectorId, [...input.eligibility.members]),
+                eq(knowledgeConnectorMember.status, 'active'),
+                sql`${knowledgeConnectorMember.subjectToken} = ANY(${textArrayLiteral([...input.access.tokens])})`
+              )
+            )
+        )
+      : []
+  const walked = membered.map((row) => row.connectorId).filter((id) => input.indexedSources.has(id))
+  const walking = new Set(walked)
+  return { walked, sliced: eligible.filter((id) => !walking.has(id)) }
+}
+
+/**
+ * The nearest readable chunks, gathered per source and merged by distance.
+ *
+ * Walking one source at a time is what keeps recall: pgvector post-filters, so a walk over every
+ * source spends its scan budget on the sources this caller cannot read and returns few of their
+ * true neighbours. Inside one source they read, almost every neighbour qualifies.
+ *
+ * Nothing but the merged identities crosses the wire — each source's readable documents are
+ * resolved inside its own statement.
+ */
+async function selectSourceVectorCandidates(input: {
+  access: KnowledgeAccessScope
+  knowledgeBaseIds: string[]
+  eligibility: KnowledgeConnectorEligibility
+  documentConditions: (SQL | undefined)[]
+  tagCondition: SQL | undefined
+  documentTagCondition: SQL | undefined
+  candidateDistance: SQL<number>
+  candidateLimit: number
+  budget?: SearchBudget
+}): Promise<Array<{ id: string }>> {
+  const plan = await planSourceVectorCandidates({
+    access: input.access,
+    eligibility: input.eligibility,
+    indexedSources: await indexedVectorSources(),
+    budget: input.budget,
+  })
+  annotateSearchDiagnostics({
+    vectorRanking: 'per-source',
+    vectorSourcesWalked: plan.walked.length,
+    vectorSourcesSliced: plan.sliced.length,
+  })
+  const base = and(
+    inArray(embeddingSearch.knowledgeBaseId, input.knowledgeBaseIds),
+    eq(embeddingSearch.enabled, true),
+    input.tagCondition
+  )
+  const readable = and(...input.documentConditions, input.documentTagCondition)
+  type RankedChunks = Promise<Array<{ id: string; distance: number }>>
+  const walks: Array<() => RankedChunks> = plan.walked.map(
+    (connectorId) => () =>
+      withVectorScanSettings(
+        (executor) =>
+          executor.execute<{ id: string; distance: number }>(sql`
+            SELECT ${embeddingSearch.id} AS id, ${input.candidateDistance} AS distance
+            FROM ${embeddingSearch}
+            CROSS JOIN LATERAL (
+              SELECT 1 FROM ${document}
+              WHERE ${and(eq(document.id, embeddingSearch.documentId), readable)}
+              LIMIT 1
+            ) AS visible
+            WHERE ${and(base, eq(embeddingSearch.connectorId, connectorId))}
+            ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
+        input.budget,
+        'vector.source_walk'
+      )
+  )
+  /** One statement for every sliced source: their readable documents, then exact ranking of those. */
+  const slice: Array<() => RankedChunks> =
+    plan.sliced.length === 0
+      ? []
+      : [
+          () =>
+            runSearchQuery(input.budget, 'vector.source_exact', (executor) =>
+              executor.execute<{ id: string; distance: number }>(sql`
+                WITH readable_documents AS MATERIALIZED (
+                  SELECT ${document.id} AS id FROM ${document}
+                  WHERE (${document.connectorId} IS NULL
+                      OR ${document.connectorId} = ANY(${textArrayLiteral([...plan.sliced])}))
+                    AND ${readable}
+                  LIMIT ${SOURCE_EXACT_DOCUMENT_LIMIT}
+                )
+                SELECT ${embeddingSearch.id} AS id, (${input.candidateDistance}) + 0 AS distance
+                FROM ${embeddingSearch}
+                JOIN readable_documents ON readable_documents.id = ${embeddingSearch.documentId}
+                WHERE ${base}
+                ORDER BY distance LIMIT ${input.candidateLimit}`)
+            ),
+        ]
+  const scored = await mapWithConcurrency([...walks, ...slice], SOURCE_RANKING_CONCURRENCY, (run) =>
+    run()
+  )
+  const ranked: Array<{ id: string; distance: number }> = scored.flat()
+  return ranked
+    .sort((a, b) => Number(a.distance) - Number(b.distance))
+    .slice(0, input.candidateLimit)
+    .map((row) => ({ id: row.id }))
+}
+
+/** Sources ranked at once; each holds a connection for its own statement. */
+const SOURCE_RANKING_CONCURRENCY = 3
+
+/**
  * Select a bounded candidate pool and rerank it against the original vectors.
  *
  * A bounded ANN traversal fills that pool. When visibility leaves the traversal short of its
@@ -1089,7 +1281,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
   const accessProvider = params.access.kind === 'user' ? params.accessProvider : undefined
   /** Only live-verified readers may defer source authorization until after candidate ranking. */
   const candidateAccess = accessProvider
-    ? knowledgeMetadataCandidateAccessCondition(params.access)
+    ? candidateAccessCondition(params.access, params.connectorEligibility)
     : knowledgeAccessCondition(params.access)
   const candidateDistance = embeddingCandidateDistance(
     queryVector.dimensions,
@@ -1193,6 +1385,24 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           selected = await rankPermittedExactly(
             permittedDocumentIds(params.permitted.documents, excludedSources)
           )
+        } else if (params.connectorEligibility && params.access.kind === 'user') {
+          /**
+           * Readability follows sources, so each readable source is searched in its own index and
+           * the results merged. A member reads a source whole or barely at all: walking one source
+           * spends its budget among chunks they can read, where a walk over every source spends it
+           * on the sources they cannot.
+           */
+          selected = await selectSourceVectorCandidates({
+            access: params.access,
+            knowledgeBaseIds: params.knowledgeBaseIds,
+            eligibility: params.connectorEligibility,
+            documentConditions: candidateDocumentVisibility,
+            tagCondition: candidateTagCondition,
+            documentTagCondition,
+            candidateDistance,
+            candidateLimit,
+            budget: params.budget,
+          })
         } else {
           /**
            * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
@@ -1281,7 +1491,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         params.filters,
         conditions,
         'vector',
-        params.budget
+        params.budget,
+        params.connectorEligibility
       ),
   })
 }
@@ -1300,6 +1511,8 @@ export interface KeywordSearchParams {
   filters?: WorkspaceSearchFilters
   /** Resolved once per user-scoped search; absent for resolved scopes and explicit documents. */
   permitted?: PermittedDocuments
+  /** Connector state resolved once per search, so no candidate re-derives it. */
+  connectorEligibility?: KnowledgeConnectorEligibility
 }
 
 /**
@@ -1378,7 +1591,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           knowledgeBaseIds,
           access,
           params.filters,
-          knowledgeMetadataCandidateAccessCondition(access)
+          candidateAccessCondition(access, params.connectorEligibility)
         ),
         excludeSearchSources(excludedSources)
       )
@@ -1544,7 +1757,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           params.filters,
           conditions,
           'keyword',
-          params.budget
+          params.budget,
+          params.connectorEligibility
         ),
     })
   }
@@ -1794,6 +2008,16 @@ export async function retrieveKnowledgeSearch(
   const { distanceThreshold } = getQueryStrategy(knowledgeBaseIds.length, topK)
   const legTopK = searchMode === 'hybrid' ? hybridCandidateCount(topK) : topK
   /**
+   * Connector state is the same for every document a connector owns, so both legs read it from
+   * one resolution instead of proving it per candidate.
+   */
+  const connectorEligibility =
+    access.kind === 'user' && params.accessProvider
+      ? await measureSearchStage('connector_eligibility', () =>
+          resolveConnectorEligibility(knowledgeBaseIds)
+        )
+      : undefined
+  /**
    * Live user scopes resolve what they may read once, before either leg, so both rank inside it
    * when it is small. Resolved scopes read whole bases, and explicit documents are already a
    * bounded scope with their own exhaustive ordering.
@@ -1805,6 +2029,7 @@ export async function retrieveKnowledgeSearch(
           access,
           filters: params.filters,
           budget: budgets.vector,
+          connectorEligibility,
         })
       : undefined
   const vectorParams = {
@@ -1814,6 +2039,7 @@ export async function retrieveKnowledgeSearch(
     distanceThreshold,
     budget: budgets.vector,
     permitted,
+    connectorEligibility,
   }
   const vectorSearch = measureSearchStage('vector', () =>
     hasFilters ? handleTagAndVectorSearch(vectorParams) : handleVectorOnlySearch(vectorParams)
@@ -1827,6 +2053,7 @@ export async function retrieveKnowledgeSearch(
       queryVector,
       budget: budgets.keyword,
       permitted,
+      connectorEligibility,
     })
   )
   const legs = await Promise.allSettled([vectorSearch, keywordSearch])

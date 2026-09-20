@@ -1432,8 +1432,11 @@ describe('permitted-document planner', () => {
 
   let probeRows: Array<{ id: string | null; connectorId: string | null; saturated: boolean }>
   let exactRows: Array<{ id: string }>
-  let traversedRows: Array<{ id: string }>
+  let traversedRows: Array<{ id: string; distance?: number }>
   let rerankRows: Array<ReturnType<typeof hit>>
+  let memberedSources: Array<{ connectorId: string }>
+  let indexedSourceRows: Array<{ name: string; connectorId: string }>
+  let sourceExactRows: Array<{ id: string; distance: number }>
 
   beforeEach(() => {
     resetDbChainMock()
@@ -1441,10 +1444,15 @@ describe('permitted-document planner', () => {
     exactRows = []
     traversedRows = []
     rerankRows = []
+    sourceExactRows = []
+    memberedSources = []
+    indexedSourceRows = []
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      if (statement.includes('pg_index')) return indexedSourceRows
       if (statement.includes('AS visible')) return traversedRows
       if (statement.includes('WITH scored_search_candidates')) return rerankRows
+      if (statement.includes('WITH readable_documents')) return sourceExactRows
       if (isExactRanking(statement)) return exactRows
       if (isProbeStatement(statement)) return probeRows
       return []
@@ -1483,6 +1491,55 @@ describe('permitted-document planner', () => {
     expect(sqls.some((sql) => sql.includes('AS visible'))).toBe(true)
     expect(sqls.some(isProbeStatement)).toBe(false)
     expect(sqls.some(isExactRanking)).toBe(false)
+  })
+
+  it('walks a source the caller is a member of and ranks every other source exactly', async () => {
+    const eligibility = {
+      workspace: [],
+      admin: ['sliced-src'],
+      members: ['member-src'],
+      liveProofRequired: [],
+    }
+    /** Membership decides the walk; the sliced source contributes enumerated documents. */
+    memberedSources = [{ connectorId: 'member-src' }]
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    queueTableRows(schemaMock.knowledgeConnectorMember, memberedSources)
+    sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
+    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
+    rerankRows = [hit('sliced-hit', 'sliced-src'), hit('walked-hit', 'member-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded' },
+      connectorEligibility: eligibility,
+    })
+    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    expect(walks).toHaveLength(1)
+    expect(
+      walks[0].params.some((param) => JSON.stringify(param).includes('"right":"member-src"'))
+    ).toBe(true)
+    /** The sliced sources resolve their documents inside one statement, not through the app. */
+    const exact = statements().filter((query) => query.sql.includes('WITH readable_documents'))
+    expect(exact).toHaveLength(1)
+    expect(JSON.stringify(exact[0])).toContain('sliced-src')
+  })
+
+  it('ranks every source exactly when the caller is a member of none', async () => {
+    memberedSources = []
+    sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
+    rerankRows = [hit('sliced-hit', 'sliced-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded' },
+      connectorEligibility: {
+        workspace: [],
+        admin: ['sliced-src'],
+        members: [],
+        liveProofRequired: [],
+      },
+    })
+    expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(0)
   })
 
   it('confines keyword matching to the bounded permitted set', async () => {
