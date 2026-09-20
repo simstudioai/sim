@@ -158,9 +158,9 @@ export const v2FileMetadataSchema = v2FileSchema
       .describe('Current public-share state, or null when the file has never been shared.'),
     revision: z
       .string()
-      .nullable()
+      .optional()
       .describe(
-        "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Null for a file with no recorded content version."
+        "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version."
       ),
     currentVersion: versionNumberSchema.describe(
       'Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since.'

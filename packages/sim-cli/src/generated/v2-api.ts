@@ -4162,7 +4162,7 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
-  revision: string | null
+  revision?: string
   currentVersion: number
 }
 

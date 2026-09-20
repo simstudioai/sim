@@ -5321,15 +5321,8 @@
             "description": "Current public-share state, or null when the file has never been shared."
           },
           "revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Null for a file with no recorded content version."
+            "description": "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version.",
+            "type": "string"
           },
           "currentVersion": {
             "type": "integer",
@@ -5351,7 +5344,6 @@
           "updatedAt",
           "deletedAt",
           "share",
-          "revision",
           "currentVersion"
         ],
         "additionalProperties": false,
@@ -5386,7 +5378,7 @@
               "deletedAt": null,
               "share": null,
               "currentVersion": 1,
-              "revision": "d2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
             }
           },
           {
@@ -5414,7 +5406,7 @@
                 "allowedEmails": []
               },
               "currentVersion": 3,
-              "revision": "d2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
             }
           }
         ]

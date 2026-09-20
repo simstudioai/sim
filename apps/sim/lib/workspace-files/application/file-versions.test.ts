@@ -211,8 +211,7 @@ describe('file version use cases', () => {
     })
 
     /** The revision guards content, so it catches an edit that folded into the current version. */
-    it('guards the revert with the revision the caller read', async () => {
-      const callerRevision = new Date('2026-01-02T00:00:00Z')
+    it('reverts when the revision still names the current content', async () => {
       mocks.getVersion.mockImplementation(async (_file: unknown, number: number) =>
         number === 2 ? version(2) : number === 4 ? version(4, { isCurrent: true }) : current
       )
@@ -223,13 +222,32 @@ describe('file version use cases', () => {
           fileId: 'file-1',
           assertedWorkspaceId: 'workspace-1',
           version: 2,
-          expectedRevision: workspaceFileRevision({ ...file, contentUpdatedAt: callerRevision }),
+          expectedRevision: workspaceFileRevision(file),
         },
       })
 
       expect(mocks.updateContent.mock.calls[0][5]).toMatchObject({
-        expectedUpdatedAt: callerRevision,
+        expectedUpdatedAt: file.contentUpdatedAt,
       })
+    })
+
+    /** Reverting to the version that is already current must still honour a stale revision. */
+    it('refuses a stale revision even when the requested version is already current', async () => {
+      await expect(
+        revertWorkspaceFileVersion.execute({
+          principal,
+          input: {
+            fileId: 'file-1',
+            assertedWorkspaceId: 'workspace-1',
+            version: 3,
+            expectedRevision: workspaceFileRevision({
+              ...file,
+              contentUpdatedAt: new Date('2020-01-01T00:00:00Z'),
+            }),
+          },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.updateContent).not.toHaveBeenCalled()
     })
 
     it('refuses a revision issued for a different file', async () => {

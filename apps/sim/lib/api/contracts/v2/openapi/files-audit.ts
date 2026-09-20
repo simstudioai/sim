@@ -876,7 +876,7 @@ const declaredRoutes = [
               ...FILE_EXAMPLE,
               share: null,
               currentVersion: 1,
-              revision: 'd2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
             },
           },
           {
@@ -884,7 +884,7 @@ const declaredRoutes = [
               ...FILE_EXAMPLE,
               share: SHARE_EXAMPLE,
               currentVersion: 3,
-              revision: 'd2ZfNGtKOW1OMnBRN3JTOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg',
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg',
             },
           },
         ]

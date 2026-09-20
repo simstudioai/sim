@@ -30,12 +30,15 @@ export const GET = defineV2JsonRoute({
     includeDeleted: query.scope === 'archived',
   }),
   useCase: readWorkspaceFileMetadataWithVersion,
-  present: async ({ file, share }) => ({
-    data: {
-      ...(await toV2File(file)),
-      share,
-      currentVersion: file.currentVersion,
-      revision: workspaceFileRevision(file),
-    },
-  }),
+  present: async ({ file, share }) => {
+    const revision = workspaceFileRevision(file)
+    return {
+      data: {
+        ...(await toV2File(file)),
+        share,
+        currentVersion: file.currentVersion,
+        ...(revision === null ? {} : { revision }),
+      },
+    }
+  },
 })

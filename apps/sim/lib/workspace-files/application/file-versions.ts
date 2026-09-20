@@ -236,6 +236,22 @@ async function executeRevertWorkspaceFileVersion({
       `The current version is ${current.version}, not ${input.expectedCurrentVersion}`
     )
   }
+  /*
+   * Checked before the no-op branch below: a caller that named content which has since changed
+   * must hear about it, not be told there was nothing to do.
+   */
+  const expectedContentAt = input.expectedRevision
+    ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
+    : undefined
+  if (
+    expectedContentAt &&
+    (file.contentUpdatedAt ?? file.updatedAt).getTime() !== expectedContentAt.getTime()
+  ) {
+    throw new OrchestrationError(
+      'conflict',
+      'The file changed since the revision you read; re-read it before reverting'
+    )
+  }
   const target = await loadVersion(file, input.version)
   if (target.isCurrent) {
     return { file, version: target, reverted: false, revertedFrom: current.version }
@@ -272,9 +288,7 @@ async function executeRevertWorkspaceFileVersion({
           source: 'revert',
           restoredFromVersion: target.version,
         }),
-        expectedUpdatedAt: input.expectedRevision
-          ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
-          : (file.contentUpdatedAt ?? file.updatedAt),
+        expectedUpdatedAt: expectedContentAt ?? file.contentUpdatedAt ?? file.updatedAt,
         secretProvenancePolicy: { mode: 'reinstate', snapshot: provenance },
       }
     )
