@@ -38,6 +38,7 @@ import {
   SearchBudget,
   SearchDeadlineError,
   type SearchExecutor,
+  sessionSettingsStatement,
 } from '@/lib/knowledge/search/budget'
 import {
   annotateSearchDiagnostics,
@@ -80,11 +81,13 @@ const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
  */
 const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '20000'
 /**
- * The scan a broad reader's walk widens to when its neighbourhood turns out mostly unreadable:
- * five times the usual budget reaches past such a neighbourhood at a few hundred milliseconds,
- * where enumerating that reader's readable chunks instead would cost a bitmap over most of the index.
+ * How far a walk that decides readability on the row may go before giving up: a cap, not a target,
+ * since the scan stops as soon as the limit is met. The default cap was sized for a walk that looked
+ * a document up per visited tuple; on the row a tuple costs a fraction of that, so a caller whose
+ * neighbourhood is mostly unreadable can be carried past it for tens of milliseconds rather than
+ * left with what the neighbourhood happened to hold.
  */
-const WIDE_WALK_SCAN_TUPLES = 100_000
+const ON_ROW_WALK_SCAN_TUPLES = 100_000
 /**
  * Beam width per iteration. A beam is the granularity of cancellation: pgvector calls
  * `CHECK_FOR_INTERRUPTS` only while building an index, never inside `hnswgettuple`, so neither
@@ -143,25 +146,34 @@ async function withVectorScanSettings<T>(
   const untuned = () => runSearchQuery(budget, stage, run)
   if (Date.now() < hnswSettingsUnsupportedUntil) return untuned()
   const acquireStarted = performance.now()
-  let applyingSettings = false
+  const settings = [
+    sql`set_config('hnsw.iterative_scan', 'relaxed_order', true)`,
+    sql`set_config('hnsw.max_scan_tuples', ${String(maxScanTuples)}, true)`,
+    sql`set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true)`,
+    sql`set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`,
+  ]
+  /** Only a failure while the settings are being applied says the extension lacks them. */
+  let applyingSettings = true
   try {
-    const tuned = async (tx: SearchExecutor) => {
-      if (!budget)
-        recordSearchStageDuration('vector.connection_acquire', performance.now() - acquireStarted)
-      applyingSettings = true
+    /** Under a budget the settings ride in the deadline statement; alone they are one of their own. */
+    if (budget) {
+      return await budget.query(
+        stage,
+        (tx) => {
+          applyingSettings = false
+          return run(tx)
+        },
+        settings
+      )
+    }
+    return await db.transaction(async (tx) => {
+      recordSearchStageDuration('vector.connection_acquire', performance.now() - acquireStarted)
       await measureSearchStage('vector.settings', () =>
-        tx.execute(
-          sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${String(maxScanTuples)}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
-        )
+        tx.execute(sessionSettingsStatement(settings))
       )
       applyingSettings = false
-      if (budget)
-        await tx.execute(
-          sql`SELECT set_config('statement_timeout', ${String(budget.remaining())}, true)`
-        )
       return run(tx)
-    }
-    return await (budget ? budget.query(stage, tuned) : db.transaction(tuned))
+    })
   } catch (error) {
     if (!applyingSettings || getPostgresErrorCode(error) !== UNDEFINED_OBJECT_SQLSTATE) throw error
     hnswSettingsUnsupportedUntil = Date.now() + HNSW_SETTINGS_UNSUPPORTED_RETRY_MS
@@ -520,10 +532,12 @@ const TIN_KEYWORD_WINDOWS = [2000, 10_000, 50_000] as const
 const NARROW_KEYWORD_PAGE = 1000
 
 /**
- * The one window a narrow reader ranks: wide enough that a few percent of it fills their page
+ * The widest window a narrow reader ranks: wide enough that a few percent of it fills their page
  * several times over, and less than half the cost of the widest window the broad readers reach.
+ * It is tried only after the first window came back short: ranking costs grow with the window,
+ * and a term that is common where the reader can read fills the page from the narrowest one.
  */
-const NARROW_KEYWORD_WINDOW = 20_000
+const NARROW_KEYWORD_WINDOWS = [TIN_KEYWORD_WINDOWS[0], 20_000] as const
 
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
@@ -1172,7 +1186,7 @@ export function forgetSearchReach(): void {
 }
 
 /** A resolved scope's reach, remembered per bases and tokens, with no document enumerated. */
-async function resolveReach(
+export async function resolveReach(
   knowledgeBaseIds: string[],
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined
@@ -1180,14 +1194,15 @@ async function resolveReach(
   const key = reachKey(knowledgeBaseIds, access)
   const remembered = key ? saturatedReach.get(key) : undefined
   if (remembered) return { kind: 'unbounded', broad: remembered.broad }
-  let broad = true
   try {
-    broad = await reachIsBroad(knowledgeBaseIds, access, budget)
+    const broad = await reachIsBroad(knowledgeBaseIds, access, budget)
+    if (key) saturatedReach.set(key, { broad })
+    return { kind: 'unbounded', broad }
   } catch (error) {
     if (!budget?.isTimeout(error)) throw error
+    /** A count that ran out of time decides this search only; the next one counts again. */
+    return { kind: 'unbounded', broad: true }
   }
-  if (key) saturatedReach.set(key, { broad })
-  return { kind: 'unbounded', broad }
 }
 
 /**
@@ -1364,7 +1379,8 @@ async function selectSourceVectorCandidates(input: {
             )}
             ORDER BY ${input.candidateDistance} LIMIT ${input.candidateLimit}`),
         input.budget,
-        'vector.source_walk'
+        'vector.source_walk',
+        ON_ROW_WALK_SCAN_TUPLES
       )
   const walks: Array<() => RankedChunks> = sources.walked.map((connectorId) =>
     walk(eq(embeddingSearch.connectorId, connectorId))
@@ -1630,7 +1646,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
           `
               ),
-            params.budget
+            params.budget,
+            'vector.candidate_search',
+            plan ? ON_ROW_WALK_SCAN_TUPLES : undefined
           )
           /**
            * A full traversal is already the nearest permitted chunks, so nothing else is worth
@@ -1644,60 +1662,10 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * afford. An `unbounded` permitted set already proved it is not, so the probe is skipped.
            */
           /**
-           * Reach is counted from token overlap, which every readable document has but which
-           * connector state, requirement clauses or observations can still refuse. A caller the
-           * count called broad whose walk then underfills was not: their sources are searched on
-           * their own instead, so the misjudgement costs one walk rather than their neighbours.
+           * A walk that decides readability on the row is not discarded that way: it keeps
+           * walking, up to its cap, until the limit is met, so an underfilled on-row walk means
+           * the caller's readable chunks near the query are simply that few.
            */
-          if (
-            selected.length < MIN_VECTOR_RERANK_CANDIDATES &&
-            params.permitted?.kind === 'unbounded' &&
-            params.permitted.broad &&
-            plan
-          ) {
-            annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
-            /**
-             * The query sits in a neighbourhood the caller mostly cannot read, and the walk found
-             * fewer candidates than the smallest pool worth reranking — a pool past that but short
-             * of its limit is reranked as it is. A broad reader's own sources are already in this walk,
-             * so searching them again finds nothing new, and enumerating their readable chunks is a
-             * bitmap over most of the index; the same walk with a wider scan is what reaches past
-             * that neighbourhood. What it found is kept, and if the wider walk runs out of the leg's
-             * budget the first walk's candidates stand.
-             */
-            const walked = selected
-            /**
-             * The wider walk gets half of what the leg has left, so the rerank and hydration of
-             * whatever is found — the first walk's candidates at least — still have the rest.
-             */
-            const wideBudget = params.budget?.capped(Math.floor(params.budget.remaining() / 2))
-            try {
-              const wider = await withVectorScanSettings(
-                (executor) =>
-                  executor.execute<{ id: string }>(sql`
-            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} /* on-row visibility */
-            WHERE ${and(
-              scopeOfWalk,
-              projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
-              documentTagCondition === undefined
-                ? undefined
-                : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentTagCondition)})`
-            )}
-            ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
-          `),
-                wideBudget,
-                'vector.candidate_search',
-                WIDE_WALK_SCAN_TUPLES
-              )
-              const seen = new Set(walked.map(({ id }) => id))
-              selected = [...walked, ...wider.filter(({ id }) => !seen.has(id))]
-            } catch (error) {
-              if (!wideBudget?.isTimeout(error)) throw error
-              /** Only the wider walk's share was spent; the leg's own deadline still governs. */
-              params.budget?.remaining()
-              selected = walked
-            }
-          }
           if (selected.length < candidateLimit && params.permitted?.kind !== 'unbounded') {
             const probe = await probeVisibleDocuments(
               params.knowledgeBaseIds,
@@ -1881,16 +1849,15 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       excludedSources: readonly string[]
     ): Promise<SearchReadCandidatePage | null> => {
       /**
-       * A resolved scope decides readability on the ranked row. A broad reader fills a page from a
-       * narrow window, so the windows widen as before; a narrow reader fills it only from a wide
-       * one, so that is the only window tried. Either way what a resolved scope cannot fill is
-       * left short rather than handed to a ranking over every match.
+       * A resolved scope decides readability on the ranked row. The windows widen while the page
+       * is short, a narrow reader's to a wide one sooner and no further, and what the widest
+       * cannot fill is left short rather than handed to a ranking over every match.
        */
       const narrow =
         accessPlan !== undefined &&
         params.permitted?.kind === 'unbounded' &&
         !params.permitted.broad
-      const windows = narrow ? [NARROW_KEYWORD_WINDOW] : TIN_KEYWORD_WINDOWS
+      const windows: readonly number[] = narrow ? NARROW_KEYWORD_WINDOWS : TIN_KEYWORD_WINDOWS
       /**
        * A narrow reader's page is the readable remainder of a wide ranking, and that ranking is
        * the cost: each page would rank the window again to find the next few readable rows, so one
@@ -1947,7 +1914,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           `)
         )
         annotateSearchDiagnostics({ keywordTinWindow: window })
-        if (page.candidates.length === limit || page.ranked < window || accessPlan) {
+        if (
+          page.candidates.length >= limit ||
+          page.ranked < window ||
+          (accessPlan !== undefined && window === windows[windows.length - 1])
+        ) {
           return { candidates: page.candidates, nextOffset: offset + page.candidates.length }
         }
       }

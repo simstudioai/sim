@@ -107,8 +107,6 @@ export interface SearchDiagnosticMetadata {
   vectorSourcesSliced?: number
   /** The sliced sources held more readable documents than one exact ranking may enumerate. */
   vectorSlicedSaturated?: boolean
-  /** The whole-graph walk a broad reach earned came back short, so its sources were searched instead. */
-  vectorBroadWalkUnderfilled?: boolean
   vectorSourcesWalked?: number
   /**
    * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top

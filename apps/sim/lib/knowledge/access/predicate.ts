@@ -307,10 +307,11 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * resolved: `connectorId` and `acl` are mirrored there from the document, so a walk or a keyword
  * window decides readability on the row it scores instead of joining `document` per candidate.
  *
- * It admits a superset of the document predicate, never a subset: a member's source is admitted
- * whole (the observation that vouches for each document is checked at hydration), and requirement
- * clauses live on the document. Both are refused there, under the full predicate, before content is
- * returned — this predicate only decides what is worth ranking.
+ * It admits a superset of the document predicate, never a subset: a mirrored ACL names the members
+ * who observe a document, so overlap with the caller's tokens is the per-row test without the
+ * observation's freshness, and requirement clauses live on the document. Both are refused there,
+ * under the full predicate, before content is returned — this predicate only decides what is worth
+ * ranking.
  */
 export function projectionCandidateAccessCondition(
   projection: { connectorId: AnyPgColumn | SQL; acl: AnyPgColumn | SQL },
@@ -329,11 +330,8 @@ export function projectionCandidateAccessCondition(
     ...plan.connectors.admin,
     ...plan.connectors.members,
   ]
-  return sql`(
-    ${inSources(plan.memberSources)}
-    OR (${projection.acl} && ${tokens}
-      AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)}))
-  )`
+  return sql`(${projection.acl} && ${tokens}
+    AND (${projection.connectorId} IS NULL OR ${inSources(mirrored)}))`
 }
 
 /**

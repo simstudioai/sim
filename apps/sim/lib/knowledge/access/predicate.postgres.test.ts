@@ -600,13 +600,28 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     const onRow = new PgDialect().sqlToQuery(
       projectionCandidateAccessCondition(schema.embeddingSearch, scope, plan)
     )
-    for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
+    const onRowAdmits = async (id: string) => {
       const rows = await connection.unsafe(
         `SELECT 1 FROM embedding_search WHERE ${onRow.sql} AND document_id = $${onRow.params.length + 1}`,
         [...(onRow.params as string[]), id]
       )
-      if (await admits(perRow, id)) expect([id, rows.length > 0]).toEqual([id, true])
+      return rows.length > 0
     }
+    for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
+      if (await admits(perRow, id)) expect([id, await onRowAdmits(id)]).toEqual([id, true])
+    }
+    /**
+     * A source the caller is a member of still holds documents that name other members only; the
+     * mirrored ACL keeps those out of the ranking rather than leaving them for hydration to drop.
+     */
+    await connection.unsafe(
+      "INSERT INTO document(id, connector_id, acl, acl_verified_at) VALUES ('members-other', 'members', ARRAY['s:slack:-:bob'], statement_timestamp())"
+    )
+    await connection.unsafe(
+      "INSERT INTO embedding_search SELECT id || '-chunk', id, connector_id, acl FROM document WHERE id = 'members-other'"
+    )
+    expect(await admits(perRow, 'members-other')).toBe(false)
+    expect(await onRowAdmits('members-other')).toBe(false)
     /**
      * Candidate ranking defers the live source proof, as the per-row candidate predicate does: a
      * caller holds those grants only after authorization, so applying the clause during ranking

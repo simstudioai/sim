@@ -40,6 +40,7 @@ import {
   handleVectorOnlySearch,
   type PermittedDocuments,
   resolvePermittedDocuments,
+  resolveReach,
   retrieveKnowledgeSearch,
   type SearchParams,
   VECTOR_PROBE_DOCUMENT_LIMIT,
@@ -678,7 +679,19 @@ describe('workspace-scoped vector retrieval', () => {
       statements()
         .filter((query) => query.sql.includes('statement_timeout'))
         .map((query) => query.params[0])
-    ).toEqual(['100', '100', '40', '20'])
+    ).toEqual(['100', '40', '20'])
+  })
+
+  it('applies the scan settings in the deadline statement rather than one of their own', async () => {
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch({
+      ...params,
+      budget: new SearchBudget('vector', performance.now() + 8000),
+    })
+    const settings = statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))
+    expect(settings.length).toBeGreaterThan(0)
+    /** Each round trip is latency on the critical path; the settings never earn one alone. */
+    for (const statement of settings) expect(statement.sql).toContain('statement_timeout')
   })
 
   it('does not convert an unexpected candidate failure into partial retrieval', async () => {
@@ -1316,73 +1329,6 @@ describe('permitted-document planner', () => {
     expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(false)
   })
 
-  it('widens the walk of a broad caller whose whole-graph walk came back short', async () => {
-    const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
-    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
-    /** The graph walk finds one readable neighbour where the pool wants hundreds. */
-    traversedRows = [{ id: 'short-hit', distance: 0.4 }]
-    rerankRows = [hit('short-hit', 'member-src')]
-    queueTableRows(schemaMock.embedding, rerankRows)
-    await handleVectorOnlySearch({
-      ...params,
-      topK: 2,
-      permitted: { kind: 'unbounded', broad: true },
-      accessPlan: {
-        connectors: eligibility,
-        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
-        memberSources: ['member-src'],
-      },
-    })
-    /** The same walk twice, the second with the wider scan; no source is searched on its own. */
-    const walks = statements().filter((query) => isWalk(query.sql))
-    expect(walks).toHaveLength(2)
-    expect(JSON.stringify(walks[1])).not.toContain('"right":"member-src"')
-    const settings = statements().filter((query) => query.sql.includes('hnsw.max_scan_tuples'))
-    expect(JSON.stringify(settings.at(-1))).toContain('100000')
-    expect(statements().some((query) => query.sql.includes('WITH readable_chunks'))).toBe(false)
-  })
-
-  it('keeps what a short broad walk found when the wider walk runs out of budget', async () => {
-    const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
-    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
-    traversedRows = [{ id: 'short-hit', distance: 0.4 }]
-    rerankRows = [hit('short-hit', 'member-src')]
-    queueTableRows(schemaMock.embedding, rerankRows)
-    /** The per-source search is cancelled by the server's statement timeout; the leg has time left. */
-    const budget = new SearchBudget('vector', performance.now() + 10_000)
-    const base = dbChainMockFns.execute.getMockImplementation()!
-    let walksSeen = 0
-    dbChainMockFns.execute.mockImplementation(async (query) => {
-      const statement = render(query).sql
-      if (isWalk(statement) && walksSeen++ > 0) {
-        throw Object.assign(new Error('canceling statement due to statement timeout'), {
-          code: '57014',
-        })
-      }
-      return base(query)
-    })
-    const rows = await handleVectorOnlySearch({
-      ...params,
-      budget,
-      permitted: { kind: 'unbounded', broad: true },
-      accessPlan: {
-        connectors: eligibility,
-        observers: { confirmed: [{ id: 'm-1', connectorId: 'member-src' }], observed: [] },
-        memberSources: ['member-src'],
-      },
-    })
-    expect(rows.map((row) => row.id)).toEqual(['short-hit'])
-    /** The wider walk ran under a share of the leg's budget, not all of it. */
-    const timeouts = statements()
-      .filter((query) => query.sql.includes("'statement_timeout'"))
-      .map((query) =>
-        Number(query.params.find((param) => typeof param === 'string' && /^\d+$/.test(param)))
-      )
-      .filter((value) => Number.isFinite(value))
-    expect(Math.min(...timeouts)).toBeLessThanOrEqual(5000)
-    expect(Math.max(...timeouts)).toBeGreaterThan(5000)
-  })
-
   it('walks an indexed source a bounded caller is a member of instead of ranking it exactly', async () => {
     const eligibility = { workspace: [], admin: ['small-src'], members: ['member-src'] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
@@ -1583,8 +1529,32 @@ describe('permitted-document planner', () => {
       expect(statement).toContain('ranked_tin_chunks.acl')
     })
 
-    it('takes one wide window for a narrow resolved scope and leaves a short page short', async () => {
-      tinPages = [{ ranked: 20_000, candidates: [hit('a', 'src-a')] }]
+    it('widens the window for a broad resolved scope whose first page came back short', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 4000, candidates: [hit('b', 'src-a')] },
+      ]
+      queueTableRows(schemaMock.embedding, [{ ...hit('b', 'src-a'), content: 'release notes' }])
+      const results = await keyword({
+        permitted: { kind: 'unbounded', broad: true },
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results.map((row) => row.id)).toEqual(['b'])
+      const windows = tinStatements().map((query) => JSON.stringify(query))
+      expect(windows).toHaveLength(2)
+      expect(windows[0]).toContain('2000')
+      expect(windows[1]).toContain('10000')
+    })
+
+    it('widens a narrow resolved scope straight to its wide window and leaves a short page short', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 20_000, candidates: [hit('a', 'src-a')] },
+      ]
       queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
       const results = await keyword({
         permitted: { kind: 'unbounded', broad: false },
@@ -1595,12 +1565,57 @@ describe('permitted-document planner', () => {
         },
       })
       expect(results.map((row) => row.id)).toEqual(['a'])
-      /** One statement, at the widest window; nothing narrower first, and no ranking of every match after. */
-      expect(tinStatements()).toHaveLength(1)
-      expect(JSON.stringify(tinStatements()[0])).toContain('20000')
+      /** The narrowest window, then the wide one; nothing between, and no ranking of every match after. */
+      const windows = tinStatements().map((query) => JSON.stringify(query))
+      expect(windows).toHaveLength(2)
+      expect(windows[0]).toContain('2000')
+      expect(windows[1]).toContain('20000')
       expect(ginStatements()).toHaveLength(0)
-      /** The window is ranked once for several pages' worth of readable rows, not once per page. */
-      expect(JSON.stringify(tinStatements()[0])).toContain('1000')
+      /** Each window is ranked once for several pages' worth of readable rows, not once per page. */
+      expect(windows[1]).toContain('1000')
+    })
+
+    it('stops a narrow resolved scope at the narrowest window that fills its page', async () => {
+      const page = Array.from({ length: 20 }, (_, i) => hit(`k-${i}`, 'src-a'))
+      tinPages = [{ ranked: 2000, candidates: page }]
+      queueTableRows(
+        schemaMock.embedding,
+        page.map((row) => ({ ...row, content: 'release notes' }))
+      )
+      const results = await keyword({
+        topK: 20,
+        permitted: { kind: 'unbounded', broad: false },
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results).toHaveLength(20)
+      /** Ranking costs grow with the window; a page the narrowest fills never pays for the wide one. */
+      expect(tinStatements()).toHaveLength(1)
+      expect(JSON.stringify(tinStatements()[0])).toContain('2000')
+      expect(JSON.stringify(tinStatements()[0])).not.toContain('20000')
+    })
+
+    it('leaves a broad resolved scope short at its widest window instead of ranking every match', async () => {
+      tinPages = [
+        { ranked: 2000, candidates: [] },
+        { ranked: 10_000, candidates: [] },
+        { ranked: 50_000, candidates: [hit('a', 'src-a')] },
+      ]
+      queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+      const results = await keyword({
+        permitted: { kind: 'unbounded', broad: true },
+        accessPlan: {
+          connectors: { workspace: [], admin: ['src-a'], members: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+        },
+      })
+      expect(results.map((row) => row.id)).toEqual(['a'])
+      expect(tinStatements()).toHaveLength(3)
+      expect(ginStatements()).toHaveLength(0)
     })
 
     it('hydrates an oversized keyword page in slices and stops at the results it needs', async () => {
@@ -1774,6 +1789,31 @@ describe('permitted-document planner', () => {
       counts.reached = 120_000
       const narrow = await resolve(scope('narrow-reach'))
       expect(narrow).toEqual({ kind: 'unbounded', broad: false })
+      expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('does not remember a reach whose count ran out of time', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached'))
+          throw Object.assign(new Error('canceling statement due to statement timeout'), {
+            code: '57014',
+          })
+        return []
+      })
+      const budget = new SearchBudget('vector', performance.now() + 10_000)
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const plan = await resolveReach(['org-index'], scope('timed-reach'), budget)
+      expect(plan).toEqual({ kind: 'unbounded', broad: true })
+      expect(reachCounts()).toHaveLength(1)
+      /** The next search counts again rather than trusting an answer that never came. */
+      await resolveReach(
+        ['org-index'],
+        scope('timed-reach'),
+        new SearchBudget('vector', performance.now() + 10_000)
+      )
       expect(reachCounts()).toHaveLength(2)
     })
 
