@@ -92,6 +92,7 @@ import type {
   LogItem,
   PageActionContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -287,8 +288,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
               ) : undefined
             }
           >
-            <button
-              type='button'
+            <SidebarRowAction
               aria-label='Chat options'
               onPointerDown={onMorePointerDown}
               onClick={(e) => {
@@ -296,10 +296,9 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 e.stopPropagation()
                 onMoreClick(e, chat.id)
               }}
-              className='flex size-[18px] items-center justify-center rounded-sm'
             >
               <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
-            </button>
+            </SidebarRowAction>
           </SidebarRowActions>
         )}
       </ChatNavigationLink>
