@@ -453,6 +453,27 @@ describe('Chat Identifier API Route', () => {
       })
     })
 
+    it('should return 403 for an inactive chat without loading the workflow or writing a log', async () => {
+      dbChainMockFns.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue([{ ...mockChatResult[0], isActive: false }]),
+          }),
+        }),
+      }))
+      const req = createMockNextRequest('POST', { input: 'x' })
+
+      const response = await POST(req, { params: Promise.resolve({ identifier: 'paused-chat' }) })
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data).toHaveProperty('message', 'This chat is currently unavailable')
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(loggingSessionMockFns.mockSafeStart).not.toHaveBeenCalled()
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+      expect(mockValidateChatAuth).not.toHaveBeenCalled()
+    })
+
     it('should return 400 for requests without input', async () => {
       const req = createMockNextRequest('POST', {})
       const params = Promise.resolve({ identifier: 'test-chat' })

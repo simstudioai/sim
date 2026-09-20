@@ -80,6 +80,13 @@ export interface GoogleCalendarInviteParams extends BaseGoogleCalendarParams {
   replaceExisting?: boolean
 }
 
+export interface GoogleCalendarRespondParams extends BaseGoogleCalendarParams {
+  eventId: string
+  responseStatus: 'accepted' | 'declined' | 'tentative'
+  comment?: string
+  sendUpdates?: 'all' | 'externalOnly' | 'none'
+}
+
 interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
   eventId: string
   destinationCalendarId: string
@@ -154,6 +161,7 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarDeleteParams
   | GoogleCalendarQuickAddParams
   | GoogleCalendarInviteParams
+  | GoogleCalendarRespondParams
   | GoogleCalendarMoveParams
   | GoogleCalendarInstancesParams
   | GoogleCalendarFreeBusyParams
@@ -243,6 +251,13 @@ export interface GoogleCalendarUpdateResponse extends ToolResponse {
 }
 
 export interface GoogleCalendarInviteResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarRespondResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata
@@ -537,6 +552,7 @@ export type GoogleCalendarResponse =
   | GoogleCalendarGetResponse
   | GoogleCalendarQuickAddResponse
   | GoogleCalendarInviteResponse
+  | GoogleCalendarRespondResponse
   | GoogleCalendarUpdateResponse
   | GoogleCalendarDeleteResponse
   | GoogleCalendarMoveResponse

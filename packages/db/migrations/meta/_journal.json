@@ -2542,6 +2542,41 @@
       "when": 1789713467804,
       "tag": "0363_connector_sync_schedule_precision",
       "breakpoints": true
+    },
+    {
+      "idx": 364,
+      "version": "7",
+      "when": 1789773032501,
+      "tag": "0364_workspace_file_search_direct_gin",
+      "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1789780463212,
+      "tag": "0365_workspace_file_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 366,
+      "version": "7",
+      "when": 1789801452516,
+      "tag": "0366_member_scope_renewed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1789837174274,
+      "tag": "0367_tin_keyword_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1789842468472,
+      "tag": "0368_durable_agent_memory",
+      "breakpoints": true
     }
   ]
 }

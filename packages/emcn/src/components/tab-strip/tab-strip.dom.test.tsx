@@ -1,10 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, createRef, type ReactNode } from 'react'
+import { Slot } from '@radix-ui/react-slot'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TabStrip, type TabStripItem } from './tab-strip'
+import { TabStripAction } from './tab-strip-action'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -62,6 +64,38 @@ function scrollRow(): HTMLDivElement {
 }
 
 describe('TabStrip interactions', () => {
+  it('forwards action refs and native props through slotted triggers', () => {
+    const ref = createRef<HTMLButtonElement>()
+    const onTrigger = vi.fn()
+    const onAction = vi.fn()
+    const renderAction = (disabled = false) => (
+      <Slot onClick={onTrigger} data-state='closed'>
+        <TabStripAction ref={ref} aria-label='Export' disabled={disabled} onClick={onAction}>
+          Export
+        </TabStripAction>
+      </Slot>
+    )
+    mount(renderAction())
+    const button = ref.current
+    expect(button).toBe(container?.querySelector('button'))
+    expect(button?.type).toBe('submit')
+    expect(button?.getAttribute('data-state')).toBe('closed')
+    expect(button?.getAttribute('aria-label')).toBe('Export')
+    act(() => {
+      button?.focus()
+      button?.click()
+    })
+    expect(document.activeElement).toBe(button)
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+    expect(onAction).toHaveBeenCalledTimes(1)
+
+    act(() => root?.render(renderAction(true)))
+    act(() => button?.click())
+    expect(ref.current).toBe(button)
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+  })
+
   it('uses one keyboard tab stop and exposes tab semantics', () => {
     mount(renderStrip(tabs))
 

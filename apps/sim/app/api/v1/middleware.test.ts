@@ -30,6 +30,7 @@ const {
   mockGetUserEntityPermissions,
   mockGetWorkspaceBillingSettings,
   mockGetWorkspaceBilledAccountUserId,
+  mockIsCapabilityWithheldForUser,
 } = vi.hoisted(() => ({
   mockAuthenticateV1Request: vi.fn(),
   mockGetSubscription: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockGetWorkspaceBilledAccountUserId: vi.fn(),
+  mockIsCapabilityWithheldForUser: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/auth', () => ({
@@ -57,6 +59,10 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
+vi.mock('@/lib/permission-groups/user-scope.server', () => ({
+  isCapabilityWithheldForUser: mockIsCapabilityWithheldForUser,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
@@ -69,6 +75,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   authenticateRequest,
+  checkOrganizationPersonalKeyRefusal,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
@@ -422,6 +429,48 @@ describe('checkWorkspaceScope', () => {
     const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'read')
 
     expect(response?.status).toBe(403)
+  })
+})
+
+describe('checkOrganizationPersonalKeyRefusal', () => {
+  const USER_ID = 'user-1'
+  const BASE = { allowed: true, remaining: 1, limit: 1, resetAt: new Date(), userId: USER_ID }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockIsCapabilityWithheldForUser.mockResolvedValue(false)
+  })
+
+  it("refuses a personal key its user-global group withholds, with the group's detail code", async () => {
+    mockIsCapabilityWithheldForUser.mockResolvedValue(true)
+
+    const response = await checkOrganizationPersonalKeyRefusal({ ...BASE, keyType: 'personal' })
+
+    expect(mockIsCapabilityWithheldForUser).toHaveBeenCalledWith(USER_ID, 'personal_api_key.use')
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/personal API key/i),
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+  })
+
+  it('allows a personal key its group does not withhold', async () => {
+    await expect(
+      checkOrganizationPersonalKeyRefusal({ ...BASE, keyType: 'personal' })
+    ).resolves.toBeNull()
+  })
+
+  it("never evaluates a workspace key against its creator's group", async () => {
+    mockIsCapabilityWithheldForUser.mockResolvedValue(true)
+
+    const response = await checkOrganizationPersonalKeyRefusal({
+      ...BASE,
+      keyType: 'workspace',
+      workspaceId: 'workspace-a',
+    })
+
+    expect(response).toBeNull()
+    expect(mockIsCapabilityWithheldForUser).not.toHaveBeenCalled()
   })
 })
 

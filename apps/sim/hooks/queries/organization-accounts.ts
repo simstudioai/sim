@@ -39,11 +39,11 @@ import {
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
-import { slackSearchKeys } from '@/hooks/queries/slack-search'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
+import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 

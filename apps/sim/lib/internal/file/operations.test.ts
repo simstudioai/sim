@@ -1723,6 +1723,7 @@ describe('file manage operations', () => {
       Buffer.from('fresh'),
       'text/plain',
       {
+        version: { source: 'workflow', authorUserId: 'user-1' },
         expectedUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenancePolicy: { mode: 'replace', provenance: { status: 'exact', entries: [] } },
       }
@@ -1897,6 +1898,7 @@ describe('file manage operations', () => {
       Buffer.from('secret-value'),
       'text/plain',
       {
+        version: { source: 'workflow', authorUserId: 'user-1' },
         expectedUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
       }
@@ -1954,6 +1956,7 @@ describe('file manage operations', () => {
       Buffer.from('beforesecret-value'),
       undefined,
       {
+        version: { source: 'workflow', authorUserId: 'user-1' },
         expectedUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenancePolicy: {
           mode: 'replace',
@@ -2004,6 +2007,7 @@ describe('file manage operations', () => {
       Buffer.from('beforeordinary text'),
       undefined,
       {
+        version: { source: 'workflow', authorUserId: 'user-1' },
         expectedUpdatedAt: CONTENT_UPDATED_AT,
         secretProvenancePolicy: { mode: 'preserve' },
       }

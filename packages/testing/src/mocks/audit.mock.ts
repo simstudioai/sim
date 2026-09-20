@@ -80,6 +80,8 @@ export const auditMock = {
     FILE_UPDATED: 'file.updated',
     FILE_DELETED: 'file.deleted',
     FILE_RESTORED: 'file.restored',
+    FILE_REVERTED: 'file.reverted',
+    FILE_VERSION_DELETED: 'file.version_deleted',
     FILE_MOVED: 'file.moved',
     FILE_SHARED: 'file.shared',
     FILE_SHARE_DISABLED: 'file.share_disabled',

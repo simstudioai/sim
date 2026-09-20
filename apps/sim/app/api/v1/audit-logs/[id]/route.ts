@@ -22,7 +22,7 @@ import { v1GetAuditLogContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
 import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
+import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
@@ -49,7 +49,6 @@ export const GET = withRouteHandler(
         return createRateLimitResponse(rateLimit)
       }
 
-      const userId = rateLimit.userId!
       const parsed = await parseRequest(v1GetAuditLogContract, request, context, {
         validationErrorResponse: () =>
           NextResponse.json({ error: 'Invalid audit log ID' }, { status: 400 }),
@@ -58,11 +57,12 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const authResult = await validateEnterpriseAuditAccess(userId)
+      const authResult = await validateV1EnterpriseAuditAccess(rateLimit)
       if (!authResult.success) {
         return authResult.response
       }
 
+      const { userId } = authResult
       const { organizationId, orgMemberIds } = authResult.context
 
       const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)

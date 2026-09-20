@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
 import { Send, X } from '@sim/emcn/icons'
-import { Button } from '@/components/ui/button'
 
 interface WandPromptBarProps {
   isVisible: boolean
@@ -114,25 +113,16 @@ export function WandPromptBar({
           />
         </div>
 
-        <Button
-          variant='ghost'
-          size='icon'
-          onClick={handleCancel}
-          className='size-8 rounded-full text-muted-foreground hover-hover:bg-accent/50 hover-hover:text-foreground'
-        >
-          <X className='size-4' />
-        </Button>
+        <Chip shape='round' leftIcon={X} onClick={handleCancel} aria-label='Close AI prompt' />
 
         {!isStreaming && (
-          <Button
-            variant='ghost'
-            size='icon'
+          <Chip
+            shape='round'
+            leftIcon={Send}
             onClick={() => onSubmit(promptValue)}
-            className='size-8 rounded-full text-muted-foreground hover-hover:bg-primary/10 hover-hover:text-foreground'
             disabled={isLoading || isStreaming || !promptValue.trim()}
-          >
-            <Send className='size-4' />
-          </Button>
+            aria-label='Generate content'
+          />
         )}
       </div>
     </div>

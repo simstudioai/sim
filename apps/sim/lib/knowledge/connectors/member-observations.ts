@@ -109,6 +109,112 @@ export async function recordMemberObservations(
   return added
 }
 
+/** Documents read per page while renewing a member's observations by access scope. */
+const RENEWAL_PAGE_SIZE = 1000
+
+/**
+ * Drops prefixes covered by a shorter one, so in the sorted remainder the only
+ * prefix that can match an id is the greatest one not after it.
+ */
+function normalizeScopePrefixes(prefixes: readonly string[]): string[] {
+  const sorted = [...new Set(prefixes)].filter((prefix) => prefix.length > 0).sort()
+  const kept: string[] = []
+  for (const prefix of sorted) {
+    const previous = kept.at(-1)
+    if (previous === undefined || !prefix.startsWith(previous)) kept.push(prefix)
+  }
+  return kept
+}
+
+function inScope(sortedPrefixes: readonly string[], externalId: string): boolean {
+  let low = 0
+  let high = sortedPrefixes.length - 1
+  let candidate: string | undefined
+  while (low <= high) {
+    const middle = (low + high) >> 1
+    if (sortedPrefixes[middle] <= externalId) {
+      candidate = sortedPrefixes[middle]
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+  return candidate !== undefined && externalId.startsWith(candidate)
+}
+
+/**
+ * Renews one member's observations of the connector's documents under scopes the
+ * source still grants them, without relisting each document: access to a scope is
+ * access to everything in it. Only observations older than `renewBefore` are
+ * touched, and their generation is kept, so a complete listing still withdraws
+ * whatever it no longer returns. Observations outside every scope are left to
+ * lapse. Stops at `deadlineAt`; a later run resumes from the stale rows left.
+ */
+export async function renewMemberObservationsInScopes(input: {
+  connectorId: string
+  memberId: string
+  scopePrefixes: readonly string[]
+  renewBefore: Date
+  deadlineAt: number
+  beforeBatch: () => Promise<void>
+  withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
+}): Promise<{ renewed: number; finished: boolean }> {
+  const prefixes = normalizeScopePrefixes(input.scopePrefixes)
+  let renewed = 0
+  if (prefixes.length === 0) return { renewed, finished: true }
+  let after: string | undefined
+  for (;;) {
+    if (Date.now() >= input.deadlineAt) return { renewed, finished: false }
+    await input.beforeBatch()
+    const page = await db
+      .select({
+        documentId: knowledgeDocumentObservation.documentId,
+        externalId: document.externalId,
+      })
+      .from(document)
+      .innerJoin(
+        knowledgeDocumentObservation,
+        and(
+          eq(knowledgeDocumentObservation.documentId, document.id),
+          eq(knowledgeDocumentObservation.memberId, input.memberId)
+        )
+      )
+      .where(
+        and(
+          eq(document.connectorId, input.connectorId),
+          isNull(document.deletedAt),
+          isNotNull(document.externalId),
+          after === undefined ? undefined : gt(document.externalId, after),
+          lt(knowledgeDocumentObservation.lastSeenAt, input.renewBefore)
+        )
+      )
+      .orderBy(asc(document.externalId))
+      .limit(RENEWAL_PAGE_SIZE)
+    const renewable = page
+      .filter((row) => row.externalId !== null && inScope(prefixes, row.externalId))
+      .map((row) => row.documentId)
+    if (renewable.length > 0) {
+      const now = new Date()
+      const rows = await input.withLease((tx) =>
+        tx
+          .update(knowledgeDocumentObservation)
+          .set({ lastSeenAt: now })
+          .where(
+            and(
+              eq(knowledgeDocumentObservation.memberId, input.memberId),
+              inArray(knowledgeDocumentObservation.documentId, renewable),
+              lt(knowledgeDocumentObservation.lastSeenAt, input.renewBefore)
+            )
+          )
+          .returning({ documentId: knowledgeDocumentObservation.documentId })
+      )
+      renewed += rows.length
+    }
+    if (page.length < RENEWAL_PAGE_SIZE) return { renewed, finished: true }
+    after = page.at(-1)?.externalId ?? undefined
+  }
+}
+
 /**
  * Removes every observation of one member that this run did not re-assert.
  * Only called after a full, complete, non-suspect listing: absence from any

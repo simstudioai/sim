@@ -201,6 +201,15 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     })
   ),
+  connectCustomSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.connect_custom',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
   completeSlackInstallation: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.slack.oauth.complete',

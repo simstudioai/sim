@@ -28,6 +28,7 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
+  | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
   | 'usage_recording'
@@ -50,6 +51,9 @@ export type SearchStage =
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
+  | 'keyword.tin'
+  | 'keyword.tin_readiness'
+  | 'keyword.tin_query'
   | 'source_overview'
   | 'source_overview.availability'
   | 'source_overview.providers'
@@ -89,6 +93,21 @@ export interface SearchDiagnosticMetadata {
   vectorCandidateLimit?: number
   /** Visible documents the tractability probe enumerated, capped at its own document limit. */
   vectorProbeDocumentCount?: number
+  /**
+   * Whether a user-scoped search resolved its permitted documents before retrieval: `bounded`
+   * ranks inside that set, `unbounded` means it exceeded the probe's limit and both legs search
+   * the index with the access predicate applied per candidate.
+   */
+  permittedDocuments?: 'bounded' | 'unbounded'
+  /** Documents in a bounded permitted set. */
+  permittedDocumentCount?: number
+  /**
+   * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
+   * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.
+   */
+  keywordRanking?: 'tin' | 'gin'
+  /** Candidates Tin ranked before access was checked on the last keyword page. */
+  keywordTinWindow?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number

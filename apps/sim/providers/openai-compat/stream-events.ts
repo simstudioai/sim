@@ -12,12 +12,15 @@
 import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { captureProviderConversationStep } from '@/providers/conversation-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import {
   getOpenRouterReasoningDetailText,
   type OpenRouterReasoningDetail,
 } from '@/providers/openrouter/reasoning'
 import type { AgentStreamEvent, TextDeltaTurn } from '@/providers/stream-events'
 import { ensureToolCallId } from '@/providers/tool-call-id'
+import type { ProviderRequest } from '@/providers/types'
 
 export interface OpenAICompatAssembledToolCall {
   id: string
@@ -43,6 +46,7 @@ export interface OpenAICompatStreamComplete {
 
 export interface CreateOpenAICompatibleAgentEventStreamOptions {
   providerName: string
+  request?: ProviderRequest
   /** Tag for answer text (default `final`). */
   turn?: TextDeltaTurn
   /** Emit tool_call_start from delta.tool_calls when id+name known. Default false for no-tools path. */
@@ -126,6 +130,7 @@ export function createOpenAICompatibleAgentEventStream(
       let promptTokens = 0
       let completionTokens = 0
       let totalTokens = 0
+      let nativeUsage: CompletionUsage | undefined
       let finishReason: string | undefined
       const seenToolIds = new Set<string>()
       const toolBuffers = new Map<
@@ -158,6 +163,7 @@ export function createOpenAICompatibleAgentEventStream(
            */
           const usage = chunk.usage ?? extension.x_groq?.usage
           if (usage) {
+            nativeUsage = usage
             promptTokens = usage.prompt_tokens ?? 0
             completionTokens = usage.completion_tokens ?? 0
             totalTokens = usage.total_tokens ?? 0
@@ -240,7 +246,7 @@ export function createOpenAICompatibleAgentEventStream(
         }
 
         if (cancelled) return
-        if (onComplete) {
+        if (onComplete || options.request) {
           if (promptTokens === 0 && completionTokens === 0) {
             streamLogger.warn(`${providerName} stream completed without usage data`)
           }
@@ -255,13 +261,28 @@ export function createOpenAICompatibleAgentEventStream(
               })
             }
           }
-          onComplete({
+          if (options.request && !emitToolCallStarts) {
+            await captureProviderConversationStep(
+              options.request,
+              'chat-completions',
+              {
+                role: 'assistant',
+                content: fullContent,
+                ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+                ...(reasoning ? { reasoning } : {}),
+                ...(reasoningDetails.length ? { reasoning_details: reasoningDetails } : {}),
+              },
+              getChatCompletionConversationUsage(nativeUsage)
+            )
+          }
+          onComplete?.({
             content: fullContent,
             thinking: fullThinking,
             ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
             ...(reasoning ? { reasoning } : {}),
             ...(reasoningDetails.length > 0 ? { reasoning_details: reasoningDetails } : {}),
             usage: {
+              ...nativeUsage,
               prompt_tokens: promptTokens,
               completion_tokens: completionTokens,
               total_tokens: totalTokens || promptTokens + completionTokens,
