@@ -1111,9 +1111,7 @@ export function SsoProviderSettings({
                         </SettingRow>
 
                         <div className='flex items-center justify-between gap-4'>
-                          <Label htmlFor='sso-signed-assertions'>
-                            Require signed SAML assertions
-                          </Label>
+                          <Label>Require signed SAML assertions</Label>
                           <ChipSwitch
                             aria-label='Require signed SAML assertions'
                             options={TOGGLE_OPTIONS}
@@ -1125,7 +1123,7 @@ export function SsoProviderSettings({
                         </div>
 
                         <div className='flex items-center justify-between gap-4'>
-                          <Label htmlFor='sso-encrypt-assertions'>Encrypt SAML assertions</Label>
+                          <Label>Encrypt SAML assertions</Label>
                           <ChipSwitch
                             aria-label='Encrypt SAML assertions'
                             options={TOGGLE_OPTIONS}
@@ -1163,7 +1161,7 @@ export function SsoProviderSettings({
                                 error={showErrors && errors.spEncryptionCert?.length > 0}
                                 rows={3}
                               />
-                              <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                              <p className='mt-1 text-[var(--text-muted)] text-caption'>
                                 Upload this certificate to your identity provider so it can encrypt
                                 assertions to Sim.
                               </p>
