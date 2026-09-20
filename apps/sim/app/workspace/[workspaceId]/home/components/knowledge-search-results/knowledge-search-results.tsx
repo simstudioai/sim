@@ -28,6 +28,17 @@ import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/conn
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The picker names calendar days; the URL keeps them as dates. A day's bounds are its local
+ * midnight and the last millisecond before the next, so "September 1" means the reader's own day.
+ */
+function startOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate())
+}
+function endOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate() + 1, 0, 0, 0, -1)
+}
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
 
@@ -128,8 +139,11 @@ interface SearchResultsProps {
 function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
-  /** More results are a second, wider search: the first paint stays as quick as it is. */
-  const [expanded, setExpanded] = useState(false)
+  /**
+   * More results are a second, wider search: the first paint stays as quick as it is, and a
+   * refinement of the filters starts over at the first page.
+   */
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
   const {
     data: index,
     isPending: basesPending,
@@ -146,11 +160,13 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
       : {}),
-    ...(custom && filters.from ? { modifiedAfter: filters.from.toISOString() } : {}),
-    ...(custom && filters.to
-      ? { modifiedBefore: new Date(filters.to.getTime() + DAY_MS - 1).toISOString() }
+    ...(custom && filters.from
+      ? { modifiedAfter: startOfLocalDay(filters.from).toISOString() }
       : {}),
+    ...(custom && filters.to ? { modifiedBefore: endOfLocalDay(filters.to).toISOString() } : {}),
   }
+  const filtersKey = JSON.stringify(searchFilters)
+  const expanded = expandedFor === filtersKey
   const {
     data: search,
     isPending,
@@ -323,7 +339,11 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           })}
           {mayHaveMore && (
             <div className='flex px-2 py-2'>
-              <Chip variant='border' disabled={isFetching} onClick={() => setExpanded(true)}>
+              <Chip
+                variant='border'
+                disabled={isFetching}
+                onClick={() => setExpandedFor(filtersKey)}
+              >
                 Show more
               </Chip>
             </div>

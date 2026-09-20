@@ -172,26 +172,13 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 })
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
-export const workspaceSearchFiltersSchema = z
-  .object({
-    source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
-    modifiedAfter: z.string().datetime({ offset: true }).optional(),
-    modifiedBefore: z.string().datetime({ offset: true }).optional(),
-    documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
-  })
-  .superRefine((filters, ctx) => {
-    if (
-      filters.modifiedAfter &&
-      filters.modifiedBefore &&
-      Date.parse(filters.modifiedBefore) < Date.parse(filters.modifiedAfter)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['modifiedBefore'],
-        message: 'modifiedBefore must not precede modifiedAfter',
-      })
-    }
-  })
+/** A plain object, so the Assistant's search input may still extend it; the window's order is checked on the request. */
+export const workspaceSearchFiltersSchema = z.object({
+  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
+  modifiedAfter: z.string().datetime({ offset: true }).optional(),
+  modifiedBefore: z.string().datetime({ offset: true }).optional(),
+  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
+})
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
 /** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
@@ -199,11 +186,22 @@ export const WORKSPACE_KNOWLEDGE_SEARCH_LIMITS = { initial: 20, expanded: 50 } a
 export type WorkspaceKnowledgeSearchLimit =
   (typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS)[keyof typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS]
 
-export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({
-  filters: workspaceSearchFiltersSchema.optional(),
-  query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
-  topK: z.number().int().min(1).max(50).optional().default(20),
-})
+export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
+  .safeExtend({
+    filters: workspaceSearchFiltersSchema.optional(),
+    query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
+    topK: z.number().int().min(1).max(50).optional().default(20),
+  })
+  .superRefine((body, ctx) => {
+    const { modifiedAfter, modifiedBefore } = body.filters ?? {}
+    if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters', 'modifiedBefore'],
+        message: 'modifiedBefore must not precede modifiedAfter',
+      })
+    }
+  })
 export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
 
 export const workspaceKnowledgeSearchDataSchema = z.object({

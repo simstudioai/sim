@@ -4,7 +4,6 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { hasRotatingApiKey } from '@/lib/core/config/api-keys'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
@@ -31,10 +30,11 @@ export const POST = defineInternalJsonRoute({
     allowPartialResults: true,
     vectorBudgetMs: DIRECT_SEARCH_VECTOR_BUDGET_MS,
     /**
-     * A person's search is reranked by the platform's cross-encoder when one is configured;
-     * reranking is best-effort, so a provider outage leaves the fused order in place.
+     * A person's search is reranked by a cross-encoder whenever the workspace or the platform
+     * holds a key for one; the use case checks that before spending a call, and reranking stays
+     * best-effort, so a provider outage leaves the fused order in place.
      */
-    rerankerEnabled: hasRotatingApiKey('cohere'),
+    rerankerEnabled: true,
     rerankerModel: DEFAULT_RERANKER_MODEL,
     surface: 'dashboard' as const,
     signal: request.signal,

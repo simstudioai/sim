@@ -196,6 +196,35 @@ describe('result paging and the custom window', () => {
     expect(more()).toBeUndefined()
   })
 
+  it('starts a refined search over at the first page after the reader asked for more', async () => {
+    mocks.overview.mockReturnValue({
+      data: {
+        providers: [{ connectorType: 'slack', isSyncing: false }],
+        hasSearchableDocuments: true,
+      },
+    })
+    mocks.search.mockReturnValue({
+      data: {
+        query: 'launch',
+        results: Array.from({ length: 20 }, (_, n) => result(n)),
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render()
+    const button = (label: string) =>
+      [...container.querySelectorAll('button')].find((b) => b.textContent === label)!
+    await act(async () => button('Show more').click())
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(50)
+    await act(async () => button('Slack').click())
+    expect(mocks.search.mock.calls.at(-1)![2]).toEqual({ source: 'slack' })
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(20)
+  })
+
   it('searches a custom window as an inclusive range of days', async () => {
     mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
     mocks.search.mockReturnValue({
@@ -208,7 +237,8 @@ describe('result paging and the custom window', () => {
     })
     await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
     const filters = mocks.search.mock.calls.at(-1)![2]
-    expect(filters.modifiedAfter).toBe('2026-09-01T00:00:00.000Z')
-    expect(filters.modifiedBefore).toBe('2026-09-10T23:59:59.999Z')
+    /** The days are the reader's own: local midnight to the last millisecond of the local day. */
+    expect(filters.modifiedAfter).toBe(new Date(2026, 8, 1).toISOString())
+    expect(filters.modifiedBefore).toBe(new Date(2026, 8, 11, 0, 0, 0, -1).toISOString())
   })
 })

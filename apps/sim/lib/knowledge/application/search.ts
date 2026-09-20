@@ -34,7 +34,7 @@ import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { rerank } from '@/lib/knowledge/reranker'
+import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
@@ -391,7 +391,10 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       boostRecency: searchDefaults.boostRecency,
       embeddingDimensions: embeddingTarget?.dimensions,
     })
-    const useReranker = Boolean(input.rerankerEnabled && hasQuery)
+    /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
+    const useReranker =
+      Boolean(input.rerankerEnabled && hasQuery) &&
+      (Boolean(input.rerankerApiKey) || (await hasRerankerCredential(context.workspaceId)))
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
         ? Math.min(
