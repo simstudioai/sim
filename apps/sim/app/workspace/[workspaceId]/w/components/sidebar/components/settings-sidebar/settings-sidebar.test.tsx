@@ -240,10 +240,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(links).toHaveLength(1)
       expect(links[0]).toHaveAttribute('href', '/o/host-org/settings/members')
       expect(links[0]).toHaveTextContent('Organization')
-      if (role === 'admin')
-        expect(workspaceLink('connected-accounts')).toHaveTextContent('Credential Groups')
-      else expect(workspaceLink('connected-accounts')).toBeNull()
-      for (const section of ['organization', 'billing', 'usage', 'sso']) {
+      for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
         expect(workspaceLink(section)).toBeNull()
       }
       expectWorkspaceLinks()

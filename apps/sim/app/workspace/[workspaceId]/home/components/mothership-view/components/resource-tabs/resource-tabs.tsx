@@ -10,9 +10,9 @@ import {
   useState,
 } from 'react'
 import {
-  Button,
   cn,
   TabStrip,
+  TabStripAction,
   type TabStripDragContext,
   type TabStripItem,
   type TabStripSelectionSource,
@@ -41,7 +41,6 @@ import { useTerminalCloseConfirmation } from '@/app/workspace/[workspaceId]/home
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_HEADER_CLASSES,
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
   resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
@@ -545,14 +544,13 @@ export function ResourceTabs({
     previewMode && onCyclePreviewMode ? (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={onCyclePreviewMode}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Cycle preview mode'
           >
             <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>{PREVIEW_MODE_LABELS[previewMode]}</p>

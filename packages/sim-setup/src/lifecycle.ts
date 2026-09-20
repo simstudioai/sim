@@ -2,10 +2,16 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ensureProductionComposeFile } from './compose-asset'
+import {
+  choosePostgresPassword,
+  composeFileRequiresPostgresPassword,
+  postgresUser,
+  reportPostgresPasswordChoice,
+} from './compose-database'
 import { legacyComposeProjectName } from './compose-project'
 import { directoryOverride, resolveSetupContextAtRoot, SETUP_CONTEXT } from './context'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect'
-import { archiveEnvFile, archiveFile, parseEnv, ROOT } from './env-files'
+import { archiveEnvFile, archiveFile, parseEnv, ROOT, upsertEnv, writeEnvFile } from './env-files'
 import { SetupError } from './errors'
 import { forwardCommands, isLocalKubeContext } from './modes/k8s'
 import { httpHealth } from './probes'
@@ -196,6 +202,25 @@ function composeArgs(install: ComposeInstall, ...verb: string[]): string[] {
   return ['compose', '-p', install.project, '-f', install.file, ...verb]
 }
 
+/**
+ * Gives a Compose install the `POSTGRES_PASSWORD` its file requires before the
+ * stack is brought up, matching whatever its data volume was created with.
+ */
+function ensureComposePostgresPassword(install: ComposeInstall): void {
+  if (!composeFileRequiresPostgresPassword(install.file)) return
+  const envPath = path.join(install.dir, '.env')
+  const content = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
+  const vars = parseEnv(content)
+  const choice = choosePostgresPassword(vars.get('POSTGRES_PASSWORD'), install.project)
+  if (!choice) return
+  writeEnvFile(envPath, upsertEnv(content, 'POSTGRES_PASSWORD', choice.value))
+  reportPostgresPasswordChoice(choice, {
+    compose: `docker compose -p ${install.project} -f ${install.file}`,
+    user: postgresUser(vars.get('POSTGRES_USER')),
+    envPath,
+  })
+}
+
 /** Dev mode owns the split env files and, usually, the managed Postgres/Redis. */
 function devInstall(detection: Detection): DevInstall | null {
   const postgres = detection.dbContainer?.managed ?? false
@@ -294,6 +319,7 @@ function k8sReachHints(context: string): string {
 
 function start(install: Install): void {
   if (install.kind === 'compose') {
+    ensureComposePostgresPassword(install)
     const spin = p.spinner()
     spin.start('Starting containers…')
     dockerRun(composeArgs(install, 'up', '-d'), 'docker compose up failed', install.dir)
@@ -358,6 +384,7 @@ function stop(install: Install): void {
 
 function restart(install: Install): void {
   if (install.kind === 'compose') {
+    ensureComposePostgresPassword(install)
     const spin = p.spinner()
     spin.start('Restarting containers…')
     dockerRun(composeArgs(install, 'restart'), 'docker compose restart failed', install.dir)
@@ -404,9 +431,10 @@ function update(install: Install): void {
   }
 
   const mode = getComposeUpdateMode(install.file)
+  if (mode === 'pull') install.file = refreshComposeFileForUpdate(install.file, install.dir)
+  ensureComposePostgresPassword(install)
   const spin = p.spinner()
   if (mode === 'pull') {
-    install.file = refreshComposeFileForUpdate(install.file, install.dir)
     spin.start('Pulling configured Sim images…')
     dockerRun(composeArgs(install, 'pull'), 'docker compose pull failed', install.dir)
   } else {

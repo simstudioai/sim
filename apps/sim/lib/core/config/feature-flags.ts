@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'agent-memory-history': {
+    description:
+      'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
+    fallback: 'AGENT_MEMORY_HISTORY',
+  },
   'slack-search-shared-app': {
     description:
       'Enable the official shared Slack app for existing Search customers. Supports orgId ' +
@@ -92,6 +97,13 @@ const FEATURE_FLAGS = {
       'mirroring remains independent of managed identities. Off-AppConfig falls back to ' +
       'KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
+  },
+  'knowledge-tin-keyword': {
+    description:
+      'Rank keyword retrieval for members whose permitted set is too large to enumerate through ' +
+      'the Tin text index instead of GIN. Has no effect where the Tin keyword index is absent or ' +
+      'invalid. Off-AppConfig falls back to KNOWLEDGE_TIN_KEYWORD.',
+    fallback: 'KNOWLEDGE_TIN_KEYWORD',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

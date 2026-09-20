@@ -28,7 +28,11 @@ const WORKSPACE_SCOPE_PAGE_SIZE = 500
 /** Bounds per-run memory + DB connections regardless of plan size. */
 const WORKSPACES_PER_CLEANUP_CHUNK = 500
 
-export type CleanupJobType = 'cleanup-logs' | 'cleanup-soft-deletes' | 'cleanup-tasks'
+export type CleanupJobType =
+  | 'cleanup-logs'
+  | 'cleanup-soft-deletes'
+  | 'cleanup-tasks'
+  | 'cleanup-file-versions'
 
 export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
@@ -84,6 +88,10 @@ export const CLEANUP_CONFIG = {
   'cleanup-tasks': {
     key: 'taskCleanupHours',
     defaults: { free: null, pro: null, team: null, enterprise: null },
+  },
+  'cleanup-file-versions': {
+    key: 'fileVersionRetentionHours',
+    defaults: { free: 30 * DAY, pro: 180 * DAY, team: 180 * DAY, enterprise: null },
   },
 } as const satisfies Record<CleanupJobType, CleanupJobConfig>
 
@@ -224,6 +232,8 @@ async function buildCleanupRunner(jobType: CleanupJobType): Promise<EnqueueOptio
         return (await import('@/background/cleanup-soft-deletes')).runCleanupSoftDeletes
       case 'cleanup-tasks':
         return (await import('@/background/cleanup-tasks')).runCleanupTasks
+      case 'cleanup-file-versions':
+        return (await import('@/background/cleanup-file-versions')).runCleanupFileVersions
     }
   })()
   return ((payload) => cleanupRunner(payload as CleanupJobPayload)) as EnqueueOptions['runner']

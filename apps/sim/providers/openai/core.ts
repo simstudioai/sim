@@ -6,6 +6,15 @@ import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  isProviderConversationCaptureEnabled,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { createOpenAIResponsesStreamingToolLoopStream } from '@/providers/openai/streaming-tool-loop'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import {
@@ -39,6 +48,7 @@ import {
   type ResponsesInputItem,
   type ResponsesToolCall,
   responseContainsFunctionCall,
+  toOpenAIModelUsage,
   toResponsesToolChoice,
 } from './utils'
 
@@ -201,6 +211,9 @@ export async function executeResponsesProviderRequest(
    * request helpers below.
    */
   if (supportsReasoningEffort(config.modelName)) {
+    if (isProviderConversationCaptureEnabled(request)) {
+      basePayload.include = ['reasoning.encrypted_content']
+    }
     const hasExplicitEffort =
       request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
     const reasoning: Record<string, unknown> = {
@@ -425,7 +438,7 @@ export async function executeResponsesProviderRequest(
       return await fetchImpl(config.endpoint, {
         method: 'POST',
         headers: config.headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify(await prepareConversationGeneration(request, 'responses', payload)),
         signal: abortSignal,
       })
     } catch (error) {
@@ -488,6 +501,13 @@ export async function executeResponsesProviderRequest(
      * a rejected generation is not misreported as a transport failure.
      */
     assertUsableResponse(parsed, config.providerLabel)
+    const responseUsage = parseResponsesUsage(parsed.usage)
+    await captureProviderConversationStep(
+      request,
+      'responses',
+      parsed.output,
+      responseUsage && toOpenAIModelUsage(responseUsage)
+    )
     return parsed
   }
 
@@ -567,24 +587,34 @@ export async function executeResponsesProviderRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
-            const accumulator = createOpenAIUsageAccumulator()
-            addOpenAIUsage(accumulator, usage)
+          createReadableStreamFromResponses(
+            streamResponse,
+            async (content, usage, thinking, response) => {
+              if (response)
+                await captureProviderConversationStep(
+                  request,
+                  'responses',
+                  response.output,
+                  usage && toOpenAIModelUsage(usage)
+                )
+              const accumulator = createOpenAIUsageAccumulator()
+              addOpenAIUsage(accumulator, usage)
 
-            output.content = content
-            output.tokens = buildOpenAIUsageTokens(accumulator)
-            output.cost = buildOpenAIUsageCost(request.model, accumulator)
+              output.content = content
+              output.tokens = buildOpenAIUsageTokens(accumulator)
+              output.cost = buildOpenAIUsageCost(request.model, accumulator)
 
-            if (thinking) {
-              const segment = output.providerTiming?.timeSegments?.[0]
-              if (segment) {
-                // Label honestly: these are reasoning *summaries*, not raw CoT.
-                segment.thinkingContent = thinking
+              if (thinking) {
+                const segment = output.providerTiming?.timeSegments?.[0]
+                if (segment) {
+                  // Label honestly: these are reasoning *summaries*, not raw CoT.
+                  segment.thinkingContent = thinking
+                }
               }
-            }
 
-            finalizeTiming()
-          }),
+              finalizeTiming()
+            }
+          ),
       })
 
       return streamingResult
@@ -688,6 +718,12 @@ export async function executeResponsesProviderRequest(
           const tool = request.tools?.find((t) => t.id === toolName)
 
           if (!tool) {
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              `Tool "${toolName}" is not available`
+            )
             const toolCallEndTime = Date.now()
             return {
               toolCall,
@@ -734,6 +770,12 @@ export async function executeResponsesProviderRequest(
             throw error
           }
           const toolCallEndTime = Date.now()
+          await recordProviderConversationToolError(
+            request,
+            toolCall.id,
+            toolName,
+            getErrorMessage(error, 'Tool execution failed')
+          )
           logger.error('Error processing tool call:', { error, toolName })
 
           return {
@@ -915,7 +957,7 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 

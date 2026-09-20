@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
+import { toolResultForModel } from '@/lib/copilot/chat/sim-key-redaction'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -16,7 +17,7 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import type { ToolCallResult } from '@/lib/copilot/request/types'
-import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
+import { ensureHandlersRegistered, toolRequiresApprovalLane } from '@/lib/copilot/tool-executor'
 import { executeTool } from '@/lib/copilot/tool-executor/executor'
 import { TOOL_EFFECT_PHASE } from '@/lib/copilot/tool-executor/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -124,6 +125,29 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.ToolCallId]: toolCallId,
         [TraceAttr.UserId]: userId,
       })
+
+      /**
+       * Cheap admission, before any work: this lane cannot hold an approval prompt. The
+       * dispatch handler gates `requiresApproval` tools against a streaming context and a
+       * decision row, then deliberately declines to dispatch anything the mothership marks
+       * in-band — so a gated tool arriving here has no waiter behind it and would run on
+       * consent nobody gave. Refuse instead, and let the mothership take the checkpoint lane
+       * where the gate lives. Inert while copilot tool permissions are disabled, which keeps
+       * enabling the flag from silently leaving background lanes ungated.
+       */
+      if (toolRequiresApprovalLane(toolName)) {
+        logger.warn('Refusing an approval-gated tool on the in-band lane', {
+          toolName,
+          toolCallId,
+          userId,
+        })
+        rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        return NextResponse.json({
+          success: false,
+          error: `${toolName} was not run: it requires user approval, and this lane cannot hold an approval prompt. Dispatch it on the checkpoint lane instead.`,
+          output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
+        })
+      }
 
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry
@@ -243,9 +267,17 @@ export const POST = withRouteHandler((request: NextRequest) =>
             })
           })
         }
+        /**
+         * The response IS the model-facing channel on this lane — Go relays it straight into
+         * the turn — so it carries the same projection the resume lane's
+         * `getToolCallTerminalData` produces, not the raw handler output. Without this,
+         * `generate_api_key`'s freshly minted plaintext key crossed to the model here while
+         * the redaction held on the other lane. Every other tool is returned unchanged.
+         */
+        const modelOutput = toolResultForModel(toolName, projected.output)
         return NextResponse.json({
           success: projected.success,
-          ...(projected.output !== undefined ? { output: projected.output } : {}),
+          ...(modelOutput !== undefined ? { output: modelOutput } : {}),
           ...(projected.error ? { error: projected.error } : {}),
         })
       } catch (err) {

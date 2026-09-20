@@ -4,12 +4,13 @@
 import JSZip from 'jszip'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as XLSX from 'xlsx'
 import { DEFAULT_MAX_ERROR_BODY_BYTES, PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseBuffer } from '@/lib/file-parsers'
 import { listConfluenceAttachments } from '@/connectors/confluence/attachments'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { CONNECTOR_MAX_FILE_BYTES } from '@/connectors/utils'
+import { CONNECTOR_MAX_FILE_BYTES, PIPELINE_PARSED_MIME_TYPES } from '@/connectors/utils'
 
 const { secureDownload } = vi.hoisted(() => ({ secureDownload: vi.fn() }))
 vi.mock('@/lib/knowledge/documents/secure-fetch.server', async (importOriginal) => ({
@@ -90,6 +91,75 @@ async function get(externalId = 'attachment:page:p1:att123', config = CONFIG) {
   return confluenceConnector.getDocument('token', config, externalId, { ...CONTEXT })
 }
 
+const ROUNDTRIP_TEXT = 'Confluence attachment text'
+const OOXML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+const PACKAGE_RELS_NS = 'xmlns="http://schemas.openxmlformats.org/package/2006/relationships"'
+const PRESENTATION_NS =
+  'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+
+async function pdfBytes(): Promise<Buffer> {
+  const document = await PDFDocument.create()
+  const font = await document.embedFont(StandardFonts.Helvetica)
+  document.addPage().drawText(ROUNDTRIP_TEXT, { font, size: 14 })
+  return Buffer.from(await document.save())
+}
+
+async function docxBytes(): Promise<Buffer> {
+  const zip = new JSZip()
+  zip.file(
+    '[Content_Types].xml',
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+  )
+  zip.file(
+    '_rels/.rels',
+    `<Relationships ${PACKAGE_RELS_NS}><Relationship Id="rId1" Type="${OOXML_REL}/officeDocument" Target="word/document.xml"/></Relationships>`
+  )
+  zip.file(
+    'word/document.xml',
+    `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${ROUNDTRIP_TEXT}</w:t></w:r></w:p></w:body></w:document>`
+  )
+  return zip.generateAsync({ type: 'nodebuffer' })
+}
+
+/** One slide resolved through `p:sldIdLst`, the order the presentation walker follows. */
+async function pptxBytes(): Promise<Buffer> {
+  const zip = new JSZip()
+  zip.file(
+    '[Content_Types].xml',
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'
+  )
+  zip.file(
+    'ppt/presentation.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation ${PRESENTATION_NS}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>`
+  )
+  zip.file(
+    'ppt/_rels/presentation.xml.rels',
+    `<Relationships ${PACKAGE_RELS_NS}><Relationship Id="rId1" Type="${OOXML_REL}/slide" Target="slides/slide1.xml"/></Relationships>`
+  )
+  zip.file(
+    'ppt/slides/slide1.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ${PRESENTATION_NS}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="1" name="s"/><p:cNvSpPr/></p:nvSpPr><p:txBody><a:bodyPr/><a:p><a:r><a:t>${ROUNDTRIP_TEXT}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
+  )
+  return zip.generateAsync({ type: 'nodebuffer' })
+}
+
+async function xlsxBytes(): Promise<Buffer> {
+  const book = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(
+    book,
+    XLSX.utils.aoa_to_sheet([['Note'], [ROUNDTRIP_TEXT]]),
+    'Sheet1'
+  )
+  return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
+const ROUNDTRIP_FIXTURES = {
+  pdf: pdfBytes,
+  docx: docxBytes,
+  pptx: pptxBytes,
+  xlsx: xlsxBytes,
+} as const
+
 beforeEach(() => {
   fetchMock.mockReset()
   secureDownload.mockReset().mockResolvedValue(new Response('binary bytes'))
@@ -98,15 +168,20 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Confluence attachment listing', () => {
-  it('lists PDF, DOC and DOCX stubs without downloading, and excludes unsupported or archived files', async () => {
+  it('lists PDF, Word, PowerPoint and Excel stubs without downloading, and excludes unsupported or archived files', async () => {
     fetchMock.mockResolvedValue(
       Response.json({
         results: [
           file(),
           file({ id: '2', title: 'Legacy.DOC' }),
           file({ id: '3', title: 'Modern.docx' }),
-          file({ id: '4', title: 'image.png' }),
-          file({ id: '5', title: 'old.pdf', status: 'archived' }),
+          file({ id: '4', title: 'Deck.pptx' }),
+          file({ id: '5', title: 'Sheet.XLSX' }),
+          file({ id: '6', title: 'image.png' }),
+          file({ id: '7', title: 'Macro.pptm' }),
+          file({ id: '8', title: 'Legacy.xls' }),
+          file({ id: '9', title: 'Old.ppt' }),
+          file({ id: '10', title: 'old.pdf', status: 'archived' }),
         ],
       })
     )
@@ -119,7 +194,14 @@ describe('Confluence attachment listing', () => {
       'attachment:page:p1:att123',
       'attachment:page:p1:2',
       'attachment:page:p1:3',
+      'attachment:page:p1:4',
+      'attachment:page:p1:5',
     ])
+    expect(result.documents.slice(1).map((doc) => doc.mimeType)).toEqual(
+      ['pdf', 'doc', 'docx', 'pptx', 'xlsx'].map((extension) =>
+        PIPELINE_PARSED_MIME_TYPES.get(extension)
+      )
+    )
     expect(
       result.documents.slice(1).every((doc) => doc.contentDeferred && doc.content === '')
     ).toBe(true)
@@ -364,7 +446,7 @@ describe('Confluence attachment hydration', () => {
     }
   )
 
-  it.each(['pdf', 'doc', 'docx'])(
+  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx'])(
     'hands an original %s file to the shared parser pipeline',
     async (extension) => {
       fixture(file({ title: `Guide.${extension}` }))
@@ -492,37 +574,30 @@ describe('Confluence attachment hydration', () => {
     expect(secureDownload.mock.calls[0][1].signal).toBe(signal)
   })
 
-  it.each(['pdf', 'docx'] as const)(
+  it.each(['pdf', 'docx', 'pptx', 'xlsx'] as const)(
     'roundtrips genuine %s bytes through the public parser',
     async (extension) => {
-      let bytes: Buffer
-      if (extension === 'pdf') {
-        const document = await PDFDocument.create()
-        const font = await document.embedFont(StandardFonts.Helvetica)
-        document.addPage().drawText('Confluence attachment text', { font, size: 14 })
-        bytes = Buffer.from(await document.save())
-      } else {
-        const zip = new JSZip()
-        zip.file(
-          '[Content_Types].xml',
-          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
-        )
-        zip.file(
-          '_rels/.rels',
-          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'
-        )
-        zip.file(
-          'word/document.xml',
-          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Confluence attachment text</w:t></w:r></w:p></w:body></w:document>'
-        )
-        bytes = await zip.generateAsync({ type: 'nodebuffer' })
-      }
+      const bytes = await ROUNDTRIP_FIXTURES[extension]()
       fixture(file({ title: `Guide.${extension}`, fileSize: bytes.length }))
       secureDownload.mockResolvedValue(new Response(bytes))
       const doc = await get()
       expect(doc?.sourceFile).toBeDefined()
       const parsed = await parseBuffer(doc!.sourceFile!.bytes, extension)
-      expect(parsed.content).toContain('Confluence attachment text')
+      expect(parsed.content).toContain(ROUNDTRIP_TEXT)
+    }
+  )
+
+  it.each(['Guide.ppt', 'Guide.xls'])(
+    'replaces an attachment renamed to unsupported %s without downloading',
+    async (title) => {
+      fixture(file({ title }))
+      const doc = await get()
+      expect(doc?.skippedReason).toBe(
+        'Attachment is no longer a PDF, Word, Excel or PowerPoint document'
+      )
+      expect(doc?.skippedExistingDisposition).toBe('replace')
+      expect(doc?.contentDeferred).toBe(false)
+      expect(secureDownload).not.toHaveBeenCalled()
     }
   )
 })

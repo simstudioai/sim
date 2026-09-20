@@ -5,9 +5,14 @@ import { workspaceFileSecretProvenance, workspaceFiles } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
+const { mockReportWrite, mockReportRefusal, mockFindWorkspaceFileVersionKeys } = vi.hoisted(() => ({
   mockReportWrite: vi.fn(),
   mockReportRefusal: vi.fn(),
+  mockFindWorkspaceFileVersionKeys: vi.fn(async () => new Set<string>()),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+  findWorkspaceFileVersionKeys: mockFindWorkspaceFileVersionKeys,
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
@@ -978,6 +983,31 @@ describe('workspace file secret provenance', () => {
     ).resolves.toBe(true)
 
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a retained version key rather than treating it as an untracked legacy key', async () => {
+    queueTableRows(workspaceFiles, [])
+    mockFindWorkspaceFileVersionKeys.mockResolvedValueOnce(new Set(['old-version-key']))
+
+    await expect(
+      areModelSafeWorkspaceFileKeys(['old-version-key'], { workspaceId: 'workspace-1' })
+    ).resolves.toBe(false)
+    expect(mockFindWorkspaceFileVersionKeys).toHaveBeenCalledWith(['old-version-key'])
+  })
+
+  it('drops a retained version key from model attachments', async () => {
+    queueTableRows(workspaceFiles, [])
+    mockFindWorkspaceFileVersionKeys.mockResolvedValueOnce(new Set(['old-version-key']))
+
+    await expect(
+      filterModelSafeWorkspaceFileAttachments(
+        [
+          { id: 'file-1', key: 'old-version-key' },
+          { id: 'legacy', key: 'legacy-key' },
+        ],
+        { workspaceId: 'workspace-1' }
+      )
+    ).resolves.toEqual([{ id: 'legacy', key: 'legacy-key' }])
   })
 
   it('rejects a document batch when any canonical workspace file is tainted', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEPLOYMENT_VERSION_MAX } from '@/lib/api/contracts/deployments'
+import { INT4_MAX } from '@/lib/api/contracts/primitives'
 import {
   v2DeployWorkflowContract,
   v2GetWorkflowRunContract,
@@ -44,15 +44,13 @@ describe('v2 deployment request contracts', () => {
   })
 
   it('rejects a rollback version past the range its column can hold', () => {
-    expect(rollbackBody.safeParse({ version: DEPLOYMENT_VERSION_MAX }).success).toBe(true)
-    expect(rollbackBody.safeParse({ version: DEPLOYMENT_VERSION_MAX + 1 }).success).toBe(false)
+    expect(rollbackBody.safeParse({ version: INT4_MAX }).success).toBe(true)
+    expect(rollbackBody.safeParse({ version: INT4_MAX + 1 }).success).toBe(false)
   })
 
   it('bounds the version a forged versions cursor can carry into the query', () => {
     expect(v2WorkflowVersionCursorSchema.safeParse({ version: 2 }).success).toBe(true)
-    expect(
-      v2WorkflowVersionCursorSchema.safeParse({ version: DEPLOYMENT_VERSION_MAX + 1 }).success
-    ).toBe(false)
+    expect(v2WorkflowVersionCursorSchema.safeParse({ version: INT4_MAX + 1 }).success).toBe(false)
     expect(v2WorkflowVersionCursorSchema.safeParse({ version: 0 }).success).toBe(false)
     expect(v2WorkflowVersionCursorSchema.safeParse({ version: 'two' }).success).toBe(false)
     expect(v2WorkflowVersionCursorSchema.safeParse({}).success).toBe(false)

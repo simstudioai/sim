@@ -3,6 +3,12 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  bindConversationRequestContext,
+  captureProviderConversationStep,
+  getConversationRequestContext,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import {
   addOpenAIUsage,
@@ -22,6 +28,7 @@ import {
   type ResponsesToolCall,
   type ResponsesToolChoice,
   responseContainsFunctionCall,
+  toOpenAIModelUsage,
 } from '@/providers/openai/utils'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
@@ -217,6 +224,12 @@ async function executeOpenAIToolCall(options: {
   try {
     toolArgs = parseToolArguments(toolCall.arguments, toolCall.name)
   } catch (error) {
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      getErrorMessage(error, 'Invalid tool arguments')
+    )
     return completeToolExecution(
       controller,
       openTools,
@@ -233,6 +246,12 @@ async function executeOpenAIToolCall(options: {
 
   const tool = request.tools?.find((candidate) => candidate.id === toolCall.name)
   if (!tool) {
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      `Tool not found: ${toolCall.name}`
+    )
     return completeToolExecution(
       controller,
       openTools,
@@ -307,6 +326,12 @@ async function executeOpenAIToolCall(options: {
       throw error
     }
 
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      getErrorMessage(error, 'Tool execution failed')
+    )
     logger.error('Error processing OpenAI tool call:', {
       error,
       toolName: toolCall.name,
@@ -358,6 +383,8 @@ export function createOpenAIResponsesStreamingToolLoopStream(
     ...request,
     abortSignal: loopAbortController.signal,
   }
+  const conversationContext = getConversationRequestContext(request)
+  if (conversationContext) bindConversationRequestContext(loopRequest, conversationContext)
 
   return new ReadableStream<AgentStreamEvent>({
     start(controller) {
@@ -451,6 +478,13 @@ export function createOpenAIResponsesStreamingToolLoopStream(
                 })
               }
             }
+
+            await captureProviderConversationStep(
+              request,
+              'responses',
+              turn.response.output,
+              turnUsage && toOpenAIModelUsage(turnUsage)
+            )
 
             const turnKind = executableTools.length > 0 ? 'intermediate' : 'final'
             content = turn.text

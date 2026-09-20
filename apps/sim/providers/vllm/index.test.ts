@@ -5,6 +5,8 @@ import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockRecordUsage,
+  mockCapture,
   mockCreate,
   openAIArgs,
   mockOpenAI,
@@ -26,6 +28,8 @@ const {
     }
   }
   return {
+    mockRecordUsage: vi.fn(),
+    mockCapture: vi.fn(),
     mockCreate,
     openAIArgs,
     mockOpenAI: MockOpenAI,
@@ -44,6 +48,13 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
   createPinnedFetch: mockCreatePinnedFetch,
 }))
+vi.mock('@/providers/conversation-history', () => ({
+  getConversationRequestContext: () => undefined,
+  captureProviderConversationStep: mockCapture,
+  recordProviderConversationUsage: mockRecordUsage,
+  recordProviderConversationToolError: vi.fn(),
+}))
+
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/providers/models', () => ({
   getProviderFileAttachment: vi
@@ -149,6 +160,59 @@ describe('vllmProvider', () => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mockCreatePinnedFetch.mockReturnValue(pinnedFetchFn)
   })
+
+  it.each([false, true])(
+    'keeps capped decisions unexecuted and accounts usage when synthesis failure is %s',
+    async (failsSynthesis) => {
+      let generated = 0
+      mockCreate.mockImplementation((payload) => {
+        const final = !payload.tools
+        if (final && failsSynthesis) return Promise.reject(new Error('synthesis failed'))
+        return Promise.resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: final ? 'Tool limit reached' : null,
+                tool_calls: final
+                  ? []
+                  : [
+                      {
+                        id: `call-${++generated}`,
+                        type: 'function',
+                        function: { name: 'myTool', arguments: '{}' },
+                      },
+                    ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+        })
+      })
+      const result = vllmProvider.executeRequest({
+        model: 'vllm/model',
+        messages: [{ role: 'user', content: 'Run' }],
+        tools: [makeTool('myTool')],
+      })
+      if (failsSynthesis) await expect(result).rejects.toThrow('synthesis failed')
+      else
+        await expect(result).resolves.toMatchObject({
+          tokens: { input: 110, output: 66, total: 176 },
+        })
+      expect(mockExecuteTool).toHaveBeenCalledTimes(20)
+      expect(generated).toBe(21)
+      expect(mockRecordUsage).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+        input: 5,
+        output: 3,
+        cacheRead: 0,
+      })
+      const capturedCalls = mockCapture.mock.calls.flatMap(
+        ([, , message]) => message.tool_calls?.map((call: { id: string }) => call.id) ?? []
+      )
+      expect(capturedCalls).toEqual(Array.from({ length: 20 }, (_, index) => `call-${index + 1}`))
+      expect(capturedCalls).not.toContain('call-21')
+    }
+  )
 
   it('preserves a custom served-model name when stripping an uppercase namespace', async () => {
     mockCreate.mockResolvedValueOnce(chatResponse('hello'))

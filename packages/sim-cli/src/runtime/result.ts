@@ -72,6 +72,13 @@ export function decodeFolderPath(value: string): string {
     .join('/')
 }
 
+/** A `{ id, email }` user by email, or by id once the account behind it is gone. */
+function personLabel(person: unknown): string {
+  const { id, email } = (person ?? {}) as { id?: unknown; email?: unknown }
+  if (typeof email === 'string' && email) return email
+  return typeof id === 'string' && id ? id : JSON.stringify(person)
+}
+
 function renderCell(
   value: unknown,
   format: ColumnSpec['format'],
@@ -92,6 +99,10 @@ function renderCell(
       return typeof value === 'number' ? value.toFixed(4) : text(null)
     case 'count':
       return Array.isArray(value) ? String(value.length) : text(null)
+    case 'people':
+      return Array.isArray(value) && value.length > 0
+        ? sanitize(value.map(personLabel).join(', '))
+        : text(null)
     case 'folder-path':
       return typeof value === 'string' ? text(decodeFolderPath(value)) : text(value)
     case 'trace-count': {

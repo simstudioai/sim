@@ -8,6 +8,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { warnLog } = vi.hoisted(() => ({ warnLog: vi.fn() }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ warn: warnLog, error: vi.fn(), info: vi.fn(), debug: vi.fn() }),
+}))
+
 const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistralParse } =
   vi.hoisted(() => ({
     mockParseBuffer: vi.fn(),
@@ -525,6 +530,40 @@ describe('PDF OCR triage', () => {
       )
       await expect(parse()).rejects.toBeInstanceOf(OcrRequestRejectedError)
       expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([400, 415, 422])(
+    'records safe Azure HTTP %i diagnostics without retrying a rejection',
+    async (status) => {
+      Object.assign(env, {
+        OCR_PROVIDER: 'azure-mistral',
+        OCR_AZURE_API_KEY: 'test-key',
+        OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+        OCR_AZURE_MODEL_NAME: 'mistral-document-ai-2512',
+      })
+      mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+      const fetch = vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { error: { code: 'BadRequest', message: 'private fixture text' } },
+            { status, headers: { 'apim-request-id': 'azure-request-123' } }
+          )
+        )
+      vi.stubGlobal('fetch', fetch)
+      await expect(parse()).rejects.toBeInstanceOf(OcrRequestRejectedError)
+      expect(fetch).toHaveBeenCalledOnce()
+      expect(warnLog).toHaveBeenCalledWith(
+        'OCR provider request failed',
+        expect.objectContaining({
+          provider: 'azure-mistral',
+          status,
+          providerErrorCode: 'BadRequest',
+          providerRequestId: 'azure-request-123',
+        })
+      )
+      expect(JSON.stringify(warnLog.mock.calls)).not.toContain('private fixture text')
     }
   )
 

@@ -11,6 +11,7 @@ import { listAclTool, listAclV2Tool } from '@/tools/google_calendar/list_acl'
 import { listCalendarsTool, listCalendarsV2Tool } from '@/tools/google_calendar/list_calendars'
 import { moveTool, moveV2Tool } from '@/tools/google_calendar/move'
 import { quickAddTool, quickAddV2Tool } from '@/tools/google_calendar/quick_add'
+import { respondTool, respondV2Tool } from '@/tools/google_calendar/respond'
 import { shareCalendarTool, shareCalendarV2Tool } from '@/tools/google_calendar/share_calendar'
 import {
   unshareCalendarTool,
@@ -33,6 +34,7 @@ export const googleCalendarListAclTool = listAclTool
 export const googleCalendarListCalendarsTool = listCalendarsTool
 export const googleCalendarMoveTool = moveTool
 export const googleCalendarQuickAddTool = quickAddTool
+export const googleCalendarRespondTool = respondTool
 export const googleCalendarShareCalendarTool = shareCalendarTool
 export const googleCalendarUnshareCalendarTool = unshareCalendarTool
 export const googleCalendarUpdateTool = updateTool
@@ -52,6 +54,7 @@ export const googleCalendarListAclV2Tool = listAclV2Tool
 export const googleCalendarListCalendarsV2Tool = listCalendarsV2Tool
 export const googleCalendarMoveV2Tool = moveV2Tool
 export const googleCalendarQuickAddV2Tool = quickAddV2Tool
+export const googleCalendarRespondV2Tool = respondV2Tool
 export const googleCalendarShareCalendarV2Tool = shareCalendarV2Tool
 export const googleCalendarUnshareCalendarV2Tool = unshareCalendarV2Tool
 export const googleCalendarUpdateV2Tool = updateV2Tool

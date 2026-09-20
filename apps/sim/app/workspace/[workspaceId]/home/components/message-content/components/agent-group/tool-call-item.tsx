@@ -26,22 +26,6 @@ import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
 
-export function CircleStop({ className }: { className?: string }) {
-  return (
-    <svg
-      width='16'
-      height='16'
-      viewBox='0 0 16 16'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      className={className}
-    >
-      <circle cx='8' cy='8' r='6.5' stroke='currentColor' strokeWidth='1.25' />
-      <rect x='6' y='6' width='4' height='4' rx='0.5' fill='currentColor' />
-    </svg>
-  )
-}
-
 export interface ToolCallItemProps {
   toolName: string
   displayTitle: string

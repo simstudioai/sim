@@ -9,14 +9,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckRateLimit,
-  mockValidateEnterpriseAuditAccess,
+  mockValidateV1EnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
   mockQueryAuditLogs,
   mockBuildFilterConditions,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
-  mockValidateEnterpriseAuditAccess: vi.fn(),
+  mockValidateV1EnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
   mockQueryAuditLogs: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
-  validateEnterpriseAuditAccess: mockValidateEnterpriseAuditAccess,
+  validateV1EnterpriseAuditAccess: mockValidateV1EnterpriseAuditAccess,
 }))
 
 vi.mock('@/lib/audit-logs/query', () => ({
@@ -61,8 +61,9 @@ describe('GET /api/v1/audit-logs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'admin-1' })
-    mockValidateEnterpriseAuditAccess.mockResolvedValue({
+    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({
       success: true,
+      userId: 'admin-1',
       context: { organizationId: ORG_ID, orgMemberIds: MEMBER_IDS },
     })
     mockGetOrgWorkspaceIds.mockResolvedValue(ORG_WORKSPACE_IDS)
@@ -122,11 +123,35 @@ describe('GET /api/v1/audit-logs', () => {
 
   it('returns the auth failure response when enterprise access is denied', async () => {
     const denied = new Response(JSON.stringify({ error: 'nope' }), { status: 403 })
-    mockValidateEnterpriseAuditAccess.mockResolvedValue({ success: false, response: denied })
+    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({ success: false, response: denied })
 
     const response = await GET(makeRequest(''))
 
     expect(response.status).toBe(403)
+    expect(mockQueryAuditLogs).not.toHaveBeenCalled()
+  })
+
+  it('returns the refusal for a workspace key without querying', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      userId: 'admin-1',
+      keyType: 'workspace',
+      workspaceId: 'ws-org-1',
+    })
+    const denied = new Response(
+      JSON.stringify({ error: 'Audit logs require a personal API key' }),
+      {
+        status: 403,
+      }
+    )
+    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({ success: false, response: denied })
+
+    const response = await GET(makeRequest('?workspaceId=ws-org-2'))
+
+    expect(response.status).toBe(403)
+    expect(mockValidateV1EnterpriseAuditAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ keyType: 'workspace' })
+    )
     expect(mockQueryAuditLogs).not.toHaveBeenCalled()
   })
 })

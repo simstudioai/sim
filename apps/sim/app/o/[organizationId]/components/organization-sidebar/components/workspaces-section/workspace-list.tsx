@@ -18,7 +18,10 @@ import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-workspaces'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
-import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import {
+  SidebarRowAction,
+  SidebarRowActions,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import { useToggleWorkspacePin, useUpdateWorkspace } from '@/hooks/queries/workspace'
@@ -198,15 +201,13 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
                 ) : undefined
               }
             >
-              <button
-                type='button'
+              <SidebarRowAction
                 aria-label={`Options for ${workspace.name}`}
                 onPointerDown={() => menu.preventDismiss()}
                 onClick={onMoreClick}
-                className='flex size-[18px] items-center justify-center rounded-sm'
               >
                 <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
-              </button>
+              </SidebarRowAction>
             </SidebarRowActions>
           </SettingsGuardedLink>
         )

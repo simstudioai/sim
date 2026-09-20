@@ -10,7 +10,8 @@ import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
-const MAX_BULK_ENQUEUE_EVENTS = 1_000
+/** Most events one {@link enqueueOutboxEvents} call may insert. */
+export const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
 const MAX_REAPED_EVENTS = 1_000
 
