@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, OverflowText, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
+import { OverflowText, PlayOutline, Skeleton, TabStripAction, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
   FileX,
@@ -36,10 +36,7 @@ import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
-import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -465,14 +462,9 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenWorkflow}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open workflow'
-          >
+          <TabStripAction variant='subtle' onClick={handleOpenWorkflow} aria-label='Open workflow'>
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Open workflow</p>
@@ -480,11 +472,10 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
       </Tooltip.Root>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleRun()}
             disabled={isRunButtonDisabled}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
           >
             {isExecuting ? (
@@ -492,7 +483,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             ) : (
               <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
             )}
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
@@ -520,14 +511,13 @@ export function EmbeddedKnowledgeBaseActions({
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
+        <TabStripAction
           variant='subtle'
           onClick={handleOpenKnowledgeBase}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
           aria-label='Open knowledge base'
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
+        </TabStripAction>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open knowledge base</p>
@@ -562,14 +552,9 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenTable}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open table'
-          >
+          <TabStripAction variant='subtle' onClick={handleOpenTable} aria-label='Open table'>
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Open table</p>
@@ -577,14 +562,13 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
       </Tooltip.Root>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleExport()}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Export table as CSV'
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Export CSV</p>
@@ -639,14 +623,9 @@ function EmbeddedFileActions({
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
+          <TabStripAction variant='subtle' onClick={handleOpenInFiles} aria-label='Open in files'>
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Open in files</p>
@@ -654,15 +633,14 @@ function EmbeddedFileActions({
       </Tooltip.Root>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleDownload()}
             disabled={!file}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Download file'
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Download</p>
@@ -896,14 +874,9 @@ export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsPro
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenInLogs}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in logs'
-        >
+        <TabStripAction variant='subtle' onClick={handleOpenInLogs} aria-label='Open in logs'>
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
+        </TabStripAction>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open in logs</p>

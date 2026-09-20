@@ -20,6 +20,7 @@ import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { overflowTextClipClass, overflowTextFadeClass } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
+import { TabStripAction } from './tab-strip-action'
 
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
@@ -236,7 +237,7 @@ interface TabStripBaseProps {
     id: string,
     drag: TabStripDragContext
   ) => void
-  /** In-flow controls pinned to the far end, past the tabs and the new-tab slot. */
+  /** In-flow controls pinned to the far end; use `TabStripAction` for band-sized icon actions. */
   endActions?: ReactNode
   /**
    * Out-of-flow content that has to live inside the strip — a context menu
@@ -967,20 +968,17 @@ export function TabStrip({
       ) : onNew ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
+            <TabStripAction
               type='button'
               variant='ghost-secondary'
               size='sm'
               aria-label={newTabLabel}
-              className={cn(
-                'size-[var(--tab-strip-band,30px)] shrink-0 p-0',
-                variant === 'attached' && 'mb-px'
-              )}
+              className={variant === 'attached' ? 'mb-px' : undefined}
               disabled={atLimit}
               onClick={onNew}
             >
               <Plus className='size-[14px]' />
-            </Button>
+            </TabStripAction>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
             {atLimit ? `Maximum of ${maxTabs} tabs` : newTabLabel}

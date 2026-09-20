@@ -239,6 +239,7 @@ export {
   tabStripItemSelector,
   tabStripWheelPosition,
 } from './tab-strip/tab-strip'
+export { TabStripAction, type TabStripActionProps } from './tab-strip/tab-strip-action'
 export {
   Table,
   TableBody,
