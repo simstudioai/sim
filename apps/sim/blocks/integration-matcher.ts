@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@sim/utils/string'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockIcon } from '@/blocks/types'
@@ -30,10 +31,6 @@ export interface IntegrationMatcher {
   regex: RegExp | null
   /** Lowercase display name -> descriptor for canonical lookup after a regex match. */
   byName: Map<string, IntegrationDescriptor>
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /** Strips ` (Legacy)` / ` V2` suffixes so the display uses the natural name. */
@@ -81,7 +78,7 @@ function buildMatcher(): IntegrationMatcher {
 
   names.sort((a, b) => b.length - a.length)
   const regex = names.length
-    ? new RegExp(`(?<![A-Za-z0-9_])(${names.map(escapeRegex).join('|')})(?![A-Za-z0-9_])`, 'gi')
+    ? new RegExp(`(?<![A-Za-z0-9_])(${names.map(escapeRegExp).join('|')})(?![A-Za-z0-9_])`, 'gi')
     : null
 
   return { regex, byName }

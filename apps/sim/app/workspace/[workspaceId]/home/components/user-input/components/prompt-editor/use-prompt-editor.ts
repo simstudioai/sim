@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
+import { escapeRegExp } from '@sim/utils/string'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
@@ -28,7 +29,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
   areContextsEqual,
-  escapeRegex,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
@@ -369,7 +369,7 @@ export function usePromptEditor({
 
       const labelIsUsed = (candidate: string): boolean => {
         if (selectedContexts.some((selected) => selected.label === candidate)) return true
-        return new RegExp(`(^|\\s)@${escapeRegex(candidate)}(?![A-Za-z0-9_])`).test(currentValue)
+        return new RegExp(`(^|\\s)@${escapeRegExp(candidate)}(?![A-Za-z0-9_])`).test(currentValue)
       }
 
       while (labelIsUsed(label)) {
