@@ -23,7 +23,7 @@ export function FieldModeToggle({ label, active, disabled, onClick }: FieldModeT
         >
           <ArrowLeftRight
             className={cn(
-              'size-[12px]!',
+              'size-[12px]! transition-colors',
               active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
             )}
           />
