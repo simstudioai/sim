@@ -96,6 +96,10 @@ export const AuditAction = {
   FILE_SHARED: 'file.shared',
   FILE_SHARE_DISABLED: 'file.share_disabled',
   FILE_DOWNLOADED: 'file.downloaded',
+  /** A file's content was set back to one of its previous versions. */
+  FILE_REVERTED: 'file.reverted',
+  /** A superseded version of a file's content was permanently deleted. */
+  FILE_VERSION_DELETED: 'file.version_deleted',
 
   // Folders
   FOLDER_CREATED: 'folder.created',

@@ -86,7 +86,7 @@ export function PublicFileView({
           <div className='flex min-w-0 flex-col'>
             <OverflowText label={name} className='text-[var(--text-body)] text-sm' />
             {provenance ? (
-              <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
+              <span className='truncate text-[var(--text-muted)] text-caption'>{provenance}</span>
             ) : null}
           </div>
         </div>

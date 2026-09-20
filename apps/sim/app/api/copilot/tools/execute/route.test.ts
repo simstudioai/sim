@@ -4,10 +4,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockCheckInternalApiKey, mockPrepareEnvironmentContext, mockHandler } = vi.hoisted(() => ({
+const {
+  mockCheckInternalApiKey,
+  mockPrepareEnvironmentContext,
+  mockHandler,
+  mockToolRequiresApprovalLane,
+} = vi.hoisted(() => ({
   mockCheckInternalApiKey: vi.fn(),
   mockPrepareEnvironmentContext: vi.fn(),
   mockHandler: vi.fn(),
+  mockToolRequiresApprovalLane: vi.fn().mockReturnValue(false),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => ({
@@ -20,6 +26,7 @@ vi.mock('@/lib/copilot/environment-context', () => ({
 
 vi.mock('@/lib/copilot/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
+  toolRequiresApprovalLane: mockToolRequiresApprovalLane,
 }))
 
 vi.mock('@/lib/copilot/tool-executor/executor', () => ({
@@ -67,6 +74,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckInternalApiKey.mockReturnValue({ success: true })
+    mockToolRequiresApprovalLane.mockReturnValue(false)
     // A fresh, complete registry per test: the module-level turn cache is keyed
     // by messageId, so each test uses a distinct messageId to avoid cross-test
     // cache hits.
@@ -124,5 +132,96 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
       makeRequest({ ...BASE_BODY, toolCallId: 'call-2', messageId: 'msg-shared' }) as never
     )
     expect(mockPrepareEnvironmentContext).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The generated key is a browser-only artifact. This lane's response is what Go feeds the
+   * model, so it must carry the same projection the resume lane produces — the status message
+   * alone. A `key` field here would put the plaintext credential in model context.
+   */
+  it('returns only the status message for generate_api_key, never the key', async () => {
+    const message = 'API key "demo" created. You did NOT receive the key value'
+    mockHandler.mockResolvedValue({
+      success: true,
+      output: { id: 'key-1', name: 'demo', key: 'sk_live_plaintext', workspaceId: 'ws-1', message },
+    })
+
+    const res = await POST(
+      makeRequest({
+        ...BASE_BODY,
+        toolName: 'generate_api_key',
+        params: { name: 'demo' },
+        messageId: 'msg-api-key',
+      }) as never
+    )
+    const body = await res.json()
+
+    expect(body).toEqual({ success: true, output: message })
+    expect(JSON.stringify(body)).not.toContain('sk_live_plaintext')
+  })
+
+  it('leaves a non-generate_api_key result carrying a key field untouched', async () => {
+    mockHandler.mockResolvedValue({ success: true, output: { key: 'lookup-key', value: 42 } })
+    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-other-tool-key' }) as never)
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      output: { key: 'lookup-key', value: 42 },
+    })
+  })
+
+  /**
+   * Whether a tool needs an approval-capable lane is decided by
+   * `toolRequiresApprovalLane` (covered against the real flag and catalog in
+   * the tool-executor router tests). What matters here is what the route does
+   * with that answer.
+   */
+  describe('approval-gated tools', () => {
+    /**
+     * This lane cannot hold an approval prompt: the dispatch handler owns the gate and
+     * declines to dispatch in-band calls, so a gated tool arriving here has no waiter behind
+     * it. Refuse before running anything rather than execute on consent nobody gave.
+     */
+    it('refuses a tool that needs an approval-capable lane, without executing it', async () => {
+      mockToolRequiresApprovalLane.mockReturnValue(true)
+      mockHandler.mockResolvedValue({ success: true, output: { ran: true } })
+
+      const res = await POST(
+        makeRequest({
+          ...BASE_BODY,
+          toolName: 'run_function',
+          params: { code: 'return 1' },
+          messageId: 'msg-gated',
+        }) as never
+      )
+      const body = await res.json()
+
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(body.success).toBe(false)
+      expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+      expect(body.error).toContain('requires user approval')
+      expect(body.error).toContain('checkpoint lane')
+    })
+
+    it('still runs a tool that does not need an approval-capable lane', async () => {
+      mockHandler.mockResolvedValue({ success: true, output: { content: 'hello' } })
+
+      const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-ungated' }) as never)
+
+      expect(mockHandler).toHaveBeenCalledTimes(1)
+      await expect(res.json()).resolves.toEqual({ success: true, output: { content: 'hello' } })
+    })
+  })
+
+  it('passes a failed generate_api_key call through with its error', async () => {
+    mockHandler.mockResolvedValue({ success: false, error: 'name is required' })
+    const res = await POST(
+      makeRequest({
+        ...BASE_BODY,
+        toolName: 'generate_api_key',
+        params: {},
+        messageId: 'msg-api-key-error',
+      }) as never
+    )
+    await expect(res.json()).resolves.toEqual({ success: false, error: 'name is required' })
   })
 })

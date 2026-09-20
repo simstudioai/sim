@@ -24,7 +24,11 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
-const UPLOAD_PRINCIPAL_POLICY = {
+/**
+ * Direct callers only. Uploads and version history admit no delegated service: no copilot or
+ * executor caller exists for them today, and admitting one is a separate decision.
+ */
+const DIRECT_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
 
@@ -176,6 +180,54 @@ export const fileOperations = {
     capability: 'files.use',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
+  listVersions: defineWorkspaceOperation({
+    id: 'files.versions.list',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  readVersion: defineWorkspaceOperation({
+    id: 'files.versions.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  readVersionContent: defineWorkspaceOperation({
+    id: 'files.versions.read_content',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  downloadVersion: defineWorkspaceOperation({
+    id: 'files.versions.download',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  revertVersion: defineWorkspaceOperation({
+    id: 'files.versions.revert',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  deleteVersion: defineWorkspaceOperation({
+    id: 'files.versions.delete',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
   readShare: defineWorkspaceOperation({
     id: 'files.share.read',
     oauthScope: 'api:read',
@@ -238,7 +290,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
   /**
    * Reading an upload session's current state. Distinct from `uploadCancel`,
@@ -252,7 +304,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
   uploadParts: defineWorkspaceOperation({
     id: 'files.upload.parts',
@@ -260,7 +312,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'files.upload.complete',
@@ -268,7 +320,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'files.upload.cancel',
@@ -276,7 +328,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
 } as const
 

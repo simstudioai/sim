@@ -27,6 +27,7 @@ describe('knowledge operation registry', () => {
       'knowledge.github.installations.connect',
       'knowledge.slack.prepare',
       'knowledge.slack.oauth.start',
+      'knowledge.slack.connect_custom',
       'knowledge.slack.oauth.complete',
       'knowledge.slack.list',
       'knowledge.slack.configure',

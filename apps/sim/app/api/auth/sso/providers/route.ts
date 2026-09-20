@@ -11,7 +11,6 @@ import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
-import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -32,101 +31,86 @@ function buildClientSecretHint(clientSecret: unknown): string | null {
   return clientSecret.slice(-4)
 }
 
+/**
+ * Lists the identity providers the caller administers: an organization's when an
+ * owner or admin names it, otherwise the ones the caller registered.
+ *
+ * Signed-in only. Sign-in resolves one address at a time through
+ * `/api/auth/sso/resolve`; nothing needs every configured domain, and listing
+ * them would publish which organizations use SSO.
+ */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      const rateLimited = await enforceIpRateLimit('sso-providers', request, {
-        maxTokens: 20,
-        refillRate: 20,
-        refillIntervalMs: 60_000,
-      })
-      if (rateLimited) return rateLimited
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const parsed = await parseRequest(listSsoProvidersContract, request, {})
     if (!parsed.success) return parsed.response
     const { organizationId } = parsed.data.query
+    const userId = session.user.id
 
-    let providers
-    if (session?.user?.id) {
-      const userId = session.user.id
-
-      let verifiedOrganizationId: string | null = null
-      if (organizationId) {
-        const [membership] = await db
-          .select({ organizationId: member.organizationId, role: member.role })
-          .from(member)
-          .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-          .limit(1)
-        if (!membership) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-        if (membership.role !== 'owner' && membership.role !== 'admin') {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-        verifiedOrganizationId = membership.organizationId
+    let verifiedOrganizationId: string | null = null
+    if (organizationId) {
+      const [membership] = await db
+        .select({ organizationId: member.organizationId, role: member.role })
+        .from(member)
+        .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+        .limit(1)
+      if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-
-      const whereClause = verifiedOrganizationId
-        ? eq(ssoProvider.organizationId, verifiedOrganizationId)
-        : eq(ssoProvider.userId, userId)
-
-      const results = await db
-        .select({
-          id: ssoProvider.id,
-          providerId: ssoProvider.providerId,
-          domain: ssoProvider.domain,
-          issuer: ssoProvider.issuer,
-          oidcConfig: ssoProvider.oidcConfig,
-          samlConfig: ssoProvider.samlConfig,
-          userId: ssoProvider.userId,
-          organizationId: ssoProvider.organizationId,
-          jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
-          domainVerified: ssoProvider.domainVerified,
-          domainKey: ssoProviderDomainKey,
-          isNamedPrimary,
-        })
-        .from(ssoProvider)
-        .leftJoin(ssoDomain, verifiedDomainOfProvider)
-        .where(whereClause)
-        .orderBy(asc(ssoProvider.providerId))
-
-      providers = markSignInProviders(results).map((provider) => {
-        let oidcConfig = provider.oidcConfig
-        if (oidcConfig) {
-          try {
-            const parsed = JSON.parse(oidcConfig)
-            const hint = buildClientSecretHint(parsed.clientSecret)
-            parsed.clientSecret = REDACTED_MARKER
-            if (hint) parsed.clientSecretHint = hint
-            oidcConfig = JSON.stringify(parsed)
-          } catch {
-            oidcConfig = null
-          }
-        }
-        return {
-          ...provider,
-          oidcConfig,
-          providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
-        }
-      })
-    } else {
-      const results = await db
-        .select({
-          domain: ssoProvider.domain,
-        })
-        .from(ssoProvider)
-
-      providers = results.map((provider) => ({
-        domain: provider.domain,
-      }))
+      if (membership.role !== 'owner' && membership.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      verifiedOrganizationId = membership.organizationId
     }
 
-    logger.info('Fetched SSO providers', {
-      userId: session?.user?.id,
-      authenticated: !!session?.user?.id,
-      providerCount: providers.length,
+    const whereClause = verifiedOrganizationId
+      ? eq(ssoProvider.organizationId, verifiedOrganizationId)
+      : eq(ssoProvider.userId, userId)
+
+    const results = await db
+      .select({
+        id: ssoProvider.id,
+        providerId: ssoProvider.providerId,
+        domain: ssoProvider.domain,
+        issuer: ssoProvider.issuer,
+        oidcConfig: ssoProvider.oidcConfig,
+        samlConfig: ssoProvider.samlConfig,
+        userId: ssoProvider.userId,
+        organizationId: ssoProvider.organizationId,
+        jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
+        domainVerified: ssoProvider.domainVerified,
+        domainKey: ssoProviderDomainKey,
+        isNamedPrimary,
+      })
+      .from(ssoProvider)
+      .leftJoin(ssoDomain, verifiedDomainOfProvider)
+      .where(whereClause)
+      .orderBy(asc(ssoProvider.providerId))
+
+    const providers = markSignInProviders(results).map((provider) => {
+      let oidcConfig = provider.oidcConfig
+      if (oidcConfig) {
+        try {
+          const parsed = JSON.parse(oidcConfig)
+          const hint = buildClientSecretHint(parsed.clientSecret)
+          parsed.clientSecret = REDACTED_MARKER
+          if (hint) parsed.clientSecretHint = hint
+          oidcConfig = JSON.stringify(parsed)
+        } catch {
+          oidcConfig = null
+        }
+      }
+      return {
+        ...provider,
+        oidcConfig,
+        providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
+      }
     })
+
+    logger.info('Fetched SSO providers', { userId, providerCount: providers.length })
 
     return NextResponse.json({ providers })
   } catch (error) {

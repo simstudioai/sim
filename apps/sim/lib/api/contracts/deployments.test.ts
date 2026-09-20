@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEPLOYMENT_VERSION_MAX,
   deploymentVersionOrActiveParamsSchema,
   deploymentVersionParamsSchema,
 } from '@/lib/api/contracts/deployments'
+import { INT4_MAX } from '@/lib/api/contracts/primitives'
 
 describe('deployment version route params', () => {
   it('coerces numeric path params from the server boundary', () => {
@@ -32,12 +32,10 @@ describe('deployment version route params', () => {
   it.each([deploymentVersionParamsSchema, deploymentVersionOrActiveParamsSchema])(
     'bounds the path version to the integer column range',
     (schema) => {
-      expect(
-        schema.safeParse({ id: 'workflow-1', version: String(DEPLOYMENT_VERSION_MAX) }).success
-      ).toBe(true)
-      expect(
-        schema.safeParse({ id: 'workflow-1', version: String(DEPLOYMENT_VERSION_MAX + 1) }).success
-      ).toBe(false)
+      expect(schema.safeParse({ id: 'workflow-1', version: String(INT4_MAX) }).success).toBe(true)
+      expect(schema.safeParse({ id: 'workflow-1', version: String(INT4_MAX + 1) }).success).toBe(
+        false
+      )
     }
   )
 })

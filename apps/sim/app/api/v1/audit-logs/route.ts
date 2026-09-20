@@ -32,7 +32,7 @@ import {
   queryAuditLogs,
 } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
+import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
@@ -63,13 +63,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
-
-    const authResult = await validateEnterpriseAuditAccess(userId)
+    const authResult = await validateV1EnterpriseAuditAccess(rateLimit)
     if (!authResult.success) {
       return authResult.response
     }
 
+    const { userId } = authResult
     const { organizationId, orgMemberIds } = authResult.context
 
     const parsed = await parseRequest(

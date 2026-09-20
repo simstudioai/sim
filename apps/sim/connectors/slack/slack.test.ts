@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
-import { slackConnector } from '@/connectors/slack/slack'
+import { slackConnector, slackRollingRefreshDay } from '@/connectors/slack/slack'
 import type { ExternalDocument } from '@/connectors/types'
 import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES } from '@/connectors/utils'
 
@@ -166,7 +166,18 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
+
+const DAY = 24 * 60 * 60 * 1000
+
+/** Freezes the clock on a day that is not this thread's rolling reread, so it lists as quiet. */
+function freezeOnQuietDay(externalId: string): void {
+  const base = Date.UTC(2026, 0, 1)
+  const offset = (slackRollingRefreshDay(externalId) + 1 - (Math.floor(base / DAY) % 28) + 28) % 28
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(base + offset * DAY)
+}
 
 async function listAll(token: string, config: Record<string, unknown> = {}, run = 'run-1') {
   const context: Record<string, unknown> = { syncRunId: run }
@@ -275,12 +286,13 @@ describe('Slack thread indexing through provider APIs', () => {
     expect((await listAll('alice', { channel: GENERAL.id })).documents).toEqual([])
   })
 
-  it('retires legacy channel ids and marks every thread for reply refresh on the next run', async () => {
+  it('retires legacy channel ids and keeps a quiet thread under one hash across listings', async () => {
+    freezeOnQuietDay(id(GENERAL.id))
     const first = await listAll('alice', { channel: GENERAL.id }, 'run-1')
     const next = await listAll('alice', { channel: GENERAL.id }, 'run-2')
     expect(first.documents.map((doc) => doc.externalId)).not.toContain(GENERAL.id)
     expect(first.documents[0].externalId).toBe(next.documents[0].externalId)
-    expect(first.documents[0].contentHash).not.toBe(next.documents[0].contentHash)
+    expect(first.documents[0].contentHash).toBe(next.documents[0].contentHash)
     expect(await slackConnector.getDocument('alice', {}, GENERAL.id)).toBeNull()
   })
 
@@ -588,5 +600,142 @@ describe('Slack incomplete and unsafe provider responses', () => {
     await expect(slackConnector.getDocument('alice', {}, id(GENERAL.id))).rejects.toThrow(
       /large|size|exceeds/i
     )
+  })
+})
+
+describe('Slack change detection and access scopes', () => {
+  const match = (candidate: string, stored: string) =>
+    slackConnector.matchContentHash?.(candidate, stored)
+  const scope = (channel: string) => `slack:v4:${TEAM}:${channel}:`
+
+  beforeEach(() => {
+    freezeOnQuietDay(id(GENERAL.id))
+  })
+
+  it('rereads each quiet thread on exactly one day of every 28', async () => {
+    const start = Date.now()
+    const rereadDays: number[] = []
+    for (let day = 0; day < 28; day += 1) {
+      vi.setSystemTime(start + day * DAY)
+      const listed = await listAll('alice', { channel: GENERAL.id }, `run-${day}`)
+      if (listed.documents[0].contentHash.includes(':refresh:')) rereadDays.push(day)
+    }
+    expect(rereadDays).toHaveLength(1)
+  })
+
+  it('rereads every thread on a full resync without changing the hash of unchanged text', async () => {
+    const quiet = await listAll('alice', { channel: GENERAL.id }, 'run-1')
+    const stored = await slackConnector.getDocument('alice', {}, id(GENERAL.id), quiet.context)
+    const context: Record<string, unknown> = { syncRunId: 'full-run', fullSync: true }
+    const full = await slackConnector.listDocuments(
+      'alice',
+      { channel: GENERAL.id },
+      undefined,
+      context
+    )
+    expect(match(full.documents[0].contentHash, stored?.contentHash ?? '')).toBe('stale')
+    const reread = await slackConnector.getDocument('alice', {}, id(GENERAL.id), context)
+    expect(reread?.contentHash).toBe(stored?.contentHash)
+  })
+
+  it('does not reread a quiet thread until its root reports a change', async () => {
+    const first = await listAll('alice', { channel: GENERAL.id }, 'run-1')
+    const stored = await slackConnector.getDocument('alice', {}, id(GENERAL.id), first.context)
+    const next = await listAll('alice', { channel: GENERAL.id }, 'run-2')
+    expect(match(next.documents[0].contentHash, stored?.contentHash ?? '')).toBe('current')
+    channels[0].messages = [{ ...root(), reply_count: 2, latest_reply: SECOND }]
+    const replied = await listAll('alice', { channel: GENERAL.id }, 'run-3')
+    expect(match(replied.documents[0].contentHash, stored?.contentHash ?? '')).toBe('stale')
+    channels[0].messages = [{ ...root(), edited: { ts: SECOND } }]
+    const edited = await listAll('alice', { channel: GENERAL.id }, 'run-4')
+    expect(match(edited.documents[0].contentHash, stored?.contentHash ?? '')).toBe('stale')
+  })
+
+  it('rereads an active thread every listing and changes its hash only when the text changed', async () => {
+    const recent = `${Math.floor(Date.now() / 1000) - 3600}.000100`
+    channels[0].messages = [{ ...root(), latest_reply: recent }]
+    const first = await listAll('alice', { channel: GENERAL.id }, 'run-1')
+    const stored = await slackConnector.getDocument('alice', {}, id(GENERAL.id), first.context)
+    const next = await listAll('alice', { channel: GENERAL.id }, 'run-2')
+    expect(next.documents[0].contentHash).not.toBe(first.documents[0].contentHash)
+    expect(match(next.documents[0].contentHash, stored?.contentHash ?? '')).toBe('stale')
+    const reread = await slackConnector.getDocument('alice', {}, id(GENERAL.id), next.context)
+    expect(reread?.contentHash).toBe(stored?.contentHash)
+    channels[0].replies[ROOT] = [root(), reply('Use the corrected queue')]
+    const edited = await slackConnector.getDocument('alice', {}, id(GENERAL.id), next.context)
+    expect(match(edited?.contentHash ?? '', stored?.contentHash ?? '')).toBe('stale')
+  })
+
+  it('leaves a verified empty quiet thread settled until its root changes', async () => {
+    channels[0].messages = [{ ...root(''), thread_ts: ROOT }]
+    channels[0].replies[ROOT] = [{ ...root(''), thread_ts: ROOT }]
+    const listed = await listAll('alice', { channel: GENERAL.id }, 'run-1')
+    expect(listed.documents[0].skippedRetryPolicy).toBe('source-change')
+    const skipped = await slackConnector.getDocument('alice', {}, id(GENERAL.id), listed.context)
+    expect(skipped?.skippedReason).toBeDefined()
+    const next = await listAll('alice', { channel: GENERAL.id }, 'run-2')
+    expect(match(next.documents[0].contentHash, skipped?.contentHash ?? '')).toBe('current')
+    channels[0].messages = [{ ...root(''), thread_ts: ROOT, reply_count: 2, latest_reply: SECOND }]
+    const replied = await listAll('alice', { channel: GENERAL.id }, 'run-3')
+    expect(match(replied.documents[0].contentHash, skipped?.contentHash ?? '')).toBe('stale')
+  })
+
+  it('carries a thread indexed under the text-only hash forward without reindexing it', async () => {
+    const hydrated = await slackConnector.getDocument('alice', {}, id(GENERAL.id))
+    const text = hydrated?.contentHash.split(':').at(-1)
+    expect(match(hydrated?.contentHash ?? '', `slack-content:v4:${text}`)).toBe('equivalent')
+    expect(match(hydrated?.contentHash ?? '', `slack-content:v4:${'0'.repeat(64)}`)).toBe('stale')
+    const listed = await listAll('alice', { channel: GENERAL.id })
+    expect(match(listed.documents[0].contentHash, `slack-content:v4:${text}`)).toBe('stale')
+  })
+
+  it('links messages from the workspace address and reads each conversation once per run', async () => {
+    replacement = (call) =>
+      call.method === 'auth.test'
+        ? { ok: true, team_id: TEAM, url: 'https://acme.slack.com/' }
+        : undefined
+    channels[0].messages = [root(), { ...root('Second thread'), ts: SECOND }]
+    channels[0].replies[SECOND] = [{ ...root('Second thread'), ts: SECOND }]
+    const context: Record<string, unknown> = {}
+    const first = await slackConnector.getDocument('alice', {}, id(GENERAL.id), context)
+    await slackConnector.getDocument('alice', {}, id(GENERAL.id, SECOND), context)
+    expect(first?.sourceUrl).toBe('https://acme.slack.com/archives/C0GENERAL/p1700000100000100')
+    expect(calls.some((call) => call.method === 'chat.getPermalink')).toBe(false)
+    expect(calls.filter((call) => call.method === 'conversations.info')).toHaveLength(1)
+    expect(calls.filter((call) => call.method === 'auth.test')).toHaveLength(1)
+  })
+
+  it('reports exactly the conversations each member can read, under the listing rules', async () => {
+    const listScopes = slackConnector.listAccessibleScopes
+    if (!listScopes) throw new Error('Slack must report access scopes')
+    const readAll = async (token: string, sourceConfig: Record<string, unknown>) => {
+      const prefixes: string[] = []
+      let cursor: string | undefined
+      do {
+        const page = await listScopes(token, sourceConfig, cursor)
+        prefixes.push(...page.prefixes)
+        cursor = page.nextCursor
+      } while (cursor)
+      return prefixes
+    }
+    pageSize = 1
+    expect(await listScopes('alice', {})).toEqual({
+      prefixes: [scope(GENERAL.id)],
+      nextCursor: '1',
+    })
+    expect(await readAll('alice', {})).toEqual([
+      scope(GENERAL.id),
+      scope(PRIVATE.id),
+      scope(ARCHIVE.id),
+    ])
+    expect(await readAll('bob', {})).toEqual([scope(GENERAL.id)])
+    expect(
+      await readAll('alice', { excludeChannels: '#general', includeArchived: 'false' })
+    ).toEqual([scope(PRIVATE.id)])
+    const listed = await listAll('alice', { maxMessages: 0 })
+    const prefixes = await readAll('alice', {})
+    expect(
+      listed.documents.every((doc) => prefixes.some((prefix) => doc.externalId.startsWith(prefix)))
+    ).toBe(true)
   })
 })

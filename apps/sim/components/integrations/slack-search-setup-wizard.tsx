@@ -16,7 +16,11 @@ import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
 } from '@/lib/slack-search/manifest'
-import { useSlackSearchManifest, useStartSlackSearchOAuth } from '@/hooks/queries/slack-search'
+import {
+  useConnectCustomSlackSearch,
+  useSlackSearchManifest,
+  useStartSlackSearchOAuth,
+} from '@/hooks/queries/slack-search'
 
 interface SlackSearchSetupWizardProps {
   organizationId: string
@@ -40,14 +44,16 @@ export function SlackSearchSetupWizard({
   const description = SLACK_SEARCH_DEFAULT_DESCRIPTION
   const prepare = useSlackSearchManifest(organizationId, name)
   const oauth = useStartSlackSearchOAuth()
-  const [step, setStep] = useState<'manifest' | 'credentials' | 'install'>('manifest')
+  const connect = useConnectCustomSlackSearch()
+  const [step, setStep] = useState<'manifest' | 'credentials' | 'token'>('manifest')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
+  const [botToken, setBotToken] = useState('')
   const [configurationCopied, setConfigurationCopied] = useState(false)
   const [copyError, setCopyError] = useState<Error | null>(null)
-  const error = prepare.error ?? oauth.error ?? copyError
-  const busy = oauth.isPending
+  const error = prepare.error ?? oauth.error ?? connect.error ?? copyError
+  const busy = oauth.isPending || connect.isPending
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
 
   async function copyConfiguration() {
@@ -83,20 +89,21 @@ export function SlackSearchSetupWizard({
     if (step === 'manifest') {
       setStep('credentials')
     } else if (step === 'credentials') {
-      setStep('install')
+      setStep('token')
     } else {
-      oauth.mutate(
+      connect.mutate(
         {
           organizationId,
           installationId,
           name,
           description,
+          botToken: botToken.trim(),
           ...(clientId.trim() ? { clientId: clientId.trim() } : {}),
           ...(clientSecret.trim() ? { clientSecret: clientSecret.trim() } : {}),
           ...(signingSecret.trim() ? { signingSecret: signingSecret.trim() } : {}),
         },
         {
-          onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
+          onSuccess: onClose,
         }
       )
     }
@@ -196,9 +203,7 @@ export function SlackSearchSetupWizard({
         : 'Create Slack app'
       : step === 'credentials'
         ? 'Slack app credentials'
-        : installationId
-          ? 'Reconnect in Slack'
-          : 'Install in Slack'
+        : 'Connect installed Slack app'
 
   return (
     <ChipModal
@@ -220,7 +225,7 @@ export function SlackSearchSetupWizard({
               ? configurationCopied
                 ? 'Configuration copied. In Slack, replace the JSON under App Manifest and save.'
                 : 'Copy the configuration, then replace the JSON under App Manifest in Slack.'
-              : 'Create the app in Slack, then return here to add its credentials.'}
+              : 'Create and install the app in Slack, then return here to add its credentials.'}
           </p>
         )}
         {step === 'credentials' && (
@@ -268,13 +273,22 @@ export function SlackSearchSetupWizard({
             />
           </>
         )}
-        {step === 'install' && (
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            {installationId
-              ? 'Approve the updated permissions for'
-              : 'Choose your workspace and approve'}{' '}
-            {name} in Slack.
-          </p>
+        {step === 'token' && (
+          <>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              Copy the Bot User OAuth Token from OAuth &amp; Permissions in your installed Slack
+              app. If Slack requests updated permissions, approve them there first.
+            </p>
+            <ChipModalField
+              type='input'
+              title='Bot User OAuth Token'
+              value={botToken}
+              onChange={setBotToken}
+              inputType='password'
+              placeholder='xoxb-...'
+              required
+            />
+          </>
         )}
         <ChipModalError>{error?.message}</ChipModalError>
       </ChipModalBody>
@@ -319,19 +333,22 @@ export function SlackSearchSetupWizard({
                 disabled: busy,
                 onClick: () => {
                   oauth.reset()
-                  setStep(step === 'install' ? 'credentials' : 'manifest')
+                  connect.reset()
+                  setStep(step === 'token' ? 'credentials' : 'manifest')
                 },
               }
         }
         primaryAction={{
-          label: busy ? 'Connecting…' : step === 'install' ? title : 'Continue',
+          label: busy ? 'Connecting…' : step === 'token' ? 'Connect app' : 'Continue',
           onClick: advance,
           disabled:
             busy ||
             (step === 'manifest'
               ? Boolean(configuredAppId && !configurationCopied)
-              : !installationId &&
-                (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim())),
+              : step === 'token'
+                ? !botToken.trim()
+                : !installationId &&
+                  (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim())),
         }}
       />
     </ChipModal>

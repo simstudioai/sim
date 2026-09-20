@@ -502,7 +502,7 @@ const CsvPreview = memo(function CsvPreview({
   if (headers.length === 0) {
     return (
       <div className='flex min-h-0 flex-1 items-center justify-center p-6'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
+        <p className='text-[var(--text-muted)] text-small'>No data to display</p>
       </div>
     )
   }

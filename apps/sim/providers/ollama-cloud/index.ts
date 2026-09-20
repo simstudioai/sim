@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { StreamingExecution } from '@/executor/types'
+import { inheritConversationGenerationContext } from '@/providers/conversation-generation'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeOllamaProviderRequest } from '@/providers/ollama/core'
 import { createReadableStreamFromOllamaCloudStream } from '@/providers/ollama-cloud/utils'
@@ -31,7 +32,7 @@ export const ollamaCloudProvider: ProviderConfig = {
     const requestedModel = request.model.replace(/^ollama-cloud\//i, '')
 
     return executeOllamaProviderRequest(
-      { ...request, model: requestedModel },
+      inheritConversationGenerationContext(request, { ...request, model: requestedModel }),
       {
         providerId: 'ollama-cloud',
         providerLabel: 'Ollama Cloud',

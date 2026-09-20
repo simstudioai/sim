@@ -33,8 +33,8 @@ import {
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
+  persistHashOnlyUpdates,
   persistSkippedDocuments,
-  persistSkippedRetryHashes,
   persistSourceDocumentFailures,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
@@ -169,7 +169,7 @@ describe('independent connector saves in one knowledge base', () => {
           lease
         )
       case 'retry hash':
-        return persistSkippedRetryHashes(
+        return persistHashOnlyUpdates(
           ids.knowledgeBaseId,
           ids.connectorId,
           [{ existingId: item.documentId, ...item.extDoc }],

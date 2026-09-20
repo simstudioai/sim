@@ -19,6 +19,7 @@ import {
   vi,
 } from 'vitest'
 import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { AgentTurnSession } from '@/lib/memory/agent-turn-session'
 import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
 import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
@@ -27,11 +28,18 @@ import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
+import * as agentMemory from '@/executor/handlers/agent/memory'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { executeProviderRequest } from '@/providers'
+import {
+  getEncryptedConversationMessage,
+  isConversationHistoryNotice,
+  markConversationHistoryNotice,
+  setEncryptedConversationMessage,
+} from '@/providers/conversation-metadata'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { getModelCapabilities, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import {
@@ -49,10 +57,16 @@ const {
   mockDiscoverMcpServerToolsAsExecutor,
   mockImportWorkspaceFileSecretProvenanceForModelView,
   mockValidateModelProvider,
+  mockOpenAgentTurnSession,
 } = vi.hoisted(() => ({
   mockDiscoverMcpServerToolsAsExecutor: vi.fn().mockResolvedValue([]),
   mockImportWorkspaceFileSecretProvenanceForModelView: vi.fn().mockResolvedValue(true),
   mockValidateModelProvider: vi.fn().mockResolvedValue(undefined),
+  mockOpenAgentTurnSession: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/memory/agent-turn-session', () => ({
+  openAgentTurnSession: mockOpenAgentTurnSession,
 }))
 
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
@@ -77,6 +91,7 @@ vi.mock('@/providers/utils', () => ({
     'function' in toolCall &&
     (toolCall as { function?: unknown }).function != null,
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
+  isDeepResearchModel: (model: string) => model.includes('deep-research'),
   transformBlockTool: vi.fn(),
   getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),
   getApiKey: vi.fn().mockReturnValue('mock-api-key'),
@@ -188,6 +203,7 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    mockOpenAgentTurnSession.mockReset().mockResolvedValue(undefined)
     mockValidateModelProvider.mockReset().mockResolvedValue(undefined)
     mockDiscoverMcpServerToolsAsExecutor.mockImplementation(
       async ({ serverId }: { serverId: string }) =>
@@ -337,6 +353,293 @@ describe('AgentBlockHandler', () => {
       }
       expect(handler.canHandle(noMetadataBlock)).toBe(false)
     })
+  })
+
+  describe('durable conversation lifecycle', () => {
+    const inputs: AgentInputs = {
+      model: 'gpt-4o',
+      memoryType: 'conversation',
+      conversationId: 'conversation-1',
+      messages: [{ role: 'user', content: 'Continue the work.' }],
+      userPrompt: 'Keep the answer brief.',
+    }
+
+    afterEach(() => vi.restoreAllMocks())
+
+    it('keeps a runtime history notice separate from system configuration and persisted inputs', async () => {
+      const notice: Message = { role: 'user', content: 'Some retained history was omitted.' }
+      markConversationHistoryNotice(notice)
+      const session = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      mockOpenAgentTurnSession.mockResolvedValue(session)
+      vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([notice])
+      const append = vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+      const seed = vi.spyOn(agentMemory.memoryService, 'seedMemory').mockResolvedValue()
+
+      await handler.execute(
+        { ...mockContext, executionId: 'execution-1' },
+        mockBlock,
+        { ...inputs, messages: undefined, userPrompt: undefined, systemPrompt: 'Follow my rules.' },
+        { nodeId: 'agent-node', executionOrder: 3 }
+      )
+
+      const [, request] = mockExecuteProviderRequest.mock.calls[0]
+      expect(request.messages).toEqual([{ role: 'system', content: 'Follow my rules.' }, notice])
+      expect(isConversationHistoryNotice(request.messages[1])).toBe(true)
+      expect(append).not.toHaveBeenCalled()
+      expect(seed).not.toHaveBeenCalled()
+    })
+
+    it.each([false, true])(
+      'attaches files only to an actual retained user message (available: %s)',
+      async (hasUserMessage) => {
+        const notice: Message = { role: 'user', content: 'Some retained history was omitted.' }
+        markConversationHistoryNotice(notice)
+        mockGetProviderFromModel.mockReturnValue('openai')
+        mockOpenAgentTurnSession.mockResolvedValue({
+          turnId: 'turn-1',
+          memoryId: 'memory-1',
+          finalize: vi.fn(),
+          getFinalResponse: vi.fn(),
+          getFinalAssistantContent: vi.fn(),
+        })
+        vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([
+          ...(hasUserMessage ? [{ role: 'user', content: 'Analyze this file' }] : []),
+          notice,
+        ])
+        const execution = handler.execute(
+          { ...mockContext, executionId: 'execution-1' },
+          mockBlock,
+          {
+            ...inputs,
+            messages: undefined,
+            userPrompt: undefined,
+            files: [
+              {
+                id: 'file-1',
+                key: 'workspace/ws-1/example.png',
+                name: 'example.png',
+                url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+                size: 128,
+                type: 'image/png',
+                base64: 'aW1hZ2U=',
+              },
+            ],
+          },
+          { nodeId: 'agent-node', executionOrder: 3 }
+        )
+        if (!hasUserMessage) {
+          await expect(execution).rejects.toThrow(
+            'Files require at least one user message in the agent prompt'
+          )
+          expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+          return
+        }
+        await execution
+        const [, request] = mockExecuteProviderRequest.mock.calls[0]
+        expect(request.messages[0]).toMatchObject({
+          content: 'Analyze this file',
+          files: [expect.objectContaining({ id: 'file-1' })],
+        })
+        expect(request.messages[1]).toEqual(notice)
+        expect(request.messages[1].files).toBeUndefined()
+      }
+    )
+
+    it('shares one turn across fallback and preserves private history metadata', async () => {
+      const session = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      mockOpenAgentTurnSession.mockResolvedValue(session)
+      mockGetProviderFromModel.mockImplementation((model: string) =>
+        model.startsWith('claude') ? 'anthropic' : 'openai'
+      )
+      const assistant: Message = {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'call-1', type: 'function', function: { name: 'search', arguments: '{}' } },
+        ],
+      }
+      setEncryptedConversationMessage(assistant, 'encrypted-private-native-history')
+      const fetch = vi
+        .spyOn(agentMemory.memoryService, 'fetchMemoryMessages')
+        .mockResolvedValue([
+          { role: 'user', content: 'Search first.' },
+          assistant,
+          { role: 'tool', content: '{"answer":42}', name: 'search', tool_call_id: 'call-1' },
+        ])
+      const append = vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+
+      await handler.execute(
+        { ...mockContext, executionId: 'execution-1' },
+        mockBlock,
+        { ...inputs, fallbackModels: [{ model: 'claude-sonnet-5' }] },
+        { nodeId: 'agent-node', executionOrder: 3 }
+      )
+
+      expect(mockOpenAgentTurnSession).toHaveBeenCalledWith(
+        expect.objectContaining({ nodeId: 'agent-node', executionOrder: 3 })
+      )
+      expect(fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.any(WeakMap),
+        { richHistory: true, excludeTurnId: 'turn-1', memoryId: 'memory-1' }
+      )
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      for (const [, request, runtime] of mockExecuteProviderRequest.mock.calls) {
+        expect(runtime.agentConversation).toBe(session)
+        expect(request.messages[1]).toEqual(assistant)
+        expect(getEncryptedConversationMessage(request.messages[1])).toBe(
+          'encrypted-private-native-history'
+        )
+      }
+      expect(append.mock.calls.map((call) => call[3]?.appendKey)).toEqual(['input', 'user-prompt'])
+      for (const call of append.mock.calls) {
+        expect(call[3]).toMatchObject({ memoryId: 'memory-1', turnId: 'turn-1' })
+      }
+      expect(session.finalize).toHaveBeenCalledWith('Mocked response content', 'claude-sonnet-5')
+    })
+
+    it('deduplicates retry inputs by invocation while another loop iteration gets a new turn', async () => {
+      const stored: Message[] = []
+      const turns = new WeakMap<object, string>()
+      const keys = new WeakMap<object, string>()
+      vi.spyOn(agentMemory, 'getMemoryMessageTurnId').mockImplementation((message) =>
+        turns.get(message)
+      )
+      vi.spyOn(agentMemory, 'getMemoryMessageAppendKey').mockImplementation((message) =>
+        keys.get(message)
+      )
+      vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockImplementation(async () => [
+        ...stored,
+      ])
+      const append = vi
+        .spyOn(agentMemory.memoryService, 'appendToMemory')
+        .mockImplementation(async (_ctx, _inputs, message, options) => {
+          stored.push(message)
+          if (options) {
+            turns.set(message, options.turnId)
+            keys.set(message, options.appendKey)
+          }
+        })
+      const first = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      const second = {
+        turnId: 'turn-2',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      mockOpenAgentTurnSession
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(second)
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('retry this block'))
+      const ctx = { ...mockContext, executionId: 'execution-1' }
+
+      await expect(
+        handler.execute(ctx, mockBlock, inputs, { nodeId: 'agent-node', executionOrder: 3 })
+      ).rejects.toThrow('retry this block')
+      await handler.execute(ctx, mockBlock, inputs, { nodeId: 'agent-node', executionOrder: 3 })
+      await handler.execute(ctx, mockBlock, inputs, { nodeId: 'agent-node', executionOrder: 4 })
+
+      expect(append.mock.calls.map((call) => [call[3]?.turnId, call[3]?.appendKey])).toEqual([
+        ['turn-1', 'seed:0'],
+        ['turn-1', 'user-prompt'],
+        ['turn-2', 'input'],
+        ['turn-2', 'user-prompt'],
+      ])
+      expect(mockExecuteProviderRequest.mock.calls[1][1].messages).toHaveLength(2)
+      expect(mockExecuteProviderRequest.mock.calls[2][1].messages).toHaveLength(4)
+    })
+
+    it('persists the complete captured answer when structured output removes its content field', async () => {
+      const content = '{"answer":42}'
+      const session = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: () => content,
+      }
+      mockOpenAgentTurnSession.mockResolvedValue(session)
+      vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([])
+      const append = vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+      mockExecuteProviderRequest.mockResolvedValueOnce({ content, model: 'gpt-4o' })
+      const result = await handler.execute(
+        { ...mockContext, executionId: 'execution-1' },
+        mockBlock,
+        {
+          ...inputs,
+          responseFormat: { type: 'object', properties: { answer: { type: 'number' } } },
+        },
+        { nodeId: 'agent-node', executionOrder: 3 }
+      )
+      expect(result).toMatchObject({ answer: 42 })
+      expect(result).not.toHaveProperty('content')
+      expect(append.mock.calls.every((call) => call[2].role === 'user')).toBe(true)
+      expect(session.finalize).toHaveBeenCalledWith(content, 'gpt-4o')
+    })
+
+    it('finalizes a tool-only answer without creating an empty public assistant message', async () => {
+      const session = {
+        turnId: 'turn-1',
+        memoryId: 'memory-1',
+        finalize: vi.fn(),
+        getFinalResponse: vi.fn(),
+        getFinalAssistantContent: vi.fn(),
+      }
+      mockOpenAgentTurnSession.mockResolvedValue(session)
+      vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([])
+      const append = vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+      mockExecuteProviderRequest.mockResolvedValueOnce({ content: '', model: 'gpt-4o' })
+      await handler.execute({ ...mockContext, executionId: 'execution-1' }, mockBlock, inputs, {
+        nodeId: 'agent-node',
+        executionOrder: 3,
+      })
+      expect(append.mock.calls.every((call) => call[2].role === 'user')).toBe(true)
+      expect(session.finalize).toHaveBeenCalledWith('', 'gpt-4o')
+    })
+
+    it.each(['none', 'deep-research-pro-preview-12-2025', 'follow-up'])(
+      'keeps %s on the existing provider lifecycle',
+      async (mode) => {
+        vi.spyOn(agentMemory.memoryService, 'fetchMemoryMessages').mockResolvedValue([])
+        vi.spyOn(agentMemory.memoryService, 'seedMemory').mockResolvedValue()
+        vi.spyOn(agentMemory.memoryService, 'appendToMemory').mockResolvedValue()
+        await handler.execute(
+          { ...mockContext, executionId: 'execution-1' },
+          mockBlock,
+          {
+            ...inputs,
+            ...(mode === 'none' ? { memoryType: 'none' } : {}),
+            ...(mode.startsWith('deep-research') ? { model: mode } : {}),
+            ...(mode === 'follow-up' ? { previousInteractionId: 'interaction-1' } : {}),
+          },
+          { nodeId: 'agent-node', executionOrder: 3 }
+        )
+        expect(mockOpenAgentTurnSession).not.toHaveBeenCalled()
+        expect(mockExecuteProviderRequest.mock.calls[0][2].agentConversation).toBeUndefined()
+      }
+    )
   })
 
   describe('conversation attachment replay', () => {
@@ -5841,13 +6144,53 @@ describe('AgentBlockHandler', () => {
   })
 
   describe('wrapStreamForMemoryPersistence envelope', () => {
-    it('preserves streamFormat and subscribe via object spread', () => {
+    it.each(['Completed answer.', ''])(
+      'finalizes %j even when an existing stream callback rejects',
+      async (content) => {
+        const finalize = vi.fn().mockResolvedValue(undefined)
+        const onFullContent = vi.fn().mockRejectedValue(new Error('Callback failed'))
+        const stream: StreamingExecution = {
+          stream: new ReadableStream(),
+          onFullContent,
+          execution: {
+            success: true,
+            output: { content },
+            logs: [],
+            metadata: { startTime: '', duration: 0 },
+          },
+        }
+        const privateHandler = handler as unknown as {
+          wrapStreamForMemoryPersistence: (
+            ctx: ExecutionContext,
+            inputs: AgentInputs,
+            stream: StreamingExecution,
+            model: string,
+            session: AgentTurnSession
+          ) => StreamingExecution
+        }
+        const wrapped = privateHandler.wrapStreamForMemoryPersistence(
+          mockContext,
+          { model: 'gpt-4o' },
+          stream,
+          'gpt-4o',
+          { memoryId: 'memory-1', finalize } as AgentTurnSession
+        )
+
+        await expect(wrapped.onFullContent?.(content)).resolves.toBeUndefined()
+        expect(onFullContent).toHaveBeenCalledWith(content)
+        expect(finalize).toHaveBeenCalledExactlyOnceWith(content, 'gpt-4o')
+      }
+    )
+
+    it('preserves streamFormat, subscribe, and the existing completion callback', async () => {
       const handler = new AgentBlockHandler()
       const subscribe = vi.fn()
+      const onFullContent = vi.fn()
       const streamingExec: StreamingExecution = {
         stream: new ReadableStream(),
         streamFormat: 'agent-events-v1',
         subscribe,
+        onFullContent,
         execution: {
           success: true,
           output: { content: '' },
@@ -5871,6 +6214,8 @@ describe('AgentBlockHandler', () => {
       expect(wrapped.stream).toBe(streamingExec.stream)
       expect(wrapped.execution).toBe(streamingExec.execution)
       expect(typeof wrapped.onFullContent).toBe('function')
+      await wrapped.onFullContent?.('')
+      expect(onFullContent).toHaveBeenCalledWith('')
     })
   })
 })

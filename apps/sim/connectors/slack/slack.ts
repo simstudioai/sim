@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { LRUCache } from 'lru-cache'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { isRateLimitError, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
@@ -16,7 +18,12 @@ import {
   ConnectorSourceError,
   type ConnectorSourceFailureCategory,
 } from '@/connectors/source-error'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type {
+  AccessibleScopePage,
+  ConnectorConfig,
+  ExternalDocument,
+  ExternalDocumentList,
+} from '@/connectors/types'
 import {
   BoundedLines,
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
@@ -34,6 +41,21 @@ const MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 const MAX_CURSOR_BYTES = 256 * 1024
 const MAX_THREAD_PAGES = 200
 const MAX_USERNAME_CACHE_ENTRIES = 2000
+const MAX_CHANNEL_CACHE_ENTRIES = 2000
+const MAX_ROOT_VERSION_CACHE_ENTRIES = 50_000
+/**
+ * Threads with activity this recent are reread on every listing. A root reports new
+ * replies and its own edits, but not an edit or deletion of an existing reply, which in
+ * practice happens while a thread is active.
+ */
+const ACTIVE_THREAD_REFRESH_SECONDS = 7 * 24 * 60 * 60
+/**
+ * Every quiet thread is also reread once in this many days, a fixed share of them each
+ * day, so a reply edit on a thread that has gone quiet is picked up without rereading
+ * the whole workspace at once.
+ */
+const QUIET_THREAD_REFRESH_DAYS = 28
+const DAY_MS = 24 * 60 * 60 * 1000
 const TIMESTAMP_PATTERN = /^\d{1,16}\.\d{1,6}$/
 const CHANNEL_ID_PATTERN = /^[CGD][A-Z0-9]+$/
 const TEAM_ID_PATTERN = /^T[A-Z0-9]+$/
@@ -71,6 +93,7 @@ interface SlackMessage {
   thread_ts?: string
   subtype?: string
   reply_count?: number
+  latest_reply?: string
   edited?: { ts: string }
   attachments?: Record<string, unknown>[]
   blocks?: Record<string, unknown>[]
@@ -260,6 +283,10 @@ function readMessages(value: unknown): SlackMessage[] {
       subtype: typeof message.subtype === 'string' ? message.subtype : undefined,
       thread_ts: typeof message.thread_ts === 'string' ? message.thread_ts : undefined,
       reply_count: typeof message.reply_count === 'number' ? message.reply_count : undefined,
+      latest_reply:
+        typeof message.latest_reply === 'string' && TIMESTAMP_PATTERN.test(message.latest_reply)
+          ? message.latest_reply
+          : undefined,
       edited:
         isPlainRecord(message.edited) && typeof message.edited.ts === 'string'
           ? { ts: message.edited.ts }
@@ -333,18 +360,36 @@ function channelIncluded(channel: SlackChannel, sourceConfig: Record<string, unk
   )
 }
 
-async function resolveTeamId(
+interface SlackWorkspace {
+  teamId: string
+  /** The workspace's web address, from which message links are built; absent when Slack omits it. */
+  url?: string
+}
+
+async function resolveWorkspace(
   accessToken: string,
   syncContext?: Record<string, unknown>
-): Promise<string> {
-  const cached = syncContext?._slackTeamId
-  if (typeof cached === 'string' && TEAM_ID_PATTERN.test(cached)) return cached
+): Promise<SlackWorkspace> {
+  const cached = syncContext?._slackWorkspace
+  if (isPlainRecord(cached) && typeof cached.teamId === 'string') {
+    return { teamId: cached.teamId, ...(typeof cached.url === 'string' ? { url: cached.url } : {}) }
+  }
   const data = await slackApiGet('auth.test', accessToken, {})
   if (typeof data.team_id !== 'string' || !TEAM_ID_PATTERN.test(data.team_id)) {
     throw new Error('Slack did not identify the workspace for this credential')
   }
-  if (syncContext) syncContext._slackTeamId = data.team_id
-  return data.team_id
+  const workspace: SlackWorkspace = { teamId: data.team_id }
+  if (typeof data.url === 'string') {
+    try {
+      const url = new URL(data.url)
+      if (url.protocol === 'https:' && url.hostname.endsWith('.slack.com'))
+        workspace.url = `${url.origin}/`
+    } catch {
+      /** Links fall back to `chat.getPermalink` when the address is unusable. */
+    }
+  }
+  if (syncContext) syncContext._slackWorkspace = workspace
+  return workspace
 }
 
 function encodeCursor(state: SlackListingCursor): string {
@@ -393,7 +438,7 @@ function finishPage(
   return { documents, hasMore, nextCursor: hasMore ? encodeCursor(state) : undefined }
 }
 
-/** A new listing nonce forces reply hydration, because root metadata omits reply edits. */
+/** A new listing nonce forces reply hydration for an active thread, whose reply edits its root omits. */
 function listingToken(syncContext?: Record<string, unknown>): string {
   if (typeof syncContext?.syncRunId === 'string') return syncContext.syncRunId
   if (typeof syncContext?._slackListingToken === 'string') return syncContext._slackListingToken
@@ -403,7 +448,142 @@ function listingToken(syncContext?: Record<string, unknown>): string {
 }
 
 function documentId(teamId: string, channelId: string, ts: string): string {
-  return `slack:v4:${teamId}:${channelId}:${ts}`
+  return `${channelScope(teamId, channelId)}${ts}`
+}
+
+/** One page of the conversations a listing covers, under the connector's inclusion rules. */
+async function listChannelPage(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  cursor?: string
+): Promise<{ channels: SlackChannel[]; nextCursor?: string }> {
+  const page = await slackApiGet('conversations.list', accessToken, {
+    types: conversationTypes(sourceConfig),
+    limit: String(PAGE_SIZE),
+    exclude_archived: String(!includeArchived(sourceConfig)),
+    ...(cursor ? { cursor } : {}),
+  })
+  return {
+    channels: readChannels(page.channels).filter((channel) =>
+      channelIncluded(channel, sourceConfig)
+    ),
+    nextCursor: nextCursor(page, cursor),
+  }
+}
+
+/** Every thread of one conversation shares this external-id prefix. */
+function channelScope(teamId: string, channelId: string): string {
+  return `slack:v4:${teamId}:${channelId}:`
+}
+
+/**
+ * What a thread's root says about its text: the conversation name the text is headed
+ * with, the root's own edit, and the replies it has received. Unchanged, the thread
+ * needs no rereading unless it is still active.
+ */
+function rootVersion(channel: SlackChannel, message: SlackMessage): string {
+  return sha256Hex(
+    JSON.stringify([
+      channel.name,
+      message.edited?.ts ?? '',
+      message.reply_count ?? 0,
+      message.latest_reply ?? '',
+    ])
+  ).slice(0, 32)
+}
+
+/** The day, of every {@link QUIET_THREAD_REFRESH_DAYS}, on which a quiet thread is reread. */
+export function slackRollingRefreshDay(externalId: string): number {
+  return (
+    createHash('sha256').update(externalId).digest().readUInt32BE(0) % QUIET_THREAD_REFRESH_DAYS
+  )
+}
+
+function dueForRollingRefresh(externalId: string, now: number): boolean {
+  return slackRollingRefreshDay(externalId) === Math.floor(now / DAY_MS) % QUIET_THREAD_REFRESH_DAYS
+}
+
+function lastRootActivity(message: SlackMessage): number {
+  return Math.max(
+    Number(message.ts),
+    Number(message.latest_reply ?? 0),
+    Number(message.edited?.ts ?? 0)
+  )
+}
+
+/**
+ * A listed thread is identified by its root version alone; a hydrated one by its
+ * version and the hash of its text. Earlier listings stored only the text hash.
+ */
+type SlackContentHash =
+  | { kind: 'listed'; version: string }
+  | { kind: 'hydrated'; version?: string; text: string }
+
+const LISTED_HASH = /^slack-thread:v5:([0-9a-f]{32})$/
+const HYDRATED_HASH = /^slack-thread:v5:([0-9a-f]{32}):([0-9a-f]{64})$/
+const LEGACY_HYDRATED_HASH = /^slack-content:v4:([0-9a-f]{64})$/
+
+function parseContentHash(hash: string): SlackContentHash | null {
+  const listed = LISTED_HASH.exec(hash)
+  if (listed) return { kind: 'listed', version: listed[1] }
+  const hydrated = HYDRATED_HASH.exec(hash)
+  if (hydrated) return { kind: 'hydrated', version: hydrated[1], text: hydrated[2] }
+  const legacy = LEGACY_HYDRATED_HASH.exec(hash)
+  if (legacy) return { kind: 'hydrated', text: legacy[1] }
+  return null
+}
+
+/**
+ * A quiet thread whose root version matches the stored one is current without being
+ * reread. A reread thread whose text matches is current under its new hash. A listing
+ * that asks for a reread carries a nonce, which parses as nothing and is always stale.
+ */
+function matchContentHash(candidate: string, stored: string): 'current' | 'equivalent' | 'stale' {
+  const next = parseContentHash(candidate)
+  const previous = parseContentHash(stored)
+  if (!next || previous?.kind !== 'hydrated') return 'stale'
+  if (next.kind === 'listed') return previous.version === next.version ? 'current' : 'stale'
+  return previous.text === next.text ? 'equivalent' : 'stale'
+}
+
+/** A bounded per-run cache kept on the sync context, so nothing outlives the run. */
+function contextCache<V extends {}>(
+  syncContext: Record<string, unknown> | undefined,
+  key: string,
+  max: number
+): LRUCache<string, V> | undefined {
+  if (!syncContext) return undefined
+  const existing = syncContext[key]
+  if (existing instanceof LRUCache) return existing as LRUCache<string, V>
+  const cache = new LRUCache<string, V>({ max })
+  syncContext[key] = cache
+  return cache
+}
+
+/** The versions a listing saw, so each thread it hydrates is stored under that version. */
+function rootVersions(syncContext?: Record<string, unknown>) {
+  return contextCache<string>(syncContext, '_slackRootVersions', MAX_ROOT_VERSION_CACHE_ENTRIES)
+}
+
+/** One `conversations.info` per conversation per run, shared by concurrent hydrations. */
+function readChannelInfo(
+  accessToken: string,
+  channelId: string,
+  syncContext?: Record<string, unknown>
+): Promise<SlackChannel> {
+  const cache = contextCache<Promise<SlackChannel>>(
+    syncContext,
+    '_slackChannelInfo',
+    MAX_CHANNEL_CACHE_ENTRIES
+  )
+  const cached = cache?.get(channelId)
+  if (cached) return cached
+  const pending = slackApiGet('conversations.info', accessToken, { channel: channelId }).then(
+    (info) => readChannels([info.channel])[0]
+  )
+  cache?.set(channelId, pending)
+  pending.catch(() => cache?.delete(channelId))
+  return pending
 }
 
 function messageTitle(channel: SlackChannel, message: SlackMessage): string {
@@ -416,8 +596,9 @@ async function resolveUserName(
   userId: string,
   syncContext?: Record<string, unknown>
 ): Promise<string> {
-  const cache = syncContext?._slackUserCache
-  if (cache instanceof Map && cache.has(userId)) return cache.get(userId) as string
+  const cache = contextCache<string>(syncContext, '_slackUserCache', MAX_USERNAME_CACHE_ENTRIES)
+  const cached = cache?.get(userId)
+  if (cached !== undefined) return cached
   try {
     const data = await slackApiGet('users.info', accessToken, { user: userId })
     const user = isPlainRecord(data.user) ? data.user : {}
@@ -426,11 +607,7 @@ async function resolveUserName(
       (value) => typeof value === 'string' && value
     )
     const result = typeof name === 'string' ? name : userId
-    if (syncContext) {
-      const names = cache instanceof Map ? cache : new Map<string, string>()
-      if (names.size < MAX_USERNAME_CACHE_ENTRIES) names.set(userId, result)
-      syncContext._slackUserCache = names
-    }
+    cache?.set(userId, result)
     return result
   } catch (error) {
     if (isRateLimitError(error)) throw error
@@ -562,13 +739,12 @@ async function listDocuments(
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const oldest = readStartDate(sourceConfig.startDate)
-  const archives = includeArchived(sourceConfig)
   const maxMessages = parseDefaultedUnlimitedSafeInteger(
     sourceConfig.maxMessages,
     DEFAULT_MAX_MESSAGES,
     'Max messages must be a non-negative safe integer'
   )
-  const teamId = await resolveTeamId(accessToken, syncContext)
+  const { teamId } = await resolveWorkspace(accessToken, syncContext)
   const state: SlackListingCursor = cursor
     ? decodeCursor(cursor)
     : {
@@ -582,18 +758,10 @@ async function listDocuments(
   if (state.teamId !== teamId) throw new Error('Slack listing cursor belongs to another workspace')
 
   if (state.channels.length === 0 && !state.channelsComplete) {
-    const page = await slackApiGet('conversations.list', accessToken, {
-      types: conversationTypes(sourceConfig),
-      limit: String(PAGE_SIZE),
-      exclude_archived: String(!archives),
-      ...(state.channelCursor ? { cursor: state.channelCursor } : {}),
-    })
-    const continuation = nextCursor(page, state.channelCursor)
-    state.channels = readChannels(page.channels).filter((channel) =>
-      channelIncluded(channel, sourceConfig)
-    )
-    state.channelCursor = continuation
-    state.channelsComplete = !continuation
+    const page = await listChannelPage(accessToken, sourceConfig, state.channelCursor)
+    state.channels = page.channels
+    state.channelCursor = page.nextCursor
+    state.channelsComplete = !page.nextCursor
   }
   const channel = state.channels[0]
   if (!channel) return finishPage(state, [])
@@ -642,14 +810,28 @@ async function listDocuments(
     const externalId = documentId(teamId, channel.id, message.ts)
     if (seen.has(externalId)) continue
     seen.add(externalId)
+    const version = rootVersion(channel, message)
+    rootVersions(syncContext)?.set(externalId, version)
+    const now = Date.now()
+    const reread =
+      syncContext?.fullSync === true ||
+      now / 1000 - lastRootActivity(message) < ACTIVE_THREAD_REFRESH_SECONDS ||
+      dueForRollingRefresh(externalId, now)
     documents.push({
       externalId,
       title: messageTitle(channel, message),
       content: '',
       contentDeferred: true,
+      /**
+       * A thread with no text gains some through a new reply, which changes its root version,
+       * or a reply edit, which the active and rolling rereads pick up.
+       */
+      skippedRetryPolicy: 'source-change',
       estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
       mimeType: 'text/plain',
-      contentHash: `slack-listing:v4:${externalId}:${listingToken(syncContext)}`,
+      contentHash: reread
+        ? `slack-thread:v5:${version}:refresh:${listingToken(syncContext)}`
+        : `slack-thread:v5:${version}`,
       metadata: {
         channelName: channel.name,
         channelId: channel.id,
@@ -673,10 +855,11 @@ async function listDocuments(
 }
 
 /**
- * Hydrates every message in a thread. Root latest_reply/reply_count cannot
- * detect an edit to an existing reply; every listed thread is reread, and the
- * text hash decides whether its embeddings need replacing. Partial failures
- * throw rather than publishing a root while silently dropping its replies.
+ * Hydrates every message in a thread. The stored hash pairs the root version the
+ * listing saw with the hash of the text, so a quiet thread is not reread while its
+ * version holds and a reread thread's embeddings are replaced only when its text
+ * changed. Partial failures throw rather than publishing a root while silently
+ * dropping its replies.
  */
 async function getDocument(
   accessToken: string,
@@ -688,14 +871,14 @@ async function getDocument(
   /** Legacy channel documents are retired through the next successful listing reconciliation. */
   if (!match) return null
   const [, teamId, channelId, rootTs] = match
-  if ((await resolveTeamId(accessToken, syncContext)) !== teamId) {
+  const workspace = await resolveWorkspace(accessToken, syncContext)
+  if (workspace.teamId !== teamId) {
     throw new Error('Slack document belongs to another workspace')
   }
   const oldest = readStartDate(sourceConfig.startDate)
   if (oldest && Number(rootTs) < Number(oldest)) return null
   try {
-    const info = await slackApiGet('conversations.info', accessToken, { channel: channelId })
-    const channel = readChannels([info.channel])[0]
+    const channel = await readChannelInfo(accessToken, channelId, syncContext)
     if (!channelIncluded(channel, sourceConfig)) return null
     const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES)
     lines.pin(
@@ -757,13 +940,16 @@ async function getDocument(
     if (!exhausted) throw new Error(`Slack thread exceeds ${MAX_THREAD_PAGES} reply pages`)
     if (!root) return null
     const content = lines.count > 0 ? lines.join() : ''
+    const listed = rootVersions(syncContext)
+    const version = listed?.get(externalId) ?? rootVersion(channel, root)
+    listed?.delete(externalId)
     const document: ExternalDocument = {
       externalId,
       title: messageTitle(channel, root),
       content,
       contentDeferred: false,
       mimeType: 'text/plain',
-      contentHash: `slack-content:v4:${createHash('sha256').update(content).digest('hex')}`,
+      contentHash: `slack-thread:v5:${version}:${sha256Hex(content)}`,
       metadata: {
         channelName: channel.name,
         channelId,
@@ -781,14 +967,7 @@ async function getDocument(
         skippedExistingDisposition: 'replace',
       }
     }
-    const link = await slackApiGet('chat.getPermalink', accessToken, {
-      channel: channelId,
-      message_ts: rootTs,
-    })
-    if (typeof link.permalink !== 'string' || !link.permalink.startsWith('https://')) {
-      throw new Error('Slack did not return a message permalink')
-    }
-    return { ...document, sourceUrl: link.permalink }
+    return { ...document, sourceUrl: await messageLink(accessToken, workspace, channelId, rootTs) }
   } catch (error) {
     if (
       error instanceof SlackApiError &&
@@ -805,6 +984,43 @@ async function getDocument(
   }
 }
 
+/**
+ * The root's link, in the documented `archives/<channel>/p<ts>` form Slack's own
+ * permalinks take, so a thread needs no `chat.getPermalink` round trip.
+ */
+async function messageLink(
+  accessToken: string,
+  workspace: SlackWorkspace,
+  channelId: string,
+  rootTs: string
+): Promise<string> {
+  if (workspace.url) return `${workspace.url}archives/${channelId}/p${rootTs.replace('.', '')}`
+  const link = await slackApiGet('chat.getPermalink', accessToken, {
+    channel: channelId,
+    message_ts: rootTs,
+  })
+  if (typeof link.permalink !== 'string' || !link.permalink.startsWith('https://')) {
+    throw new Error('Slack did not return a message permalink')
+  }
+  return link.permalink
+}
+
+/**
+ * One page of the conversations the caller can read, under the same inclusion rules as
+ * a listing, as the external-id prefix of their threads. Access is granted per
+ * conversation, so a conversation listed here proves access to every thread in it.
+ */
+async function listAccessibleScopes(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  cursor?: string,
+  syncContext?: Record<string, unknown>
+): Promise<AccessibleScopePage> {
+  const { teamId } = await resolveWorkspace(accessToken, syncContext)
+  const { channels, nextCursor: next } = await listChannelPage(accessToken, sourceConfig, cursor)
+  return { prefixes: channels.map((channel) => channelScope(teamId, channel.id)), nextCursor: next }
+}
+
 export const slackConnector: ConnectorConfig = {
   isCredentialInvalidError: (error) =>
     error instanceof SlackApiError &&
@@ -814,6 +1030,8 @@ export const slackConnector: ConnectorConfig = {
   ...slackConnectorMeta,
   listDocuments,
   getDocument,
+  matchContentHash,
+  listAccessibleScopes,
   validateConfig: async (accessToken, sourceConfig) => {
     try {
       readStartDate(sourceConfig.startDate)

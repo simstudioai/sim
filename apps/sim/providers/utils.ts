@@ -1611,6 +1611,7 @@ export function getMaxOutputTokensForModel(model: string): number {
  */
 export function prepareToolExecution(
   tool: {
+    id?: string
     params?: Record<string, any>
     parameters?: Record<string, any>
     modelBlockedParams?: string[]
@@ -1618,6 +1619,10 @@ export function prepareToolExecution(
   },
   llmArgs: Record<string, any>,
   request: {
+    resolveToolInvocationId?: (
+      providerCallId: string | undefined,
+      toolId: string
+    ) => string | undefined
     workflowId?: string
     workspaceId?: string
     chatId?: string
@@ -1706,6 +1711,10 @@ export function prepareToolExecution(
     }
   }
 
+  const invocationId =
+    request.resolveToolInvocationId?.(toolCallId, tool.id ?? '') ??
+    toolCallId ??
+    request.invocationId
   const executionParams = {
     ...toolParams,
     ...(request.workflowId || request.billingAttribution
@@ -1721,9 +1730,7 @@ export function prepareToolExecution(
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
             ...(request.blockId ? { blockId: request.blockId } : {}),
-            ...((toolCallId ?? request.invocationId)
-              ? { invocationId: toolCallId ?? request.invocationId }
-              : {}),
+            ...(invocationId ? { invocationId } : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),

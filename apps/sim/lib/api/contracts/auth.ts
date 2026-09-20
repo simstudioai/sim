@@ -95,22 +95,22 @@ export const ssoRegistrationContract = defineRouteContract({
 })
 
 const ssoProviderListEntrySchema = z.object({
-  id: z.string().optional(),
-  providerId: z.string().optional(),
-  domain: z.string().nullable(),
-  issuer: z.string().nullable().optional(),
-  oidcConfig: z.string().nullable().optional(),
-  samlConfig: z.string().nullable().optional(),
-  userId: z.string().nullable().optional(),
-  organizationId: z.string().nullable().optional(),
-  jitProvisioningEnabled: z.boolean().optional(),
+  id: z.string(),
+  providerId: z.string(),
+  domain: z.string(),
+  issuer: z.string(),
+  oidcConfig: z.string().nullable(),
+  samlConfig: z.string().nullable(),
+  userId: z.string(),
+  organizationId: z.string().nullable(),
+  jitProvisioningEnabled: z.boolean(),
   /** The domain as sign-in compares it: trimmed, lower-cased, a leading `*.` dropped. Providers sharing it share a primary. */
-  domainKey: z.string().optional(),
+  domainKey: z.string(),
   /** Whether this provider's domain is verified, so it can sign people in. */
-  domainVerified: z.boolean().optional(),
+  domainVerified: z.boolean(),
   /** Whether sign-in for this provider's domain goes through it. */
-  isPrimary: z.boolean().optional(),
-  providerType: z.enum(['oidc', 'saml']).optional(),
+  isPrimary: z.boolean(),
+  providerType: z.enum(['oidc', 'saml']),
 })
 
 export const listSsoProvidersContract = defineRouteContract({
@@ -167,10 +167,7 @@ export const resolveSsoProviderContract = defineRouteContract({
   }),
   response: {
     mode: 'json',
-    schema: z.object({
-      providerId: z.string(),
-      providerType: z.enum(['oidc', 'saml']),
-    }),
+    schema: z.object({ providerId: z.string() }),
   },
 })
 

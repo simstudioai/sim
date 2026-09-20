@@ -192,6 +192,11 @@ export interface Message {
 }
 
 export interface ProviderRequest {
+  /** Server-installed stable identity resolver; never accepted from an API payload. */
+  resolveToolInvocationId?: (
+    providerCallId: string | undefined,
+    toolId: string
+  ) => string | undefined
   model: string
   systemPrompt?: string
   context?: string
