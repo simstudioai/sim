@@ -1434,7 +1434,6 @@ describe('permitted-document planner', () => {
   let exactRows: Array<{ id: string }>
   let traversedRows: Array<{ id: string; distance?: number }>
   let rerankRows: Array<ReturnType<typeof hit>>
-  let memberedSources: Array<{ connectorId: string }>
   let indexedSourceRows: Array<{ name: string; connectorId: string }>
   let sourceExactRows: Array<{ id: string; distance: number }>
 
@@ -1445,7 +1444,6 @@ describe('permitted-document planner', () => {
     traversedRows = []
     rerankRows = []
     sourceExactRows = []
-    memberedSources = []
     indexedSourceRows = []
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
@@ -1501,9 +1499,9 @@ describe('permitted-document planner', () => {
       liveProofRequired: [],
     }
     /** Membership decides the walk; the sliced source contributes enumerated documents. */
-    memberedSources = [{ connectorId: 'member-src' }]
+    const memberSources = ['member-src']
+    const observers = { confirmed: ['m-1'], observed: [] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
-    queueTableRows(schemaMock.knowledgeConnectorMember, memberedSources)
     sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
     traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
     rerankRows = [hit('sliced-hit', 'sliced-src'), hit('walked-hit', 'member-src')]
@@ -1511,7 +1509,7 @@ describe('permitted-document planner', () => {
     await handleVectorOnlySearch({
       ...params,
       permitted: { kind: 'unbounded' },
-      connectorEligibility: eligibility,
+      accessPlan: { connectors: eligibility, observers, memberSources },
     })
     const walks = statements().filter((query) => query.sql.includes('AS visible'))
     expect(walks).toHaveLength(1)
@@ -1525,18 +1523,16 @@ describe('permitted-document planner', () => {
   })
 
   it('ranks every source exactly when the caller is a member of none', async () => {
-    memberedSources = []
     sourceExactRows = [{ id: 'sliced-hit', distance: 0.05 }]
     rerankRows = [hit('sliced-hit', 'sliced-src')]
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
       permitted: { kind: 'unbounded' },
-      connectorEligibility: {
-        workspace: [],
-        admin: ['sliced-src'],
-        members: [],
-        liveProofRequired: [],
+      accessPlan: {
+        connectors: { workspace: [], admin: ['sliced-src'], members: [], liveProofRequired: [] },
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
       },
     })
     expect(statements().filter((query) => query.sql.includes('AS visible'))).toHaveLength(0)

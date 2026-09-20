@@ -208,6 +208,25 @@ export function liveSourceAccessCondition(scope: KnowledgeAccessScope): SQL {
  * The connectors a search may read from, resolved once per query: their ids grouped by the shape
  * their documents' ACLs take, and separately those whose reader access is proven live per request.
  */
+/**
+ * The caller's active member identities on the connectors a search reads, by what makes their
+ * observations current: `confirmed` members drained their change feed inside the freshness window,
+ * so every observation they hold stands; `observed` members are trusted only where the observation
+ * itself is recent.
+ */
+export interface KnowledgeMemberObservers {
+  confirmed: readonly string[]
+  observed: readonly string[]
+}
+
+/** What a search resolves once about its sources and the caller's standing in them. */
+export interface SearchAccessPlan {
+  connectors: KnowledgeConnectorEligibility
+  observers: KnowledgeMemberObservers
+  /** Connectors the caller is an active member of, whose documents they read broadly. */
+  memberSources: readonly string[]
+}
+
 export interface KnowledgeConnectorEligibility {
   /** Documents carry the workspace ACL. */
   workspace: readonly string[]
@@ -238,9 +257,10 @@ export interface KnowledgeConnectorEligibility {
  */
 export function knowledgeCandidateAccessConditionForConnectors(
   scope: KnowledgeAccessScope | SystemAccessScope,
-  eligibility: KnowledgeConnectorEligibility,
+  plan: SearchAccessPlan,
   liveSourceAccess: SQL = sql`true`
 ): SQL {
+  const eligibility = plan.connectors
   if (scope.kind === 'system') return documentConnectorIsActive()
   if (scope.tokens.length === 0) return sql`false`
   const tokens = textArrayLiteral(scope.tokens)
@@ -270,7 +290,7 @@ export function knowledgeCandidateAccessConditionForConnectors(
       ((${document.connectorId} IS NULL OR ${inConnectors(eligibility.workspace)})
         AND ${document.acl} = ARRAY['ws']::text[])
       OR ${mirrored(eligibility.admin, sql`${document.aclVerifiedAt} > ${cutoff}`)}
-      OR ${mirrored(eligibility.members, memberObservationCondition(tokens, cutoff))}
+      OR ${mirrored(eligibility.members, resolvedObservationCondition(plan.observers, cutoff))}
     )
   )`
 }
@@ -282,6 +302,29 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * inside the access predicate's `OR`, PostgreSQL instead hashes every observation in the table
  * once per statement, a fixed cost paid by every query that carries the predicate.
  */
+/**
+ * The same membership, resolved ahead of the query: each candidate costs one lookup on the
+ * observation key instead of a join to the member behind it. Equivalent by construction — the ids
+ * are the members that join would have matched, and each one's freshness rule is carried over.
+ */
+function resolvedObservationCondition(observers: KnowledgeMemberObservers, cutoff: SQL): SQL {
+  if (observers.confirmed.length === 0 && observers.observed.length === 0) return sql`false`
+  const byMember = (ids: readonly string[]): SQL =>
+    sql`${knowledgeDocumentObservation.memberId} = ANY(${textArrayLiteral([...ids])})`
+  const current =
+    observers.confirmed.length === 0
+      ? sql`${byMember(observers.observed)} AND ${knowledgeDocumentObservation.lastSeenAt} > ${cutoff}`
+      : observers.observed.length === 0
+        ? byMember(observers.confirmed)
+        : sql`(${byMember(observers.confirmed)}
+            OR (${byMember(observers.observed)} AND ${knowledgeDocumentObservation.lastSeenAt} > ${cutoff}))`
+  return sql`EXISTS (
+    SELECT 1 FROM ${knowledgeDocumentObservation}
+    WHERE ${knowledgeDocumentObservation.documentId} = ${document.id}
+      AND ${current}
+  )`
+}
+
 function memberObservationCondition(tokens: SQL, cutoff: SQL): SQL {
   return sql`EXISTS (
     SELECT 1 FROM ${knowledgeDocumentObservation}

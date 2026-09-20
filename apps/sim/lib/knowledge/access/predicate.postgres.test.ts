@@ -553,8 +553,11 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       members: ['members'],
       liveProofRequired: [],
     }
+    /** What `resolveSearchAccessPlan` resolves for this caller: their member identity, confirmed. */
+    const observers = { confirmed: ['m-alice'], observed: [] }
     const perRow = knowledgeMetadataCandidateAccessCondition(scope)
-    const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, eligibility)
+    const plan = { connectors: eligibility, observers, memberSources: ['members'] }
+    const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, plan)
     for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
       expect([id, await admits(perQuery, id)]).toEqual([id, await admits(perRow, id)])
     }
@@ -563,7 +566,7 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
      * caller holds those grants only after authorization, so applying the clause during ranking
      * would drop every candidate of a gated source before it could be proven.
      */
-    const gated = { ...eligibility, liveProofRequired: ['admin'] }
+    const gated = { ...plan, connectors: { ...eligibility, liveProofRequired: ['admin'] } }
     expect(
       await admits(knowledgeCandidateAccessConditionForConnectors(scope, gated), 'admin-current')
     ).toBe(true)
@@ -576,7 +579,10 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     /** A connector left out of the resolution is refused, however current its documents are. */
     expect(
       await admits(
-        knowledgeCandidateAccessConditionForConnectors(scope, { ...eligibility, admin: [] }),
+        knowledgeCandidateAccessConditionForConnectors(scope, {
+          ...plan,
+          connectors: { ...eligibility, admin: [] },
+        }),
         'admin-current'
       )
     ).toBe(false)

@@ -6,7 +6,6 @@ import {
   embeddingKeywordTin,
   embeddingSearch,
   knowledgeConnector,
-  knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -14,14 +13,14 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { resolveConnectorEligibility } from '@/lib/knowledge/access/connector-eligibility'
+import { resolveSearchAccessPlan } from '@/lib/knowledge/access/connector-eligibility'
 import {
-  type KnowledgeConnectorEligibility,
   knowledgeAccessCondition,
   knowledgeAclOverlapCondition,
   knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
   liveSourceAccessCondition,
+  type SearchAccessPlan,
   textArrayLiteral,
 } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -286,7 +285,7 @@ export interface SearchParams {
   /** Resolved once per user-scoped search; absent for resolved scopes and explicit documents. */
   permitted?: PermittedDocuments
   /** Connector state resolved once per search, so no candidate re-derives it. */
-  connectorEligibility?: KnowledgeConnectorEligibility
+  accessPlan?: SearchAccessPlan
 }
 
 /** All valid tag slot keys */
@@ -551,10 +550,10 @@ function getDocumentVisibilityConditions(
  */
 function candidateAccessCondition(
   access: KnowledgeAccessScope,
-  eligibility: KnowledgeConnectorEligibility | undefined
+  plan: SearchAccessPlan | undefined
 ): SQL {
-  return eligibility
-    ? knowledgeCandidateAccessConditionForConnectors(access, eligibility)
+  return plan
+    ? knowledgeCandidateAccessConditionForConnectors(access, plan)
     : knowledgeMetadataCandidateAccessCondition(access)
 }
 
@@ -740,12 +739,12 @@ function hydrateSearchCandidates(
   conditions: (SQL | undefined)[],
   leg: RetrievalLeg,
   budget?: SearchBudget,
-  eligibility?: KnowledgeConnectorEligibility
+  plan?: SearchAccessPlan
 ) {
-  const accessCondition = eligibility
+  const accessCondition = plan
     ? knowledgeCandidateAccessConditionForConnectors(
         access,
-        eligibility,
+        plan,
         liveSourceAccessCondition(access)
       )
     : knowledgeAccessCondition(access)
@@ -819,7 +818,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
                 ...getVisibilityConditions(
                   access,
                   params.filters,
-                  candidateAccessCondition(access, params.connectorEligibility)
+                  candidateAccessCondition(access, params.accessPlan)
                 ),
                 excludeSearchSources(excludedSources)
               )
@@ -839,7 +838,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           conditions,
           'tags',
           params.budget,
-          params.connectorEligibility
+          params.accessPlan
         ),
     })
   }
@@ -1046,7 +1045,7 @@ export async function resolvePermittedDocuments(params: {
   access: KnowledgeAccessScope
   filters?: WorkspaceSearchFilters
   budget?: SearchBudget
-  connectorEligibility?: KnowledgeConnectorEligibility
+  accessPlan?: SearchAccessPlan
 }): Promise<PermittedDocuments> {
   const key = reachKey(params.knowledgeBaseIds, params.access)
   let probe: ProbeOutcome
@@ -1060,7 +1059,7 @@ export async function resolvePermittedDocuments(params: {
           params.knowledgeBaseIds,
           params.access,
           params.filters,
-          candidateAccessCondition(params.access, params.connectorEligibility)
+          candidateAccessCondition(params.access, params.accessPlan)
         ),
         params.access,
         params.budget,
@@ -1130,35 +1129,18 @@ interface SourceVectorPlan {
  * are ranked exactly together, which is cheaper than a walk and exact by construction. A source
  * the caller is a member of but which has no index of its own is sliced too.
  */
-async function planSourceVectorCandidates(input: {
-  access: KnowledgeAccessScope
-  eligibility: KnowledgeConnectorEligibility
+function planSourceVectorCandidates(input: {
+  plan: SearchAccessPlan
   indexedSources: ReadonlySet<string>
-  budget?: SearchBudget
-}): Promise<SourceVectorPlan> {
+}): SourceVectorPlan {
   const eligible = [
     ...new Set([
-      ...input.eligibility.workspace,
-      ...input.eligibility.admin,
-      ...input.eligibility.members,
+      ...input.plan.connectors.workspace,
+      ...input.plan.connectors.admin,
+      ...input.plan.connectors.members,
     ]),
   ]
-  const membered =
-    input.access.kind === 'user' && input.eligibility.members.length > 0
-      ? await runSearchQuery(input.budget, 'vector.source_plan', (executor) =>
-          executor
-            .select({ connectorId: knowledgeConnectorMember.connectorId })
-            .from(knowledgeConnectorMember)
-            .where(
-              and(
-                inArray(knowledgeConnectorMember.connectorId, [...input.eligibility.members]),
-                eq(knowledgeConnectorMember.status, 'active'),
-                sql`${knowledgeConnectorMember.subjectToken} = ANY(${textArrayLiteral([...input.access.tokens])})`
-              )
-            )
-        )
-      : []
-  const walked = membered.map((row) => row.connectorId).filter((id) => input.indexedSources.has(id))
+  const walked = input.plan.memberSources.filter((id) => input.indexedSources.has(id))
   const walking = new Set(walked)
   return { walked, sliced: eligible.filter((id) => !walking.has(id)) }
 }
@@ -1176,7 +1158,7 @@ async function planSourceVectorCandidates(input: {
 async function selectSourceVectorCandidates(input: {
   access: KnowledgeAccessScope
   knowledgeBaseIds: string[]
-  eligibility: KnowledgeConnectorEligibility
+  plan: SearchAccessPlan
   documentConditions: (SQL | undefined)[]
   tagCondition: SQL | undefined
   documentTagCondition: SQL | undefined
@@ -1184,16 +1166,14 @@ async function selectSourceVectorCandidates(input: {
   candidateLimit: number
   budget?: SearchBudget
 }): Promise<Array<{ id: string }>> {
-  const plan = await planSourceVectorCandidates({
-    access: input.access,
-    eligibility: input.eligibility,
+  const sources = planSourceVectorCandidates({
+    plan: input.plan,
     indexedSources: await indexedVectorSources(),
-    budget: input.budget,
   })
   annotateSearchDiagnostics({
     vectorRanking: 'per-source',
-    vectorSourcesWalked: plan.walked.length,
-    vectorSourcesSliced: plan.sliced.length,
+    vectorSourcesWalked: sources.walked.length,
+    vectorSourcesSliced: sources.sliced.length,
   })
   const base = and(
     inArray(embeddingSearch.knowledgeBaseId, input.knowledgeBaseIds),
@@ -1202,7 +1182,7 @@ async function selectSourceVectorCandidates(input: {
   )
   const readable = and(...input.documentConditions, input.documentTagCondition)
   type RankedChunks = Promise<Array<{ id: string; distance: number }>>
-  const walks: Array<() => RankedChunks> = plan.walked.map(
+  const walks: Array<() => RankedChunks> = sources.walked.map(
     (connectorId) => () =>
       withVectorScanSettings(
         (executor) =>
@@ -1222,7 +1202,7 @@ async function selectSourceVectorCandidates(input: {
   )
   /** One statement for every sliced source: their readable documents, then exact ranking of those. */
   const slice: Array<() => RankedChunks> =
-    plan.sliced.length === 0
+    sources.sliced.length === 0
       ? []
       : [
           () =>
@@ -1231,7 +1211,7 @@ async function selectSourceVectorCandidates(input: {
                 WITH readable_documents AS MATERIALIZED (
                   SELECT ${document.id} AS id FROM ${document}
                   WHERE (${document.connectorId} IS NULL
-                      OR ${document.connectorId} = ANY(${textArrayLiteral([...plan.sliced])}))
+                      OR ${document.connectorId} = ANY(${textArrayLiteral([...sources.sliced])}))
                     AND ${readable}
                   LIMIT ${SOURCE_EXACT_DOCUMENT_LIMIT}
                 )
@@ -1281,7 +1261,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
   const accessProvider = params.access.kind === 'user' ? params.accessProvider : undefined
   /** Only live-verified readers may defer source authorization until after candidate ranking. */
   const candidateAccess = accessProvider
-    ? candidateAccessCondition(params.access, params.connectorEligibility)
+    ? candidateAccessCondition(params.access, params.accessPlan)
     : knowledgeAccessCondition(params.access)
   const candidateDistance = embeddingCandidateDistance(
     queryVector.dimensions,
@@ -1385,7 +1365,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           selected = await rankPermittedExactly(
             permittedDocumentIds(params.permitted.documents, excludedSources)
           )
-        } else if (params.connectorEligibility && params.access.kind === 'user') {
+        } else if (params.accessPlan && params.access.kind === 'user') {
           /**
            * Readability follows sources, so each readable source is searched in its own index and
            * the results merged. A member reads a source whole or barely at all: walking one source
@@ -1395,7 +1375,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           selected = await selectSourceVectorCandidates({
             access: params.access,
             knowledgeBaseIds: params.knowledgeBaseIds,
-            eligibility: params.connectorEligibility,
+            plan: params.accessPlan,
             documentConditions: candidateDocumentVisibility,
             tagCondition: candidateTagCondition,
             documentTagCondition,
@@ -1492,7 +1472,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         conditions,
         'vector',
         params.budget,
-        params.connectorEligibility
+        params.accessPlan
       ),
   })
 }
@@ -1512,7 +1492,7 @@ export interface KeywordSearchParams {
   /** Resolved once per user-scoped search; absent for resolved scopes and explicit documents. */
   permitted?: PermittedDocuments
   /** Connector state resolved once per search, so no candidate re-derives it. */
-  connectorEligibility?: KnowledgeConnectorEligibility
+  accessPlan?: SearchAccessPlan
 }
 
 /**
@@ -1591,7 +1571,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           knowledgeBaseIds,
           access,
           params.filters,
-          candidateAccessCondition(access, params.connectorEligibility)
+          candidateAccessCondition(access, params.accessPlan)
         ),
         excludeSearchSources(excludedSources)
       )
@@ -1758,7 +1738,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           conditions,
           'keyword',
           params.budget,
-          params.connectorEligibility
+          params.accessPlan
         ),
     })
   }
@@ -2011,10 +1991,10 @@ export async function retrieveKnowledgeSearch(
    * Connector state is the same for every document a connector owns, so both legs read it from
    * one resolution instead of proving it per candidate.
    */
-  const connectorEligibility =
+  const accessPlan =
     access.kind === 'user' && params.accessProvider
       ? await measureSearchStage('connector_eligibility', () =>
-          resolveConnectorEligibility(knowledgeBaseIds)
+          resolveSearchAccessPlan(knowledgeBaseIds, access)
         )
       : undefined
   /**
@@ -2029,7 +2009,7 @@ export async function retrieveKnowledgeSearch(
           access,
           filters: params.filters,
           budget: budgets.vector,
-          connectorEligibility,
+          accessPlan,
         })
       : undefined
   const vectorParams = {
@@ -2039,7 +2019,7 @@ export async function retrieveKnowledgeSearch(
     distanceThreshold,
     budget: budgets.vector,
     permitted,
-    connectorEligibility,
+    accessPlan,
   }
   const vectorSearch = measureSearchStage('vector', () =>
     hasFilters ? handleTagAndVectorSearch(vectorParams) : handleVectorOnlySearch(vectorParams)
@@ -2053,7 +2033,7 @@ export async function retrieveKnowledgeSearch(
       queryVector,
       budget: budgets.keyword,
       permitted,
-      connectorEligibility,
+      accessPlan,
     })
   )
   const legs = await Promise.allSettled([vectorSearch, keywordSearch])
