@@ -30,6 +30,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
   Chip: ({
     children,
     disabled,
@@ -43,7 +46,7 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  ChipCombobox: ({
+  Combobox: ({
     options,
     value,
     placeholder,
@@ -57,21 +60,6 @@ vi.mock('@sim/emcn', () => ({
         <span key={option.value} data-disabled={option.disabled ? 'true' : undefined}>
           {option.label}
         </span>
-      ))}
-    </div>
-  ),
-  ChipDropdown: ({
-    options,
-    value,
-    placeholder,
-  }: {
-    options: Array<{ value: string; label: string }>
-    value?: string
-    placeholder?: string
-  }) => (
-    <div data-combobox={placeholder} data-value={value}>
-      {options.map((option) => (
-        <span key={option.value}>{option.label}</span>
       ))}
     </div>
   ),
