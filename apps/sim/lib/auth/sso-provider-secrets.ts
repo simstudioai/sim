@@ -18,15 +18,20 @@ const SECRET_FIELDS = {
 export type SsoConfigColumn = keyof typeof SECRET_FIELDS
 
 /**
- * The shape {@link encryptSecret} produces: a 16-byte IV and a 16-byte GCM auth
- * tag around hex ciphertext. Matching it exactly is what lets a value written
- * before these fields were encrypted be recognized as legacy plain text and
- * returned unchanged — the same tolerance `decryptApiKey` gives API keys.
+ * Marks a value this module encrypted. An explicit prefix, rather than matching
+ * the `iv:ciphertext:authTag` shape, is what makes the distinction unambiguous:
+ * a client secret is an arbitrary string chosen at the identity provider, and
+ * one that happened to look like an envelope would otherwise be read back as
+ * ciphertext and fail to decrypt. Values without the prefix were stored before
+ * these fields were encrypted and are passed through unchanged, the tolerance
+ * `decryptApiKey` gives API keys.
+ *
+ * The version lets a future encoding change be told apart from this one.
  */
-const ENVELOPE = /^[0-9a-f]{32}:[0-9a-f]+:[0-9a-f]{32}$/
+const ENVELOPE_PREFIX = 'sim.sso.v1:'
 
 function isEnvelope(value: string): boolean {
-  return ENVELOPE.test(value)
+  return value.startsWith(ENVELOPE_PREFIX)
 }
 
 function parseConfig(config: string): Record<string, unknown> | null {
@@ -79,13 +84,13 @@ export function encryptProviderConfig(
   column: SsoConfigColumn
 ): Promise<string | null | undefined> {
   return mapSecretFields(config, column, async (value) =>
-    isEnvelope(value) ? value : (await encryptSecret(value)).encrypted
+    isEnvelope(value) ? value : `${ENVELOPE_PREFIX}${(await encryptSecret(value)).encrypted}`
   )
 }
 
 /**
  * Decrypts the secret fields of a stored provider config. Values written before
- * these fields were encrypted lack the envelope shape and are returned as-is.
+ * these fields were encrypted lack the prefix and are returned as-is.
  *
  * A value that IS an envelope but fails to decrypt — a wrong or rotated
  * `ENCRYPTION_KEY`, a tampered row — throws rather than degrading to ciphertext.
@@ -99,7 +104,8 @@ export function decryptProviderConfig(
   return mapSecretFields(config, column, async (value) => {
     if (!isEnvelope(value)) return value
     try {
-      return (await decryptSecret(value, { logFailure: false })).decrypted
+      return (await decryptSecret(value.slice(ENVELOPE_PREFIX.length), { logFailure: false }))
+        .decrypted
     } catch (error) {
       logger.error('Failed to decrypt an SSO provider secret', {
         column,

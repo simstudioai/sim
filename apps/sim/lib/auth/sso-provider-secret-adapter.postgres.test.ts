@@ -89,7 +89,7 @@ describe.skipIf(!databaseUrl)('SSO provider secrets in PostgreSQL', () => {
 
     const atRest = JSON.parse(await storedConfig(providerId))
     expect(atRest.clientSecret).not.toBe(CLIENT_SECRET)
-    expect(atRest.clientSecret).toMatch(/^[0-9a-f]{32}:[0-9a-f]+:[0-9a-f]{32}$/)
+    expect(atRest.clientSecret).toMatch(/^sim\.sso\.v1:[0-9a-f]{32}:[0-9a-f]+:[0-9a-f]{32}$/)
     expect(atRest.clientId).toBe('client')
 
     const loaded = await adapter.findOne<{ oidcConfig: string }>({
@@ -127,7 +127,7 @@ describe.skipIf(!databaseUrl)('SSO provider secrets in PostgreSQL', () => {
 
     expect(JSON.parse(updated!.oidcConfig).clientSecret).toBe(CLIENT_SECRET)
     const atRest = JSON.parse(await storedConfig(providerId))
-    expect(atRest.clientSecret).toMatch(/^[0-9a-f]{32}:[0-9a-f]+:[0-9a-f]{32}$/)
+    expect(atRest.clientSecret).toMatch(/^sim\.sso\.v1:[0-9a-f]{32}:[0-9a-f]+:[0-9a-f]{32}$/)
   })
 
   it('reads a row written before the secret was encrypted', async () => {

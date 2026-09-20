@@ -305,7 +305,7 @@ describe('POST /api/auth/sso/register', () => {
    * directly rather than through Better Auth, so it decrypts it itself.
    */
   it('reuses the stored client secret, decrypting it first', async () => {
-    const sealed = `${'a'.repeat(32)}:${Buffer.from('stored-secret').toString('hex')}:${'b'.repeat(32)}`
+    const sealed = `sim.sso.v1:${'a'.repeat(32)}:${Buffer.from('stored-secret').toString('hex')}:${'b'.repeat(32)}`
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     // In route order: providerId conflict and domain refusal, the reuse read,
     // both checks again before the write, then the pre-image being updated.

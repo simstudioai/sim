@@ -161,21 +161,26 @@ if (!ENCRYPTION_KEY || !/^[0-9a-f]{64}$/i.test(ENCRYPTION_KEY)) {
 const ENCRYPTION_KEY_BUFFER = Buffer.from(ENCRYPTION_KEY, 'hex')
 
 /**
- * AES-256-GCM in the `iv:ciphertext:authTag` envelope the app reads back. This
+ * AES-256-GCM in the prefixed envelope the app reads back — the prefix is what
+ * marks a value as encrypted, so a secret that merely looks like one is not
+ * mistaken for it. Keep it in step with `ENVELOPE_PREFIX` in
+ * `apps/sim/lib/auth/sso/provider-secrets.ts`. This
  * package cannot import from `apps/*`, so the primitive is repeated here rather
  * than shared; {@link assertCryptoRoundTrip} proves the key produces a readable
  * value before any row is written.
  */
+const ENVELOPE_PREFIX = 'sim.sso.v1:'
+
 function encryptSecretValue(secret: string): string {
   const iv = randomBytes(16)
   const cipher = createCipheriv('aes-256-gcm', ENCRYPTION_KEY_BUFFER, iv, { authTagLength: 16 })
   let encrypted = cipher.update(secret, 'utf8', 'hex')
   encrypted += cipher.final('hex')
-  return `${iv.toString('hex')}:${encrypted}:${cipher.getAuthTag().toString('hex')}`
+  return `${ENVELOPE_PREFIX}${iv.toString('hex')}:${encrypted}:${cipher.getAuthTag().toString('hex')}`
 }
 
 function decryptSecretValue(envelope: string): string {
-  const [ivHex, ciphertext, authTagHex] = envelope.split(':')
+  const [ivHex, ciphertext, authTagHex] = envelope.slice(ENVELOPE_PREFIX.length).split(':')
   const decipher = createDecipheriv(
     'aes-256-gcm',
     ENCRYPTION_KEY_BUFFER,

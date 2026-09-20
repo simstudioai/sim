@@ -18,7 +18,9 @@ import { encryptSsoProviderSecrets } from '@/lib/auth/sso-provider-secret-adapte
 
 const IV = 'a'.repeat(32)
 const TAG = 'b'.repeat(32)
-const sealed = (secret: string) => `${IV}:${Buffer.from(secret).toString('hex')}:${TAG}`
+/** What `encryptSecret` returns; `provider-secrets` adds the prefix around it. */
+const raw = (secret: string) => `${IV}:${Buffer.from(secret).toString('hex')}:${TAG}`
+const sealed = (secret: string) => `sim.sso.v1:${raw(secret)}`
 
 const PLAIN_OIDC = JSON.stringify({ clientId: 'client', clientSecret: 'super-secret' })
 const SEALED_OIDC = JSON.stringify({ clientId: 'client', clientSecret: sealed('super-secret') })
@@ -44,7 +46,7 @@ const asAdapter = (adapter: ReturnType<typeof createBaseAdapter>) =>
 describe('encryptSsoProviderSecrets', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockEncryptSecret.mockImplementation(async (secret: string) => ({ encrypted: sealed(secret) }))
+    mockEncryptSecret.mockImplementation(async (secret: string) => ({ encrypted: raw(secret) }))
     mockDecryptSecret.mockImplementation(async (value: string) => ({
       decrypted: Buffer.from(value.split(':')[1], 'hex').toString('utf8'),
     }))

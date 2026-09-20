@@ -28,7 +28,7 @@ import { GET } from '@/app/api/auth/sso/providers/route'
 
 const IV = 'a'.repeat(32)
 const TAG = 'b'.repeat(32)
-const sealed = (secret: string) => `${IV}:${Buffer.from(secret).toString('hex')}:${TAG}`
+const sealed = (secret: string) => `sim.sso.v1:${IV}:${Buffer.from(secret).toString('hex')}:${TAG}`
 
 const CLIENT_SECRET = 'a-long-client-secret-wxyz'
 
@@ -92,6 +92,16 @@ describe('GET /api/auth/sso/providers', () => {
     expect(JSON.parse(providers[0].oidcConfig)).toMatchObject({ clientSecretHint: 'wxyz' })
     expect(providers[0].oidcConfig).not.toContain(CLIENT_SECRET)
     expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('fails the request when a stored secret cannot be decrypted', async () => {
+    mockDecryptSecret.mockRejectedValue(new Error('auth tag mismatch'))
+    queueTableRows(schemaMock.ssoProvider, [providerRow])
+
+    const res = await GET(createMockRequest('GET'))
+
+    /** Reporting a key problem as a provider with no config would hide it behind a 200. */
+    expect(res.status).toBe(500)
   })
 
   it('redacts SAML key material and keeps the certificate', async () => {

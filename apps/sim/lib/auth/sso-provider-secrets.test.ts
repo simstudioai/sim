@@ -14,17 +14,19 @@ vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
 
-import { decryptProviderConfig, encryptProviderConfig } from '@/lib/auth/sso/provider-secrets'
+import { decryptProviderConfig, encryptProviderConfig } from '@/lib/auth/sso-provider-secrets'
 
 const IV = 'a'.repeat(32)
 const TAG = 'b'.repeat(32)
-const envelope = (ciphertext: string) => `${IV}:${ciphertext}:${TAG}`
+/** What `encryptSecret` returns; the module under test adds the prefix. */
+const raw = (ciphertext: string) => `${IV}:${ciphertext}:${TAG}`
+const envelope = (ciphertext: string) => `sim.sso.v1:${raw(ciphertext)}`
 
 describe('provider secrets', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEncryptSecret.mockImplementation(async (secret: string) => ({
-      encrypted: envelope(Buffer.from(secret).toString('hex')),
+      encrypted: raw(Buffer.from(secret).toString('hex')),
     }))
     mockDecryptSecret.mockImplementation(async (value: string) => ({
       decrypted: Buffer.from(value.split(':')[1], 'hex').toString('utf8'),
@@ -72,6 +74,20 @@ describe('provider secrets', () => {
 
     await expect(decryptProviderConfig(legacy, 'oidcConfig')).resolves.toBe(legacy)
     expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('treats a legacy secret shaped like an envelope as plain text', async () => {
+    /** A client secret is chosen at the identity provider and can be any string. */
+    const lookalike = `${'a'.repeat(32)}:${'c'.repeat(16)}:${'b'.repeat(32)}`
+    const legacy = JSON.stringify({ clientSecret: lookalike })
+
+    await expect(decryptProviderConfig(legacy, 'oidcConfig')).resolves.toBe(legacy)
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+
+    const stored = await encryptProviderConfig(legacy, 'oidcConfig')
+    expect(JSON.parse(stored as string).clientSecret).toBe(
+      envelope(Buffer.from(lookalike).toString('hex'))
+    )
   })
 
   it('does not encrypt a value that is already encrypted', async () => {

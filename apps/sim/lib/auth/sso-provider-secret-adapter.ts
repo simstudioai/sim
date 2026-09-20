@@ -3,7 +3,7 @@ import {
   decryptProviderConfig,
   encryptProviderConfig,
   type SsoConfigColumn,
-} from '@/lib/auth/sso/provider-secrets'
+} from '@/lib/auth/sso-provider-secrets'
 
 type BetterAuthAdapter = ReturnType<ReturnType<typeof drizzleAdapter>>
 

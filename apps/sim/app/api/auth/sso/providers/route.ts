@@ -11,7 +11,7 @@ import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
-import { decryptProviderConfig } from '@/lib/auth/sso/provider-secrets'
+import { decryptProviderConfig } from '@/lib/auth/sso-provider-secrets'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -40,8 +40,14 @@ function buildClientSecretHint(clientSecret: unknown): string | null {
  */
 async function redactOidcConfig(oidcConfig: string | null): Promise<string | null> {
   if (!oidcConfig) return oidcConfig
+  /**
+   * Outside the catch: a config that will not decrypt is a key problem, and
+   * reporting it as a provider with no config would hide it behind a healthy
+   * 200. Unreadable JSON stays tolerated below, as it was before.
+   */
+  const decrypted = await decryptProviderConfig(oidcConfig, 'oidcConfig')
   try {
-    const parsed = JSON.parse((await decryptProviderConfig(oidcConfig, 'oidcConfig')) as string)
+    const parsed = JSON.parse(decrypted as string)
     const hint = buildClientSecretHint(parsed.clientSecret)
     parsed.clientSecret = REDACTED_MARKER
     if (hint) parsed.clientSecretHint = hint
