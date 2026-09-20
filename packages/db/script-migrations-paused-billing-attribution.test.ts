@@ -453,6 +453,7 @@ describe('script migration registry', () => {
       '0017_index_search_documents',
       '0018_repair_workspace_file_content_revision',
       '0019_tin_keyword_projection',
+      '0021_embedding_search_connector',
     ])
   })
 })

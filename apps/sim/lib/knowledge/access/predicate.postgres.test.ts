@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { readFile } from 'node:fs/promises'
+import { type SQL, sql } from 'drizzle-orm'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
@@ -25,7 +26,12 @@ const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
   '@/lib/knowledge/connectors/mirrored-acls'
 )
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
+const {
+  knowledgeAccessCondition,
+  knowledgeCandidateAccessConditionForConnectors,
+  projectionCandidateAccessCondition,
+  knowledgeMetadataCandidateAccessCondition,
+} = await import('@/lib/knowledge/access/predicate')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
 
 /** Explicit opt-in; every table and index belongs to an isolated disposable schema. */
@@ -105,6 +111,20 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     const rows = await connection.unsafe(
       `SELECT document.id FROM document ${join ? 'JOIN embedding ON embedding.document_id = document.id' : ''}
        WHERE ${query.sql} AND document.id = $${values.length + 1}`,
+      [...values, documentId]
+    )
+    return rows.length > 0
+  }
+
+  /** Runs any predicate over one document, so two shapes can be compared row by row. */
+  async function admits(condition: SQL, documentId: string): Promise<boolean> {
+    const query = new PgDialect().sqlToQuery(condition)
+    const values = query.params.map((value: unknown) => {
+      if (typeof value === 'string' || typeof value === 'number') return value
+      throw new Error('The access predicate must bind scalar strings and numbers')
+    })
+    const rows = await connection.unsafe(
+      `SELECT document.id FROM document WHERE ${query.sql} AND document.id = $${values.length + 1}`,
       [...values, documentId]
     )
     return rows.length > 0
@@ -493,6 +513,140 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     }
     await connection.unsafe("INSERT INTO document(id) VALUES ('upload')")
     expect(await readable(['ws'], 'upload')).toBe(true)
+  })
+
+  it('admits the same documents whether connector state is proven per row or resolved per query', async () => {
+    const scope = { kind: 'user' as const, userId: 'reader', tokens: [alice, 'u:alice@corp.com'] }
+    await connection.unsafe(
+      `INSERT INTO knowledge_connector(id, access_mode, deleted_at, archived_at) VALUES
+       ('gone', 'admin', statement_timestamp(), NULL), ('shelved', 'admin', NULL, statement_timestamp())`
+    )
+    await connection.unsafe(
+      "INSERT INTO knowledge_connector(id, access_mode) VALUES ('ws-mode', 'workspace')"
+    )
+    await connection.unsafe(
+      `INSERT INTO knowledge_connector_member(id, workspace_id, connector_id, subject_token, status)
+       VALUES ('m-alice', 'workspace', 'members', $1, 'active')`,
+      [alice]
+    )
+    const cases: Array<[string, string, string[]]> = [
+      ['admin-current', 'admin', ['u:alice@corp.com']],
+      ['members-current', 'members', [alice]],
+      ['workspace-doc', 'ws-mode', ['ws']],
+      ['deleted-connector', 'gone', ['u:alice@corp.com']],
+      ['archived-connector', 'shelved', ['u:alice@corp.com']],
+    ]
+    for (const [id, connectorId, acl] of cases) {
+      await connection.unsafe(
+        `INSERT INTO document(id, connector_id, acl, acl_verified_at)
+         VALUES ($1, $2, string_to_array($3, E'\n'), statement_timestamp())`,
+        [id, connectorId, acl.join('\n')]
+      )
+    }
+    await connection.unsafe(
+      "INSERT INTO knowledge_document_observation VALUES ('members-current', 'm-alice', statement_timestamp())"
+    )
+    await connection.unsafe("INSERT INTO document(id) VALUES ('upload-doc')")
+    /** What `resolveConnectorEligibility` returns for this base: the connectors it admits, by mode. */
+    const eligibility = {
+      workspace: ['ws-mode'],
+      admin: ['admin'],
+      members: ['members'],
+      liveProofRequired: [],
+    }
+    /** What `resolveSearchAccessPlan` resolves for this caller: their member identity, confirmed. */
+    const observers = { confirmed: [{ id: 'm-alice', connectorId: 'members' }], observed: [] }
+    const perRow = knowledgeMetadataCandidateAccessCondition(scope)
+    const plan = { connectors: eligibility, observers, memberSources: ['members'] }
+    const perQuery = knowledgeCandidateAccessConditionForConnectors(scope, plan)
+    for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
+      expect([id, await admits(perQuery, id)]).toEqual([id, await admits(perRow, id)])
+    }
+    /**
+     * A document that changed hands keeps its old observations. The caller's member observed it
+     * while its old connector held it; under its new connector, of which the caller is no member,
+     * neither predicate may carry it on that observation.
+     */
+    await connection.unsafe(
+      "INSERT INTO knowledge_connector(id, access_mode) VALUES ('members-elsewhere', 'members')"
+    )
+    await connection.unsafe(
+      `INSERT INTO document(id, connector_id, acl, acl_verified_at)
+       VALUES ('moved-doc', 'members-elsewhere', ARRAY[$1], statement_timestamp())`,
+      [alice]
+    )
+    await connection.unsafe(
+      "INSERT INTO knowledge_document_observation VALUES ('moved-doc', 'm-alice', statement_timestamp())"
+    )
+    const movedPlan = {
+      ...plan,
+      connectors: { ...eligibility, members: [...eligibility.members, 'members-elsewhere'] },
+    }
+    expect(await admits(perRow, 'moved-doc')).toBe(false)
+    expect(
+      await admits(knowledgeCandidateAccessConditionForConnectors(scope, movedPlan), 'moved-doc')
+    ).toBe(false)
+    /**
+     * The projection predicate decides on the ranking row alone, from the source and ACL mirrored
+     * there. It must never refuse a document the per-row predicate admits: whatever it admits beyond
+     * that is refused at hydration, under the full predicate, before content is returned.
+     */
+    await connection.unsafe(`CREATE TABLE IF NOT EXISTS embedding_search(
+      id text PRIMARY KEY, document_id text, connector_id text, acl text[])`)
+    await connection.unsafe('DELETE FROM embedding_search')
+    await connection.unsafe(
+      "INSERT INTO embedding_search SELECT id || '-chunk', id, connector_id, acl FROM document"
+    )
+    const onRow = new PgDialect().sqlToQuery(
+      projectionCandidateAccessCondition(schema.embeddingSearch, scope, plan)
+    )
+    const onRowAdmits = async (id: string) => {
+      const rows = await connection.unsafe(
+        `SELECT 1 FROM embedding_search WHERE ${onRow.sql} AND document_id = $${onRow.params.length + 1}`,
+        [...(onRow.params as string[]), id]
+      )
+      return rows.length > 0
+    }
+    for (const id of [...cases.map(([documentId]) => documentId), 'upload-doc']) {
+      if (await admits(perRow, id)) expect([id, await onRowAdmits(id)]).toEqual([id, true])
+    }
+    /**
+     * A source the caller is a member of still holds documents that name other members only; the
+     * mirrored ACL keeps those out of the ranking rather than leaving them for hydration to drop.
+     */
+    await connection.unsafe(
+      "INSERT INTO document(id, connector_id, acl, acl_verified_at) VALUES ('members-other', 'members', ARRAY['s:slack:-:bob'], statement_timestamp())"
+    )
+    await connection.unsafe(
+      "INSERT INTO embedding_search SELECT id || '-chunk', id, connector_id, acl FROM document WHERE id = 'members-other'"
+    )
+    expect(await admits(perRow, 'members-other')).toBe(false)
+    expect(await onRowAdmits('members-other')).toBe(false)
+    /**
+     * Candidate ranking defers the live source proof, as the per-row candidate predicate does: a
+     * caller holds those grants only after authorization, so applying the clause during ranking
+     * would drop every candidate of a gated source before it could be proven.
+     */
+    const gated = { ...plan, connectors: { ...eligibility, liveProofRequired: ['admin'] } }
+    expect(
+      await admits(knowledgeCandidateAccessConditionForConnectors(scope, gated), 'admin-current')
+    ).toBe(true)
+    expect(
+      await admits(
+        knowledgeCandidateAccessConditionForConnectors(scope, gated, sql`false`),
+        'admin-current'
+      )
+    ).toBe(false)
+    /** A connector left out of the resolution is refused, however current its documents are. */
+    expect(
+      await admits(
+        knowledgeCandidateAccessConditionForConnectors(scope, {
+          ...plan,
+          connectors: { ...eligibility, admin: [] },
+        }),
+        'admin-current'
+      )
+    ).toBe(false)
   })
 
   it('does not let one member refresh another member’s stale observation', async () => {

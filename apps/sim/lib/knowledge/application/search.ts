@@ -625,9 +625,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
     const basicDocumentMetadata = await measureSearchStage('metadata', () =>
       getDocumentMetadataByIds(
         rows.map((row) => row.documentId),
-        access,
-        context.access,
-        input.signal
+        retrieved.readAccess
       )
     )
     const results = rows

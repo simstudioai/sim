@@ -2577,6 +2577,20 @@
       "when": 1789842468472,
       "tag": "0368_durable_agent_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1789879464494,
+      "tag": "0369_embedding_search_connector",
+      "breakpoints": true
+    },
+    {
+      "idx": 370,
+      "version": "7",
+      "when": 1789890789212,
+      "tag": "0370_projection_acl",
+      "breakpoints": true
     }
   ]
 }

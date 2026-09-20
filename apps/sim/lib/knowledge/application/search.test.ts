@@ -96,6 +96,7 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
   retrieveKnowledgeSearch: async (...args: unknown[]) => ({
     rows: await mocks.executeSearch(...args),
     retrieval: mocks.retrieval(),
+    readAccess: (args[0] as { access: unknown }).access,
   }),
   getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
@@ -825,12 +826,7 @@ describe('knowledge search application use case', () => {
       },
     })
 
-    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(
-      ['document-1'],
-      expect.anything(),
-      expect.objectContaining({ getForDocuments: expect.any(Function) }),
-      undefined
-    )
+    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(['document-1'], expect.anything())
     expect(result.results[0]).toMatchObject({
       documentName: 'guide.pdf',
       sourceUrl: 'https://example.com/guide',
