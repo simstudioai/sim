@@ -10,7 +10,6 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { toolRequiresApprovalLane } from '@/lib/copilot/request/tools/permission'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
@@ -18,7 +17,7 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import type { ToolCallResult } from '@/lib/copilot/request/types'
-import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
+import { ensureHandlersRegistered, toolRequiresApprovalLane } from '@/lib/copilot/tool-executor'
 import { executeTool } from '@/lib/copilot/tool-executor/executor'
 import { TOOL_EFFECT_PHASE } from '@/lib/copilot/tool-executor/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

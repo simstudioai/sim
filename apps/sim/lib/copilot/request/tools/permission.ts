@@ -27,7 +27,6 @@ import type {
   ToolCallState,
 } from '@/lib/copilot/request/types'
 import { getToolEntry, toolRequiresApproval } from '@/lib/copilot/tool-executor'
-import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('CopilotToolPermissionGate')
 
@@ -53,30 +52,15 @@ const PERMISSION_WAIT_TIMEOUT_MS = ORCHESTRATION_TIMEOUT_MS
 export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiting_approval
 
 /**
- * Whether a tool may only run on a lane that is able to hold an approval prompt.
- *
- * `toolCallNeedsApproval` answers for the dispatch lane, where a streaming
- * context exists to gate against. The in-band route has neither a context nor a
- * waiter — the mothership executes those calls itself — so it asks this instead,
- * before running anything, and refuses rather than blocks: a background lane
- * must never hang on a prompt with no row behind it.
- *
- * Deliberately blind to the stored auto-allow list. Consulting it here would add
- * a database read to every in-band call to reach the same place by a longer
- * route: an auto-allowed tool sent to the checkpoint lane is admitted there
- * without prompting anyone. Refusing unconditionally keeps this fail-closed and
- * leaves the one implementation of "has the user allowed this" on the lane that
- * already owns it.
- */
-export function toolRequiresApprovalLane(toolName: string): boolean {
-  return isCopilotToolPermissionsEnabled && toolRequiresApproval(toolName)
-}
-
-/**
  * Whether this call must be held for an explicit user decision.
  *
  * Headless one-shot executions are never gated: nobody is there to answer, and
  * blocking them would hang the run until the orchestration timeout.
+ *
+ * This is the dispatch lane's answer, and it needs a streaming context. A lane
+ * that has none — the in-band route — asks `toolRequiresApprovalLane` instead,
+ * which lives beside the tool router so a caller needing only the predicate does
+ * not pull this module's permission pub/sub in with it.
  */
 export function toolCallNeedsApproval(
   toolName: string,
