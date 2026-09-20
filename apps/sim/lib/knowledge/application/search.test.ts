@@ -96,6 +96,7 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
   retrieveKnowledgeSearch: async (...args: unknown[]) => ({
     rows: await mocks.executeSearch(...args),
     retrieval: mocks.retrieval(),
+    readAccess: (args[0] as { access: unknown }).access,
   }),
   getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))

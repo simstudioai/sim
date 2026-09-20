@@ -174,11 +174,11 @@ export interface DocumentMetadata {
 }
 
 /**
- * Batch-fetch display metadata for documents referenced by search results.
- * Applies the same visibility and access predicates as the search SQL itself,
- * so the lookup never surfaces a filename for a row the caller could not have
- * matched. Returns a map keyed by document id; missing ids indicate the
- * document is no longer visible and should be skipped.
+ * Batch-fetch display metadata for documents referenced by search results, under the full read
+ * predicate and the scope the results were read under — with the live grants that scope resolved,
+ * so a gated source's result keeps its name and URL, and a revoked one loses them here too.
+ * Returns a map keyed by document id; missing ids indicate the document is no longer visible and
+ * should be skipped.
  */
 export async function getDocumentMetadataByIds(
   documentIds: string[],
@@ -206,7 +206,7 @@ export async function getDocumentMetadataByIds(
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
-          knowledgeMetadataCandidateAccessCondition(access)
+          knowledgeAccessCondition(access)
         )
       )
   )
@@ -598,6 +598,8 @@ export interface LiveSourceAccess {
   gates: (connectorId: string) => boolean
   /** The caller's scope with its grants, and the gated sources those grants do not cover. */
   resolve: () => Promise<{ access: KnowledgeAccessScope; denied: ReadonlySet<string> }>
+  /** The scope content was read under: with its grants once they were resolved, else as given. */
+  current: () => Promise<KnowledgeAccessScope>
 }
 
 /** Binds a search's gated sources to one memoized resolution of the caller's grants. */
@@ -619,6 +621,7 @@ export function liveSourceAccessFor(
   }
   return {
     gates: (connectorId) => gated.has(connectorId),
+    current: async () => (pending ? (await pending).access : access),
     resolve: () => {
       pending ??= measureSearchStage('live_source_grants', async () => {
         const scopes = await mapWithConcurrency(pages, SOURCE_RANKING_CONCURRENCY, (page) =>
@@ -2055,6 +2058,8 @@ export interface RetrievalStatus {
 export interface KnowledgeRetrievalResult {
   rows: SearchResult[]
   retrieval: RetrievalStatus
+  /** The scope the returned content was read under; what may see these rows may see their metadata. */
+  readAccess: KnowledgeAccessScope
 }
 
 /** Legacy surfaces cannot silently present partial retrieval as complete. */
@@ -2090,14 +2095,16 @@ export async function retrieveKnowledgeSearch(
     keyword: new SearchBudget('keyword', deadline, params.signal),
     tags: new SearchBudget('tags', deadline, params.signal),
   }
-  const finish = (rows: SearchResult[]): KnowledgeRetrievalResult => {
+  const finish = async (rows: SearchResult[]): Promise<KnowledgeRetrievalResult> => {
     params.signal?.throwIfAborted()
+    const readAccess = (await liveSourceAccess?.current()) ?? access
     const timedOutLegs = Object.values(budgets)
       .filter((budget) => budget.timedOut)
       .map((budget) => budget.leg)
     return {
       rows: boostRecency ? applyRecencyBoost(rows) : rows,
       retrieval: { status: timedOutLegs.length ? 'partial' : 'complete', timedOutLegs },
+      readAccess,
     }
   }
   /**

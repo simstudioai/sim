@@ -54,7 +54,12 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 }))
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
-  executeKnowledgeSearch: mockExecuteKnowledgeSearch,
+  /** The route reads the retrieval result; the rows come from the same mock the tests drive. */
+  retrieveKnowledgeSearch: async (params: { access: unknown }) => ({
+    rows: await mockExecuteKnowledgeSearch(params),
+    retrieval: { status: 'complete', timedOutLegs: [] },
+    readAccess: params.access,
+  }),
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
 

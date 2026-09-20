@@ -647,6 +647,7 @@ describe('workspace-scoped vector retrieval', () => {
       ).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+        readAccess: params.access,
       })
     }
   )
@@ -743,6 +744,7 @@ describe('workspace-scoped vector retrieval', () => {
       expect(result).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+        readAccess: params.access,
       })
     }
     for (const resume of release) resume()
