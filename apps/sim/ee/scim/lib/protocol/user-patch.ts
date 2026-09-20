@@ -1,8 +1,8 @@
 import type { ScimUserAttributes, ScimUserEmail } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { invalidPath, invalidValue, mutability, noTarget } from '@/ee/scim/lib/protocol/errors'
 import {
-  isRecord,
   isScimPasswordAttribute,
   normalizeAttributePath,
   normalizeScimBoolean,
@@ -89,7 +89,7 @@ function normalizeEmailList(
   const entries = Array.isArray(value) ? value : [value]
   const normalized: ScimUserEmail[] = []
   for (const entry of entries) {
-    if (!isRecord(entry)) throw invalidValue(`${attribute} entries must be objects`)
+    if (!isRecordLike(entry)) throw invalidValue(`${attribute} entries must be objects`)
     const address = requireString(entry.value, `${attribute}.value`)
     normalized.push({
       value: address.toLowerCase(),
@@ -146,7 +146,7 @@ function applyOperation(
         else user.enterprise = undefined
         return
       }
-      if (!isRecord(value)) throw invalidValue(`${path} requires an object value`)
+      if (!isRecordLike(value)) throw invalidValue(`${path} requires an object value`)
       for (const [sub, nested] of sortFormattedLast(Object.entries(value))) {
         applyOperation(user, op, `${path}.${sub}`, nested)
       }
@@ -253,7 +253,7 @@ function applyOperation(
         user.enterprise.manager = { value: unwrapped }
         return
       }
-      if (isRecord(unwrapped)) {
+      if (isRecordLike(unwrapped)) {
         user.enterprise.manager = {
           ...(typeof unwrapped.value === 'string' ? { value: unwrapped.value } : {}),
           ...(typeof unwrapped.displayName === 'string'
@@ -301,7 +301,7 @@ function extensionTarget(
       ...(path.length > existing.length ? { attribute: path.slice(existing.length + 1) } : {}),
     }
   }
-  if (resourceAttribute && isRecord(value)) return { schema: path }
+  if (resourceAttribute && isRecordLike(value)) return { schema: path }
   const separator = path.lastIndexOf(':')
   if (separator <= 'urn:'.length) throw invalidPath(`User PATCH path ${path} is not supported`)
   return { schema: path.slice(0, separator), attribute: path.slice(separator + 1) }
@@ -329,14 +329,14 @@ function applyExtraOperation(
     if (!extension.attribute) {
       if (op === 'remove') delete user.extra[extension.schema]
       else {
-        if (!isRecord(value)) throw invalidValue(`${path} requires an object value`)
+        if (!isRecordLike(value)) throw invalidValue(`${path} requires an object value`)
         const current = user.extra[extension.schema]
-        user.extra[extension.schema] = { ...(isRecord(current) ? current : {}), ...value }
+        user.extra[extension.schema] = { ...(isRecordLike(current) ? current : {}), ...value }
       }
       return
     }
     const current = user.extra[extension.schema]
-    const attributes = isRecord(current) ? { ...current } : {}
+    const attributes = isRecordLike(current) ? { ...current } : {}
     applyExtraAttribute(attributes, op, extension.attribute, value)
     user.extra[extension.schema] = attributes
     return
@@ -368,18 +368,18 @@ function applyExtraAttribute(
   if (type) {
     const list = Array.isArray(attributes[attribute]) ? [...attributes[attribute]] : []
     const index = list.findIndex(
-      (entry) => isRecord(entry) && String(entry.type).toLowerCase() === type.toLowerCase()
+      (entry) => isRecordLike(entry) && String(entry.type).toLowerCase() === type.toLowerCase()
     )
     if (op === 'remove' && !sub) {
       if (index !== -1) list.splice(index, 1)
     } else if (sub) {
       if (op === 'remove' && index === -1) return
-      const current = index !== -1 && isRecord(list[index]) ? list[index] : { type }
+      const current = index !== -1 && isRecordLike(list[index]) ? list[index] : { type }
       const key = Object.keys(current).find((key) => key.toLowerCase() === sub.toLowerCase()) ?? sub
       const next = { ...current, [key]: op === 'remove' ? undefined : value }
       if (index === -1) list.push(next)
       else list[index] = next
-    } else if (isRecord(value)) {
+    } else if (isRecordLike(value)) {
       if (index === -1) list.push({ type, ...value })
       else list[index] = { ...(list[index] as Record<string, unknown>), ...value }
     } else {
@@ -389,7 +389,7 @@ function applyExtraAttribute(
     return
   }
 
-  const current = isRecord(attributes[attribute]) ? { ...attributes[attribute] } : {}
+  const current = isRecordLike(attributes[attribute]) ? { ...attributes[attribute] } : {}
   const key = Object.keys(current).find((key) => key.toLowerCase() === sub.toLowerCase()) ?? sub
   current[key] = op === 'remove' ? undefined : value
   attributes[attribute] = current
@@ -404,7 +404,7 @@ function applyExtraAttribute(
  */
 function sortDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortDeep)
-  if (!isRecord(value)) return value
+  if (!isRecordLike(value)) return value
   const sorted: Record<string, unknown> = {}
   for (const key of Object.keys(value).sort()) sorted[key] = sortDeep(value[key])
   return sorted
@@ -454,7 +454,7 @@ export function applyUserPatch(
 
     if (!operation.path) {
       const value = operation.value
-      if (!isRecord(value)) {
+      if (!isRecordLike(value)) {
         throw invalidValue('A PATCH operation without a path requires an object value')
       }
       /**

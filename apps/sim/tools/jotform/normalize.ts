@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   JotformFile,
   JotformForm,
@@ -11,7 +12,7 @@ import type {
   JotformSubUser,
   JotformUser,
 } from '@/tools/jotform/types'
-import { isRecord, toJsonArray, toStringOrNull } from '@/tools/jotform/utils'
+import { toJsonArray, toStringOrNull } from '@/tools/jotform/utils'
 
 /**
  * Jotform returns every scalar as a string and documents `content` as either an
@@ -21,14 +22,14 @@ import { isRecord, toJsonArray, toStringOrNull } from '@/tools/jotform/utils'
 
 /** Unwraps the single-element array form some endpoints document for one resource. */
 export function unwrapSingle(content: unknown): Record<string, unknown> | null {
-  if (Array.isArray(content)) return isRecord(content[0]) ? content[0] : null
-  return isRecord(content) ? content : null
+  if (Array.isArray(content)) return isRecordLike(content[0]) ? content[0] : null
+  return isRecordLike(content) ? content : null
 }
 
 export function toList(content: unknown): Record<string, unknown>[] {
-  if (Array.isArray(content)) return content.filter(isRecord)
+  if (Array.isArray(content)) return content.filter(isRecordLike)
   /* Folder `forms` and question maps come back keyed by id rather than as arrays. */
-  if (isRecord(content)) return Object.values(content).filter(isRecord)
+  if (isRecordLike(content)) return Object.values(content).filter(isRecordLike)
   return []
 }
 
@@ -129,9 +130,9 @@ function buildValues(answers: Record<string, JotformSubmissionAnswer>): Record<s
 
 export function normalizeSubmission(raw: Record<string, unknown>): JotformSubmission {
   const answers: Record<string, JotformSubmissionAnswer> = {}
-  if (isRecord(raw.answers)) {
+  if (isRecordLike(raw.answers)) {
     for (const [qid, answer] of Object.entries(raw.answers)) {
-      if (isRecord(answer)) answers[qid] = normalizeAnswer(answer)
+      if (isRecordLike(answer)) answers[qid] = normalizeAnswer(answer)
     }
   }
 
@@ -200,7 +201,7 @@ export function normalizeUser(raw: Record<string, unknown>): JotformUser {
 
 export function normalizeSubUser(raw: Record<string, unknown>): JotformSubUser {
   const permissions = Array.isArray(raw.permissions)
-    ? raw.permissions.filter(isRecord).map((permission) => ({
+    ? raw.permissions.filter(isRecordLike).map((permission) => ({
         type: toStringOrNull(permission.type),
         resource_id: toStringOrNull(permission.resource_id),
         access_type: toStringOrNull(permission.access_type),
@@ -246,8 +247,8 @@ const MAX_LABEL_DEPTH = 32
  * turns the documented single root label into an empty list.
  */
 function toLabelNodes(content: unknown): Record<string, unknown>[] {
-  if (Array.isArray(content)) return content.filter(isRecord)
-  return isRecord(content) ? [content] : []
+  if (Array.isArray(content)) return content.filter(isRecordLike)
+  return isRecordLike(content) ? [content] : []
 }
 
 export function normalizeLabelTree(content: unknown, depth = 0): JotformLabelNode[] {
@@ -296,7 +297,7 @@ export function toLabelResourcePayload(
   }
 
   return entries.map((entry) => {
-    if (!isRecord(entry)) {
+    if (!isRecordLike(entry)) {
       throw new Error('Every entry in resources must be a JSON object with an id and a type.')
     }
     const id = toStringOrNull(entry.id)
@@ -318,7 +319,7 @@ export function normalizeWebhooks(content: unknown): Array<{ id: string; url: st
       .map((url, index) => ({ id: String(index), url: toStringOrNull(url) }))
       .filter((entry): entry is { id: string; url: string } => entry.url !== null)
   }
-  if (!isRecord(content)) return []
+  if (!isRecordLike(content)) return []
   return Object.entries(content)
     .map(([id, url]) => ({ id, url: toStringOrNull(url) }))
     .filter((entry): entry is { id: string; url: string } => entry.url !== null)

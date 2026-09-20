@@ -1,9 +1,10 @@
 import type { ScimUserAttributes, ScimUserEmail } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { isValidEmailSyntax } from '@sim/utils/string'
 import type { ScimGroupWriteParsed, ScimUserWriteParsed } from '@/lib/api/contracts/scim'
 import { SCIM_ENTERPRISE_USER_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 import { invalidValue } from '@/ee/scim/lib/protocol/errors'
-import { isRecord, isScimPasswordAttribute } from '@/ee/scim/lib/protocol/normalize'
+import { isScimPasswordAttribute } from '@/ee/scim/lib/protocol/normalize'
 
 /** Attributes Sim models itself; everything else is preserved under `extra`. */
 const MODELLED_USER_KEYS = new Set([
@@ -111,7 +112,7 @@ export function toCanonicalUser(body: ScimUserWriteParsed): ScimUserAttributes {
     ...(displayName ? { displayName, displayNameSource: 'provider' as const } : {}),
     name,
     emails,
-    ...(isRecord(enterprise) ? { enterprise: normalizeEnterprise(enterprise) } : {}),
+    ...(isRecordLike(enterprise) ? { enterprise: normalizeEnterprise(enterprise) } : {}),
     ...(extra ? { extra } : {}),
   }
 }
@@ -142,7 +143,7 @@ function normalizeEnterprise(value: Record<string, unknown>): EnterpriseAttribut
   const manager = value.manager
   if (typeof manager === 'string' && manager.trim()) {
     enterprise.manager = { value: manager.trim() }
-  } else if (isRecord(manager)) {
+  } else if (isRecordLike(manager)) {
     const managerValue = text(manager.value)
     const displayName = text(manager.displayName)
     if (managerValue || displayName) {
@@ -195,6 +196,6 @@ export function toCanonicalGroup(body: ScimGroupWriteParsed): CanonicalScimGroup
 /** Reads the member id out of a PATCH value entry, which may be bare or wrapped. */
 export function readMemberValue(entry: unknown): string {
   if (typeof entry === 'string') return entry.trim()
-  if (isRecord(entry) && typeof entry.value === 'string') return entry.value.trim()
+  if (isRecordLike(entry) && typeof entry.value === 'string') return entry.value.trim()
   throw invalidValue('Group member entries require a value')
 }

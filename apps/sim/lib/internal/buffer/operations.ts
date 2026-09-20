@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -48,10 +49,6 @@ export interface BufferOperationContext {
   userId: string
   requestId: string
   signal?: AbortSignal
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function mediaKindFromExtension(pathOrName: string): 'image' | 'video' | null {
@@ -169,7 +166,7 @@ async function executePostMutation(args: {
     })
     const data = await parseBufferGraphQLResponse(response)
     const candidate = data.createPost ?? data.editPost
-    result = isRecord(candidate) ? candidate : {}
+    result = isRecordLike(candidate) ? candidate : {}
   } catch (error) {
     context.signal?.throwIfAborted()
     const message = getErrorMessage(error, 'Buffer API request failed')
@@ -177,7 +174,7 @@ async function executePostMutation(args: {
     throw new BufferOperationError(message, 502)
   }
 
-  if (result.__typename !== 'PostActionSuccess' || !isRecord(result.post)) {
+  if (result.__typename !== 'PostActionSuccess' || !isRecordLike(result.post)) {
     const message = typeof result.message === 'string' ? result.message : 'Buffer rejected the post'
     throw new BufferOperationError(message, 400)
   }

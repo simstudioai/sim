@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 
 /**
@@ -119,10 +120,6 @@ export function toStringOrNull(value: unknown): string | null {
   return null
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * `json` params arrive parsed from the block but as a raw JSON string when a tool is
  * called straight from the registry, so object bodies normalize both shapes.
@@ -132,7 +129,7 @@ export function toJsonObject(
   field: string
 ): Record<string, unknown> {
   if (value === undefined || value === null || value === '') return {}
-  if (isRecord(value)) return value
+  if (isRecordLike(value)) return value
 
   let parsed: unknown
   try {
@@ -141,7 +138,7 @@ export function toJsonObject(
     throw new Error(`Invalid JSON input for ${field}: ${getErrorMessage(error)}`)
   }
 
-  if (!isRecord(parsed)) {
+  if (!isRecordLike(parsed)) {
     throw new Error(`Expected ${field} to be a JSON object.`)
   }
 
@@ -188,7 +185,7 @@ function appendFormPairs(pairs: string[], key: string, value: unknown): void {
     return
   }
 
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     for (const [childKey, childValue] of Object.entries(value)) {
       appendFormPairs(pairs, `${key}[${childKey}]`, childValue)
     }
@@ -237,7 +234,7 @@ export function normalizeSubmissionAnswers(
     const qid = key.slice(0, separator)
     const subField = key.slice(separator + 1)
     const existing = normalized[qid]
-    const target = isRecord(existing) ? existing : {}
+    const target = isRecordLike(existing) ? existing : {}
     target[subField] = value
     normalized[qid] = target
   }
