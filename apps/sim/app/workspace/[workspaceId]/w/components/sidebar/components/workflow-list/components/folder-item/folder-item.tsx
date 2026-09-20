@@ -17,7 +17,10 @@ import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import {
+  SidebarRowAction,
+  SidebarRowActions,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -561,15 +564,13 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
                 ) : undefined
               }
             >
-              <button
-                type='button'
+              <SidebarRowAction
                 aria-label='Folder options'
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
-                className='flex size-[18px] items-center justify-center rounded-sm'
               >
                 <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-              </button>
+              </SidebarRowAction>
             </SidebarRowActions>
           </div>
         )}
