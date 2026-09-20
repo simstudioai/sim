@@ -16,8 +16,11 @@ describe('pushCommands', () => {
     ])
   })
 
-  it('rebuilds the Tin keyword projection a push drops, since its index is not in the schema', () => {
+  it('rebuilds the projections a push drops, since their indexes and triggers are not in the schema', () => {
     const scripts = pushCommands([]).map((command) => command.at(-1))
-    expect(scripts.at(-1)).toBe('./script-migrations/0019_tin_keyword_projection.ts')
+    expect(scripts.slice(-2)).toEqual([
+      './script-migrations/0019_tin_keyword_projection.ts',
+      './script-migrations/0021_embedding_search_connector.ts',
+    ])
   })
 })
