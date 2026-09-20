@@ -1529,6 +1529,31 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * Ranking the permitted set exactly does recover them, while that set is small enough to
            * afford. An `unbounded` permitted set already proved it is not, so the probe is skipped.
            */
+          /**
+           * Reach is counted from token overlap, which every readable document has but which
+           * connector state, requirement clauses or observations can still refuse. A caller the
+           * count called broad whose walk then underfills was not: their sources are searched on
+           * their own instead, so the misjudgement costs one walk rather than their neighbours.
+           */
+          if (
+            selected.length < candidateLimit &&
+            params.permitted?.kind === 'unbounded' &&
+            params.permitted.broad &&
+            plan
+          ) {
+            annotateSearchDiagnostics({ vectorBroadWalkUnderfilled: true })
+            selected = await selectSourceVectorCandidates({
+              access: params.access,
+              knowledgeBaseIds: params.knowledgeBaseIds,
+              plan,
+              documentConditions: candidateDocumentVisibility,
+              tagCondition: candidateTagCondition,
+              documentTagCondition,
+              candidateDistance,
+              candidateLimit,
+              budget: params.budget,
+            })
+          }
           if (selected.length < candidateLimit && params.permitted?.kind !== 'unbounded') {
             const probe = await probeVisibleDocuments(
               params.knowledgeBaseIds,

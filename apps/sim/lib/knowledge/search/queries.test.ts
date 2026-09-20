@@ -1286,8 +1286,9 @@ describe('permitted-document planner', () => {
   it('walks the whole graph once for a caller whose reach is broad', async () => {
     const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
     indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
-    traversedRows = [{ id: 'walked-hit', distance: 0.2 }]
-    rerankRows = [hit('walked-hit', 'member-src')]
+    /** A full pool: the walk found as many readable neighbours as it was asked for. */
+    traversedRows = Array.from({ length: 400 }, (_, i) => ({ id: `walked-${i}`, distance: 0.2 }))
+    rerankRows = [hit('walked-0', 'member-src')]
     queueTableRows(schemaMock.embedding, rerankRows)
     await handleVectorOnlySearch({
       ...params,
@@ -1303,6 +1304,32 @@ describe('permitted-document planner', () => {
     expect(walks).toHaveLength(1)
     expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
     expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(false)
+  })
+
+  it('searches the sources of a broad caller whose whole-graph walk came back short', async () => {
+    const eligibility = { workspace: [], admin: ['other-src'], members: ['member-src'] }
+    indexedSourceRows = [{ name: 'idx', connectorId: 'member-src' }]
+    /** The graph walk finds one readable neighbour where the pool wants hundreds. */
+    traversedRows = [{ id: 'short-hit', distance: 0.4 }]
+    sourceExactRows = [{ id: 'sliced-hit', distance: 0.1, saturated: false }]
+    rerankRows = [hit('sliced-hit', 'other-src'), hit('short-hit', 'member-src')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      topK: 2,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: {
+        connectors: eligibility,
+        observers: { confirmed: ['m-1'], observed: [] },
+        memberSources: ['member-src'],
+      },
+    })
+    const walks = statements().filter((query) => query.sql.includes('AS visible'))
+    /** One walk over everything, then one over the member's own source. */
+    expect(walks).toHaveLength(2)
+    expect(JSON.stringify(walks[0])).not.toContain('"right":"member-src"')
+    expect(JSON.stringify(walks[1])).toContain('"right":"member-src"')
+    expect(statements().some((query) => query.sql.includes('WITH readable_documents'))).toBe(true)
   })
 
   it('walks an indexed source a bounded caller is a member of instead of ranking it exactly', async () => {
