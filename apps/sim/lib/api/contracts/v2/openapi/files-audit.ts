@@ -1194,10 +1194,17 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2UpdateFileContentContract.response.schema,
-        'V2FileResponse',
-        'File response',
-        'A single workspace file.',
-        [{ data: FILE_EXAMPLE }]
+        'V2WrittenFileResponse',
+        'Written file response',
+        'A workspace file after a content replacement, with the revision the write produced.',
+        [
+          {
+            data: {
+              ...FILE_EXAMPLE,
+              revision: 'd2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg',
+            },
+          },
+        ]
       ),
     }
   ),

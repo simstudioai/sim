@@ -71,6 +71,14 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  * by the `revision` Get File Metadata returns. A version number cannot express this: collaborative
  * and workflow writes fold into the current version rather than adding one.
  */
+/** The token naming the content a write produced, for the caller's next conditional write. */
+const writtenFileRevisionSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.'
+  )
+
 const expectedFileRevisionSchema = z
   .string()
   .min(1)
@@ -1236,6 +1244,7 @@ export const v2EditedFileSchema = z
   .object({
     file: v2FileSchema.describe('The file after the edit.'),
     lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
+    revision: writtenFileRevisionSchema,
   })
   .strict()
   .meta({
@@ -1466,6 +1475,14 @@ export const v2EditFileContentContract = defineRouteContract({
   },
 })
 
+export const v2WrittenFileSchema = v2FileSchema
+  .extend({ revision: writtenFileRevisionSchema })
+  .meta({
+    id: 'V2WrittenFile',
+    title: 'Written file',
+    description: 'A workspace file after a content replacement, with the revision it produced.',
+  })
+
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
@@ -1474,6 +1491,6 @@ export const v2UpdateFileContentContract = defineRouteContract({
   body: v2UpdateFileContentBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2WrittenFileSchema),
   },
 })

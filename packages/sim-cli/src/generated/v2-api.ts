@@ -3592,6 +3592,7 @@ type EditFileContentResponseRef0 = {
 type EditFileContentResponseRef1 = {
   file: EditFileContentResponseRef0
   lineCount: number
+  revision?: string
 }
 
 export type EditFileContentResponse = {
@@ -9997,6 +9998,7 @@ type UpdateFileContentResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type UpdateFileContentResponse = {
