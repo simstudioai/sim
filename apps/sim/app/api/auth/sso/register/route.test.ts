@@ -1,6 +1,11 @@
 /**
  * @vitest-environment node
  */
+
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import {
   createMockRequest,
   dbChainMock,
@@ -13,6 +18,7 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -90,6 +96,17 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 
 import { POST } from '@/app/api/auth/sso/register/route'
+
+type MockLogger = { info: { mock: { calls: unknown[][] } } }
+
+/** The logger the route built at import time, so its calls can be inspected. */
+const routeLogger = loggerMock.createLogger.mock.calls.reduce<MockLogger | null>(
+  (found, call, index) =>
+    call[0] === 'SSORegisterRoute'
+      ? (loggerMock.createLogger.mock.results[index].value as MockLogger)
+      : found,
+  null
+)
 
 const OIDC_BODY = {
   providerType: 'oidc' as const,
@@ -364,8 +381,40 @@ describe('POST /api/auth/sso/register', () => {
   })
 
   describe('SAML encrypted assertions', () => {
-    const SP_CERT = `-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----`
-    const SP_KEY = `-----BEGIN PRIVATE KEY-----\nREVG\n-----END PRIVATE KEY-----`
+    /**
+     * Real key material, because the route parses both halves and checks they
+     * belong together. Generated per run rather than committed: a private key
+     * in the repository is exactly what this PR is about not doing.
+     */
+    const keyPair = (subject: string) => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'sim-sso-keys-'))
+      execFileSync('openssl', [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-keyout',
+        path.join(dir, 'key.pem'),
+        '-out',
+        path.join(dir, 'cert.pem'),
+        '-days',
+        '2',
+        '-nodes',
+        '-subj',
+        `/CN=${subject}`,
+      ])
+      const pair = {
+        cert: readFileSync(path.join(dir, 'cert.pem'), 'utf8'),
+        key: readFileSync(path.join(dir, 'key.pem'), 'utf8'),
+      }
+      rmSync(dir, { recursive: true, force: true })
+      return pair
+    }
+
+    const SP = keyPair('sim-test-sp')
+    const OTHER = keyPair('sim-test-other')
+    const SP_CERT = SP.cert
+    const SP_KEY = SP.key
     const samlBody = (overrides: Record<string, unknown> = {}) => ({
       providerType: 'saml' as const,
       providerId: 'acme-saml',
@@ -396,9 +445,29 @@ describe('POST /api/auth/sso/register', () => {
       })
       /** The certificate travels in the metadata document, stripped of its PEM armor. */
       expect(samlConfig.spMetadata.metadata).toContain('use="encryption"')
-      expect(samlConfig.spMetadata.metadata).toContain('QUJD')
+      expect(samlConfig.spMetadata.metadata).toContain(
+        SP_CERT.replace(/-----(BEGIN|END) CERTIFICATE-----/g, '').replace(/\s+/g, '')
+      )
       expect(samlConfig.spMetadata.metadata).not.toContain('BEGIN CERTIFICATE')
-      expect(samlConfig.spMetadata.metadata).not.toContain('REVG')
+      expect(samlConfig.spMetadata.metadata).not.toContain('PRIVATE KEY')
+    })
+
+    it('never writes the private key to a log line', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      /** The route logs its resolved provider config; the key must be redacted there. */
+      const logged = (routeLogger?.info.mock.calls ?? [])
+        .map((call) => JSON.stringify(call))
+        .join('\n')
+      expect(logged).not.toContain('PRIVATE KEY')
+      expect(logged).toContain('[REDACTED]')
     })
 
     it('leaves the metadata and key material alone when encryption is off', async () => {
@@ -441,7 +510,9 @@ describe('POST /api/auth/sso/register', () => {
       const res = await POST(request(samlBody({ encryptAssertions: true, ...overrides })))
 
       expect(res.status).toBe(400)
-      await expect(res.json()).resolves.toMatchObject({ error: expect.stringContaining('PEM') })
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringMatching(/PEM|matching pair/),
+      })
       expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
     })
 

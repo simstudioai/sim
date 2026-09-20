@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey } from 'node:crypto'
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
@@ -92,23 +93,38 @@ function stripPemArmor(pem: string): string {
     .trim()
 }
 
+/** The SubjectPublicKeyInfo of a certificate or private key, for comparing the two. */
+function publicKeyOf(pem: string, kind: 'certificate' | 'private key'): string {
+  const key = kind === 'certificate' ? createPublicKey(pem) : createPublicKey(createPrivateKey(pem))
+  return key.export({ type: 'spki', format: 'pem' }).toString()
+}
+
 /**
- * Names the first problem with an encryption key pair, or null when both look
- * like PEM documents of the right kind. Catching it here turns what would
- * otherwise be a failed sign-in weeks later into an error on the save.
+ * Names the first problem with an encryption key pair, or null when both parse
+ * and belong together. A mismatched pair is the failure worth catching here:
+ * each half is individually valid, so nothing complains until the identity
+ * provider encrypts an assertion Sim cannot read, weeks later at sign-in.
  */
-function describePemProblem(
+function describeKeyPairProblem(
   cert: string | undefined,
   privateKey: string | undefined
 ): string | null {
-  if (!cert?.includes('BEGIN CERTIFICATE')) {
-    return 'Service provider certificate must be a PEM certificate beginning with -----BEGIN CERTIFICATE-----'
+  let certificatePublicKey: string
+  try {
+    certificatePublicKey = publicKeyOf(cert ?? '', 'certificate')
+  } catch {
+    return 'Service provider certificate must be a PEM X.509 certificate beginning with -----BEGIN CERTIFICATE-----'
   }
-  if (!privateKey?.includes('PRIVATE KEY')) {
+
+  let privateKeyPublicKey: string
+  try {
+    privateKeyPublicKey = publicKeyOf(privateKey ?? '', 'private key')
+  } catch {
     return 'Service provider private key must be a PEM private key beginning with -----BEGIN PRIVATE KEY-----'
   }
-  if (!stripPemArmor(cert) || !stripPemArmor(privateKey)) {
-    return 'Service provider certificate and private key cannot be empty'
+
+  if (certificatePublicKey !== privateKeyPublicKey) {
+    return 'Service provider certificate and private key are not a matching pair'
   }
   return null
 }
@@ -599,8 +615,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       if (encryptAssertions) {
-        const pemProblem = describePemProblem(spEncryptionCert, decryptionKey)
-        if (pemProblem) return NextResponse.json({ error: pemProblem }, { status: 400 })
+        const keyPairProblem = describeKeyPairProblem(spEncryptionCert, decryptionKey)
+        if (keyPairProblem) return NextResponse.json({ error: keyPairProblem }, { status: 400 })
       }
 
       const computedCallbackUrl =
@@ -711,6 +727,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             ? {
                 ...providerConfig.samlConfig,
                 cert: REDACTED_MARKER,
+                /** The service provider's own private key never reaches a log line. */
+                ...(providerConfig.samlConfig.spMetadata?.encPrivateKey
+                  ? {
+                      spMetadata: {
+                        ...providerConfig.samlConfig.spMetadata,
+                        encPrivateKey: REDACTED_MARKER,
+                      },
+                    }
+                  : {}),
               }
             : undefined,
         },
