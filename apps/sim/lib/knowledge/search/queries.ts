@@ -1993,7 +1993,7 @@ export async function retrieveKnowledgeSearch(
    */
   const accessPlan =
     access.kind === 'user' && params.accessProvider
-      ? await measureSearchStage('connector_eligibility', () =>
+      ? await measureSearchStage('access_plan', () =>
           resolveSearchAccessPlan(knowledgeBaseIds, access)
         )
       : undefined
