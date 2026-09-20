@@ -115,6 +115,14 @@ const VECTOR_PROBE_BUDGET_MS = 600
  */
 const VECTOR_PROBE_MICROSECONDS_PER_DOCUMENT = 6
 /**
+ * What a filter-first probe may spend: it reads the filtered documents off their own index and
+ * tests each one's access, bounded by the same document limit, and measures around 2 µs per
+ * document to enumerate plus the access test — a window at the limit fits with room. Its result
+ * is ranked exactly, at a cost that is predictable where a walk through a mostly-excluded
+ * neighbourhood is not.
+ */
+const FILTERED_PROBE_BUDGET_MS = 1500
+/**
  * Documents the probe enumerates before it concludes the permitted set is too large to rank
  * exactly. Derived so that reaching it is what spends the probe's budget, rather than a separate
  * number that a change to that budget could silently invalidate.
@@ -1001,7 +1009,9 @@ async function probeVisibleDocuments(
   stage: 'vector.probe' | 'permitted_documents',
   shape: 'reach-first' | 'direct' = 'reach-first'
 ): Promise<ProbeOutcome> {
-  const probeBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
+  const probeBudget = budget?.capped(
+    shape === 'direct' ? FILTERED_PROBE_BUDGET_MS : VECTOR_PROBE_BUDGET_MS
+  )
   try {
     const probed = await runSearchQuery(probeBudget, stage, (executor) =>
       executor.execute<PermittedDocument & { saturated: boolean }>(

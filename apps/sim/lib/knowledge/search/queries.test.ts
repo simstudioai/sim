@@ -2177,6 +2177,9 @@ describe('filters on a resolved scope', () => {
     expect(probes).toHaveLength(1)
     /** Filter first, over the date index: never the reach count that reports a broad reader saturated. */
     expect(probes[0].sql).not.toContain('WITH reach')
+    /** An index-driven probe earns its own budget: a window at the document limit fits inside it. */
+    const deadlines = statements().filter((query) => query.sql.includes('statement_timeout'))
+    expect(deadlines.at(-1)?.params[0]).toBe('1500')
     expect(JSON.stringify(probes[0])).toContain('"type":"gte"')
   })
 
