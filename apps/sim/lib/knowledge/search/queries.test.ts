@@ -41,6 +41,7 @@ import {
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
+  PERMITTED_EXACT_DOCUMENT_LIMIT,
   type PermittedDocuments,
   resolvePermittedDocuments,
   resolveReach,
@@ -1794,6 +1795,86 @@ describe('permitted-document planner', () => {
       expect(ginStatements()).toHaveLength(0)
     })
 
+    describe('a bounded set past the exact-ranking size', () => {
+      const large = Array.from({ length: PERMITTED_EXACT_DOCUMENT_LIMIT }, (_, index) => ({
+        id: `doc-${index}`,
+        connectorId: 'src-a',
+      }))
+      const accessPlan = {
+        connectors: { workspace: [], admin: ['src-a'], members: [], liveProofRequired: [] },
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
+        connectorTypes: new Map(),
+        uploads: true,
+      }
+
+      it('ranks with Tin as a narrow reader, decided on the row', async () => {
+        tinPages = [{ ranked: 1500, candidates: [hit('a', 'src-a')] }]
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        const results = await keyword({
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results.map((row) => row.id)).toEqual(['a'])
+        expect(mockResolveTinKeywordQuery).toHaveBeenCalledTimes(1)
+        expect(tinStatements()).toHaveLength(1)
+        expect(JSON.stringify(tinStatements()[0])).toContain('2000')
+        expect(JSON.stringify(tinStatements()[0])).not.toContain('doc-4999')
+        expect(ginStatements()).toHaveLength(0)
+      })
+
+      it('falls back to a GIN ranking that reads what the term matches, not every chunk of the set', async () => {
+        mockResolveTinKeywordQuery.mockResolvedValue(null)
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        await keyword({ permitted: { kind: 'bounded', documents: large }, accessPlan })
+        expect(tinStatements()).toHaveLength(0)
+        expect(ginStatements()).toHaveLength(1)
+        expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
+      })
+
+      it('hands the page to the GIN ranking when the widest window cannot fill it', async () => {
+        tinPages = [
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        await keyword({ permitted: { kind: 'bounded', documents: large }, accessPlan })
+        expect(tinStatements()).toHaveLength(2)
+        /** Every match is covered again, by the ranking whose cost follows the term, not the set. */
+        expect(ginStatements()).toHaveLength(1)
+        expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
+      })
+
+      it('leaves a later page short rather than resuming a different ranking at its offset', async () => {
+        /** The first page fills from Tin; hydration keeps half, so a second page is asked for. */
+        const first = Array.from({ length: 40 }, (_, index) => hit(`t-${index}`, 'src-a'))
+        tinPages = [
+          { ranked: 2000, candidates: first },
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(
+          schemaMock.embedding,
+          first.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+        )
+        const results = await keyword({
+          topK: 40,
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results).toHaveLength(20)
+        expect(tinStatements()).toHaveLength(3)
+        expect(ginStatements()).toHaveLength(0)
+      })
+
+      it('keeps the bounded read for a set under the size', async () => {
+        mockResolveTinKeywordQuery.mockResolvedValue(null)
+        await keyword({ permitted: { kind: 'bounded', documents: large.slice(0, -1) }, accessPlan })
+        expect(mockResolveTinKeywordQuery).not.toHaveBeenCalled()
+        expect(JSON.stringify(ginStatements()[0])).toContain('doc-4998')
+      })
+    })
+
     it('leaves the page to the GIN ranking when the widest window cannot fill it', async () => {
       tinPages = [
         { ranked: 2000, candidates: [] },
@@ -2398,6 +2479,74 @@ describe('filters on a resolved scope', () => {
     expect(walks).toHaveLength(1)
     /** The filter is chunk-level and the row does not carry it, so the walk asks the document: no unfiltered row fills the pool. */
     expect(JSON.stringify(walks[0])).toContain('release')
+  })
+
+  describe('a bounded set past the exact-ranking size', () => {
+    const large = Array.from({ length: PERMITTED_EXACT_DOCUMENT_LIMIT }, (_, index) => ({
+      id: `doc-${index}`,
+      connectorId: 'src-a',
+    }))
+    const walked = Array.from({ length: 200 }, (_, index) => hit(`w-${index}`, 'src-a'))
+    const search = (documents: typeof large) =>
+      handleVectorOnlySearch({
+        ...params,
+        permitted: { kind: 'bounded', documents },
+        accessPlan: plan(),
+      })
+    beforeEach(() => {
+      const execute = dbChainMockFns.execute.getMockImplementation()!
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        /** The projection is filled, so a walk decides readability on the row. */
+        if (render(query).sql.includes('AS unfilled')) return [{ unfilled: false }]
+        return execute(query)
+      })
+    })
+
+    it('walks the graph on the row instead of ranking every chunk of the set', async () => {
+      traversedRows = walked
+      queueTableRows(schemaMock.embedding, [walked[0]])
+      expect((await search(large)).map((row) => row.id)).toEqual(['w-0'])
+      const walks = statements().filter((query) => isWalk(query.sql))
+      expect(walks).toHaveLength(1)
+      expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
+      /** Readability rides on the row through the plan; the set's identifiers never cross the wire. */
+      expect(JSON.stringify(walks[0])).not.toContain('doc-4999')
+      expect(JSON.stringify(walks[0])).toContain('src-a')
+    })
+
+    it('ranks the set exactly when the walk cannot fill its pool', async () => {
+      traversedRows = []
+      exactRows = [hit('a', 'src-a')]
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large)).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+      const exact = statements().filter((query) => isExactRanking(query.sql))
+      expect(exact).toHaveLength(1)
+      expect(JSON.stringify(exact[0])).toContain('doc-4999')
+    })
+
+    it('refills a pool the walk filled but hydration could not with the exact ranking', async () => {
+      traversedRows = walked
+      exactRows = [hit('a', 'src-a')]
+      /** None of the walked rows survives the document predicate; the set's own ranking then does. */
+      for (let page = 0; page < 10; page++) queueTableRows(schemaMock.embedding, [])
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large)).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+      const exact = statements().filter((query) => isExactRanking(query.sql))
+      expect(exact).toHaveLength(1)
+      /** The refill ranks past the rows already read, so nothing already rejected is read twice. */
+      expect(JSON.stringify(exact[0])).toContain('doc-4999')
+      expect(JSON.stringify(exact[0])).toContain('w-199')
+    })
+
+    it('ranks a set under the size exactly, without a walk', async () => {
+      exactRows = [hit('a', 'src-a')]
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large.slice(0, -1))).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(0)
+      expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(1)
+    })
   })
 
   it('ranks a date-bounded set exactly even when a member source has its own index', async () => {
