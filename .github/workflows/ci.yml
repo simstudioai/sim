@@ -289,7 +289,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.12 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.5.16 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -643,7 +643,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.12 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
