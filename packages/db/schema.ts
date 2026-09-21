@@ -3621,7 +3621,7 @@ export const embeddingSearch = pgTable(
     connectorId: text('connector_id'),
     /** The document's ACL, mirrored by trigger, so a walk can test readability on the row it visits. */
     acl: text('acl').array(),
-    /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
+    /** contract-pending(after the projection sync trigger stops writing them): drop the binary columns; their ANN indexes were dropped in 0372, and nothing reads them. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),
     binary768: bit('binary_768', { dimensions: 768 }),
@@ -3640,21 +3640,6 @@ export const embeddingSearch = pgTable(
       .on(table.documentId, table.knowledgeBaseId, table.id)
       .concurrently()
       .where(sql`${table.enabled}`),
-    binaryIdx: index('embedding_search_binary_hnsw_idx')
-      .using('hnsw', table.binary.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary384Idx: index('embedding_search_384_binary_hnsw_idx')
-      .using('hnsw', table.binary384.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary768Idx: index('embedding_search_768_binary_hnsw_idx')
-      .using('hnsw', table.binary768.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary1024Idx: index('embedding_search_1024_binary_hnsw_idx')
-      .using('hnsw', table.binary1024.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
-      .using('hnsw', table.binary3072.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
     vectorIdx: index('embedding_search_cosine_hnsw_idx')
       .using('hnsw', table.vector.op('halfvec_cosine_ops'))
       .with({ m: 16, ef_construction: 64 }),

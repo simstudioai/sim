@@ -2598,6 +2598,13 @@
       "when": 1789922529920,
       "tag": "0371_document_modified_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1790006041116,
+      "tag": "0372_drop_binary_search_indexes",
+      "breakpoints": true
     }
   ]
 }
