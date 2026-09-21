@@ -1,6 +1,7 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps } from './badge/badge'
 export { Banner } from './banner/banner'
+export { BulkActionBar, type BulkActionBarProps } from './bulk-action-bar/bulk-action-bar'
 export {
   BulkActionButton,
   type BulkActionButtonProps,
