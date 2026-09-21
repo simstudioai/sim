@@ -73,6 +73,7 @@ export const JevBlock: BlockConfig<
         prompt:
           'Create Jev Choice options from the user request. Return an object with 1–255 option names mapped to clear descriptions, for example {"billing":"Payments and refunds","technical":"Bugs and outages"}. Return ONLY the JSON object.',
         placeholder: 'Describe the categories Jev should choose between...',
+        generationType: 'json-object',
       },
     },
     {
@@ -88,6 +89,7 @@ export const JevBlock: BlockConfig<
         prompt:
           'Create an ordered Jev Score rubric with 2–10 level descriptions, from lowest to highest, for example ["Low","Medium","High"]. Return ONLY the JSON array.',
         placeholder: 'Describe what to score and the levels to use...',
+        generationType: 'json-array',
       },
     },
     {
@@ -103,6 +105,7 @@ export const JevBlock: BlockConfig<
         prompt:
           'Define the meaning of yes and no for a Jev Noul question using true and false keys, for example {"true":"Explicitly urgent","false":"No urgency expressed"}. Return ONLY the JSON object.',
         placeholder: 'Describe what should count as yes or no...',
+        generationType: 'json-object',
       },
     },
     {
@@ -118,6 +121,7 @@ export const JevBlock: BlockConfig<
         prompt:
           'Create named Jev questions as an object keyed by question ID. Each question requires type and instructions. Choice uses type "choice" and criteria with 1–255 named options; Score uses type "score" and criteria with 2–10 ordered levels; Noul uses type "noul" and optional true/false criteria. Example: {"urgent":{"type":"noul","instructions":"Is this urgent?"}}. Return ONLY the JSON object.',
         placeholder: 'Describe the decisions to evaluate together...',
+        generationType: 'json-object',
       },
     },
     {
