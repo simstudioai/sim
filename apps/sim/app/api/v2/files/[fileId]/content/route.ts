@@ -5,7 +5,7 @@ import {
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
-import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   admitUpdateWorkspaceFileContent,
@@ -40,10 +40,9 @@ export const PUT = defineV2JsonRoute({
     expectedRevision: body.expectedRevision,
   }),
   useCase: updateWorkspaceFileContent,
-  present: async ({ file }) => {
-    const revision = workspaceFileRevision(file)
-    return { data: { ...(await toV2File(file)), ...(revision === null ? {} : { revision }) } }
-  },
+  present: async ({ file }) => ({
+    data: { ...(await toV2File(file)), ...workspaceFileRevisionField(file) },
+  }),
 })
 
 /**
@@ -78,10 +77,7 @@ export const PATCH = defineV2JsonRoute({
     expectedRevision: body.expectedRevision,
   }),
   useCase: editWorkspaceFileContent,
-  present: async ({ file, lineCount }) => {
-    const revision = workspaceFileRevision(file)
-    return {
-      data: { file: await toV2File(file), lineCount, ...(revision === null ? {} : { revision }) },
-    }
-  },
+  present: async ({ file, lineCount }) => ({
+    data: { file: await toV2File(file), lineCount, ...workspaceFileRevisionField(file) },
+  }),
 })

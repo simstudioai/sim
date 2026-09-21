@@ -71,14 +71,7 @@ import {
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
-import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
-
-/** The revision a response advertises, omitted for a record that cannot name its content. */
-function revisionField(file: Parameters<typeof workspaceFileRevision>[0]) {
-  const revision = workspaceFileRevision(file)
-  return revision === null ? {} : { revision }
-}
-
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
@@ -1066,7 +1059,7 @@ export async function executeFileManageOperation(
           data: {
             file: workspaceFileToUserFile(file),
             /** The token a conditional write sends back; see `expectedRevision`. */
-            ...revisionField(file),
+            ...workspaceFileRevisionField(file),
           },
         })
       }
@@ -1428,7 +1421,7 @@ export async function executeFileManageOperation(
                 size: overwritten.size,
                 url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
                 version: overwritten.currentVersion,
-                ...revisionField(overwritten),
+                ...workspaceFileRevisionField(overwritten),
               },
             })
           }
@@ -1480,7 +1473,7 @@ export async function executeFileManageOperation(
             url: ensureAbsoluteUrl(result.file.url ?? result.file.path),
             /** A file created with its content has no history yet, so those bytes are version 1. */
             version: INITIAL_WORKSPACE_FILE_VERSION,
-            ...revisionField(result.file),
+            ...workspaceFileRevisionField(result.file),
           },
         })
       }
@@ -1681,7 +1674,7 @@ export async function executeFileManageOperation(
               size: fileBuffer.length,
               url: ensureAbsoluteUrl(existing.path),
               version: appended.currentVersion,
-              ...revisionField(appended),
+              ...workspaceFileRevisionField(appended),
             },
           })
         } finally {
@@ -1799,7 +1792,7 @@ export async function executeFileManageOperation(
             size: file.size,
             lineCount,
             version: file.currentVersion,
-            ...revisionField(file),
+            ...workspaceFileRevisionField(file),
           },
         })
       }

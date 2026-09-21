@@ -72,7 +72,7 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  * and workflow writes fold into the current version rather than adding one.
  */
 /** The token naming the content a write produced, for the caller's next conditional write. */
-const writtenFileRevisionSchema = z
+export const writtenFileRevisionSchema = z
   .string()
   .optional()
   .describe(

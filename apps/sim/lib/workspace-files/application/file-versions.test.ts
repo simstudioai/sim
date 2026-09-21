@@ -115,6 +115,14 @@ function version(number: number, overrides: Record<string, unknown> = {}) {
 
 const current = version(3, { key: file.key, isCurrent: true, supersededAt: null })
 
+/** After a revert of v2: v2 is the source, v4 the new current version the write recorded. */
+const getVersionAfterRevert = async (_file: unknown, number: number) =>
+  number === 2
+    ? version(2)
+    : number === 4
+      ? version(4, { source: 'revert', restoredFromVersion: 2, isCurrent: true })
+      : current
+
 function objectMissing() {
   return Object.assign(new Error('Failed to download file: missing'), {
     cause: Object.assign(new Error('missing'), { name: 'NoSuchKey' }),
@@ -139,13 +147,7 @@ describe('file version use cases', () => {
 
   describe('revertWorkspaceFileVersion', () => {
     it('writes the version as a new revert version carrying its provenance snapshot', async () => {
-      mocks.getVersion.mockImplementation(async (_file: unknown, number: number) =>
-        number === 2
-          ? version(2)
-          : number === 4
-            ? version(4, { source: 'revert', restoredFromVersion: 2, isCurrent: true })
-            : current
-      )
+      mocks.getVersion.mockImplementation(getVersionAfterRevert)
 
       const result = await revertWorkspaceFileVersion.execute({
         principal,
@@ -208,6 +210,29 @@ describe('file version use cases', () => {
       expect(mocks.updateContent).not.toHaveBeenCalled()
       expect(mocks.recordAudit).not.toHaveBeenCalled()
       expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The surface presents `workspaceFileRevision(result.file)`, so the record has to be the one
+     * the write produced — a pre-write record would hand the caller a revision their next
+     * conditional write is guaranteed to fail on.
+     */
+    it('returns the record the write produced, so its revision names the new content', async () => {
+      mocks.getVersion.mockImplementation(getVersionAfterRevert)
+      const contentUpdatedAt = new Date('2026-01-04T00:00:00Z')
+      mocks.updateContent.mockResolvedValue({
+        ...file,
+        key: 'new-key',
+        currentVersion: 4,
+        contentUpdatedAt,
+      })
+
+      const result = await revertWorkspaceFileVersion.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', version: 2 },
+      })
+
+      expect(result.file.contentUpdatedAt).toEqual(contentUpdatedAt)
     })
 
     /** The revision guards content, so it catches an edit that folded into the current version. */

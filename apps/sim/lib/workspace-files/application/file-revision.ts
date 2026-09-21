@@ -26,6 +26,18 @@ export function workspaceFileRevision(
 }
 
 /**
+ * The `revision` a response advertises, spread into the body. A record that cannot name its
+ * content contributes no key rather than a null one, which is the omission every surface's
+ * response schema declares.
+ */
+export function workspaceFileRevisionField(file: Parameters<typeof workspaceFileRevision>[0]): {
+  revision?: string
+} {
+  const revision = workspaceFileRevision(file)
+  return revision === null ? {} : { revision }
+}
+
+/**
  * Reads back a revision this surface issued for `fileId`, as the content version to guard the
  * write with. A token for another file, or one this surface never issued, is refused rather than
  * silently ignored — a caller asking for a conditional write must not get an unconditional one.
