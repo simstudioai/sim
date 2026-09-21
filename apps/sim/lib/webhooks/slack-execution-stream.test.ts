@@ -475,6 +475,51 @@ describe('SlackExecutionStreamController', () => {
       .join('')
   }
 
+  function enforceSlackMessageLimit() {
+    const messages = new Map<
+      string,
+      { text: string; chunks: SlackStreamChunk[]; stopped: boolean }
+    >()
+    mockStartSlackAgentStream.mockImplementation(async (_token, _target, chunks) => {
+      const ts = `message-${messages.size}`
+      messages.set(ts, { text: '', chunks: [...chunks], stopped: false })
+      return { channel: 'C123', ts }
+    })
+    mockAppendSlackAgentStream.mockImplementation(
+      async (_token, _channel, ts: string, chunks: SlackStreamChunk[]) => {
+        const message = messages.get(ts)!
+        if (message.stopped) throw new Error('message_not_in_streaming_state')
+        const text = chunks
+          .filter((chunk) => chunk.type === 'markdown_text')
+          .map((chunk) => chunk.text)
+          .join('')
+        if (message.text.length + text.length > 12_000) {
+          throw new Error('Slack chat.appendStream: msg_too_long')
+        }
+        expect(text.isWellFormed()).toBe(true)
+        message.text += text
+        message.chunks.push(...chunks)
+      }
+    )
+    mockStopSlackAgentStream.mockImplementation(
+      async (
+        _token,
+        _channel,
+        ts: string,
+        _status,
+        _signal,
+        _blocks,
+        chunks: SlackStreamChunk[]
+      ) => {
+        const message = messages.get(ts)!
+        expect(message.stopped).toBe(false)
+        message.stopped = true
+        message.chunks.push(...chunks)
+      }
+    )
+    return messages
+  }
+
   it.each([true, false])(
     'delivers identical Agent and Mship thinking updates with thinking enabled: %s',
     async (includeThinking) => {
@@ -600,19 +645,10 @@ describe('SlackExecutionStreamController', () => {
   })
 
   it.each(['live', 'settled'] as const)(
-    'delivers a long %s answer with each Slack append inside the request limit',
+    'delivers a long %s answer across messages within Slack’s cumulative text limit',
     async (delivery) => {
       const answer = `${'x'.repeat(11_999)}🚀${'y'.repeat(17_000)}The complete ending.`
-      mockAppendSlackAgentStream.mockImplementation(
-        async (_token, _channel, _ts, chunks: SlackStreamChunk[]) => {
-          const text = chunks
-            .filter((chunk) => chunk.type === 'markdown_text')
-            .map((chunk) => chunk.text)
-            .join('')
-          if (text.length > 12_000) throw new Error('Slack chat.appendStream: msg_too_long')
-          expect(text.isWellFormed()).toBe(true)
-        }
-      )
+      const messages = enforceSlackMessageLimit()
       const { controller } = await deliver(
         delivery === 'live'
           ? [
@@ -624,11 +660,125 @@ describe('SlackExecutionStreamController', () => {
       )
       controller.assertSucceeded()
       expect(sentText()).toBe(answer)
+      expect([...messages.values()].map((message) => message.text).join('')).toBe(answer)
+      expect([...messages.values()].every((message) => message.stopped)).toBe(true)
       expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(3)
-      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
-      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(3)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(3)
+      expect(mockStopSlackAgentStream.mock.calls.map((call) => call[2])).toEqual([
+        ...messages.keys(),
+      ])
+      for (const call of mockStartSlackAgentStream.mock.calls) {
+        expect(call[1]).toMatchObject({ channel: 'C123', threadTs: '1700000000.000001' })
+      }
     }
   )
+
+  it('counts commentary across turns and pairs tools on their original message after rollover', async () => {
+    const messages = enforceSlackMessageLimit()
+    const commentary = 'c'.repeat(11_800)
+    const answer = `${'a'.repeat(15_000)}The complete ending.`
+    const events: AgentStreamEvent[] = [
+      { type: 'text_delta', text: commentary, turn: 'pending' },
+      { type: 'turn_end', turn: 'intermediate' },
+      { type: 'tool_call_start', id: 'a', name: 'read' },
+      { type: 'tool_call_start', id: 'b', name: 'search' },
+      ...Array.from(
+        { length: 100 },
+        (_, index): AgentStreamEvent => ({
+          type: 'text_delta',
+          text: answer.slice(index * 150, (index + 1) * 150),
+          turn: 'pending',
+        })
+      ),
+      { type: 'tool_call_end', id: 'b', name: 'search', status: 'success' },
+      { type: 'tool_call_end', id: 'a', name: 'read', status: 'success' },
+      { type: 'tool_call_start', id: 'c', name: 'read' },
+      { type: 'tool_call_end', id: 'c', name: 'read', status: 'success' },
+      { type: 'turn_end', turn: 'final' },
+    ]
+    const { controller } = await deliver(events, answer)
+    controller.assertSucceeded()
+    expect([...messages.values()].map((message) => message.text).join('')).toBe(commentary + answer)
+    expect(messages.size).toBe(3)
+    for (const message of messages.values()) {
+      expect(message.stopped).toBe(true)
+      const tasks = message.chunks.filter((chunk) => chunk.type === 'task_update')
+      for (const taskId of new Set(tasks.map((task) => task.id))) {
+        expect(tasks.filter((task) => task.id === taskId).map((task) => task.status)).toEqual([
+          'in_progress',
+          'complete',
+        ])
+      }
+    }
+    const first = messages.get('message-0')!
+    expect(
+      first.chunks.filter((chunk) => chunk.type === 'task_update' && chunk.id.includes('-tool-'))
+    ).toHaveLength(4)
+    expect(mockSetSlackAgentSessionStatus.mock.calls.at(-1)?.[2]).toBe('active')
+  })
+
+  it('cleans up every continuation on cancellation and marks tools on the right message', async () => {
+    const messages = enforceSlackMessageLimit()
+    const { controller } = await createController()
+    const pump = createAgentStreamPump({
+      source: createAgentEventReadableStream([
+        { type: 'tool_call_start', id: 'running', name: 'read' },
+        { type: 'text_delta', text: 'a'.repeat(25_000), turn: 'pending' },
+      ]),
+      streamFormat: 'agent-events-v1',
+    })
+    await Promise.all([
+      controller.callbacks.onStream?.({
+        blockId: 'agent',
+        executionOrder: 1,
+        stream: pump.textStream!,
+        subscribe: pump.subscribe,
+      }),
+      pump.run(),
+    ])
+    await controller.finalize({ success: false, status: 'cancelled', output: {} })
+    expect(messages.size).toBe(3)
+    expect([...messages.values()].every((message) => message.stopped)).toBe(true)
+    const toolStops = mockStopSlackAgentStream.mock.calls.filter((call) =>
+      call[6].some(
+        (chunk: SlackStreamChunk) =>
+          chunk.type === 'task_update' && chunk.id.endsWith('-tool-running')
+      )
+    )
+    expect(toolStops).toHaveLength(1)
+    expect(toolStops[0][2]).toBe('message-0')
+    expect(toolStops[0][6][0].status).toBe('error')
+    expect(mockUnregisterSlackStreamSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('still stops the remaining messages when one continuation stop fails', async () => {
+    const messages = enforceSlackMessageLimit()
+    mockStopSlackAgentStream.mockRejectedValueOnce(new Error('stop outcome uncertain'))
+    const { controller } = await deliver([], 'a'.repeat(25_000))
+    expect(() => controller.assertSucceeded()).toThrow('stop outcome uncertain')
+    expect(mockStopSlackAgentStream.mock.calls.map((call) => call[2])).toEqual([...messages.keys()])
+    expect(messages.get('message-1')!.stopped).toBe(true)
+    expect(messages.get('message-2')!.stopped).toBe(true)
+    expect(mockSetSlackAgentSessionStatus.mock.calls.at(-1)?.[2]).toBe('suspended')
+    await controller.finalize({ success: true, output: {} })
+    expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not retry an uncertain continuation start or duplicate the first part', async () => {
+    const messages = enforceSlackMessageLimit()
+    mockStartSlackAgentStream
+      .mockImplementationOnce(async (_token, _target, chunks) => {
+        messages.set('message-0', { text: '', chunks, stopped: false })
+        return { channel: 'C123', ts: 'message-0' }
+      })
+      .mockRejectedValueOnce(new Error('continuation start outcome uncertain'))
+    const { controller } = await deliver([], 'a'.repeat(25_000))
+    expect(() => controller.assertSucceeded()).toThrow('continuation start outcome uncertain')
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(sentText()).toBe('a'.repeat(12_000))
+    expect(messages.get('message-0')!.stopped).toBe(true)
+  })
 
   it('does not replay acknowledged long-answer chunks after a later append fails', async () => {
     mockAppendSlackAgentStream.mockResolvedValueOnce(undefined)
