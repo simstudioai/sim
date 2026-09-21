@@ -1736,8 +1736,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
        */
       const excludedOnRow = excludedSources.length
         ? filled
-          ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])})))`
-          : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${embeddingSearch.documentId} AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))`
+          ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))) /* excluded sources */`
+          : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${embeddingSearch.documentId} AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])})) /* excluded sources */`
         : undefined
       const needed = offset + limit
       if (

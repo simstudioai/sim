@@ -2077,6 +2077,7 @@ describe('permitted-document planner', () => {
   })
 
   it('excludes a denied source through its documents while the projection is unfilled', async () => {
+    forgetProjectionFilled()
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         id: 'gated-src',
@@ -2089,7 +2090,8 @@ describe('permitted-document planner', () => {
       const statement = render(query).sql
       /** The fill has not reached every row, so a denied source cannot be read off the row. */
       if (statement.includes('AS unfilled')) return [{ unfilled: true }]
-      const rebuilt = JSON.stringify(query).includes('NOT EXISTS')
+      /** The mock renders nested fragments as parameters, so the marker is found in the whole query. */
+      const rebuilt = JSON.stringify(query).includes('/* excluded sources */')
       if (isPageStatement(statement))
         return JSON.stringify(render(query).params).includes('"b"')
           ? [hit('b', 'other-src')]
@@ -2113,8 +2115,9 @@ describe('permitted-document planner', () => {
     expect(result.rows.map((row) => row.id)).toEqual(['b'])
     const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(2)
-    expect(JSON.stringify(walks[1])).toContain('NOT EXISTS')
-    expect(JSON.stringify(walks[1])).toContain('gated-src')
+    expect(JSON.stringify(walks[0])).not.toContain('/* excluded sources */')
+    expect(JSON.stringify(walks[1])).toContain('NOT EXISTS (SELECT 1 FROM')
+    expect(JSON.stringify(walks[1])).toContain('/* excluded sources */')
     forgetProjectionFilled()
   })
 
