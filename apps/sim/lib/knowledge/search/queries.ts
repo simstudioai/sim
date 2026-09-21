@@ -65,7 +65,6 @@ import type { StructuredFilter } from '@/lib/knowledge/types'
 import {
   embeddingCandidateDimensions,
   embeddingCandidateDistance,
-  embeddingDistance,
 } from '@/lib/knowledge/vector-columns'
 
 const logger = createLogger('KnowledgeSearchQueries')
@@ -345,6 +344,10 @@ export interface SearchResult {
   knowledgeBaseId: string
   /** When the source last changed the document; NULL for uploads and sources that do not say. */
   sourceModifiedAt: Date | null
+  filename: string
+  sourceUrl: string | null
+  /** The connector type behind the document; NULL for an upload. */
+  connectorType: string | null
 }
 
 /**
@@ -440,6 +443,9 @@ const getSearchResultFields = (distanceExpr: SQL<number> | SQL.Aliased<number>) 
   distance: distanceExpr,
   knowledgeBaseId: embedding.knowledgeBaseId,
   sourceModifiedAt: document.sourceModifiedAt,
+  filename: document.filename,
+  sourceUrl: document.sourceUrl,
+  connectorType: knowledgeConnector.connectorType,
 })
 
 /**
@@ -921,6 +927,7 @@ function hydrateSearchCandidates(
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .leftJoin(embeddingSearch, eq(embeddingSearch.id, embedding.id))
+      .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
       .where(
         and(
           inArray(embedding.id, ids),
@@ -1018,6 +1025,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
         .select(getSearchResultFields(sql<number>`0`.as('distance')))
         .from(embedding)
         .innerJoin(document, eq(embedding.documentId, document.id))
+        .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
@@ -1036,6 +1044,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     .select(getSearchResultFields(sql<number>`0`.as('distance')))
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
+    .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
@@ -2320,15 +2329,21 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     return []
   }
 
-  /** Hydration pass: full rows plus the cosine distance, bounded to the survivors. */
+  /** Hydration pass: full rows plus the projection's distance, bounded to the survivors. */
   const hydrated = await db
     .select(
       getSearchResultFields(
-        embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance')
+        embeddingCandidateDistance(
+          queryVector.dimensions,
+          queryVector.vector,
+          queryVector.model
+        ).as('distance')
       )
     )
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
+    .leftJoin(embeddingSearch, eq(embeddingSearch.id, embedding.id))
+    .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
     .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions(access, params.filters)))
 
   const rowById = new Map(hydrated.map((row) => [row.id, row]))

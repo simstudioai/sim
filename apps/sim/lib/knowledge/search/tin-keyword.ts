@@ -11,9 +11,10 @@ const logger = createLogger('TinKeywordSearch')
 
 /**
  * How long a readiness answer holds. The index only becomes valid once the projection is fully
- * backfilled, and flipping the flag off takes effect within this window.
+ * backfilled, and never invalid again; the flag is checked on every search regardless, so a
+ * long hold costs nothing but the one read it saves each search.
  */
-const READINESS_TTL_MS = 60 * 1000
+const READINESS_TTL_MS = 10 * 60 * 1000
 const SEARCH_INDEX_TTL_MS = 10 * 60 * 1000
 
 /**

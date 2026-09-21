@@ -42,7 +42,6 @@ import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
-  getDocumentMetadataByIds,
   type RetrievalStatus,
   retrieveKnowledgeSearch,
   type SearchResult,
@@ -634,49 +633,40 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       ])
     )
     /**
-     * Always read: the provenance snapshot vouches for the name, URL, and tags
-     * a model may see, but the source card's modified time and connector type
-     * are only carried here, under the same access predicate as the search.
+     * The provenance snapshot vouches for the name, URL, and tags a model may see; the source
+     * card's modified time and connector type ride on the hydrated row, read under the same
+     * predicate as the content.
      */
-    const basicDocumentMetadata = await measureSearchStage('metadata', () =>
-      getDocumentMetadataByIds(
-        rows.map((row) => row.documentId),
-        retrieved.readAccess
-      )
-    )
-    const results = rows
-      .filter((row) => basicDocumentMetadata[row.documentId])
-      .map((row): KnowledgeSearchItem => {
-        const metadata: Record<string, unknown> = {}
-        const tagMap = tagMaps.get(row.knowledgeBaseId)
-        const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
-        const basicDocument = basicDocumentMetadata[row.documentId]
-        const document = provenanceDocument ?? basicDocument
-        for (const slot of ALL_TAG_SLOTS) {
-          const value =
-            provenanceDocument && slot.startsWith('tag')
-              ? provenanceDocument[
-                  slot as 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
-                ]
-              : row[slot]
-          if (value !== null && value !== undefined) metadata[tagMap?.get(slot) ?? slot] = value
-        }
-        const rerankerScore = rerankerScores.get(row.id)
-        return {
-          embeddingId: row.id,
-          knowledgeBaseId: row.knowledgeBaseId,
-          documentId: row.documentId,
-          documentName: document?.filename ?? null,
-          sourceUrl: document?.sourceUrl ?? null,
-          sourceModifiedAt: basicDocument?.sourceModifiedAt ?? null,
-          connectorType: basicDocument?.connectorType ?? null,
-          content: row.content,
-          chunkIndex: row.chunkIndex,
-          metadata,
-          similarity: hasQuery ? 1 - row.distance : 1,
-          ...(rerankerScore !== undefined ? { rerankerScore } : {}),
-        }
-      })
+    const results = rows.map((row): KnowledgeSearchItem => {
+      const metadata: Record<string, unknown> = {}
+      const tagMap = tagMaps.get(row.knowledgeBaseId)
+      const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
+      const document = provenanceDocument ?? row
+      for (const slot of ALL_TAG_SLOTS) {
+        const value =
+          provenanceDocument && slot.startsWith('tag')
+            ? provenanceDocument[
+                slot as 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
+              ]
+            : row[slot]
+        if (value !== null && value !== undefined) metadata[tagMap?.get(slot) ?? slot] = value
+      }
+      const rerankerScore = rerankerScores.get(row.id)
+      return {
+        embeddingId: row.id,
+        knowledgeBaseId: row.knowledgeBaseId,
+        documentId: row.documentId,
+        documentName: document?.filename ?? null,
+        sourceUrl: document?.sourceUrl ?? null,
+        sourceModifiedAt: row.sourceModifiedAt ?? null,
+        connectorType: row.connectorType ?? null,
+        content: row.content,
+        chunkIndex: row.chunkIndex,
+        metadata,
+        similarity: hasQuery ? 1 - row.distance : 1,
+        ...(rerankerScore !== undefined ? { rerankerScore } : {}),
+      }
+    })
     if (registry && provenanceSnapshot) {
       for (const [documentId, document] of Object.entries(provenanceSnapshot.documentMetadata)) {
         const renderedMetadata = results
