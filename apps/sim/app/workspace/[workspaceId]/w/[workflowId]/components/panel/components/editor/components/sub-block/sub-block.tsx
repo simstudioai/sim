@@ -345,7 +345,8 @@ const renderLabel = (
                     e.stopPropagation()
                     wandState.onSearchSubmit()
                   }}
-                  className='size-[20px] shrink-0 p-0'
+                  size='icon'
+                  className='shrink-0'
                 >
                   <ArrowUp className='size-[12px]' />
                 </Button>

@@ -287,11 +287,11 @@ export const DataRow = React.memo(function DataRow({
           {hasWorkflowColumns && (
             <Button
               type='button'
-              variant='ghost'
-              size='sm'
+              variant='quiet'
+              size='icon'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              className='size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
+              className='shrink-0'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
