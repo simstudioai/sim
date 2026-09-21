@@ -41,8 +41,8 @@ function shardsFlag(): number {
 async function main(): Promise<void> {
   const shards = shardsFlag()
   if (isTriggerDevEnabled && env.TRIGGER_SECRET_KEY) {
-    const handle = await enqueueProjectionSourceAclBackfill({}, shards)
-    logger.info('Backfill enqueued on the Trigger.dev worker', handle)
+    const started = await enqueueProjectionSourceAclBackfill({}, shards)
+    logger.info('Backfill enqueued on the Trigger.dev worker', started)
     return
   }
   if (shards !== 1)

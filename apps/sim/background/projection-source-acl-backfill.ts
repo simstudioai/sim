@@ -4,6 +4,7 @@ import {
   PROJECTION_SOURCE_ACL_BACKFILL_SHARDS,
   PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID,
   type ProjectionSourceAclBackfillPayload,
+  projectionSourceAclChainTag,
   runProjectionSourceAclBackfill,
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
@@ -36,6 +37,8 @@ export const projectionSourceAclBackfillTask = task({
     const continuation: ProjectionSourceAclBackfillPayload = { ...payload, cursor }
     await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, continuation, {
       region: await resolveTriggerRegion(),
+      /** The chain's tag rides on every continuation, so a start finds the chain wherever it is. */
+      tags: [projectionSourceAclChainTag(payload.shard)],
     })
   },
 })

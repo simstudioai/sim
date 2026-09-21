@@ -156,25 +156,38 @@ async function projectionsFilled(sql: postgres.Sql): Promise<boolean> {
   return true
 }
 
-/** How long a start stays idempotent: long enough that a retried command finds its runs, not a second set. */
-const ENQUEUE_IDEMPOTENCY_TTL = '1h'
+/** The tag every run of one chain carries, so a chain in flight is found before another is started. */
+export function projectionSourceAclChainTag(shard?: ProjectionSourceAclBackfillShard): string {
+  const { index, count } = shard ?? { index: 0, count: 1 }
+  return `${PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID}:shard:${index}/${count}`
+}
+
+/** A run that has not ended: it, or the continuation it triggers, still owns its range. */
+const IN_FLIGHT_RUN_STATUSES = [
+  'PENDING_VERSION',
+  'QUEUED',
+  'DEQUEUED',
+  'EXECUTING',
+  'WAITING',
+  'DELAYED',
+] as const
 
 /**
  * Starts the backfill on the deployment's Trigger.dev worker, where bounded runs chain until the
  * projections are filled: one chain over the whole id space, or one per shard, each filling its
  * own slice at the same time. Safe to call again at any time: a run only fills rows still unset,
- * and a start repeated within the hour finds the runs it already made rather than making more. A
- * cursor belongs to one chain, so a sliced start takes none: each slice begins at its own bound.
+ * and a range whose chain is still in flight is left to that chain rather than given a second.
+ * A cursor belongs to one chain, so a sliced start takes none: each slice begins at its own bound.
  */
 export async function enqueueProjectionSourceAclBackfill(
   payload: ProjectionSourceAclBackfillPayload = {},
   shards = 1
-): Promise<{ runIds: string[] }> {
+): Promise<{ runIds: string[]; inFlight: string[] }> {
   if (shards !== 1) {
     assertProjectionSourceAclShard({ index: 0, count: shards })
     if (payload.cursor) throw new Error('A sliced projection backfill cannot start from a cursor')
   }
-  const { tasks } = await import('@trigger.dev/sdk')
+  const { runs, tasks } = await import('@trigger.dev/sdk')
   const region = await resolveTriggerRegion()
   const payloads: ProjectionSourceAclBackfillPayload[] =
     shards === 1
@@ -184,14 +197,28 @@ export async function enqueueProjectionSourceAclBackfill(
           shard: { index, count: shards },
         }))
   const runIds: string[] = []
-  for (const [index, shardPayload] of payloads.entries()) {
+  const inFlight: string[] = []
+  for (const shardPayload of payloads) {
+    const tag = projectionSourceAclChainTag(shardPayload.shard)
+    let running: string | undefined
+    for await (const run of runs.list({
+      taskIdentifier: PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID,
+      tag,
+      status: [...IN_FLIGHT_RUN_STATUSES],
+      limit: 1,
+    })) {
+      running = run.id
+    }
+    if (running) {
+      inFlight.push(running)
+      continue
+    }
     const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, shardPayload, {
       region,
-      idempotencyKey: `${PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID}:${shards}:${index}`,
-      idempotencyKeyTTL: ENQUEUE_IDEMPOTENCY_TTL,
+      tags: [tag],
     })
     runIds.push(handle.id)
   }
-  logger.info('Projection source and ACL backfill enqueued', { runIds, shards })
-  return { runIds }
+  logger.info('Projection source and ACL backfill enqueued', { runIds, inFlight, shards })
+  return { runIds, inFlight }
 }

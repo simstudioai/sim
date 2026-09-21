@@ -3,15 +3,25 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBackfill, mockEnd, mockPostgres, mockPrewarm, mockTasksTrigger, mockUnsafe } =
-  vi.hoisted(() => ({
-    mockBackfill: vi.fn(),
-    mockEnd: vi.fn(async () => undefined),
-    mockPostgres: vi.fn(),
-    mockPrewarm: vi.fn(async () => []),
-    mockTasksTrigger: vi.fn(async () => ({ id: 'run-1' })),
-    mockUnsafe: vi.fn(async () => [{ unfilled: false }]),
-  }))
+const {
+  mockBackfill,
+  mockEnd,
+  mockPostgres,
+  mockPrewarm,
+  mockRunsList,
+  mockTasksTrigger,
+  mockUnsafe,
+} = vi.hoisted(() => ({
+  mockBackfill: vi.fn(),
+  mockEnd: vi.fn(async () => undefined),
+  mockPostgres: vi.fn(),
+  mockPrewarm: vi.fn(async () => []),
+  mockRunsList: vi.fn(
+    (_query: unknown): AsyncIterable<{ id: string }> => (async function* () {})()
+  ),
+  mockTasksTrigger: vi.fn(async () => ({ id: 'run-1' })),
+  mockUnsafe: vi.fn(async () => [{ unfilled: false }]),
+}))
 
 vi.mock('@sim/db', () => ({ resolveDbUrl: () => 'postgres://localhost:5432/sim' }))
 vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
@@ -20,7 +30,10 @@ vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
 }))
 vi.mock('postgres', () => ({ default: mockPostgres }))
 vi.mock('@/lib/knowledge/search/prewarm', () => ({ prewarmSearchProjection: mockPrewarm }))
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTasksTrigger } }))
+vi.mock('@trigger.dev/sdk', () => ({
+  runs: { list: mockRunsList },
+  tasks: { trigger: mockTasksTrigger },
+}))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: (_label: string, work: () => Promise<unknown>) => {
@@ -164,6 +177,8 @@ describe('projectionSourceAclShardRange', () => {
 describe('enqueueProjectionSourceAclBackfill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    /** No chain in flight unless a case says so. */
+    mockRunsList.mockImplementation(() => (async function* () {})())
     mockPostgres.mockReturnValue(connection)
     mockBackfill.mockResolvedValue({
       projection: 'embedding_search',
@@ -177,28 +192,44 @@ describe('enqueueProjectionSourceAclBackfill', () => {
   it('hands the backfill to the Trigger.dev worker when one is configured', async () => {
     await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 })).resolves.toEqual({
       runIds: ['run-1'],
+      inFlight: [],
     })
+    expect(mockRunsList).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'projection-source-acl-backfill:shard:0/1' })
+    )
     expect(mockTasksTrigger).toHaveBeenCalledWith(
       'projection-source-acl-backfill',
       { pageSize: 25 },
-      {
-        region: 'us-east-1',
-        idempotencyKey: 'projection-source-acl-backfill:1:0',
-        idempotencyKeyTTL: '1h',
-      }
+      { region: 'us-east-1', tags: ['projection-source-acl-backfill:shard:0/1'] }
     )
     expect(mockBackfill).not.toHaveBeenCalled()
   })
 
-  it('starts one run per shard, each on its own slice with its own idempotency key', async () => {
+  it('leaves a range whose chain is still in flight to that chain', async () => {
+    mockRunsList.mockImplementation((query: unknown) =>
+      (async function* () {
+        if ((query as { tag: string }).tag.endsWith(':shard:1/4')) yield { id: 'run-live' }
+      })()
+    )
+    await expect(enqueueProjectionSourceAclBackfill({}, 4)).resolves.toEqual({
+      runIds: ['run-1', 'run-1', 'run-1'],
+      inFlight: ['run-live'],
+    })
+    expect(mockTasksTrigger.mock.calls.map(([, payload]) => payload.shard?.index)).toEqual([
+      0, 2, 3,
+    ])
+  })
+
+  it('starts one run per shard, each on its own slice under its own chain tag', async () => {
     await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 }, 4)).resolves.toEqual({
       runIds: ['run-1', 'run-1', 'run-1', 'run-1'],
+      inFlight: [],
     })
     expect(mockTasksTrigger.mock.calls.map(([, payload]) => payload)).toEqual(
       [0, 1, 2, 3].map((index) => ({ pageSize: 25, shard: { index, count: 4 } }))
     )
-    expect(mockTasksTrigger.mock.calls.map(([, , options]) => options.idempotencyKey)).toEqual(
-      [0, 1, 2, 3].map((index) => `projection-source-acl-backfill:4:${index}`)
+    expect(mockTasksTrigger.mock.calls.map(([, , options]) => options.tags)).toEqual(
+      [0, 1, 2, 3].map((index) => [`projection-source-acl-backfill:shard:${index}/4`])
     )
   })
 
