@@ -2051,6 +2051,20 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
+    it('reports a leg whose own deadline passed during the count as short, not failed', async () => {
+      const budget = new SearchBudget('vector', performance.now() - 1)
+      await expect(
+        resolveReach(['org-index'], scope('spent-leg'), budget, {
+          connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+          connectorTypes: new Map(),
+          uploads: true,
+        })
+      ).resolves.toEqual({ kind: 'unbounded', broad: true })
+      expect(budget.timedOut).toBe(true)
+    })
+
     it('counts a resolved reach against a small index instead of assuming it broad', async () => {
       /** A bound inside the probe limit proves nothing without a saturated probe. */
       dbChainMockFns.execute.mockImplementation(async (query) => {
@@ -2075,9 +2089,10 @@ describe('permitted-document planner', () => {
       )
       expect(reach).toEqual({ kind: 'unbounded', broad: false })
       expect(reachCounts()).toHaveLength(1)
-      /** The count is the search's own read: it runs inside the leg's deadline statement. */
+      /** The count is the search's own read, under the probe's share of the deadline, not the leg's. */
       const countAt = statements().findIndex((query) => query.sql.includes(') reached'))
       expect(statements()[countAt - 1].sql).toContain('statement_timeout')
+      expect(Number(statements()[countAt - 1].params[0])).toBeLessThanOrEqual(600)
     })
 
     it('does not remember a reach whose count ran out of time', async () => {
@@ -2102,6 +2117,8 @@ describe('permitted-document planner', () => {
       })
       expect(plan).toEqual({ kind: 'unbounded', broad: true })
       expect(reachCounts()).toHaveLength(1)
+      /** Only the count's share of the deadline was spent; the leg is not the one that timed out. */
+      expect(budget.timedOut).toBe(false)
       /** The next search counts again rather than trusting an answer that never came. */
       await resolveReach(
         ['org-index'],

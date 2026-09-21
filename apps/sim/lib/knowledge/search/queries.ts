@@ -1253,6 +1253,11 @@ async function estimateFilteredDocuments(
  * documents. Counted once against that bound and remembered, so the first search after the
  * window pays for it and the rest do not. A caller whose probe already saturated is known to
  * reach past the probe's limit, so a bound inside that limit is met without counting.
+ *
+ * The count reads as many index entries as the caller reaches, so on a large index it can cost
+ * more than the leg it serves; it gets the probe's share of the deadline, never the whole leg's.
+ * A count that runs out of that share answers `null`: the leg keeps its time and its deadline
+ * intact, and the caller decides this search alone without remembering anything.
  */
 async function reachIsBroad(
   knowledgeBaseIds: string[],
@@ -1260,28 +1265,36 @@ async function reachIsBroad(
   budget: SearchBudget | undefined,
   plan: SearchAccessPlan | undefined,
   saturated: boolean
-): Promise<boolean> {
+): Promise<boolean | null> {
   if (access.kind !== 'user') return true
-  const total =
-    (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','), {
-      context: budget,
-    })) ?? 0
-  const bound = Math.ceil(total * BROAD_REACH_SHARE)
-  if (saturated && bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
-  const [row] = await runSearchQuery(budget, 'permitted_documents', (executor) =>
-    executor.execute<{ n: number }>(sql`
-      SELECT count(*) AS n FROM (
-        SELECT 1 FROM ${document}
-        WHERE ${and(
-          isNull(document.deletedAt),
-          knowledgeAclOverlapCondition(access),
-          inArray(document.knowledgeBaseId, knowledgeBaseIds),
-          planSourceCondition(plan)
-        )}
-        LIMIT ${bound}
-      ) reached`)
-  )
-  return Number(row?.n ?? 0) >= bound
+  const countBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
+  try {
+    const total =
+      (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','), {
+        context: countBudget,
+      })) ?? 0
+    const bound = Math.ceil(total * BROAD_REACH_SHARE)
+    if (saturated && bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
+    const [row] = await runSearchQuery(countBudget, 'permitted_documents', (executor) =>
+      executor.execute<{ n: number }>(sql`
+        SELECT count(*) AS n FROM (
+          SELECT 1 FROM ${document}
+          WHERE ${and(
+            isNull(document.deletedAt),
+            knowledgeAclOverlapCondition(access),
+            inArray(document.knowledgeBaseId, knowledgeBaseIds),
+            planSourceCondition(plan)
+          )}
+          LIMIT ${bound}
+        ) reached`)
+    )
+    return Number(row?.n ?? 0) >= bound
+  } catch (error) {
+    if (!budget || !countBudget?.isTimeout(error)) throw error
+    /** Only the count's share was spent; the leg's own deadline still governs. */
+    budget.remaining()
+    return null
+  }
 }
 
 /**
@@ -1333,11 +1346,13 @@ export async function resolveReach(
   if (remembered) return { kind: 'unbounded', broad: remembered.broad }
   try {
     const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan, false)
+    /** A count that ran out of time decides this search only; the next one counts again. */
+    if (broad === null) return { kind: 'unbounded', broad: true }
     if (key) saturatedReach.set(key, { broad })
     return { kind: 'unbounded', broad }
   } catch (error) {
+    /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
     if (!budget?.isTimeout(error)) throw error
-    /** A count that ran out of time decides this search only; the next one counts again. */
     return { kind: 'unbounded', broad: true }
   }
 }
@@ -1393,17 +1408,21 @@ export async function resolvePermittedDocuments(params: {
     }
     if (probe.kind === 'saturated') {
       try {
-        broad = await reachIsBroad(
+        const counted = await reachIsBroad(
           params.knowledgeBaseIds,
           params.access,
           params.budget,
           params.accessPlan,
           true
         )
-        if (key) saturatedReach.set(key, { broad })
-      } catch (error) {
-        if (!params.budget?.isTimeout(error)) throw error
         /** A count that ran out of time decides this search only; the next one counts again. */
+        if (counted !== null) {
+          broad = counted
+          if (key) saturatedReach.set(key, { broad })
+        }
+      } catch (error) {
+        /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
+        if (!params.budget?.isTimeout(error)) throw error
       }
     }
   }
@@ -2658,9 +2677,7 @@ export async function retrieveKnowledgeSearch(
            * readable documents enumerated ahead of ranking: its reach alone chooses between one
            * walk over the whole graph and a search of each source.
            */
-          await measureSearchStage('permitted_documents', () =>
-            resolveReach(knowledgeBaseIds, access, budgets.vector, accessPlan)
-          )
+          await resolveReach(knowledgeBaseIds, access, budgets.vector, accessPlan)
         : await resolvePermittedDocuments({
             knowledgeBaseIds,
             access,
