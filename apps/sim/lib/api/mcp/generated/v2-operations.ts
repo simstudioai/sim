@@ -653,7 +653,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CreateOrganizationInvitationContract,
     summary: 'Create Organization Invitation',
     description:
-      'Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. A unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. An unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/invitations/route').then(
@@ -2070,7 +2070,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ResendOrganizationInvitationContract,
     summary: 'Resend Organization Invitation',
     description:
-      'Email a unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Email an unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import(
@@ -2157,7 +2157,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2RevokeOrganizationInvitationContract,
     summary: 'Revoke Organization Invitation',
     description:
-      'Cancel a unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Cancel an unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/route').then(

@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { member } from '@sim/db/schema'
+import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -96,8 +96,21 @@ describe('organization member managers', () => {
       seatReduction: { changed: false },
     })
     expect(mocks.remove).toHaveBeenCalledWith(
-      expect.objectContaining({ actorUserId: 'actor', memberId: 'membership' })
+      expect.objectContaining({ actorUserId: 'actor', memberId: 'membership', onError: 'throw' })
     )
     expect(mocks.scim).not.toHaveBeenCalled()
+  })
+
+  it('reports membership added before external-removal preflight as a conflict', async () => {
+    queueTableRows(member, [])
+    queueTableRows(user, [{ id: 'target', name: 'Person', email: 'person@example.com' }])
+    mocks.external.mockResolvedValue({ success: false, error: 'User is an organization member' })
+
+    await expect(removeOrganizationMemberRecord(input)).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'User is an organization member',
+    })
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.seats).not.toHaveBeenCalled()
   })
 })

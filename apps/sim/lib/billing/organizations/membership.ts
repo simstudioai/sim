@@ -488,6 +488,8 @@ export interface RemoveMemberParams {
   spareSessionId?: string
   /** Acting member whose management authority is rechecked under the mutation lock. */
   actorUserId?: string
+  /** Legacy compound callers consume failure results; application use cases propagate errors. */
+  onError?: 'return-failure' | 'throw'
   /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
@@ -1288,6 +1290,7 @@ export async function removeUserFromOrganization(
     spareSessionToken,
     spareSessionId,
     actorUserId,
+    onError = 'return-failure',
   } = params
 
   const billingActions = {
@@ -1529,10 +1532,10 @@ export async function removeUserFromOrganization(
 
     return { success: true, removed: true, billingActions }
   } catch (error) {
-    if (error instanceof OrchestrationError || isRetryableTransactionError(error)) throw error
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return { success: false, error: error.message, billingActions }
     }
+    if (onError === 'throw') throw error
 
     logger.error('Failed to remove user from organization', {
       userId,

@@ -20,23 +20,18 @@ export const updateOrganizationMember = defineAuthorizedOrganizationUseCase({
     input: { organizationId: string; userId: string; role: 'member' | 'admin' | 'owner' }
     context: { userId: string }
   }) => updateOrganizationMemberRecord({ ...input, actorUserId: context.userId }),
-  projectAudit: ({ input, result }) =>
-    result.changed
-      ? [
-          {
-            action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
-            resourceType: AuditResourceType.ORGANIZATION,
-            resourceId: input.organizationId,
-            description: `Changed role for member ${input.userId} to ${input.role}`,
-            metadata: {
-              targetUserId: input.userId,
-              targetEmail: result.member.userEmail,
-              targetName: result.member.userName,
-              changes: [{ field: 'role', from: result.previousRole, to: input.role }],
-            },
-          },
-        ]
-      : [],
+  projectAudit: ({ input, result }) => ({
+    action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: input.organizationId,
+    description: `Changed role for member ${input.userId} to ${input.role}`,
+    metadata: {
+      targetUserId: input.userId,
+      targetEmail: result.member.userEmail,
+      targetName: result.member.userName,
+      changes: [{ field: 'role', from: result.previousRole, to: input.role }],
+    },
+  }),
 })
 
 export const removeOrganizationMember = defineAuthorizedOrganizationUseCase({

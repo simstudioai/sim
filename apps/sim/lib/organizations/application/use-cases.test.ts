@@ -161,10 +161,26 @@ describe('organization application operations', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
-  it('does not audit an unchanged role or failed write', async () => {
+  it('preserves audit on a successful same-role request', async () => {
     queueTableRows(member, [{ role: 'admin' }])
-    mocks.update.mockResolvedValueOnce({ member: target, changed: false })
+    mocks.update.mockResolvedValueOnce({
+      member: { ...target, role: 'admin' },
+      previousRole: 'admin',
+      changed: false,
+    })
     await updateOrganizationMember.execute({ principal: session, input: roleInput })
+    expect(recordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        actorId: 'actor',
+        resourceId: 'org',
+        metadata: expect.objectContaining({
+          changes: [{ field: 'role', from: 'admin', to: 'admin' }],
+        }),
+      })
+    )
+  })
+
+  it('does not audit a failed role write', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     mocks.update.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(

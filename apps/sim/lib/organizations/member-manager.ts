@@ -72,9 +72,11 @@ export async function removeOrganizationMemberRecord(input: {
       const code =
         message === 'External workspace member not found'
           ? 'not_found'
-          : message === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR
-            ? 'validation'
-            : 'internal'
+          : message === 'User is an organization member'
+            ? 'conflict'
+            : message === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR
+              ? 'validation'
+              : 'internal'
       throw new OrchestrationError(code, message)
     }
     return {
@@ -84,7 +86,11 @@ export async function removeOrganizationMemberRecord(input: {
       seatReduction: null,
     }
   }
-  const removal = await removeUserFromOrganization({ ...input, memberId: target.id })
+  const removal = await removeUserFromOrganization({
+    ...input,
+    memberId: target.id,
+    onError: 'throw',
+  })
   if (!removal.success) {
     const message = removal.error || 'Failed to remove user from organization'
     const code =

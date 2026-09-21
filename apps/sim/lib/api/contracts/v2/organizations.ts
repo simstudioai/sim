@@ -34,7 +34,7 @@ export const v2OrganizationSchema = z
   .object({
     id: z.string().describe('Organization identifier.'),
     name: z.string().describe('Organization display name.'),
-    slug: z.string().describe('Organization slug, or null when unset.'),
+    slug: z.string().describe('Organization slug.'),
     logo: z.string().nullable().describe('Organization logo URL, or null when unset.'),
     role: organizationRoleSchema.describe('The acting user’s role in this organization.'),
     createdAt: v2TimestampSchema.describe('When the organization was created.'),

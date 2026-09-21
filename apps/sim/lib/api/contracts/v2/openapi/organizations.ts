@@ -316,7 +316,7 @@ export const organizationOpenApiRoutes = [
       applicationOperation: organizationOperations.createInvitation,
       operationId: 'createOrganizationInvitation',
       summary: 'Create Organization Invitation',
-      description: `Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. A unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. An unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
@@ -410,7 +410,7 @@ export const organizationOpenApiRoutes = [
       applicationOperation: invitationOperations.resend,
       operationId: 'resendOrganizationInvitation',
       summary: 'Resend Organization Invitation',
-      description: `Email a unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Email an unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
@@ -462,7 +462,7 @@ export const organizationOpenApiRoutes = [
       applicationOperation: invitationOperations.revoke,
       operationId: 'revokeOrganizationInvitation',
       summary: 'Revoke Organization Invitation',
-      description: `Cancel a unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Cancel an unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
