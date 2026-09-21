@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { TypeSafeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { TypeSafeResponse } from '@/tools/typesafe/types'
 
@@ -13,7 +13,7 @@ export const TypeSafeBlock: BlockConfig<TypeSafeResponse> = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#343A40',
-  icon: ApiIcon,
+  icon: TypeSafeIcon,
   canvasPresentation: {
     defaultTitle: 'TypeSafe (Jev)',
     sentences: {
@@ -222,7 +222,7 @@ export const TypeSafeBlockMeta = {
   url: 'https://typesafe.ai',
   templates: [
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe support ticket routing',
       prompt:
         'Build a workflow that accepts a support ticket, uses TypeSafe Choose an Option with billing, technical, and account criteria, then routes the selected choice through a Condition block. Send low-confidence decisions to a review branch and retain the probabilities.',
@@ -231,7 +231,7 @@ export const TypeSafeBlockMeta = {
       tags: ['routing', 'automation', 'support'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe ticket urgency scoring',
       prompt:
         'Build a workflow that reads support tickets from a table and uses TypeSafe Assign a Score with five ordered urgency descriptions. Store each fractional score, confidence, and rubric, then use a Condition block with a configurable escalation threshold.',
@@ -240,7 +240,7 @@ export const TypeSafeBlockMeta = {
       tags: ['scoring', 'support', 'automation'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe LLM content screening',
       prompt:
         'Create a workflow that passes an Agent response and policy text to TypeSafe Evaluate Questions. Ask independent Noul questions about policy violations and sensitive-data disclosure. Apply configurable probability thresholds in a Condition block to allow the response or send it for review.',
@@ -249,7 +249,7 @@ export const TypeSafeBlockMeta = {
       tags: ['guardrails', 'llm', 'review'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe citation verification',
       prompt:
         'Build a workflow that accepts claims and their source passages, uses TypeSafe Evaluate Questions with one independent Noul question per claim about source support, and writes the support probabilities to a table. Route uncertain claims for review using configurable thresholds.',
@@ -258,7 +258,7 @@ export const TypeSafeBlockMeta = {
       tags: ['citations', 'verification', 'research'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe RAG passage classification',
       prompt:
         'Build a workflow that retrieves knowledge-base passages for a query and classifies each with TypeSafe Choose an Option as relevant, partially relevant, or irrelevant using explicit criteria. Keep the labels and probabilities, then pass selected passages to an Agent.',
@@ -267,7 +267,7 @@ export const TypeSafeBlockMeta = {
       tags: ['rag', 'classification', 'research'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe entity matching',
       prompt:
         'Create a workflow that reads candidate record pairs from a table, supplies their structured fields to TypeSafe Estimate Yes/No Probability, and asks whether they identify the same real-world entity. Store the probability and use configurable match, non-match, and review bands before any merge.',
@@ -276,7 +276,7 @@ export const TypeSafeBlockMeta = {
       tags: ['matching', 'data-quality', 'review'],
     },
     {
-      icon: ApiIcon,
+      icon: TypeSafeIcon,
       title: 'TypeSafe hierarchical classification',
       prompt:
         'Build a workflow that uses TypeSafe Choose an Option to classify a document into a top-level category, then routes to a second TypeSafe block with only that category’s child options. Store both labels and probability distributions, and review low-confidence decisions at either level.',

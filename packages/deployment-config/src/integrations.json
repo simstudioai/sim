@@ -25785,7 +25785,7 @@
       "description": "Classify, score, and evaluate input with Jev",
       "longDescription": "Use TypeSafe Jev to choose an option, assign a fractional score, estimate a yes/no probability, or evaluate independent named questions in one request. Supply text or structured state, define criteria, and route results through downstream Condition blocks. All four operations are also available as Agent tools.",
       "bgColor": "#343A40",
-      "iconName": "ApiIcon",
+      "iconName": "TypeSafeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/typesafe",
       "operations": [
         {
