@@ -1188,12 +1188,16 @@ const SATURATED_REACH_TTL_MS = 5 * 60 * 1000
  * A counted reach: whether it is broad enough to walk the whole graph for, or empty, in which
  * case the caller reads nothing in these bases and no leg has anything to rank.
  */
-interface RememberedReach {
+interface CountedReach {
   broad: boolean
   empty: boolean
 }
 
-const saturatedReach = new LRUCache<string, RememberedReach>({
+/**
+ * Only breadth is remembered. Emptiness decides completeness, not strategy, so it is counted on
+ * every search: the count of a reach of nothing finds nothing and costs almost nothing.
+ */
+const saturatedReach = new LRUCache<string, { broad: boolean }>({
   max: 10_000,
   ttl: SATURATED_REACH_TTL_MS,
 })
@@ -1258,10 +1262,13 @@ async function estimateFilteredDocuments(
 
 /**
  * How far a caller reaches: broad when they reach at least {@link BROAD_REACH_SHARE} of the
- * bases' documents, empty when they reach none. Counted once against that bound and remembered,
- * so the first search after the window pays for it and the rest do not. A caller whose probe
- * already saturated is known to reach past the probe's limit, so a bound inside that limit is
- * met without counting.
+ * bases' documents, empty when they reach none. A reach of nothing is a bounded set of nothing: a
+ * caller who reads no document in these bases, such as a member with no source of their own yet,
+ * has nothing for any leg to rank, where an unbounded set would have each leg scan to its
+ * deadline for rows it cannot find. Breadth is counted once against the bound and remembered, so
+ * the first search after the window pays for it and the rest do not. A caller whose probe already
+ * saturated is known to reach past the probe's limit, so a bound inside that limit is met without
+ * counting.
  *
  * The count reads as many index entries as the caller reaches, so on a large index it can cost
  * more than the leg it serves; it gets the probe's share of the deadline, never the whole leg's.
@@ -1274,7 +1281,7 @@ async function countReach(
   budget: SearchBudget | undefined,
   plan: SearchAccessPlan | undefined,
   saturated: boolean
-): Promise<RememberedReach | null> {
+): Promise<CountedReach | null> {
   if (access.kind !== 'user') return { broad: true, empty: false }
   const countBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
   try {
@@ -1354,29 +1361,19 @@ export async function resolveReach(
 ): Promise<PermittedDocuments> {
   const key = reachKey(knowledgeBaseIds, access, plan)
   const remembered = key ? saturatedReach.get(key) : undefined
-  if (remembered) return permittedFromReach(remembered)
+  if (remembered) return { kind: 'unbounded', broad: remembered.broad }
   try {
     const reach = await countReach(knowledgeBaseIds, access, budget, plan, false)
     /** A count that ran out of time decides this search only; the next one counts again. */
     if (reach === null) return { kind: 'unbounded', broad: true }
-    if (key) saturatedReach.set(key, reach)
-    return permittedFromReach(reach)
+    if (reach.empty) return { kind: 'bounded', documents: [] }
+    if (key) saturatedReach.set(key, { broad: reach.broad })
+    return { kind: 'unbounded', broad: reach.broad }
   } catch (error) {
     /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
     if (!budget?.isTimeout(error)) throw error
     return { kind: 'unbounded', broad: true }
   }
-}
-
-/**
- * A reach of nothing is a bounded set of nothing: a caller who reads no document in these bases,
- * such as a member with no source of their own yet, has nothing for any leg to rank, where an
- * unbounded set would have each leg scan for rows it cannot find.
- */
-function permittedFromReach(reach: RememberedReach): PermittedDocuments {
-  return reach.empty
-    ? { kind: 'bounded', documents: [] }
-    : { kind: 'unbounded', broad: reach.broad }
 }
 
 /**
@@ -1406,10 +1403,6 @@ export async function resolvePermittedDocuments(params: {
     params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
   )
   const remembered = key && !filteredDirectly ? saturatedReach.get(key) : undefined
-  if (remembered?.empty) {
-    annotateSearchDiagnostics({ permittedDocuments: 'bounded', permittedDocumentCount: 0 })
-    return { kind: 'bounded', documents: [] }
-  }
   if (remembered) {
     probe = { kind: 'saturated' }
     broad = remembered.broad
@@ -1442,9 +1435,10 @@ export async function resolvePermittedDocuments(params: {
           true
         )
         /** A count that ran out of time decides this search only; the next one counts again. */
-        if (reach !== null) {
+        if (reach?.empty) probe = { kind: 'documents', documents: [] }
+        else if (reach !== null) {
           broad = reach.broad
-          if (key) saturatedReach.set(key, reach)
+          if (key) saturatedReach.set(key, { broad })
         }
       } catch (error) {
         /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */

@@ -2051,7 +2051,7 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
-    it('reports a caller who reaches nothing as a bounded set of nothing, and remembers it', async () => {
+    it('reports a caller who reaches nothing as a bounded set of nothing, counted every time', async () => {
       dbChainMockFns.execute.mockImplementation(async (query) => {
         const statement = render(query).sql
         if (statement.includes('EXPLAIN'))
@@ -2071,21 +2071,29 @@ describe('permitted-document planner', () => {
       await expect(
         resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
       ).resolves.toEqual({ kind: 'bounded', documents: [] })
-      expect(reachCounts()).toHaveLength(1)
-      /** Remembered like any reach: the next search neither counts nor probes. */
+      /** Emptiness decides completeness, so it is never remembered: the next search counts again. */
       await expect(
         resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
       ).resolves.toEqual({ kind: 'bounded', documents: [] })
+      expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('reports a saturated probe whose count then finds nothing as a bounded set of nothing', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
       await expect(
         resolvePermittedDocuments({
           knowledgeBaseIds: ['org-index'],
-          access: scope('reaches-nothing'),
-          budget: budget(),
-          accessPlan: plan,
+          access: scope('saturated-then-nothing'),
+          budget: new SearchBudget('vector', performance.now() + 10_000),
         })
       ).resolves.toEqual({ kind: 'bounded', documents: [] })
-      expect(reachCounts()).toHaveLength(1)
-      expect(probes()).toBe(0)
     })
 
     it('does not read an unanalyzed index as a reach of nothing', async () => {
