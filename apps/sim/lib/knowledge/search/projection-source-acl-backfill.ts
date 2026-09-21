@@ -16,6 +16,13 @@ const logger = createLogger('ProjectionSourceAclBackfill')
 
 export const PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID = 'projection-source-acl-backfill'
 
+/**
+ * Ceiling on warming the projections after the fill. It sits inside the headroom the worker
+ * keeps beyond a run's fill budget, so a slow read of a large projection can never carry the
+ * completed run past the worker's limit and repeat the fill on retry.
+ */
+export const PROJECTION_PREWARM_BUDGET_MS = 15 * 60 * 1000
+
 /** Where a run stopped, so the next one carries on from there instead of rescanning. */
 export interface ProjectionSourceAclBackfillCursor {
   projection: ProjectionSourceAclTable
@@ -71,7 +78,7 @@ export async function runProjectionSourceAclBackfill(
       elapsedMs: Date.now() - startedAt,
     })
     /** The fill just streamed through both projections; put the ranking pages back before anyone searches. */
-    await prewarmSearchProjection(sql)
+    await prewarmSearchProjection(sql, { budgetMs: PROJECTION_PREWARM_BUDGET_MS })
     return null
   } finally {
     await sql.end()

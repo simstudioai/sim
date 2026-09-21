@@ -28,6 +28,7 @@ vi.mock('@/lib/core/utils/background', () => ({
 
 import {
   enqueueProjectionSourceAclBackfill,
+  PROJECTION_PREWARM_BUDGET_MS,
   runProjectionSourceAclBackfill,
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
@@ -62,7 +63,7 @@ describe('runProjectionSourceAclBackfill', () => {
   it('warms the projections on the same connection once both are filled, before closing it', async () => {
     await runProjectionSourceAclBackfill({})
     expect(mockPrewarm).toHaveBeenCalledTimes(1)
-    expect(mockPrewarm).toHaveBeenCalledWith(connection)
+    expect(mockPrewarm).toHaveBeenCalledWith(connection, { budgetMs: PROJECTION_PREWARM_BUDGET_MS })
     expect(mockPrewarm.mock.invocationCallOrder[0]).toBeLessThan(
       mockEnd.mock.invocationCallOrder[0]
     )

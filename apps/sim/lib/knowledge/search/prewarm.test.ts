@@ -95,6 +95,79 @@ describe('prewarmSearchProjection', () => {
     expect(warmed.map((item) => item.relation)).toEqual(['embedding_search_512_cosine_hnsw_idx'])
   })
 
+  it('returns nothing when the extension cannot be checked, never failing its caller', async () => {
+    const fake = session({ installed: true })
+    fake.unsafe = async () => {
+      throw new Error('canceling statement due to user request')
+    }
+    await expect(prewarmSearchProjection(fake)).resolves.toEqual([])
+  })
+
+  it('bounds every read by the budget left and leaves the rest cold once it is spent', async () => {
+    vi.useFakeTimers()
+    try {
+      const fake = session({
+        installed: true,
+        relations: [
+          'embedding_search',
+          'embedding_keyword_tin',
+          'embedding_search_512_cosine_hnsw_idx',
+        ],
+      })
+      const read = fake.unsafe
+      fake.unsafe = async (query: string, parameters?: string[]) => {
+        const rows = await read(query, parameters)
+        /** Each read takes 400 ms of a 1 s budget. */
+        if (query.includes('pg_prewarm(')) vi.advanceTimersByTime(400)
+        return rows
+      }
+      const warmed = await prewarmSearchProjection(fake, { budgetMs: 1000 })
+      expect(warmed.map((item) => item.relation)).toEqual([
+        'embedding_search',
+        'embedding_keyword_tin',
+        'embedding_search_512_cosine_hnsw_idx',
+      ])
+      const timeouts = fake.statements
+        .filter((statement) => statement.query.startsWith('SET statement_timeout'))
+        .map((statement) => Number(statement.query.split('= ')[1]))
+      expect(timeouts).toEqual([1000, 600, 200])
+      expect(fake.statements.at(-1)?.query).toBe('RESET statement_timeout')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips the relations beyond a spent budget', async () => {
+    vi.useFakeTimers()
+    try {
+      const fake = session({
+        installed: true,
+        relations: ['embedding_search', 'embedding_search_512_cosine_hnsw_idx'],
+      })
+      const read = fake.unsafe
+      fake.unsafe = async (query: string, parameters?: string[]) => {
+        const rows = await read(query, parameters)
+        if (query.includes('pg_prewarm(')) vi.advanceTimersByTime(1500)
+        return rows
+      }
+      const warmed = await prewarmSearchProjection(fake, { budgetMs: 1000 })
+      expect(warmed.map((item) => item.relation)).toEqual(['embedding_search'])
+      expect(
+        fake.statements.filter((statement) => statement.query.includes('pg_prewarm('))
+      ).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never sets a timeout on an unbounded pass', async () => {
+    const fake = session({ installed: true, relations: ['embedding_search'] })
+    await prewarmSearchProjection(fake)
+    expect(fake.statements.some((statement) => statement.query.includes('statement_timeout'))).toBe(
+      false
+    )
+  })
+
   it('returns nothing when the catalog cannot be read, never failing its caller', async () => {
     const fake = session({ installed: true })
     fake.unsafe = async (query: string) => {

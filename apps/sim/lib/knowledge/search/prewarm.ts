@@ -22,6 +22,15 @@ export interface PrewarmedRelation {
   elapsedMs: number
 }
 
+export interface PrewarmOptions {
+  /**
+   * Wall-clock ceiling for the whole pass. Each read is bounded by the time left, and relations
+   * beyond the ceiling stay cold; a caller with its own run limit sets it so warming can never
+   * outlive the run that asked for it.
+   */
+  budgetMs?: number
+}
+
 /**
  * `pg_prewarm` is not a trusted extension, so the application role cannot create it and no
  * migration can; a superuser installs it once. Without it the projection warms only as searches
@@ -57,18 +66,23 @@ export async function prewarmRelation(
  * Heaps go first and the ranking indexes last, so where the cache cannot hold everything the
  * indexes are what survives: a walk reads far more index pages than heap pages. Relations are
  * resolved through the search path, so a schema that carries its own copy warms its own copy.
- * A relation that fails to warm is logged and skipped; warming is never worth failing the
+ * Nothing here throws: a missing extension, an unreadable catalog, a relation that fails to
+ * read or a spent budget is logged and skipped, since warming is never worth failing the
  * operation that asked for it.
  */
 export async function prewarmSearchProjection(
-  session: PrewarmSession
+  session: PrewarmSession,
+  options: PrewarmOptions = {}
 ): Promise<PrewarmedRelation[]> {
-  if (!(await pgPrewarmInstalled(session))) {
-    logger.warn('pg_prewarm is not installed; the search projection warms only as it is searched')
-    return []
-  }
+  const startedAt = Date.now()
+  const remainingMs = () =>
+    options.budgetMs === undefined ? undefined : options.budgetMs - (Date.now() - startedAt)
   let relations: string[]
   try {
+    if (!(await pgPrewarmInstalled(session))) {
+      logger.warn('pg_prewarm is not installed; the search projection warms only as it is searched')
+      return []
+    }
     relations = await rankingRelations(session)
   } catch (error) {
     logger.warn('Search projection relations could not be listed', {
@@ -77,20 +91,37 @@ export async function prewarmSearchProjection(
     return []
   }
   const warmed: PrewarmedRelation[] = []
-  for (const relation of relations) {
-    try {
-      warmed.push(await prewarmRelation(session, relation))
-    } catch (error) {
-      logger.warn('Search projection relation failed to warm', {
-        relation,
-        error: getErrorMessage(error),
-      })
+  const cold: string[] = []
+  try {
+    for (const relation of relations) {
+      const left = remainingMs()
+      if (left !== undefined && left <= 0) {
+        cold.push(relation)
+        continue
+      }
+      try {
+        if (left !== undefined) {
+          await session.unsafe(`SET statement_timeout = ${Math.ceil(left)}`)
+        }
+        warmed.push(await prewarmRelation(session, relation))
+      } catch (error) {
+        cold.push(relation)
+        logger.warn('Search projection relation failed to warm', {
+          relation,
+          error: getErrorMessage(error),
+        })
+      }
+    }
+  } finally {
+    if (options.budgetMs !== undefined) {
+      await Promise.resolve(session.unsafe('RESET statement_timeout')).catch(() => undefined)
     }
   }
   logger.info('Search projection warmed', {
     relations: warmed.length,
+    cold,
     pages: warmed.reduce((sum, item) => sum + item.pages, 0),
-    elapsedMs: warmed.reduce((sum, item) => sum + item.elapsedMs, 0),
+    elapsedMs: Date.now() - startedAt,
   })
   return warmed
 }
