@@ -1,0 +1,263 @@
+---
+title: Permission Groups
+description: Manage permission groups — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim permission-groups` is also spelled `sim permission-group`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Add permission group member
+
+```bash
+sim permission-groups members add [options]
+```
+
+Add Permission Group Member (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--user-id <value>` | Yes | Existing organization member to add. |
+
+</CommandTable>
+
+## Bulk add permission group members
+
+```bash
+sim permission-groups members batch-add [options]
+```
+
+Bulk Add Permission Group Members (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--user-ids <json\|@file>` | No | Organization member identifiers. Existing group members are skipped; users outside the organization are ignored. (JSON, or @path / @- to read a file or stdin). |
+| `--add-all-organization-members` | No | Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds. |
+| `--no-add-all-organization-members` | No | Send --add-all-organization-members as false. |
+
+</CommandTable>
+
+## List permission group members
+
+```bash
+sim permission-groups members list [options]
+```
+
+List Permission Group Members (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `assignedAt`, `userId`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## Remove permission group member
+
+```bash
+sim permission-groups members remove <memberId> [options]
+```
+
+Remove Permission Group Member (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `memberId` | Yes | Membership assignment identifier returned by List Permission Group Members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Create permission group
+
+```bash
+sim permission-groups create [options]
+```
+
+Create Permission Group (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--name <value>` | Yes | Group name, unique within the organization. |
+| `--description <value>` | No | Optional group description. |
+| `--config <json\|@file>` | No | Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
+| `--is-default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-is-default` | No | Send --is-default as false. |
+| `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Delete permission group
+
+```bash
+sim permission-groups delete <groupId> [options]
+```
+
+Delete Permission Group (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get permission group
+
+```bash
+sim permission-groups get <groupId> [options]
+```
+
+Get Permission Group (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+
+</CommandTable>
+
+## List permission groups
+
+```bash
+sim permission-groups list [options]
+```
+
+List Permission Groups (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--search <value>` | No | Case-insensitive substring match against the group name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## List permission group workspaces
+
+```bash
+sim permission-groups workspaces [options]
+```
+
+List Permission Group Workspaces (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## Update permission group
+
+```bash
+sim permission-groups update <groupId> [options]
+```
+
+Update Permission Group (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization that owns the permission group. |
+| `--name <value>` | No | Group name, unique within the organization. |
+| `--description <value>` | No | Group description. Null clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
+| `--config <json\|@file>` | No | Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
+| `--is-default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-is-default` | No | Send --is-default as false. |
+| `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>

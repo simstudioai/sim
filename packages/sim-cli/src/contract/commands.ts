@@ -1,5 +1,13 @@
 import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 
+const PERMISSION_GROUP_ORGANIZATION_FLAG = {
+  organizationId: { name: 'organization', describe: 'Organization that owns the permission group' },
+} as const
+const PERMISSION_GROUP_MEMBER_FLAGS = {
+  ...PERMISSION_GROUP_ORGANIZATION_FLAG,
+  groupId: { name: 'group', describe: 'Permission group identifier' },
+} as const
+
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
@@ -933,6 +941,62 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'description' },
       { header: 'built-in', path: 'readOnly', format: 'bool' },
     ],
+  },
+  listPermissionGroups: {
+    command: 'permission-groups list',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'default', path: 'isDefault', format: 'bool' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  getPermissionGroup: {
+    command: 'permission-groups get',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+  },
+  createPermissionGroup: {
+    command: 'permission-groups create',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+  },
+  updatePermissionGroup: {
+    command: 'permission-groups update',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+  },
+  deletePermissionGroup: {
+    command: 'permission-groups delete',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    confirm: 'This permanently deletes the permission group and its member assignments.',
+  },
+  listPermissionGroupMembers: {
+    command: 'permission-groups members list',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    columns: [
+      { header: 'id' },
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+    ],
+  },
+  addPermissionGroupMember: {
+    command: 'permission-groups members add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+  },
+  removePermissionGroupMember: {
+    command: 'permission-groups members remove',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    confirm:
+      'This removes the member assignment and changes which permission groups apply to the user.',
+  },
+  bulkAddPermissionGroupMembers: {
+    command: 'permission-groups members batch-add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+  },
+  listPermissionGroupWorkspaces: {
+    command: 'permission-groups workspaces',
+    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'name' }],
   },
   listCustomTools: {
     columns: [

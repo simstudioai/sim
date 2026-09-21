@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sim API v2 — Workspace Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, and the block, tool, and connector-type catalogs.",
+    "title": "Sim API v2 — Resources",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -21,6 +21,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Permission Groups",
+      "description": "Manage organization permission groups, their restrictions, and membership."
+    },
     {
       "name": "Meta",
       "description": "Discover what the calling API credential can reach."
@@ -4712,6 +4716,1007 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListConnectorTypesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups": {
+      "get": {
+        "operationId": "listPermissionGroups",
+        "summary": "List Permission Groups",
+        "description": "List permission groups in an organization with cursor pagination. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "permission_groups.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the group name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the group name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Permission Groups result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPermissionGroupsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPermissionGroup",
+        "summary": "Create Permission Group",
+        "description": "Create a permission group. A non-default group requires workspaces and initially governs everyone in them. Creating a default group demotes the previous default to an inactive group until it is assigned workspaces. Overlapping all-member scopes conflict. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Create Permission Group inputs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePermissionGroupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create Permission Group result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePermissionGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}": {
+      "get": {
+        "operationId": "getPermissionGroup",
+        "summary": "Get Permission Group",
+        "description": "Get a permission group and its resolved restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "permission_groups.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get Permission Group result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPermissionGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePermissionGroup",
+        "summary": "Update Permission Group",
+        "description": "Update a permission group. Omitted fields remain unchanged; config keys are patched and supplied arrays replace their lists. Promoting a group to default demotes the previous default; demoting without workspaceIds leaves it inactive. Overlapping member or all-member scopes conflict. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Update Permission Group inputs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePermissionGroupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update Permission Group result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePermissionGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePermissionGroup",
+        "summary": "Delete Permission Group",
+        "description": "Permanently delete a permission group and its membership assignments. Members then inherit any other applicable restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.delete",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delete Permission Group result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePermissionGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members": {
+      "get": {
+        "operationId": "listPermissionGroupMembers",
+        "summary": "List Permission Group Members",
+        "description": "List explicit membership assignments in a permission group with cursor pagination. An empty inherit group applies to everyone in its workspaces. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "permission_groups.members.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "assignedAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["assignedAt", "userId"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Permission Group Members result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPermissionGroupMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addPermissionGroupMember",
+        "summary": "Add Permission Group Member",
+        "description": "Assign an organization member to a permission group. An existing assignment or membership in another group targeting the same workspace returns a conflict. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.members.add",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Add Permission Group Member inputs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPermissionGroupMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Add Permission Group Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddPermissionGroupMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/{memberId}": {
+      "delete": {
+        "operationId": "removePermissionGroupMember",
+        "summary": "Remove Permission Group Member",
+        "description": "Remove a membership assignment. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.members.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "description": "Membership assignment identifier returned by List Permission Group Members.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Membership assignment identifier returned by List Permission Group Members."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove Permission Group Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovePermissionGroupMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/bulk": {
+      "post": {
+        "operationId": "bulkAddPermissionGroupMembers",
+        "summary": "Bulk Add Permission Group Members",
+        "description": "Assign up to 1000 organization members atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "permission_groups.members.bulk_add",
+        "x-oauth-scope": "api:write",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Permission group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Permission group identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Bulk Add Permission Group Members inputs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAddPermissionGroupMembersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk Add Permission Group Members result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkAddPermissionGroupMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/permission-groups/workspaces": {
+      "get": {
+        "operationId": "listPermissionGroupWorkspaces",
+        "summary": "List Permission Group Workspaces",
+        "description": "List organization workspaces available for permission-group scope selection with cursor pagination. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "permission_groups.workspaces.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Permission Groups"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization that owns the permission groups.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization that owns the permission groups."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the workspace name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the workspace name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "id"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum organization workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum organization workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Permission Group Workspaces result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPermissionGroupWorkspacesResponse"
                 }
               }
             }
@@ -11310,6 +12315,1600 @@
                     "fieldType": "text"
                   }
                 ]
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2PermissionGroup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Permission group identifier."
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Organization that owns the group."
+          },
+          "name": {
+            "type": "string",
+            "description": "Group name, unique within the organization."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional description of the group."
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "allowedIntegrations": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Integrations and blocks are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "allowedModelProviders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Model providers are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "deniedModels": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Models listed in this list are blocked."
+              },
+              "deniedTools": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Integration tools listed in this list are blocked."
+              },
+              "hideTraceSpans": {
+                "type": "boolean",
+                "description": "Withhold per-block trace spans from logs and from the API."
+              },
+              "hideKnowledgeBaseTab": {
+                "type": "boolean",
+                "description": "Revoke the Knowledge Base module. Members cannot open, search, or query any knowledge base."
+              },
+              "hideTablesTab": {
+                "type": "boolean",
+                "description": "Revoke the Tables module. Members cannot read or write any table."
+              },
+              "hideCopilot": {
+                "type": "boolean",
+                "description": "Revoke Chat. Members cannot ask Sim to build or edit anything."
+              },
+              "hideIntegrationsTab": {
+                "type": "boolean",
+                "description": "Revoke integration connections. Members cannot view, add, or remove an OAuth connection."
+              },
+              "hideSecretsTab": {
+                "type": "boolean",
+                "description": "Revoke secrets. Members cannot read, add, or change a workspace environment variable."
+              },
+              "hideApiKeysTab": {
+                "type": "boolean",
+                "description": "Revoke workspace API keys. Members cannot list, create, or revoke one."
+              },
+              "hideInboxTab": {
+                "type": "boolean",
+                "description": "Revoke the Sim Mailer inbox. Members cannot read or send mail."
+              },
+              "hideFilesTab": {
+                "type": "boolean",
+                "description": "Revoke the Files module. Members cannot list, upload, or download workspace files."
+              },
+              "disableMcpTools": {
+                "type": "boolean",
+                "description": "Block agents from calling MCP tools."
+              },
+              "disableCustomTools": {
+                "type": "boolean",
+                "description": "Block agents from calling user-defined custom tools."
+              },
+              "disableSkills": {
+                "type": "boolean",
+                "description": "Block agents from loading skills."
+              },
+              "disableInvitations": {
+                "type": "boolean",
+                "description": "Prevent inviting anyone to a workspace or to the organization."
+              },
+              "disablePublicApi": {
+                "type": "boolean",
+                "description": "Revoke public API access. Calls to a deployed workflow are refused."
+              },
+              "disablePublicFileSharing": {
+                "type": "boolean",
+                "description": "Revoke public file sharing. Members cannot create a share link."
+              },
+              "allowedFileShareAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Public file-share authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "hideDeployApi": {
+                "type": "boolean",
+                "description": "Prevent deploying a workflow as an API endpoint."
+              },
+              "hideDeployMcp": {
+                "type": "boolean",
+                "description": "Prevent exposing a workflow as an MCP server."
+              },
+              "hideDeployChatbot": {
+                "type": "boolean",
+                "description": "Prevent publishing a workflow as a chat."
+              },
+              "allowedChatDeployAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Chat deployment authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disablePersonalApiKeys": {
+                "type": "boolean",
+                "description": "Prevent members from using a personal API key against this workspace."
+              },
+              "disableLogExport": {
+                "type": "boolean",
+                "description": "Prevent downloading execution logs as a CSV."
+              },
+              "hideCostInfo": {
+                "type": "boolean",
+                "description": "Withhold execution cost. Logs and member exports omit cost and token spend; organization-level data drains, configurable by org admins only, are not projected."
+              },
+              "disableKnowledgeBaseCreation": {
+                "type": "boolean",
+                "description": "Prevent creating knowledge bases, leaving existing ones queryable."
+              },
+              "disableKnowledgeBaseFileUpload": {
+                "type": "boolean",
+                "description": "Prevent uploading local documents, leaving sanctioned connectors as the only source."
+              },
+              "allowedKnowledgeConnectors": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Knowledge base connectors are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disableTableCreation": {
+                "type": "boolean",
+                "description": "Prevent creating tables, leaving existing ones usable."
+              },
+              "disableTableExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole table as CSV or JSON."
+              },
+              "disableBulkFileDownload": {
+                "type": "boolean",
+                "description": "Prevent downloading folders as an archive."
+              },
+              "disablePersonalCredentials": {
+                "type": "boolean",
+                "description": "Prevent connecting personal credentials, leaving only workspace-shared ones."
+              },
+              "disableWorkspaceCreation": {
+                "type": "boolean",
+                "description": "Prevent creating new workspaces, which no existing group would govern. Read from the organization's default group, because creating a workspace names none."
+              },
+              "hideOrgMemberDirectory": {
+                "type": "boolean",
+                "description": "Withhold the member directory. Members cannot see the names or email addresses of other members. Read from the organization's default group, because the directory belongs to the organization and names no workspace."
+              },
+              "disableCliAccess": {
+                "type": "boolean",
+                "description": "Prevent approving a CLI login or using Sim CLI OAuth tokens for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group."
+              },
+              "disableWebhookTriggers": {
+                "type": "boolean",
+                "description": "Prevent making a workflow reachable from an inbound webhook."
+              },
+              "disableToolAutoApproval": {
+                "type": "boolean",
+                "description": "Prevent silencing a tool confirmation, so every call is confirmed again."
+              },
+              "hideSandboxesTab": {
+                "type": "boolean",
+                "description": "Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox."
+              },
+              "disableOAuthAppAccess": {
+                "type": "boolean",
+                "description": "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access."
+              },
+              "disableKnowledgeBaseExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole knowledge base as an archive."
+              }
+            },
+            "required": [
+              "allowedIntegrations",
+              "allowedModelProviders",
+              "deniedModels",
+              "deniedTools",
+              "hideTraceSpans",
+              "hideKnowledgeBaseTab",
+              "hideTablesTab",
+              "hideCopilot",
+              "hideIntegrationsTab",
+              "hideSecretsTab",
+              "hideApiKeysTab",
+              "hideInboxTab",
+              "hideFilesTab",
+              "disableMcpTools",
+              "disableCustomTools",
+              "disableSkills",
+              "disableInvitations",
+              "disablePublicApi",
+              "disablePublicFileSharing",
+              "allowedFileShareAuthTypes",
+              "hideDeployApi",
+              "hideDeployMcp",
+              "hideDeployChatbot",
+              "allowedChatDeployAuthTypes",
+              "disablePersonalApiKeys",
+              "disableLogExport",
+              "hideCostInfo",
+              "disableKnowledgeBaseCreation",
+              "disableKnowledgeBaseFileUpload",
+              "allowedKnowledgeConnectors",
+              "disableTableCreation",
+              "disableTableExport",
+              "disableBulkFileDownload",
+              "disablePersonalCredentials",
+              "disableWorkspaceCreation",
+              "hideOrgMemberDirectory",
+              "disableCliAccess",
+              "disableWebhookTriggers",
+              "disableToolAutoApproval",
+              "hideSandboxesTab",
+              "disableOAuthAppAccess",
+              "disableKnowledgeBaseExport"
+            ],
+            "additionalProperties": false,
+            "description": "Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Whether this is the organization default, which applies across all its workspaces."
+          },
+          "membershipMode": {
+            "type": "string",
+            "description": "An empty inherit group governs everyone in its workspaces; an empty explicit group governs nobody."
+          },
+          "workspaceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workspaces governed by a non-default group. Empty for the default group."
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "User who created the group."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the group was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the group was last updated."
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "name",
+          "description",
+          "config",
+          "isDefault",
+          "membershipMode",
+          "workspaceIds",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Permission group",
+        "description": "An organization permission group and its resolved restrictions."
+      },
+      "ListPermissionGroupsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2PermissionGroup"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Permission Groups response",
+        "description": "List Permission Groups result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "group-123",
+                "organizationId": "org-123",
+                "name": "Restricted",
+                "description": null,
+                "config": {
+                  "allowedIntegrations": null,
+                  "allowedModelProviders": null,
+                  "deniedModels": [],
+                  "deniedTools": [],
+                  "hideTraceSpans": false,
+                  "hideKnowledgeBaseTab": false,
+                  "hideTablesTab": false,
+                  "hideCopilot": false,
+                  "hideIntegrationsTab": false,
+                  "hideSecretsTab": false,
+                  "hideApiKeysTab": false,
+                  "hideInboxTab": false,
+                  "hideFilesTab": false,
+                  "disableMcpTools": false,
+                  "disableCustomTools": false,
+                  "disableSkills": false,
+                  "disableInvitations": false,
+                  "disablePublicApi": false,
+                  "disablePublicFileSharing": false,
+                  "allowedFileShareAuthTypes": null,
+                  "hideDeployApi": false,
+                  "hideDeployMcp": false,
+                  "hideDeployChatbot": false,
+                  "allowedChatDeployAuthTypes": null,
+                  "disablePersonalApiKeys": false,
+                  "disableLogExport": false,
+                  "hideCostInfo": false,
+                  "disableKnowledgeBaseCreation": false,
+                  "disableKnowledgeBaseFileUpload": false,
+                  "allowedKnowledgeConnectors": null,
+                  "disableTableCreation": false,
+                  "disableTableExport": false,
+                  "disableBulkFileDownload": false,
+                  "disablePersonalCredentials": false,
+                  "disableWorkspaceCreation": false,
+                  "hideOrgMemberDirectory": false,
+                  "disableCliAccess": false,
+                  "disableWebhookTriggers": false,
+                  "disableToolAutoApproval": false,
+                  "hideSandboxesTab": false,
+                  "disableOAuthAppAccess": false,
+                  "disableKnowledgeBaseExport": false
+                },
+                "isDefault": false,
+                "membershipMode": "inherit",
+                "workspaceIds": ["workspace-123"],
+                "createdBy": "admin-123",
+                "createdAt": "2026-06-01T09:00:00.000Z",
+                "updatedAt": "2026-06-01T09:00:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreatePermissionGroupResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroup"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create Permission Group response",
+        "description": "Create Permission Group result.",
+        "examples": [
+          {
+            "data": {
+              "id": "group-123",
+              "organizationId": "org-123",
+              "name": "Restricted",
+              "description": null,
+              "config": {
+                "allowedIntegrations": null,
+                "allowedModelProviders": null,
+                "deniedModels": [],
+                "deniedTools": [],
+                "hideTraceSpans": false,
+                "hideKnowledgeBaseTab": false,
+                "hideTablesTab": false,
+                "hideCopilot": false,
+                "hideIntegrationsTab": false,
+                "hideSecretsTab": false,
+                "hideApiKeysTab": false,
+                "hideInboxTab": false,
+                "hideFilesTab": false,
+                "disableMcpTools": false,
+                "disableCustomTools": false,
+                "disableSkills": false,
+                "disableInvitations": false,
+                "disablePublicApi": false,
+                "disablePublicFileSharing": false,
+                "allowedFileShareAuthTypes": null,
+                "hideDeployApi": false,
+                "hideDeployMcp": false,
+                "hideDeployChatbot": false,
+                "allowedChatDeployAuthTypes": null,
+                "disablePersonalApiKeys": false,
+                "disableLogExport": false,
+                "hideCostInfo": false,
+                "disableKnowledgeBaseCreation": false,
+                "disableKnowledgeBaseFileUpload": false,
+                "allowedKnowledgeConnectors": null,
+                "disableTableCreation": false,
+                "disableTableExport": false,
+                "disableBulkFileDownload": false,
+                "disablePersonalCredentials": false,
+                "disableWorkspaceCreation": false,
+                "hideOrgMemberDirectory": false,
+                "disableCliAccess": false,
+                "disableWebhookTriggers": false,
+                "disableToolAutoApproval": false,
+                "hideSandboxesTab": false,
+                "disableOAuthAppAccess": false,
+                "disableKnowledgeBaseExport": false
+              },
+              "isDefault": false,
+              "membershipMode": "inherit",
+              "workspaceIds": ["workspace-123"],
+              "createdBy": "admin-123",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "updatedAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "CreatePermissionGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Group name, unique within the organization."
+          },
+          "description": {
+            "description": "Optional group description.",
+            "type": "string",
+            "maxLength": 500
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "allowedIntegrations": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Integrations and blocks are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "allowedModelProviders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Model providers are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "deniedModels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Models listed in this list are blocked."
+              },
+              "deniedTools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Integration tools listed in this list are blocked."
+              },
+              "hideTraceSpans": {
+                "type": "boolean",
+                "description": "Withhold per-block trace spans from logs and from the API."
+              },
+              "hideKnowledgeBaseTab": {
+                "type": "boolean",
+                "description": "Revoke the Knowledge Base module. Members cannot open, search, or query any knowledge base."
+              },
+              "hideTablesTab": {
+                "type": "boolean",
+                "description": "Revoke the Tables module. Members cannot read or write any table."
+              },
+              "hideCopilot": {
+                "type": "boolean",
+                "description": "Revoke Chat. Members cannot ask Sim to build or edit anything."
+              },
+              "hideIntegrationsTab": {
+                "type": "boolean",
+                "description": "Revoke integration connections. Members cannot view, add, or remove an OAuth connection."
+              },
+              "hideSecretsTab": {
+                "type": "boolean",
+                "description": "Revoke secrets. Members cannot read, add, or change a workspace environment variable."
+              },
+              "hideApiKeysTab": {
+                "type": "boolean",
+                "description": "Revoke workspace API keys. Members cannot list, create, or revoke one."
+              },
+              "hideInboxTab": {
+                "type": "boolean",
+                "description": "Revoke the Sim Mailer inbox. Members cannot read or send mail."
+              },
+              "hideFilesTab": {
+                "type": "boolean",
+                "description": "Revoke the Files module. Members cannot list, upload, or download workspace files."
+              },
+              "disableMcpTools": {
+                "type": "boolean",
+                "description": "Block agents from calling MCP tools."
+              },
+              "disableCustomTools": {
+                "type": "boolean",
+                "description": "Block agents from calling user-defined custom tools."
+              },
+              "disableSkills": {
+                "type": "boolean",
+                "description": "Block agents from loading skills."
+              },
+              "disableInvitations": {
+                "type": "boolean",
+                "description": "Prevent inviting anyone to a workspace or to the organization."
+              },
+              "disablePublicApi": {
+                "type": "boolean",
+                "description": "Revoke public API access. Calls to a deployed workflow are refused."
+              },
+              "disablePublicFileSharing": {
+                "type": "boolean",
+                "description": "Revoke public file sharing. Members cannot create a share link."
+              },
+              "allowedFileShareAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Public file-share authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "hideDeployApi": {
+                "type": "boolean",
+                "description": "Prevent deploying a workflow as an API endpoint."
+              },
+              "hideDeployMcp": {
+                "type": "boolean",
+                "description": "Prevent exposing a workflow as an MCP server."
+              },
+              "hideDeployChatbot": {
+                "type": "boolean",
+                "description": "Prevent publishing a workflow as a chat."
+              },
+              "allowedChatDeployAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Chat deployment authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disablePersonalApiKeys": {
+                "type": "boolean",
+                "description": "Prevent members from using a personal API key against this workspace."
+              },
+              "disableLogExport": {
+                "type": "boolean",
+                "description": "Prevent downloading execution logs as a CSV."
+              },
+              "hideCostInfo": {
+                "type": "boolean",
+                "description": "Withhold execution cost. Logs and member exports omit cost and token spend; organization-level data drains, configurable by org admins only, are not projected."
+              },
+              "disableKnowledgeBaseCreation": {
+                "type": "boolean",
+                "description": "Prevent creating knowledge bases, leaving existing ones queryable."
+              },
+              "disableKnowledgeBaseFileUpload": {
+                "type": "boolean",
+                "description": "Prevent uploading local documents, leaving sanctioned connectors as the only source."
+              },
+              "allowedKnowledgeConnectors": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Knowledge base connectors are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disableTableCreation": {
+                "type": "boolean",
+                "description": "Prevent creating tables, leaving existing ones usable."
+              },
+              "disableTableExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole table as CSV or JSON."
+              },
+              "disableBulkFileDownload": {
+                "type": "boolean",
+                "description": "Prevent downloading folders as an archive."
+              },
+              "disablePersonalCredentials": {
+                "type": "boolean",
+                "description": "Prevent connecting personal credentials, leaving only workspace-shared ones."
+              },
+              "disableWorkspaceCreation": {
+                "type": "boolean",
+                "description": "Prevent creating new workspaces, which no existing group would govern. Read from the organization's default group, because creating a workspace names none."
+              },
+              "hideOrgMemberDirectory": {
+                "type": "boolean",
+                "description": "Withhold the member directory. Members cannot see the names or email addresses of other members. Read from the organization's default group, because the directory belongs to the organization and names no workspace."
+              },
+              "disableCliAccess": {
+                "type": "boolean",
+                "description": "Prevent approving a CLI login or using Sim CLI OAuth tokens for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group."
+              },
+              "disableWebhookTriggers": {
+                "type": "boolean",
+                "description": "Prevent making a workflow reachable from an inbound webhook."
+              },
+              "disableToolAutoApproval": {
+                "type": "boolean",
+                "description": "Prevent silencing a tool confirmation, so every call is confirmed again."
+              },
+              "hideSandboxesTab": {
+                "type": "boolean",
+                "description": "Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox."
+              },
+              "disableOAuthAppAccess": {
+                "type": "boolean",
+                "description": "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access."
+              },
+              "disableKnowledgeBaseExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole knowledge base as an archive."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list."
+          },
+          "isDefault": {
+            "description": "Whether the group is the organization default. Only one group can be the default.",
+            "type": "boolean"
+          },
+          "workspaceIds": {
+            "description": "Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false,
+        "title": "Create Permission Group request",
+        "description": "Create Permission Group inputs.",
+        "examples": [
+          {
+            "name": "Restricted",
+            "workspaceIds": ["workspace-123"]
+          }
+        ]
+      },
+      "GetPermissionGroupResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroup"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get Permission Group response",
+        "description": "Get Permission Group result.",
+        "examples": [
+          {
+            "data": {
+              "id": "group-123",
+              "organizationId": "org-123",
+              "name": "Restricted",
+              "description": null,
+              "config": {
+                "allowedIntegrations": null,
+                "allowedModelProviders": null,
+                "deniedModels": [],
+                "deniedTools": [],
+                "hideTraceSpans": false,
+                "hideKnowledgeBaseTab": false,
+                "hideTablesTab": false,
+                "hideCopilot": false,
+                "hideIntegrationsTab": false,
+                "hideSecretsTab": false,
+                "hideApiKeysTab": false,
+                "hideInboxTab": false,
+                "hideFilesTab": false,
+                "disableMcpTools": false,
+                "disableCustomTools": false,
+                "disableSkills": false,
+                "disableInvitations": false,
+                "disablePublicApi": false,
+                "disablePublicFileSharing": false,
+                "allowedFileShareAuthTypes": null,
+                "hideDeployApi": false,
+                "hideDeployMcp": false,
+                "hideDeployChatbot": false,
+                "allowedChatDeployAuthTypes": null,
+                "disablePersonalApiKeys": false,
+                "disableLogExport": false,
+                "hideCostInfo": false,
+                "disableKnowledgeBaseCreation": false,
+                "disableKnowledgeBaseFileUpload": false,
+                "allowedKnowledgeConnectors": null,
+                "disableTableCreation": false,
+                "disableTableExport": false,
+                "disableBulkFileDownload": false,
+                "disablePersonalCredentials": false,
+                "disableWorkspaceCreation": false,
+                "hideOrgMemberDirectory": false,
+                "disableCliAccess": false,
+                "disableWebhookTriggers": false,
+                "disableToolAutoApproval": false,
+                "hideSandboxesTab": false,
+                "disableOAuthAppAccess": false,
+                "disableKnowledgeBaseExport": false
+              },
+              "isDefault": false,
+              "membershipMode": "inherit",
+              "workspaceIds": ["workspace-123"],
+              "createdBy": "admin-123",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "updatedAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdatePermissionGroupResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroup"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update Permission Group response",
+        "description": "Update Permission Group result.",
+        "examples": [
+          {
+            "data": {
+              "id": "group-123",
+              "organizationId": "org-123",
+              "name": "Restricted",
+              "description": null,
+              "config": {
+                "allowedIntegrations": null,
+                "allowedModelProviders": null,
+                "deniedModels": [],
+                "deniedTools": [],
+                "hideTraceSpans": false,
+                "hideKnowledgeBaseTab": false,
+                "hideTablesTab": false,
+                "hideCopilot": false,
+                "hideIntegrationsTab": false,
+                "hideSecretsTab": false,
+                "hideApiKeysTab": false,
+                "hideInboxTab": false,
+                "hideFilesTab": false,
+                "disableMcpTools": false,
+                "disableCustomTools": false,
+                "disableSkills": false,
+                "disableInvitations": false,
+                "disablePublicApi": false,
+                "disablePublicFileSharing": false,
+                "allowedFileShareAuthTypes": null,
+                "hideDeployApi": false,
+                "hideDeployMcp": false,
+                "hideDeployChatbot": false,
+                "allowedChatDeployAuthTypes": null,
+                "disablePersonalApiKeys": false,
+                "disableLogExport": false,
+                "hideCostInfo": false,
+                "disableKnowledgeBaseCreation": false,
+                "disableKnowledgeBaseFileUpload": false,
+                "allowedKnowledgeConnectors": null,
+                "disableTableCreation": false,
+                "disableTableExport": false,
+                "disableBulkFileDownload": false,
+                "disablePersonalCredentials": false,
+                "disableWorkspaceCreation": false,
+                "hideOrgMemberDirectory": false,
+                "disableCliAccess": false,
+                "disableWebhookTriggers": false,
+                "disableToolAutoApproval": false,
+                "hideSandboxesTab": false,
+                "disableOAuthAppAccess": false,
+                "disableKnowledgeBaseExport": false
+              },
+              "isDefault": false,
+              "membershipMode": "inherit",
+              "workspaceIds": ["workspace-123"],
+              "createdBy": "admin-123",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "updatedAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdatePermissionGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Group name, unique within the organization."
+          },
+          "description": {
+            "description": "Group description. Null clears it; omission leaves it unchanged.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "allowedIntegrations": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Integrations and blocks are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "allowedModelProviders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Model providers are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "deniedModels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Models listed in this list are blocked."
+              },
+              "deniedTools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Integration tools listed in this list are blocked."
+              },
+              "hideTraceSpans": {
+                "type": "boolean",
+                "description": "Withhold per-block trace spans from logs and from the API."
+              },
+              "hideKnowledgeBaseTab": {
+                "type": "boolean",
+                "description": "Revoke the Knowledge Base module. Members cannot open, search, or query any knowledge base."
+              },
+              "hideTablesTab": {
+                "type": "boolean",
+                "description": "Revoke the Tables module. Members cannot read or write any table."
+              },
+              "hideCopilot": {
+                "type": "boolean",
+                "description": "Revoke Chat. Members cannot ask Sim to build or edit anything."
+              },
+              "hideIntegrationsTab": {
+                "type": "boolean",
+                "description": "Revoke integration connections. Members cannot view, add, or remove an OAuth connection."
+              },
+              "hideSecretsTab": {
+                "type": "boolean",
+                "description": "Revoke secrets. Members cannot read, add, or change a workspace environment variable."
+              },
+              "hideApiKeysTab": {
+                "type": "boolean",
+                "description": "Revoke workspace API keys. Members cannot list, create, or revoke one."
+              },
+              "hideInboxTab": {
+                "type": "boolean",
+                "description": "Revoke the Sim Mailer inbox. Members cannot read or send mail."
+              },
+              "hideFilesTab": {
+                "type": "boolean",
+                "description": "Revoke the Files module. Members cannot list, upload, or download workspace files."
+              },
+              "disableMcpTools": {
+                "type": "boolean",
+                "description": "Block agents from calling MCP tools."
+              },
+              "disableCustomTools": {
+                "type": "boolean",
+                "description": "Block agents from calling user-defined custom tools."
+              },
+              "disableSkills": {
+                "type": "boolean",
+                "description": "Block agents from loading skills."
+              },
+              "disableInvitations": {
+                "type": "boolean",
+                "description": "Prevent inviting anyone to a workspace or to the organization."
+              },
+              "disablePublicApi": {
+                "type": "boolean",
+                "description": "Revoke public API access. Calls to a deployed workflow are refused."
+              },
+              "disablePublicFileSharing": {
+                "type": "boolean",
+                "description": "Revoke public file sharing. Members cannot create a share link."
+              },
+              "allowedFileShareAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Public file-share authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "hideDeployApi": {
+                "type": "boolean",
+                "description": "Prevent deploying a workflow as an API endpoint."
+              },
+              "hideDeployMcp": {
+                "type": "boolean",
+                "description": "Prevent exposing a workflow as an MCP server."
+              },
+              "hideDeployChatbot": {
+                "type": "boolean",
+                "description": "Prevent publishing a workflow as a chat."
+              },
+              "allowedChatDeployAuthTypes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["public", "password", "email", "sso"]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Chat deployment authentication is limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disablePersonalApiKeys": {
+                "type": "boolean",
+                "description": "Prevent members from using a personal API key against this workspace."
+              },
+              "disableLogExport": {
+                "type": "boolean",
+                "description": "Prevent downloading execution logs as a CSV."
+              },
+              "hideCostInfo": {
+                "type": "boolean",
+                "description": "Withhold execution cost. Logs and member exports omit cost and token spend; organization-level data drains, configurable by org admins only, are not projected."
+              },
+              "disableKnowledgeBaseCreation": {
+                "type": "boolean",
+                "description": "Prevent creating knowledge bases, leaving existing ones queryable."
+              },
+              "disableKnowledgeBaseFileUpload": {
+                "type": "boolean",
+                "description": "Prevent uploading local documents, leaving sanctioned connectors as the only source."
+              },
+              "allowedKnowledgeConnectors": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Knowledge base connectors are limited to this list. Null permits every value; an empty list permits none."
+              },
+              "disableTableCreation": {
+                "type": "boolean",
+                "description": "Prevent creating tables, leaving existing ones usable."
+              },
+              "disableTableExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole table as CSV or JSON."
+              },
+              "disableBulkFileDownload": {
+                "type": "boolean",
+                "description": "Prevent downloading folders as an archive."
+              },
+              "disablePersonalCredentials": {
+                "type": "boolean",
+                "description": "Prevent connecting personal credentials, leaving only workspace-shared ones."
+              },
+              "disableWorkspaceCreation": {
+                "type": "boolean",
+                "description": "Prevent creating new workspaces, which no existing group would govern. Read from the organization's default group, because creating a workspace names none."
+              },
+              "hideOrgMemberDirectory": {
+                "type": "boolean",
+                "description": "Withhold the member directory. Members cannot see the names or email addresses of other members. Read from the organization's default group, because the directory belongs to the organization and names no workspace."
+              },
+              "disableCliAccess": {
+                "type": "boolean",
+                "description": "Prevent approving a CLI login or using Sim CLI OAuth tokens for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group."
+              },
+              "disableWebhookTriggers": {
+                "type": "boolean",
+                "description": "Prevent making a workflow reachable from an inbound webhook."
+              },
+              "disableToolAutoApproval": {
+                "type": "boolean",
+                "description": "Prevent silencing a tool confirmation, so every call is confirmed again."
+              },
+              "hideSandboxesTab": {
+                "type": "boolean",
+                "description": "Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox."
+              },
+              "disableOAuthAppAccess": {
+                "type": "boolean",
+                "description": "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access."
+              },
+              "disableKnowledgeBaseExport": {
+                "type": "boolean",
+                "description": "Prevent downloading a whole knowledge base as an archive."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list."
+          },
+          "isDefault": {
+            "description": "Whether the group is the organization default. Only one group can be the default.",
+            "type": "boolean"
+          },
+          "workspaceIds": {
+            "description": "Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update Permission Group request",
+        "description": "Update Permission Group inputs.",
+        "examples": [
+          {
+            "description": "Restricted workspace access"
+          }
+        ]
+      },
+      "V2PermissionGroupDeletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deleted permission group identifier."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the group was permanently deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Permission group deletion",
+        "description": "Acknowledges permanent group deletion."
+      },
+      "DeletePermissionGroupResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroupDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete Permission Group response",
+        "description": "Delete Permission Group result.",
+        "examples": [
+          {
+            "data": {
+              "id": "group-123",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2PermissionGroupMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Membership assignment identifier."
+          },
+          "userId": {
+            "type": "string",
+            "description": "Organization member assigned to the group."
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the member was assigned."
+          },
+          "userName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member display name."
+          },
+          "userEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member email address."
+          },
+          "userImage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member avatar URL."
+          }
+        },
+        "required": ["id", "userId", "assignedAt", "userName", "userEmail", "userImage"],
+        "additionalProperties": false,
+        "title": "Permission group member",
+        "description": "An explicit permission-group membership assignment."
+      },
+      "ListPermissionGroupMembersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2PermissionGroupMember"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Permission Group Members response",
+        "description": "List Permission Group Members result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "assignment-123",
+                "userId": "user-123",
+                "assignedAt": "2026-06-01T09:00:00.000Z",
+                "userName": "Example Member",
+                "userEmail": "member@example.com",
+                "userImage": null
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2PermissionGroupAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Membership assignment identifier."
+          },
+          "permissionGroupId": {
+            "type": "string",
+            "description": "Group receiving the member."
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Organization that owns the group."
+          },
+          "userId": {
+            "type": "string",
+            "description": "User assigned to the group."
+          },
+          "assignedBy": {
+            "type": "string",
+            "description": "User who made the assignment."
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the assignment was created."
+          }
+        },
+        "required": [
+          "id",
+          "permissionGroupId",
+          "organizationId",
+          "userId",
+          "assignedBy",
+          "assignedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Permission group assignment",
+        "description": "The newly created membership assignment."
+      },
+      "AddPermissionGroupMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroupAssignment"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Add Permission Group Member response",
+        "description": "Add Permission Group Member result.",
+        "examples": [
+          {
+            "data": {
+              "id": "assignment-123",
+              "permissionGroupId": "group-123",
+              "organizationId": "org-123",
+              "userId": "user-123",
+              "assignedBy": "admin-123",
+              "assignedAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "AddPermissionGroupMemberRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Existing organization member to add."
+          }
+        },
+        "required": ["userId"],
+        "additionalProperties": false,
+        "title": "Add Permission Group Member request",
+        "description": "Add Permission Group Member inputs.",
+        "examples": [
+          {
+            "userId": "user-123"
+          }
+        ]
+      },
+      "V2PermissionGroupMemberDeletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Removed membership assignment identifier."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the assignment was removed."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Permission group member deletion",
+        "description": "Acknowledges membership removal."
+      },
+      "RemovePermissionGroupMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroupMemberDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove Permission Group Member response",
+        "description": "Remove Permission Group Member result.",
+        "examples": [
+          {
+            "data": {
+              "id": "assignment-123",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2PermissionGroupBulkAdd": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "number",
+            "description": "Number of members added."
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Number of selected organization members already in the group."
+          }
+        },
+        "required": ["added", "skipped"],
+        "additionalProperties": false,
+        "title": "Permission group bulk addition",
+        "description": "Counts of added and already assigned organization members."
+      },
+      "BulkAddPermissionGroupMembersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PermissionGroupBulkAdd"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk Add Permission Group Members response",
+        "description": "Bulk Add Permission Group Members result.",
+        "examples": [
+          {
+            "data": {
+              "added": 1,
+              "skipped": 0
+            }
+          }
+        ]
+      },
+      "BulkAddPermissionGroupMembersRequest": {
+        "type": "object",
+        "properties": {
+          "userIds": {
+            "description": "Organization member identifiers. Existing group members are skipped; users outside the organization are ignored.",
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "addAllOrganizationMembers": {
+            "description": "Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "title": "Bulk Add Permission Group Members request",
+        "description": "Bulk Add Permission Group Members inputs.",
+        "examples": [
+          {
+            "userIds": ["user-123"]
+          }
+        ]
+      },
+      "V2PermissionGroupWorkspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Workspace identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace display name."
+          }
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false,
+        "title": "Permission group workspace",
+        "description": "An organization workspace available for group targeting."
+      },
+      "ListPermissionGroupWorkspacesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2PermissionGroupWorkspace"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Permission Group Workspaces response",
+        "description": "List Permission Group Workspaces result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "workspace-123",
+                "name": "Engineering"
               }
             ],
             "nextCursor": null

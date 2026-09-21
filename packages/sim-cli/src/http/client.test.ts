@@ -1026,6 +1026,10 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'createPermissionGroup',
+    'updatePermissionGroup',
+    'addPermissionGroupMember',
+    'bulkAddPermissionGroupMembers',
     'forkWorkspace',
     'getSelector',
     'listSelector',

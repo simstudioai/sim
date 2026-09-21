@@ -45,6 +45,10 @@ import {
 
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
+  'GET /api/v2/organizations/[organizationId]/permission-groups',
+  'GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+  'GET /api/v2/organizations/[organizationId]/permission-groups/workspaces',
+
   'GET /api/v2/audit-logs',
   'GET /api/v2/billing/logs',
   'GET /api/v2/blocks',
@@ -147,6 +151,17 @@ const FULL_SET_LISTS = [
  * therefore fails here until someone decides whether the cursor is bound to it.
  */
 const CURSOR_BINDINGS: Record<string, readonly string[]> = {
+  'GET /api/v2/organizations/[organizationId]/permission-groups': ['search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members': [
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/organizations/[organizationId]/permission-groups/workspaces': [
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+
   'GET /api/v2/audit-logs': [
     'includeDeparted',
     'action',
@@ -289,6 +304,13 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/organizations/[organizationId]/permission-groups': ['organizationId'],
+  'GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members': [
+    'organizationId',
+    'groupId',
+  ],
+  'GET /api/v2/organizations/[organizationId]/permission-groups/workspaces': ['organizationId'],
+
   'GET /api/v2/files/[fileId]/versions': ['fileId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['knowledgeBaseId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [

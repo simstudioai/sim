@@ -127,6 +127,67 @@ describe('commands parsed through commander', () => {
     profileState.workspaceId = 'ws_local'
   })
 
+  describe('permission groups', () => {
+    it('lists organization groups without a workspace', async () => {
+      profileState.workspaceId = null
+      const [path, options] = await run(['permission-groups', 'list', '--organization', 'org-1'])
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups')
+      expect(options.query).not.toHaveProperty('workspaceId')
+    })
+
+    it('passes group configuration through the shared update operation', async () => {
+      const [path, options] = await run(
+        [
+          'permission-groups',
+          'update',
+          'group-1',
+          '--organization',
+          'org-1',
+          '--config',
+          '{"disableCliAccess":true}',
+        ],
+        { data: {} }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1')
+      expect(options).toMatchObject({
+        method: 'PATCH',
+        body: { config: { disableCliAccess: true } },
+      })
+    })
+
+    it('adds a member with explicit organization and group scope', async () => {
+      const [path, options] = await run(
+        [
+          'permission-groups',
+          'members',
+          'add',
+          '--organization',
+          'org-1',
+          '--group',
+          'group-1',
+          '--user-id',
+          'user-1',
+        ],
+        { data: { id: 'assignment-1' } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1/members')
+      expect(options).toMatchObject({ method: 'POST', body: { userId: 'user-1' } })
+    })
+
+    it('requires confirmation to delete a group', async () => {
+      await expect(
+        run(['permission-groups', 'delete', 'group-1', '--organization', 'org-1'])
+      ).rejects.toThrow(/--yes/)
+      expect(mockRequest).not.toHaveBeenCalled()
+      const [path, options] = await run(
+        ['permission-groups', 'delete', 'group-1', '--organization', 'org-1', '--yes'],
+        { data: { id: 'group-1', deleted: true } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1')
+      expect(options.method).toBe('DELETE')
+    })
+  })
+
   it('carries a multi-word flag all the way to the request', async () => {
     // The regression: commander stores this as `minDurationMs`, so a lookup by
     // `min-duration-ms` found nothing and the filter never reached the API.

@@ -27,6 +27,7 @@
     "logs",
     "mcp-servers",
     "meta",
+    "permission-groups",
     "sandboxes",
     "secrets",
     "selectors",
