@@ -10,6 +10,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
+import { prewarmSearchProjection } from '@/lib/knowledge/search/prewarm'
 
 const logger = createLogger('ProjectionSourceAclBackfill')
 
@@ -69,6 +70,8 @@ export async function runProjectionSourceAclBackfill(
     logger.info('Projection source and ACL backfill complete', {
       elapsedMs: Date.now() - startedAt,
     })
+    /** The fill just streamed through both projections; put the ranking pages back before anyone searches. */
+    await prewarmSearchProjection(sql)
     return null
   } finally {
     await sql.end()
