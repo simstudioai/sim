@@ -20,13 +20,25 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetTableById, mockGetUserEntityPermissions, mockAddTableColumn, mockListTableViews } =
+const { mockGetTableById, mockCheckWorkspaceAccess, mockAddTableColumn, mockListTableViews } =
   vi.hoisted(() => ({
     mockGetTableById: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
+    mockCheckWorkspaceAccess: vi.fn(),
     mockAddTableColumn: vi.fn(),
     mockListTableViews: vi.fn(),
   }))
+
+/** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
+function workspaceAccess(permission: string | null, organizationId: string | null = 'org-1') {
+  return {
+    exists: true,
+    hasAccess: permission !== null,
+    canWrite: permission === 'admin' || permission === 'write',
+    canAdmin: permission === 'admin',
+    workspace: { id: 'ws-1', organizationId },
+    permission,
+  }
+}
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -44,7 +56,7 @@ vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
 vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: vi.fn() }))
 vi.mock('@/lib/table/wire', () => ({ normalizeColumn: (column: unknown) => column }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 vi.mock('@/lib/workspaces/utils', () => ({ getWorkspaceOrganizationId: vi.fn() }))
 
@@ -96,9 +108,40 @@ describe('tables.use gate on the raw /api/table routes', () => {
       authType: 'session',
     })
     mockGetTableById.mockResolvedValue(TABLE)
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
     mockAddTableColumn.mockResolvedValue({ schema: { columns: [{ name: 'expires_at' }] } })
     mockListTableViews.mockResolvedValue([])
+  })
+
+  /**
+   * The capability resolver looks the workspace up itself when the organization is omitted, so a
+   * call site that already access-checked the workspace and drops the id pays a second read of a
+   * value it is holding — once on every raw table route. Asserted on the resolver rather than on
+   * a query count because that is where the omission would show.
+   */
+  it('hands the capability resolver the organization it just loaded, not undefined', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin', 'org-42'))
+
+    await listViews()
+
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      'org-42'
+    )
+  })
+
+  /** A personal workspace has no organization; `null` is the answer, and still not a lookup. */
+  it('passes null for a workspace that belongs to no organization', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin', null))
+
+    await listViews()
+
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      null
+    )
   })
 
   describe('when the group withholds Tables', () => {
@@ -131,7 +174,7 @@ describe('tables.use gate on the raw /api/table routes', () => {
     })
 
     it('still conceals a table the caller cannot reach, rather than naming the capability', async () => {
-      mockGetUserEntityPermissions.mockResolvedValue(null)
+      mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess(null))
 
       const response = await listViews()
 
