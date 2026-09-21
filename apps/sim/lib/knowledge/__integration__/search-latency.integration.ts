@@ -134,10 +134,12 @@ async function exactProjectionNeighbors(vector: number[], limit: number, readerC
     JSON.stringify(vector),
     'text-embedding-3-small'
   )
-  return db.execute<{ id: string }>(sql`SELECT s.id FROM ${embeddingSearch} s
-    INNER JOIN document d ON d.id = s.document_id
-    WHERE s.knowledge_base_id = ${ids.knowledgeBaseId} AND s.enabled ${readerClause ?? sql``}
-    ORDER BY (${distance}) + 0, s.id
+  /** Unaliased: the distance expression qualifies its column with the table's own name. */
+  return db.execute<{ id: string }>(sql`SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+    INNER JOIN document d ON d.id = ${embeddingSearch.documentId}
+    WHERE ${embeddingSearch.knowledgeBaseId} = ${ids.knowledgeBaseId}
+      AND ${embeddingSearch.enabled} ${readerClause ?? sql``}
+    ORDER BY (${distance}) + 0, ${embeddingSearch.id}
     LIMIT ${limit}`)
 }
 const captured: CapturedQuery[] = []
@@ -1197,7 +1199,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             const expected = await exactProjectionNeighbors(
               queryVector,
               actual.length,
-              sql`AND s.document_id IN (${sql.join(
+              sql`AND ${embeddingSearch.documentId} IN (${sql.join(
                 documentIds.map((id) => sql`${id}`),
                 sql`, `
               )})`

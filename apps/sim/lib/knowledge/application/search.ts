@@ -285,8 +285,9 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
     )
     /**
      * Whether the organization may search at all, and whether this payer still may: neither
-     * depends on the query, so both run beside the embedding call below instead of ahead of it.
-     * A refusal still ends the search before any retrieval.
+     * depends on the query, so both run beside the scope and defaults reads below instead of
+     * ahead of them. Admission stays ahead of the embedding call, which a refused search must
+     * never make.
      */
     const admit = async (): Promise<BillingAttributionSnapshot | undefined> => {
       if (context.organizationId)
@@ -368,40 +369,40 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
     input.signal?.throwIfAborted()
-    const [queryEmbedding, access, searchDefaults, billingAttribution, tagDefinitions] =
-      await Promise.all([
-        hasQuery
-          ? measureSearchStage('embedding', () =>
-              runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-                generateSearchEmbedding(
-                  input.query!,
-                  embeddingTarget!,
-                  context.workspaceId,
-                  input.signal
-                )
-              )
-            )
-          : Promise.resolve(null),
-        measureSearchStage('access_scope', () => context.access.get()),
-        measureSearchStage('defaults', () =>
-          resolveKnowledgeSearchDefaults({
-            workspaceId: context.workspaceId,
-            organizationId: context.organizationId,
+    const [access, searchDefaults, billingAttribution, tagDefinitions] = await Promise.all([
+      measureSearchStage('access_scope', () => context.access.get()),
+      measureSearchStage('defaults', () =>
+        resolveKnowledgeSearchDefaults({
+          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
 
-            /** The signed-in person, if any; never the billing owner or a key's creator. */
-            userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-            requestedMode: input.searchMode,
-          })
-        ),
-        admit(),
-        /** The tag names the results are labelled with depend on the bases alone. */
-        filters.length === 0
-          ? measureSearchStage('tag_definitions', () =>
-              getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
-            )
-          : Promise.resolve(definitionsByKnowledgeBase),
-      ])
+          /** The signed-in person, if any; never the billing owner or a key's creator. */
+          userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+          requestedMode: input.searchMode,
+        })
+      ),
+      admit(),
+      /** The tag names the results are labelled with depend on the bases alone. */
+      filters.length === 0
+        ? measureSearchStage('tag_definitions', () =>
+            getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+          )
+        : Promise.resolve(definitionsByKnowledgeBase),
+    ])
     definitionsByKnowledgeBase = tagDefinitions
+    input.signal?.throwIfAborted()
+    const queryEmbedding = hasQuery
+      ? await measureSearchStage('embedding', () =>
+          runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
+            generateSearchEmbedding(
+              input.query!,
+              embeddingTarget!,
+              context.workspaceId,
+              input.signal
+            )
+          )
+        )
+      : null
     input.signal?.throwIfAborted()
     annotateSearchDiagnostics({
       accessScopeKind: access.kind,

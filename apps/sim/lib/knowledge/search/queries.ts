@@ -117,13 +117,20 @@ const PROJECTION_FILLED_TTL_MS = 60_000
  * Whether the ranking projection still holds rows the backfill has not filled. Read off the
  * unfilled-rows index in microseconds and remembered briefly: the answer only ever changes once.
  */
-const projectionFilled = new LRUCache<ProjectionSourceAclTable, boolean>({
+const projectionFilled = new LRUCache<
+  ProjectionSourceAclTable,
+  boolean,
+  { budget: SearchBudget | undefined; stage: SearchStage }
+>({
   max: PROJECTION_SOURCE_ACL_TABLES.length,
   ttl: PROJECTION_FILLED_TTL_MS,
-  fetchMethod: async (projection) => {
+  /** The read that misses the cache spends the leg's own budget, like every other read of the leg. */
+  fetchMethod: async (projection, _stale, { context }) => {
     const table = projection === 'embedding_search' ? embeddingSearch : embeddingKeywordTin
-    const [row] = await db.execute<{ unfilled: boolean }>(sql`
+    const [row] = await runSearchQuery(context.budget, context.stage, (executor) =>
+      executor.execute<{ unfilled: boolean }>(sql`
       SELECT EXISTS (SELECT 1 FROM ${table} WHERE ${table.acl} IS NULL) AS unfilled`)
+    )
     return !row?.unfilled
   },
 })
@@ -1770,7 +1777,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         }
         let selected: Array<{ id: string }>
         const plan = params.access.kind === 'user' ? params.accessPlan : undefined
-        const filled = plan ? ((await projectionFilled.fetch('embedding_search')) ?? false) : false
+        const filled = plan
+          ? ((await projectionFilled.fetch('embedding_search', {
+              context: { budget: params.budget, stage: 'vector.projection_filled' },
+            })) ?? false)
+          : false
         /**
          * A source the caller is a member of that has its own index is walked on its own, which
          * beats ranking it exactly once it is large enough to have earned that index.
@@ -1891,29 +1902,32 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           vectorCandidateScan: selected.length < candidateLimit ? 'underfilled' : 'planned',
         })
       }
-      const slice = candidatePool.ids.slice(offset, offset + limit)
-      if (!slice.length) return { candidates: [], nextOffset: offset }
       /**
        * The walk's order is the page's order: it ranked on the stored halfvec, and rescoring the
        * pool against the original vectors read one out-of-line vector per candidate from storage
        * no cache holds, seconds on a query nobody had run before. Only the page's identities are
-       * read here; the full read predicate follows at hydration, as before.
+       * read here; the full read predicate follows at hydration, as before. A slice whose
+       * documents all went away since the walk is passed over, not mistaken for the pool's end.
        */
-      const ranked = new Map(slice.map((candidate, index) => [candidate.id, index]))
-      const identities = await runSearchQuery(params.budget, 'vector.page', (executor) =>
-        executor.execute<SearchReadCandidate>(sql`
+      for (let start = offset; start < candidatePool.ids.length; start += limit) {
+        const slice = candidatePool.ids.slice(start, start + limit)
+        const ranked = new Map(slice.map((candidate, index) => [candidate.id, index]))
+        const identities = await runSearchQuery(params.budget, 'vector.page', (executor) =>
+          executor.execute<SearchReadCandidate>(sql`
           SELECT ${embeddingSearch.id} AS id, ${document.id} AS "documentId",
             ${document.connectorId} AS "connectorId"
           FROM ${embeddingSearch}
           INNER JOIN ${document} ON ${document.id} = ${embeddingSearch.documentId}
           WHERE ${embeddingSearch.id} = ANY(${textArrayLiteral(slice.map((candidate) => candidate.id))})
         `)
-      )
-      const page = [...identities].sort((a, b) => (ranked.get(a.id) ?? 0) - (ranked.get(b.id) ?? 0))
-      return {
-        candidates: page,
-        nextOffset: offset + page.length,
+        )
+        if (!identities.length) continue
+        const page = [...identities].sort(
+          (a, b) => (ranked.get(a.id) ?? 0) - (ranked.get(b.id) ?? 0)
+        )
+        return { candidates: page, nextOffset: start + slice.length }
       }
+      return { candidates: [], nextOffset: candidatePool.ids.length }
     },
     hydrate: (ids, authorized) =>
       hydrateSearchCandidates(
@@ -2027,7 +2041,9 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     /** A filled projection decides readability on the ranked row alone; none of its rows needs the document. */
     const tinFilled =
       accessPlan && tinQuery
-        ? ((await projectionFilled.fetch('embedding_keyword_tin')) ?? false)
+        ? ((await projectionFilled.fetch('embedding_keyword_tin', {
+            context: { budget: params.budget, stage: 'keyword.projection_filled' },
+          })) ?? false)
         : false
     /** The projection predicate over the ranked CTE's mirrored columns, plus any excluded source. */
     const onRowKeywordVisibility = (excludedSources: readonly string[]) =>

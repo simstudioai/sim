@@ -51,6 +51,8 @@ export type SearchStage =
   | 'vector.settings'
   | 'vector.probe'
   | 'vector.page'
+  | 'vector.projection_filled'
+  | 'keyword.projection_filled'
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'

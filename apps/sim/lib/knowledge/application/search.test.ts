@@ -356,8 +356,8 @@ describe('knowledge search application use case', () => {
     ).rejects.toThrow('Search is not enabled for this organization')
     expect(mocks.recordActivity).not.toHaveBeenCalled()
     expect(mocks.requireOrganizationSearch).toHaveBeenCalledExactlyOnceWith('org-canonical')
-    /** The gate runs beside the embedding call; billing and retrieval still never start after a refusal. */
     expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 

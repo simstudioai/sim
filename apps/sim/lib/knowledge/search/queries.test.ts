@@ -559,6 +559,21 @@ describe('workspace-scoped vector retrieval', () => {
     expect(JSON.stringify(dbChainMockFns.leftJoin.mock.calls)).toContain('embeddingSearch')
   })
 
+  it('passes over a slice whose documents went away instead of ending the pool there', async () => {
+    const execute = dbChainMockFns.execute.getMockImplementation()!
+    let pages = 0
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query)
+      /** The first slice's documents are gone; the next slice still has the readable rows. */
+      if (isPageStatement(statement.sql)) return pages++ === 0 ? [] : ranked
+      return execute(query)
+    })
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(pages).toBe(2)
+    expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+  })
+
   it('sizes the pool to the pages asked for, doubling a pool the pages outran', () => {
     expect(vectorCandidatePoolLimit(20, undefined)).toBe(200)
     expect(vectorCandidatePoolLimit(150, undefined)).toBe(300)
