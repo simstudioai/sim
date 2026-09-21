@@ -8,6 +8,7 @@ import {
   startSlackAgentStream,
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -182,6 +183,26 @@ describe('Slack agent API transport', () => {
         'processing'
       )
     ).rejects.toThrow('missing_scope')
+  })
+
+  it('exposes an explicit size rejection to the delivery controller without a transport retry', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: 'msg_too_long' }), { status: 200 })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const appended = appendSlackAgentStream('token', 'C1', '1.2', [
+      { type: 'markdown_text', text: 'undelivered suffix' },
+    ])
+    await expect(appended).rejects.toBeInstanceOf(SlackDeliveryError)
+    await expect(appended).rejects.toMatchObject({
+      method: 'chat.appendStream',
+      outcome: 'rejected',
+      code: 'msg_too_long',
+      httpStatus: 200,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast when Slack does not recognize the stop-event subscription', async () => {

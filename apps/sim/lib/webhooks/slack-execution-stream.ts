@@ -12,6 +12,7 @@ import {
   startSlackAgentStream,
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 import type {
   SlackStreamOutputConfig,
   SlackStreamResponseConfig,
@@ -189,10 +190,35 @@ class SlackInvocationStream {
       let end = Math.min(offset + SLACK_MESSAGE_TEXT_LIMIT - message.textLength, text.length)
       const lastCodeUnit = text.charCodeAt(end - 1)
       if (end < text.length && lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
-      const chunk = text.slice(offset, end)
-      await this.append([{ type: 'markdown_text', text: chunk }], message)
-      this.acknowledgedAnswer += chunk
-      offset = end
+      for (;;) {
+        const chunk = text.slice(offset, end)
+        try {
+          await this.append([{ type: 'markdown_text', text: chunk }], message)
+          this.acknowledgedAnswer += chunk
+          offset = end
+          break
+        } catch (error) {
+          /** Only an explicit size rejection proves this text was not appended. */
+          if (
+            !(error instanceof SlackDeliveryError) ||
+            error.method !== 'chat.appendStream' ||
+            error.outcome !== 'rejected' ||
+            error.code !== 'msg_too_long'
+          ) {
+            throw error
+          }
+          if (message.textLength > 0) {
+            message = await this.ensureStarted(true)
+          } else {
+            /** A rejected first append shrinks on each attempt, stopping at one code point. */
+            let smallerEnd = offset + Math.floor((end - offset) / 2)
+            const lastCodeUnit = text.charCodeAt(smallerEnd - 1)
+            if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) smallerEnd--
+            if (smallerEnd <= offset) throw error
+            end = smallerEnd
+          }
+        }
+      }
     }
   }
 

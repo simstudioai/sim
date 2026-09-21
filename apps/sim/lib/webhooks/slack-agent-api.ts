@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 
 export type SlackStreamChunk =
   | { type: 'markdown_text'; text: string }
@@ -29,19 +30,6 @@ interface SlackStreamTarget {
   initiatorUserId?: string
   recipientUserId?: string
   recipientTeamId?: string
-}
-
-/** A missing acknowledgment does not establish that Slack rejected a write. */
-export class SlackDeliveryError extends Error {
-  constructor(
-    readonly method: string,
-    readonly outcome: 'rejected' | 'uncertain',
-    readonly code: string,
-    readonly httpStatus?: number
-  ) {
-    super(`Slack ${method}: ${code} (delivery ${outcome})`)
-    this.name = 'SlackDeliveryError'
-  }
 }
 
 /** Slack acknowledgments can include the full accumulated message, including task cards. */

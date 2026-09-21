@@ -41,6 +41,7 @@ vi.mock('@/lib/webhooks/slack-stream-sessions', () => ({
 
 import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
 import type { SlackStreamChunk } from '@/lib/webhooks/slack-agent-api'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
 import type { SlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import { type AgentStreamEvent, createAgentEventReadableStream } from '@/providers/stream-events'
@@ -475,7 +476,7 @@ describe('SlackExecutionStreamController', () => {
       .join('')
   }
 
-  function enforceSlackMessageLimit() {
+  function enforceSlackMessageLimit(limit = 12_000) {
     const messages = new Map<
       string,
       { text: string; chunks: SlackStreamChunk[]; stopped: boolean }
@@ -493,8 +494,8 @@ describe('SlackExecutionStreamController', () => {
           .filter((chunk) => chunk.type === 'markdown_text')
           .map((chunk) => chunk.text)
           .join('')
-        if (message.text.length + text.length > 12_000) {
-          throw new Error('Slack chat.appendStream: msg_too_long')
+        if (message.text.length + text.length > limit) {
+          throw new SlackDeliveryError('chat.appendStream', 'rejected', 'msg_too_long', 200)
         }
         expect(text.isWellFormed()).toBe(true)
         message.text += text
@@ -673,6 +674,100 @@ describe('SlackExecutionStreamController', () => {
       }
     }
   )
+
+  it('continues a definitively rejected 11938 + 62 boundary append without replaying accepted text', async () => {
+    const messages = enforceSlackMessageLimit(11_999)
+    const prefix = 'a'.repeat(11_938)
+    const suffix = `${'b'.repeat(3_000)}Complete ending.`
+    const { controller } = await deliver(
+      [
+        { type: 'tool_call_start', id: 'read', name: 'read' },
+        { type: 'text_delta', text: prefix, turn: 'pending' },
+        { type: 'text_delta', text: suffix, turn: 'pending' },
+        { type: 'tool_call_end', id: 'read', name: 'read', status: 'success' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+      prefix + suffix
+    )
+    controller.assertSucceeded()
+    expect([...messages.values()].map((message) => message.text)).toEqual([prefix, suffix])
+    const rejected = mockAppendSlackAgentStream.mock.calls.filter(
+      (call) =>
+        call[2] === 'message-0' &&
+        call[3].some(
+          (chunk: SlackStreamChunk) =>
+            chunk.type === 'markdown_text' && chunk.text === suffix.slice(0, 62)
+        )
+    )
+    expect(rejected).toHaveLength(1)
+    expect([...messages.values()].every((message) => message.stopped)).toBe(true)
+    const toolChunks = messages
+      .get('message-0')!
+      .chunks.filter((chunk) => chunk.type === 'task_update' && chunk.id.endsWith('-tool-read'))
+    expect(toolChunks.map((chunk) => chunk.status)).toEqual(['in_progress', 'complete'])
+  })
+
+  it('reduces a definitively oversized first append and still delivers all final-only text', async () => {
+    const messages = enforceSlackMessageLimit(11_999)
+    const answer = '🚀'.repeat(13_000)
+    const { controller } = await deliver([], answer)
+    controller.assertSucceeded()
+    expect([...messages.values()].map((message) => message.text).join('')).toBe(answer)
+    expect([...messages.values()].every((message) => message.text && message.stopped)).toBe(true)
+  })
+
+  it.each([
+    new SlackDeliveryError('chat.appendStream', 'uncertain', 'msg_too_long'),
+    new SlackDeliveryError('chat.appendStream', 'rejected', 'ratelimited', 429),
+    new SlackDeliveryError('chat.appendStream', 'rejected', 'missing_scope', 200),
+  ])('does not replay ambiguous or non-size append errors: %s', async (error) => {
+    const messages = enforceSlackMessageLimit()
+    mockAppendSlackAgentStream.mockRejectedValueOnce(error)
+    const { controller } = await deliver([{ type: 'text_delta', text: 'answer' }], 'answer')
+    expect(() => controller.assertSucceeded()).toThrow(error)
+    expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(messages.get('message-0')!.stopped).toBe(true)
+  })
+
+  it('bounds size recovery when even a single character is rejected', async () => {
+    const messages = enforceSlackMessageLimit(0)
+    const { controller } = await deliver([], 'abcd')
+    expect(() => controller.assertSucceeded()).toThrow('msg_too_long')
+    expect(mockAppendSlackAgentStream.mock.calls.map((call) => call[3])).toEqual([
+      [{ type: 'markdown_text', text: 'abcd' }],
+      [{ type: 'markdown_text', text: 'ab' }],
+      [{ type: 'markdown_text', text: 'a' }],
+    ])
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(messages.get('message-0')!.stopped).toBe(true)
+  })
+
+  it('stops recovery if the continuation append has an uncertain outcome', async () => {
+    const messages = enforceSlackMessageLimit()
+    const prefix = 'a'.repeat(11_938)
+    mockAppendSlackAgentStream
+      .mockImplementationOnce(async () => {
+        messages.get('message-0')!.text = prefix
+      })
+      .mockRejectedValueOnce(
+        new SlackDeliveryError('chat.appendStream', 'rejected', 'msg_too_long')
+      )
+      .mockRejectedValueOnce(
+        new SlackDeliveryError('chat.appendStream', 'uncertain', 'transport_failed')
+      )
+    const { controller } = await deliver(
+      [
+        { type: 'text_delta', text: prefix, turn: 'pending' },
+        { type: 'text_delta', text: 'b'.repeat(150), turn: 'pending' },
+      ],
+      prefix + 'b'.repeat(150)
+    )
+    expect(() => controller.assertSucceeded()).toThrow('transport_failed')
+    expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(3)
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect([...messages.values()].every((message) => message.stopped)).toBe(true)
+  })
 
   it('counts commentary across turns and pairs tools on their original message after rollover', async () => {
     const messages = enforceSlackMessageLimit()
