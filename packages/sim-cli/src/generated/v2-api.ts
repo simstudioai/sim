@@ -169,6 +169,31 @@ export type ActivateWorkflowVersionResponse = {
   data: ActivateWorkflowVersionResponseRef4
 }
 
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type AddPermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type AddPermissionGroupMemberQuery = Record<string, unknown>
+
+export type AddPermissionGroupMemberBody = {
+  userId: string
+}
+
+type AddPermissionGroupMemberResponseRef0 = {
+  id: string
+  permissionGroupId: string
+  organizationId: string
+  userId: string
+  assignedBy: string
+  assignedAt: string
+}
+
+export type AddPermissionGroupMemberResponse = {
+  data: AddPermissionGroupMemberResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -612,6 +637,28 @@ type ApplyWorkflowVariablesResponseRef0 = {
 
 export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk` */
+export type BulkAddPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type BulkAddPermissionGroupMembersQuery = Record<string, unknown>
+
+export type BulkAddPermissionGroupMembersBody = {
+  userIds?: Array<string>
+  addAllOrganizationMembers?: boolean
+}
+
+type BulkAddPermissionGroupMembersResponseRef0 = {
+  added: number
+  skipped: number
+}
+
+export type BulkAddPermissionGroupMembersResponse = {
+  data: BulkAddPermissionGroupMembersResponseRef0
 }
 
 /** `POST /api/v2/files/bulk-delete` */
@@ -1911,6 +1958,153 @@ export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/invitations` */
+export type CreateOrganizationInvitationParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationInvitationQuery = Record<string, unknown>
+
+export type CreateOrganizationInvitationBody = {
+  email: string
+  role?: 'member' | 'admin'
+}
+
+type CreateOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type CreateOrganizationInvitationResponse = {
+  data: CreateOrganizationInvitationResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups` */
+export type CreatePermissionGroupParams = {
+  organizationId: string
+}
+
+export type CreatePermissionGroupQuery = Record<string, unknown>
+
+export type CreatePermissionGroupBody = {
+  name: string
+  description?: string
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type CreatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreatePermissionGroupResponse = {
+  data: CreatePermissionGroupResponseRef0
+}
+
 /** `POST /api/v2/sandboxes` */
 export type CreateSandboxQuery = Record<string, unknown>
 
@@ -2990,6 +3184,23 @@ type DeleteMcpServerResponseRef0 = {
 
 export type DeleteMcpServerResponse = {
   data: DeleteMcpServerResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type DeletePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type DeletePermissionGroupQuery = Record<string, unknown>
+
+type DeletePermissionGroupResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeletePermissionGroupResponse = {
+  data: DeletePermissionGroupResponseRef0
 }
 
 /** `DELETE /api/v2/sandboxes/[sandboxId]` */
@@ -4656,6 +4867,119 @@ type GetNextKnowledgeTagSlotResponseRef0 = {
 
 export type GetNextKnowledgeTagSlotResponse = {
   data: GetNextKnowledgeTagSlotResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]` */
+export type GetOrganizationParams = {
+  organizationId: string
+}
+
+export type GetOrganizationQuery = Record<string, unknown>
+
+type GetOrganizationResponseRef0 = {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type GetOrganizationResponse = {
+  data: GetOrganizationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type GetOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type GetOrganizationInvitationQuery = Record<string, unknown>
+
+type GetOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type GetOrganizationInvitationResponse = {
+  data: GetOrganizationInvitationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type GetPermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type GetPermissionGroupQuery = Record<string, unknown>
+
+type GetPermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetPermissionGroupResponse = {
+  data: GetPermissionGroupResponseRef0
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
@@ -6759,6 +7083,211 @@ export type ListMcpServerToolsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/invitations` */
+export type ListOrganizationInvitationsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationInvitationsQuery = {
+  search?: string
+  status?: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  sortBy?: 'email' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationsResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ListOrganizationInvitationsResponse = {
+  data: Array<ListOrganizationInvitationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members` */
+export type ListOrganizationMembersParams = {
+  organizationId: string
+}
+
+export type ListOrganizationMembersQuery = {
+  search?: string
+  sortBy?: 'name' | 'email' | 'joinedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationMembersResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type ListOrganizationMembersResponse = {
+  data: Array<ListOrganizationMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations` */
+export type ListOrganizationsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationsResponseRef0 = {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type ListOrganizationsResponse = {
+  data: Array<ListOrganizationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/workspaces` */
+export type ListOrganizationWorkspacesParams = {
+  organizationId: string
+}
+
+export type ListOrganizationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+}
+
+export type ListOrganizationWorkspacesResponse = {
+  data: Array<ListOrganizationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type ListPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type ListPermissionGroupMembersQuery = {
+  sortBy?: 'assignedAt' | 'userId'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupMembersResponseRef0 = {
+  id: string
+  userId: string
+  assignedAt: string
+  userName: string | null
+  userEmail: string | null
+  userImage: string | null
+}
+
+export type ListPermissionGroupMembersResponse = {
+  data: Array<ListPermissionGroupMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups` */
+export type ListPermissionGroupsParams = {
+  organizationId: string
+}
+
+export type ListPermissionGroupsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupsResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListPermissionGroupsResponse = {
+  data: Array<ListPermissionGroupsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/sandboxes` */
 export type ListSandboxesQuery = {
   workspaceId: string
@@ -8760,6 +9289,41 @@ export type RelocateWorkflowFolderResponse = {
   data: RelocateWorkflowFolderResponseRef0
 }
 
+/** `DELETE /api/v2/organizations/[organizationId]/members/[userId]` */
+export type RemoveOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type RemoveOrganizationMemberQuery = Record<string, unknown>
+
+type RemoveOrganizationMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemoveOrganizationMemberResponse = {
+  data: RemoveOrganizationMemberResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]` */
+export type RemovePermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+  userId: string
+}
+
+export type RemovePermissionGroupMemberQuery = Record<string, unknown>
+
+type RemovePermissionGroupMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemovePermissionGroupMemberResponse = {
+  data: RemovePermissionGroupMemberResponseRef0
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -9031,6 +9595,32 @@ type ReplaceWorkflowStateResponseRef1 = {
 
 export type ReplaceWorkflowStateResponse = {
   data: ReplaceWorkflowStateResponseRef1
+}
+
+/** `POST /api/v2/organizations/[organizationId]/invitations/[invitationId]/resend` */
+export type ResendOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ResendOrganizationInvitationQuery = Record<string, unknown>
+
+export type ResendOrganizationInvitationBody = Record<string, unknown>
+
+type ResendOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ResendOrganizationInvitationResponse = {
+  data: ResendOrganizationInvitationResponseRef0
 }
 
 /** `POST /api/v2/files/[fileId]/restore` */
@@ -9380,6 +9970,23 @@ type RevertWorkflowVersionResponseRef0 = {
 
 export type RevertWorkflowVersionResponse = {
   data: RevertWorkflowVersionResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type RevokeOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type RevokeOrganizationInvitationQuery = Record<string, unknown>
+
+type RevokeOrganizationInvitationResponseRef0 = {
+  id: string
+  status: 'cancelled'
+}
+
+export type RevokeOrganizationInvitationResponse = {
+  data: RevokeOrganizationInvitationResponseRef0
 }
 
 /** `DELETE /api/v2/skills/[skillId]/editors` */
@@ -10301,6 +10908,150 @@ type UpdateMcpServerResponseRef0 = {
 
 export type UpdateMcpServerResponse = {
   data: UpdateMcpServerResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]` */
+export type UpdateOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberBody = {
+  role: 'member' | 'admin'
+}
+
+type UpdateOrganizationMemberResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type UpdateOrganizationMemberResponse = {
+  data: UpdateOrganizationMemberResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type UpdatePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type UpdatePermissionGroupQuery = Record<string, unknown>
+
+export type UpdatePermissionGroupBody = {
+  name?: string
+  description?: string | null
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type UpdatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdatePermissionGroupResponse = {
+  data: UpdatePermissionGroupResponseRef0
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows` */
@@ -11227,6 +11978,21 @@ export const V2_OPERATIONS = {
     summary: 'Activate Workflow Version',
     workspaceKeyUnsupported: true,
   },
+  addPermissionGroupMember: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Add Permission Group Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      userId: { kind: 'string', required: true, describe: 'Existing organization member to add.' },
+    },
+  },
   addTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
@@ -11336,6 +12102,30 @@ export const V2_OPERATIONS = {
         kind: 'array',
         required: true,
         describe: 'Variable changes to apply, in order.',
+      },
+    },
+  },
+  bulkAddPermissionGroupMembers: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Add Permission Group Members',
+    workspaceKeyUnsupported: true,
+    body: {
+      userIds: {
+        kind: 'array',
+        describe:
+          'Organization member identifiers. Existing group members are skipped; users outside the organization are ignored.',
+      },
+      addAllOrganizationMembers: {
+        kind: 'boolean',
+        describe:
+          'Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.',
       },
     },
   },
@@ -12101,6 +12891,57 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Organization Invitation',
+    workspaceKeyUnsupported: true,
+    body: {
+      email: { kind: 'string', required: true, describe: 'Email address of the person to invite.' },
+      role: {
+        kind: 'enum',
+        values: ['member', 'admin'] as const,
+        default: 'member',
+        describe:
+          'Organization role to offer. Defaults to member; grants no workspace-specific permissions.',
+      },
+    },
+  },
+  createPermissionGroup: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'Create Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Group name, unique within the organization.',
+      },
+      description: { kind: 'string', describe: 'Optional group description.' },
+      config: {
+        kind: 'object',
+        describe:
+          'Permission restrictions to set. Omitted keys use the default permission configuration.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.',
+      },
+    },
+  },
   createSandbox: {
     method: 'POST',
     path: '/api/v2/sandboxes',
@@ -12677,6 +13518,18 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the MCP server.',
       },
     },
+  },
+  deletePermissionGroup: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Permission Group',
+    workspaceKeyUnsupported: true,
   },
   deleteSandbox: {
     method: 'DELETE',
@@ -13483,6 +14336,39 @@ export const V2_OPERATIONS = {
           'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
       },
     },
+  },
+  getOrganization: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationInvitation: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  getPermissionGroup: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Permission Group',
+    workspaceKeyUnsupported: true,
   },
   getRowEnrichment: {
     method: 'GET',
@@ -15001,6 +15887,241 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listOrganizationInvitations: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Invitations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the invitee email.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['pending', 'accepted', 'rejected', 'cancelled', 'expired'] as const,
+        describe: 'Filter by current invitation status. Omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against member name or email.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'email', 'joinedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizations: {
+    method: 'GET',
+    path: '/api/v2/organizations',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Organizations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the organization name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/workspaces',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroupMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Permission Group Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['assignedAt', 'userId'] as const,
+        default: 'assignedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroups: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'List Permission Groups',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the group name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listSandboxes: {
     method: 'GET',
     path: '/api/v2/sandboxes',
@@ -16329,6 +17450,31 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  removeOrganizationMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Organization Member',
+    workspaceKeyUnsupported: true,
+  },
+  removePermissionGroupMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]',
+    pathParams: ['organizationId', 'groupId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+      userId: 'User identifier of the member to remove.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Permission Group Member',
+    workspaceKeyUnsupported: true,
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -16428,6 +17574,18 @@ export const V2_OPERATIONS = {
         describe: 'Replacement variable set. Omit to leave the stored variables untouched.',
       },
     },
+  },
+  resendOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resend Organization Invitation',
+    workspaceKeyUnsupported: true,
   },
   restoreFile: {
     method: 'POST',
@@ -16567,6 +17725,18 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Revert Workflow To Version',
+    workspaceKeyUnsupported: true,
+  },
+  revokeOrganizationInvitation: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Revoke Organization Invitation',
     workspaceKeyUnsupported: true,
   },
   revokeSkillEditor: {
@@ -17219,6 +18389,61 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
+      },
+    },
+  },
+  updateOrganizationMember: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'admin'] as const,
+        describe: 'New organization role. Ownership transfers use a separate operation.',
+      },
+    },
+  },
+  updatePermissionGroup: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Group name, unique within the organization.' },
+      description: {
+        kind: 'string',
+        describe:
+          'Group description. Null or an empty string clears it; omission leaves it unchanged.',
+      },
+      config: {
+        kind: 'object',
+        describe:
+          'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.',
       },
     },
   },

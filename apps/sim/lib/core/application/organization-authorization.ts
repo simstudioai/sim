@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
 import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -19,6 +20,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+
+export class OrganizationMembershipNotFoundError extends OrchestrationError {
+  constructor() {
+    super('not_found', 'Organization not found')
+  }
+}
 
 export interface OrganizationAuthorizationContext {
   organizationId: string
@@ -69,9 +76,12 @@ async function requireOrganizationSubjectMembership(
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
   const [membership] = options.forUpdate ? await query.for('update').limit(1) : await query.limit(1)
   const parsedRole = organizationRoleSchema.safeParse(membership?.role)
-  if (!parsedRole.success) throw new OrchestrationError('not_found', 'Organization not found')
+  if (!parsedRole.success) throw new OrganizationMembershipNotFoundError()
   if (minimumRole === 'admin' && !isOrgAdminRole(parsedRole.data)) {
-    throw new OrchestrationError('forbidden', 'Organization administrator access is required')
+    throw new ForbiddenOperationError(
+      'ORGANIZATION_ADMIN_REQUIRED',
+      'Organization administrator access is required'
+    )
   }
   const config =
     capability === 'none' && !userCredential

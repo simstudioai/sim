@@ -17,6 +17,8 @@
     "(generated)/files",
     "(generated)/knowledge-bases",
     "(generated)/workspaces",
+    "(generated)/organizations",
+    "(generated)/permission-groups",
     "(generated)/workspace-sync",
     "(generated)/mcp-servers",
     "(generated)/skills",

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { permissionGroup } from '@sim/db/schema'
 import {
   envFlagsMockFns,
@@ -49,6 +50,7 @@ import {
   CustomToolsNotAllowedError,
   getUserPermissionConfig,
   IntegrationNotAllowedError,
+  InvitationsNotAllowedError,
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
@@ -57,9 +59,10 @@ import {
   ToolNotAllowedError,
   validateBlockType,
   validateChatDeployAuth,
+  validateInvitationsAllowed,
   validateModelProvider,
   validatePublicFileSharing,
-} from './permission-check'
+} from '@/ee/access-control/utils/permission-check'
 
 /** Default an org-backed, enterprise-entitled workspace so resolution reaches the group queries. */
 function setEnterpriseOrgWorkspace() {
@@ -900,5 +903,39 @@ describe('assertPermissionsAllowed', () => {
       blockType: 'slack',
       toolKind: 'mcp',
     })
+  })
+})
+
+describe('transactional invitation permission checks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isAccessControlEnabled: true, isHosted: true, isInvitationsDisabled: false })
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    setEnterpriseOrgWorkspace()
+  })
+
+  it('bypasses a cached allow decision when the transaction sees a newly restricted workspace', async () => {
+    await withPermissionGroupScope(async () => {
+      queueGroupResolution([], [{ config: { disableInvitations: false } }])
+      await validateInvitationsAllowed('actor', { workspaceId: 'workspace-1' })
+      queueGroupResolution([], [{ config: { disableInvitations: true } }])
+      await expect(
+        validateInvitationsAllowed('actor', { workspaceId: 'workspace-1' }, db)
+      ).rejects.toBeInstanceOf(InvitationsNotAllowedError)
+    })
+    expect(mockGetWorkspaceWithOwner).toHaveBeenLastCalledWith('workspace-1', {
+      includeArchived: true,
+      executor: db,
+    })
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenLastCalledWith('org-1', db)
+  })
+
+  it('resolves organization admission on the transaction executor', async () => {
+    queueTableRows(permissionGroup, [{ config: { disableInvitations: true } }])
+    await expect(
+      validateInvitationsAllowed('actor', { organizationId: 'org-1' }, db)
+    ).rejects.toBeInstanceOf(InvitationsNotAllowedError)
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1', db)
   })
 })
