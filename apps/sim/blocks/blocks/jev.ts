@@ -68,6 +68,12 @@ export const JevBlock: BlockConfig<
       placeholder: '{"billing": "Payments and refunds", "technical": "Bugs and outages"}',
       condition: { field: 'operation', value: 'jev_choice' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Create Jev Choice options from the user request. Return an object with 1–255 option names mapped to clear descriptions, for example {"billing":"Payments and refunds","technical":"Bugs and outages"}. Return ONLY the JSON object.',
+        placeholder: 'Describe the categories Jev should choose between...',
+      },
     },
     {
       id: 'scoreCriteria',
@@ -77,6 +83,12 @@ export const JevBlock: BlockConfig<
       placeholder: '["Low", "Medium", "High"]',
       condition: { field: 'operation', value: 'jev_score' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Create an ordered Jev Score rubric with 2–10 level descriptions, from lowest to highest, for example ["Low","Medium","High"]. Return ONLY the JSON array.',
+        placeholder: 'Describe what to score and the levels to use...',
+      },
     },
     {
       id: 'noulCriteria',
@@ -86,6 +98,12 @@ export const JevBlock: BlockConfig<
       placeholder: '{"true": "Explicitly urgent", "false": "No urgency expressed"}',
       condition: { field: 'operation', value: 'jev_noul' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Define the meaning of yes and no for a Jev Noul question using true and false keys, for example {"true":"Explicitly urgent","false":"No urgency expressed"}. Return ONLY the JSON object.',
+        placeholder: 'Describe what should count as yes or no...',
+      },
     },
     {
       id: 'questions',
@@ -95,6 +113,12 @@ export const JevBlock: BlockConfig<
       placeholder: '{"urgent": {"type": "noul", "instructions": "Is this urgent?"}}',
       condition: { field: 'operation', value: 'jev_evaluate' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Create named Jev questions as an object keyed by question ID. Each question requires type and instructions. Choice uses type "choice" and criteria with 1–255 named options; Score uses type "score" and criteria with 2–10 ordered levels; Noul uses type "noul" and optional true/false criteria. Example: {"urgent":{"type":"noul","instructions":"Is this urgent?"}}. Return ONLY the JSON object.',
+        placeholder: 'Describe the decisions to evaluate together...',
+      },
     },
     {
       id: 'model',
@@ -238,31 +262,31 @@ export const JevBlockMeta = {
       name: 'classify-support-intent',
       description: 'Classify a support request and report when confidence calls for human review.',
       content:
-        '# Classify Support Intent\n\nUse Jev Choice with the supplied support message as state and explicit team descriptions as criteria. Return the selected team, probabilities, and confidence. Apply the user’s review threshold; do not silently act on uncertain decisions.\n\nSource: https://docs.typesafe.ai/patterns/intent-routing',
+        '# Classify Support Intent\n\n## Steps\n1. Use the supplied support message as state.\n2. Call Jev Choice with explicit team descriptions as criteria.\n3. Apply the user’s confidence threshold for human review.\n\n## Output\nReturn the selected team, probabilities, confidence, and whether review is needed. Do not silently act on uncertain decisions.\n\nSource: https://docs.typesafe.ai/patterns/intent-routing',
     },
     {
       name: 'score-ticket-urgency',
       description: 'Rate support-ticket urgency against an explicit ordered rubric.',
       content:
-        '# Score Ticket Urgency\n\nUse Jev Score with the ticket as state and 2–10 ordered urgency descriptions. Return the probability-weighted score, legend, probabilities, and confidence. Keep the fractional score intact.\n\nSource: https://docs.typesafe.ai/api',
+        '# Score Ticket Urgency\n\n## Steps\n1. Use the supplied ticket as state.\n2. Define 2–10 ordered urgency descriptions.\n3. Call Jev Score with that rubric.\n\n## Output\nReturn the probability-weighted score, legend, probabilities, and confidence. Keep the fractional score intact.\n\nSource: https://docs.typesafe.ai/api',
     },
     {
       name: 'evaluate-message-policy',
       description: 'Evaluate a message against a set of explicit policy questions.',
       content:
-        '# Evaluate Message Policy\n\nUse Jev Evaluate with the message as state and one Noul question per policy condition. Return each probability and apply only user-supplied thresholds. Flag uncertain results for review.\n\nSource: https://docs.typesafe.ai/cookbooks/llm_guardrails',
+        '# Evaluate Message Policy\n\n## Steps\n1. Use the supplied message as state.\n2. Define one Noul question per policy condition.\n3. Call Jev Evaluate and apply only user-supplied thresholds.\n\n## Output\nReturn each probability and flag uncertain results for review.\n\nSource: https://docs.typesafe.ai/cookbooks/llm_guardrails',
     },
     {
       name: 'check-citation-support',
       description: 'Check whether a source passage supports a supplied claim.',
       content:
-        '# Check Citation Support\n\nPut the supplied claim and source passage in Jev state. Use Choice to distinguish supported, contradicted, and insufficient evidence. Return the choice, probabilities, and confidence without adding unsupported facts.\n\nSource: https://docs.typesafe.ai/cookbooks/citation_check',
+        '# Check Citation Support\n\n## Steps\n1. Put the supplied claim and source passage in Jev state.\n2. Define supported, contradicted, and insufficient-evidence options.\n3. Call Jev Choice to evaluate the claim against the passage.\n\n## Output\nReturn the choice, probabilities, and confidence without adding unsupported facts.\n\nSource: https://docs.typesafe.ai/cookbooks/citation_check',
     },
     {
       name: 'classify-retrieved-passages',
       description: 'Assess supplied retrieval passages before using them to answer a question.',
       content:
-        '# Classify Retrieved Passages\n\nUse Jev Evaluate to ask independent relevance and contradiction questions about supplied passages and a query. Return per-passage decisions, probabilities, and confidence where provided. Leave retention thresholds under user control.\n\nSource: https://docs.typesafe.ai/cookbooks/classifying_rag_passages',
+        '# Classify Retrieved Passages\n\n## Steps\n1. Put the supplied passages and query in Jev state.\n2. Define independent relevance and contradiction questions for each passage.\n3. Call Jev Evaluate and apply the user’s retention thresholds.\n\n## Output\nReturn per-passage decisions, probabilities, and confidence where provided. Leave retention thresholds under user control.\n\nSource: https://docs.typesafe.ai/cookbooks/classifying_rag_passages',
     },
   ],
 } as const satisfies BlockMeta
