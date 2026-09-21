@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  Combobox: ({
+  ChipCombobox: ({
     options,
     disabled,
     isLoading,
