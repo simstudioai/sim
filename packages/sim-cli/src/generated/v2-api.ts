@@ -9355,6 +9355,7 @@ type RevertFileVersionResponseRef2 = {
   reverted: boolean
   file: RevertFileVersionResponseRef0
   version: RevertFileVersionResponseRef1
+  revision?: string
 }
 
 export type RevertFileVersionResponse = {

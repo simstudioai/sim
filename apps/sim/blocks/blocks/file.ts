@@ -2348,7 +2348,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     lineCount: {
       type: 'number',
-      description: 'Lines in the file after the change (edit, insert)',
+      description: 'Lines in the file after the change (edit)',
     },
     version: {
       type: 'number',
@@ -2357,7 +2357,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     revision: {
       type: 'string',
       description:
-        'Opaque token for the content read or written, sent back as expectedRevision to make a later write conditional (get, write, append, edit)',
+        'Opaque token for the content a write recorded, accepted as expectedRevision by the write and edit tools to make a later write conditional (write, append, edit)',
     },
     results: {
       type: 'array',

@@ -4923,6 +4923,10 @@
           "version": {
             "description": "The current version of the file after the revert: a new `revert` version; the requested version when it was already current; or the unchanged current version when its content already matched the requested one.",
             "$ref": "#/components/schemas/V2FileVersion"
+          },
+          "revision": {
+            "description": "Opaque token for the content the file holds after the revert — the one it just wrote, or the unchanged current content when `reverted` is false. Send it back as `expectedRevision` on the next write.",
+            "type": "string"
           }
         },
         "required": ["reverted", "file", "version"],
@@ -4976,7 +4980,8 @@
                 "createdAt": "2026-01-15T10:30:00Z",
                 "updatedAt": "2026-01-15T10:30:00Z",
                 "supersededAt": null
-              }
+              },
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
             }
           }
         ]

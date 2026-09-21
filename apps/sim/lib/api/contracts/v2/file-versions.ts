@@ -12,6 +12,7 @@ import {
   v2FileTextSchema,
   v2FileWorkspaceQuerySchema,
   v2ReadFileTextQuerySchema,
+  writtenFileRevisionSchema,
 } from '@/lib/api/contracts/v2/files'
 import {
   v2CursorListResponse,
@@ -153,6 +154,9 @@ export const v2RevertFileVersionResultSchema = z
     file: v2FileSchema,
     version: v2FileVersionSchema.describe(
       'The current version of the file after the revert: a new `revert` version; the requested version when it was already current; or the unchanged current version when its content already matched the requested one.'
+    ),
+    revision: writtenFileRevisionSchema.describe(
+      'Opaque token for the content the file holds after the revert — the one it just wrote, or the unchanged current content when `reverted` is false. Send it back as `expectedRevision` on the next write.'
     ),
   })
   .strict()

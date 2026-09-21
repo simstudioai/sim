@@ -41,6 +41,7 @@ import {
   isSocketWorkflowVisible,
   resolveSocketWorkflowTarget,
 } from '@/app/workspace/providers/socket-join-target'
+import { mergePresenceRoster } from '@/app/workspace/providers/socket-presence-merge'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type {
@@ -600,21 +601,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             return
           }
 
-          updatePresenceUsers((prev) => {
-            const prevMap = new Map(prev.map((u) => [u.socketId, u]))
-
-            return users.map((user) => {
-              const existing = prevMap.get(user.socketId)
-              if (existing) {
-                return {
-                  ...user,
-                  cursor: user.cursor ?? existing.cursor,
-                  selection: user.selection ?? existing.selection,
-                }
-              }
-              return user
-            })
-          })
+          updatePresenceUsers((prev) => mergePresenceRoster(prev, users))
         })
 
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
