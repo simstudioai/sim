@@ -480,7 +480,7 @@ export function Editor() {
                       onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
                       aria-label='Unlock block'
                     >
-                      <Unlock className='size-[14px] text-[var(--text-secondary)]' />
+                      <Unlock className='size-[14px]' />
                     </Button>
                   ) : (
                     <div className='flex items-center justify-center'>
