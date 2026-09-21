@@ -17,7 +17,6 @@ import {
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
-  getDocumentMetadataByIds,
   type KnowledgeRetrievalResult,
   retrieveKnowledgeSearch,
   type SearchResult,
@@ -267,6 +266,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         accessProvider,
         searchMode,
         boostRecency,
+        searchIndexOnly: accessibleKbs.every((kb) => kb.isSearchIndex),
         query,
         queryVector: {
           vector: JSON.stringify(queryEmbeddingResult.embedding),
@@ -316,14 +316,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /** v1 cannot express an incomplete search, so a leg that ran out of time fails the request. */
     if (retrieved.retrieval.status === 'partial') throw new SearchDeadlineError()
     const results = retrieved.rows
-    const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, retrieved.readAccess)
-    const readableResults = results.filter((result) => documentMetadataMap[result.documentId])
 
     return NextResponse.json({
       success: true,
       data: {
-        results: readableResults.map((result) => {
+        results: results.map((result) => {
           const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
           const tags: Record<string, string | number | boolean | Date | null> = {}
 
@@ -335,11 +332,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             }
           })
 
-          const docMeta = documentMetadataMap[result.documentId]
           return {
             documentId: result.documentId,
-            documentName: docMeta?.filename || undefined,
-            sourceUrl: docMeta?.sourceUrl ?? null,
+            documentName: result.filename || undefined,
+            sourceUrl: result.sourceUrl,
             content: result.content,
             chunkIndex: result.chunkIndex,
             metadata: tags,
@@ -349,7 +345,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         query: query || '',
         knowledgeBaseIds: accessibleKbIds,
         topK,
-        totalResults: readableResults.length,
+        totalResults: results.length,
       },
     })
   } catch (error) {

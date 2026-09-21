@@ -117,7 +117,7 @@ describe('enqueueProjectionSourceAclBackfill', () => {
   })
 
   it('hands the backfill to the Trigger.dev worker when one is configured', async () => {
-    await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 }, true)).resolves.toEqual({
+    await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 })).resolves.toEqual({
       runId: 'run-1',
     })
     expect(mockTasksTrigger).toHaveBeenCalledWith(
@@ -126,11 +126,5 @@ describe('enqueueProjectionSourceAclBackfill', () => {
       { region: 'us-east-1' }
     )
     expect(mockBackfill).not.toHaveBeenCalled()
-  })
-
-  it('fills the projections detached in this process without one', async () => {
-    await expect(enqueueProjectionSourceAclBackfill({}, false)).resolves.toBeNull()
-    expect(mockTasksTrigger).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(mockBackfill).toHaveBeenCalledTimes(2))
   })
 })

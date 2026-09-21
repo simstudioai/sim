@@ -587,6 +587,21 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
   })
 
+  it('asks for the next page when an identity read recovers fewer rows than its slice', async () => {
+    const execute = dbChainMockFns.execute.getMockImplementation()!
+    let pages = 0
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query)
+      /** The first slice's read finds one of its twenty rows still present; the pool has more. */
+      if (isPageStatement(statement.sql)) return pages++ === 0 ? [ranked[0]] : ranked
+      return execute(query)
+    })
+    queueTableRows(schemaMock.embedding, [ranked[0]])
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(pages).toBe(2)
+  })
+
   it('sizes the pool to the pages asked for, doubling a pool the pages outran', () => {
     expect(vectorCandidatePoolLimit(20, undefined)).toBe(200)
     expect(vectorCandidatePoolLimit(150, undefined)).toBe(300)
@@ -710,7 +725,6 @@ describe('workspace-scoped vector retrieval', () => {
       ).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
-        readAccess: params.access,
       })
     }
   )
@@ -819,7 +833,6 @@ describe('workspace-scoped vector retrieval', () => {
       expect(result).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
-        readAccess: params.access,
       })
     }
     for (const resume of release) resume()
@@ -1537,6 +1550,7 @@ describe('permitted-document planner', () => {
         query: 'release',
         queryVector: params.queryVector!,
         permitted: unbounded,
+        searchIndexOnly: true,
         ...overrides,
       })
     const tinStatements = () =>
@@ -1562,7 +1576,7 @@ describe('permitted-document planner', () => {
       const results = await keyword()
       expect(results.map((row) => row.id)).toEqual(['a'])
       expect(mockResolveTinKeywordQuery).toHaveBeenCalledWith(
-        ['org-index'],
+        true,
         'release',
         'english',
         params.budget
@@ -1893,6 +1907,35 @@ describe('permitted-document planner', () => {
       const narrow = await resolve(scope('narrow-reach'))
       expect(narrow).toEqual({ kind: 'unbounded', broad: false })
       expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('counts a resolved reach against a small index instead of assuming it broad', async () => {
+      /** A bound inside the probe limit proves nothing without a saturated probe. */
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 100 }]
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const reach = await resolveReach(
+        ['org-index'],
+        scope('small-index'),
+        new SearchBudget('vector', performance.now() + 10_000),
+        {
+          connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+          connectorTypes: new Map(),
+          uploads: true,
+        }
+      )
+      expect(reach).toEqual({ kind: 'unbounded', broad: false })
+      expect(reachCounts()).toHaveLength(1)
+      /** The count is the search's own read: it runs inside the leg's deadline statement. */
+      const countAt = statements().findIndex((query) => query.sql.includes(') reached'))
+      expect(statements()[countAt - 1].sql).toContain('statement_timeout')
     })
 
     it('does not remember a reach whose count ran out of time', async () => {
@@ -2307,6 +2350,22 @@ describe('filters on a resolved scope', () => {
     const deadlines = statements().filter((query) => query.sql.includes('statement_timeout'))
     expect(deadlines.at(-1)?.params[0]).toBe('1500')
     expect(JSON.stringify(probes[0])).toContain('"type":"gte"')
+  })
+
+  it('tests a tag filter on every walked row of a planned scope', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'src-a')]
+    queueTableRows(schemaMock.embedding, [{ ...rerankRows[0], tag1: 'release' }])
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: plan(),
+      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' }],
+    })
+    const walks = statements().filter((query) => isWalk(query.sql))
+    expect(walks).toHaveLength(1)
+    /** The filter is chunk-level and the row does not carry it, so the walk asks the document: no unfiltered row fills the pool. */
+    expect(JSON.stringify(walks[0])).toContain('release')
   })
 
   it('ranks a date-bounded set exactly even when a member source has its own index', async () => {

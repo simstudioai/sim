@@ -8,6 +8,7 @@ interface KnowledgeBaseData {
   userId: string
   workspaceId?: string | null
   name: string
+  isSearchIndex: boolean
   description?: string | null
   tokenCount: number
   embeddingModel: string
@@ -22,7 +23,13 @@ export interface KnowledgeBaseAccessResult {
   hasAccess: true
   knowledgeBase: Pick<
     KnowledgeBaseData,
-    'id' | 'userId' | 'workspaceId' | 'name' | 'embeddingModel' | 'embeddingDimension'
+    | 'id'
+    | 'userId'
+    | 'workspaceId'
+    | 'name'
+    | 'isSearchIndex'
+    | 'embeddingModel'
+    | 'embeddingDimension'
   >
 }
 
@@ -52,6 +59,7 @@ async function resolveKnowledgeBaseAccess(
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
       name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
     })

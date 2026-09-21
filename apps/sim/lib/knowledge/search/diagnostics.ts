@@ -38,12 +38,10 @@ export type SearchStage =
   | 'usage_recording'
   | 'overage_billing'
   | 'tag_definitions'
-  | 'metadata.sql'
   | 'metadata_provenance'
   | 'activity_recording'
   | RetrievalLeg
   | `${RetrievalLeg}.candidates`
-  | `${RetrievalLeg}.authorization`
   | `${RetrievalLeg}.hydration`
   | `${RetrievalLeg}.connection_acquire`
   | `${RetrievalLeg}.sql`
@@ -51,6 +49,7 @@ export type SearchStage =
   | 'vector.probe'
   | 'vector.page'
   | 'vector.projection_filled'
+  | 'vector.source_indexes'
   | 'keyword.projection_filled'
   | 'vector.exact_candidates'
   | 'vector.exact'
@@ -86,7 +85,6 @@ export interface SearchDiagnosticMetadata {
   boostRecency?: boolean
   embeddingDimensions?: number
   vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk' | 'per-source'
-  vectorCandidateStorage?: 'stored-halfvec'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
    * removed enough neighbours that the rerank pool is smaller than requested, which lowers recall
