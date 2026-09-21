@@ -27,7 +27,7 @@ export const JevBlock: BlockConfig<
       byOperation: {
         jev_choice: [{ text: 'Choose an option for', field: 'instructions', core: true }],
         jev_score: [{ text: 'Score content for', field: 'instructions', core: true }],
-        jev_noul: [{ text: 'Evaluate whether', field: 'instructions', core: true }],
+        jev_noul: [{ text: 'Evaluate', field: 'instructions', core: true }],
         jev_evaluate: [{ text: 'Evaluate questions against', field: 'state', core: true }],
       },
     },
