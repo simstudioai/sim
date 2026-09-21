@@ -2605,6 +2605,13 @@
       "when": 1790006041116,
       "tag": "0372_drop_binary_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1790007865916,
+      "tag": "0373_keyword_tin_document_index",
+      "breakpoints": true
     }
   ]
 }
