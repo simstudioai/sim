@@ -475,6 +475,73 @@ describe('SlackExecutionStreamController', () => {
   }
 
   it.each([true, false])(
+    'delivers identical Agent and Mship thinking updates with thinking enabled: %s',
+    async (includeThinking) => {
+      const agentEvents: AgentStreamEvent[] = [
+        { type: 'thinking_delta', text: 'Checking ' },
+        { type: 'thinking_delta', text: 'the source.' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'tool_call_start', id: 'read', name: 'read_file' },
+        { type: 'tool_call_end', id: 'read', name: 'read_file', status: 'success' },
+        { type: 'thinking_delta', text: 'Verifying the answer.' },
+        { type: 'text_delta', text: 'The complete answer.', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ]
+      const mshipEvents: AgentStreamEvent[] = []
+      const projection = new ExecuteEventProjection((event) => mshipEvents.push(event))
+      for (const text of ['Checking ', 'the source.']) {
+        projection.accept({ type: 'text', payload: { channel: 'thinking', text } })
+      }
+      for (const phase of ['call', 'result'] as const) {
+        projection.accept({
+          type: 'tool',
+          payload: {
+            phase,
+            toolCallId: 'read',
+            toolName: 'read_file',
+            executor: 'go',
+            mode: 'sync',
+            success: true,
+          },
+        })
+      }
+      projection.accept({
+        type: 'text',
+        payload: { channel: 'thinking', text: 'Verifying the answer.' },
+      })
+      projection.accept({
+        type: 'text',
+        payload: { channel: 'assistant', text: 'The complete answer.' },
+      })
+      projection.finish('success')
+
+      const config = { ...BASE_CONFIG, includeThinking }
+      const agent = await deliver(agentEvents, 'The complete answer.', config)
+      agent.controller.assertSucceeded()
+      const agentChunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
+      mockAppendSlackAgentStream.mockClear()
+      const mship = await deliver(mshipEvents, 'The complete answer.', config)
+      mship.controller.assertSucceeded()
+      const mshipChunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
+
+      expect(mshipChunks).toEqual(agentChunks)
+      expect(sentText()).toBe('The complete answer.')
+      expect(
+        mshipChunks
+          .filter((chunk) => chunk.type === 'task_update' && chunk.title === 'Thinking')
+          .map((chunk) => ({ status: chunk.status, details: chunk.details }))
+      ).toEqual(
+        includeThinking
+          ? [
+              { status: 'complete', details: 'Checking the source.' },
+              { status: 'complete', details: 'Verifying the answer.' },
+            ]
+          : []
+      )
+    }
+  )
+
+  it.each([true, false])(
     'delivers Mship text and honors the same tool toggle as Agent: %s',
     async (includeToolCalls) => {
       const events: AgentStreamEvent[] = []
