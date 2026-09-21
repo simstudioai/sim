@@ -337,6 +337,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/twilio_sms.mdx',
   'integrations/twilio_voice.mdx',
   'integrations/typeform.mdx',
+  'integrations/typesafe.mdx',
   'integrations/upstash.mdx',
   'integrations/uptimerobot.mdx',
   'integrations/vanta.mdx',

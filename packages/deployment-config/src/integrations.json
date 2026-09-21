@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-21",
   "integrations": [
     {
       "type": "onepassword",
@@ -25777,6 +25777,41 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["forms", "data-analytics"]
+    },
+    {
+      "type": "typesafe",
+      "slug": "typesafe-jev",
+      "name": "TypeSafe (Jev)",
+      "description": "Classify, score, and evaluate input with Jev",
+      "longDescription": "Use TypeSafe Jev to choose an option, assign a fractional score, estimate a yes/no probability, or evaluate independent named questions in one request. Supply text or structured state, define criteria, and route results through downstream Condition blocks. All four operations are also available as Agent tools.",
+      "bgColor": "#343A40",
+      "iconName": "ApiIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/typesafe",
+      "operations": [
+        {
+          "name": "Choose an Option",
+          "description": "Choose one named option with TypeSafe Jev and return its probability distribution."
+        },
+        {
+          "name": "Assign a Score",
+          "description": "Score input against an ordered rubric using TypeSafe Jev, preserving fractional scores."
+        },
+        {
+          "name": "Estimate Yes/No Probability",
+          "description": "Estimate the probability of a yes answer using TypeSafe Jev. Returns a number, not a boolean."
+        },
+        {
+          "name": "Evaluate Questions",
+          "description": "Evaluate independent named Choice, Score, and Noul questions against shared state in one TypeSafe Jev request."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["automation", "llm", "customer-support", "document-processing"]
     },
     {
       "type": "upstash",

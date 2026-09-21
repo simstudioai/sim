@@ -648,6 +648,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   twilio_sms: TwilioIcon,
   twilio_voice: TwilioIcon,
   typeform: TypeformIcon,
+  typesafe: ApiIcon,
   upstash: UpstashIcon,
   uptimerobot: UptimeRobotIcon,
   vanta: VantaIcon,

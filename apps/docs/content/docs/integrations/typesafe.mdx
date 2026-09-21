@@ -1,0 +1,177 @@
+---
+title: TypeSafe (Jev)
+description: Classify, score, and evaluate input with Jev
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typesafe"
+  color="#343A40"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## Setup and input
+
+Create an API key in the [TypeSafe console](https://console.typesafe.ai/) and enter it in the block’s API Key field, or reference a Sim environment variable. The same four operations are available in the Agent block’s tool picker. The key and model selection are configured by the user.
+
+Input / State accepts ordinary text, a JSON object or array, or an upstream output reference. JSON objects and arrays entered as text are decoded; other text is preserved. Criteria and Questions are JSON fields and reject invalid JSON. Resolved objects and arrays can be supplied directly. Jev evaluates the supplied content; fetch URLs or convert non-text files to text before calling it.
+
+The three convenience operations require a Question. Choice uses a map of 1–255 named options, Score uses an ordered array of 2–10 rubric levels, and Noul accepts optional true/false descriptions. The [structured input format](https://docs.typesafe.ai/primitives/advanced) also supports objects, arrays, and null descriptions. Evaluate accepts optional or null instructions, and preserves the supplied question IDs.
+
+## Independent questions
+
+Evaluate Questions sends all named questions against the shared state in one request. Each question is independent: it cannot read another question’s answer. Use sequential blocks for dependent decisions, such as choosing a parent category before classifying its children. Question IDs identify outputs; describe the actual task in instructions and criteria.
+
+For example, evaluate a ticket with:
+
+```json
+{
+  "team": {
+    "type": "choice",
+    "instructions": "Which team should respond?",
+    "criteria": { "billing": "Invoices and payments", "technical": "Product problems" }
+  },
+  "urgency": {
+    "type": "score",
+    "instructions": "How urgent is this ticket?",
+    "criteria": ["Routine", "Time sensitive", "Service unavailable"]
+  },
+  "needs_reply": {
+    "type": "noul",
+    "instructions": "Does the customer need a reply?"
+  }
+}
+```
+
+Read the resulting `answers.team.choice`, `answers.urgency.score`, and `answers.needs_reply.noul`. Convenience operations expose their answer fields directly, such as `choice` or `score`, plus the resolved `model` and token `usage`.
+
+## Interpreting results and routing
+
+A [Score](https://docs.typesafe.ai/primitives/score) is an expected value on a rubric indexed from zero. It can fall between levels: preserve a value such as 1.4 rather than rounding it. The legend maps indices to the original descriptions, including structured values.
+
+Choice and Score return a probability distribution and [confidence](https://docs.typesafe.ai/confidence). A probability describes an outcome; confidence summarizes the distribution’s certainty. Confidence does not guarantee correctness. Low confidence remains a successful result for downstream handling.
+
+[Noul](https://docs.typesafe.ai/primitives/noul) returns only a yes probability between zero and one, including both endpoints. It has no boolean, confidence, explanation, or built-in threshold.
+
+Use a Condition block to compare the relevant probability, score, or confidence with thresholds chosen for your application. For example, split citation support into supported, unsupported, and review bands. Calibrate those bands on representative inputs; the integration does not impose a universal cutoff. See TypeSafe’s [routing guidance](https://docs.typesafe.ai/patterns/intent-routing).
+
+## Models, limits, and errors
+
+The advanced Model combobox defaults to `jev-latest`, suggests `jev-preview` and `jev-1.13.0`, and accepts custom IDs. Aliases can move; a versioned ID pins behavior. Every response includes the resolved model and `usage.input_tokens` / `usage.output_tokens` for the whole request.
+
+The [current model documentation](https://docs.typesafe.ai/models) lists a 64k-token budget for state plus all questions, and a 32k-token budget for state plus the longest question. These limits can change with the model. Sim neither estimates tokens nor silently truncates content. Shorten the state or split independent question batches when the API rejects an oversized request.
+
+Requests use Sim’s shared executor, with two retries, an initial 500 ms delay, a 5-second delay cap, and its existing Retry-After and cancellation handling. This includes throttling (429) and overload (529). Invalid credentials (401) and validation failures (400 or 422) surface as errors. Missing answer fields or mismatched answer types also fail clearly. See the [HTTP API reference](https://docs.typesafe.ai/api).
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Use TypeSafe Jev to choose an option, assign a fractional score, estimate a yes/no probability, or evaluate independent named questions in one request. Supply text or structured state, define criteria, and route results through downstream Condition blocks. All four operations are also available as Agent tools.
+
+
+
+## Actions
+
+### TypeSafe Choose an Option
+
+Choose one named option with TypeSafe Jev and return its probability distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Shared input to evaluate: plain text or a JSON-encoded object or array. Resolved workflow objects and arrays are also supported. |
+| `instructions` | string | Yes | Question or evaluation instructions. Provide text or a JSON-encoded object or array. |
+| `criteria` | json | Yes | Object mapping 1–255 option names to text, structured, or null descriptions. Example: \{"billing":"Invoices and payments","technical":"Product problems"\} |
+| `apiKey` | string | Yes | TypeSafe API key |
+| `model` | string | No | Model ID or alias, such as jev-latest, jev-preview, or jev-1.13.0. Custom IDs are supported. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `choice` | string | Selected option name |
+| `probabilities` | json | Dynamic map of option names to probabilities from 0 to 1, including zero values |
+| `confidence` | number | Distribution-based confidence from 0 to 1; not a guarantee of correctness |
+| `model` | string | Resolved model ID returned by TypeSafe |
+| `usage` | object | Token usage for the entire request |
+|   ↳ `input_tokens` | number | Number of input tokens used |
+|   ↳ `output_tokens` | number | Number of output tokens used |
+
+### TypeSafe Evaluate Questions
+
+Evaluate independent named Choice, Score, and Noul questions against shared state in one TypeSafe Jev request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Shared input to evaluate: plain text or a JSON-encoded object or array. Resolved workflow objects and arrays are also supported. |
+| `questions` | json | Yes | Nonempty object of named questions, each with type choice, score, or noul. Instructions are optional text, structured values, or null. Choice requires a 1–255 option criteria object; Score requires a 2–10 item criteria array; Noul accepts optional true/false criteria. Example: \{"supported":\{"type":"noul","instructions":"Does the source support the claim?"\}\} |
+| `apiKey` | string | Yes | TypeSafe API key |
+| `model` | string | No | Model ID or alias, such as jev-latest, jev-preview, or jev-1.13.0. Custom IDs are supported. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answers` | json | Dynamic map keyed by your question IDs. Choice answers contain type, choice, probabilities, confidence; Score answers contain type, score, legend, probabilities, confidence; Noul answers contain type and noul. |
+| `model` | string | Resolved model ID returned by TypeSafe |
+| `usage` | object | Token usage for the entire request |
+|   ↳ `input_tokens` | number | Number of input tokens used |
+|   ↳ `output_tokens` | number | Number of output tokens used |
+
+### TypeSafe Estimate Yes/No Probability
+
+Estimate the probability of a yes answer using TypeSafe Jev. Returns a number, not a boolean.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Shared input to evaluate: plain text or a JSON-encoded object or array. Resolved workflow objects and arrays are also supported. |
+| `instructions` | string | Yes | Question or evaluation instructions. Provide text or a JSON-encoded object or array. |
+| `criteria` | json | No | Optional descriptions for true and false outcomes, as text, structured values, or null. Example: \{"true":"The source supports the claim","false":"The source does not support the claim"\} |
+| `apiKey` | string | Yes | TypeSafe API key |
+| `model` | string | No | Model ID or alias, such as jev-latest, jev-preview, or jev-1.13.0. Custom IDs are supported. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `noul` | number | Probability of yes from 0 to 1, including exact zero and one. Apply any routing threshold downstream. |
+| `model` | string | Resolved model ID returned by TypeSafe |
+| `usage` | object | Token usage for the entire request |
+|   ↳ `input_tokens` | number | Number of input tokens used |
+|   ↳ `output_tokens` | number | Number of output tokens used |
+
+### TypeSafe Assign a Score
+
+Score input against an ordered rubric using TypeSafe Jev, preserving fractional scores.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Shared input to evaluate: plain text or a JSON-encoded object or array. Resolved workflow objects and arrays are also supported. |
+| `instructions` | string | Yes | Question or evaluation instructions. Provide text or a JSON-encoded object or array. |
+| `criteria` | array | Yes | Ordered array of 2–10 rubric descriptions, indexed from zero. Descriptions may be text, structured, or null. Example: \["Routine","Time sensitive","Service unavailable"\] |
+| `apiKey` | string | Yes | TypeSafe API key |
+| `model` | string | No | Model ID or alias, such as jev-latest, jev-preview, or jev-1.13.0. Custom IDs are supported. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `score` | number | Expected score on the zero-indexed rubric; may be fractional |
+| `legend` | json | Dynamic map of score indices to the original text, structured, or null rubric descriptions |
+| `probabilities` | json | Dynamic map of score indices to probabilities from 0 to 1 |
+| `confidence` | number | Distribution-based confidence from 0 to 1; not a guarantee of correctness |
+| `model` | string | Resolved model ID returned by TypeSafe |
+| `usage` | object | Token usage for the entire request |
+|   ↳ `input_tokens` | number | Number of input tokens used |
+|   ↳ `output_tokens` | number | Number of output tokens used |
+
+

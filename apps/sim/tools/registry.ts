@@ -5630,6 +5630,12 @@ import {
 } from '@/tools/typeform'
 import type { ExecutableToolConfig } from '@/tools/types'
 import {
+  typesafeChoiceTool,
+  typesafeEvaluateTool,
+  typesafeNoulTool,
+  typesafeScoreTool,
+} from '@/tools/typesafe'
+import {
   upstashRedisCommandTool,
   upstashRedisDeleteTool,
   upstashRedisExistsTool,
@@ -7580,6 +7586,10 @@ export const tools: Record<string, ExecutableToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  typesafe_choice: typesafeChoiceTool,
+  typesafe_evaluate: typesafeEvaluateTool,
+  typesafe_noul: typesafeNoulTool,
+  typesafe_score: typesafeScoreTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,
