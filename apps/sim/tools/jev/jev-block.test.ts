@@ -139,7 +139,8 @@ describe('Jev workflow execution', () => {
           model: 'jev-1.13.0',
           answers,
           usage: { input_tokens: 50, output_tokens: 8 },
-        })
+        }),
+        { apiKey: params.apiKey, state: params.state, questions: params.questions }
       )
     })
     const output = await new GenericBlockHandler().execute(context(), block('jev_evaluate'), {

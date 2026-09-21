@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { jevChoiceTool, jevEvaluateTool, jevNoulTool, jevScoreTool } from '@/tools/jev'
+import type { JevEvaluateParams } from '@/tools/jev/types'
 import { prepareToolRequest } from '@/tools/request-transport'
 
 const BASE = { apiKey: 'test-key', state: 'My payouts have been failing for three days.' }
@@ -19,6 +20,22 @@ const SCORE = {
   confidence: 0.92,
 } as const
 const NOUL = { type: 'noul', noul: 0.95 } as const
+const BATCH_PARAMS: JevEvaluateParams = {
+  ...BASE,
+  questions: {
+    department: {
+      type: 'choice',
+      instructions: 'Which team?',
+      criteria: { billing: null, technical: null },
+    },
+    frustration: {
+      type: 'score',
+      instructions: 'How frustrated?',
+      criteria: ['Calm', 'Frustrated', 'Very angry'],
+    },
+    is_urgent: { type: 'noul', instructions: 'Is this urgent?' },
+  },
+}
 
 function response(answers: Record<string, unknown>) {
   return Response.json({ model: 'jev-1.13.0', answers, usage: USAGE })
@@ -142,12 +159,44 @@ describe('Jev tools', () => {
     })
   })
 
-  it('preserves all mixed batch answer types and question IDs', async () => {
-    const answers = { department: CHOICE, frustration: SCORE, is_urgent: NOUL }
-    expect(await jevEvaluateTool.transformResponse!(response(answers))).toEqual({
-      success: true,
-      output: { model: 'jev-1.13.0', usage: USAGE, answers },
-    })
+  it.each([false, true])(
+    'matches mixed batch answers regardless of order, serialized=%s',
+    async (serialized) => {
+      const answers = { department: CHOICE, frustration: SCORE, is_urgent: NOUL }
+      const params = {
+        ...BATCH_PARAMS,
+        questions: serialized ? JSON.stringify(BATCH_PARAMS.questions) : BATCH_PARAMS.questions,
+      }
+      expect(
+        await jevEvaluateTool.transformResponse!(
+          response({ is_urgent: NOUL, frustration: SCORE, department: CHOICE }),
+          params
+        )
+      ).toEqual({
+        success: true,
+        output: { model: 'jev-1.13.0', usage: USAGE, answers },
+      })
+    }
+  )
+
+  it.each([
+    ['empty', {}],
+    ['partial', { department: CHOICE, frustration: SCORE }],
+    ['mismatched type', { department: NOUL, frustration: SCORE, is_urgent: NOUL }],
+    ['unexpected ID', { department: CHOICE, frustration: SCORE, other: NOUL }],
+    ['extra answer', { department: CHOICE, frustration: SCORE, is_urgent: NOUL, other: NOUL }],
+  ])('rejects a %s batch response', async (_label, answers) => {
+    await expect(
+      jevEvaluateTool.transformResponse!(response(answers), BATCH_PARAMS)
+    ).rejects.toThrow(
+      'TypeSafe returned Jev answers that do not match the requested question IDs and types'
+    )
+  })
+
+  it('requires request context to validate batch answers', async () => {
+    await expect(
+      jevEvaluateTool.transformResponse!(response({ department: CHOICE }))
+    ).rejects.toThrow('Jev batch response validation requires request parameters')
   })
 
   it('supports structured Score legends documented by the TypeSafe SDK', async () => {

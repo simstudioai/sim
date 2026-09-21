@@ -115,19 +115,24 @@ export function parseJevJson(value: unknown, field: string): unknown {
   }
 }
 
-export function buildJevBody(params: JevBaseParams, questions: unknown) {
-  const parsedQuestions = questionsSchema.safeParse(questions)
+export function parseJevQuestions(questions: unknown) {
+  const parsedQuestions = questionsSchema.safeParse(parseJevJson(questions, 'questions'))
   if (!parsedQuestions.success) {
     throw new Error(
       'Invalid Jev questions: provide typed questions with instructions, 1–255 Choice options, 2–10 Score levels, or optional true/false Noul criteria'
     )
   }
+  return parsedQuestions.data
+}
+
+export function buildJevBody(params: JevBaseParams, questions: unknown) {
+  const parsedQuestions = parseJevQuestions(questions)
   const state = contentSchema.safeParse(params.state)
   if (!state.success) throw new Error('Jev state must be text, a JSON object, or an array')
   return {
     model: params.model?.trim() || 'jev-1.13.0',
     state: state.data,
-    questions: parsedQuestions.data,
+    questions: parsedQuestions,
   }
 }
 

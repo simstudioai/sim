@@ -2,7 +2,7 @@ import {
   buildJevBody,
   JEV_COMMON_PARAMS,
   JEV_REQUEST,
-  parseJevJson,
+  parseJevQuestions,
   parseJevResponse,
 } from '@/tools/jev/shared'
 import type { JevEvaluateParams, JevEvaluateResponse } from '@/tools/jev/types'
@@ -30,10 +30,22 @@ export const jevEvaluateTool: ToolConfig<JevEvaluateParams, JevEvaluateResponse>
       mode: 'project',
       select: (params) => ({ state: params.state, questions: params.questions }),
     },
-    body: (params) => buildJevBody(params, parseJevJson(params.questions, 'questions')),
+    body: (params) => buildJevBody(params, params.questions),
   },
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const { model, usage, answers } = await parseJevResponse(response)
+    if (!params) throw new Error('Jev batch response validation requires request parameters')
+    const questions = parseJevQuestions(params.questions)
+    if (
+      Object.keys(answers).length !== Object.keys(questions).length ||
+      Object.entries(questions).some(
+        ([id, question]) => !Object.hasOwn(answers, id) || answers[id].type !== question.type
+      )
+    ) {
+      throw new Error(
+        'TypeSafe returned Jev answers that do not match the requested question IDs and types'
+      )
+    }
     return { success: true, output: { model, usage, answers } }
   },
   outputs: {
