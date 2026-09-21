@@ -83,6 +83,8 @@ export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
 export interface ProjectionSourceAclBackfillOptions {
   /** Resume after this chunk id; the projection's first page otherwise. */
   afterId?: string
+  /** Stop before this chunk id; the projection's end otherwise. Lets workers fill disjoint ranges. */
+  beforeId?: string
   pageSize?: number
   pauseMs?: number
   /** Stop once this much time has passed and report where to resume; unbounded otherwise. */
@@ -112,7 +114,9 @@ export interface ProjectionSourceAclBackfillProgress {
  * cost of a page and far more than a deploy can wait for; the run paces itself with a pause between
  * pages and stops at its budget so a background task can chain runs until the projection is filled.
  * Search does not wait: an unfilled row is decided on its document by the on-row candidate
- * predicate, the join per candidate every row paid before the columns existed.
+ * predicate, the join per candidate every row paid before the columns existed. A run fills the
+ * range it was given and reports that range done; whether the projection as a whole is done, and
+ * the analysis the planner then needs, is the caller's, since several runs may share a projection.
  */
 export async function backfillProjectionSourceAcl(
   sql: Sql,
@@ -135,6 +139,7 @@ export async function backfillProjectionSourceAcl(
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : startedAt + options.budgetMs
   let afterId = options.afterId ?? ''
+  const beforeId = options.beforeId ?? null
   let scanned = 0
   let written = 0
   let pages = 0
@@ -149,7 +154,7 @@ export async function backfillProjectionSourceAcl(
         `WITH page AS (
           SELECT s.id, s.document_id, d.connector_id, d.acl
           FROM ${projection} s JOIN document d ON d.id = s.document_id
-          WHERE s.id > $1 AND s.acl IS NULL
+          WHERE s.id > $1 AND ($2::text IS NULL OR s.id < $2) AND s.acl IS NULL
           ORDER BY s.id LIMIT ${pageSize}
           FOR SHARE OF d
         ), updated AS (
@@ -161,14 +166,12 @@ export async function backfillProjectionSourceAcl(
         SELECT (SELECT count(*)::int FROM page) AS scanned,
           (SELECT count(*)::int FROM updated) AS filled,
           (SELECT max(id) FROM page) AS last_id`,
-        [afterId]
+        [afterId, beforeId]
       )
       return row
     })
     if (page.last_id === null) {
       done = true
-      /** The planner last saw every row unfilled; it should see the finished projection. */
-      await sql.unsafe(`ANALYZE ${projection}`)
       break
     }
     afterId = page.last_id
@@ -189,9 +192,12 @@ export async function backfillProjectionSourceAcl(
     if (Date.now() >= deadline) break
   }
   logger.info(
-    done ? 'Projection source and ACL backfilled' : 'Projection source and ACL backfill paused',
+    done
+      ? 'Projection source and ACL range backfilled'
+      : 'Projection source and ACL backfill paused',
     {
       projection,
+      beforeId,
       scanned,
       written,
       afterId,
