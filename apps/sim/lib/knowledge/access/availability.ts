@@ -64,7 +64,10 @@ export async function resolveKnowledgeAccessAvailability(
     throw new Error('Knowledge access requires one resource owner')
   /** A caller that brings its own billing snapshot is answered from that snapshot, uncached. */
   if (context.ownerBilling) return readKnowledgeAccessAvailability(context)
-  const key = `${context.organizationId ?? ''}|${context.workspaceId ?? ''}|${context.userId ?? ''}`
+  /** An organization's answer depends on the organization alone; a workspace's on its viewer too. */
+  const key = context.organizationId
+    ? `${context.organizationId}||`
+    : `|${context.workspaceId ?? ''}|${context.userId ?? ''}`
   const availability = await availabilityCache.fetch(key, { context })
   if (!availability) throw new Error('Knowledge access availability could not be resolved')
   return availability
@@ -89,14 +92,14 @@ async function readKnowledgeAccessAvailability(
     return { sourceMirrored: false, memberScoped: false }
   }
   if (context.organizationId) {
-    return {
-      sourceMirrored:
-        !isHosted || (await isOrganizationOnEnterprisePlan(context.organizationId, 'throw')),
-      memberScoped: await isScopedCredentialGroupsAvailable({
+    const [enterprise, memberScoped] = await Promise.all([
+      isHosted ? isOrganizationOnEnterprisePlan(context.organizationId, 'throw') : true,
+      isScopedCredentialGroupsAvailable({
         kind: 'organization',
         organizationId: context.organizationId,
       }),
-    }
+    ])
+    return { sourceMirrored: enterprise, memberScoped }
   }
   if (!context.workspaceId) throw new Error('Knowledge access requires a resource owner')
   const ownerBilling =

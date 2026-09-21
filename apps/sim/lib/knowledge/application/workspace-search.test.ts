@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  afterSearch: vi.fn(async () => undefined),
   resolveWorkspace: vi.fn(),
   permission: vi.fn(),
   search: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
     access: {},
   }),
   validateKnowledgeSearchInput: () => undefined,
-  afterKnowledgeSearch: mocks.afterSearch ?? (async () => undefined),
+  afterKnowledgeSearch: mocks.afterSearch,
 }))
 
 import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'

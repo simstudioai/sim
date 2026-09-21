@@ -24,56 +24,6 @@ import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activit
 import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import { findSearchIndex, findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
 
-/** A search's result when the owner has an index; an owner without one answers empty. */
-type ScopedSearchResult =
-  | SearchKnowledgeResult
-  | {
-      results: []
-      query: string
-      knowledgeBases: []
-      retrieval: { status: 'complete'; timedOutLegs: [] }
-    }
-
-function emptySearch(query: string | undefined): ScopedSearchResult {
-  return {
-    results: [],
-    query: query ?? '',
-    knowledgeBases: [],
-    retrieval: { status: 'complete' as const, timedOutLegs: [] },
-  }
-}
-
-/**
- * Runs the search over the owner's index under the context this use case already resolved and
- * authorized: the index is the one base, and nothing about it is read twice.
- */
-function searchOwnersIndex(
-  principal: Principal,
-  input: Omit<SearchKnowledgeInput, 'knowledgeBaseIds'>,
-  context: KnowledgeResourceContext,
-  index: ActiveKnowledgeBaseReference
-): Promise<SearchKnowledgeResult> {
-  const searchInput: SearchKnowledgeInput = { ...input, knowledgeBaseIds: [index.id] }
-  validateKnowledgeSearchInput(searchInput)
-  return runKnowledgeSearch({
-    principal,
-    input: searchInput,
-    context: buildKnowledgeSearchContext(principal, context, [index], input.signal),
-  })
-}
-
-/** The shared follow-up applies to a search that ran; an empty answer recorded its own. */
-function afterScopedSearch(execution: {
-  principal: Principal
-  context: KnowledgeResourceContext
-  input: Pick<SearchKnowledgeInput, 'surface'>
-  result: ScopedSearchResult
-}): Promise<void> | undefined {
-  return 'userId' in execution.result
-    ? afterKnowledgeSearch({ ...execution, result: execution.result })
-    : undefined
-}
-
 export type SearchWorkspaceKnowledgeInput = Omit<
   SearchKnowledgeInput,
   'knowledgeBaseIds' | 'workspaceId'
@@ -81,76 +31,10 @@ export type SearchWorkspaceKnowledgeInput = Omit<
   workspaceId: string
 }
 
-/** Search and Assistant share the workspace's canonical Enterprise Search index. */
-const searchWorkspaceKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.search,
-  resolveContext: ({ input }: { input: SearchWorkspaceKnowledgeInput }) =>
-    measureSearchStage('scope_resolution', () => resolveKnowledgeWorkspaceContext(input)),
-  async execute({ principal, input, context }) {
-    input.signal?.throwIfAborted()
-    const index = await measureSearchStage('index_resolution', () =>
-      findWorkspaceSearchIndex(context.workspaceId)
-    )
-    if (!index) return emptySearch(input.query)
-    return searchOwnersIndex(
-      principal,
-      { ...input, workspaceId: context.workspaceId },
-      context,
-      index
-    )
-  },
-  afterSuccess: ({ principal, context, input, result }) =>
-    afterScopedSearch({ principal, context, input, result }),
-})
-
-export const searchWorkspaceKnowledge = instrumentSearchUseCase(
-  'workspace_application',
-  searchWorkspaceKnowledgeUseCase
-)
-
 export type SearchOrganizationKnowledgeInput = Omit<
   SearchWorkspaceKnowledgeInput,
   'workspaceId'
 > & { organizationId: string }
-
-/** Organization Search and Assistant resolve the same index and provider ACLs. */
-const searchOrganizationKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.search,
-  resolveContext: ({ input }: { input: SearchOrganizationKnowledgeInput }) =>
-    measureSearchStage('scope_resolution', () => resolveKnowledgeOrganizationContext(input)),
-  async execute({ principal, input, context }) {
-    input.signal?.throwIfAborted()
-    const index = await measureSearchStage('index_resolution', () =>
-      findSearchIndex({
-        kind: 'organization',
-        organizationId: context.organizationId,
-      })
-    )
-    if (!index) {
-      if (context.organizationId) {
-        await requireOrganizationSearchAvailable(context.organizationId)
-        input.signal?.throwIfAborted()
-        const userId = resolvePrincipalSubjectUserId(principal)
-        if (userId)
-          await recordOrganizationSearchActivity({
-            organizationId: context.organizationId,
-            userId,
-            surface: input.surface ?? 'other',
-            results: [],
-          })
-      }
-      return emptySearch(input.query)
-    }
-    return searchOwnersIndex(principal, input, context, index)
-  },
-  afterSuccess: ({ principal, context, input, result }) =>
-    afterScopedSearch({ principal, context, input, result }),
-})
-
-export const searchOrganizationKnowledge = instrumentSearchUseCase(
-  'organization_application',
-  searchOrganizationKnowledgeUseCase
-)
 
 export type SearchScopedKnowledgeInput = Omit<
   SearchKnowledgeInput,
@@ -158,47 +42,121 @@ export type SearchScopedKnowledgeInput = Omit<
 > &
   ResourceOwner
 
-/** The routed owner selects the index; current membership and provider ACLs select its documents. */
-const searchScopedKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.search,
-  resolveContext: ({ input }: { input: SearchScopedKnowledgeInput }) =>
-    measureSearchStage('scope_resolution', () => resolveKnowledgeOwnerContext(input)),
-  async execute({ principal, input, context }) {
-    input.signal?.throwIfAborted()
-    const index = await measureSearchStage('index_resolution', () =>
-      findSearchIndex(resourceScopeFromOwner(context))
-    )
-    if (!index) {
-      if (context.organizationId) {
-        await requireOrganizationSearchAvailable(context.organizationId)
-        input.signal?.throwIfAborted()
-        const userId = resolvePrincipalSubjectUserId(principal)
-        if (userId)
-          await recordOrganizationSearchActivity({
-            organizationId: context.organizationId,
-            userId,
-            surface: input.surface ?? 'other',
-            results: [],
-          })
-      }
-      return emptySearch(input.query)
-    }
-    return searchOwnersIndex(
-      principal,
-      {
-        ...input,
-        workspaceId: input.workspaceId ?? undefined,
-        organizationId: input.organizationId ?? undefined,
-      },
-      context,
-      index
-    )
-  },
-  afterSuccess: ({ principal, context, input, result }) =>
-    afterScopedSearch({ principal, context, input, result }),
-})
+/** What an owner without an index answers: nothing, completely. */
+interface SearchWithoutIndex {
+  results: []
+  query: string
+  knowledgeBases: []
+  retrieval: { status: 'complete'; timedOutLegs: [] }
+}
 
+type ScopedSearchResult = SearchKnowledgeResult | SearchWithoutIndex
+
+/** Whether an index was searched, which is what the follow-up to a search is for. */
+function searchedAnIndex(result: ScopedSearchResult): result is SearchKnowledgeResult {
+  return 'knowledgeBaseId' in result
+}
+
+/**
+ * An owner without an index answers empty. An organization still has to be allowed to search,
+ * and its empty search is recorded like any other, so the activity view shows the attempt.
+ */
+async function searchWithoutIndex(
+  principal: Principal,
+  context: KnowledgeResourceContext,
+  input: Pick<SearchKnowledgeInput, 'query' | 'surface' | 'signal'>
+): Promise<SearchWithoutIndex> {
+  if (context.organizationId) {
+    await requireOrganizationSearchAvailable(context.organizationId)
+    input.signal?.throwIfAborted()
+    const userId = resolvePrincipalSubjectUserId(principal)
+    if (userId)
+      await recordOrganizationSearchActivity({
+        organizationId: context.organizationId,
+        userId,
+        surface: input.surface ?? 'other',
+        results: [],
+      })
+  }
+  return {
+    results: [],
+    query: input.query ?? '',
+    knowledgeBases: [],
+    retrieval: { status: 'complete', timedOutLegs: [] },
+  }
+}
+
+type ScopedSearchInput = Omit<SearchKnowledgeInput, 'knowledgeBaseIds'>
+
+/**
+ * A search surface that resolves an owner, finds the owner's index and searches it. The owner is
+ * resolved and authorized once, here; the search runs under that context, and nothing about the
+ * index is read twice. Surfaces differ only in how they name the owner and find the index.
+ */
+function defineScopedSearchUseCase<
+  I extends Pick<SearchKnowledgeInput, 'query' | 'surface' | 'signal'>,
+>(surface: {
+  resolveContext: (input: I) => Promise<KnowledgeResourceContext>
+  findIndex: (context: KnowledgeResourceContext) => Promise<ActiveKnowledgeBaseReference | null>
+  searchInput: (input: I, context: KnowledgeResourceContext) => ScopedSearchInput
+}) {
+  return defineAuthorizedKnowledgeUseCase({
+    operation: knowledgeOperations.search,
+    resolveContext: ({ input }: { input: I }) =>
+      measureSearchStage('scope_resolution', () => surface.resolveContext(input)),
+    async execute({ principal, input, context }): Promise<ScopedSearchResult> {
+      input.signal?.throwIfAborted()
+      const index = await measureSearchStage('index_resolution', () => surface.findIndex(context))
+      if (!index) return searchWithoutIndex(principal, context, input)
+      const searchInput: SearchKnowledgeInput = {
+        ...surface.searchInput(input, context),
+        knowledgeBaseIds: [index.id],
+      }
+      validateKnowledgeSearchInput(searchInput)
+      return runKnowledgeSearch({
+        principal,
+        input: searchInput,
+        context: buildKnowledgeSearchContext(principal, context, [index], searchInput),
+      })
+    },
+    afterSuccess: ({ principal, context, input, result }) =>
+      searchedAnIndex(result)
+        ? afterKnowledgeSearch({ principal, context, input, result })
+        : undefined,
+  })
+}
+
+/** Search and Assistant share the workspace's canonical Enterprise Search index. */
+export const searchWorkspaceKnowledge = instrumentSearchUseCase(
+  'workspace_application',
+  defineScopedSearchUseCase<SearchWorkspaceKnowledgeInput>({
+    resolveContext: (input) => resolveKnowledgeWorkspaceContext(input),
+    findIndex: (context) => findWorkspaceSearchIndex(context.workspaceId!),
+    searchInput: (input, context) => ({ ...input, workspaceId: context.workspaceId }),
+  })
+)
+
+/** Organization Search and Assistant resolve the same index and provider ACLs. */
+export const searchOrganizationKnowledge = instrumentSearchUseCase(
+  'organization_application',
+  defineScopedSearchUseCase<SearchOrganizationKnowledgeInput>({
+    resolveContext: (input) => resolveKnowledgeOrganizationContext(input),
+    findIndex: (context) =>
+      findSearchIndex({ kind: 'organization', organizationId: context.organizationId! }),
+    searchInput: (input) => input,
+  })
+)
+
+/** The routed owner selects the index; current membership and provider ACLs select its documents. */
 export const searchScopedKnowledge = instrumentSearchUseCase(
   'scoped_application',
-  searchScopedKnowledgeUseCase
+  defineScopedSearchUseCase<SearchScopedKnowledgeInput>({
+    resolveContext: (input) => resolveKnowledgeOwnerContext(input),
+    findIndex: (context) => findSearchIndex(resourceScopeFromOwner(context)),
+    searchInput: (input) => ({
+      ...input,
+      workspaceId: input.workspaceId ?? undefined,
+      organizationId: input.organizationId ?? undefined,
+    }),
+  })
 )

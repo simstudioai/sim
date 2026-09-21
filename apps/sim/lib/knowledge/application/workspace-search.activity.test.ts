@@ -4,6 +4,7 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  afterSearch: vi.fn(async () => undefined),
   context: vi.fn(),
   policy: vi.fn(),
   findIndex: vi.fn(),
@@ -44,7 +45,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
     access: {},
   }),
   validateKnowledgeSearchInput: () => undefined,
-  afterKnowledgeSearch: mocks.afterSearch ?? (async () => undefined),
+  afterKnowledgeSearch: mocks.afterSearch,
 }))
 
 import {
@@ -63,7 +64,11 @@ beforeEach(() => {
   mocks.findIndex.mockResolvedValue(null)
   mocks.available.mockResolvedValue(undefined)
   mocks.activity.mockResolvedValue(undefined)
-  mocks.search.mockResolvedValue({ results: [], knowledgeBases: [{ id: 'index' }] })
+  mocks.search.mockResolvedValue({
+    results: [],
+    knowledgeBases: [{ id: 'index' }],
+    knowledgeBaseId: 'index',
+  })
 })
 
 describe.each([
@@ -99,6 +104,8 @@ describe.each([
         input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
       })
     )
+    /** A searched index is followed up once, by the shared hook; the empty path records nothing here. */
+    expect(mocks.afterSearch).toHaveBeenCalledOnce()
     expect(mocks.activity).not.toHaveBeenCalled()
   })
 
