@@ -7,6 +7,7 @@ import type { V2ErrorPolicy } from '@/lib/api/server/routes/v2-json-route'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { isRetryableTransactionError } from '@/lib/db/transaction'
+import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { WorkspaceInvitationError } from '@/lib/invitations/workspace-invitations'
 import { CAPABILITY_RULES, capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
@@ -15,6 +16,8 @@ import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission
 export const internalOrganizationErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
   (error) => {
+    if (error instanceof InvitationNotPendingError)
+      return internalErrorResponse(400, { error: error.message })
     if (error instanceof OrganizationMembershipNotFoundError)
       return internalErrorResponse(403, { error: 'Forbidden - Not a member of this organization' })
     if (error instanceof ForbiddenOperationError)

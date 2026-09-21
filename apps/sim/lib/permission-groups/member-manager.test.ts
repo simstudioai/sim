@@ -40,6 +40,20 @@ beforeEach(() => {
 })
 
 describe('permission-group membership mutations', () => {
+  it.each([
+    {},
+    { userIds: [] },
+    { addAllOrganizationMembers: false },
+    { addAllOrganizationMembers: true, userIds: [] },
+    { addAllOrganizationMembers: true, userIds: ['member-1'] },
+  ])('rejects an ambiguous or empty bulk selection before mutation: %j', async (input) => {
+    await expect(
+      bulkAddPermissionGroupMemberRecords('org-1', 'group-1', input, 'admin-1')
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.group).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('requires organization membership for a single addition', async () => {
     await expect(
       addPermissionGroupMemberRecord('org-1', 'group-1', 'outsider', 'admin-1')

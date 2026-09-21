@@ -16,7 +16,7 @@ const {
   mockValidateInvitationsAllowed,
   mockSendInvitationEmail,
   mockPrepareInvitationResend,
-  mockPersistInvitationResend,
+  mockRevertInvitationResend,
   mockGetOrganizationSubscription,
 } = vi.hoisted(() => ({
   MockInvitationsNotAllowedError: class extends Error {
@@ -34,7 +34,7 @@ const {
   mockValidateInvitationsAllowed: vi.fn(),
   mockSendInvitationEmail: vi.fn(),
   mockPrepareInvitationResend: vi.fn(),
-  mockPersistInvitationResend: vi.fn(),
+  mockRevertInvitationResend: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
 }))
 
@@ -56,7 +56,7 @@ vi.mock('@/lib/invitations/core', () => ({
 vi.mock('@/lib/invitations/send', () => ({
   sendInvitationEmail: mockSendInvitationEmail,
   prepareInvitationResend: mockPrepareInvitationResend,
-  persistInvitationResend: mockPersistInvitationResend,
+  revertInvitationResend: mockRevertInvitationResend,
 }))
 vi.mock('@/lib/billing/core/organization', () => ({
   isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
@@ -76,6 +76,8 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { PreparedInvitationResend } from '@/lib/invitations/send'
 import { POST } from '@/app/api/invitations/[id]/resend/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -107,6 +109,16 @@ const workspaceInvitation = {
   grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
 }
 
+const preparedResend: PreparedInvitationResend = {
+  invitationId: workspaceInvitation.id,
+  organizationId: workspaceInvitation.organizationId,
+  tokenForEmail: 'token-2',
+  nextExpiresAt: new Date('2099-02-01'),
+  mutationUpdatedAt: new Date('2026-02-01'),
+  previousToken: workspaceInvitation.token,
+  previousExpiresAt: workspaceInvitation.expiresAt,
+}
+
 /**
  * A resend re-delivers a working link and pushes the expiry forward, so it is a
  * send: without the gate an organization that has withheld invitations still
@@ -132,13 +144,9 @@ describe('POST /api/invitations/[id]/resend', () => {
     })
     mockGetWorkspaceInvitePolicy.mockResolvedValue({ allowed: true })
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
-    mockPrepareInvitationResend.mockResolvedValue({
-      tokenForEmail: 'token-2',
-      nextToken: 'token-2',
-      nextExpiresAt: new Date('2026-09-30T00:00:00.000Z'),
-    })
+    mockPrepareInvitationResend.mockResolvedValue(preparedResend)
     mockSendInvitationEmail.mockResolvedValue({ success: true })
-    mockPersistInvitationResend.mockResolvedValue(undefined)
+    mockRevertInvitationResend.mockResolvedValue(true)
   })
 
   it('resends when no group withholds invitations', async () => {
@@ -149,6 +157,9 @@ describe('POST /api/invitations/[id]/resend', () => {
       workspaceId: 'workspace-1',
     })
     expect(mockSendInvitationEmail).toHaveBeenCalled()
+    expect(mockPrepareInvitationResend.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSendInvitationEmail.mock.invocationCallOrder[0]
+    )
   })
 
   /**
@@ -167,7 +178,7 @@ describe('POST /api/invitations/[id]/resend', () => {
       details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
-    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+    expect(mockRevertInvitationResend).not.toHaveBeenCalled()
   })
 
   /**
@@ -219,7 +230,7 @@ describe('POST /api/invitations/[id]/resend', () => {
 
     expect(response.status).toBe(403)
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
-    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+    expect(mockRevertInvitationResend).not.toHaveBeenCalled()
   })
 
   /**
@@ -254,7 +265,7 @@ describe('POST /api/invitations/[id]/resend', () => {
 
     expect(response.status).toBe(403)
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
-    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+    expect(mockRevertInvitationResend).not.toHaveBeenCalled()
   })
 
   /**
@@ -299,14 +310,35 @@ describe('POST /api/invitations/[id]/resend', () => {
         status,
         expiresAt: new Date('2000-01-01'),
       })
-      expect((await callResend()).status).toBe(409)
+      expect((await callResend()).status).toBe(400)
       expect(mockSendInvitationEmail).not.toHaveBeenCalled()
     }
   )
 
-  it('leaves the token unchanged when delivery fails', async () => {
+  it('restores the previous token when delivery fails', async () => {
     mockSendInvitationEmail.mockResolvedValue({ success: false, error: 'Delivery unavailable' })
     expect((await callResend()).status).toBe(502)
-    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+    expect(mockRevertInvitationResend).toHaveBeenCalledWith(preparedResend)
+  })
+
+  it('does not deliver a token when a concurrent change prevents persistence', async () => {
+    mockPrepareInvitationResend.mockRejectedValueOnce(
+      new OrchestrationError('conflict', 'Invitation changed')
+    )
+    expect((await callResend()).status).toBe(409)
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    expect(mockRevertInvitationResend).not.toHaveBeenCalled()
+  })
+
+  it('compensates when delivery throws', async () => {
+    mockSendInvitationEmail.mockRejectedValueOnce(new Error('Mail transport unavailable'))
+    expect((await callResend()).status).toBe(502)
+    expect(mockRevertInvitationResend).toHaveBeenCalledOnce()
+  })
+
+  it('reports a conflict when failed delivery cannot be compensated over newer state', async () => {
+    mockSendInvitationEmail.mockResolvedValueOnce({ success: false })
+    mockRevertInvitationResend.mockResolvedValueOnce(false)
+    expect((await callResend()).status).toBe(409)
   })
 })

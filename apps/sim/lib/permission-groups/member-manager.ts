@@ -130,6 +130,13 @@ export async function bulkAddPermissionGroupMemberRecords(
   input: BulkAddPermissionGroupMembersInput,
   actorUserId: string
 ) {
+  if (
+    input.addAllOrganizationMembers === true ? input.userIds !== undefined : !input.userIds?.length
+  )
+    throw new OrchestrationError(
+      'validation',
+      'Provide userIds or set addAllOrganizationMembers to true, but not both'
+    )
   return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     const workspaceIds = (await getGroupWorkspaces(groupId, tx)).map((workspace) => workspace.id)

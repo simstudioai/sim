@@ -11,7 +11,7 @@ vi.mock('@/lib/invitations/core', async (original) => ({
 }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { persistInvitationResend } from '@/lib/invitations/send'
+import { prepareInvitationResend, revertInvitationResend } from '@/lib/invitations/send'
 
 const revision = new Date('2026-01-01')
 const input = {
@@ -19,8 +19,7 @@ const input = {
   actorUserId: 'actor',
   expectedOrganizationId: 'org',
   expectedUpdatedAt: revision,
-  nextToken: 'new-token',
-  nextExpiresAt: new Date('2099-02-01'),
+  currentToken: 'original-token',
 }
 beforeEach(() => {
   vi.resetAllMocks()
@@ -28,14 +27,27 @@ beforeEach(() => {
   mocks.lock.mockResolvedValue({
     id: 'inv',
     organizationId: 'org',
+    status: 'pending',
+    token: 'original-token',
+    updatedAt: revision,
     expiresAt: new Date('2099-01-01'),
     grants: [],
   })
   dbChainMockFns.returning.mockResolvedValue([{ id: 'inv' }])
 })
-describe('resend token persistence', () => {
+describe('resend preparation and compensation', () => {
   it('rechecks authority under the invitation locks and conditionally updates the original pending revision', async () => {
-    await persistInvitationResend(input)
+    const prepared = await prepareInvitationResend(input)
+    expect(prepared).toMatchObject({
+      invitationId: 'inv',
+      previousToken: 'original-token',
+      previousExpiresAt: new Date('2099-01-01'),
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      token: prepared.tokenForEmail,
+      expiresAt: prepared.nextExpiresAt,
+      updatedAt: prepared.mutationUpdatedAt,
+    })
     expect(mocks.lock).toHaveBeenCalledWith(expect.anything(), 'inv', {
       lockCurrentGrantWorkspaces: true,
     })
@@ -51,6 +63,7 @@ describe('resend token persistence', () => {
     const [predicate] = dbChainMockFns.where.mock.calls[0]
     for (const [column, value] of [
       [invitation.status, 'pending'],
+      [invitation.token, 'original-token'],
       [invitation.updatedAt, revision],
       [invitation.organizationId, 'org'],
     ])
@@ -64,22 +77,59 @@ describe('resend token persistence', () => {
 
   it('rejects a concurrent revision change or acceptance', async () => {
     dbChainMockFns.returning.mockResolvedValue([])
-    await expect(persistInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
+    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
   })
 
   it('rejects canonical organization changes without touching the token', async () => {
     mocks.lock.mockResolvedValue({ organizationId: 'different' })
-    await expect(persistInvitationResend(input)).rejects.toMatchObject({ code: 'not_found' })
+    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'not_found' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('rejects demotion and expiration during delivery', async () => {
+  it('rejects demotion and expiration before delivery', async () => {
     mocks.authority.mockRejectedValueOnce(
       new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
     )
-    await expect(persistInvitationResend(input)).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'forbidden' })
     mocks.lock.mockResolvedValue({ organizationId: 'org', expiresAt: new Date('2000-01-01') })
-    await expect(persistInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
+    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('restores the previous token and expiry after failed delivery', async () => {
+    const prepared = await prepareInvitationResend(input)
+    mocks.lock.mockResolvedValue({
+      id: 'inv',
+      status: 'pending',
+      organizationId: prepared.organizationId,
+      token: prepared.tokenForEmail,
+      updatedAt: prepared.mutationUpdatedAt,
+    })
+    await expect(revertInvitationResend(prepared)).resolves.toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenLastCalledWith({
+      token: 'original-token',
+      expiresAt: new Date('2099-01-01'),
+      updatedAt: expect.any(Date),
+    })
+  })
+
+  it.each([
+    { status: 'accepted' },
+    { organizationId: 'other-org' },
+    { token: 'newer-resend-token' },
+    { updatedAt: new Date('2099-02-01') },
+  ])('does not compensate over a later invitation change: %j', async (change) => {
+    const prepared = await prepareInvitationResend(input)
+    mocks.lock.mockResolvedValue({
+      id: 'inv',
+      status: 'pending',
+      organizationId: prepared.organizationId,
+      token: prepared.tokenForEmail,
+      updatedAt: prepared.mutationUpdatedAt,
+      ...change,
+    })
+    dbChainMockFns.update.mockClear()
+    await expect(revertInvitationResend(prepared)).resolves.toBe(false)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

@@ -154,7 +154,48 @@ describe('shared invitation administration', () => {
     }
   )
 
-  it('does not audit a resend rejected after email delivery', async () => {
+  it.each(['resend', 'revoke'] as const)(
+    'keeps organization %s audits outside workspace scope',
+    async (action) => {
+      const organizationInvitation = { ...inv, kind: 'organization' }
+      mocks.invitation.mockResolvedValue(organizationInvitation)
+      mocks.resend.mockResolvedValue(organizationInvitation)
+      mocks.revoke.mockResolvedValue({
+        success: true,
+        invitation: organizationInvitation,
+        invitationCancelled: true,
+      })
+      const useCase = action === 'resend' ? resendInvitation : revokeInvitation
+      await useCase.execute({ principal: session, input })
+      expect(recordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: null,
+          resourceId: 'org',
+          resourceType: 'organization',
+        })
+      )
+    }
+  )
+
+  it('keeps explicitly scoped organization-invitation revocation on the selected workspace', async () => {
+    const organizationInvitation = { ...inv, kind: 'organization' }
+    mocks.invitation.mockResolvedValue(organizationInvitation)
+    mocks.revoke.mockResolvedValue({
+      success: true,
+      invitation: organizationInvitation,
+      invitationCancelled: false,
+    })
+    await revokeInvitation.execute({ principal: session, input: { ...input, workspaceId: 'two' } })
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'two',
+        resourceId: 'two',
+        resourceType: 'workspace',
+      })
+    )
+  })
+
+  it('does not audit a failed resend', async () => {
     mocks.resend.mockRejectedValue(new OrchestrationError('conflict', 'Invitation changed'))
     await expect(resendInvitation.execute({ principal: session, input })).rejects.toMatchObject({
       code: 'conflict',

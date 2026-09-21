@@ -39,6 +39,11 @@ vi.mock('@/lib/invitations/mutation-manager', () => ({
 }))
 
 import { dispatchMcpOperation } from '@/lib/api/mcp/dispatch'
+import {
+  internalOrganizationErrorPolicy,
+  v2OrganizationErrorPolicy,
+} from '@/lib/api/server/routes/organizations'
+import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend/route'
 
@@ -92,6 +97,15 @@ beforeEach(() => {
 })
 
 describe('organization invitation API and MCP', () => {
+  it.each(['resend', 'revoke'] as const)(
+    'preserves internal validation status for %s while exposing public conflict status',
+    (action) => {
+      const error = new InvitationNotPendingError(action)
+      expect(internalOrganizationErrorPolicy.project(error)?.status).toBe(400)
+      expect(v2OrganizationErrorPolicy.render(error)?.status).toBe(409)
+    }
+  )
+
   it.each([undefined, {}])(
     'accepts a bodyless or empty resend and never returns tokens',
     async (body) => {

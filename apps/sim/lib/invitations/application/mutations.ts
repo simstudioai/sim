@@ -29,7 +29,7 @@ export const resendInvitation: OperationUseCase<
       })
       recordProjectedUseCaseAuditEntries(
         invitationOperations.resend,
-        invitation.grants[0]?.workspaceId ?? null,
+        invitation.kind === 'organization' ? null : (invitation.grants[0]?.workspaceId ?? null),
         principal,
         request,
         [
@@ -73,7 +73,9 @@ export const revokeInvitation: OperationUseCase<
     const { actorUserId } = await authorizeInvitationMutation(principal, input, 'revoke')
     const result = await revokeInvitationRecord({ ...input, actorUserId })
     const inv = result.invitation
-    const workspaceId = input.workspaceId ?? inv.grants[0]?.workspaceId ?? null
+    const workspaceId =
+      input.workspaceId ??
+      (inv.kind === 'organization' ? null : (inv.grants[0]?.workspaceId ?? null))
     recordProjectedUseCaseAuditEntries(
       invitationOperations.revoke,
       workspaceId,

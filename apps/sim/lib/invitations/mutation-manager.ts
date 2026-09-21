@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
@@ -12,15 +13,18 @@ import {
   resolveInvitationAdmissionOrganizationId,
   revokeInvitationAsAdmin,
 } from '@/lib/invitations/core'
+import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import {
-  persistInvitationResend,
   prepareInvitationResend,
+  revertInvitationResend,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
 import { WorkspaceInvitationError } from '@/lib/invitations/workspace-invitations'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
+
+const logger = createLogger('InvitationMutationManager')
 
 export async function resendInvitationRecord(input: {
   invitation: InvitationWithGrants
@@ -29,10 +33,7 @@ export async function resendInvitationRecord(input: {
 }) {
   const inv = input.invitation
   if (inv.status !== 'pending' || inv.expiresAt.getTime() <= Date.now())
-    throw new OrchestrationError(
-      'conflict',
-      'Can only resend unexpired pending invitations. Create a new invitation after expiration.'
-    )
+    throw new InvitationNotPendingError('resend')
   /** permission-group-enforced: invitations.send — resend rechecks organization admission and every workspace grant. */
   const admissionOrganizationId = await resolveInvitationAdmissionOrganizationId(inv)
   if (admissionOrganizationId)
@@ -80,7 +81,9 @@ export async function resendInvitationRecord(input: {
   const resend = await prepareInvitationResend({
     invitationId: inv.id,
     currentToken: inv.token,
-    rotateToken: true,
+    expectedOrganizationId: input.assertedOrganizationId,
+    expectedUpdatedAt: inv.updatedAt,
+    actorUserId: input.actorUserId,
   })
   const delivered = await sendInvitationEmail({
     invitationId: inv.id,
@@ -94,20 +97,19 @@ export async function resendInvitationRecord(input: {
       workspaceId: grant.workspaceId,
       permission: grant.permission,
     })),
+  }).catch((error: unknown) => {
+    logger.error('Invitation resend delivery failed', { invitationId: inv.id, error })
+    return { success: false }
   })
-  if (!delivered.success)
+  if (!delivered.success) {
+    const reverted = await revertInvitationResend(resend)
     throw new WorkspaceInvitationError({
-      status: 502,
-      message: delivered.error || 'Failed to send invitation email',
+      status: reverted ? 502 : 409,
+      message: reverted
+        ? 'Failed to send invitation email. Please try again.'
+        : 'The invitation changed while delivery failed. Refresh before resending.',
     })
-  await persistInvitationResend({
-    invitationId: inv.id,
-    nextToken: resend.nextToken,
-    nextExpiresAt: resend.nextExpiresAt,
-    expectedOrganizationId: input.assertedOrganizationId,
-    expectedUpdatedAt: inv.updatedAt,
-    actorUserId: input.actorUserId,
-  })
+  }
   return {
     id: inv.id,
     organizationId: inv.organizationId,
@@ -149,7 +151,7 @@ export async function revokeInvitationRecord(input: {
         'validation',
         'Invitation does not grant access to that workspace'
       )
-    throw new OrchestrationError('conflict', 'Can only revoke unexpired pending invitations')
+    throw new InvitationNotPendingError('revoke')
   }
   return result
 }

@@ -1778,6 +1778,8 @@ export async function revokeInvitationAsAdmin(input: {
         return { success: false, kind: 'scoped-forbidden' }
       }
 
+      if (inv.expiresAt.getTime() <= Date.now()) return { success: false, kind: 'not-pending' }
+
       const revoked = await revokeInvitationWorkspaceGrantTx(tx, {
         invitationId: input.invitationId,
         workspaceId: input.workspaceId,
@@ -1809,10 +1811,18 @@ export async function revokeInvitationAsAdmin(input: {
       }
     }
 
+    if (inv.expiresAt.getTime() <= Date.now()) return { success: false, kind: 'not-pending' }
+
     const cancelled = await tx
       .update(invitation)
       .set({ status: 'cancelled', updatedAt: new Date() })
-      .where(and(eq(invitation.id, input.invitationId), eq(invitation.status, 'pending')))
+      .where(
+        and(
+          eq(invitation.id, input.invitationId),
+          eq(invitation.status, 'pending'),
+          sql`${invitation.expiresAt} > clock_timestamp()`
+        )
+      )
       .returning({ id: invitation.id })
     if (cancelled.length === 0) return { success: false, kind: 'not-cancellable' }
 
