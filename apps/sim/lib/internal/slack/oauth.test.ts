@@ -76,6 +76,17 @@ describe('Slack bot grant policy and cleanup', () => {
   it('accepts the existing indexing bot scope policy', () => {
     expect(() => validateSlackBotAuthorization(grant)).not.toThrow()
   })
+  it.each(['channels:read', 'groups:read'] as const)(
+    'rejects a bot grant missing channel picker scope %s',
+    (missingScope) => {
+      expect(() =>
+        validateSlackBotAuthorization({
+          ...grant,
+          scope: SLACK_SEARCH_SCOPES.filter((scope) => scope !== missingScope).join(','),
+        })
+      ).toThrow(`Reinstall the app with these scopes: ${missingScope}`)
+    }
+  )
   it('requires the additional command scope for shared installs', () => {
     expect(() =>
       validateSlackBotAuthorization(grant, [...SLACK_SEARCH_SCOPES, 'commands'])

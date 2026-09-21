@@ -1,6 +1,8 @@
 export const SLACK_SEARCH_SCOPES = [
   'assistant:write',
   'chat:write',
+  'channels:read',
+  'groups:read',
   'im:history',
   'im:write',
   'app_mentions:read',
