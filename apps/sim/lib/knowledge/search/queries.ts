@@ -918,9 +918,10 @@ function hydrateSearchCandidates(
 ) {
   const accessCondition = knowledgeAccessCondition(access)
   /**
-   * The score comes from the projection's stored halfvec, the column the walk ranked on: the
-   * original vector lives out of line in toast storage that no cache holds, and reading it back
-   * for every hydrated row was a random page read per result on every novel query.
+   * The projection joins so a condition on its stored halfvec — the candidate threshold — can be
+   * tested here; the returned score is whatever the leg passes as `distance`. Both legs pass the
+   * original vector's cosine distance: one out-of-line read per hydrated row, the page's size,
+   * where scoring the whole candidate pool that way read one per candidate on every novel query.
    */
   return runSearchQuery(budget, `${leg}.sql`, (executor) =>
     executor
@@ -1648,7 +1649,7 @@ const SOURCE_RANKING_CONCURRENCY = 3
  */
 async function selectVectorResults(params: SearchParams): Promise<SearchResult[]> {
   const queryVector = params.queryVector!
-  /** One score for ranking, threshold and results alike: the projection's, which stays in cache. */
+  /** The walk and the candidate threshold use the projection's score, which stays in cache; the page is scored on the original vectors at hydration. */
   const distance = embeddingCandidateDistance(
     queryVector.dimensions,
     queryVector.vector,
@@ -2279,18 +2280,14 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       },
       /**
        * Every candidate already matched the query where it was ranked; matching it again here
-       * would detoast one text-search vector per result. The score is the projection's, like the
-       * vector leg's, so the two legs fuse on the same distance.
+       * would detoast one text-search vector per result. The score is the original vector's, like
+       * the vector leg's, so one response carries one distance scale.
        */
       hydrate: (ids, authorized) =>
         hydrateSearchCandidates(
           ids,
           authorized,
-          embeddingCandidateDistance(
-            queryVector.dimensions,
-            queryVector.vector,
-            queryVector.model
-          ).as('distance'),
+          embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance'),
           params.filters,
           [inArray(embedding.knowledgeBaseId, knowledgeBaseIds), ...tagFilterConditions],
           'keyword',
