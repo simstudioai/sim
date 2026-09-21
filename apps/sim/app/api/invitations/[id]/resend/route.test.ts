@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,6 +53,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 vi.mock('@/lib/invitations/core', () => ({
   getInvitationById: mockGetInvitationById,
   resolveInvitationAdmissionOrganizationId: mockResolveInvitationAdmissionOrganizationId,
+  requireInvitationResendAuthority: vi.fn(),
 }))
 vi.mock('@/lib/invitations/send', () => ({
   sendInvitationEmail: mockSendInvitationEmail,
@@ -70,6 +72,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 vi.mock('@/lib/workspaces/policy', () => ({
   getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
+  WORKSPACE_MODE: { ORGANIZATION: 'organization' },
 }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
@@ -77,6 +80,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import type { PreparedInvitationResend } from '@/lib/invitations/send'
 import { POST } from '@/app/api/invitations/[id]/resend/route'
 
@@ -141,10 +145,21 @@ describe('POST /api/invitations/[id]/resend', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       organizationId: 'organization-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner',
+      ownerId: 'owner',
     })
     mockGetWorkspaceInvitePolicy.mockResolvedValue({ allowed: true })
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
-    mockPrepareInvitationResend.mockResolvedValue(preparedResend)
+    mockPrepareInvitationResend.mockImplementation(async (params) => {
+      await lockInvitationResendPolicy(
+        db,
+        await mockGetInvitationById(params.invitationId),
+        params.actorUserId,
+        params.expectedOrganizationId
+      )
+      return preparedResend
+    })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
     mockRevertInvitationResend.mockResolvedValue(true)
   })
@@ -153,9 +168,13 @@ describe('POST /api/invitations/[id]/resend', () => {
     const response = await callResend()
 
     expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      workspaceId: 'workspace-1',
-    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        workspaceId: 'workspace-1',
+      },
+      db
+    )
     expect(mockSendInvitationEmail).toHaveBeenCalled()
     expect(mockPrepareInvitationResend.mock.invocationCallOrder[0]).toBeLessThan(
       mockSendInvitationEmail.mock.invocationCallOrder[0]
@@ -210,12 +229,20 @@ describe('POST /api/invitations/[id]/resend', () => {
     const response = await callResend()
 
     expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      organizationId: 'organization-1',
-    })
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      workspaceId: 'workspace-1',
-    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        organizationId: 'organization-1',
+      },
+      db
+    )
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        workspaceId: 'workspace-1',
+      },
+      db
+    )
   })
 
   it('refuses an organization invitation the organization default group withholds, even when its granted workspace allows', async () => {
@@ -245,13 +272,24 @@ describe('POST /api/invitations/[id]/resend', () => {
     const response = await callResend()
 
     expect(response.status).toBe(200)
-    expect(mockResolveInvitationAdmissionOrganizationId).toHaveBeenCalledWith(workspaceInvitation)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      organizationId: 'organization-1',
-    })
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      workspaceId: 'workspace-1',
-    })
+    expect(mockResolveInvitationAdmissionOrganizationId).toHaveBeenCalledWith(
+      workspaceInvitation,
+      db
+    )
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        organizationId: 'organization-1',
+      },
+      db
+    )
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        workspaceId: 'workspace-1',
+      },
+      db
+    )
   })
 
   it('refuses a workspace invitation whose admitting organization withholds invitations', async () => {
@@ -281,9 +319,13 @@ describe('POST /api/invitations/[id]/resend', () => {
 
     expect(response.status).toBe(200)
     expect(mockValidateInvitationsAllowed).toHaveBeenCalledTimes(1)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      workspaceId: 'workspace-1',
-    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        workspaceId: 'workspace-1',
+      },
+      db
+    )
   })
 
   it('resolves the organization default group for an invitation with no grants', async () => {
@@ -298,9 +340,13 @@ describe('POST /api/invitations/[id]/resend', () => {
     const response = await callResend()
 
     expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
-      organizationId: 'organization-1',
-    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'user-1',
+      {
+        organizationId: 'organization-1',
+      },
+      db
+    )
   })
   it.each(['pending', 'expired'])(
     'rejects an expired %s invitation consistently',

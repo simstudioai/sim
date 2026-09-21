@@ -1783,6 +1783,7 @@ export async function revokeInvitationAsAdmin(input: {
       const revoked = await revokeInvitationWorkspaceGrantTx(tx, {
         invitationId: input.invitationId,
         workspaceId: input.workspaceId,
+        requireUnexpired: true,
       })
       if (!revoked.revoked) return { success: false, kind: 'not-cancellable' }
       return {
@@ -1851,9 +1852,12 @@ export async function revokeInvitationWorkspaceGrantTx(
   {
     invitationId,
     workspaceId,
+    requireUnexpired = false,
   }: {
     invitationId: string
     workspaceId: string
+    /** User revocation checks expiry; direct-grant cleanup may remove stale pending grants. */
+    requireUnexpired?: boolean
   }
 ): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
   const [pending] = await tx
@@ -1869,7 +1873,13 @@ export async function revokeInvitationWorkspaceGrantTx(
     .where(
       and(
         eq(invitationWorkspaceGrant.invitationId, invitationId),
-        eq(invitationWorkspaceGrant.workspaceId, workspaceId)
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId),
+        requireUnexpired
+          ? sql`exists (select 1 from ${invitation}
+              where ${invitation.id} = ${invitationId}
+                and ${invitation.status} = 'pending'
+                and ${invitation.expiresAt} > clock_timestamp())`
+          : undefined
       )
     )
     .returning({ id: invitationWorkspaceGrant.id })

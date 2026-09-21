@@ -23,13 +23,10 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
-import {
-  computeInvitationExpiry,
-  lockInvitationForMutation,
-  requireInvitationResendAuthority,
-} from '@/lib/invitations/core'
+import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
 import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -723,12 +720,16 @@ export async function prepareInvitationResend(params: {
         current.organizationId !== params.expectedOrganizationId)
     )
       throw new OrchestrationError('not_found', 'Invitation not found')
-    await requireInvitationResendAuthority(
-      tx,
-      current,
-      params.actorUserId,
-      params.expectedOrganizationId
+    /** Compare hydrated revisions while the row is locked; legacy timestamps retain sub-millisecond precision in SQL. */
+    if (
+      current.token !== params.currentToken ||
+      current.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
     )
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed before it could be resent. Refresh before resending.'
+      )
+    await lockInvitationResendPolicy(tx, current, params.actorUserId, params.expectedOrganizationId)
     if (current.status !== 'pending' || current.expiresAt.getTime() <= Date.now())
       throw new InvitationNotPendingError('resend')
 
@@ -743,7 +744,6 @@ export async function prepareInvitationResend(params: {
           eq(invitation.id, params.invitationId),
           eq(invitation.status, 'pending'),
           eq(invitation.token, params.currentToken),
-          eq(invitation.updatedAt, params.expectedUpdatedAt),
           sql`${invitation.expiresAt} > clock_timestamp()`,
           params.expectedOrganizationId === undefined
             ? undefined

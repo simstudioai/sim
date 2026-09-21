@@ -3,12 +3,13 @@ import { invitation } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ lock: vi.fn(), authority: vi.fn() }))
+const mocks = vi.hoisted(() => ({ lock: vi.fn(), policy: vi.fn() }))
 vi.mock('@/lib/invitations/core', async (original) => ({
   ...(await original<typeof import('@/lib/invitations/core')>()),
   lockInvitationForMutation: mocks.lock,
-  requireInvitationResendAuthority: mocks.authority,
 }))
+
+vi.mock('@/lib/invitations/resend-policy', () => ({ lockInvitationResendPolicy: mocks.policy }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { prepareInvitationResend, revertInvitationResend } from '@/lib/invitations/send'
@@ -36,7 +37,7 @@ beforeEach(() => {
   dbChainMockFns.returning.mockResolvedValue([{ id: 'inv' }])
 })
 describe('resend preparation and compensation', () => {
-  it('rechecks authority under the invitation locks and conditionally updates the original pending revision', async () => {
+  it('rechecks policy under the invitation locks and conditionally updates the original pending revision', async () => {
     const prepared = await prepareInvitationResend(input)
     expect(prepared).toMatchObject({
       invitationId: 'inv',
@@ -51,20 +52,19 @@ describe('resend preparation and compensation', () => {
     expect(mocks.lock).toHaveBeenCalledWith(expect.anything(), 'inv', {
       lockCurrentGrantWorkspaces: true,
     })
-    expect(mocks.authority).toHaveBeenCalledWith(
+    expect(mocks.policy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ id: 'inv' }),
       'actor',
       'org'
     )
-    expect(mocks.authority.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.policy.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.update.mock.invocationCallOrder[0]
     )
     const [predicate] = dbChainMockFns.where.mock.calls[0]
     for (const [column, value] of [
       [invitation.status, 'pending'],
       [invitation.token, 'original-token'],
-      [invitation.updatedAt, revision],
       [invitation.organizationId, 'org'],
     ])
       expect(
@@ -80,6 +80,37 @@ describe('resend preparation and compensation', () => {
     await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
   })
 
+  it('accepts a hydrated legacy revision without comparing a JavaScript Date to a microsecond SQL value', async () => {
+    const legacyRevision = new Date('2026-01-01T00:00:00.123456Z')
+    mocks.lock.mockResolvedValue({
+      id: 'inv',
+      organizationId: 'org',
+      status: 'pending',
+      token: input.currentToken,
+      updatedAt: legacyRevision,
+      expiresAt: new Date('2099-01-01'),
+    })
+    await prepareInvitationResend({ ...input, expectedUpdatedAt: legacyRevision })
+    const [predicate] = dbChainMockFns.where.mock.calls[0]
+    expect(
+      hasMockCondition(
+        predicate,
+        (node) => node.type === 'eq' && node.left === invitation.updatedAt
+      )
+    ).toBe(false)
+  })
+
+  it('rejects a changed hydrated revision before policy checks or writes', async () => {
+    mocks.lock.mockResolvedValue({
+      organizationId: 'org',
+      token: input.currentToken,
+      updatedAt: new Date('2026-01-02'),
+    })
+    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.policy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('rejects canonical organization changes without touching the token', async () => {
     mocks.lock.mockResolvedValue({ organizationId: 'different' })
     await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'not_found' })
@@ -87,11 +118,18 @@ describe('resend preparation and compensation', () => {
   })
 
   it('rejects demotion and expiration before delivery', async () => {
-    mocks.authority.mockRejectedValueOnce(
+    mocks.policy.mockRejectedValueOnce(
       new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
     )
     await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'forbidden' })
-    mocks.lock.mockResolvedValue({ organizationId: 'org', expiresAt: new Date('2000-01-01') })
+    mocks.lock.mockResolvedValue({
+      id: 'inv',
+      organizationId: 'org',
+      token: input.currentToken,
+      updatedAt: revision,
+      status: 'pending',
+      expiresAt: new Date('2000-01-01'),
+    })
     await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })

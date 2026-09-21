@@ -2,17 +2,9 @@ import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  type InvitationWithGrants,
-  resolveInvitationAdmissionOrganizationId,
-  revokeInvitationAsAdmin,
-} from '@/lib/invitations/core'
+import { type InvitationWithGrants, revokeInvitationAsAdmin } from '@/lib/invitations/core'
 import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import {
   prepareInvitationResend,
@@ -20,9 +12,6 @@ import {
   sendInvitationEmail,
 } from '@/lib/invitations/send'
 import { WorkspaceInvitationError } from '@/lib/invitations/workspace-invitations'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
-import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
-import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationMutationManager')
 
@@ -34,44 +23,6 @@ export async function resendInvitationRecord(input: {
   const inv = input.invitation
   if (inv.status !== 'pending' || inv.expiresAt.getTime() <= Date.now())
     throw new InvitationNotPendingError('resend')
-  /** permission-group-enforced: invitations.send — resend rechecks organization admission and every workspace grant. */
-  const admissionOrganizationId = await resolveInvitationAdmissionOrganizationId(inv)
-  if (admissionOrganizationId)
-    await validateInvitationsAllowed(input.actorUserId, { organizationId: admissionOrganizationId })
-  for (const grant of inv.grants) {
-    await validateInvitationsAllowed(input.actorUserId, { workspaceId: grant.workspaceId })
-    const details = await getWorkspaceWithOwner(grant.workspaceId)
-    if (!details)
-      throw new OrchestrationError(
-        'conflict',
-        'Invitation references a workspace that no longer exists'
-      )
-    const policy = await getWorkspaceInvitePolicy(details)
-    if (!policy.allowed)
-      throw new WorkspaceInvitationError({
-        status: 403,
-        message: policy.reason ?? 'Invites are no longer allowed on this workspace',
-        upgradeRequired: policy.upgradeRequired,
-      })
-  }
-  if (
-    isBillingEnabled &&
-    inv.kind === 'organization' &&
-    inv.grants.length === 0 &&
-    inv.organizationId
-  ) {
-    const subscription = await getOrganizationSubscription(inv.organizationId)
-    if (
-      !subscription ||
-      !hasUsableSubscriptionStatus(subscription.status) ||
-      (!isTeam(subscription.plan) && !isEnterprise(subscription.plan))
-    )
-      throw new WorkspaceInvitationError({
-        status: 403,
-        message: 'Invites are no longer allowed on this organization',
-        upgradeRequired: true,
-      })
-  }
   const [actor] = await db
     .select({ name: user.name, email: user.email })
     .from(user)
