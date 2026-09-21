@@ -436,6 +436,8 @@ export const listTableRows = defineAuthorizedTableUseCase({
           includeTotal: false,
           withExecutions: input.includeRunState ?? false,
           runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+          // `context.table` was loaded by this use case's own resolver, for this read.
+          trustLoadedJob: true,
         },
         requestId(input)
       )
@@ -573,6 +575,8 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           withExecutions: input.includeRunState ?? false,
           runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
           columnIds,
+          // `context.table` was loaded by this use case's own resolver, for this read.
+          trustLoadedJob: true,
         },
         requestId(input),
         readProvenance
