@@ -1,7 +1,15 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Button, Chip, ChipSelect, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
+import {
+  Button,
+  Chip,
+  ChipCombobox,
+  ChipSelect,
+  type ComboboxOption,
+  Label,
+  Tooltip,
+} from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
@@ -180,7 +188,7 @@ const FallbackRow = memo(function FallbackRow({
       </div>
 
       <div className='flex flex-col gap-2.5 rounded-b-[4px] border-[var(--border)] border-t bg-[var(--surface-2)] p-2'>
-        <Combobox
+        <ChipCombobox
           options={modelOptions}
           value={row.model}
           onChange={(model) => onChangeModel(row.id, model)}
@@ -195,7 +203,7 @@ const FallbackRow = memo(function FallbackRow({
         {needsApiKey && (
           <div className='flex flex-col gap-2.5'>
             <Label className='pl-0.5'>API key</Label>
-            <Combobox
+            <ChipCombobox
               options={envVarOptions}
               value={apiKeyValue}
               onChange={(apiKey) => onChangeApiKey(row.id, apiKey)}

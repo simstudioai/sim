@@ -46,7 +46,7 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  Combobox: ({
+  ChipCombobox: ({
     options,
     value,
     placeholder,

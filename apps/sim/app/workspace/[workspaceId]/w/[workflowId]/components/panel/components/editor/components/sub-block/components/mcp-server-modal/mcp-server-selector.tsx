@@ -1,6 +1,6 @@
 'use client'
 
-import { Combobox } from '@sim/emcn'
+import { ChipCombobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { McpIcon } from '@/components/icons'
 import { getMcpTargetOptions } from '@/components/mcp/target-options'
@@ -65,7 +65,7 @@ export function McpServerSelector({
   })
 
   return (
-    <Combobox
+    <ChipCombobox
       options={comboboxOptions}
       value={inputValue}
       selectedValue={selectedServerId}

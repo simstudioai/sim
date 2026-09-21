@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, ChipTag, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -211,7 +211,7 @@ export function KnowledgeBaseSelector({
         </div>
       )}
 
-      <Combobox
+      <ChipCombobox
         options={options}
         value={isMultiSelect ? undefined : (selectedIds[0] ?? '')}
         multiSelect={isMultiSelect}
