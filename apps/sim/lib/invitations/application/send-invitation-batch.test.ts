@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/invitations/organization-invitations', () => ({
   prepareOrganizationInvitationContext: mocks.orgContext,
-  createOrganizationInvitation: mocks.orgSend,
+}))
+vi.mock('@/lib/organizations/application/invitations', () => ({
+  createOrganizationInvitation: { execute: mocks.orgSend },
 }))
 vi.mock('@/lib/invitations/workspace-invitations', () => ({
   prepareWorkspaceInvitationContext: mocks.workspaceContext,
@@ -105,7 +107,12 @@ describe('invitation batch application boundary', () => {
       inviterEmail: 'admin@example.com',
     })
     expect(mocks.workspaceContext).not.toHaveBeenCalled()
-    expect(mocks.orgSend).toHaveBeenCalledWith(expect.objectContaining({ role: 'member' }))
+    expect(mocks.orgSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: { organizationId: 'org-target', email: 'person@example.com', role: 'member' },
+      })
+    )
   })
 
   it('keeps workspace invitations on the existing per-workspace authorization path', async () => {

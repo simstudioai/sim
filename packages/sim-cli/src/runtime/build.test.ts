@@ -127,6 +127,190 @@ describe('commands parsed through commander', () => {
     profileState.workspaceId = 'ws_local'
   })
 
+  describe('permission groups', () => {
+    it('lists organization groups without a workspace', async () => {
+      profileState.workspaceId = null
+      const [path, options] = await run(['permission-groups', 'list', '--organization', 'org-1'])
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups')
+      expect(options.query).not.toHaveProperty('workspaceId')
+    })
+
+    it('passes group configuration through the shared update operation', async () => {
+      const [path, options] = await run(
+        [
+          'permission-groups',
+          'update',
+          'group-1',
+          '--organization',
+          'org-1',
+          '--config',
+          '{"disableCliAccess":true}',
+        ],
+        { data: {} }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1')
+      expect(options).toMatchObject({
+        method: 'PATCH',
+        body: { config: { disableCliAccess: true } },
+      })
+    })
+
+    it('clears a description using the standard empty string flag', async () => {
+      const [, options] = await run(
+        ['permission-groups', 'update', 'group-1', '--organization', 'org-1', '--description', ''],
+        { data: {} }
+      )
+      expect(options.body).toEqual({ description: '' })
+    })
+
+    it('adds a member with explicit organization and group scope', async () => {
+      const [path, options] = await run(
+        [
+          'permission-groups',
+          'members',
+          'add',
+          '--organization',
+          'org-1',
+          '--group',
+          'group-1',
+          '--user',
+          'user-1',
+        ],
+        { data: { id: 'assignment-1' } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1/members')
+      expect(options).toMatchObject({ method: 'POST', body: { userId: 'user-1' } })
+    })
+
+    it('requires confirmation to delete a group', async () => {
+      await expect(
+        run(['permission-groups', 'delete', 'group-1', '--organization', 'org-1'])
+      ).rejects.toThrow(/--yes/)
+      expect(mockRequest).not.toHaveBeenCalled()
+      const [path, options] = await run(
+        ['permission-groups', 'delete', 'group-1', '--organization', 'org-1', '--yes'],
+        { data: { id: 'group-1', deleted: true } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1')
+      expect(options.method).toBe('DELETE')
+    })
+  })
+
+  it.each([
+    ['--default', true],
+    ['--no-default', false],
+  ] as const)('maps %s to the default field', async (flag, value) => {
+    const [, options] = await run(
+      ['permission-groups', 'update', 'group-1', '--organization', 'org-1', flag],
+      { data: {} }
+    )
+    expect(options.body).toEqual({ isDefault: value })
+  })
+
+  it.each([
+    [['--user', 'user-1', 'user-2'], { userIds: ['user-1', 'user-2'] }],
+    [['--all-members'], { addAllOrganizationMembers: true }],
+  ])('maps batch membership selection %j', async (flags, body) => {
+    const [, options] = await run(
+      [
+        'permission-groups',
+        'members',
+        'batch-add',
+        '--organization',
+        'org-1',
+        '--group',
+        'group-1',
+        ...flags,
+      ],
+      { data: { added: 2, skipped: 0 } }
+    )
+    expect(options.body).toEqual(body)
+  })
+
+  it('removes a permission group member by user ID', async () => {
+    const [path, options] = await run(
+      [
+        'permission-groups',
+        'members',
+        'remove',
+        'user-1',
+        '--organization',
+        'org-1',
+        '--group',
+        'group-1',
+        '--yes',
+      ],
+      { data: { userId: 'user-1', deleted: true } }
+    )
+    expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1/members/user-1')
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('creates organization invitations without a workspace', async () => {
+    profileState.workspaceId = null
+    const [path, options] = await run(
+      [
+        'organizations',
+        'invitations',
+        'create',
+        '--organization',
+        'org-1',
+        '--email',
+        'person@example.com',
+        '--role',
+        'admin',
+      ],
+      { data: {} }
+    )
+    expect(path).toBe('/api/v2/organizations/org-1/invitations')
+    expect(options).toMatchObject({
+      method: 'POST',
+      body: { email: 'person@example.com', role: 'admin' },
+    })
+  })
+
+  it('resends an invitation without requiring a JSON argument', async () => {
+    const [path, options] = await run(
+      ['organizations', 'invitations', 'resend', 'invite-1', '--organization', 'org-1'],
+      { data: {} }
+    )
+    expect(path).toBe('/api/v2/organizations/org-1/invitations/invite-1/resend')
+    expect(options.method).toBe('POST')
+  })
+
+  it('updates organization roles using user IDs', async () => {
+    const [path, options] = await run(
+      [
+        'organizations',
+        'members',
+        'update',
+        'user-1',
+        '--organization',
+        'org-1',
+        '--role',
+        'admin',
+      ],
+      { data: {} }
+    )
+    expect(path).toBe('/api/v2/organizations/org-1/members/user-1')
+    expect(options).toMatchObject({ method: 'PATCH', body: { role: 'admin' } })
+  })
+
+  it.each([
+    ['--default', true],
+    ['--no-default', false],
+    ['--is-default', true],
+    ['--no-is-default', false],
+  ] as const)(
+    'uses the same default flag for table views and preserves %s',
+    async (flag, value) => {
+      const [, options] = await run(['tables', 'views', 'update', 'table-1', 'view-1', flag], {
+        data: {},
+      })
+      expect(options.body).toEqual({ workspaceId: 'ws_local', isDefault: value })
+    }
+  )
+
   it('carries a multi-word flag all the way to the request', async () => {
     // The regression: commander stores this as `minDurationMs`, so a lookup by
     // `min-duration-ms` found nothing and the filter never reached the API.

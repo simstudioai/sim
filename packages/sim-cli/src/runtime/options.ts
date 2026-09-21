@@ -20,6 +20,11 @@ const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listChatDeployments',
   'listCredentials',
   'listCustomTools',
+  'listPermissionGroups',
+  'listPermissionGroupMembers',
+  'listOrganizations',
+  'listOrganizationMembers',
+  'listOrganizationWorkspaces',
   'listFiles',
   'listKnowledgeBases',
   'listKnowledgeConnectors',
@@ -180,6 +185,11 @@ function addFieldOption(
     // instead and lets the reader look up one description, not two.
     if (!flag.boolean || flag.negatable) {
       command.option(`--no-${name}`, `Send --${name} as false`)
+    }
+    for (const previous of flag.renamedFrom ?? []) {
+      command.addOption(new Option(`--${previous}`).hideHelp())
+      if (!flag.boolean || flag.negatable)
+        command.addOption(new Option(`--no-${previous}`).hideHelp())
     }
     return
   }

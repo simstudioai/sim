@@ -1,0 +1,278 @@
+---
+title: Organizations
+description: Manage organizations — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Create organization invitation
+
+```bash
+sim organizations invitations create [options]
+```
+
+Create Organization Invitation (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--email <value>` | Yes | Email address of the person to invite. |
+| `--role <value>` | No | Organization role to offer. Defaults to member; grants no workspace-specific permissions. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+## Get organization invitation
+
+```bash
+sim organizations invitations get <invitationId> [options]
+```
+
+Get Organization Invitation (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## List organization invitations
+
+```bash
+sim organizations invitations list [options]
+```
+
+List Organization Invitations (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the invitee email. |
+| `--status <value>` | No | Filter by current invitation status. Omit to include all statuses. Accepted values: `pending`, `accepted`, `rejected`, `cancelled`, `expired`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `email`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+## Resend organization invitation
+
+```bash
+sim organizations invitations resend <invitationId> [options]
+```
+
+Resend Organization Invitation (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## Revoke organization invitation
+
+```bash
+sim organizations invitations revoke <invitationId> [options]
+```
+
+Revoke Organization Invitation (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get organization
+
+```bash
+sim organizations get <organizationId>
+```
+
+Get Organization (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `organizationId` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## List organization members
+
+```bash
+sim organizations members list [options]
+```
+
+List Organization Members (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against member name or email. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `email`, `joinedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## Remove organization member
+
+```bash
+sim organizations members remove <userId> [options]
+```
+
+Remove Organization Member (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the organization member. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Update organization member
+
+```bash
+sim organizations members update <userId> [options]
+```
+
+Update Organization Member (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the organization member. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--role <value>` | Yes | New organization role. Ownership transfers use a separate operation. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+## List organizations
+
+```bash
+sim organizations list [options]
+```
+
+List Organizations (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the organization name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## List organization workspaces
+
+```bash
+sim organizations workspaces [options]
+```
+
+List Organization Workspaces (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>

@@ -5,15 +5,12 @@ import { normalizeEmail } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import {
   assertOperationPrincipal,
-  defineOperation,
   ForbiddenOperationError,
   type OperationUseCase,
 } from '@/lib/core/application'
+import { invitationOperations } from '@/lib/invitations/application/operations'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
-import {
-  createOrganizationInvitation,
-  prepareOrganizationInvitationContext,
-} from '@/lib/invitations/organization-invitations'
+import { prepareOrganizationInvitationContext } from '@/lib/invitations/organization-invitations'
 import {
   createWorkspaceInvitation,
   type InvitationMembership,
@@ -21,17 +18,10 @@ import {
   WorkspaceInvitationError,
   type WorkspaceInvitationResult,
 } from '@/lib/invitations/workspace-invitations'
+import { createOrganizationInvitation } from '@/lib/organizations/application/invitations'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationBatch')
-
-export const invitationOperations = {
-  sendBatch: defineOperation({
-    id: 'invitations.send_batch',
-    capability: 'invitations.send',
-    principalKinds: ['session'],
-  }),
-} as const
 
 export interface SendInvitationBatchInput {
   workspaceIds: string[]
@@ -129,10 +119,13 @@ export const sendInvitationBatch: OperationUseCase<
       seenEmails.add(normalizedEmail)
       try {
         const invitation = organizationContext
-          ? await createOrganizationInvitation({
-              context: organizationContext,
-              email,
-              role: input.membership === 'admin' ? 'admin' : 'member',
+          ? await createOrganizationInvitation.execute({
+              principal,
+              input: {
+                organizationId: organizationContext.organizationId,
+                email,
+                role: input.membership === 'admin' ? 'admin' : 'member',
+              },
               request,
             })
           : workspaceContext

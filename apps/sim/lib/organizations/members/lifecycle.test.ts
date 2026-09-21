@@ -120,6 +120,21 @@ describe('revokeUserSessionsTx', () => {
     )
   })
 
+  it('preserves the verified session ID independently of its token', async () => {
+    await revokeUserSessionsTx(db, {
+      userId: 'u-1',
+      organizationId: 'org-1',
+      spareSessionId: 'verified-id',
+    })
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          { type: 'ne', left: session.id, right: 'verified-id' },
+        ]),
+      })
+    )
+  })
+
   it('clears the caches only through the separate post-commit step', () => {
     invalidateAfterSessionRevocation({ userId: 'u-1', organizationId: 'org-1' })
     expect(mockInvalidateVersion).toHaveBeenCalledWith('org-1')

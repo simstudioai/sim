@@ -31,6 +31,8 @@ import {
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
+import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
+import { permissionGroupOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/permission-groups'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -2147,6 +2149,8 @@ const declaredRoutes = [
       ),
     }
   ),
+  ...permissionGroupOpenApiRoutes,
+  ...organizationOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
@@ -2154,9 +2158,9 @@ const routes = declaredRoutes.map(withRequestBodyErrors)
 export const resourcesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-resources.json',
   info: {
-    title: 'Sim API v2 — Workspace Resources',
+    title: 'Sim API v2 — Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, and the block, tool, and connector-type catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -2170,6 +2174,14 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   },
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
+    {
+      name: 'Organizations',
+      description: 'Discover organizations and manage their members and invitations.',
+    },
+    {
+      name: 'Permission Groups',
+      description: 'Manage organization permission groups, their restrictions, and membership.',
+    },
     {
       name: 'Meta',
       description: 'Discover what the calling API credential can reach.',
