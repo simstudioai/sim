@@ -11,7 +11,6 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
@@ -620,8 +619,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
             ],
           })
         )
-        /** Whether the payer crossed a billing threshold is settled after the results are on their way. */
-        runDetached('knowledge search overage billing', () =>
+        await measureSearchStage('overage_billing', () =>
           checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
         )
       } catch (error) {
@@ -738,11 +736,10 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   },
   afterSuccess: async ({ principal, context, input, result }) => {
     const actorUserId = resolvePrincipalSubjectUserId(principal)
-    /** The record is for the organization's activity view; the caller's results never wait on it. */
     if (context.organizationId && actorUserId) {
-      runDetached('organization search activity', () =>
+      await measureSearchStage('activity_recording', () =>
         recordOrganizationSearchActivity({
-          organizationId: context.organizationId!,
+          organizationId: context.organizationId,
           userId: actorUserId,
           surface: input.surface ?? 'other',
           results: result.results,

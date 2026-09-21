@@ -1891,11 +1891,12 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             }
           }
         }
+        /** A pool the walk could not fill, or one at the ceiling, is all the pages will ever get. */
         candidatePool = {
           excludedKey,
           ids: selected,
           limit: candidateLimit,
-          exhausted: selected.length < candidateLimit,
+          exhausted: selected.length < candidateLimit || candidateLimit >= MAX_VECTOR_CANDIDATES,
         }
         annotateSearchDiagnostics({
           vectorCandidateCount: selected.length,
