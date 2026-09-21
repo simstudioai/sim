@@ -23,7 +23,7 @@ import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import type { TableLockKind } from '@/lib/table/types'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 
 /**
@@ -338,12 +338,14 @@ export async function checkAccess(
     return { ok: false, status: 404 }
   }
 
-  const permission = await getUserEntityPermissions(
-    roleSubjectUserId(principal),
-    'workspace',
-    table.workspaceId
-  )
-  if (!permissionSatisfies(permission, level)) {
+  /**
+   * Resolved through {@link checkWorkspaceAccess} rather than `getUserEntityPermissions`, which
+   * delegates to it and returns the permission alone. Same single resolution, but it also hands
+   * back the workspace this check just loaded — and with it the owning organization the
+   * capability gate below would otherwise look up for itself.
+   */
+  const access = await checkWorkspaceAccess(table.workspaceId, roleSubjectUserId(principal))
+  if (!permissionSatisfies(access.permission, level)) {
     return { ok: false, status: 403 }
   }
 
@@ -352,7 +354,18 @@ export async function checkAccess(
   if (
     governedUserId &&
     table.workspaceId &&
-    (await isWorkspaceCapabilityWithheld(governedUserId, table.workspaceId, 'tables.use'))
+    /**
+     * The organization is passed, not re-derived: omitting it makes the resolver load this very
+     * workspace a second time (see `getUserPermissionConfig`), which is one extra round trip on
+     * every raw table route. `access.workspace` is non-null on this line — a missing workspace
+     * resolves to a null permission, which the gate above already refused.
+     */
+    (await isWorkspaceCapabilityWithheld(
+      governedUserId,
+      table.workspaceId,
+      'tables.use',
+      access.workspace?.organizationId ?? null
+    ))
   ) {
     return { ok: false, status: 403, capability: 'tables.use' }
   }
