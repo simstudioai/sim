@@ -19,9 +19,9 @@ export interface InlineChipProps {
 export function InlineChip({ children, muted }: InlineChipProps) {
   return (
     <ChipTag
-      variant='mono'
+      variant='gray'
       className={cn(
-        'inline-flex max-w-[160px] translate-y-[-1px] bg-[var(--surface-2)] align-middle shadow-[inset_0_0_0_1px_var(--border-1)] dark:bg-[var(--surface-2)]',
+        'max-w-[160px] translate-y-[-1px] align-middle',
         muted && 'text-[var(--text-muted)]'
       )}
     >
