@@ -19,7 +19,6 @@ describe('Search app manifest', () => {
         'groups:read',
       ])
     )
-    expect(manifest.oauth_config.scopes.bot).not.toContain('groups:history')
     expect(manifest.oauth_config.scopes.user).toEqual(
       expect.arrayContaining([
         'users:read',
@@ -49,28 +48,21 @@ describe('Search app manifest', () => {
     ).toBe(true)
   })
   it('preserves existing member grants when updating a bot manifest', () => {
-    expect(
-      createSlackSearchManifest('Sim Search', 'Search', 'https://sim.test', ['files:read'])
-        .oauth_config.scopes.user
-    ).toContain('files:read')
+    const manifest = createSlackSearchManifest('Sim Search', 'Search', 'https://sim.test', [
+      'files:read',
+      'files:write',
+    ])
+    expect(manifest.oauth_config.scopes.user).toContain('files:write')
+    expect(manifest.oauth_config.scopes.user.filter((scope) => scope === 'files:read')).toEqual([
+      'files:read',
+    ])
   })
-  it('uses one origin for unified ingress and OAuth with only the required bot permissions', () => {
+  it('uses one origin for unified ingress and OAuth', () => {
     const manifest = createSlackSearchManifest(
       'Sim Search',
       'Search with sources',
       'https://search-test.ngrok.app'
     )
-    expect(manifest.oauth_config.scopes.bot).toEqual([
-      'assistant:write',
-      'chat:write',
-      'channels:read',
-      'groups:read',
-      'im:history',
-      'im:write',
-      'app_mentions:read',
-      'users:read',
-      'users:read.email',
-    ])
     expect(manifest.settings.event_subscriptions.request_url).toBe(
       'https://search-test.ngrok.app/api/webhooks/slack'
     )
@@ -96,23 +88,26 @@ describe('Search app manifest', () => {
   })
 })
 
-it('official app declares expanded permissions without subscribing to member message events', () => {
-  const manifest = createSharedSlackSearchManifest('https://www.sim.ai')
-  expect(manifest.oauth_config.scopes.user).toEqual([
+it.each([
+  {
+    name: 'custom',
+    manifest: createSlackSearchManifest('Sim Search', 'Search', 'https://sim.test'),
+  },
+  { name: 'shared', manifest: createSharedSlackSearchManifest('https://sim.test') },
+])('$name app declares the complete bot and user scope sets without duplicates', ({ manifest }) => {
+  expect([...manifest.oauth_config.scopes.user].sort()).toEqual([
+    'canvases:read',
+    'canvases:write',
     'channels:history',
     'channels:read',
+    'chat:write',
+    'files:read',
     'groups:history',
     'groups:read',
     'im:history',
     'im:read',
     'mpim:history',
     'mpim:read',
-    'users:read',
-    'users:read.email',
-    'canvases:read',
-    'canvases:write',
-    'chat:write',
-    'files:read',
     'search:read.files',
     'search:read.im',
     'search:read.mpim',
@@ -121,32 +116,38 @@ it('official app declares expanded permissions without subscribing to member mes
     'search:read.users',
     'team:read',
     'usergroups:read',
-  ])
-  expect(manifest.oauth_config.scopes.bot).toEqual([
-    'assistant:write',
-    'chat:write',
-    'channels:read',
-    'groups:read',
-    'im:history',
-    'im:write',
-    'app_mentions:read',
     'users:read',
     'users:read.email',
-    'commands',
+  ])
+  expect([...manifest.oauth_config.scopes.bot].sort()).toEqual([
+    'app_mentions:read',
+    'assistant:write',
     'channels:history',
     'channels:manage',
+    'channels:read',
     'channels:write.invites',
+    'chat:write',
     'chat:write.public',
+    'commands',
     'groups:history',
+    'groups:read',
     'groups:write',
     'groups:write.invites',
+    'im:history',
+    'im:write',
     'links:read',
     'links:write',
     'mpim:history',
     'mpim:read',
     'mpim:write',
     'reactions:write',
+    'users:read',
+    'users:read.email',
   ])
+})
+
+it('official app declares commands and lifecycle events without member message events', () => {
+  const manifest = createSharedSlackSearchManifest('https://www.sim.ai')
   expect(manifest.features.slash_commands.map((command) => command.command)).toEqual([
     '/query',
     '/connect',

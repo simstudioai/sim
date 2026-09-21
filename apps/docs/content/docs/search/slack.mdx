@@ -119,6 +119,8 @@ New Search member connections request these read-only **User Token Scopes**. DM 
 
 The custom app's **Bot Token Scopes** include `channels:read` and `groups:read` for the channel picker. Private channels appear only when the bot has access. For an existing app, add these scopes under **OAuth & Permissions**, reinstall the app in Slack to approve the changes, then reconnect the bot in Sim.
 
+Custom and official app manifests declare the same full bot and user scope sets, including permissions reserved for additional capabilities. The table below lists the scopes requested by member indexing; declaring additional user scopes in the manifest does not automatically grant them to each member connection.
+
 | Purpose | User scopes |
 |---|---|
 | Public channels | `channels:read`, `channels:history` |
