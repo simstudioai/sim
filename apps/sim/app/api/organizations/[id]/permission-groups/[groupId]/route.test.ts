@@ -77,7 +77,9 @@ async function updateUnderLock(body: UpdatePermissionGroupBody) {
   })
   try {
     expect(await Promise.race([lockEntered.promise, pendingResponse.then(() => false)])).toBe(true)
-    expect(mocks.acquireLock).toHaveBeenCalledExactlyOnceWith(db, ORGANIZATION_ID)
+    expect(mocks.acquireLock).toHaveBeenCalledExactlyOnceWith(db, ORGANIZATION_ID, {
+      lockTimeoutAlreadyBounded: true,
+    })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   } finally {
     lockReleased.resolve()
@@ -161,7 +163,9 @@ describe('permission group PUT policy serialization', () => {
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toMatchObject({ error: 'Permission group not found' })
-    expect(mocks.acquireLock).toHaveBeenCalledExactlyOnceWith(db, ORGANIZATION_ID)
+    expect(mocks.acquireLock).toHaveBeenCalledExactlyOnceWith(db, ORGANIZATION_ID, {
+      lockTimeoutAlreadyBounded: true,
+    })
     expect(mocks.loadGroup).toHaveBeenLastCalledWith(GROUP_ID, ORGANIZATION_ID, db)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })

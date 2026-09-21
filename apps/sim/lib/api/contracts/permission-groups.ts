@@ -114,10 +114,10 @@ const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_W
  * with no `workspaceIds` is already the all-workspaces case and needs no
  * assertion here.
  *
- * Everything else is left to the routes: a non-default group targets the
+ * Other scope rules are enforced by the shared manager: a non-default group targets the
  * workspaces in `workspaceIds` (empty is allowed on update — the group then
  * governs nothing, since the resolver inner-joins the workspace link table), and
- * the create route requires at least one workspace up front.
+ * creation requires at least one workspace up front.
  */
 function refineWorkspaceScope(
   body: { workspaceIds?: string[]; isDefault?: boolean },
@@ -177,7 +177,9 @@ export const updatePermissionGroupBodySchema = z
       .max(500, 'description cannot exceed 500 characters')
       .nullable()
       .optional()
-      .describe('Group description. Null clears it; omission leaves it unchanged.'),
+      .describe(
+        'Group description. Null or an empty string clears it; omission leaves it unchanged.'
+      ),
     config: permissionGroupConfigSchema.optional(),
     isDefault: z
       .boolean()

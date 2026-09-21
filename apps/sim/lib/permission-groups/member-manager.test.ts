@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationMutationLock: vi.fn(),
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
+}))
 vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: vi.fn() }))
 vi.mock('@/lib/permission-groups/group-manager', () => ({ requirePermissionGroup: mocks.group }))
 vi.mock('@/lib/permission-groups/repository', () => ({ getGroupWorkspaces: mocks.workspaces }))
@@ -56,16 +62,21 @@ describe('permission-group membership mutations', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-  it('records the actual assigning user', async () => {
-    queueTableRows(member, [{ id: 'org-member-1' }])
-    const result = await addPermissionGroupMemberRecord('org-1', 'group-1', 'member-1', 'admin-1')
-    expect(result.member).toMatchObject({
-      userId: 'member-1',
-      assignedBy: 'admin-1',
-      organizationId: 'org-1',
-      permissionGroupId: 'group-1',
-    })
-  })
+  it.each([false, true])(
+    'retains assignments and the actual actor for isDefault=%s',
+    async (isDefault) => {
+      mocks.group.mockResolvedValue({ ...group, isDefault })
+      if (isDefault) mocks.workspaces.mockResolvedValue([])
+      queueTableRows(member, [{ id: 'org-member-1' }])
+      const result = await addPermissionGroupMemberRecord('org-1', 'group-1', 'member-1', 'admin-1')
+      expect(result.member).toMatchObject({
+        userId: 'member-1',
+        assignedBy: 'admin-1',
+        organizationId: 'org-1',
+        permissionGroupId: 'group-1',
+      })
+    }
+  )
   it('rejects the entire bulk selection on a membership overlap', async () => {
     queueTableRows(member, [{ userId: 'member-1' }, { userId: 'member-2' }])
     mocks.scopeConflicts.mockResolvedValue([{ userName: 'Member', conflictingGroupName: 'Other' }])
@@ -93,11 +104,34 @@ describe('permission-group membership mutations', () => {
       expect.objectContaining({ userId: 'member-2', assignedBy: 'admin-1' }),
     ])
   })
-  it('bounds an add-all expansion before materializing writes', async () => {
+  it('adds a large organization in bounded batches within one transaction', async () => {
     queueTableRows(
       member,
-      Array.from({ length: 1001 }, (_, index) => ({ userId: `member-${index}` }))
+      Array.from({ length: 1000 }, (_, index) => ({ userId: `member-${index}` }))
     )
+    queueTableRows(member, [{ userId: 'member-last' }])
+    const result = await bulkAddPermissionGroupMemberRecords(
+      'org-1',
+      'group-1',
+      { addAllOrganizationMembers: true },
+      'admin-1'
+    )
+    expect(result).toMatchObject({ added: 1001, skipped: 0 })
+    expect(result.addedUserIds).toHaveLength(1000)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.limit.mock.calls).toEqual([[1000], [1000]])
+    expect(dbChainMockFns.values.mock.calls.map(([rows]) => rows.length)).toEqual([1000, 1])
+  })
+
+  it('keeps a conflict on a later batch inside the same rollback boundary', async () => {
+    queueTableRows(
+      member,
+      Array.from({ length: 1000 }, (_, index) => ({ userId: `member-${index}` }))
+    )
+    queueTableRows(member, [{ userId: 'member-last' }])
+    mocks.scopeConflicts
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ userName: 'Member', conflictingGroupName: 'Other' }])
     await expect(
       bulkAddPermissionGroupMemberRecords(
         'org-1',
@@ -105,10 +139,11 @@ describe('permission-group membership mutations', () => {
         { addAllOrganizationMembers: true },
         'admin-1'
       )
-    ).rejects.toMatchObject({ code: 'payload_too_large' })
-    expect(dbChainMockFns.limit).toHaveBeenLastCalledWith(1001)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
   })
+
   it('will not expand the last-member removal into an overlapping all-member scope', async () => {
     queueTableRows(permissionGroupMember, [{ id: 'assignment-1', userId: 'member-1', email: null }])
     queueTableRows(permissionGroupMember, [{ value: 1 }])

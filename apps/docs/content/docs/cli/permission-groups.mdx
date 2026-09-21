@@ -46,7 +46,7 @@ Bulk Add Permission Group Members (OAuth login or personal API key required)
 | `--organization <value>` | Yes | Organization that owns the permission group. |
 | `--group <value>` | Yes | Permission group identifier. |
 | `--user-ids <json\|@file>` | No | Organization member identifiers. Existing group members are skipped; users outside the organization are ignored. (JSON, or @path / @- to read a file or stdin). |
-| `--add-all-organization-members` | No | Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds. |
+| `--add-all-organization-members` | No | Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds. |
 | `--no-add-all-organization-members` | No | Send --add-all-organization-members as false. |
 
 </CommandTable>
@@ -254,7 +254,7 @@ Update Permission Group (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization that owns the permission group. |
 | `--name <value>` | No | Group name, unique within the organization. |
-| `--description <value>` | No | Group description. Null clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
+| `--description <value>` | No | Group description. Null or an empty string clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
 | `--config <json\|@file>` | No | Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
 | `--is-default` | No | Whether the group is the organization default. Only one group can be the default. |
 | `--no-is-default` | No | Send --is-default as false. |

@@ -387,7 +387,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2BulkAddPermissionGroupMembersContract,
     summary: 'Bulk Add Permission Group Members',
     description:
-      'Assign up to 1000 organization members atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Assign up to 1000 selected organization members, or the entire organization roster, atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import(

@@ -61,8 +61,8 @@ export const permissionGroupOpenApiRoutes = [
       params: documentedSchema(
         v2ListPermissionGroupsContract.params,
         'ListPermissionGroupsParams',
-        'Permission group parameters',
-        'Organization and permission-group identifiers.'
+        'Organization parameters',
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListPermissionGroupsContract.query,
@@ -94,8 +94,8 @@ export const permissionGroupOpenApiRoutes = [
       params: documentedSchema(
         v2CreatePermissionGroupContract.params,
         'CreatePermissionGroupParams',
-        'Permission group parameters',
-        'Organization and permission-group identifiers.'
+        'Organization parameters',
+        'Organization identifier.'
       ),
       query: v2CreatePermissionGroupContract.query,
       body: documentedSchema(
@@ -324,7 +324,7 @@ export const permissionGroupOpenApiRoutes = [
       applicationOperation: permissionGroupOperations.bulkAddMembers,
       operationId: 'bulkAddPermissionGroupMembers',
       summary: 'Bulk Add Permission Group Members',
-      description: `Assign up to 1000 organization members atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. ${AUTHORITY}`,
+      description: `Assign up to 1000 selected organization members, or the entire organization roster, atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
@@ -374,8 +374,8 @@ export const permissionGroupOpenApiRoutes = [
       params: documentedSchema(
         v2ListPermissionGroupWorkspacesContract.params,
         'ListPermissionGroupWorkspacesParams',
-        'Permission group parameters',
-        'Organization and permission-group identifiers.'
+        'Organization parameters',
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListPermissionGroupWorkspacesContract.query,

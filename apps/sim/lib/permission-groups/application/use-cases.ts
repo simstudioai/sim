@@ -181,7 +181,9 @@ export const bulkAddPermissionGroupMembers = defineAuthorizedPermissionGroupUseC
             description: `Bulk added ${result.added} member(s) to permission group "${result.group.name}"`,
             metadata: {
               permissionGroupId: result.group.id,
+              added: result.added,
               addedUserIds: result.addedUserIds,
+              ...(result.added > result.addedUserIds.length && { addedUserIdsTruncated: true }),
               skipped: result.skipped,
             },
           },

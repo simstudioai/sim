@@ -17,7 +17,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import {
   findWorkspacesNotInOrganization,
   getGroupWorkspaces,
@@ -114,8 +114,7 @@ export async function createPermissionGroupRecord(
       'validation',
       'Select at least one workspace when the group targets specific workspaces'
     )
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     await validateWorkspaces(organizationId, workspaceIds, tx)
     await assertAvailableName(organizationId, input.name, tx)
     const now = new Date()
@@ -151,13 +150,12 @@ export async function updatePermissionGroupRecord(
   groupId: string,
   updates: PermissionGroupChanges
 ) {
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     if (updates.name !== undefined)
       await assertAvailableName(organizationId, updates.name, tx, groupId)
     const isDefault = updates.isDefault ?? group.isDefault
-    if (isDefault && updates.workspaceIds !== undefined)
+    if (isDefault && updates.workspaceIds?.length)
       throw new OrchestrationError(
         'validation',
         'The default group governs all workspaces and cannot target specific workspaces'
@@ -229,8 +227,7 @@ export async function updatePermissionGroupRecord(
 }
 
 export async function deletePermissionGroupRecord(organizationId: string, groupId: string) {
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     await tx
       .delete(permissionGroupMember)

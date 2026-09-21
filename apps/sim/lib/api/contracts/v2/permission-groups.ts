@@ -50,7 +50,7 @@ export const v2PermissionGroupSchema = z
     isDefault: z
       .boolean()
       .describe(
-        'Whether this is the organization default, which applies across all its workspaces.'
+        'Whether this is the organization default, which applies to everyone across all its workspaces regardless of member assignments.'
       ),
     membershipMode: z
       .string()
@@ -165,7 +165,7 @@ export const v2BulkAddPermissionGroupMembersBodySchema = z
       .boolean()
       .optional()
       .describe(
-        'Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds.'
+        'Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.'
       ),
   })
   .strict()

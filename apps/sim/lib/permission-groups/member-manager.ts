@@ -1,7 +1,7 @@
-import { db } from '@sim/db'
 import { member, permissionGroupMember, user } from '@sim/db/schema'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   findAllMembersWorkspaceConflict,
@@ -13,7 +13,7 @@ import {
   formatScopeConflictError,
 } from '@/lib/permission-groups/errors'
 import { requirePermissionGroup } from '@/lib/permission-groups/group-manager'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import { getGroupWorkspaces } from '@/lib/permission-groups/repository'
 
 export async function addPermissionGroupMemberRecord(
@@ -22,8 +22,7 @@ export async function addPermissionGroupMemberRecord(
   userId: string,
   actorUserId: string
 ) {
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     const [organizationMember] = await tx
       .select({ id: member.id })
@@ -69,8 +68,7 @@ export async function removePermissionGroupMemberRecord(
   groupId: string,
   memberId: string
 ) {
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     const [assignment] = await tx
       .select({
@@ -128,68 +126,78 @@ export async function bulkAddPermissionGroupMemberRecords(
   input: BulkAddPermissionGroupMembersInput,
   actorUserId: string
 ) {
-  const uniqueUserIds = [...new Set(input.userIds ?? [])]
-  if (!input.addAllOrganizationMembers && uniqueUserIds.length > MAX_PERMISSION_GROUP_BULK_MEMBERS)
-    throw new OrchestrationError(
-      'validation',
-      'userIds cannot exceed 1000; split the members into batches'
-    )
-  return db.transaction(async (tx) => {
-    await acquirePermissionGroupOrgLock(tx, organizationId)
+  return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
-    if (!input.addAllOrganizationMembers && !uniqueUserIds.length)
-      return { group, addedUserIds: [] as string[], added: 0, skipped: 0 }
-    const candidates = await tx
-      .select({ userId: member.userId })
-      .from(member)
-      .where(
-        and(
-          eq(member.organizationId, organizationId),
-          input.addAllOrganizationMembers ? undefined : inArray(member.userId, uniqueUserIds)
-        )
-      )
-      .limit(MAX_PERMISSION_GROUP_BULK_MEMBERS + 1)
-    if (candidates.length > MAX_PERMISSION_GROUP_BULK_MEMBERS)
-      throw new OrchestrationError(
-        'payload_too_large',
-        'The organization has more than 1000 members; add members in batches using userIds'
-      )
-    const targetUserIds = [...new Set(candidates.map((candidate) => candidate.userId))]
-    if (!targetUserIds.length) return { group, addedUserIds: [] as string[], added: 0, skipped: 0 }
     const workspaceIds = (await getGroupWorkspaces(groupId, tx)).map((workspace) => workspace.id)
-    const conflicts = await findScopeConflicts(
-      { organizationId, excludeGroupId: groupId, workspaceIds, candidateUserIds: targetUserIds },
-      tx
-    )
-    if (conflicts.length)
-      throw new OrchestrationError('conflict', formatScopeConflictError(conflicts))
-    const existing = await tx
-      .select({ userId: permissionGroupMember.userId })
-      .from(permissionGroupMember)
-      .where(
-        and(
-          eq(permissionGroupMember.permissionGroupId, groupId),
-          inArray(permissionGroupMember.userId, targetUserIds)
+    const addedUserIds: string[] = []
+    let added = 0
+    let skipped = 0
+
+    async function addBatch(targetUserIds: string[]) {
+      if (!targetUserIds.length) return
+      const conflicts = await findScopeConflicts(
+        { organizationId, excludeGroupId: groupId, workspaceIds, candidateUserIds: targetUserIds },
+        tx
+      )
+      if (conflicts.length)
+        throw new OrchestrationError('conflict', formatScopeConflictError(conflicts))
+      const existing = await tx
+        .select({ userId: permissionGroupMember.userId })
+        .from(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.permissionGroupId, groupId),
+            inArray(permissionGroupMember.userId, targetUserIds)
+          )
         )
-      )
-    const existingIds = new Set(existing.map((assignment) => assignment.userId))
-    const addedUserIds = targetUserIds.filter((userId) => !existingIds.has(userId))
-    if (addedUserIds.length)
-      await tx.insert(permissionGroupMember).values(
-        addedUserIds.map((userId) => ({
-          id: generateId(),
-          permissionGroupId: groupId,
-          organizationId,
-          userId,
-          assignedBy: actorUserId,
-          assignedAt: new Date(),
-        }))
-      )
-    return {
-      group,
-      addedUserIds,
-      added: addedUserIds.length,
-      skipped: targetUserIds.length - addedUserIds.length,
+      const existingIds = new Set(existing.map((assignment) => assignment.userId))
+      const batch = targetUserIds.filter((userId) => !existingIds.has(userId))
+      if (batch.length)
+        await tx.insert(permissionGroupMember).values(
+          batch.map((userId) => ({
+            id: generateId(),
+            permissionGroupId: groupId,
+            organizationId,
+            userId,
+            assignedBy: actorUserId,
+            assignedAt: new Date(),
+          }))
+        )
+      added += batch.length
+      skipped += targetUserIds.length - batch.length
+      addedUserIds.push(...batch.slice(0, MAX_PERMISSION_GROUP_BULK_MEMBERS - addedUserIds.length))
     }
+
+    if (input.addAllOrganizationMembers) {
+      let afterUserId: string | undefined
+      while (true) {
+        const candidates = await tx
+          .select({ userId: member.userId })
+          .from(member)
+          .where(
+            and(
+              eq(member.organizationId, organizationId),
+              afterUserId === undefined ? undefined : gt(member.userId, afterUserId)
+            )
+          )
+          .orderBy(asc(member.userId))
+          .limit(MAX_PERMISSION_GROUP_BULK_MEMBERS)
+        await addBatch(candidates.map((candidate) => candidate.userId))
+        if (candidates.length < MAX_PERMISSION_GROUP_BULK_MEMBERS) break
+        afterUserId = candidates[candidates.length - 1].userId
+      }
+    } else {
+      for (const selected of chunkArray(
+        [...new Set(input.userIds ?? [])],
+        MAX_PERMISSION_GROUP_BULK_MEMBERS
+      )) {
+        const candidates = await tx
+          .select({ userId: member.userId })
+          .from(member)
+          .where(and(eq(member.organizationId, organizationId), inArray(member.userId, selected)))
+        await addBatch(candidates.map((candidate) => candidate.userId))
+      }
+    }
+    return { group, addedUserIds, added, skipped }
   })
 }

@@ -12,6 +12,12 @@ const mocks = vi.hoisted(() => ({
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationMutationLock: vi.fn(),
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
+}))
 vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
 vi.mock('@/lib/permission-groups/repository', () => ({
   loadGroupInOrganization: mocks.group,
@@ -55,6 +61,16 @@ beforeEach(() => {
 })
 
 describe('permission group mutation consistency', () => {
+  it('accepts an explicitly empty workspace scope when promoting the default', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, isDefault: true }])
+    const result = await updatePermissionGroupRecord('org-1', 'group-1', {
+      isDefault: true,
+      workspaceIds: [],
+    })
+    expect(result).toMatchObject({ isDefault: true, workspaceIds: [] })
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
+  })
+
   it('reads default state only after acquiring the organization lock', async () => {
     const entered = Promise.withResolvers<void>()
     const released = Promise.withResolvers<void>()

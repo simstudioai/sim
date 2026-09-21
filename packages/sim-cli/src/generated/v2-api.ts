@@ -11889,7 +11889,7 @@ export const V2_OPERATIONS = {
       addAllOrganizationMembers: {
         kind: 'boolean',
         describe:
-          'Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds.',
+          'Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.',
       },
     },
   },
@@ -17975,7 +17975,8 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'Group name, unique within the organization.' },
       description: {
         kind: 'string',
-        describe: 'Group description. Null clears it; omission leaves it unchanged.',
+        describe:
+          'Group description. Null or an empty string clears it; omission leaves it unchanged.',
       },
       config: {
         kind: 'object',

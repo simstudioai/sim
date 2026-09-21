@@ -155,6 +155,14 @@ describe('commands parsed through commander', () => {
       })
     })
 
+    it('clears a description using the standard empty string flag', async () => {
+      const [, options] = await run(
+        ['permission-groups', 'update', 'group-1', '--organization', 'org-1', '--description', ''],
+        { data: {} }
+      )
+      expect(options.body).toEqual({ description: '' })
+    })
+
     it('adds a member with explicit organization and group scope', async () => {
       const [path, options] = await run(
         [

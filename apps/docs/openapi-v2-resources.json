@@ -5524,7 +5524,7 @@
       "post": {
         "operationId": "bulkAddPermissionGroupMembers",
         "summary": "Bulk Add Permission Group Members",
-        "description": "Assign up to 1000 organization members atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Assign up to 1000 selected organization members, or the entire organization roster, atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "permission_groups.members.bulk_add",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
@@ -12628,7 +12628,7 @@
           },
           "isDefault": {
             "type": "boolean",
-            "description": "Whether this is the organization default, which applies across all its workspaces."
+            "description": "Whether this is the organization default, which applies to everyone across all its workspaces regardless of member assignments."
           },
           "membershipMode": {
             "type": "string",
@@ -13266,7 +13266,7 @@
             "description": "Group name, unique within the organization."
           },
           "description": {
-            "description": "Group description. Null clears it; omission leaves it unchanged.",
+            "description": "Group description. Null or an empty string clears it; omission leaves it unchanged.",
             "anyOf": [
               {
                 "type": "string",
@@ -13847,7 +13847,7 @@
             }
           },
           "addAllOrganizationMembers": {
-            "description": "Add every current organization member, up to 1000. For larger organizations, use userIds in batches. Cannot be combined with userIds.",
+            "description": "Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.",
             "type": "boolean"
           }
         },
