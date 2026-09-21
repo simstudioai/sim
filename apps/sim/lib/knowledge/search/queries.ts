@@ -1184,8 +1184,16 @@ export const BROAD_REACH_SHARE = 0.25
  */
 const SATURATED_REACH_TTL_MS = 5 * 60 * 1000
 
-/** A saturated reach, and whether it is broad enough to walk the whole graph for. */
-const saturatedReach = new LRUCache<string, { broad: boolean }>({
+/**
+ * A counted reach: whether it is broad enough to walk the whole graph for, or empty, in which
+ * case the caller reads nothing in these bases and no leg has anything to rank.
+ */
+interface RememberedReach {
+  broad: boolean
+  empty: boolean
+}
+
+const saturatedReach = new LRUCache<string, RememberedReach>({
   max: 10_000,
   ttl: SATURATED_REACH_TTL_MS,
 })
@@ -1249,24 +1257,25 @@ async function estimateFilteredDocuments(
 }
 
 /**
- * Whether a reach is broad: the caller reaches at least {@link BROAD_REACH_SHARE} of the bases'
- * documents. Counted once against that bound and remembered, so the first search after the
- * window pays for it and the rest do not. A caller whose probe already saturated is known to
- * reach past the probe's limit, so a bound inside that limit is met without counting.
+ * How far a caller reaches: broad when they reach at least {@link BROAD_REACH_SHARE} of the
+ * bases' documents, empty when they reach none. Counted once against that bound and remembered,
+ * so the first search after the window pays for it and the rest do not. A caller whose probe
+ * already saturated is known to reach past the probe's limit, so a bound inside that limit is
+ * met without counting.
  *
  * The count reads as many index entries as the caller reaches, so on a large index it can cost
  * more than the leg it serves; it gets the probe's share of the deadline, never the whole leg's.
  * A count that runs out of that share answers `null`: the leg keeps its time and its deadline
  * intact, and the caller decides this search alone without remembering anything.
  */
-async function reachIsBroad(
+async function countReach(
   knowledgeBaseIds: string[],
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined,
   plan: SearchAccessPlan | undefined,
   saturated: boolean
-): Promise<boolean | null> {
-  if (access.kind !== 'user') return true
+): Promise<RememberedReach | null> {
+  if (access.kind !== 'user') return { broad: true, empty: false }
   const countBudget = budget?.capped(VECTOR_PROBE_BUDGET_MS)
   try {
     const total =
@@ -1274,7 +1283,7 @@ async function reachIsBroad(
         context: countBudget,
       })) ?? 0
     const bound = Math.ceil(total * BROAD_REACH_SHARE)
-    if (saturated && bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
+    if (saturated && bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return { broad: true, empty: false }
     const [row] = await runSearchQuery(countBudget, 'permitted_documents', (executor) =>
       executor.execute<{ n: number }>(sql`
         SELECT count(*) AS n FROM (
@@ -1288,7 +1297,9 @@ async function reachIsBroad(
           LIMIT ${bound}
         ) reached`)
     )
-    return Number(row?.n ?? 0) >= bound
+    const reached = Number(row?.n ?? 0)
+    /** A count that looked and found nothing: only a bound of zero looks at nothing. */
+    return { broad: reached >= bound, empty: bound > 0 && reached === 0 }
   } catch (error) {
     if (!budget || !countBudget?.isTimeout(error)) throw error
     /** Only the count's share was spent; the leg's own deadline still governs. */
@@ -1343,18 +1354,29 @@ export async function resolveReach(
 ): Promise<PermittedDocuments> {
   const key = reachKey(knowledgeBaseIds, access, plan)
   const remembered = key ? saturatedReach.get(key) : undefined
-  if (remembered) return { kind: 'unbounded', broad: remembered.broad }
+  if (remembered) return permittedFromReach(remembered)
   try {
-    const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan, false)
+    const reach = await countReach(knowledgeBaseIds, access, budget, plan, false)
     /** A count that ran out of time decides this search only; the next one counts again. */
-    if (broad === null) return { kind: 'unbounded', broad: true }
-    if (key) saturatedReach.set(key, { broad })
-    return { kind: 'unbounded', broad }
+    if (reach === null) return { kind: 'unbounded', broad: true }
+    if (key) saturatedReach.set(key, reach)
+    return permittedFromReach(reach)
   } catch (error) {
     /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
     if (!budget?.isTimeout(error)) throw error
     return { kind: 'unbounded', broad: true }
   }
+}
+
+/**
+ * A reach of nothing is a bounded set of nothing: a caller who reads no document in these bases,
+ * such as a member with no source of their own yet, has nothing for any leg to rank, where an
+ * unbounded set would have each leg scan for rows it cannot find.
+ */
+function permittedFromReach(reach: RememberedReach): PermittedDocuments {
+  return reach.empty
+    ? { kind: 'bounded', documents: [] }
+    : { kind: 'unbounded', broad: reach.broad }
 }
 
 /**
@@ -1384,6 +1406,10 @@ export async function resolvePermittedDocuments(params: {
     params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
   )
   const remembered = key && !filteredDirectly ? saturatedReach.get(key) : undefined
+  if (remembered?.empty) {
+    annotateSearchDiagnostics({ permittedDocuments: 'bounded', permittedDocumentCount: 0 })
+    return { kind: 'bounded', documents: [] }
+  }
   if (remembered) {
     probe = { kind: 'saturated' }
     broad = remembered.broad
@@ -1408,7 +1434,7 @@ export async function resolvePermittedDocuments(params: {
     }
     if (probe.kind === 'saturated') {
       try {
-        const counted = await reachIsBroad(
+        const reach = await countReach(
           params.knowledgeBaseIds,
           params.access,
           params.budget,
@@ -1416,9 +1442,9 @@ export async function resolvePermittedDocuments(params: {
           true
         )
         /** A count that ran out of time decides this search only; the next one counts again. */
-        if (counted !== null) {
-          broad = counted
-          if (key) saturatedReach.set(key, { broad })
+        if (reach !== null) {
+          broad = reach.broad
+          if (key) saturatedReach.set(key, reach)
         }
       } catch (error) {
         /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
