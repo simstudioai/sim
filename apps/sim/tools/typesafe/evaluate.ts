@@ -62,10 +62,13 @@ export const typesafeEvaluateTool: ToolConfig<TypeSafeEvaluateParams, TypeSafeEv
     },
     retry: { enabled: true, maxRetries: 2, initialDelayMs: 500, maxDelayMs: 5000 },
   },
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, params, context) => {
     const output = await readTypeSafeResponse(
       response,
-      params ? normalizeTypeSafeQuestions(params.questions) : undefined
+      context?.requestBody === undefined && params
+        ? normalizeTypeSafeQuestions(params.questions)
+        : undefined,
+      context
     )
     return { success: true, output }
   },

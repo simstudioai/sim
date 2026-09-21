@@ -97,6 +97,8 @@ export type ParameterVisibility =
 
 export interface ToolResponseContext {
   signal?: AbortSignal
+  /** Serialized external request body after model-input projection and request normalization. */
+  requestBody?: string
 }
 
 export interface ToolResponse {

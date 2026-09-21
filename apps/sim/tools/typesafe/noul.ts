@@ -64,8 +64,8 @@ export const typesafeNoulTool: ToolConfig<TypeSafeNoulParams, TypeSafeNoulRespon
     modelInput: { mode: 'project', select: selectTypeSafeModelInput },
     retry: { enabled: true, maxRetries: 2, initialDelayMs: 500, maxDelayMs: 5000 },
   },
-  transformResponse: async (response) => {
-    const data = await readTypeSafeResponse(response, { result: { type: 'noul' } })
+  transformResponse: async (response, _params, context) => {
+    const data = await readTypeSafeResponse(response, { result: { type: 'noul' } }, context)
     const answer = data.answers.result
     if (answer.type !== 'noul') throw new Error('TypeSafe returned an unexpected answer type')
     return { success: true, output: { noul: answer.noul, model: data.model, usage: data.usage } }

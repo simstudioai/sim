@@ -1,5 +1,8 @@
+import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
+import type { ToolResponseContext } from '@/tools/types'
 import type {
+  TypeSafeAnswer,
   TypeSafeBaseParams,
   TypeSafeEntry,
   TypeSafeQuestion,
@@ -51,6 +54,7 @@ const questionsSchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Questions must contain at least one named question',
   })
+const requestQuestionsSchema = z.object({ questions: questionsSchema })
 const probabilitySchema = z.number().min(0).max(1)
 const probabilitiesSchema = z
   .record(z.string(), probabilitySchema)
@@ -156,23 +160,72 @@ export function buildTypeSafeRequest(
   return { state: normalizeTypeSafeEntry(params.state, 'state'), model, questions }
 }
 
-/** Reads typed answers and verifies that every requested question has an answer of the same type. */
+function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  return Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key))
+}
+
+function validateAnswerCriteria(
+  name: string,
+  question: TypeSafeQuestion,
+  answer: TypeSafeAnswer
+): void {
+  if (question.type === 'choice' && answer.type === 'choice') {
+    if (!Object.hasOwn(question.criteria, answer.choice)) {
+      throw new Error(`TypeSafe response choice is not a requested option for question "${name}"`)
+    }
+    if (!hasExactKeys(answer.probabilities, Object.keys(question.criteria))) {
+      throw new Error(
+        `TypeSafe response probabilities do not match the options for question "${name}"`
+      )
+    }
+  }
+  if (question.type === 'score' && answer.type === 'score') {
+    const levels = question.criteria.map((_, index) => String(index))
+    if (answer.score > question.criteria.length - 1) {
+      throw new Error(`TypeSafe response score exceeds the rubric for question "${name}"`)
+    }
+    if (!hasExactKeys(answer.probabilities, levels)) {
+      throw new Error(
+        `TypeSafe response probabilities do not match the rubric for question "${name}"`
+      )
+    }
+    if (
+      !hasExactKeys(answer.legend, levels) ||
+      levels.some(
+        (level, index) => !isDeepStrictEqual(answer.legend[level], question.criteria[index])
+      )
+    ) {
+      throw new Error(`TypeSafe response legend does not match the rubric for question "${name}"`)
+    }
+  }
+}
+
+/** Validates typed answers against the actual projected request, including its criteria. */
 export async function readTypeSafeResponse(
   response: Response,
-  expectedQuestions?: Record<string, { type: TypeSafeQuestion['type'] }>
+  expectedQuestions?: TypeSafeQuestions,
+  context?: ToolResponseContext
 ): Promise<TypeSafeResult> {
   const data = validate(resultSchema, await response.json(), 'response')
-  if (expectedQuestions) {
-    for (const [name, question] of Object.entries(expectedQuestions)) {
-      if (!Object.hasOwn(data.answers, name) || data.answers[name].type !== question.type) {
-        throw new Error(
-          `TypeSafe response is missing the ${question.type} answer for question "${name}"`
-        )
-      }
+  const questions =
+    context?.requestBody === undefined
+      ? expectedQuestions
+      : validate(
+          requestQuestionsSchema,
+          parseTypeSafeJson(context.requestBody, 'request body'),
+          'request body'
+        ).questions
+  if (!questions) throw new Error('TypeSafe response validation requires the request questions')
+  for (const [name, question] of Object.entries(questions)) {
+    if (!Object.hasOwn(data.answers, name) || data.answers[name].type !== question.type) {
+      throw new Error(
+        `TypeSafe response is missing the ${question.type} answer for question "${name}"`
+      )
     }
-    if (Object.keys(data.answers).length !== Object.keys(expectedQuestions).length) {
-      throw new Error('TypeSafe response question IDs do not match the request')
-    }
+    validateAnswerCriteria(name, question, data.answers[name])
+  }
+  if (Object.keys(data.answers).length !== Object.keys(questions).length) {
+    throw new Error('TypeSafe response question IDs do not match the request')
   }
   return data
 }

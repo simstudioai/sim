@@ -3085,7 +3085,10 @@ async function executeToolRequest(
           blob: () => response.blob(),
         } as Response
 
-        const data = await tool.transformResponse(mockResponse, params, { signal })
+        const data = await tool.transformResponse(mockResponse, params, {
+          signal,
+          requestBody: requestParams.body,
+        })
         if (tool.request.responseType === 'binary' && data.success) {
           if (!context) throw new Error('Binary file output requires trusted execution context')
           const file = data.output?.file

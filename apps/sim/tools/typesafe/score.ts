@@ -69,8 +69,12 @@ export const typesafeScoreTool: ToolConfig<TypeSafeScoreParams, TypeSafeScoreRes
     modelInput: { mode: 'project', select: selectTypeSafeModelInput },
     retry: { enabled: true, maxRetries: 2, initialDelayMs: 500, maxDelayMs: 5000 },
   },
-  transformResponse: async (response) => {
-    const data = await readTypeSafeResponse(response, { result: { type: 'score' } })
+  transformResponse: async (response, params, context) => {
+    const questions =
+      context?.requestBody === undefined && params
+        ? { result: buildTypeSafeQuestion('score', params.instructions, params.criteria) }
+        : undefined
+    const data = await readTypeSafeResponse(response, questions, context)
     const answer = data.answers.result
     if (answer.type !== 'score') throw new Error('TypeSafe returned an unexpected answer type')
     return {
