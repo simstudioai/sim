@@ -1867,6 +1867,35 @@ describe('permitted-document planner', () => {
         expect(ginStatements()).toHaveLength(0)
       })
 
+      it('stays with the GIN ranking for the rest of a search once a page was handed to it', async () => {
+        /** Tin cannot fill the first page; GIN supplies it, and hydration keeps only half, so a second page follows. */
+        tinPages = [
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+          { ranked: 2000, candidates: [hit('never', 'src-a')] },
+        ]
+        const ginRows = Array.from({ length: 40 }, (_, index) => hit(`g-${index}`, 'src-a'))
+        const ginPages = [ginRows, []]
+        const execute = dbChainMockFns.execute.getMockImplementation()!
+        dbChainMockFns.execute.mockImplementation(async (query) =>
+          render(query).sql.includes('WITH matched_keyword_chunks')
+            ? (ginPages.shift() ?? [])
+            : execute(query)
+        )
+        queueTableRows(
+          schemaMock.embedding,
+          ginRows.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+        )
+        const results = await keyword({
+          topK: 40,
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results.map((row) => row.id)).not.toContain('never')
+        expect(tinStatements()).toHaveLength(2)
+        expect(ginStatements().length).toBeGreaterThanOrEqual(2)
+      })
+
       it('keeps the bounded read for a set under the size', async () => {
         mockResolveTinKeywordQuery.mockResolvedValue(null)
         await keyword({ permitted: { kind: 'bounded', documents: large.slice(0, -1) }, accessPlan })
