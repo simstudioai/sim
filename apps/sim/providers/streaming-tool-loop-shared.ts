@@ -22,6 +22,7 @@ export const STREAMING_TOOL_CALL_PROVIDERS: ReadonlySet<string> = new Set([
   'azure-anthropic',
   'groq',
   'deepseek',
+  'prism',
   'google',
   'vertex',
   'bedrock',
@@ -33,6 +34,7 @@ export interface StreamingToolLoopComplete {
   tokens: { input: number; output: number; total: number }
   cost: NormalizedBlockOutput['cost']
   toolCalls?: { list: unknown[]; count: number }
+  toolResults?: Record<string, unknown>[]
   modelTime: number
   toolsTime: number
   firstResponseTime: number

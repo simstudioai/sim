@@ -377,11 +377,11 @@ describe('provider attachments', () => {
     ).toThrow('Supported attachments: images')
   })
 
-  it('rejects providers without file attachment support', () => {
+  it.each(['deepseek', 'prism'])('rejects file attachments for %s', (provider) => {
     expect(() =>
       formatMessagesForProvider(
         [{ role: 'user', content: 'Analyze this file', files: [imageFile] }],
-        'deepseek'
+        provider
       )
     ).toThrow('not supported')
   })

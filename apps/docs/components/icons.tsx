@@ -5403,6 +5403,22 @@ export function BasetenIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function PrismIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill='currentColor'
+      height='1em'
+      width='1em'
+      viewBox='0 0 24 24'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <title>Prism</title>
+      <path d='M0 23.61 11.96.17l3.85 8.18L5.3 23.61H0zm12.95 0 3.74-14.04 7.23 14.04H12.95z' />
+    </svg>
+  )
+}
+
 export function CohereIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} height='1em' width='1em' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
