@@ -8,6 +8,7 @@ import {
   credentialGroup,
   document,
   embedding,
+  embeddingSearch,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
@@ -19,7 +20,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
@@ -41,6 +42,7 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { type KnowledgeSearchTagFilter, searchKnowledge } from '@/lib/knowledge/application/search'
+import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import {
   SearchBudget,
   SearchDeadlineError,
@@ -48,6 +50,7 @@ import {
 } from '@/lib/knowledge/search/budget'
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { embeddingCandidateDistance } from '@/lib/knowledge/vector-columns'
 import { POST as searchRoute } from '@/app/api/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -120,6 +123,23 @@ function topicVector(topic = 0) {
   return vector.map((value) => value / magnitude)
 }
 const queryVector = topicVector()
+
+/**
+ * The exact nearest chunks on the projection's stored halfvec, which is what the page's order
+ * is measured against: the walk ranks on that column, and nothing rescores it.
+ */
+async function exactProjectionNeighbors(vector: number[], limit: number, readerClause?: SQL) {
+  const distance = embeddingCandidateDistance(
+    dimensions as KbEmbeddingDimensions,
+    JSON.stringify(vector),
+    'text-embedding-3-small'
+  )
+  return db.execute<{ id: string }>(sql`SELECT s.id FROM ${embeddingSearch} s
+    INNER JOIN document d ON d.id = s.document_id
+    WHERE s.knowledge_base_id = ${ids.knowledgeBaseId} AND s.enabled ${readerClause ?? sql``}
+    ORDER BY (${distance}) + 0, s.id
+    LIMIT ${limit}`)
+}
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -213,6 +233,10 @@ function explainNodes(node: ExplainNode): ExplainNode[] {
  * aliases its own lateral `scoped_chunk`, so this cannot match it, and matching on the rendered
  * clause casing would silently stop these assertions from running at all.
  */
+/** The vector page reads a pool slice's identities from the projection and its documents. */
+const VECTOR_PAGE_JOIN =
+  'INNER JOIN "document" ON "document"."id" = "embedding_search"."document_id"'
+
 function isVectorCandidateQuery(statement: string) {
   return statement.toLowerCase().includes(') as visible')
 }
@@ -476,12 +500,12 @@ async function sample(
         item.query.includes('limit') ||
         item.query.includes('CROSS JOIN LATERAL') ||
         isVectorCandidateQuery(item.query) ||
-        item.query.includes('WITH scored_search_candidates') ||
+        item.query.includes(VECTOR_PAGE_JOIN) ||
         item.query.includes('WITH matched_keyword_chunks'))
   )
   const plans: Array<
     CapturedQuery & {
-      kind: 'keyword' | 'vector' | 'rerank' | 'probe'
+      kind: 'keyword' | 'vector' | 'page' | 'probe'
       plan: z.infer<typeof explainSchema>
     }
   > = []
@@ -516,9 +540,8 @@ async function sample(
         ? 'keyword'
         : isVectorCandidateQuery(query.query)
           ? 'vector'
-          : query.query.includes('order by') ||
-              query.query.includes('WITH scored_search_candidates')
-            ? 'rerank'
+          : query.query.includes('order by') || query.query.includes(VECTOR_PAGE_JOIN)
+            ? 'page'
             : 'probe',
       query: query.query,
       parameters: query.parameters,
@@ -1004,13 +1027,10 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       expect(vectorPlans).toHaveLength(1)
       expect(vectorPlans[0].plan[0].Plan['Actual Rows']).toBeGreaterThan(0)
       assertCompactCandidates(vectorPlans[0].plan[0].Plan)
-      expect(plans.some((plan) => plan.kind === 'rerank')).toBe(true)
-      const rerank = plans.find((plan) => plan.kind === 'rerank')!
-      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
-      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
-        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
-        ORDER BY (embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, id
-        LIMIT ${actual.length}`)
+      expect(plans.some((plan) => plan.kind === 'page')).toBe(true)
+      const page = plans.find((plan) => plan.kind === 'page')!
+      const actual = await db.$client.unsafe(page.query, page.parameters).values()
+      const expected = await exactProjectionNeighbors(queryVector, actual.length)
       const expectedIds = new Set(expected.map(({ id }) => id))
       const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
       expect(recall).toBeGreaterThanOrEqual(0.95)
@@ -1028,12 +1048,9 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       expectCompleteVectorSearch(diagnostics)
       const candidates = plans.find((plan) => plan.kind === 'vector')!
       assertCompactCandidates(candidates.plan[0].Plan)
-      const rerank = plans.find((plan) => plan.kind === 'rerank')!
-      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
-      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
-        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
-        ORDER BY (embedding <=> ${JSON.stringify(topicVector(topic))}::vector) + 0, id
-        LIMIT ${actual.length}`)
+      const page = plans.find((plan) => plan.kind === 'page')!
+      const actual = await db.$client.unsafe(page.query, page.parameters).values()
+      const expected = await exactProjectionNeighbors(topicVector(topic), actual.length)
       const expectedIds = new Set(expected.map(({ id }) => id))
       const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
       expect(recall).toBeGreaterThanOrEqual(0.95)
@@ -1082,15 +1099,14 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         )
         expectCompleteVectorSearch(diagnostics)
         expect(result.data.results).toHaveLength(15)
-        const rerank = plans.find((plan) => plan.kind === 'rerank')!
-        expect(rerank).toBeDefined()
-        const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
-        const expected = await db.execute<{ id: string }>(sql`SELECT e.id FROM embedding e
-          INNER JOIN document d ON d.id = e.document_id
-          WHERE e.knowledge_base_id = ${ids.knowledgeBaseId} AND e.enabled
-            AND d.acl @> ARRAY[${reader}]::text[]
-          ORDER BY (e.embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, e.id
-          LIMIT ${actual.length}`)
+        const page = plans.find((plan) => plan.kind === 'page')!
+        expect(page).toBeDefined()
+        const actual = await db.$client.unsafe(page.query, page.parameters).values()
+        const expected = await exactProjectionNeighbors(
+          queryVector,
+          actual.length,
+          sql`AND d.acl @> ARRAY[${reader}]::text[]`
+        )
         expect(expected.length).toBeGreaterThan(0)
         const expectedIds = new Set(expected.map(({ id }) => id))
         const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
@@ -1128,9 +1144,10 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         expect(probe[0].query).not.toContain('<=>')
         expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
         expect(assertIndexedChunkProbe(probe[0].plan[0].Plan)).toBe(documentIds.length)
-        const vector = plans.filter((plan) => plan.kind === 'rerank')
-        expect(vector).toHaveLength(1)
-        expect(vector[0].query).toContain('"embedding"."id" in')
+        /** The page reads the bounded ranking's identities from the projection, never the original vectors. */
+        const page = plans.filter((plan) => plan.kind === 'page')
+        expect(page).toHaveLength(1)
+        expect(page[0].query).not.toContain('"embedding"."embedding"')
       }
     } finally {
       await db
@@ -1175,16 +1192,16 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             count < HYBRID_CANDIDATE_LIMIT ? 0 : 1
           )
           if (count > HYBRID_CANDIDATE_LIMIT) {
-            const rerank = plans.find((plan) => plan.kind === 'rerank')!
-            const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
-            const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
-              WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
-                AND document_id IN (${sql.join(
-                  documentIds.map((id) => sql`${id}`),
-                  sql`, `
-                )})
-              ORDER BY (embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, id
-              LIMIT ${actual.length}`)
+            const page = plans.find((plan) => plan.kind === 'page')!
+            const actual = await db.$client.unsafe(page.query, page.parameters).values()
+            const expected = await exactProjectionNeighbors(
+              queryVector,
+              actual.length,
+              sql`AND s.document_id IN (${sql.join(
+                documentIds.map((id) => sql`${id}`),
+                sql`, `
+              )})`
+            )
             const expectedIds = new Set(expected.map(({ id }) => id))
             const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
             expect(recall).toBeGreaterThanOrEqual(0.95)
@@ -1352,7 +1369,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         )
         expectCompleteVectorSearch(diagnostics)
         expect(diagnostics.accessScopeKind).toBe('workspace')
-        expect(diagnostics.vectorRanking).toBe('candidate-rerank')
+        expect(diagnostics.vectorRanking).toBe('projection-walk')
         expect(result.data.results).toHaveLength(15)
         expect(plans.some((plan) => plan.kind === 'vector')).toBe(true)
         for (const row of result.data.results) {
@@ -1441,7 +1458,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         })
       )
       expectCompleteVectorSearch(tagged.diagnostics)
-      expect(tagged.diagnostics.vectorRanking).toBe('candidate-rerank')
+      expect(tagged.diagnostics.vectorRanking).toBe('projection-walk')
       expect(tagged.result.data.results).toHaveLength(15)
       for (const row of tagged.result.data.results) {
         const ordinal = Number(row.documentId.split('-doc-')[1])

@@ -7,6 +7,10 @@ import {
   embeddingSearch,
   knowledgeConnector,
 } from '@sim/db/schema'
+import {
+  PROJECTION_SOURCE_ACL_TABLES,
+  type ProjectionSourceAclTable,
+} from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
@@ -113,12 +117,13 @@ const PROJECTION_FILLED_TTL_MS = 60_000
  * Whether the ranking projection still holds rows the backfill has not filled. Read off the
  * unfilled-rows index in microseconds and remembered briefly: the answer only ever changes once.
  */
-const projectionFilled = new LRUCache<string, boolean>({
-  max: 1,
+const projectionFilled = new LRUCache<ProjectionSourceAclTable, boolean>({
+  max: PROJECTION_SOURCE_ACL_TABLES.length,
   ttl: PROJECTION_FILLED_TTL_MS,
-  fetchMethod: async () => {
+  fetchMethod: async (projection) => {
+    const table = projection === 'embedding_search' ? embeddingSearch : embeddingKeywordTin
     const [row] = await db.execute<{ unfilled: boolean }>(sql`
-      SELECT EXISTS (SELECT 1 FROM ${embeddingSearch} WHERE ${embeddingSearch.acl} IS NULL) AS unfilled`)
+      SELECT EXISTS (SELECT 1 FROM ${table} WHERE ${table.acl} IS NULL) AS unfilled`)
     return !row?.unfilled
   },
 })
@@ -135,9 +140,22 @@ export function forgetProjectionFilled(): void {
  */
 const CANDIDATE_HNSW_EF_SEARCH = '200'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
-const MIN_VECTOR_RERANK_CANDIDATES = 400
-const MAX_VECTOR_RERANK_CANDIDATES = 1600
-const VECTOR_RERANK_OVERSAMPLING = 32
+/**
+ * Candidates one walk gathers: the pages the search has asked for so far and as many again, in
+ * case the full read predicate refuses some. The walk ends as soon as it has them, so a pool the
+ * size of a page ends long before one sized for a rerank; a pool the pages outrun is walked again,
+ * wider. The ceiling bounds the widest walk.
+ */
+const VECTOR_CANDIDATE_POOL_MIN = 200
+const MAX_VECTOR_CANDIDATES = 1600
+
+/** The pool a search needs to serve `needed` candidates, at least twice the last pool. */
+export function vectorCandidatePoolLimit(needed: number, previous: number | undefined): number {
+  return Math.min(
+    MAX_VECTOR_CANDIDATES,
+    Math.max(VECTOR_CANDIDATE_POOL_MIN, needed * 2, (previous ?? 0) * 2)
+  )
+}
 /**
  * The probe's share of the leg. It ranks nothing, so it must never be why the leg misses its
  * own deadline.
@@ -885,11 +903,17 @@ function hydrateSearchCandidates(
   budget?: SearchBudget
 ) {
   const accessCondition = knowledgeAccessCondition(access)
+  /**
+   * The score comes from the projection's stored halfvec, the column the walk ranked on: the
+   * original vector lives out of line in toast storage that no cache holds, and reading it back
+   * for every hydrated row was a random page read per result on every novel query.
+   */
   return runSearchQuery(budget, `${leg}.sql`, (executor) =>
     executor
       .select(getSearchResultFields(distance))
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
+      .leftJoin(embeddingSearch, eq(embeddingSearch.id, embedding.id))
       .where(
         and(
           inArray(embedding.id, ids),
@@ -1468,6 +1492,8 @@ async function selectSourceVectorCandidates(input: {
   plan: SearchAccessPlan
   tagCondition: SQL | undefined
   documentCondition: SQL | undefined
+  /** Sources the caller turned out not to hold, kept out of every source's ranking. */
+  exclusion: SQL | undefined
   /** Whether every projection row carries its mirrored columns, so a walk needs no document. */
   projectionFilled: boolean
   candidateDistance: SQL<number>
@@ -1486,7 +1512,8 @@ async function selectSourceVectorCandidates(input: {
   const base = and(
     inArray(embeddingSearch.knowledgeBaseId, input.knowledgeBaseIds),
     eq(embeddingSearch.enabled, true),
-    input.tagCondition
+    input.tagCondition,
+    input.exclusion
   )
   type RankedChunks = Promise<Array<{ id: string; distance: number }>>
   /**
@@ -1495,7 +1522,9 @@ async function selectSourceVectorCandidates(input: {
    * so the graph is not stalled by a document lookup per candidate; the tag filter, which lives on
    * the chunk, still joins.
    */
-  const onRow = projectionCandidateAccessCondition(embeddingSearch, input.access, input.plan)
+  const onRow = projectionCandidateAccessCondition(embeddingSearch, input.access, input.plan, {
+    filled: input.projectionFilled,
+  })
   const walk =
     (scope: SQL): (() => RankedChunks) =>
     () =>
@@ -1602,7 +1631,12 @@ const SOURCE_RANKING_CONCURRENCY = 3
  */
 async function selectVectorResults(params: SearchParams): Promise<SearchResult[]> {
   const queryVector = params.queryVector!
-  const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
+  /** One score for ranking, threshold and results alike: the projection's, which stays in cache. */
+  const distance = embeddingCandidateDistance(
+    queryVector.dimensions,
+    queryVector.vector,
+    queryVector.model
+  )
   const tagConditions = getStructuredTagFilters(params.structuredFilters ?? [], embedding)
   const conditions = [
     inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds),
@@ -1619,15 +1653,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
   const candidateAccess = accessProvider
     ? candidateAccessCondition(params.access, params.accessPlan)
     : knowledgeAccessCondition(params.access)
-  const candidateDistance = embeddingCandidateDistance(
-    queryVector.dimensions,
-    queryVector.vector,
-    queryVector.model
-  )
-  const candidateLimit = Math.min(
-    MAX_VECTOR_RERANK_CANDIDATES,
-    Math.max(MIN_VECTOR_RERANK_CANDIDATES, params.topK * VECTOR_RERANK_OVERSAMPLING)
-  )
+  const candidateDistance = distance
   const documentTagCondition = chunkTagCondition(
     eq(embedding.documentId, document.id),
     tagConditions
@@ -1645,7 +1671,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
    * refill reuses the pool it already has. Excluding another source is the only thing that
    * changes which candidates belong in it, and that resets the offset to zero anyway.
    */
-  let candidatePool: { excludedKey: string; ids: Array<{ id: string }> } | undefined
+  let candidatePool:
+    | { excludedKey: string; ids: Array<{ id: string }>; limit: number; exhausted: boolean }
+    | undefined
   return selectAuthorizedSearchResults({
     leg: 'vector',
     access: params.access,
@@ -1678,6 +1706,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             .select({ ...SEARCH_READ_CANDIDATE_FIELDS, distance: distance.as('distance') })
             .from(embedding)
             .innerJoin(document, eq(embedding.documentId, document.id))
+            .leftJoin(embeddingSearch, eq(embeddingSearch.id, embedding.id))
             .where(and(...conditions, ...visibility))
             .orderBy(sql`(${distance}) + 0`, embedding.id)
             .limit(limit)
@@ -1686,13 +1715,28 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length) return exactPage()
-      if (candidatePool?.excludedKey !== excludedKey) {
+      /**
+       * A source the caller turned out not to hold is left out where the pool is built: the pool
+       * is the page's order now, so a denied source's chunks would otherwise keep their slots.
+       */
+      const excludedOnRow = excludedSources.length
+        ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])})))`
+        : undefined
+      const needed = offset + limit
+      if (
+        candidatePool?.excludedKey !== excludedKey ||
+        (candidatePool.ids.length < needed && !candidatePool.exhausted)
+      ) {
+        const candidateLimit = vectorCandidatePoolLimit(
+          needed,
+          candidatePool?.excludedKey === excludedKey ? candidatePool.limit : undefined
+        )
         const plannedIndexedSources =
           params.access.kind === 'user' && params.accessPlan?.memberSources.length
             ? await indexedVectorSources()
             : undefined
         annotateSearchDiagnostics({
-          vectorRanking: 'candidate-rerank',
+          vectorRanking: 'projection-walk',
           vectorCandidateStorage: 'stored-halfvec',
           vectorCandidateLimit: candidateLimit,
           vectorCandidateScan: 'planned',
@@ -1717,7 +1761,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
                 inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
                 eq(embeddingSearch.enabled, true),
                 sql`${embeddingSearch.documentId} = ANY(${textArrayLiteral(documentIds)})`,
-                candidateTagCondition
+                candidateTagCondition,
+                excludedOnRow
               )}
               ORDER BY (${candidateDistance}) + 0 LIMIT ${candidateLimit}
             `)
@@ -1757,6 +1802,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             access: params.access,
             knowledgeBaseIds: params.knowledgeBaseIds,
             plan,
+            exclusion: excludedOnRow,
             projectionFilled: filled,
             tagCondition: candidateTagCondition,
             documentCondition,
@@ -1771,7 +1817,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            */
           const scopeOfWalk = and(
             inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-            eq(embeddingSearch.enabled, true)
+            eq(embeddingSearch.enabled, true),
+            excludedOnRow
           )
           selected = await withVectorScanSettings(
             (executor) =>
@@ -1781,7 +1828,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch} /* on-row visibility */
             WHERE ${and(
               scopeOfWalk,
-              projectionCandidateAccessCondition(embeddingSearch, params.access, plan),
+              projectionCandidateAccessCondition(embeddingSearch, params.access, plan, { filled }),
               documentCondition === undefined
                 ? undefined
                 : sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(eq(document.id, embeddingSearch.documentId), documentCondition)})`
@@ -1833,33 +1880,36 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             }
           }
         }
-        candidatePool = { excludedKey, ids: selected }
+        candidatePool = {
+          excludedKey,
+          ids: selected,
+          limit: candidateLimit,
+          exhausted: selected.length < candidateLimit,
+        }
         annotateSearchDiagnostics({
           vectorCandidateCount: selected.length,
           vectorCandidateScan: selected.length < candidateLimit ? 'underfilled' : 'planned',
         })
       }
-      const identities = candidatePool.ids
-      if (!identities.length) return { candidates: [], nextOffset: offset }
-      /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */
-      const page = await runSearchQuery(params.budget, 'vector.rerank', (executor) =>
-        executor.execute<SearchReadCandidate & { distance: number }>(sql`
-          WITH scored_search_candidates AS MATERIALIZED (
-            SELECT ${embedding.id} AS id, ${document.id} AS "documentId",
-              ${document.connectorId} AS "connectorId",
-              ${distance} AS distance
-            FROM ${embedding} INNER JOIN ${document} ON ${document.id} = ${embedding.documentId}
-            WHERE ${and(
-              inArray(
-                embedding.id,
-                identities.map(({ id }) => id)
-              ),
-              ...conditions,
-              ...visibility
-            )}
-          ) SELECT * FROM scored_search_candidates ORDER BY distance, id LIMIT ${limit} OFFSET ${offset}
+      const slice = candidatePool.ids.slice(offset, offset + limit)
+      if (!slice.length) return { candidates: [], nextOffset: offset }
+      /**
+       * The walk's order is the page's order: it ranked on the stored halfvec, and rescoring the
+       * pool against the original vectors read one out-of-line vector per candidate from storage
+       * no cache holds, seconds on a query nobody had run before. Only the page's identities are
+       * read here; the full read predicate follows at hydration, as before.
+       */
+      const ranked = new Map(slice.map((candidate, index) => [candidate.id, index]))
+      const identities = await runSearchQuery(params.budget, 'vector.page', (executor) =>
+        executor.execute<SearchReadCandidate>(sql`
+          SELECT ${embeddingSearch.id} AS id, ${document.id} AS "documentId",
+            ${document.connectorId} AS "connectorId"
+          FROM ${embeddingSearch}
+          INNER JOIN ${document} ON ${document.id} = ${embeddingSearch.documentId}
+          WHERE ${embeddingSearch.id} = ANY(${textArrayLiteral(slice.map((candidate) => candidate.id))})
         `)
       )
+      const page = [...identities].sort((a, b) => (ranked.get(a.id) ?? 0) - (ranked.get(b.id) ?? 0))
       return {
         candidates: page,
         nextOffset: offset + page.length,
@@ -1974,6 +2024,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         : {}),
     })
     const accessPlan = access.kind === 'user' ? params.accessPlan : undefined
+    /** A filled projection decides readability on the ranked row alone; none of its rows needs the document. */
+    const tinFilled =
+      accessPlan && tinQuery
+        ? ((await projectionFilled.fetch('embedding_keyword_tin')) ?? false)
+        : false
     /** The projection predicate over the ranked CTE's mirrored columns, plus any excluded source. */
     const onRowKeywordVisibility = (excludedSources: readonly string[]) =>
       and(
@@ -1984,7 +2039,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             documentId: sql`ranked_tin_chunks.document_id`,
           },
           access,
-          accessPlan!
+          accessPlan!,
+          { filled: tinFilled }
         ),
         dateFilterCondition(params.filters)
           ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, dateFilterCondition(params.filters))})`
@@ -2185,13 +2241,22 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         )
         return { candidates, nextOffset: offset + candidates.length }
       },
+      /**
+       * Every candidate already matched the query where it was ranked; matching it again here
+       * would detoast one text-search vector per result. The score is the projection's, like the
+       * vector leg's, so the two legs fuse on the same distance.
+       */
       hydrate: (ids, authorized) =>
         hydrateSearchCandidates(
           ids,
           authorized,
-          embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance'),
+          embeddingCandidateDistance(
+            queryVector.dimensions,
+            queryVector.vector,
+            queryVector.model
+          ).as('distance'),
           params.filters,
-          conditions,
+          [inArray(embedding.knowledgeBaseId, knowledgeBaseIds), ...tagFilterConditions],
           'keyword',
           params.budget
         ),

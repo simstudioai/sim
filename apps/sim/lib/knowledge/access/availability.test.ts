@@ -29,6 +29,7 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 }))
 
 import {
+  forgetKnowledgeAccessAvailability,
   requireOrganizationSearchAvailable,
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
@@ -36,6 +37,7 @@ import {
 describe('knowledge access availability ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    forgetKnowledgeAccessAvailability()
     mocks.featureEnabled.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
     mocks.scopedGroups.mockResolvedValue(true)
@@ -57,6 +59,17 @@ describe('knowledge access availability ownership', () => {
     })
     expect(mocks.workspaceBilling).not.toHaveBeenCalled()
     expect(mocks.workspaceGroups).not.toHaveBeenCalled()
+  })
+
+  it('answers the same owner from one read for a minute', async () => {
+    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
+    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
+    expect(mocks.enterprise).toHaveBeenCalledTimes(1)
+    await resolveKnowledgeAccessAvailability({ organizationId: 'org-2' })
+    expect(mocks.enterprise).toHaveBeenCalledTimes(2)
+    forgetKnowledgeAccessAvailability()
+    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
+    expect(mocks.enterprise).toHaveBeenCalledTimes(3)
   })
 
   it('keeps source mirroring independent from managed identity availability', async () => {

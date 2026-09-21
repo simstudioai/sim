@@ -50,7 +50,7 @@ export type SearchStage =
   | `${RetrievalLeg}.sql`
   | 'vector.settings'
   | 'vector.probe'
-  | 'vector.rerank'
+  | 'vector.page'
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
@@ -84,7 +84,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank' | 'per-source'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk' | 'per-source'
   vectorCandidateStorage?: 'stored-halfvec'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility

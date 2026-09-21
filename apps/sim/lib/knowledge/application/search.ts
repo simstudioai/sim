@@ -11,6 +11,7 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
@@ -267,10 +268,6 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseCount: context.knowledgeBases.length,
     })
     input.signal?.throwIfAborted()
-    if (context.organizationId)
-      await measureSearchStage('availability', () =>
-        requireOrganizationSearchAvailable(context.organizationId!)
-      )
     const requestId = generateRequestId()
     const hasQuery = Boolean(input.query?.trim())
     const filters = input.tagFilters ?? []
@@ -286,24 +283,36 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       principal.kind === 'delegated' &&
       principal.serviceId === 'executor'
     )
-    const billingAttribution = hasQuery
-      ? input.resolveBillingAttribution && context.workspaceId
-        ? await measureSearchStage('billing_attribution', () =>
-            input.resolveBillingAttribution!(context.workspaceId!)
-          )
-        : await measureSearchStage('billing_attribution', () =>
-            resolveKnowledgeBillingAttribution(principal, context)
-          )
-      : undefined
-    if (shouldMeter && billingAttribution) {
-      const usage = await measureSearchStage('usage_admission', () =>
-        checkSearchUsageLimits(billingAttribution)
-      )
-      if (usage.isExceeded) {
-        throw new KnowledgeUsageLimitExceededError(
-          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+    /**
+     * Whether the organization may search at all, and whether this payer still may: neither
+     * depends on the query, so both run beside the embedding call below instead of ahead of it.
+     * A refusal still ends the search before any retrieval.
+     */
+    const admit = async (): Promise<BillingAttributionSnapshot | undefined> => {
+      if (context.organizationId)
+        await measureSearchStage('availability', () =>
+          requireOrganizationSearchAvailable(context.organizationId!)
         )
+      const billingAttribution = hasQuery
+        ? input.resolveBillingAttribution && context.workspaceId
+          ? await measureSearchStage('billing_attribution', () =>
+              input.resolveBillingAttribution!(context.workspaceId!)
+            )
+          : await measureSearchStage('billing_attribution', () =>
+              resolveKnowledgeBillingAttribution(principal, context)
+            )
+        : undefined
+      if (shouldMeter && billingAttribution) {
+        const usage = await measureSearchStage('usage_admission', () =>
+          checkSearchUsageLimits(billingAttribution)
+        )
+        if (usage.isExceeded) {
+          throw new KnowledgeUsageLimitExceededError(
+            usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+          )
+        }
       }
+      return billingAttribution
     }
 
     const knowledgeBaseIds = context.knowledgeBases.map((knowledgeBase) => knowledgeBase.id)
@@ -359,31 +368,40 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
     input.signal?.throwIfAborted()
-    const [queryEmbedding, access, searchDefaults] = await Promise.all([
-      hasQuery
-        ? measureSearchStage('embedding', () =>
-            runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-              generateSearchEmbedding(
-                input.query!,
-                embeddingTarget!,
-                context.workspaceId,
-                input.signal
+    const [queryEmbedding, access, searchDefaults, billingAttribution, tagDefinitions] =
+      await Promise.all([
+        hasQuery
+          ? measureSearchStage('embedding', () =>
+              runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
+                generateSearchEmbedding(
+                  input.query!,
+                  embeddingTarget!,
+                  context.workspaceId,
+                  input.signal
+                )
               )
             )
-          )
-        : Promise.resolve(null),
-      measureSearchStage('access_scope', () => context.access.get()),
-      measureSearchStage('defaults', () =>
-        resolveKnowledgeSearchDefaults({
-          workspaceId: context.workspaceId,
-          organizationId: context.organizationId,
+          : Promise.resolve(null),
+        measureSearchStage('access_scope', () => context.access.get()),
+        measureSearchStage('defaults', () =>
+          resolveKnowledgeSearchDefaults({
+            workspaceId: context.workspaceId,
+            organizationId: context.organizationId,
 
-          /** The signed-in person, if any; never the billing owner or a key's creator. */
-          userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-          requestedMode: input.searchMode,
-        })
-      ),
-    ])
+            /** The signed-in person, if any; never the billing owner or a key's creator. */
+            userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+            requestedMode: input.searchMode,
+          })
+        ),
+        admit(),
+        /** The tag names the results are labelled with depend on the bases alone. */
+        filters.length === 0
+          ? measureSearchStage('tag_definitions', () =>
+              getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+            )
+          : Promise.resolve(definitionsByKnowledgeBase),
+      ])
+    definitionsByKnowledgeBase = tagDefinitions
     input.signal?.throwIfAborted()
     annotateSearchDiagnostics({
       accessScopeKind: access.kind,
@@ -601,7 +619,8 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
             ],
           })
         )
-        await measureSearchStage('overage_billing', () =>
+        /** Whether the payer crossed a billing threshold is settled after the results are on their way. */
+        runDetached('knowledge search overage billing', () =>
           checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
         )
       } catch (error) {
@@ -609,11 +628,6 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       }
     }
 
-    if (filters.length === 0) {
-      definitionsByKnowledgeBase = await measureSearchStage('tag_definitions', () =>
-        getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
-      )
-    }
     const tagMaps = new Map(
       [...definitionsByKnowledgeBase].map(([knowledgeBaseId, definitions]) => [
         knowledgeBaseId,
@@ -723,10 +737,11 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   },
   afterSuccess: async ({ principal, context, input, result }) => {
     const actorUserId = resolvePrincipalSubjectUserId(principal)
+    /** The record is for the organization's activity view; the caller's results never wait on it. */
     if (context.organizationId && actorUserId) {
-      await measureSearchStage('activity_recording', () =>
+      runDetached('organization search activity', () =>
         recordOrganizationSearchActivity({
-          organizationId: context.organizationId,
+          organizationId: context.organizationId!,
           userId: actorUserId,
           surface: input.surface ?? 'other',
           results: result.results,
