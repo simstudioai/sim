@@ -1776,6 +1776,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           )
         }
         let selected: SearchReadCandidate[]
+        /** Set where a pool's end is known better than by its length. */
+        let exhausted: boolean | undefined
         /**
          * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
          * authorization downstream of the traversal, with a primary-key lookup per candidate.
@@ -1838,12 +1840,25 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * visits and stops at its tuple cap. The walk answers whenever the set is a fair share
            * of the graph; where it is not, the walk underfills and the exact ranking that was
            * always complete takes over, so nothing is lost but the walk's bounded cost.
+           *
+           * The walk decides readability on the projection row, which is broader than the
+           * document predicate hydration applies, so a pool it filled can still run short of
+           * readable rows. That shortfall is what refills a pool: the refill is the exact ranking,
+           * complete over the set, placed behind the rows already read so the pages keep their
+           * offsets.
            */
-          selected = await walkGraph()
-          if (selected.length < candidateLimit) {
-            selected = await rankPermittedExactly(
-              params.permitted.documents.map((entry) => entry.id)
-            )
+          const permittedIds = params.permitted.documents.map((entry) => entry.id)
+          const previous =
+            candidatePool?.excludedKey === excludedKey ? candidatePool.ids : undefined
+          if (previous) {
+            const exact = await rankPermittedExactly(permittedIds)
+            const read = new Set(previous.map((candidate) => candidate.id))
+            selected = [...previous, ...exact.filter((candidate) => !read.has(candidate.id))]
+            exhausted = exact.length < candidateLimit
+          } else {
+            selected = await walkGraph()
+            if (selected.length < candidateLimit)
+              selected = await rankPermittedExactly(permittedIds)
           }
         } else if (
           params.permitted?.kind === 'bounded' &&
@@ -1914,7 +1929,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           excludedKey,
           ids: selected,
           limit: candidateLimit,
-          exhausted: selected.length < candidateLimit || candidateLimit >= MAX_VECTOR_CANDIDATES,
+          exhausted:
+            (exhausted ?? selected.length < candidateLimit) ||
+            candidateLimit >= MAX_VECTOR_CANDIDATES,
           filled,
         }
         annotateSearchDiagnostics({

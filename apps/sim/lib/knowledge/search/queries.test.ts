@@ -2490,6 +2490,20 @@ describe('filters on a resolved scope', () => {
       expect(JSON.stringify(exact[0])).toContain('doc-4999')
     })
 
+    it('refills a pool the walk filled but hydration could not with the exact ranking', async () => {
+      traversedRows = walked
+      exactRows = [hit('a', 'src-a')]
+      /** None of the walked rows survives the document predicate; the set's own ranking then does. */
+      for (let page = 0; page < 10; page++) queueTableRows(schemaMock.embedding, [])
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large)).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+      const exact = statements().filter((query) => isExactRanking(query.sql))
+      expect(exact).toHaveLength(1)
+      /** The refill ranks past the rows already read, so nothing already rejected is read twice. */
+      expect(JSON.stringify(exact[0])).toContain('doc-4999')
+    })
+
     it('ranks a set under the size exactly, without a walk', async () => {
       exactRows = [hit('a', 'src-a')]
       queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
