@@ -33,7 +33,18 @@ vi.mock('@/lib/knowledge/search/activity', () => ({
   recordOrganizationSearchActivity: mocks.activity,
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: mocks.search },
+  runKnowledgeSearch: mocks.search,
+  buildKnowledgeSearchContext: (
+    _principal: unknown,
+    context: unknown,
+    knowledgeBases: unknown
+  ) => ({
+    ...(context as object),
+    knowledgeBases,
+    access: {},
+  }),
+  validateKnowledgeSearchInput: () => undefined,
+  afterKnowledgeSearch: mocks.afterSearch ?? (async () => undefined),
 }))
 
 import {
@@ -82,10 +93,12 @@ describe.each([
     mocks.findIndex.mockResolvedValueOnce({ id: 'index' })
     await operation.execute({ principal, input })
     expect(mocks.search).toHaveBeenCalledOnce()
-    expect(mocks.search).toHaveBeenCalledWith({
-      principal,
-      input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
-    })
+    expect(mocks.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
+      })
+    )
     expect(mocks.activity).not.toHaveBeenCalled()
   })
 

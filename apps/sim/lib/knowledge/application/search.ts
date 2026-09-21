@@ -33,6 +33,7 @@ import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diag
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
@@ -47,10 +48,7 @@ import {
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import {
-  type ActiveKnowledgeBaseReference,
-  getActiveKnowledgeBaseReferences,
-} from '@/lib/knowledge/service'
+import { getActiveKnowledgeBaseReferences } from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
@@ -163,6 +161,7 @@ export interface SearchKnowledgeResult {
   knowledgeBaseId: string
   topK: number
   totalResults: number
+  rerankerStatus: RerankerStatus
   cost?: KnowledgeSearchCost
   workspaceId?: string
   userId: string
@@ -171,10 +170,8 @@ export interface SearchKnowledgeResult {
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
 
-async function resolveKnowledgeSearchContext(
-  input: SearchKnowledgeInput,
-  principal: Principal
-): Promise<KnowledgeSearchContext> {
+/** The request's shape, checked before anything is read for it. */
+export function validateKnowledgeSearchInput(input: SearchKnowledgeInput): void {
   if (
     input.knowledgeBaseIds.length < 1 ||
     input.knowledgeBaseIds.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases
@@ -194,6 +191,36 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
+}
+
+/**
+ * The search context over bases already resolved and authorized under `context`: what the
+ * caller may read across them comes from the principal, never from the input.
+ */
+export function buildKnowledgeSearchContext(
+  principal: Principal,
+  context: KnowledgeResourceContext,
+  knowledgeBases: ActiveKnowledgeBaseReference[],
+  signal: AbortSignal | undefined
+): KnowledgeSearchContext {
+  const knowledgeBaseIds = knowledgeBases.map((base) => base.id)
+  return {
+    ...context,
+    knowledgeBases,
+    access: createKnowledgeAccessProvider(
+      principal,
+      context.organizationId
+        ? { ...context, knowledgeBaseIds, signal }
+        : { workspaceId: context.workspaceId!, knowledgeBaseIds, signal }
+    ),
+  }
+}
+
+async function resolveKnowledgeSearchContext(
+  input: SearchKnowledgeInput,
+  principal: Principal
+): Promise<KnowledgeSearchContext> {
+  validateKnowledgeSearchInput(input)
   const knowledgeBases = await getActiveKnowledgeBaseReferences(input.knowledgeBaseIds)
   const missingIds = input.knowledgeBaseIds.filter((_, index) => {
     const knowledgeBase = knowledgeBases[index]
@@ -225,19 +252,12 @@ async function resolveKnowledgeSearchContext(
       `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
     )
   }
+  const resolved = knowledgeBases as ActiveKnowledgeBaseReference[]
   if (canonicalOrganizationId) {
     const context = await resolveKnowledgeOrganizationContext({
       organizationId: canonicalOrganizationId,
     })
-    return {
-      ...context,
-      knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-      access: createKnowledgeAccessProvider(principal, {
-        ...context,
-        knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
-        signal: input.signal,
-      }),
-    }
+    return buildKnowledgeSearchContext(principal, context, resolved, input.signal)
   }
   if (!canonicalWorkspaceId) {
     throw new OrchestrationError('not_found', 'Knowledge base not found')
@@ -245,22 +265,25 @@ async function resolveKnowledgeSearchContext(
   const workspaceContext = await resolveKnowledgeWorkspaceContext({
     workspaceId: canonicalWorkspaceId,
   })
-  return {
-    ...workspaceContext,
-    knowledgeBases: knowledgeBases as ActiveKnowledgeBaseReference[],
-    access: createKnowledgeAccessProvider(principal, {
-      workspaceId: canonicalWorkspaceId,
-      knowledgeBaseIds: knowledgeBases.map((base) => base!.id),
-      signal: input.signal,
-    }),
-  }
+  return buildKnowledgeSearchContext(principal, workspaceContext, resolved, input.signal)
 }
 
-const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.search,
-  resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
-    measureSearchStage('knowledge_context', () => resolveKnowledgeSearchContext(input, principal)),
-  async execute({ principal, input, context }) {
+export interface KnowledgeSearchExecution {
+  principal: Principal
+  input: SearchKnowledgeInput
+  context: KnowledgeSearchContext
+}
+
+/**
+ * The search itself, over a context its caller has already resolved and authorized: the
+ * operation each search surface shares once it has decided which bases the request may read.
+ */
+export async function runKnowledgeSearch({
+  principal,
+  input,
+  context,
+}: KnowledgeSearchExecution): Promise<SearchKnowledgeResult> {
+  {
     annotateSearchDiagnostics({
       scopeKind: context.organizationId ? 'organization' : 'workspace',
       knowledgeBaseCount: context.knowledgeBases.length,
@@ -723,8 +746,22 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       accessScopeKind: access.kind,
       resultSecretRegistry: registry,
     }
-  },
-  afterSuccess: async ({ principal, context, input, result }) => {
+  }
+}
+
+/** What follows a completed search on every surface: the organization's activity record and the platform event. */
+export async function afterKnowledgeSearch({
+  principal,
+  context,
+  input,
+  result,
+}: {
+  principal: Principal
+  context: KnowledgeResourceContext
+  input: Pick<SearchKnowledgeInput, 'surface'>
+  result: SearchKnowledgeResult
+}): Promise<void> {
+  {
     const actorUserId = resolvePrincipalSubjectUserId(principal)
     if (context.organizationId && actorUserId) {
       await measureSearchStage('activity_recording', () =>
@@ -756,7 +793,17 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       accessScopeKind: result.accessScopeKind,
       surface: input.surface,
     })
-  },
+  }
+}
+
+/** Search over explicitly named bases: resolves and authorizes them, then runs the shared search. */
+const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.search,
+  resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
+    measureSearchStage('knowledge_context', () => resolveKnowledgeSearchContext(input, principal)),
+  execute: ({ principal, input, context }) => runKnowledgeSearch({ principal, input, context }),
+  afterSuccess: ({ principal, context, input, result }) =>
+    afterKnowledgeSearch({ principal, context, input, result }),
 })
 
 export const searchKnowledge = instrumentSearchUseCase(
