@@ -231,7 +231,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
       environment: ${{ steps.target.outputs.environment }}
