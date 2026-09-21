@@ -285,6 +285,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   twilio_sms: 'Twilio SMS',
   twilio_voice: 'Twilio Voice',
   typeform: 'Typeform',
+  typesafe: 'TypeSafe (Jev)',
   upstash: 'Upstash',
   uptimerobot: 'UptimeRobot',
   vanta: 'Vanta',
