@@ -1414,6 +1414,62 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     }
   )
 
+  it('awaits delivery acknowledgment before recording workflow success', async () => {
+    const result = {
+      success: true,
+      status: 'completed',
+      output: { content: 'Complete answer' },
+      logs: [],
+    }
+    executorExecuteMock.mockResolvedValue(result)
+    let release: (() => void) | undefined
+    const acknowledgment = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const finalizeDelivery = vi.fn(async () => {
+      await acknowledgment
+    })
+    const execution = executeWorkflowCore({
+      snapshot: createSnapshot(),
+      callbacks: {},
+      loggingSession: loggingSession as Parameters<typeof executeWorkflowCore>[0]['loggingSession'],
+      finalizeDelivery,
+    })
+    await vi.waitFor(() => expect(finalizeDelivery).toHaveBeenCalledWith(result))
+    expect(safeCompleteMock).not.toHaveBeenCalled()
+    release?.()
+    await execution
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+    expect(safeCompleteMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a delivery failure with the generated output instead of a successful workflow receipt', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { content: 'Generated answer' },
+      logs: [],
+    })
+    const deliveryError = new Error('Slack append acknowledgment was lost')
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot(),
+        callbacks: {},
+        loggingSession: loggingSession as Parameters<
+          typeof executeWorkflowCore
+        >[0]['loggingSession'],
+        finalizeDelivery: async () => {
+          throw deliveryError
+        },
+      })
+    ).rejects.toBe(deliveryError)
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+    expect(safeCompleteMock).not.toHaveBeenCalled()
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(deliveryError).toHaveProperty('executionResult.output.content', 'Generated answer')
+    expect(executorExecuteMock).toHaveBeenCalledTimes(1)
+  })
+
   it('awaits wrapped lifecycle persistence before terminal finalization returns', async () => {
     let releaseBlockStart: (() => void) | undefined
     const blockStartPromise = new Promise<void>((resolve) => {

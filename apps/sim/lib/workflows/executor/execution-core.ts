@@ -7,7 +7,7 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
+import { getErrorMessage, redactBoundParameters, toError } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from '@xyflow/react'
@@ -118,6 +118,8 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
+  /** Required delivery must settle before the workflow can persist a successful outcome. */
+  finalizeDelivery?: (result: ExecutionResult) => Promise<void>
   skipLogCreation?: boolean
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
@@ -1154,6 +1156,14 @@ async function executeWorkflowCoreImpl(
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
     await waitForLifecycleCallbacks()
+
+    if (options.finalizeDelivery) {
+      try {
+        await options.finalizeDelivery(result)
+      } catch (error) {
+        throw Object.assign(toError(error), { executionResult: result })
+      }
+    }
 
     loggingSession.setPostExecutionPromise(
       (async () => {

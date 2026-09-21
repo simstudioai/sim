@@ -391,19 +391,18 @@ describe('mothership private trace provenance transport', () => {
       .map((line) => JSON.parse(line))
     expect(response.status).toBe(200)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(events.filter((event) => event.type === 'agent_event')).toEqual([
-      { type: 'agent_event', event: { type: 'thinking_delta', text: 'Considering' } },
-      { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
-      { type: 'agent_event', event: { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' } },
-      {
-        type: 'agent_event',
-        event: { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
-      },
-      { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
-    ])
+    expect(events.filter((event) => event.type === 'agent_event')).toEqual(
+      [
+        { type: 'thinking_delta', text: 'Considering' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+        { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+        { type: 'turn_end', turn: 'final' },
+      ].map((event) => ({ type: 'agent_event', v: 1, event }))
+    )
     expect(events.filter((event) => event.type === 'chunk')).toEqual([
-      { type: 'chunk', content: 'I will check.', turn: 'pending' },
-      { type: 'chunk', content: 'Answer', turn: 'pending' },
+      { type: 'chunk', v: 1, content: 'I will check.', turn: 'pending' },
+      { type: 'chunk', v: 1, content: 'Answer', turn: 'pending' },
     ])
     expect(text).not.toContain('private-args')
     expect(text).not.toContain('private-result')

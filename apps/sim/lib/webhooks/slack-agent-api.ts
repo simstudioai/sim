@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
@@ -31,34 +31,65 @@ interface SlackStreamTarget {
   recipientTeamId?: string
 }
 
+/** A missing acknowledgment does not establish that Slack rejected a write. */
+export class SlackDeliveryError extends Error {
+  constructor(
+    readonly method: string,
+    readonly outcome: 'rejected' | 'uncertain',
+    readonly code: string,
+    readonly httpStatus?: number
+  ) {
+    super(`Slack ${method}: ${code} (delivery ${outcome})`)
+    this.name = 'SlackDeliveryError'
+  }
+}
+
+/** Slack acknowledgments can include the full accumulated message, including task cards. */
+const MAX_SLACK_RESPONSE_BYTES = 4 * 1024 * 1024
+
 async function callSlackAgentApi(
   method: string,
   token: string,
   body: Record<string, unknown>,
   signal?: AbortSignal
 ): Promise<SlackApiResponse> {
-  const response = await fetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify(body),
-    signal,
-  })
-  const value = await readResponseJsonWithLimit(response, {
-    maxBytes: 64 * 1024,
-    label: `Slack ${method}`,
-  })
+  let response: Response
+  try {
+    response = await fetch(`https://slack.com/api/${method}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(body),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+        : AbortSignal.timeout(15_000),
+    })
+  } catch {
+    throw new SlackDeliveryError(method, 'uncertain', 'transport_failed')
+  }
+  let value: unknown
+  try {
+    value = await readResponseJsonWithLimit(response, {
+      maxBytes: MAX_SLACK_RESPONSE_BYTES,
+      label: `Slack ${method}`,
+    })
+  } catch {
+    throw new SlackDeliveryError(method, 'uncertain', 'unreadable_acknowledgment', response.status)
+  }
   if (!isRecordLike(value)) {
-    throw new Error(`Slack ${method} returned an invalid response`)
+    throw new SlackDeliveryError(method, 'uncertain', 'invalid_acknowledgment', response.status)
   }
   const data = value as SlackApiResponse
   if (!response.ok || data.ok !== true) {
-    throw new Error(
-      data.error
-        ? `Slack ${method} failed: ${data.error}`
-        : `Slack ${method} failed with status ${response.status}`
+    throw new SlackDeliveryError(
+      method,
+      data.ok === false ? 'rejected' : 'uncertain',
+      typeof data.error === 'string' && /^[a-z_]+$/.test(data.error)
+        ? data.error
+        : 'invalid_acknowledgment',
+      response.status
     )
   }
   return data
@@ -126,7 +157,7 @@ export async function startSlackAgentStream(
     signal
   )
   if (typeof data.channel !== 'string' || typeof data.ts !== 'string') {
-    throw new Error('Slack chat.startStream response is missing channel or timestamp')
+    throw new SlackDeliveryError('chat.startStream', 'uncertain', 'missing_stream_identity')
   }
   return { channel: data.channel, ts: data.ts }
 }
@@ -166,5 +197,5 @@ export async function stopSlackAgentStream(
 }
 
 export function formatSlackApiFailure(error: unknown): Error {
-  return new Error(getErrorMessage(error, 'Slack agent response delivery failed'))
+  return toError(error)
 }

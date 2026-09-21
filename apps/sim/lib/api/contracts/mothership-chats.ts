@@ -8,7 +8,9 @@ import {
   secretMountScopeSchema,
 } from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import type { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
+import type { AgentStreamEvent, TextDeltaClassification } from '@/providers/stream-events'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -433,3 +435,31 @@ export const getMothershipChatContract = defineRouteContract({
 })
 
 export type MothershipChat = z.infer<typeof mothershipChatSchema>
+
+export type MothershipExecuteResult = {
+  content?: string
+  model?: string
+  conversationId?: string
+  tokens?: Record<string, unknown>
+  toolCalls?: Array<{
+    name?: string
+    status?: string
+    arguments?: Record<string, unknown>
+    params?: Record<string, unknown>
+    input?: Record<string, unknown>
+    result?: unknown
+    output?: unknown
+    error?: string
+    durationMs?: number
+  }>
+  cost?: unknown
+} & Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>
+
+export type MothershipExecuteStreamEvent =
+  | { type: 'heartbeat'; timestamp?: string }
+  | { type: 'chunk'; v?: 1; content?: string; turn?: TextDeltaClassification }
+  | { type: 'agent_event'; v?: 1; event: AgentStreamEvent }
+  | { type: 'final'; data: MothershipExecuteResult }
+  | ({ type: 'error'; error?: string } & Partial<
+      Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
+    >)

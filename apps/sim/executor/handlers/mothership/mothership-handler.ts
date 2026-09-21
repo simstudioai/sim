@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import type {
+  MothershipExecuteResult,
+  MothershipExecuteStreamEvent,
+} from '@/lib/api/contracts/mothership-chats'
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
@@ -53,11 +57,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
-import {
-  type AgentStreamEvent,
-  isAgentStreamEvent,
-  type TextDeltaClassification,
-} from '@/providers/stream-events'
+import { type AgentStreamEvent, isAgentStreamEvent } from '@/providers/stream-events'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
@@ -100,24 +100,6 @@ interface IndexedMothershipSkillContext {
   context: MothershipSkillContext
   hasExplicitLabel: boolean
 }
-
-type MothershipExecuteResult = {
-  content?: string
-  model?: string
-  conversationId?: string
-  tokens?: Record<string, unknown>
-  toolCalls?: Array<Record<string, unknown>>
-  cost?: unknown
-} & Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>
-
-type MothershipExecuteStreamEvent =
-  | { type: 'heartbeat'; timestamp?: string }
-  | { type: 'chunk'; content?: string; turn?: TextDeltaClassification }
-  | { type: 'agent_event'; event: AgentStreamEvent }
-  | { type: 'final'; data: MothershipExecuteResult }
-  | ({ type: 'error'; error?: string } & Partial<
-      Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
-    >)
 
 function selectIndexedMothershipMcpTools(tools: unknown): IndexedMothershipMcpToolSelection[] {
   if (!Array.isArray(tools)) return []
@@ -496,7 +478,7 @@ function formatMothershipBlockOutput(
   result: MothershipExecuteResult,
   conversationId: string
 ): NormalizedBlockOutput {
-  const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
+  const formattedList = (result.toolCalls || []).map((tc) => ({
     name: typeof tc.name === 'string' ? tc.name : String(tc.name ?? ''),
     ...(typeof tc.status === 'string' ? { status: tc.status } : {}),
     arguments: (tc.arguments || tc.params || tc.input || {}) as Record<string, unknown>,
@@ -676,11 +658,15 @@ function createMothershipStreamingExecution(
         }
 
         if (event.type === 'agent_event') {
-          if (!isAgentStreamEvent(event.event)) {
+          if ((event.v !== undefined && event.v !== 1) || !isAgentStreamEvent(event.event)) {
             throw new Error('Sim execution stream returned an invalid agent event')
           }
           if (options.agentEvents) controller.enqueue(event.event)
-          else if (event.event.type === 'turn_end') {
+          else if (event.event.type === 'text_delta') {
+            if (event.event.turn === 'pending') pendingText += event.event.text
+            else if (event.event.turn !== 'intermediate')
+              controller.enqueue(encoder.encode(event.event.text))
+          } else if (event.event.type === 'turn_end') {
             if (event.event.turn === 'final' && pendingText)
               controller.enqueue(encoder.encode(pendingText))
             pendingText = ''

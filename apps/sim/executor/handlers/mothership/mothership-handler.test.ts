@@ -1947,14 +1947,22 @@ describe('MothershipBlockHandler', () => {
       context.metadata.agentEvents = agentEvents
       fetchMock.mockResolvedValue(
         createNdjsonResponse([
-          { type: 'chunk', content: 'I will check.', turn: 'pending' },
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'I will check.', turn: 'pending' },
+          },
           { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
           { type: 'agent_event', event: { type: 'tool_call_start', id: 'lookup', name: 'Lookup' } },
           {
             type: 'agent_event',
             event: { type: 'tool_call_end', id: 'lookup', name: 'Lookup', status: 'success' },
           },
-          { type: 'chunk', content: 'Final answer.', turn: 'pending' },
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'Final answer.', turn: 'pending' },
+          },
           { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
           { type: 'final', data: { content: 'Final answer.' } },
         ])

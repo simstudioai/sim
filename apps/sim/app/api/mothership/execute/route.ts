@@ -3,7 +3,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
+import {
+  type MothershipExecuteStreamEvent,
+  mothershipExecuteContract,
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { verifyInternalDelegationToken } from '@/lib/auth/internal'
@@ -27,11 +30,8 @@ import {
   createCopilotEnvironmentContext,
 } from '@/lib/mothership/environment-context'
 import { IntegrationCatalogMcpExecution } from '@/lib/mothership/generated/integration-catalog'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1TextChannel,
-} from '@/lib/mothership/generated/mothership-stream-v1'
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/mothership/request/types'
@@ -391,14 +391,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          let lastForwardedSeq = -1
-          const startedTools = new Set<string>()
-          const endedTools = new Set<string>()
-          const send = (event: unknown) => {
+          const send = (event: MothershipExecuteStreamEvent) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
             }
           }
+
+          const projection = new ExecuteEventProjection((event) => {
+            /** Keep text frames readable by workers deployed before agent-event versioning. */
+            if (event.type === 'text_delta')
+              send({ type: 'chunk', v: 1, content: event.text, turn: event.turn })
+            else send({ type: 'agent_event', v: 1, event })
+          })
 
           // Flush response headers promptly and keep long headless runs from
           // looking idle to worker/proxy HTTP stacks.
@@ -409,59 +413,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
           void (async () => {
             try {
-              const result = await runLifecycle(async (event) => {
-                /** Reconnect replays share the same monotone sequence across event types. */
-                if (typeof event.seq === 'number') {
-                  if (event.seq <= lastForwardedSeq) return
-                  lastForwardedSeq = event.seq
-                }
-                if (event.type === MothershipStreamV1EventType.text && event.payload.text) {
-                  if (event.payload.channel === MothershipStreamV1TextChannel.assistant) {
-                    if (event.scope?.lane === 'subagent') return
-                    send({ type: 'chunk', content: event.payload.text, turn: 'pending' })
-                  } else if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
-                    send({
-                      type: 'agent_event',
-                      event: { type: 'thinking_delta', text: event.payload.text },
-                    })
-                  }
-                } else if (event.type === MothershipStreamV1EventType.tool) {
-                  const tool = event.payload
-                  if (!('phase' in tool)) return
-                  if (tool.phase === 'call' && !startedTools.has(tool.toolCallId)) {
-                    startedTools.add(tool.toolCallId)
-                    if (event.scope?.lane !== 'subagent' && !tool.replay) {
-                      send({
-                        type: 'agent_event',
-                        event: { type: 'turn_end', turn: 'intermediate' },
-                      })
-                    }
-                    send({
-                      type: 'agent_event',
-                      event: { type: 'tool_call_start', id: tool.toolCallId, name: tool.toolName },
-                    })
-                  } else if (tool.phase === 'result' && !endedTools.has(tool.toolCallId)) {
-                    endedTools.add(tool.toolCallId)
-                    send({
-                      type: 'agent_event',
-                      event: {
-                        type: 'tool_call_end',
-                        id: tool.toolCallId,
-                        name: tool.toolName,
-                        status:
-                          tool.status === 'cancelled'
-                            ? 'cancelled'
-                            : tool.success
-                              ? 'success'
-                              : 'error',
-                      },
-                    })
-                  }
-                }
-              })
+              const result = await runLifecycle(async (event) => projection.accept(event))
               allowExplicitAbort = false
 
               if (lifecycleAbortController.signal.aborted) {
+                projection.finish('cancelled')
                 send(
                   withPrivateProvenance(
                     { type: 'error', error: 'Sim execution aborted' },
@@ -473,6 +429,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               }
 
               if (!result.success) {
+                projection.finish('error')
                 logger.error(
                   messageId
                     ? `Mothership execute failed [messageId:${messageId}]`
@@ -499,7 +456,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 return
               }
 
-              send({ type: 'agent_event', event: { type: 'turn_end', turn: 'final' } })
+              projection.finish('success')
               send({
                 type: 'final',
                 data: withPrivateProvenance(
@@ -509,6 +466,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 ),
               })
             } catch (error) {
+              projection.finish(lifecycleAbortController.signal.aborted ? 'cancelled' : 'error')
               if (
                 lifecycleAbortController.signal.aborted ||
                 req.signal.aborted ||

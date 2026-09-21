@@ -39,9 +39,11 @@ vi.mock('@/lib/webhooks/slack-stream-sessions', () => ({
   unregisterSlackStreamSession: mockUnregisterSlackStreamSession,
 }))
 
+import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
 import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
 import type { SlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
-import type { AgentStreamEvent } from '@/providers/stream-events'
+import { type AgentStreamEvent, createAgentEventReadableStream } from '@/providers/stream-events'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 
 const BASE_CONFIG: SlackStreamResponseConfig = {
   enabled: true,
@@ -54,9 +56,9 @@ const BASE_CONFIG: SlackStreamResponseConfig = {
 
 function createLoggingSession() {
   return {
-    projectLiveDisplayText: vi.fn(async (_key: string, text: string) => ({
-      chunk: text,
-    })),
+    projectLiveDisplayText: vi.fn(
+      async (_key: string, text: string): Promise<Record<string, unknown>> => ({ chunk: text })
+    ),
     projectDisplayContent: vi.fn(async (content: Record<string, unknown>) => content),
   }
 }
@@ -116,7 +118,7 @@ async function createController(
 
 describe('SlackExecutionStreamController', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     mockGetSlackBotCredential.mockResolvedValue({
       botToken: 'xoxb-token',
       workspaceId: 'workspace-1',
@@ -199,7 +201,11 @@ describe('SlackExecutionStreamController', () => {
       'plan',
       undefined
     )
-    const appendedChunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
+    await controller.finalize({ success: true, status: 'completed', output: {} })
+    const appendedChunks = [
+      ...mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3]),
+      ...mockStopSlackAgentStream.mock.calls.flatMap((call) => call[6] ?? []),
+    ]
     expect(appendedChunks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -241,7 +247,9 @@ describe('SlackExecutionStreamController', () => {
       'C123',
       '1700000001.000002',
       'processing',
-      undefined
+      undefined,
+      undefined,
+      expect.any(Array)
     )
 
     await controller.finalize({
@@ -425,7 +433,287 @@ describe('SlackExecutionStreamController', () => {
     }
 
     expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(() => controller.assertSucceeded()).toThrow('not been finalized')
+    await controller.finalize({ success: true, output: {} })
     expect(() => controller.assertSucceeded()).not.toThrow()
+  })
+
+  async function deliver(events: AgentStreamEvent[], finalText: string, config = BASE_CONFIG) {
+    const { controller, loggingSession } = await createController(config)
+    const pump = createAgentStreamPump({
+      source: createAgentEventReadableStream(events),
+      streamFormat: 'agent-events-v1',
+    })
+    const streamed = controller.callbacks.onStream?.({
+      blockId: 'agent',
+      executionOrder: 1,
+      stream: pump.textStream!,
+      subscribe: pump.subscribe,
+    })
+    await Promise.all([streamed, pump.run()])
+    await controller.callbacks.onBlockComplete?.('agent', 'Agent', 'agent', {
+      output: { content: finalText },
+      executionOrder: 1,
+      executionTime: 1,
+      startedAt: '2026-09-21T00:00:00Z',
+      endedAt: '2026-09-21T00:00:01Z',
+    })
+    await controller.finalize({
+      success: true,
+      output: { content: finalText },
+      status: 'completed',
+    })
+    return { controller, loggingSession }
+  }
+
+  function sentText(): string {
+    return mockAppendSlackAgentStream.mock.calls
+      .flatMap((call) => call[3])
+      .filter((chunk) => chunk.type === 'markdown_text')
+      .map((chunk) => chunk.text)
+      .join('')
+  }
+
+  it.each([true, false])(
+    'delivers Mship text and honors the same tool toggle as Agent: %s',
+    async (includeToolCalls) => {
+      const events: AgentStreamEvent[] = []
+      const projection = new ExecuteEventProjection((event) => events.push(event))
+      projection.accept({ type: 'text', payload: { channel: 'assistant', text: 'Checking. ' } })
+      projection.accept({
+        type: 'tool',
+        payload: {
+          phase: 'call',
+          toolCallId: 'read',
+          toolName: 'read_file',
+          executor: 'go',
+          mode: 'sync',
+        },
+      })
+      projection.accept({
+        type: 'tool',
+        payload: {
+          phase: 'result',
+          toolCallId: 'read',
+          toolName: 'read_file',
+          executor: 'go',
+          mode: 'sync',
+          success: true,
+        },
+      })
+      projection.accept({
+        type: 'text',
+        payload: { channel: 'assistant', text: 'The complete ending.' },
+      })
+      projection.finish('success')
+      const { controller } = await deliver(events, 'The complete ending.', {
+        ...BASE_CONFIG,
+        includeToolCalls,
+      })
+      expect(sentText()).toBe('Checking. The complete ending.')
+      const toolCards = mockAppendSlackAgentStream.mock.calls
+        .flatMap((call) => call[3])
+        .filter((chunk) => chunk.type === 'task_update' && chunk.id.endsWith('-tool-read'))
+      expect(toolCards.map((card) => card.status)).toEqual(
+        includeToolCalls ? ['in_progress', 'complete'] : []
+      )
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+      controller.assertSucceeded()
+    }
+  )
+
+  it('delivers final-only output through the existing invocation', async () => {
+    const { controller } = await deliver([], 'The complete final-only answer.')
+    expect(sentText()).toBe('The complete final-only answer.')
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+    controller.assertSucceeded()
+  })
+
+  it('reconciles a settled suffix without duplicating acknowledged text', async () => {
+    const { controller } = await deliver(
+      [
+        { type: 'text_delta', text: 'Hello ', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+      'Hello world. The end.'
+    )
+    expect(sentText()).toBe('Hello world. The end.')
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    controller.assertSucceeded()
+  })
+
+  it('keeps equal live deltas and completes text after parallel and sequential tools', async () => {
+    const { controller } = await deliver(
+      [
+        { type: 'tool_call_start', id: 'a', name: 'search' },
+        { type: 'tool_call_start', id: 'b', name: 'read' },
+        { type: 'tool_call_end', id: 'b', name: 'read', status: 'success' },
+        { type: 'tool_call_end', id: 'a', name: 'search', status: 'success' },
+        { type: 'tool_call_start', id: 'c', name: 'read' },
+        { type: 'tool_call_end', id: 'c', name: 'read', status: 'error' },
+        { type: 'text_delta', text: 'yes ', turn: 'pending' },
+        { type: 'text_delta', text: 'yes ', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+      'yes yes '
+    )
+    expect(sentText()).toBe('yes yes ')
+    const tasks = mockAppendSlackAgentStream.mock.calls
+      .flatMap((call) => call[3])
+      .filter((chunk) => chunk.type === 'task_update')
+    expect(tasks.map((task) => [task.id, task.status])).toEqual([
+      ['sim-execution-1-1-tool-a', 'in_progress'],
+      ['sim-execution-1-1-tool-b', 'in_progress'],
+      ['sim-execution-1-1-tool-b', 'complete'],
+      ['sim-execution-1-1-tool-a', 'complete'],
+      ['sim-execution-1-1-tool-c', 'in_progress'],
+      ['sim-execution-1-1-tool-c', 'error'],
+    ])
+    controller.assertSucceeded()
+  })
+
+  it('preserves an append failure and stops outstanding tasks without replaying text or actions', async () => {
+    const failure = new Error('acknowledgment unreadable')
+    mockAppendSlackAgentStream.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
+    const { controller } = await deliver(
+      [
+        { type: 'tool_call_start', id: 'a', name: 'read' },
+        { type: 'text_delta', text: 'uncertain text', turn: 'pending' },
+        { type: 'tool_call_end', id: 'a', name: 'read', status: 'success' },
+        { type: 'text_delta', text: ' later text', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+      'uncertain text later text'
+    )
+    expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(mockStopSlackAgentStream).toHaveBeenCalledExactlyOnceWith(
+      'xoxb-token',
+      'C123',
+      '1700000001.000002',
+      'suspended',
+      undefined,
+      undefined,
+      [
+        expect.objectContaining({ id: 'sim-execution-1-1-tool-a', status: 'error' }),
+        expect.objectContaining({ id: 'sim-execution-1-1', status: 'error' }),
+      ]
+    )
+    expect(() => controller.assertSucceeded()).toThrow(failure)
+    expect(mockUnregisterSlackStreamSession).toHaveBeenCalledTimes(1)
+    await controller.finalize({ success: true, output: {} })
+    expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles a tool start whose append acknowledgment was lost', async () => {
+    mockAppendSlackAgentStream.mockRejectedValueOnce(new Error('tool start outcome uncertain'))
+    const { controller } = await deliver(
+      [{ type: 'tool_call_start', id: 'uncertain', name: 'read' }],
+      ''
+    )
+    expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(mockStopSlackAgentStream.mock.calls[0][6]).toContainEqual(
+      expect.objectContaining({ id: 'sim-execution-1-1-tool-uncertain', status: 'error' })
+    )
+    expect(() => controller.assertSucceeded()).toThrow('tool start outcome uncertain')
+  })
+
+  it('does not repeat a start whose acknowledgment was lost', async () => {
+    mockStartSlackAgentStream.mockRejectedValueOnce(new Error('start outcome uncertain'))
+    const { controller } = await deliver([{ type: 'text_delta', text: 'answer' }], 'answer')
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+    expect(mockAppendSlackAgentStream).not.toHaveBeenCalled()
+    expect(mockStopSlackAgentStream).not.toHaveBeenCalled()
+    expect(() => controller.assertSucceeded()).toThrow('start outcome uncertain')
+  })
+
+  it('reports a failed stop even after all text was acknowledged', async () => {
+    mockStopSlackAgentStream.mockRejectedValueOnce(new Error('stop failed'))
+    const { controller } = await deliver([{ type: 'text_delta', text: 'answer' }], 'answer')
+    expect(sentText()).toBe('answer')
+    expect(() => controller.assertSucceeded()).toThrow('stop failed')
+    expect(mockUnregisterSlackStreamSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a different settled answer instead of appending a duplicate replacement', async () => {
+    const { controller } = await deliver(
+      [{ type: 'text_delta', text: 'first answer' }],
+      'different answer'
+    )
+    expect(sentText()).toBe('first answer')
+    expect(() => controller.assertSucceeded()).toThrow('settled output differs')
+    expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles outstanding tool cards on cancellation and still unregisters the session', async () => {
+    const { controller } = await createController()
+    const pump = createAgentStreamPump({
+      source: createAgentEventReadableStream([
+        { type: 'tool_call_start', id: 'running', name: 'read' },
+      ]),
+      streamFormat: 'agent-events-v1',
+    })
+    await Promise.all([
+      controller.callbacks.onStream?.({
+        blockId: 'agent',
+        executionOrder: 1,
+        stream: pump.textStream!,
+        subscribe: pump.subscribe,
+      }),
+      pump.run(),
+    ])
+    await controller.finalize({ success: false, status: 'cancelled', output: {} })
+    expect(mockStopSlackAgentStream).toHaveBeenCalledWith(
+      'xoxb-token',
+      'C123',
+      '1700000001.000002',
+      'suspended',
+      undefined,
+      undefined,
+      [
+        expect.objectContaining({ id: 'sim-execution-1-1-tool-running', status: 'error' }),
+        expect.objectContaining({ id: 'sim-execution-1-1', status: 'error' }),
+      ]
+    )
+    expect(mockUnregisterSlackStreamSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not label an unterminated tool stream as complete', async () => {
+    const { controller } = await deliver(
+      [{ type: 'tool_call_start', id: 'missing-end', name: 'read' }],
+      ''
+    )
+    expect(() => controller.assertSucceeded()).toThrow('unfinished tool calls')
+    expect(mockStopSlackAgentStream.mock.calls[0][6]).toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: 'error' })])
+    )
+  })
+
+  it('reconciles only projected output when live provenance holds text for final redaction', async () => {
+    const { controller, loggingSession } = await createController()
+    loggingSession.projectLiveDisplayText.mockImplementation(async () => ({ chunk: undefined }))
+    loggingSession.projectDisplayContent.mockResolvedValue({
+      output: { content: 'Safe {{SECRET}}' },
+    })
+    await controller.callbacks.onStream?.({
+      blockId: 'agent',
+      executionOrder: 1,
+      stream: createByteStream('Safe private-token'),
+    })
+    expect(mockAppendSlackAgentStream).not.toHaveBeenCalled()
+    await controller.callbacks.onBlockComplete?.('agent', 'Agent', 'agent', {
+      output: { content: 'Safe private-token' },
+      executionOrder: 1,
+      executionTime: 1,
+      startedAt: 'start',
+      endedAt: 'end',
+    })
+    await controller.finalize({ success: true, output: {} })
+    expect(sentText()).toBe('Safe {{SECRET}}')
+    expect(JSON.stringify(mockAppendSlackAgentStream.mock.calls)).not.toContain('private-token')
+    controller.assertSucceeded()
   })
 
   it('rejects credentials that do not belong to the workflow workspace', async () => {
