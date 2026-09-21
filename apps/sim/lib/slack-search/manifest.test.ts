@@ -15,6 +15,8 @@ describe('Search app manifest', () => {
         'app_mentions:read',
         'im:write',
         'im:history',
+        'channels:read',
+        'groups:read',
       ])
     )
     expect(manifest.oauth_config.scopes.bot).not.toContain('groups:history')
@@ -61,6 +63,8 @@ describe('Search app manifest', () => {
     expect(manifest.oauth_config.scopes.bot).toEqual([
       'assistant:write',
       'chat:write',
+      'channels:read',
+      'groups:read',
       'im:history',
       'im:write',
       'app_mentions:read',
@@ -121,6 +125,8 @@ it('official app declares expanded permissions without subscribing to member mes
   expect(manifest.oauth_config.scopes.bot).toEqual([
     'assistant:write',
     'chat:write',
+    'channels:read',
+    'groups:read',
     'im:history',
     'im:write',
     'app_mentions:read',
@@ -129,11 +135,9 @@ it('official app declares expanded permissions without subscribing to member mes
     'commands',
     'channels:history',
     'channels:manage',
-    'channels:read',
     'channels:write.invites',
     'chat:write.public',
     'groups:history',
-    'groups:read',
     'groups:write',
     'groups:write.invites',
     'links:read',
