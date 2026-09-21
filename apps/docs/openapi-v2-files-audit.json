@@ -23,7 +23,7 @@
   "tags": [
     {
       "name": "Files",
-      "description": "Create, upload, download, organize, share, and delete workspace files."
+      "description": "Create, upload, download, organize, share, version, and delete workspace files."
     },
     {
       "name": "Audit Logs",
@@ -864,6 +864,667 @@
         }
       }
     },
+    "/api/v2/files/{fileId}/versions": {
+      "get": {
+        "operationId": "listFileVersions",
+        "summary": "List File Versions",
+        "description": "List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into a version under ten minutes old and written in the last five. Renames and moves are not versions. Retention removes older versions by age and plan but keeps the newest ten, so numbers can have gaps.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.versions.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "version",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["version"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of file versions.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileVersionListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/versions/{version}": {
+      "get": {
+        "operationId": "getFileVersion",
+        "summary": "Get File Version",
+        "description": "Get one version of a file. A version removed by retention, or one that never existed, returns `404`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.versions.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Version number.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Version number."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file version.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileVersionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFileVersion",
+        "summary": "Delete File Version",
+        "description": "Permanently delete one earlier version and its stored content, for example to purge a leaked value from history before retention removes it. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.versions.delete",
+        "x-oauth-scope": "api:write",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Version number.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Version number."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion confirmation.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileVersionDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/versions/{version}/text": {
+      "get": {
+        "operationId": "readFileVersionText",
+        "summary": "Read File Version Text",
+        "description": "Extract the text of one version, exactly as Read File Text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.versions.read_content",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Version number.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Version number."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "maxBytes",
+            "in": "query",
+            "required": false,
+            "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+            "schema": {
+              "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 26214400
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "schema": {
+              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many lines to return from `offset`. Absent reads to the end.",
+            "schema": {
+              "description": "How many lines to return from `offset`. Absent reads to the end.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The extracted text of the version and its extraction-quality flags.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileVersionTextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/versions/{version}/content": {
+      "get": {
+        "operationId": "downloadFileVersion",
+        "summary": "Download File Version",
+        "description": "Download the bytes of one version, served exactly as Download File serves the current bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.versions.download",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Version number.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Version number."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The version bytes.",
+            "headers": {
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/versions/{version}/revert": {
+      "post": {
+        "operationId": "revertFileVersion",
+        "summary": "Revert File Version",
+        "description": "Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MB returns `413`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.versions.revert",
+        "x-oauth-scope": "api:write",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "description": "Version number.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Version number."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and an optional current-version precondition.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevertFileVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file and its current version after the revert.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileVersionRevertResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/files/bulk-download": {
       "get": {
         "operationId": "bulkDownloadFiles",
@@ -1407,7 +2068,7 @@
       "get": {
         "operationId": "getFile",
         "summary": "Get File Metadata",
-        "description": "Get file metadata and its public-share configuration. The `share` field is null when the file has never been shared.\n\nOAuth scope: `api:read`.",
+        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
@@ -2083,7 +2744,7 @@
       "put": {
         "operationId": "updateFileContent",
         "summary": "Replace File Content",
-        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input.\n\nOAuth scope: `api:write`.",
+        "description": "Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -2130,7 +2791,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2FileResponse"
+                  "$ref": "#/components/schemas/V2WrittenFileResponse"
                 }
               }
             }
@@ -2146,6 +2807,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -3877,6 +4541,483 @@
         "title": "File text response",
         "description": "Text extracted from a workspace file."
       },
+      "V2FileVersion": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "description": "File this version belongs to."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Version number, increasing by one per recorded version. Numbers are never reused, so a gap means an older version was removed by retention or deleted.",
+            "examples": [3]
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "description": "Whether this version holds the current content of the file."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size in bytes of the stored content of this version."
+          },
+          "contentType": {
+            "type": "string",
+            "description": "MIME type of the stored content of this version."
+          },
+          "source": {
+            "type": "string",
+            "enum": ["upload", "user", "api", "copilot", "workflow", "collab", "revert", "unknown"],
+            "description": "What wrote this version: `upload` (the original upload), `user` (a save in the Sim editor), `api` (an API, CLI, or MCP write), `copilot` (Sim, the agent), `workflow` (a workflow run), `collab` (collaborative editing), `revert` (a revert to an earlier version), or `unknown` (content written before version history existed, or by a writer with no source of its own)."
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "User identifier."
+                },
+                "email": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Current email address of the user, or null when the account no longer exists."
+                }
+              },
+              "required": ["id", "email"],
+              "additionalProperties": false
+            },
+            "description": "Users who wrote this version, in order of first contribution. Empty for actorless writers such as workspace API keys. A collaborative version lists every editor in its window."
+          },
+          "restoredFromVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a `revert` version, the version whose content it restored; otherwise null."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when this content became current.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the last write folded into this version. Equals `createdAt` unless edits were coalesced into it.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:38:00Z"]
+          },
+          "supersededAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when a newer version replaced this one, or null for the current version. Retention ages versions from this time.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
+          }
+        },
+        "required": [
+          "fileId",
+          "version",
+          "isCurrent",
+          "size",
+          "contentType",
+          "source",
+          "authors",
+          "restoredFromVersion",
+          "createdAt",
+          "updatedAt",
+          "supersededAt"
+        ],
+        "additionalProperties": false,
+        "title": "File version",
+        "description": "One recorded version of the content of a workspace file."
+      },
+      "V2FileVersionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2FileVersion"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "File version list response",
+        "description": "A cursor-paginated page of file versions.",
+        "examples": [
+          {
+            "data": [
+              {
+                "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                "version": 3,
+                "isCurrent": true,
+                "size": 1024,
+                "contentType": "text/csv",
+                "source": "api",
+                "authors": [
+                  {
+                    "id": "usr_4kJ9mN2pQ7rS",
+                    "email": "jane@example.com"
+                  }
+                ],
+                "restoredFromVersion": null,
+                "createdAt": "2026-01-15T10:30:00Z",
+                "updatedAt": "2026-01-15T10:30:00Z",
+                "supersededAt": null
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2FileVersionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileVersion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File version response",
+        "description": "A single file version.",
+        "examples": [
+          {
+            "data": {
+              "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "version": 3,
+              "isCurrent": true,
+              "size": 1024,
+              "contentType": "text/csv",
+              "source": "api",
+              "authors": [
+                {
+                  "id": "usr_4kJ9mN2pQ7rS",
+                  "email": "jane@example.com"
+                }
+              ],
+              "restoredFromVersion": null,
+              "createdAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-15T10:30:00Z",
+              "supersededAt": null
+            }
+          }
+        ]
+      },
+      "V2FileVersionDeleteResult": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "description": "File whose version was deleted."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Version number that was deleted."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always true: the version and its stored content are gone."
+          }
+        },
+        "required": ["fileId", "version", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete file version result",
+        "description": "Deletion acknowledgement for one file version."
+      },
+      "V2FileVersionDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileVersionDeleteResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete file version response",
+        "description": "Deletion confirmation for one file version.",
+        "examples": [
+          {
+            "data": {
+              "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "version": 2,
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2FileVersionText": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "File the text was extracted from."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name, including its extension."
+          },
+          "type": {
+            "type": "string",
+            "description": "Stored MIME type of the source file."
+          },
+          "text": {
+            "type": "string",
+            "description": "Extracted text."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when a parser limit stopped extraction before the input was exhausted."
+          },
+          "degraded": {
+            "type": "boolean",
+            "description": "True when text extraction did not fully succeed and `text` may be incomplete or synthesized from the raw bytes rather than read from the document. Never treat degraded text as authoritative content."
+          },
+          "degradedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extraction degraded, or null when it did not."
+          },
+          "charCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Length of `text` in characters."
+          },
+          "byteCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Source bytes read from storage before extraction."
+          },
+          "lineRange": {
+            "description": "Present when `offset` or `limit` narrowed the response. `totalLines` is what separates a file that ended from a window that stopped early.",
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "First line returned, 1-based."
+              },
+              "lineCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Lines returned."
+              },
+              "totalLines": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Lines the whole file holds."
+              },
+              "totalLinesExact": {
+                "type": "boolean",
+                "description": "False when text extraction was truncated, so `totalLines` counts only the extracted prefix and is not the end of the file."
+              }
+            },
+            "required": ["offset", "lineCount", "totalLines", "totalLinesExact"],
+            "additionalProperties": false
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Version the text was extracted from."
+          }
+        },
+        "required": [
+          "fileId",
+          "name",
+          "type",
+          "text",
+          "truncated",
+          "degraded",
+          "degradedReason",
+          "charCount",
+          "byteCount",
+          "version"
+        ],
+        "additionalProperties": false,
+        "title": "Extracted file version text",
+        "description": "Text extracted from one version of a workspace file, with extraction-quality flags."
+      },
+      "FileVersionTextResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileVersionText"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File version text response",
+        "description": "Text extracted from one version of a workspace file."
+      },
+      "V2FileVersionRevertResult": {
+        "type": "object",
+        "properties": {
+          "reverted": {
+            "type": "boolean",
+            "description": "False when the requested version was already current, in which case nothing was written."
+          },
+          "file": {
+            "$ref": "#/components/schemas/V2File"
+          },
+          "version": {
+            "description": "The current version of the file after the revert: a new `revert` version; the requested version when it was already current; or the unchanged current version when its content already matched the requested one.",
+            "$ref": "#/components/schemas/V2FileVersion"
+          },
+          "revision": {
+            "description": "Opaque token for the content the file holds after the revert — the one it just wrote, or the unchanged current content when `reverted` is false. Send it back as `expectedRevision` on the next write.",
+            "type": "string"
+          }
+        },
+        "required": ["reverted", "file", "version"],
+        "additionalProperties": false,
+        "title": "Revert file version result",
+        "description": "The file and its current version after a revert."
+      },
+      "V2FileVersionRevertResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileVersionRevertResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Revert file version response",
+        "description": "The file and its current version after the revert.",
+        "examples": [
+          {
+            "data": {
+              "reverted": true,
+              "file": {
+                "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                "name": "data.csv",
+                "size": 1024,
+                "type": "text/csv",
+                "key": "workspace/example/data.csv",
+                "folderPath": "/Engineering",
+                "uploadedByEmail": "jane@example.com",
+                "uploadedAt": "2026-01-15T10:30:00Z",
+                "updatedAt": "2026-01-15T10:30:00Z",
+                "deletedAt": null
+              },
+              "version": {
+                "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                "version": 5,
+                "isCurrent": true,
+                "size": 1024,
+                "contentType": "text/csv",
+                "source": "revert",
+                "authors": [
+                  {
+                    "id": "usr_4kJ9mN2pQ7rS",
+                    "email": "jane@example.com"
+                  }
+                ],
+                "restoredFromVersion": 3,
+                "createdAt": "2026-01-15T10:30:00Z",
+                "updatedAt": "2026-01-15T10:30:00Z",
+                "supersededAt": null
+              },
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+            }
+          }
+        ]
+      },
+      "RevertFileVersionRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the file."
+          },
+          "expectedCurrentVersion": {
+            "description": "Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "expectedRevision": {
+            "description": "Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Revert file version request",
+        "description": "Workspace scope and an optional current-version precondition.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "expectedCurrentVersion": 4
+          }
+        ]
+      },
       "V2FileUnzipResult": {
         "type": "object",
         "properties": {
@@ -4186,6 +5327,16 @@
               }
             ],
             "description": "Current public-share state, or null when the file has never been shared."
+          },
+          "revision": {
+            "description": "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version.",
+            "type": "string"
+          },
+          "currentVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since."
           }
         },
         "required": [
@@ -4200,7 +5351,8 @@
           "uploadedAt",
           "updatedAt",
           "deletedAt",
-          "share"
+          "share",
+          "currentVersion"
         ],
         "additionalProperties": false,
         "title": "File metadata",
@@ -4232,7 +5384,9 @@
               "uploadedAt": "2026-01-15T10:30:00Z",
               "updatedAt": "2026-01-15T10:30:00Z",
               "deletedAt": null,
-              "share": null
+              "share": null,
+              "currentVersion": 1,
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
             }
           },
           {
@@ -4246,7 +5400,7 @@
               "folderPath": "/Engineering",
               "uploadedByEmail": "jane@example.com",
               "uploadedAt": "2026-01-15T10:30:00Z",
-              "updatedAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-16T09:12:00Z",
               "deletedAt": null,
               "share": {
                 "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
@@ -4258,7 +5412,9 @@
                 "authType": "public",
                 "hasPassword": false,
                 "allowedEmails": []
-              }
+              },
+              "currentVersion": 3,
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
             }
           }
         ]
@@ -4662,6 +5818,10 @@
             "minimum": 0,
             "maximum": 9007199254740991,
             "description": "Lines the file holds after the edit."
+          },
+          "revision": {
+            "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
+            "type": "string"
           }
         },
         "required": ["file", "lineCount"],
@@ -4828,6 +5988,11 @@
               }
             ],
             "description": "One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between."
+          },
+          "expectedRevision": {
+            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["workspaceId", "edit"],
@@ -4984,6 +6149,131 @@
           }
         ]
       },
+      "V2WrittenFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique file identifier.",
+            "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
+          "name": {
+            "type": "string",
+            "description": "Original file name.",
+            "examples": ["data.csv"]
+          },
+          "size": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes downloading the file returns.",
+            "examples": [1024]
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type a download serves.",
+            "examples": ["text/csv"]
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key for the file.",
+            "examples": ["workspace/example/data.csv"]
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
+          },
+          "uploadedByEmail": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
+            "examples": ["jane@example.com"]
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the file was uploaded.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the last content or metadata write.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "deletedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the file was archived by deleting it, or null while the file is active. Only an archived-scope file list returns files with a non-null value.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
+          },
+          "revision": {
+            "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "webUrl",
+          "name",
+          "size",
+          "type",
+          "key",
+          "folderPath",
+          "uploadedByEmail",
+          "uploadedAt",
+          "updatedAt",
+          "deletedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Written file",
+        "description": "A workspace file after a content replacement, with the revision it produced."
+      },
+      "V2WrittenFileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2WrittenFile"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Written file response",
+        "description": "A workspace file after a content replacement, with the revision the write produced.",
+        "examples": [
+          {
+            "data": {
+              "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+              "name": "data.csv",
+              "size": 1024,
+              "type": "text/csv",
+              "key": "workspace/example/data.csv",
+              "folderPath": "/Engineering",
+              "uploadedByEmail": "jane@example.com",
+              "uploadedAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null,
+              "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+            }
+          }
+        ]
+      },
       "UpdateFileContentRequest": {
         "type": "object",
         "properties": {
@@ -5003,6 +6293,11 @@
             "description": "Encoding of the content field.",
             "type": "string",
             "enum": ["utf-8", "base64"]
+          },
+          "expectedRevision": {
+            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["workspaceId", "content"],

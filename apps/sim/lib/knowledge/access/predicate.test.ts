@@ -17,12 +17,63 @@ vi.unmock('@sim/db/schema')
 process.env.DATABASE_URL ??= 'postgresql://user:pass@localhost:5432/test'
 
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
+const { embeddingSearch } = await import('@sim/db/schema')
+const { sql: rawSql } = await import('drizzle-orm')
+const sqlColumn = (name: string) => rawSql.raw(`"row"."${name}"`)
+const {
+  knowledgeAccessCondition,
+  knowledgeCandidateAccessConditionForConnectors,
+  projectionCandidateAccessCondition,
+  restrictSearchAccessPlan,
+} = await import('@/lib/knowledge/access/predicate')
 const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/types')
 
 function render(condition: ReturnType<typeof knowledgeAccessCondition>) {
   return new PgDialect().sqlToQuery(condition)
 }
+
+describe('projectionCandidateAccessCondition', () => {
+  const plan = {
+    connectors: { workspace: ['ws-src'], admin: [], members: [], liveProofRequired: [] },
+    observers: { confirmed: [], observed: [] },
+    memberSources: [],
+    connectorTypes: new Map(),
+    uploads: true,
+  }
+
+  it('decides a filled row on its mirrored columns and an unfilled row on its document', () => {
+    const { sql, params } = render(
+      projectionCandidateAccessCondition(
+        embeddingSearch,
+        { kind: 'user', userId: 'user-1', tokens: ['ws', 'u:alice'] },
+        plan
+      )
+    )
+    expect(sql).toContain(
+      '("embedding_search"."acl" IS NULL AND EXISTS (\n    SELECT 1 FROM "document"\n    WHERE "document"."id" = "embedding_search"."document_id"\n      AND ('
+    )
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
+    expect(sql).toContain('OR ("embedding_search"."acl" && ARRAY[')
+    expect(sql).toContain(
+      'AND ("embedding_search"."connector_id" IS NULL OR "embedding_search"."connector_id" = ANY(ARRAY['
+    )
+    expect(params.slice(0, 2)).toEqual(['ws', 'u:alice'])
+    expect(params.slice(-3)).toEqual(['ws', 'u:alice', 'ws-src'])
+    for (const param of params) expect(Array.isArray(param)).toBe(false)
+  })
+
+  it('still denies everything for an empty token set', () => {
+    expect(
+      render(
+        projectionCandidateAccessCondition(
+          embeddingSearch,
+          { kind: 'user', userId: 'user-1', tokens: [] },
+          plan
+        )
+      ).sql
+    ).toBe('false')
+  })
+})
 
 describe('knowledgeAccessCondition', () => {
   it('overlaps the ACL with the tokens as a literal array of scalar binds', () => {
@@ -83,5 +134,80 @@ describe('knowledgeAccessCondition', () => {
     expect(sql).toContain('"knowledge_connector"."deleted_at" IS NULL')
     expect(sql).toContain('"knowledge_connector"."archived_at" IS NULL')
     expect(sql).not.toContain('"document"."acl"')
+  })
+})
+
+describe('restrictSearchAccessPlan', () => {
+  const plan = {
+    connectors: {
+      workspace: ['slack-ws'],
+      admin: ['drive-admin', 'confluence-admin'],
+      members: ['slack-members'],
+      liveProofRequired: ['confluence-admin'],
+    },
+    observers: {
+      confirmed: [{ id: 'm-1', connectorId: 'slack-members' }],
+      observed: [{ id: 'm-2', connectorId: 'drive-admin' }],
+    },
+    memberSources: ['slack-members'],
+    connectorTypes: new Map([
+      ['slack-ws', 'slack'],
+      ['slack-members', 'slack'],
+      ['drive-admin', 'google_drive'],
+      ['confluence-admin', 'confluence'],
+    ]),
+    uploads: true,
+  }
+  const reader = { kind: 'user' as const, userId: 'u', tokens: ['u:reader@example.com'] }
+
+  it('keeps only the connectors of that kind, in every list, and leaves uploads out', () => {
+    const slack = restrictSearchAccessPlan(plan, 'slack')
+    expect(slack.connectors).toEqual({
+      workspace: ['slack-ws'],
+      admin: [],
+      members: ['slack-members'],
+      liveProofRequired: [],
+    })
+    expect(slack.observers.confirmed).toEqual([{ id: 'm-1', connectorId: 'slack-members' }])
+    expect(slack.observers.observed).toEqual([])
+    expect(slack.memberSources).toEqual(['slack-members'])
+    expect(slack.uploads).toBe(false)
+  })
+
+  it('keeps no connector for uploads, which have none', () => {
+    const uploads = restrictSearchAccessPlan(plan, 'upload')
+    expect(uploads.connectors).toEqual({
+      workspace: [],
+      admin: [],
+      members: [],
+      liveProofRequired: [],
+    })
+    expect(uploads.memberSources).toEqual([])
+    expect(uploads.uploads).toBe(true)
+  })
+
+  it('drops source-less rows from both predicates once uploads are out of scope', () => {
+    const rowSql = (restricted: typeof plan) =>
+      render(
+        projectionCandidateAccessCondition(
+          {
+            connectorId: sqlColumn('connector_id'),
+            acl: sqlColumn('acl'),
+            documentId: sqlColumn('document_id'),
+          },
+          reader,
+          restricted
+        )
+      ).sql
+    expect(rowSql(plan)).toContain('IS NULL OR')
+    expect(rowSql(restrictSearchAccessPlan(plan, 'slack'))).not.toContain(
+      '"row"."connector_id" IS NULL'
+    )
+    const documentSql = (restricted: typeof plan) =>
+      render(knowledgeCandidateAccessConditionForConnectors(reader, restricted)).sql
+    expect(documentSql(plan)).toContain('"document"."connector_id" IS NULL OR')
+    expect(documentSql(restrictSearchAccessPlan(plan, 'slack'))).not.toContain(
+      '"document"."connector_id" IS NULL'
+    )
   })
 })

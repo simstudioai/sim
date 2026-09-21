@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toArray } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -552,7 +553,7 @@ export function pageInfo(data: {
 
 /** Narrows an optional array field to a list, never null. */
 export function asArray(value: unknown): CbInsightsRecord[] {
-  return Array.isArray(value) ? (value as CbInsightsRecord[]) : []
+  return toArray<CbInsightsRecord>(value)
 }
 
 /** Narrows an optional string array. */
@@ -560,21 +561,4 @@ export function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : []
-}
-
-/** Narrows an optional object field. */
-export function asRecord(value: unknown): CbInsightsRecord | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as CbInsightsRecord)
-    : null
-}
-
-/** Narrows an optional string field. */
-export function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-/** Narrows an optional number field. */
-export function asNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
 }

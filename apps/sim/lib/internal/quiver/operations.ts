@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { requestQuiverSvg } from '@/lib/internal/quiver/client'
 import { QuiverOperationError } from '@/lib/internal/quiver/errors'
@@ -37,7 +37,7 @@ function fail(message: string, status: number, body?: Record<string, unknown>): 
 }
 
 function record(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 function optionalNumber(value: unknown): number {

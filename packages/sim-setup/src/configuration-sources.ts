@@ -6,6 +6,7 @@ import {
   CORE_CONFIGURATION_KEYS,
   DEPLOYMENT_CONFIGURATION_KEYS,
 } from '@sim/deployment-config/env-capabilities'
+import { toRecordOrNull } from '@sim/utils/object'
 import { isPlaceholder, parseEnv, ROOT, SHARED_KEYS } from './env-files'
 
 export type ConfigurationSourceKind = 'dev' | 'compose' | 'helm'
@@ -127,12 +128,6 @@ function runSafely(
   } catch {
     return { status: null, stdout: '', stderr: '' }
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
 }
 
 function parseJson(value: string): unknown | null {
@@ -299,12 +294,12 @@ export function parseDockerInspectEnvironment(output: string): Map<string, strin
     values: Map<string, string>
   }> = []
   for (const item of parsed) {
-    const record = asRecord(item)
-    const config = asRecord(record?.Config)
+    const record = toRecordOrNull(item)
+    const config = toRecordOrNull(record?.Config)
     if (!config || !Array.isArray(config.Env)) continue
     const values = parseEnvironmentEntries(config.Env)
     if (!values) continue
-    const state = asRecord(record?.State)
+    const state = toRecordOrNull(record?.State)
     candidates.push({
       running: state?.Running === true,
       created: typeof record?.Created === 'string' ? record.Created : '',
@@ -324,7 +319,7 @@ function parseComposeProjects(output: string): ComposeProject[] | null {
   if (!Array.isArray(parsed)) return null
   const projects: ComposeProject[] = []
   for (const item of parsed) {
-    const record = asRecord(item)
+    const record = toRecordOrNull(item)
     const name = record?.Name
     const configFiles = record?.ConfigFiles
     if (typeof name !== 'string' || typeof configFiles !== 'string') return null
@@ -340,13 +335,13 @@ function parseComposeProjects(output: string): ComposeProject[] | null {
 
 /** Reads `docker compose config --format json` and returns the resolved app environment. */
 export function parseComposeConfigEnvironment(output: string): Map<string, string> | null {
-  const parsed = asRecord(parseJson(output))
-  const services = asRecord(parsed?.services)
-  const app = asRecord(services?.simstudio)
+  const parsed = toRecordOrNull(parseJson(output))
+  const services = toRecordOrNull(parsed?.services)
+  const app = toRecordOrNull(services?.simstudio)
   if (!app) return null
   if (Array.isArray(app.environment)) return parseEnvironmentEntries(app.environment)
 
-  const environment = asRecord(app.environment)
+  const environment = toRecordOrNull(app.environment)
   if (!environment) return null
   const values = new Map<string, string>()
   for (const [key, value] of Object.entries(environment)) {
@@ -704,10 +699,10 @@ function resourceEnvironment(
   kind: KubernetesResourceKind,
   resource: unknown
 ): EnvironmentResolution {
-  const record = asRecord(resource)
+  const record = toRecordOrNull(resource)
   if (!record) return { values: null, warning: 'Kubernetes returned an invalid resource.' }
   const values = new Map<string, string>()
-  const data = record.data === undefined ? {} : asRecord(record.data)
+  const data = record.data === undefined ? {} : toRecordOrNull(record.data)
   if (!data) return { values: null, warning: 'Kubernetes returned invalid resource data.' }
   for (const [key, value] of Object.entries(data)) {
     if (typeof value !== 'string') {
@@ -725,7 +720,7 @@ function resourceEnvironment(
   }
 
   const secondaryKey = kind === 'secret' ? 'stringData' : 'binaryData'
-  const secondary = record[secondaryKey] === undefined ? {} : asRecord(record[secondaryKey])
+  const secondary = record[secondaryKey] === undefined ? {} : toRecordOrNull(record[secondaryKey])
   if (!secondary) return { values: null, warning: 'Kubernetes returned invalid resource data.' }
   for (const [key, value] of Object.entries(secondary)) {
     if (typeof value !== 'string') {
@@ -783,7 +778,7 @@ export function resolveKubernetesContainerEnvironment(
   container: unknown,
   lookup: KubernetesResourceLookup
 ): EnvironmentResolution {
-  const record = asRecord(container)
+  const record = toRecordOrNull(container)
   if (!record) return { values: null, warning: 'The app container definition is invalid.' }
   const values = new Map<string, string>()
   const envFrom = record.envFrom === undefined ? [] : record.envFrom
@@ -792,11 +787,11 @@ export function resolveKubernetesContainerEnvironment(
   }
 
   for (const source of envFrom) {
-    const sourceRecord = asRecord(source)
+    const sourceRecord = toRecordOrNull(source)
     if (!sourceRecord)
       return { values: null, warning: 'The app container envFrom entry is invalid.' }
-    const secretRef = asRecord(sourceRecord.secretRef)
-    const configMapRef = asRecord(sourceRecord.configMapRef)
+    const secretRef = toRecordOrNull(sourceRecord.secretRef)
+    const configMapRef = toRecordOrNull(sourceRecord.configMapRef)
     const kind: KubernetesResourceKind | null = secretRef
       ? 'secret'
       : configMapRef
@@ -820,7 +815,7 @@ export function resolveKubernetesContainerEnvironment(
     return { values: null, warning: 'The app container env definition is invalid.' }
   }
   for (const entry of explicitEnv) {
-    const env = asRecord(entry)
+    const env = toRecordOrNull(entry)
     if (!env || typeof env.name !== 'string' || env.name === '') {
       return { values: null, warning: 'The app container has an invalid explicit env entry.' }
     }
@@ -836,9 +831,9 @@ export function resolveKubernetesContainerEnvironment(
       continue
     }
 
-    const valueFrom = asRecord(env.valueFrom)
-    const secretKeyRef = asRecord(valueFrom?.secretKeyRef)
-    const configMapKeyRef = asRecord(valueFrom?.configMapKeyRef)
+    const valueFrom = toRecordOrNull(env.valueFrom)
+    const secretKeyRef = toRecordOrNull(valueFrom?.secretKeyRef)
+    const configMapKeyRef = toRecordOrNull(valueFrom?.configMapKeyRef)
     const kind: KubernetesResourceKind | null = secretKeyRef
       ? 'secret'
       : configMapKeyRef
@@ -877,7 +872,7 @@ function parseHelmReleases(output: string): HelmRelease[] | null {
   if (!Array.isArray(parsed)) return null
   const releases: HelmRelease[] = []
   for (const item of parsed) {
-    const record = asRecord(item)
+    const record = toRecordOrNull(item)
     if (
       typeof record?.name !== 'string' ||
       typeof record.namespace !== 'string' ||
@@ -959,7 +954,7 @@ function discoverHelmReleases(
       )
       continue
     }
-    const deploymentList = asRecord(parseJson(deploymentResult.stdout))
+    const deploymentList = toRecordOrNull(parseJson(deploymentResult.stdout))
     const items = deploymentList?.items
     const itemCount = Array.isArray(items) ? items.length : null
     if (!Array.isArray(items) || items.length !== 1) {
@@ -974,10 +969,10 @@ function discoverHelmReleases(
       )
       continue
     }
-    const deployment = asRecord(items[0])
-    const spec = asRecord(deployment?.spec)
-    const template = asRecord(spec?.template)
-    const podSpec = asRecord(template?.spec)
+    const deployment = toRecordOrNull(items[0])
+    const spec = toRecordOrNull(deployment?.spec)
+    const template = toRecordOrNull(spec?.template)
+    const podSpec = toRecordOrNull(template?.spec)
     const containers = podSpec?.containers
     if (!Array.isArray(containers)) {
       sources.push(
@@ -985,7 +980,7 @@ function discoverHelmReleases(
       )
       continue
     }
-    const appContainer = containers.find((container) => asRecord(container)?.name === 'app')
+    const appContainer = containers.find((container) => toRecordOrNull(container)?.name === 'app')
     if (!appContainer) {
       sources.push(
         helmUnknown(release, context, 'The app Deployment has no container named "app".')

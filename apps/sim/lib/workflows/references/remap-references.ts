@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { readFolderPaths } from '@/lib/folders/selection'
@@ -1667,8 +1667,8 @@ function collectClearedToolParamDependents(
     if (!isRecordLike(targetTool) || targetTool.type !== tool.type) continue
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) continue
-    const targetParams = isRecordLike(targetTool.params) ? targetTool.params : {}
-    const mergedParams = isRecordLike(tool.params) ? tool.params : {}
+    const targetParams = toRecord(targetTool.params)
+    const mergedParams = toRecord(tool.params)
     // A tool's `operation` lives at the tool level, not in params, but conditions
     // reference it - merge it in so condition/required gating matches the editor.
     const mergedValues =
@@ -1844,7 +1844,7 @@ export function readTargetDraftDependentValue(
     if (!isRecordLike(targetTool) || typeof targetTool.type !== 'string') return ''
     const sourceTool = coerceObjectArray(sourceSubBlocks?.[toolInputId]?.value).array?.[index]
     if (!isRecordLike(sourceTool) || sourceTool.type !== targetTool.type) return ''
-    const params = isRecordLike(targetTool.params) ? targetTool.params : {}
+    const params = toRecord(targetTool.params)
     const value = params[paramId]
     return selectionValue(value)
   }
@@ -1878,7 +1878,7 @@ function applyNestedToolOverrides(
     if (!toolConfig && !isMcp) return tool
     const allowed = reconfigurableDependentIds(toolConfig?.subBlocks ?? [])
     if (isMcp) allowed.add('toolName')
-    const params = isRecordLike(tool.params) ? tool.params : {}
+    const params = toRecord(tool.params)
     let nextParams: Record<string, unknown> | null = null
     for (const item of forTool) {
       if (!allowed.has(item.paramId)) continue

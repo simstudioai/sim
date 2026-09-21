@@ -9,8 +9,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/internal/google-drive/client', () => ({
-  asObject: (value: unknown) =>
-    value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {},
+  asObject: (value: unknown) => toRecord(value),
   googleApiErrorMessage: (data: { error?: { message?: string } }, fallback: string) =>
     data.error?.message || fallback,
   requestGoogleDrive: mocks.request,
@@ -21,6 +20,7 @@ vi.mock('@/lib/internal/google-drive/file-input', () => ({
   resolveGoogleDriveUploadFile: mocks.resolveFile,
 }))
 
+import { toRecord } from '@sim/utils/object'
 import {
   executeGoogleDriveDownload,
   executeGoogleDriveExport,

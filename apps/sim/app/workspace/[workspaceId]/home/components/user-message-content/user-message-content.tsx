@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
+import { escapeRegExp } from '@sim/utils/string'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
@@ -20,10 +21,6 @@ interface UserMessageContentProps {
   plainMentions?: boolean
   /** Use compact single-line layout with truncation. */
   compact?: boolean
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 interface MentionRange {
@@ -54,7 +51,7 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
     const ctx = withResolvedBlockType(rawCtx)
     const prefix = ctx.kind === 'skill' || ctx.kind === 'mcp' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
-    const pattern = new RegExp(`(^|\\s)(${escapeRegex(token)})(\\s|$)`, 'g')
+    const pattern = new RegExp(`(^|\\s)(${escapeRegExp(token)})(\\s|$)`, 'g')
     let match: RegExpExecArray | null
     while ((match = pattern.exec(text)) !== null) {
       const leadingSpace = match[1]

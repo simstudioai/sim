@@ -1,3 +1,5 @@
+import { escapeRegExp } from '@sim/utils/string'
+
 /** Characters of a document shown under a search result. */
 export const SNIPPET_LENGTH = 280
 /** Characters kept before the selected match, so the hit sits in context rather than at the edge. */
@@ -14,10 +16,6 @@ const HEADER_LINE = /^[A-Z][A-Za-z-]{1,15}: .*$/
  */
 const WORD_CHARACTER =
   /(?![\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Thai}])[\p{L}\p{N}_]/u
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 
 /**
  * The document text without the header block some connectors prefix (the

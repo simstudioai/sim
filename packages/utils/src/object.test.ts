@@ -7,6 +7,7 @@ import {
   isPlainRecord,
   isRecordLike,
   sortObjectKeysDeep,
+  toArray,
   toRecord,
   toRecordOrNull,
 } from './object.js'
@@ -122,5 +123,23 @@ describe('sortObjectKeysDeep', () => {
         { c: 4, d: 3 },
       ])
     )
+  })
+})
+
+describe('toArray', () => {
+  it('returns the original array on a hit, not a copy', () => {
+    const items = [1, 2]
+    expect(toArray(items)).toBe(items)
+  })
+
+  it('falls back to an empty array for a non-array', () => {
+    expect(toArray(undefined)).toEqual([])
+    expect(toArray(null)).toEqual([])
+    expect(toArray('nope')).toEqual([])
+    expect(toArray({ length: 2 })).toEqual([])
+  })
+
+  it('returns a fresh array on every miss, so callers cannot share one', () => {
+    expect(toArray(null)).not.toBe(toArray(null))
   })
 })

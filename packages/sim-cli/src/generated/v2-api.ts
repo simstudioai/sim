@@ -2801,6 +2801,26 @@ export type DeleteFileFolderResponse = {
   data: DeleteFileFolderResponseRef0
 }
 
+/** `DELETE /api/v2/files/[fileId]/versions/[version]` */
+export type DeleteFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DeleteFileVersionQuery = {
+  workspaceId: string
+}
+
+type DeleteFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  deleted: true
+}
+
+export type DeleteFileVersionResponse = {
+  data: DeleteFileVersionResponseRef0
+}
+
 /** `DELETE /api/v2/knowledge/[knowledgeBaseId]` */
 export type DeleteKnowledgeBaseParams = {
   knowledgeBaseId: string
@@ -3459,6 +3479,19 @@ export type DownloadFileQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
 
+/** `GET /api/v2/files/[fileId]/versions/[version]/content` */
+export type DownloadFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DownloadFileVersionQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadFileVersionResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
 export type DownloadRunFileParams = {
   workflowId: string
@@ -3539,6 +3572,7 @@ export type EditFileContentBody = {
         endAnchor: string
         occurrence?: number
       }
+  expectedRevision?: string
 }
 
 type EditFileContentResponseRef0 = {
@@ -3558,6 +3592,7 @@ type EditFileContentResponseRef0 = {
 type EditFileContentResponseRef1 = {
   file: EditFileContentResponseRef0
   lineCount: number
+  revision?: string
 }
 
 export type EditFileContentResponse = {
@@ -4129,6 +4164,8 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
+  revision?: string
+  currentVersion: number
 }
 
 export type GetFileResponse = {
@@ -4208,6 +4245,37 @@ type GetFileUploadResponseRef1 = {
 
 export type GetFileUploadResponse = {
   data: GetFileUploadResponseRef1
+}
+
+/** `GET /api/v2/files/[fileId]/versions/[version]` */
+export type GetFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type GetFileVersionQuery = {
+  workspaceId: string
+}
+
+type GetFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type GetFileVersionResponse = {
+  data: GetFileVersionResponseRef0
 }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]` */
@@ -6214,6 +6282,41 @@ type ListFilesResponseRef0 = {
 
 export type ListFilesResponse = {
   data: Array<ListFilesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/files/[fileId]/versions` */
+export type ListFileVersionsParams = {
+  fileId: string
+}
+
+export type ListFileVersionsQuery = {
+  workspaceId: string
+  sortBy?: 'version'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListFileVersionsResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type ListFileVersionsResponse = {
+  data: Array<ListFileVersionsResponseRef0>
   nextCursor: string | null
 }
 
@@ -8528,6 +8631,42 @@ export type ReadFileTextResponse = {
   data: ReadFileTextResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/versions/[version]/text` */
+export type ReadFileVersionTextParams = {
+  fileId: string
+  version: number
+}
+
+export type ReadFileVersionTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+  offset?: number
+  limit?: number
+}
+
+type ReadFileVersionTextResponseRef0 = {
+  fileId: string
+  name: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
+  version: number
+}
+
+export type ReadFileVersionTextResponse = {
+  data: ReadFileVersionTextResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -9167,6 +9306,62 @@ export type ResumeWorkflowResponse =
       data: ResumeWorkflowResponseRef2
     }
 
+/** `POST /api/v2/files/[fileId]/versions/[version]/revert` */
+export type RevertFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type RevertFileVersionQuery = Record<string, unknown>
+
+export type RevertFileVersionBody = {
+  workspaceId: string
+  expectedCurrentVersion?: number
+  expectedRevision?: string
+}
+
+type RevertFileVersionResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type RevertFileVersionResponseRef1 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+type RevertFileVersionResponseRef2 = {
+  reverted: boolean
+  file: RevertFileVersionResponseRef0
+  version: RevertFileVersionResponseRef1
+  revision?: string
+}
+
+export type RevertFileVersionResponse = {
+  data: RevertFileVersionResponseRef2
+}
+
 /** `POST /api/v2/workflows/[workflowId]/versions/[version]/revert` */
 export type RevertWorkflowVersionParams = {
   version: number | 'active'
@@ -9789,6 +9984,7 @@ export type UpdateFileContentBody = {
   workspaceId: string
   content: string
   encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
 }
 
 type UpdateFileContentResponseRef0 = {
@@ -9803,6 +9999,7 @@ type UpdateFileContentResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type UpdateFileContentResponse = {
@@ -12308,6 +12505,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteFileVersion: {
+    method: 'DELETE',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Delete File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   deleteKnowledgeBase: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[knowledgeBaseId]',
@@ -12741,6 +12949,17 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/content',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'binary',
+    summary: 'Download File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   downloadRunFile: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
@@ -12785,6 +13004,11 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -13072,6 +13296,17 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Signed upload control token returned when the upload session was created.',
       },
+    },
+  },
+  getFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Get File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
   getKnowledgeBase: {
@@ -14231,6 +14466,40 @@ export const V2_OPERATIONS = {
         default: 100,
         describe:
           'Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listFileVersions: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'List File Versions',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['version'] as const,
+        default: 'version',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
       cursor: {
         kind: 'string',
@@ -15972,6 +16241,30 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  readFileVersionText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/text',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Read File Version Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
+      },
+      offset: {
+        kind: 'integer',
+        describe: 'First line to return, 1-based. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
+      },
+    },
+  },
   relocateFileFolder: {
     method: 'PATCH',
     path: '/api/v2/files/folders',
@@ -16241,6 +16534,27 @@ export const V2_OPERATIONS = {
         describe: 'Human-in-the-loop pause-context identifier.',
       },
       input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
+    },
+  },
+  revertFileVersion: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/versions/[version]/revert',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Revert File Version',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      expectedCurrentVersion: {
+        kind: 'integer',
+        describe:
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+      },
     },
   },
   revertWorkflowVersion: {
@@ -16654,6 +16968,11 @@ export const V2_OPERATIONS = {
         values: ['utf-8', 'base64'] as const,
         default: 'utf-8',
         describe: 'Encoding of the content field.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },

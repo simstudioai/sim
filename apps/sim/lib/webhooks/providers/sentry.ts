@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -58,7 +58,7 @@ export const sentryHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId) {
       const resource = request.headers.get(SENTRY_RESOURCE_HEADER)
-      const obj = isRecordLike(body) ? body : {}
+      const obj = toRecord(body)
       const action = typeof obj.action === 'string' ? obj.action : undefined
 
       const { isSentryEventMatch } = await import('@/triggers/sentry/utils')
@@ -73,8 +73,8 @@ export const sentryHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body, headers }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecordLike(body) ? body : {}
-    const data = isRecordLike(b.data) ? b.data : {}
+    const b = toRecord(body)
+    const data = toRecord(b.data)
     const resource = headers[SENTRY_RESOURCE_HEADER] || ''
 
     const envelope = {
@@ -115,7 +115,7 @@ export const sentryHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown): string | null {
     if (!isRecordLike(body)) return null
 
-    const data = isRecordLike(body.data) ? body.data : {}
+    const data = toRecord(body.data)
     const action = typeof body.action === 'string' ? body.action : ''
 
     const issue = isRecordLike(data.issue) ? data.issue : undefined

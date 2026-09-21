@@ -1,4 +1,5 @@
 import type { WorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -25,10 +26,6 @@ export interface MountedFileSecretProvenanceScanner {
 const UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER: MountedFileSecretProvenanceScanner = {
   hasSecrets: true,
   scan: () => ({ status: 'unknown' }),
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
 }
 
 /**

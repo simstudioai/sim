@@ -38,6 +38,18 @@ function validateFolderTarget(
   }
 }
 
+/**
+ * Makes a content write conditional on the file still holding the content the caller read, named
+ * by the opaque `revision` an earlier read or write returned. Version numbers cannot express this:
+ * collaborative and workflow writes fold into the current version rather than adding one, so the
+ * same number can name different bytes.
+ */
+const expectedRevisionSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .describe('Revision from an earlier read or write; the write is refused if content moved on.')
+
 export const fileManageWriteBodySchema = z
   .object({
     operation: z.literal('write'),
@@ -52,9 +64,23 @@ export const fileManageWriteBodySchema = z
     fileInput: z.unknown().optional(),
     contentType: z.string().optional(),
     overwrite: z.boolean().optional(),
+    expectedRevision: expectedRevisionSchema,
+
     [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   })
   .superRefine((body, context) => {
+    /*
+     * A precondition asserts something about an existing file, and only the overwrite branch
+     * writes into one. Refused here so the request fails before it uploads bytes or creates
+     * folders on the way to a write that could never satisfy it.
+     */
+    if (body.expectedRevision !== undefined && body.overwrite !== true) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expectedRevision'],
+        message: 'expectedRevision requires overwrite: true.',
+      })
+    }
     const hasContent = body.content !== undefined
     const hasFileInput = body.fileInput !== undefined && body.fileInput !== null
     if (hasContent === hasFileInput) {
@@ -312,6 +338,7 @@ const fileEditTargetShape = {
   folderPath: v2FolderPathInputSchema.optional(),
   folderPaths: fileFolderPathsSchema.optional(),
   includeSubfolders: z.boolean().optional(),
+  expectedRevision: expectedRevisionSchema,
 } as const
 
 export const fileManageEditBodySchema = z

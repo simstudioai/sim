@@ -40,7 +40,7 @@ function renderToken(part: string, key: number): ReactNode {
   }
   if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
     return (
-      <span key={key} className='font-mono text-[12px]'>
+      <span key={key} className='font-mono text-caption'>
         {part.slice(1, -1)}
       </span>
     )

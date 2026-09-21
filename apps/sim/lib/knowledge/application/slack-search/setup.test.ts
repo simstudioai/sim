@@ -69,8 +69,10 @@ vi.mock('@/lib/internal/slack/search-client', () => ({
   SlackSearchProviderError: class extends Error {},
 }))
 
+import { SlackSearchConfigurationError } from '@/lib/internal/slack/search-client'
 import {
   completeSlackSearchSetup,
+  connectCustomSlackSearch,
   prepareSlackSearchSetup,
   startSlackSearchSetup,
 } from '@/lib/knowledge/application/slack-search/setup'
@@ -735,5 +737,186 @@ describe('shared app completion', () => {
     m.revoke.mockRejectedValueOnce(new Error('provider failed'))
     await expect(complete()).rejects.toThrow('Remove the unused app in Slack before retrying')
     expect(m.audit).not.toHaveBeenCalled()
+  })
+})
+
+describe('connect an app already installed through a Slack manifest', () => {
+  const input = {
+    organizationId: 'org1',
+    name: 'Sim Search',
+    description: 'Search',
+    clientId: 'client',
+    clientSecret: 'client-secret',
+    signingSecret: 'signing-secret',
+    botToken: 'xoxb-installed-token',
+  }
+  const connect = () => connectCustomSlackSearch.execute({ principal, input })
+
+  it('verifies and saves the existing bot without a second install or OAuth state', async () => {
+    await expect(connect()).resolves.toEqual({ organizationId: 'org1' })
+    expect(m.verify).toHaveBeenCalledExactlyOnceWith(input.botToken, expect.any(AbortSignal))
+    expect(m.store).not.toHaveBeenCalled()
+    expect(m.consume).not.toHaveBeenCalled()
+    expect(m.exchange).not.toHaveBeenCalled()
+    expect(m.revoke).not.toHaveBeenCalled()
+    expect(db.transaction).toHaveBeenCalledOnce()
+    const rows = m.values.mock.calls.map(([value]) => value)
+    expect(rows[0]).toMatchObject({
+      id: 'A1',
+      kind: 'custom',
+      organizationId: 'org1',
+      clientId: 'client',
+      encryptedClientSecret: 'encrypted:client-secret',
+      encryptedSigningSecret: 'encrypted:signing-secret',
+    })
+    expect(rows[1]).toMatchObject({ organizationId: 'org1', workspaceId: null, createdBy: 'admin' })
+    expect(rows[1].encryptedServiceAccountKey).toContain(input.botToken)
+    expect(rows[2]).toMatchObject({ ...identity, organizationId: 'org1', enabled: true })
+    expect(m.audit).toHaveBeenCalledOnce()
+  })
+
+  it('rejects non-admins before verifying a token', async () => {
+    m.membership.mockResolvedValue([{ role: 'member' }])
+    await expect(connect()).rejects.toThrow('administrator')
+    expect(m.verify).not.toHaveBeenCalled()
+    expect(db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-session principals before loading protected context', async () => {
+    await expect(
+      connectCustomSlackSearch.execute({
+        principal: { kind: 'personal_api_key', userId: 'admin', keyId: 'key' },
+        input,
+      })
+    ).rejects.toThrow('cannot perform operation')
+    expect(db.select).not.toHaveBeenCalled()
+    expect(m.verify).not.toHaveBeenCalled()
+  })
+
+  it('rechecks admin access after token verification', async () => {
+    m.verify.mockImplementationOnce(async () => {
+      m.membership.mockResolvedValue([{ role: 'member' }])
+      return identity
+    })
+    await expect(connect()).rejects.toThrow('administrator')
+    expect(db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not save or revoke an invalid pre-existing bot token', async () => {
+    m.verify.mockRejectedValueOnce(new Error('Invalid bot token'))
+    await expect(connect()).rejects.toThrow('Invalid bot token')
+    expect(db.transaction).not.toHaveBeenCalled()
+    expect(m.revoke).not.toHaveBeenCalled()
+    expect(m.audit).not.toHaveBeenCalled()
+  })
+
+  it.each(['xoxp-user', 'xapp-app', 'xoxe.xoxb-rotating'])(
+    'rejects unsupported tokens before contacting Slack: %s',
+    async (botToken) => {
+      await expect(
+        connectCustomSlackSearch.execute({ principal, input: { ...input, botToken } })
+      ).rejects.toThrow('token rotation disabled')
+      expect(m.verify).not.toHaveBeenCalled()
+      expect(db.transaction).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports missing permissions without saving or starting a new installation', async () => {
+    m.verify.mockRejectedValueOnce(new SlackSearchConfigurationError('Missing required scopes'))
+    await expect(connect()).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Missing required scopes',
+    })
+    expect(db.transaction).not.toHaveBeenCalled()
+    expect(m.store).not.toHaveBeenCalled()
+    expect(m.exchange).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'reconnects the same app only while its revision is unchanged (changed: %s)',
+    async (changed) => {
+      const installation = {
+        id: 'installation1',
+        revision: 'revision1',
+        credentialId: 'credential1',
+        slackAppId: 'A1',
+        appId: 'A1',
+        teamId: 'T1',
+        organizationId: 'org1',
+      }
+      const app = {
+        id: 'A1',
+        kind: 'custom',
+        organizationId: 'org1',
+        revision: 'app-revision',
+        clientId: 'client',
+        encryptedClientSecret: 'encrypted:secret',
+        encryptedSigningSecret: 'encrypted:signing',
+      }
+      m.membership
+        .mockResolvedValueOnce([{ role: 'admin' }])
+        .mockResolvedValueOnce([installation])
+        .mockResolvedValueOnce([app])
+      m.rows
+        .mockResolvedValueOnce([app])
+        .mockResolvedValueOnce([
+          { ...installation, revision: changed ? 'changed' : installation.revision },
+        ])
+      const result = connectCustomSlackSearch.execute({
+        principal,
+        input: {
+          organizationId: 'org1',
+          name: 'Sim Search',
+          description: 'Search',
+          installationId: installation.id,
+          botToken: input.botToken,
+        },
+      })
+      if (changed) {
+        await expect(result).rejects.toThrow('changed during setup')
+        expect(m.values).not.toHaveBeenCalled()
+      } else {
+        await expect(result).resolves.toEqual({ organizationId: 'org1' })
+        expect(m.insert).not.toHaveBeenCalledWith(credential)
+        expect(m.insert).not.toHaveBeenCalledWith(slackSearchInstallation)
+        expect(m.set).toHaveBeenCalledWith(
+          expect.objectContaining({ slackAppId: 'A1', enabled: true })
+        )
+      }
+      expect(m.exchange).not.toHaveBeenCalled()
+      expect(m.consume).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { kind: 'custom', organizationId: 'other-org' },
+    { kind: 'shared', organizationId: null },
+  ])('does not claim an app owned by $kind / $organizationId', async (app) => {
+    m.rows.mockResolvedValueOnce([app])
+    await expect(connect()).rejects.toThrow('another installation owner')
+    expect(m.values).not.toHaveBeenCalled()
+    expect(m.revoke).not.toHaveBeenCalled()
+  })
+
+  it('does not create another installation for an already connected app', async () => {
+    m.rows.mockResolvedValueOnce([]).mockResolvedValueOnce([{ organizationId: 'org1' }])
+    await expect(connect()).rejects.toThrow('already connected')
+    expect(m.values).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token from a different app than member indexing', async () => {
+    m.memberApps.mockResolvedValue([
+      {
+        configuration: {
+          slack: {
+            appId: 'AOTHER',
+            teamId: 'T1',
+            scopes: [],
+          },
+        },
+      },
+    ])
+    await expect(connect()).rejects.toThrow('same Slack app and workspace')
+    expect(db.transaction).not.toHaveBeenCalled()
   })
 })

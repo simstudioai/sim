@@ -120,6 +120,13 @@ export function buildAnthropicModelUsage(accumulator: AnthropicUsageAccumulator)
   }
 }
 
+/** Normalizes one complete provider response without mixing it with previous model turns. */
+export function toAnthropicModelUsage(usage: AnthropicUsageLike | null | undefined): ModelUsage {
+  const accumulator = createAnthropicUsageAccumulator()
+  addAnthropicUsage(accumulator, usage)
+  return buildAnthropicModelUsage(accumulator)
+}
+
 /**
  * Prices one Anthropic request, cache tiers included, through the shared
  * pricing function.

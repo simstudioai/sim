@@ -3,8 +3,37 @@
  */
 import { describe, expect, it } from 'vitest'
 import { convertAnthropicRequestHistory } from '@/providers/anthropic/request-history'
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
+import type { Message } from '@/providers/types'
 
 describe('convertAnthropicRequestHistory', () => {
+  it('restores signed native blocks and still validates paired tool results', () => {
+    const assistant: Message = { role: 'assistant', content: null }
+    const native = [
+      { type: 'thinking', thinking: 'Check the record.', signature: 'signature' },
+      { type: 'redacted_thinking', data: 'opaque-redacted' },
+      { type: 'tool_use', id: 'call-1', name: 'lookup', input: { key: 'value' } },
+    ]
+    setNativeConversationMessage(assistant, {
+      protocol: 'anthropic',
+      providerId: 'anthropic',
+      model: 'claude-sonnet-4-5',
+      binding: 'binding',
+      value: native,
+    })
+    const result = convertAnthropicRequestHistory({
+      providerId: 'anthropic',
+      messages: [assistant, { role: 'tool', tool_call_id: 'call-1', content: 'found' }],
+    })
+    expect(result.messages).toEqual([
+      { role: 'assistant', content: native },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call-1', content: 'found' }] },
+    ])
+    expect(() =>
+      convertAnthropicRequestHistory({ providerId: 'anthropic', messages: [assistant] })
+    ).toThrow('missing tool results')
+  })
+
   it('merges system history into the top-level prompt and preserves ordinary messages', () => {
     const result = convertAnthropicRequestHistory({
       systemPrompt: 'Base instructions',

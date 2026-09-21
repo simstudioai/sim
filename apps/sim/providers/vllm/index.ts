@@ -9,9 +9,19 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getCachedProviderClient } from '@/providers/client-cache'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+  recordProviderConversationUsage,
+} from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -239,7 +249,7 @@ export const vllmProvider: ProviderConfig = {
           stream_options: { include_usage: true },
         }
         const streamResponse = await vllm.chat.completions.create(
-          streamingParams,
+          await prepareConversationGeneration(request, 'chat-completions', streamingParams),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -252,32 +262,36 @@ export const vllmProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
-              let cleanContent = content
-              if (cleanContent && request.responseFormat) {
-                cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
-              }
+            createReadableStreamFromVLLMStream(
+              streamResponse,
+              (content, usage) => {
+                let cleanContent = content
+                if (cleanContent && request.responseFormat) {
+                  cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
+                }
 
-              output.content = cleanContent
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+                output.content = cleanContent
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
 
-              finalizeTiming()
-            }),
+                finalizeTiming()
+              },
+              request
+            ),
         })
 
         return streamingResult
@@ -292,9 +306,17 @@ export const vllmProvider: ProviderConfig = {
       let hasUsedForcedTool = false
 
       let currentResponse = await vllm.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -365,6 +387,12 @@ export const vllmProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -374,6 +402,12 @@ export const vllmProvider: ProviderConfig = {
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolCall,
@@ -419,6 +453,12 @@ export const vllmProvider: ProviderConfig = {
             if (isAbortError(error) || request.abortSignal?.aborted) {
               throw error
             }
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call:', { error, toolName })
 
@@ -529,9 +569,17 @@ export const vllmProvider: ProviderConfig = {
         const nextModelStartTime = Date.now()
 
         currentResponse = await vllm.chat.completions.create(
-          nextPayload,
+          await prepareConversationGeneration(request, 'chat-completions', nextPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
 
         if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
           const forcedResult = checkForForcedToolUsage(
@@ -574,6 +622,12 @@ export const vllmProvider: ProviderConfig = {
       }
 
       if (iterationCount === MAX_TOOL_ITERATIONS) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await recordProviderConversationUsage(
+            request,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
@@ -589,12 +643,20 @@ export const vllmProvider: ProviderConfig = {
           const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
           const synthesisStartTime = Date.now()
           const synthesisResponse = await vllm.chat.completions.create(
-            {
+            await prepareConversationGeneration(request, 'chat-completions', {
               ...synthesisPayload,
               messages: currentMessages,
-            },
+            }),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              synthesisResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(synthesisResponse.usage)
+            )
+          }
           const synthesisEndTime = Date.now()
 
           timeSegments.push({
@@ -716,7 +778,11 @@ export const vllmProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

@@ -7,11 +7,32 @@ import {
   buildAnthropicUsageCost,
   buildAnthropicUsageTokens,
   createAnthropicUsageAccumulator,
+  toAnthropicModelUsage,
 } from '@/providers/anthropic/usage'
 
 const MODEL = 'claude-sonnet-4-5'
 
 describe('Anthropic usage aggregation', () => {
+  it('captures one model turn with separate cache tiers and uncached input', () => {
+    expect(
+      toAnthropicModelUsage({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 30,
+        cache_creation_input_tokens: 50,
+        cache_creation: { ephemeral_5m_input_tokens: 10, ephemeral_1h_input_tokens: 40 },
+      })
+    ).toEqual({
+      input: 10,
+      output: 20,
+      cacheRead: 30,
+      cacheWrites: [
+        { tokens: 10, inputRateMultiplier: 1.25 },
+        { tokens: 40, inputRateMultiplier: 2 },
+      ],
+    })
+  })
+
   it('prices uncached input and output normally', () => {
     const usage = createAnthropicUsageAccumulator()
     addAnthropicUsage(usage, { input_tokens: 1_000_000, output_tokens: 1_000_000 })

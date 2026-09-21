@@ -1,8 +1,8 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsExitProbabilityHistoryParams } from '@/tools/cbinsights/get_exit_probability_history'
 import {
   asArray,
-  asString,
   cbInsightsRequest,
   compactBody,
   parseOptionalStringParam,
@@ -25,7 +25,7 @@ export const executeCbinsightsGetExitProbabilityHistoryOperation: InternalToolOp
     (data) => ({
       ipo: asArray(data.ipo),
       mna: asArray(data.mna),
-      incompleteRoundType: asString(data.incompleteRoundType),
+      incompleteRoundType: toStringOrNull(data.incompleteRoundType),
     }),
     signal
   )

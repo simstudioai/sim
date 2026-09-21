@@ -776,7 +776,7 @@ export const TextEditor = memo(function TextEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
       </div>
     )
   }

@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
@@ -907,7 +907,7 @@ export const slackHandler: WebhookProviderHandler = {
    * (app_mention, message, reaction_added, ... nested under `event`).
    */
   async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecordLike(body) ? body : {}
+    const b = toRecord(body)
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     let botToken = providerConfig.botToken as string | undefined
     // Reusable custom Slack bot credential: use its stored bot token directly.

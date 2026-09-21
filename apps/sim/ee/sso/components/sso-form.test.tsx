@@ -144,7 +144,7 @@ describe('SSOForm sign-in errors', () => {
     mockSsoSignIn.mockReset()
     mockUseSearchParams.mockReset()
     mockRequestJson.mockReset()
-    mockRequestJson.mockResolvedValue({ providerId: 'example-okta', providerType: 'oidc' })
+    mockRequestJson.mockResolvedValue({ providerId: 'example-okta' })
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -188,7 +188,7 @@ describe('SSOForm sign-in errors', () => {
   })
 
   it('signs in through the provider a test link names, and returns to that link on failure', async () => {
-    mockRequestJson.mockResolvedValue({ providerId: 'example-okta', providerType: 'oidc' })
+    mockRequestJson.mockResolvedValue({ providerId: 'example-okta' })
     mockSsoSignIn.mockResolvedValue({ data: { url: 'https://idp.example.com' }, error: null })
     renderInteractive('email=user%40example.com&provider=example-okta')
 

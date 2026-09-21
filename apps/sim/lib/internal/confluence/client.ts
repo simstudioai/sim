@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
@@ -17,11 +18,11 @@ export interface ConfluenceConnectionConfig {
 export type JsonObject = Record<string, unknown>
 
 export function asObject(value: unknown): JsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonObject) : {}
+  return toRecord(value)
 }
 
 export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return toArray(value)
 }
 
 export function nested(object: JsonObject, ...keys: string[]): unknown {

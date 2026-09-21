@@ -1,4 +1,5 @@
-import { filterUndefined, isRecordLike, toRecord } from '@sim/utils/object'
+import { toBooleanOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { filterUndefined, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   InstantlyCampaign,
   InstantlyEmail,
@@ -55,114 +56,109 @@ export async function parseInstantlyResponse(response: Response): Promise<unknow
   return data
 }
 
-/** Thin re-export of the shared {@link toRecord} helper, kept for existing importers. */
-export function asRecord(value: unknown): JsonRecord {
-  return toRecord(value)
-}
-
 export function getItems(value: unknown): JsonRecord[] {
-  const data = asRecord(value)
-  return Array.isArray(data.items) ? data.items.map(asRecord) : []
+  const data = toRecord(value)
+  return Array.isArray(data.items) ? data.items.map(toRecord) : []
 }
 
 export function getNextStartingAfter(value: unknown): string | null {
-  const data = asRecord(value)
-  return asString(data.next_starting_after)
+  const data = toRecord(value)
+  return toStringOrNull(data.next_starting_after)
 }
 
 export function mapLead(value: unknown): InstantlyLead {
-  const lead = asRecord(value)
+  const lead = toRecord(value)
 
   return {
-    id: asString(lead.id),
-    timestamp_created: asString(lead.timestamp_created),
-    timestamp_updated: asString(lead.timestamp_updated),
-    organization: asString(lead.organization),
-    campaign: asString(lead.campaign),
+    id: toStringOrNull(lead.id),
+    timestamp_created: toStringOrNull(lead.timestamp_created),
+    timestamp_updated: toStringOrNull(lead.timestamp_updated),
+    organization: toStringOrNull(lead.organization),
+    campaign: toStringOrNull(lead.campaign),
     status: asNumber(lead.status),
-    email: asString(lead.email),
-    personalization: asString(lead.personalization),
-    website: asString(lead.website),
-    last_name: asString(lead.last_name),
-    first_name: asString(lead.first_name),
-    company_name: asString(lead.company_name),
-    job_title: asString(lead.job_title),
-    phone: asString(lead.phone),
+    email: toStringOrNull(lead.email),
+    personalization: toStringOrNull(lead.personalization),
+    website: toStringOrNull(lead.website),
+    last_name: toStringOrNull(lead.last_name),
+    first_name: toStringOrNull(lead.first_name),
+    company_name: toStringOrNull(lead.company_name),
+    job_title: toStringOrNull(lead.job_title),
+    phone: toStringOrNull(lead.phone),
     email_open_count: asNumber(lead.email_open_count),
     email_reply_count: asNumber(lead.email_reply_count),
     email_click_count: asNumber(lead.email_click_count),
-    company_domain: asString(lead.company_domain),
-    payload: isRecordLike(lead.payload) ? lead.payload : null,
+    company_domain: toStringOrNull(lead.company_domain),
+    payload: toRecordOrNull(lead.payload),
     lt_interest_status: asNumber(lead.lt_interest_status),
   }
 }
 
 export function mapCampaign(value: unknown): InstantlyCampaign {
-  const campaign = asRecord(value)
+  const campaign = toRecord(value)
 
   return {
-    id: asString(campaign.id),
-    name: asString(campaign.name),
+    id: toStringOrNull(campaign.id),
+    name: toStringOrNull(campaign.name),
     pl_value: asNumber(campaign.pl_value),
     status: asNumber(campaign.status),
-    is_evergreen: asBoolean(campaign.is_evergreen),
-    timestamp_created: asString(campaign.timestamp_created),
-    timestamp_updated: asString(campaign.timestamp_updated),
+    is_evergreen: toBooleanOrNull(campaign.is_evergreen),
+    timestamp_created: toStringOrNull(campaign.timestamp_created),
+    timestamp_updated: toStringOrNull(campaign.timestamp_updated),
     email_gap: asNumber(campaign.email_gap),
     daily_limit: asNumber(campaign.daily_limit),
     daily_max_leads: asNumber(campaign.daily_max_leads),
-    open_tracking: asBoolean(campaign.open_tracking),
-    stop_on_reply: asBoolean(campaign.stop_on_reply),
+    open_tracking: toBooleanOrNull(campaign.open_tracking),
+    stop_on_reply: toBooleanOrNull(campaign.stop_on_reply),
     sequences: Array.isArray(campaign.sequences) ? campaign.sequences : [],
-    campaign_schedule: isRecordLike(campaign.campaign_schedule) ? campaign.campaign_schedule : null,
+    campaign_schedule: toRecordOrNull(campaign.campaign_schedule),
   }
 }
 
 export function mapEmail(value: unknown): InstantlyEmail {
-  const email = asRecord(value)
-  const body = asRecord(email.body)
+  const email = toRecord(value)
+  const body = toRecord(email.body)
 
   return {
-    id: asString(email.id),
-    timestamp_created: asString(email.timestamp_created),
-    timestamp_email: asString(email.timestamp_email),
-    message_id: asString(email.message_id),
-    subject: asString(email.subject),
-    from_address_email: asString(email.from_address_email),
-    to_address_email_list: asString(email.to_address_email_list),
-    cc_address_email_list: asString(email.cc_address_email_list),
-    bcc_address_email_list: asString(email.bcc_address_email_list),
-    reply_to: asString(email.reply_to),
+    id: toStringOrNull(email.id),
+    timestamp_created: toStringOrNull(email.timestamp_created),
+    timestamp_email: toStringOrNull(email.timestamp_email),
+    message_id: toStringOrNull(email.message_id),
+    subject: toStringOrNull(email.subject),
+    from_address_email: toStringOrNull(email.from_address_email),
+    to_address_email_list: toStringOrNull(email.to_address_email_list),
+    cc_address_email_list: toStringOrNull(email.cc_address_email_list),
+    bcc_address_email_list: toStringOrNull(email.bcc_address_email_list),
+    reply_to: toStringOrNull(email.reply_to),
     body: {
-      text: asString(body.text),
-      html: asString(body.html),
+      text: toStringOrNull(body.text),
+      html: toStringOrNull(body.html),
     },
-    organization_id: asString(email.organization_id),
-    campaign_id: asString(email.campaign_id),
-    subsequence_id: asString(email.subsequence_id),
-    list_id: asString(email.list_id),
-    lead: asString(email.lead),
-    lead_id: asString(email.lead_id),
-    eaccount: asString(email.eaccount),
+    organization_id: toStringOrNull(email.organization_id),
+    campaign_id: toStringOrNull(email.campaign_id),
+    subsequence_id: toStringOrNull(email.subsequence_id),
+    list_id: toStringOrNull(email.list_id),
+    lead: toStringOrNull(email.lead),
+    lead_id: toStringOrNull(email.lead_id),
+    eaccount: toStringOrNull(email.eaccount),
     ue_type: asNumber(email.ue_type),
     is_unread: asNumber(email.is_unread),
     is_auto_reply: asNumber(email.is_auto_reply),
     i_status: asNumber(email.i_status),
-    thread_id: asString(email.thread_id),
-    content_preview: asString(email.content_preview),
+    thread_id: toStringOrNull(email.thread_id),
+    content_preview: toStringOrNull(email.content_preview),
   }
 }
 
 export function mapLeadList(value: unknown): InstantlyLeadList {
-  const leadList = asRecord(value)
+  const leadList = toRecord(value)
 
   return {
-    id: asString(leadList.id),
-    organization_id: asString(leadList.organization_id),
-    has_enrichment_task: asBoolean(leadList.has_enrichment_task),
-    owned_by: asString(leadList.owned_by),
-    name: asString(leadList.name),
-    timestamp_created: asString(leadList.timestamp_created),
+    id: toStringOrNull(leadList.id),
+    organization_id: toStringOrNull(leadList.organization_id),
+    has_enrichment_task: toBooleanOrNull(leadList.has_enrichment_task),
+    owned_by: toStringOrNull(leadList.owned_by),
+    name: toStringOrNull(leadList.name),
+    timestamp_created: toStringOrNull(leadList.timestamp_created),
   }
 }
 
@@ -349,25 +345,17 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
 }
 
 export function getMessage(value: unknown): string | null {
-  const data = asRecord(value)
+  const data = toRecord(value)
   return typeof data.message === 'string' ? data.message : null
 }
 
 function extractInstantlyError(value: unknown, fallback: string): string {
-  const data = asRecord(value)
+  const data = toRecord(value)
   if (typeof data.message === 'string') return data.message
   if (typeof data.error === 'string') return data.error
   return fallback
 }
 
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function asBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }

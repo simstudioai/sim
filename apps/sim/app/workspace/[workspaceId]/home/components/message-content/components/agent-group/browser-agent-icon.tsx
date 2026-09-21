@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { isBrowserToolName } from '@sim/browser-protocol'
 import { cn } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
@@ -40,7 +40,7 @@ export function getBrowserAgentFaviconUrl(items: AgentGroupItem[]): string | nul
       return typeof params?.url === 'string' ? pageFaviconUrl(params.url) : null
     }
 
-    const output = result?.success && isRecordLike(result.output) ? result.output : null
+    const output = result?.success ? toRecordOrNull(result.output) : null
     if (output) {
       if (isRecordLike(output.activeTab) && typeof output.activeTab.url === 'string') {
         return pageFaviconUrl(output.activeTab.url)

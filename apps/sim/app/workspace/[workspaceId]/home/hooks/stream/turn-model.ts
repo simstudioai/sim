@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
   MothershipStreamV1CompletionStatus,
@@ -230,7 +230,7 @@ function rebindResolvedIntegrationCall(node: ToolNode, toolName: string): void {
  * through the `unknown`-typed {@link isRecordLike} guard rather than a double cast.
  */
 function payloadRecord(payload: unknown): Record<string, unknown> {
-  return isRecordLike(payload) ? payload : {}
+  return toRecord(payload)
 }
 
 /** Parses a wire `ts` to epoch ms, or undefined when absent/unparseable. */

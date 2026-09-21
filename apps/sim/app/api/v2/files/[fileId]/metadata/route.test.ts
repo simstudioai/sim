@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadata: {
+  readWorkspaceFileMetadataWithVersion: {
     operation: { id: 'files.read_metadata', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mocks.readMetadata,
   },
@@ -83,7 +83,10 @@ const callGet = (query: string) =>
  */
 const archivedFileUseCase = async ({ input }: { input: { includeDeleted?: boolean } }) => {
   if (!input.includeDeleted) throw new OrchestrationError('not_found', 'File not found')
-  return { file: { ...buildRecord(), deletedAt: new Date('2024-01-03T00:00:00Z') }, share: SHARE }
+  return {
+    file: { ...buildRecord(), deletedAt: new Date('2024-01-03T00:00:00Z'), currentVersion: 3 },
+    share: SHARE,
+  }
 }
 
 describe('GET /api/v2/files/[fileId]/metadata', () => {
@@ -92,7 +95,10 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.readMetadata.mockResolvedValue({ file: buildRecord(), share: SHARE })
+    mocks.readMetadata.mockResolvedValue({
+      file: { ...buildRecord(), currentVersion: 3 },
+      share: SHARE,
+    })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
@@ -141,6 +147,8 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         updatedAt: '2024-01-02T00:00:00.000Z',
         deletedAt: null,
         share: SHARE,
+        currentVersion: 3,
+        revision: expect.any(String),
       },
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith({
@@ -198,6 +206,8 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         updatedAt: '2024-01-02T00:00:00.000Z',
         deletedAt: '2024-01-03T00:00:00.000Z',
         share: SHARE,
+        currentVersion: 3,
+        revision: expect.any(String),
       },
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith(
@@ -237,7 +247,10 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
   })
 
   it('returns a null share when the file has no share configuration', async () => {
-    mocks.readMetadata.mockResolvedValueOnce({ file: buildRecord(), share: null })
+    mocks.readMetadata.mockResolvedValueOnce({
+      file: { ...buildRecord(), currentVersion: 3 },
+      share: null,
+    })
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
 

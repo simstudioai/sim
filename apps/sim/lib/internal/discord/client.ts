@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { DiscordOperationError } from '@/lib/internal/discord/errors'
@@ -41,5 +41,5 @@ export async function sendDiscordMessage(
       response.status
     )
   }
-  return isRecordLike(data) ? data : {}
+  return toRecord(data)
 }

@@ -2,6 +2,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { ProviderRequest } from '@/providers/types'
 import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
 
 /**
@@ -10,9 +11,11 @@ import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
  */
 export function createReadableStreamFromXAIStream(
   xaiStream: AsyncIterable<ChatCompletionChunk>,
-  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void,
+  request?: ProviderRequest
 ): ReadableStream<AgentStreamEvent> {
   return createOpenAICompatibleAgentEventStream(xaiStream, {
+    request,
     providerName: 'xAI',
     onComplete: onComplete
       ? (result) => onComplete(result.content, result.usage, result.thinking)

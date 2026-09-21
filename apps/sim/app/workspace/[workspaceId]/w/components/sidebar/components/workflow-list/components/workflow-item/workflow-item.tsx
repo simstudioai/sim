@@ -6,7 +6,10 @@ import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import {
+  SidebarRowAction,
+  SidebarRowActions,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -464,15 +467,13 @@ export const WorkflowItem = memo(function WorkflowItem({
               ) : undefined
             }
           >
-            <button
-              type='button'
+            <SidebarRowAction
               aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
-              className='flex size-[18px] items-center justify-center rounded-sm'
             >
               <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-            </button>
+            </SidebarRowAction>
           </SidebarRowActions>
         )}
       </Link>

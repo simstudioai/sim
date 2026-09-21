@@ -36,6 +36,7 @@ export const anthropicRedactedThinkingStreamEvents = [
     content_block: {
       type: 'thinking',
       thinking: '',
+      signature: '',
     },
   },
   {

@@ -15,7 +15,7 @@ services:
           memory: 8G
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - 'DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?is required. For a new install set it in .env to the output of: openssl rand -hex 24. An install created before it was required uses the password postgres - set POSTGRES_PASSWORD=postgres to keep its data.}@db:5432/${POSTGRES_DB:-simstudio}'
       - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # TRUSTED_ORIGINS: comma-separated public origins to trust for auth in
@@ -85,7 +85,7 @@ services:
           memory: 1G
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - 'DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?is required. For a new install set it in .env to the output of: openssl rand -hex 24. An install created before it was required uses the password postgres - set POSTGRES_PASSWORD=postgres to keep its data.}@db:5432/${POSTGRES_DB:-simstudio}'
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # Derived from NEXT_PUBLIC_APP_URL, matching the simstudio service — a
       # single public-origin variable keeps the two from disagreeing.
@@ -109,7 +109,7 @@ services:
     image: ghcr.io/simstudioai/migrations:${SIM_VERSION:-latest}
     working_dir: /app/packages/db
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - 'DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?is required. For a new install set it in .env to the output of: openssl rand -hex 24. An install created before it was required uses the password postgres - set POSTGRES_PASSWORD=postgres to keep its data.}@db:5432/${POSTGRES_DB:-simstudio}'
     depends_on:
       db:
         condition: service_healthy
@@ -151,14 +151,21 @@ services:
       simstudio:
         condition: service_healthy
 
+  # Not published to the host: app, realtime and migrations reach it over the
+  # Compose network as db:5432. A host `ports:` mapping binds every interface and
+  # Docker's own iptables rules bypass host firewalls, so it would put the
+  # database on the network. For host access (psql, a desktop client), use
+  # `docker compose exec db psql -U postgres simstudio`, or pass a second -f
+  # file that publishes '127.0.0.1:5432:5432' (-f disables override files).
   db:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
-    ports:
-      - '${POSTGRES_PORT:-5432}:5432'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # Postgres applies this only when it creates the data volume; later
+      # changes are ignored. An install created before this was required got
+      # the password `postgres` — set exactly that to keep it working.
+      - 'POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?is required. For a new install set it in .env to the output of: openssl rand -hex 24. An install created before it was required uses the password postgres - set POSTGRES_PASSWORD=postgres to keep its data.}'
       - POSTGRES_DB=${POSTGRES_DB:-simstudio}
     volumes:
       - postgres_data:/var/lib/postgresql/data

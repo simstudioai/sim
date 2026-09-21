@@ -204,7 +204,7 @@ function renderOutputSelect(
   selectedOutputs: string[],
   onOutputSelect = vi.fn(),
   valueMode: 'id' | 'label' | 'public' = 'id',
-  props: { size?: 'sm' | 'md'; disablePortal?: boolean } = {}
+  props: { size?: 'sm' | 'md'; variant?: 'default' | 'chip'; disablePortal?: boolean } = {}
 ) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -266,8 +266,12 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).not.toContain('Summarizer')
   })
 
-  it('forwards inline dropdown rendering to the chip combobox', () => {
-    renderOutputSelect([], vi.fn(), 'id', { size: 'md', disablePortal: true })
+  it('forwards inline dropdown rendering to explicitly chip-styled forms', () => {
+    renderOutputSelect([], vi.fn(), 'id', {
+      size: 'md',
+      variant: 'chip',
+      disablePortal: true,
+    })
 
     expect(container.querySelector('[data-chip-combobox]')).toHaveAttribute(
       'data-disable-portal',
@@ -284,7 +288,7 @@ describe('OutputSelect nested workflow menu', () => {
   })
 
   it('emits public dot selectors for trigger authoring', () => {
-    const onOutputSelect = renderOutputSelect([], vi.fn(), 'public')
+    const onOutputSelect = renderOutputSelect([], vi.fn(), 'public', { size: 'md' })
 
     clickOption('content')
     expect(onOutputSelect).toHaveBeenCalledWith(['summarizer.content'])

@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
+  hasRerankerCredential: vi.fn(async () => true),
   resolveWorkspace: vi.fn(),
   resolveOrganization: vi.fn(),
   requireOrganizationSearch: vi.fn(),
@@ -20,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
   retrieval: vi.fn(),
-  getDocumentMetadata: vi.fn(),
   getTagDefinitions: vi.fn(),
   getTagDefinitionsBatch: vi.fn(),
   recordEmbeddingUsage: vi.fn(),
@@ -39,6 +39,7 @@ vi.mock('@/lib/knowledge/search/activity', () => ({
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
+  hasRerankerCredential: mocks.hasRerankerCredential,
   rerank: mocks.rerank,
 }))
 
@@ -96,8 +97,8 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
   retrieveKnowledgeSearch: async (...args: unknown[]) => ({
     rows: await mocks.executeSearch(...args),
     retrieval: mocks.retrieval(),
+    readAccess: (args[0] as { access: unknown }).access,
   }),
-  getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
@@ -167,6 +168,9 @@ describe('knowledge search application use case', () => {
         content: 'answer',
         chunkIndex: 0,
         distance: 0.2,
+        filename: 'guide.pdf',
+        sourceUrl: null,
+        connectorType: null,
         tag1: null,
         tag2: null,
         tag3: null,
@@ -186,27 +190,9 @@ describe('knowledge search application use case', () => {
         boolean3: null,
       },
     ])
-    mocks.getDocumentMetadata.mockResolvedValue({
-      'document-1': { filename: 'guide.pdf', sourceUrl: null },
-    })
     mocks.getTagDefinitions.mockResolvedValue([])
     mocks.recordEmbeddingUsage.mockResolvedValue(undefined)
     mocks.importProvenance.mockResolvedValue({ imported: true, documentMetadata: {} })
-  })
-
-  it('drops passages whose access was revoked before the final document metadata read', async () => {
-    mocks.getDocumentMetadata.mockResolvedValue({})
-    const result = await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: 'workspace-1',
-        knowledgeBaseIds: ['knowledge-1'],
-        query: 'orion',
-        topK: 20,
-      },
-    })
-    expect(result.results).toEqual([])
-    expect(result.totalResults).toBe(0)
   })
 
   it.each([false, true])(
@@ -509,7 +495,6 @@ describe('knowledge search application use case', () => {
       })
     ).rejects.toThrow('Search superseded during embedding')
     expect(mocks.executeSearch).not.toHaveBeenCalled()
-    expect(mocks.getDocumentMetadata).not.toHaveBeenCalled()
   })
 
   it('does not start reranking or metadata reads after retrieval is cancelled', async () => {
@@ -533,7 +518,6 @@ describe('knowledge search application use case', () => {
       })
     ).rejects.toThrow('Search superseded during retrieval')
     expect(mocks.rerank).not.toHaveBeenCalled()
-    expect(mocks.getDocumentMetadata).not.toHaveBeenCalled()
     expect(mocks.searched).not.toHaveBeenCalled()
   })
 
@@ -547,6 +531,9 @@ describe('knowledge search application use case', () => {
         content: 'first',
         chunkIndex: 0,
         distance: 0.1,
+        filename: 'thread',
+        sourceUrl: null,
+        connectorType: 'slack',
       },
       {
         id: 'chunk-2',
@@ -555,6 +542,9 @@ describe('knowledge search application use case', () => {
         content: 'second',
         chunkIndex: 1,
         distance: 0.2,
+        filename: 'thread',
+        sourceUrl: null,
+        connectorType: 'slack',
       },
       {
         id: 'chunk-3',
@@ -563,12 +553,11 @@ describe('knowledge search application use case', () => {
         content: 'third',
         chunkIndex: 0,
         distance: 0.3,
+        filename: 'page',
+        sourceUrl: null,
+        connectorType: 'gitlab',
       },
     ])
-    mocks.getDocumentMetadata.mockResolvedValue({
-      'document-1': { filename: 'thread', connectorType: 'slack' },
-      'document-2': { filename: 'page', connectorType: 'gitlab' },
-    })
     await searchKnowledge.execute({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {
@@ -805,14 +794,20 @@ describe('knowledge search application use case', () => {
   it('keeps the source card metadata when a provenance registry is present', async () => {
     const registry = { markIncomplete: vi.fn() }
     const sourceModifiedAt = new Date('2026-08-20T12:00:00Z')
-    mocks.getDocumentMetadata.mockResolvedValueOnce({
-      'document-1': {
+    mocks.executeSearch.mockResolvedValueOnce([
+      {
+        id: 'embedding-1',
+        documentId: 'document-1',
+        knowledgeBaseId: 'knowledge-1',
+        content: 'answer',
+        chunkIndex: 0,
+        distance: 0.2,
+        sourceModifiedAt,
         filename: 'guide.pdf',
         sourceUrl: 'https://example.com/guide',
-        sourceModifiedAt,
         connectorType: 'google_drive',
       },
-    })
+    ])
 
     const result = await searchKnowledge.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -825,12 +820,6 @@ describe('knowledge search application use case', () => {
       },
     })
 
-    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(
-      ['document-1'],
-      expect.anything(),
-      expect.objectContaining({ getForDocuments: expect.any(Function) }),
-      undefined
-    )
     expect(result.results[0]).toMatchObject({
       documentName: 'guide.pdf',
       sourceUrl: 'https://example.com/guide',
@@ -870,6 +859,18 @@ describe('knowledge search application use case', () => {
      * `rerank`, the use case swallowed it, and the caller got a 200 whose results
      * were byte-identical to an unreranked search with nothing to distinguish them.
      */
+    it('never calls the reranker when neither the workspace nor the platform holds a key', async () => {
+      mocks.hasRerankerCredential.mockResolvedValueOnce(false)
+
+      const result = await rerankedSearch(true)
+
+      /** A caller's own key is judged by the same policy the resolver applies, not taken on faith. */
+      expect(mocks.hasRerankerCredential).toHaveBeenLastCalledWith(expect.anything(), undefined)
+      expect(mocks.rerank).not.toHaveBeenCalled()
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
     it('reports unavailable rather than silently falling back to vector ordering', async () => {
       mocks.rerank.mockRejectedValueOnce(new Error('No Cohere API key configured.'))
 

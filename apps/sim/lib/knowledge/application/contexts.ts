@@ -18,15 +18,12 @@ import {
 } from '@/lib/knowledge/connectors/service'
 import type { ActiveKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { getKnowledgeDocument, getKnowledgeDocumentById } from '@/lib/knowledge/documents/service'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   getRestorableKnowledgeBase,
   type RestorableKnowledgeBase,
 } from '@/lib/knowledge/orchestration/restore'
-import {
-  type ActiveKnowledgeBaseReference,
-  getActiveKnowledgeBaseReference,
-  getKnowledgeBaseById,
-} from '@/lib/knowledge/service'
+import { getActiveKnowledgeBaseReference, getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'

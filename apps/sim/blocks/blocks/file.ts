@@ -2348,7 +2348,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     lineCount: {
       type: 'number',
-      description: 'Lines in the file after the change (edit, insert)',
+      description: 'Lines in the file after the change (edit)',
+    },
+    version: {
+      type: 'number',
+      description: 'Version number of the content a write recorded (write, append, edit)',
+    },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content a write recorded, accepted as expectedRevision by the write and edit tools to make a later write conditional (write, append, edit)',
     },
     results: {
       type: 'array',

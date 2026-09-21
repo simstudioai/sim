@@ -10,7 +10,7 @@ import { createLogger, type RequestContext, runWithRequestContext } from '@sim/l
 import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task, timeout } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
@@ -1091,9 +1091,7 @@ async function executeWebhookJobInternal(
         })
       }
 
-      const persistedProviderConfig = isRecordLike(resolvedWebhookRecord.providerConfig)
-        ? resolvedWebhookRecord.providerConfig
-        : {}
+      const persistedProviderConfig = toRecord(resolvedWebhookRecord.providerConfig)
       const slackStreamConfig =
         payload.provider === 'slack' || payload.provider === 'slack_app'
           ? readSlackStreamResponseConfig(persistedProviderConfig)

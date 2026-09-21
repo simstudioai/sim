@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 
 /**
  * Shared sender/user output schema
@@ -95,7 +95,7 @@ export function isGitHubEventMatch(
   }
 
   if (config.validator) {
-    return config.validator(isRecordLike(payload) ? payload : {})
+    return config.validator(toRecord(payload))
   }
 
   return true

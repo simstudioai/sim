@@ -14,10 +14,12 @@ import {
   type KbEmbeddingTarget,
   recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
-  executeKnowledgeSearch,
   getDocumentMetadataByIds,
+  type KnowledgeRetrievalResult,
+  retrieveKnowledgeSearch,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -226,7 +228,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       : undefined
 
-    let results: SearchResult[]
+    let retrieved: KnowledgeRetrievalResult
     let queryEmbeddingIsBYOK: boolean | null = null
     const [readAccess, { searchMode, boostRecency }] = await Promise.all([
       resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId),
@@ -242,7 +244,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = 'get' in readAccess ? await readAccess.get() : readAccess
 
     if (!hasQuery && hasFilters) {
-      results = await executeKnowledgeSearch({
+      retrieved = await retrieveKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
         access,
@@ -258,7 +260,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workspaceId
       )
       queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
-      results = await executeKnowledgeSearch({
+      retrieved = await retrieveKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
         access,
@@ -311,8 +313,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       tagDefinitionsMap[kbId] = map
     })
 
+    /** v1 cannot express an incomplete search, so a leg that ran out of time fails the request. */
+    if (retrieved.retrieval.status === 'partial') throw new SearchDeadlineError()
+    const results = retrieved.rows
     const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access, accessProvider)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, retrieved.readAccess)
     const readableResults = results.filter((result) => documentMetadataMap[result.documentId])
 
     return NextResponse.json({

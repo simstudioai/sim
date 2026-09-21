@@ -57,6 +57,31 @@ describe('Slack OAuth state', () => {
       'already completed'
     )
   })
+  it.each([
+    { ...principal, sessionId: 'foreign-session' },
+    { ...principal, userId: 'foreign-user' },
+  ])(
+    'rejects a foreign browser context without consuming the original attempt: %s',
+    async (foreign) => {
+      redis.eval.mockResolvedValueOnce(null).mockResolvedValueOnce(JSON.stringify(attempt))
+      await expect(consumeSlackSearchOAuthAttempt('state', foreign)).rejects.toThrow(
+        'expired or was already completed'
+      )
+      expect(redis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('attempt.userId ~= ARGV[1] or attempt.sessionId ~= ARGV[2]'),
+        1,
+        expect.any(String),
+        foreign.userId,
+        foreign.sessionId
+      )
+      await expect(consumeSlackSearchOAuthAttempt('state', principal)).resolves.toEqual(attempt)
+    }
+  )
+  it('rejects unknown state', async () => {
+    await expect(consumeSlackSearchOAuthAttempt('invalid', principal)).rejects.toThrow(
+      'expired or was already completed'
+    )
+  })
   it('round-trips the custom installation snapshot in a single-use shared-app attempt', async () => {
     const { encryptedClientSecret, encryptedSigningSecret, ...common } = attempt
     const transition = {

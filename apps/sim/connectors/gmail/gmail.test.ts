@@ -31,7 +31,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: vi.fn(),
   persistSkippedDocuments: vi.fn(),
-  persistSkippedRetryHashes: vi.fn(),
+  persistHashOnlyUpdates: vi.fn(),
   updateDocument: vi.fn(),
 }))
 

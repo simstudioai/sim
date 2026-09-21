@@ -5,6 +5,7 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
@@ -20,6 +21,7 @@ import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import {
   isResolvedSecretProvenanceAbsence,
   type ResolvedSecretTraceProvenanceV1,
@@ -54,6 +56,8 @@ export const EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE = Object.freeze({
 export type WorkspaceFileSecretProvenancePolicy =
   | { mode: 'replace'; provenance: WorkspaceFileSecretProvenance }
   | { mode: 'preserve' }
+  /** Restores the classification captured with a previous version's bytes (a revert). */
+  | { mode: 'reinstate'; snapshot: WorkspaceFileSecretProvenanceSnapshot }
 
 export type WorkspaceFileSecretProvenanceWriteDecision =
   | { safe: true; provenance: WorkspaceFileSecretProvenance }
@@ -158,10 +162,6 @@ export function mergeWorkspaceFileSecretProvenance(
     }
   }
   return { status: 'exact', entries: [...entries.values()] }
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function exactEntryByteSize(entry: WorkspaceFileSecretProvenanceEntry): number {
@@ -569,6 +569,123 @@ export async function preserveWorkspaceFileSecretProvenanceInTx(
     return
   }
   await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, nextContentUpdatedAt)
+}
+
+/**
+ * Stored provenance for one content version, detached from the per-file sidecar. `status: null`
+ * marks bytes that predate tracking and read as exact-empty, like a NULL tracking marker.
+ */
+export interface WorkspaceFileSecretProvenanceSnapshot {
+  status: 'exact' | 'unknown' | 'unrecorded' | null
+  entries: StoredWorkspaceFileSecretProvenanceEntry[]
+}
+
+/**
+ * Captures the sidecar bound to `contentUpdatedAt` without interpreting it. A sidecar bound to any
+ * other version, a malformed one, or a missing one under a tracked marker snapshots as unknown, so a
+ * later reinstatement can never be more permissive than a reader would have been for those bytes.
+ */
+export async function snapshotWorkspaceFileSecretProvenanceInTx(
+  tx: DbTransaction,
+  fileId: string,
+  contentUpdatedAt: Date,
+  secretProvenanceVersion: number | null
+): Promise<WorkspaceFileSecretProvenanceSnapshot> {
+  if (secretProvenanceVersion === null) return { status: null, entries: [] }
+  if (secretProvenanceVersion !== 1) return { status: 'unknown', entries: [] }
+  const [stored] = await tx
+    .select({
+      contentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
+      status: workspaceFileSecretProvenance.status,
+      entries: workspaceFileSecretProvenance.entries,
+    })
+    .from(workspaceFileSecretProvenance)
+    .where(eq(workspaceFileSecretProvenance.fileId, fileId))
+    .limit(1)
+  if (
+    !stored ||
+    stored.contentUpdatedAt.getTime() !== contentUpdatedAt.getTime() ||
+    !isValidStoredEntries(stored.entries)
+  ) {
+    return { status: 'unknown', entries: [] }
+  }
+  if (stored.status === 'exact') return { status: 'exact', entries: stored.entries }
+  if (stored.status === 'unrecorded') return { status: 'unrecorded', entries: [] }
+  return { status: 'unknown', entries: [] }
+}
+
+/**
+ * Binds a previously captured snapshot to the file's new content version, writing the stored entries
+ * verbatim so a revert restores exactly the classification its bytes carried. An untracked snapshot
+ * binds as exact-empty — the reading an untracked marker already produced for those bytes.
+ */
+async function reinstateWorkspaceFileSecretProvenanceInTx(
+  tx: DbTransaction,
+  fileId: string,
+  contentUpdatedAt: Date,
+  snapshot: WorkspaceFileSecretProvenanceSnapshot
+): Promise<void> {
+  const provenance: WorkspaceFileSecretProvenance =
+    snapshot.status === null
+      ? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+      : snapshot.status !== 'exact'
+        ? { status: snapshot.status }
+        : isValidStoredEntries(snapshot.entries)
+          ? { status: 'exact', entries: deserializeExactEntriesFromStorage(snapshot.entries) }
+          : { status: 'unknown' }
+  await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, contentUpdatedAt, provenance)
+}
+
+/**
+ * Binds a content write's provenance to its new content version as `policy` directs — no policy
+ * records the bytes as unknown — and returns the snapshot now bound, read back so a version records
+ * exactly what a reader of those bytes sees. `previous` is the file row before the write.
+ */
+export async function applyWorkspaceFileSecretProvenancePolicyInTx(
+  tx: DbTransaction,
+  fileId: string,
+  previous: { contentUpdatedAt: Date; secretProvenanceVersion: number | null },
+  nextContentUpdatedAt: Date,
+  policy: WorkspaceFileSecretProvenancePolicy | undefined
+): Promise<WorkspaceFileSecretProvenanceSnapshot> {
+  switch (policy?.mode) {
+    case 'replace':
+      await replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        policy.provenance
+      )
+      break
+    case 'reinstate':
+      await reinstateWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        policy.snapshot
+      )
+      break
+    case 'preserve':
+      await preserveWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        previous.contentUpdatedAt,
+        previous.secretProvenanceVersion,
+        nextContentUpdatedAt
+      )
+      /** An untracked file stays untracked; every other outcome binds a sidecar. */
+      return snapshotWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fileId,
+        nextContentUpdatedAt,
+        previous.secretProvenanceVersion
+      )
+    default:
+      await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, {
+        status: 'unknown',
+      })
+  }
+  return snapshotWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, 1)
 }
 
 /** Copies exact provenance for a byte-identical, same-owner-scope file copy; otherwise unknown. */
@@ -1024,12 +1141,17 @@ export async function filterModelSafeWorkspaceFileAttachments<
   const rows = await loadModelSafeWorkspaceFileRows(keys)
 
   const rowByKey = new Map(rows.map((row) => [row.key, row]))
+  const versionKeys = await findWorkspaceFileVersionKeys(keys.filter((key) => !rowByKey.has(key)))
   let unrecorded = 0
   let refused = 0
   const kept = attachments.filter((attachment) => {
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
     const row = rowByKey.get(attachment.key)
-    if (!row) return true
+    if (!row) {
+      if (!versionKeys.has(attachment.key)) return true
+      refused += 1
+      return false
+    }
     if (
       row.context !== 'workspace' &&
       row.context !== 'mothership' &&
@@ -1136,6 +1258,16 @@ export async function areModelSafeWorkspaceFileKeys(
   }
 
   const rows = await loadModelSafeWorkspaceFileRows(uniqueKeys)
+  const rowKeys = new Set(rows.map((row) => row.key))
+  const versionKeys = await findWorkspaceFileVersionKeys(
+    uniqueKeys.filter((key) => !rowKeys.has(key))
+  )
+  if (versionKeys.size > 0) {
+    return refuseWorkspaceFileProvenance(
+      'workspace-file-provenance-unavailable',
+      options.workspaceId
+    )
+  }
 
   let unrecorded = 0
   for (const row of rows) {

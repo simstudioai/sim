@@ -1,6 +1,7 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, asString, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
+import { asArray, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsGetStrategyMapOperation: InternalToolOperationImplementation<
   CbInsightsOrgParams
@@ -10,8 +11,8 @@ export const executeCbinsightsGetStrategyMapOperation: InternalToolOperationImpl
     params,
     { path: `/v2/organizations/${orgId}/strategymap` },
     (data) => ({
-      orgName: asString(data.orgName),
-      logoUrl: asString(data.logoUrl),
+      orgName: toStringOrNull(data.orgName),
+      logoUrl: toStringOrNull(data.logoUrl),
       categories: asArray(data.categories),
     }),
     signal

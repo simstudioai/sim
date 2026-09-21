@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   convertToGeminiFormat,
   convertUsageMetadata,
@@ -9,7 +10,119 @@ import {
   mapToThinkingBudget,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
-import type { ProviderRequest } from '@/providers/types'
+import type { Message, ProviderRequest } from '@/providers/types'
+
+describe('durable Gemini conversation history', () => {
+  it('keeps assistant text and parallel calls together and batches both results', () => {
+    const result = convertToGeminiFormat({
+      model: 'gemini-2.5-flash',
+      messages: [
+        {
+          role: 'assistant',
+          content: 'Looking up both records',
+          tool_calls: ['a', 'b'].map((id) => ({
+            id,
+            type: 'function',
+            function: { name: 'lookup', arguments: JSON.stringify({ id }) },
+          })),
+        },
+        ...['a', 'b'].map(
+          (id): Message => ({
+            role: 'tool',
+            tool_call_id: id,
+            name: 'lookup',
+            content: JSON.stringify({ value: id }),
+          })
+        ),
+      ],
+    })
+
+    expect(result.contents).toEqual([
+      {
+        role: 'model',
+        parts: [
+          { text: 'Looking up both records' },
+          { functionCall: { id: 'a', name: 'lookup', args: { id: 'a' } } },
+          { functionCall: { id: 'b', name: 'lookup', args: { id: 'b' } } },
+        ],
+      },
+      {
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'a', name: 'lookup', response: { value: 'a' } } },
+          { functionResponse: { id: 'b', name: 'lookup', response: { value: 'b' } } },
+        ],
+      },
+    ])
+  })
+
+  it('restores trusted native parts without moving or changing thought signatures', () => {
+    const message: Message = { role: 'assistant', content: 'portable answer' }
+    const native = {
+      role: 'model',
+      parts: [
+        { thought: true, text: 'thinking', thoughtSignature: 'opaque-one' },
+        { text: 'answer', thoughtSignature: 'opaque-two' },
+        { functionCall: { name: 'lookup', args: { id: 'a' } }, thoughtSignature: 'opaque-three' },
+      ],
+    }
+    setNativeConversationMessage(message, {
+      protocol: 'gemini',
+      providerId: 'google',
+      model: 'gemini-2.5-flash',
+      binding: 'test',
+      value: native,
+    })
+
+    expect(
+      convertToGeminiFormat({ model: 'gemini-2.5-flash', messages: [message] }).contents
+    ).toEqual([native])
+  })
+
+  it('keeps internal call identities out of native Gemini responses when the model omitted ids', () => {
+    const message: Message = {
+      role: 'assistant',
+      content: '',
+      tool_calls: ['internal-a', 'internal-b'].map((id) => ({
+        id,
+        type: 'function',
+        function: { name: 'lookup', arguments: '{}' },
+      })),
+    }
+    const native = {
+      role: 'model',
+      parts: ['a', 'b'].map((key) => ({
+        functionCall: { name: 'lookup', args: { key } },
+        thoughtSignature: `signature-${key}`,
+      })),
+    }
+    setNativeConversationMessage(message, {
+      protocol: 'gemini',
+      providerId: 'google',
+      model: 'gemini-3.5-flash',
+      binding: 'test',
+      value: native,
+    })
+    const { contents } = convertToGeminiFormat({
+      model: 'gemini-3.5-flash',
+      messages: [
+        message,
+        ...['internal-a', 'internal-b'].map(
+          (id): Message => ({
+            role: 'tool',
+            name: 'lookup',
+            tool_call_id: id,
+            content: '{"found":true}',
+          })
+        ),
+      ],
+    })
+    expect(contents[0]).toBe(native)
+    expect(contents[1].parts).toHaveLength(2)
+    expect(contents[1].parts?.every((part) => part.functionResponse?.id === undefined)).toBe(true)
+    expect(JSON.stringify(contents)).not.toContain('internal-')
+  })
+})
 
 describe('convertUsageMetadata', () => {
   it('carries the cached prompt subset through so callers can discount it', () => {

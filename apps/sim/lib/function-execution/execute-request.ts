@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
 import {
@@ -108,7 +109,7 @@ import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/app
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { escapeRegExp, normalizeName, REFERENCE, sanitizeFileName } from '@/executor/constants'
+import { normalizeName, REFERENCE, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {

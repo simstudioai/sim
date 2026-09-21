@@ -242,15 +242,6 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
-export const MEMORY = {
-  DEFAULT_SLIDING_WINDOW_SIZE: 10,
-  DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
-  CONTEXT_WINDOW_UTILIZATION: 0.9,
-  MAX_CONVERSATION_ID_LENGTH: 255,
-  MAX_MESSAGE_CONTENT_BYTES: 100 * 1024,
-  MAX_REPLAY_FILE_REFERENCES: 20,
-} as const
-
 export const ROUTER = {
   DEFAULT_MODEL: 'claude-sonnet-5',
   DEFAULT_TEMPERATURE: 0,
@@ -476,10 +467,6 @@ export function stripCustomToolPrefix(name: string): string {
   return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
     ? name.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
     : name
-}
-
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**

@@ -46,6 +46,19 @@ function rpc(
   })
 }
 
+interface ListedTool {
+  annotations: Record<string, boolean>
+  inputSchema: { properties: Record<string, unknown> }
+}
+
+async function listTools(): Promise<Record<string, ListedTool>> {
+  const response = await handlers.POST(rpc({ method: 'tools/list' }), undefined)
+  const { result } = await response.json()
+  return Object.fromEntries(
+    result.tools.map((tool: ListedTool & { name: string }) => [tool.name, tool])
+  )
+}
+
 async function callTool(
   name: string,
   args: Record<string, unknown>,
@@ -112,22 +125,27 @@ describe('Sim MCP admission', () => {
 
 describe('Sim MCP tools', () => {
   it('lists four tools with reads and writes annotated apart', async () => {
-    const response = await handlers.POST(rpc({ method: 'tools/list' }), undefined)
-    const { result } = await response.json()
-    const tools = Object.fromEntries(
-      result.tools.map((tool: { name: string; annotations: Record<string, boolean> }) => [
-        tool.name,
-        tool.annotations,
-      ])
-    )
+    const tools = await listTools()
     expect(Object.keys(tools).sort()).toEqual([
       'call_read_operation',
       'call_write_operation',
       'describe_operation',
       'search_operations',
     ])
-    expect(tools.call_read_operation.readOnlyHint).toBe(true)
-    expect(tools.call_write_operation.destructiveHint).toBe(true)
+    expect(tools.call_read_operation.annotations.readOnlyHint).toBe(true)
+    expect(tools.call_write_operation.annotations.destructiveHint).toBe(true)
+  })
+
+  /**
+   * A read is not always a GET: searchKnowledge, queryRows, and searchTableRows
+   * among others post their filter as JSON, so a read tool whose schema has no
+   * body cannot call them at all.
+   */
+  it('lets both call tools carry a request body', async () => {
+    const tools = await listTools()
+    for (const name of ['call_read_operation', 'call_write_operation']) {
+      expect(tools[name].inputSchema.properties, name).toHaveProperty('body')
+    }
   })
 
   it('finds operations by keyword', async () => {

@@ -10,9 +10,11 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 
 import { db } from '@sim/db'
+import { inArray } from 'drizzle-orm'
 import {
   applyMemberDocumentLifecycle,
   removeUnseenMemberObservations,
+  renewMemberObservationsInScopes,
   rewriteConnectorAcls,
   staleMemberWindowMs,
   sweepStaleMemberObservations,
@@ -49,6 +51,82 @@ describe('removeUnseenMemberObservations', () => {
     expect(onRemoved.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.delete.mock.invocationCallOrder[1]
     )
+  })
+})
+
+describe('renewMemberObservationsInScopes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const renew = (scopePrefixes: string[], deadlineAt = Date.now() + 60_000) =>
+    renewMemberObservationsInScopes({
+      connectorId: 'connector',
+      memberId: 'member',
+      scopePrefixes,
+      renewBefore: NOW,
+      deadlineAt,
+      beforeBatch: vi.fn(async () => undefined),
+      withLease: (fn) => fn(db),
+    })
+  const renewedIds = () =>
+    vi
+      .mocked(inArray)
+      .mock.calls.map(([, values]) => values as string[])
+      .filter((values) => Array.isArray(values))
+
+  it('renews only observations under a scope the source still grants', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { documentId: 'd-kept', externalId: 'slack:v4:T1:C1:1.0' },
+      { documentId: 'd-lost', externalId: 'slack:v4:T1:C9:1.0' },
+      { documentId: 'd-other', externalId: 'slack:v4:T1:C10:1.0' },
+      { documentId: 'd-dm', externalId: 'slack:v4:T1:D1:1.0' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { documentId: 'd-kept' },
+      { documentId: 'd-dm' },
+    ])
+    await expect(renew(['slack:v4:T1:C1:', 'slack:v4:T1:D1:'])).resolves.toEqual({
+      renewed: 2,
+      finished: true,
+    })
+    expect(renewedIds()).toEqual([['d-kept', 'd-dm']])
+  })
+
+  it('matches every id under a broader scope that covers a narrower one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { documentId: 'd-1', externalId: 'slack:v4:T1:C1:1.0' },
+      { documentId: 'd-2', externalId: 'slack:v4:T1:C2:1.0' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ documentId: 'd-1' }, { documentId: 'd-2' }])
+    await renew(['slack:v4:T1:C2:', 'slack:v4:T1:'])
+    expect(renewedIds()).toEqual([['d-1', 'd-2']])
+  })
+
+  it('writes nothing when no scope is granted and stops at its deadline', async () => {
+    await expect(renew([])).resolves.toEqual({ renewed: 0, finished: true })
+    await expect(renew(['slack:v4:T1:C1:'], Date.now() - 1)).resolves.toEqual({
+      renewed: 0,
+      finished: false,
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('pages through the connector by external id until a short page', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(
+        Array.from({ length: 1000 }, (_, i) => ({
+          documentId: `d-${i}`,
+          externalId: `slack:v4:T1:C1:${String(i).padStart(4, '0')}.0`,
+        }))
+      )
+      .mockResolvedValueOnce([{ documentId: 'd-last', externalId: 'slack:v4:T1:C1:9999.0' }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(Array.from({ length: 1000 }, (_, i) => ({ documentId: `d-${i}` })))
+      .mockResolvedValueOnce([{ documentId: 'd-last' }])
+    await expect(renew(['slack:v4:T1:C1:'])).resolves.toEqual({ renewed: 1001, finished: true })
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
   })
 })
 

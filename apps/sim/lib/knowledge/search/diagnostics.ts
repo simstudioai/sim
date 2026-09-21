@@ -28,14 +28,16 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
+  | 'access_plan'
+  | 'live_source_grants'
+  | 'vector.source_exact'
+  | 'vector.source_walk'
   | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
   | 'usage_recording'
   | 'overage_billing'
   | 'tag_definitions'
-  | 'metadata'
-  | 'metadata.authorization'
   | 'metadata.sql'
   | 'metadata_provenance'
   | 'activity_recording'
@@ -47,10 +49,15 @@ export type SearchStage =
   | `${RetrievalLeg}.sql`
   | 'vector.settings'
   | 'vector.probe'
-  | 'vector.rerank'
+  | 'vector.page'
+  | 'vector.projection_filled'
+  | 'keyword.projection_filled'
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
+  | 'keyword.tin'
+  | 'keyword.tin_readiness'
+  | 'keyword.tin_query'
   | 'source_overview'
   | 'source_overview.availability'
   | 'source_overview.providers'
@@ -78,7 +85,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk' | 'per-source'
   vectorCandidateStorage?: 'stored-halfvec'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
@@ -98,6 +105,17 @@ export interface SearchDiagnosticMetadata {
   permittedDocuments?: 'bounded' | 'unbounded'
   /** Documents in a bounded permitted set. */
   permittedDocumentCount?: number
+  vectorSourcesSliced?: number
+  /** The sliced sources held more readable documents than one exact ranking may enumerate. */
+  vectorSlicedSaturated?: boolean
+  vectorSourcesWalked?: number
+  /**
+   * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
+   * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.
+   */
+  keywordRanking?: 'tin' | 'gin'
+  /** Candidates Tin ranked before access was checked on the last keyword page. */
+  keywordTinWindow?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number

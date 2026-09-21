@@ -7,7 +7,15 @@ export type UserFileLike = Pick<UserFile, 'id' | 'name' | 'url' | 'key'> &
  * Fields exposed for UserFile objects in UI (tag dropdown) and logs.
  * Internal fields like 'key' and 'context' are not exposed.
  */
-export const USER_FILE_DISPLAY_FIELDS = ['id', 'name', 'url', 'size', 'type', 'base64'] as const
+export const USER_FILE_DISPLAY_FIELDS = [
+  'id',
+  'name',
+  'url',
+  'size',
+  'type',
+  'base64',
+  'version',
+] as const
 
 export type UserFileDisplayField = (typeof USER_FILE_DISPLAY_FIELDS)[number]
 

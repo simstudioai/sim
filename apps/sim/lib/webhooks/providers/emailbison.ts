@@ -43,8 +43,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const payload = isRecordLike(body) ? unwrapEmailBisonPayload(body) : {}
-    const event = isRecordLike(payload.event) ? payload.event : null
-    const data = isRecordLike(payload.data) ? payload.data : null
+    const event = toRecordOrNull(payload.event)
+    const data = toRecordOrNull(payload.data)
     const providerConfig = getProviderConfig(webhook)
     const triggerId = providerConfig.triggerId as string | undefined
     const input: Record<string, unknown> = {
@@ -285,7 +285,7 @@ async function parseJsonResponse(
 ): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecordLike(body) ? body : null
+    return toRecordOrNull(body)
   } catch {
     return null
   }

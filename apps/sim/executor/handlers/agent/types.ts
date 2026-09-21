@@ -1,7 +1,7 @@
 import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
 import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
-import type { UserFile } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+import type { Message as ProviderMessage } from '@/providers/types'
 
 export interface FileNameProjection {
   name: string
@@ -81,13 +81,8 @@ export interface ToolInput {
   customToolId?: string
 }
 
-export interface Message {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-  files?: UserFile[]
+export interface Message extends ProviderMessage {
   executionId?: string
-  function_call?: any
-  tool_calls?: any[]
 }
 
 export interface StreamingConfig {

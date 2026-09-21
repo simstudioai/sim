@@ -5,13 +5,15 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   ContentVersionConflictError,
   updateWorkspaceFileContent as updateStoredWorkspaceFileContent,
-  type WorkspaceFileRecord,
+  type VersionedWorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
@@ -28,10 +30,16 @@ export interface UpdateWorkspaceFileContentInput {
   secretProvenance?: WorkspaceFileSecretProvenance
   syncLiveDoc?: boolean
   expectedUpdatedAt?: Date
+  /**
+   * Refuse the write unless the file still holds exactly this content, as reported by the
+   * `revision` an earlier read or write returned.
+   */
+  expectedRevision?: string
 }
 
 export interface UpdateWorkspaceFileContentResult {
-  file: WorkspaceFileRecord
+  /** The updated record, carrying the number of the version this write recorded. */
+  file: VersionedWorkspaceFileRecord
 }
 
 export interface UpdateWorkspaceFileContentBufferInput
@@ -53,7 +61,10 @@ async function updateAuthorizedWorkspaceFileContent({
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: canonical.billedAccountUserId,
   })
-  let file: WorkspaceFileRecord
+  const expectedUpdatedAt = input.expectedRevision
+    ? parseWorkspaceFileRevision(input.expectedRevision, canonical.fileId)
+    : input.expectedUpdatedAt
+  let file: VersionedWorkspaceFileRecord
   try {
     file = await updateStoredWorkspaceFileContent(
       canonical.workspaceId,
@@ -62,7 +73,8 @@ async function updateAuthorizedWorkspaceFileContent({
       content,
       input.contentType,
       {
-        ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
+        version: resolveWorkspaceFileVersionWrite(principal),
+        ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         syncLiveDoc: input.syncLiveDoc,
         secretProvenancePolicy: {
           ...(input.provenanceMode === 'preserve'

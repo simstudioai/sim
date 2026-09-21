@@ -742,13 +742,16 @@ export async function resolveBillingAttribution({
 
 /** The organization payer is independent of the person making the request. */
 export async function resolveOrganizationBillingPayer(organizationId: string) {
-  const [owner] = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
+  /** The owner and the subscription are independent reads; neither waits on the other. */
+  const [[owner], payerSubscription] = await Promise.all([
+    db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      .limit(1),
+    getOrganizationSubscription(organizationId, { onError: 'throw' }),
+  ])
   if (!owner) throw new Error('Organization billing owner is unavailable')
-  const payerSubscription = await getOrganizationSubscription(organizationId, { onError: 'throw' })
   if (payerSubscription && payerSubscription.referenceId !== organizationId)
     throw new Error('Organization subscription belongs to a different payer')
   return { organizationId, billedAccountUserId: owner.userId, payerSubscription }
