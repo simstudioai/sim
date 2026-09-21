@@ -14,9 +14,11 @@ import { coalesceLocally } from '@/lib/concurrency/singleflight'
  * every uncached call. Bulk ingestion re-checks per document and knowledge
  * search checks per query. Staleness is bounded by this TTL and fails in the
  * harmless direction: a payer who crosses their limit keeps going for at most
- * this long, which charges nobody wrongly.
+ * this long, which charges nobody wrongly. Five minutes: the sum is a few
+ * hundred milliseconds for a busy payer, and a minute made every search after
+ * a pause pay it.
  */
-export const USAGE_GATE_TTL_MS = 60 * 1000
+export const USAGE_GATE_TTL_MS = 5 * 60 * 1000
 
 /**
  * Recent gate answers, admitted and refused, with `LRUCache` supplying the TTL

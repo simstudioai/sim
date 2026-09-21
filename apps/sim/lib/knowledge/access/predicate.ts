@@ -357,7 +357,15 @@ export function projectionCandidateAccessCondition(
     documentId: AnyPgColumn | SQL
   },
   scope: KnowledgeAccessScope | SystemAccessScope,
-  plan: SearchAccessPlan
+  plan: SearchAccessPlan,
+  options: {
+    /**
+     * Whether every row of the projection carries its mirrored source and ACL. While the fill
+     * is under way, a row it has not reached is decided on its document; once it is complete no
+     * such row exists, and the predicate is the array test alone.
+     */
+    filled?: boolean
+  } = {}
 ): SQL {
   if (scope.kind === 'system') return sql`true`
   if (scope.tokens.length === 0) return sql`false`
@@ -374,12 +382,14 @@ export function projectionCandidateAccessCondition(
   const owned = plan.uploads
     ? sql`(${projection.connectorId} IS NULL OR ${inSources(mirrored)})`
     : inSources(mirrored)
+  const onRow = sql`(${projection.acl} && ${tokens} AND ${owned})`
+  if (options.filled) return onRow
   const unfilled = sql`(${projection.acl} IS NULL AND EXISTS (
     SELECT 1 FROM ${document}
     WHERE ${document.id} = ${projection.documentId}
       AND ${knowledgeCandidateAccessConditionForConnectors(scope, plan)}
   ))`
-  return sql`(${unfilled} OR (${projection.acl} && ${tokens} AND ${owned}))`
+  return sql`(${unfilled} OR ${onRow})`
 }
 
 /**

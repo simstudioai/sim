@@ -143,7 +143,7 @@ describe('API-key KB block fan-out', () => {
         expect(matching('hnsw.iterative_scan')).toHaveLength(bases.length)
         expect(matching('AS visible')).toHaveLength(bases.length)
         expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
-        expect(matching('scored_search_candidates')).toHaveLength(bases.length)
+        expect(matching('"embedding_search"."id" = ANY(')).toHaveLength(bases.length)
         /** The probe enumerates visible documents and reports saturation; it never ranks them. */
         expect(
           statements.filter(
