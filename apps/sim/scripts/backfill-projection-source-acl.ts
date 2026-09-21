@@ -22,10 +22,15 @@ import {
 
 const logger = createLogger('BackfillProjectionSourceAcl')
 
-/** A script has no long-lived process to detach into, so without a worker it fills inline. */
+/**
+ * A script has no long-lived process to detach into, so without a worker it fills inline. With a
+ * worker, `--shards <n>` slices the id space so that many runs fill at once.
+ */
 async function main(): Promise<void> {
   if (isTriggerDevEnabled && env.TRIGGER_SECRET_KEY) {
-    const handle = await enqueueProjectionSourceAclBackfill()
+    const flag = process.argv.indexOf('--shards')
+    const shards = flag === -1 ? 1 : Number(process.argv[flag + 1])
+    const handle = await enqueueProjectionSourceAclBackfill({}, shards)
     logger.info('Backfill enqueued on the Trigger.dev worker', handle)
     return
   }

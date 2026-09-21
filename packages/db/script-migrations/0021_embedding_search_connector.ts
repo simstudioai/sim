@@ -83,6 +83,8 @@ export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
 export interface ProjectionSourceAclBackfillOptions {
   /** Resume after this chunk id; the projection's first page otherwise. */
   afterId?: string
+  /** Stop before this chunk id; the projection's end otherwise. Lets workers fill disjoint ranges. */
+  beforeId?: string
   pageSize?: number
   pauseMs?: number
   /** Stop once this much time has passed and report where to resume; unbounded otherwise. */
@@ -135,6 +137,7 @@ export async function backfillProjectionSourceAcl(
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : startedAt + options.budgetMs
   let afterId = options.afterId ?? ''
+  const beforeId = options.beforeId ?? null
   let scanned = 0
   let written = 0
   let pages = 0
@@ -149,7 +152,7 @@ export async function backfillProjectionSourceAcl(
         `WITH page AS (
           SELECT s.id, s.document_id, d.connector_id, d.acl
           FROM ${projection} s JOIN document d ON d.id = s.document_id
-          WHERE s.id > $1 AND s.acl IS NULL
+          WHERE s.id > $1 AND ($2::text IS NULL OR s.id < $2) AND s.acl IS NULL
           ORDER BY s.id LIMIT ${pageSize}
           FOR SHARE OF d
         ), updated AS (
@@ -161,7 +164,7 @@ export async function backfillProjectionSourceAcl(
         SELECT (SELECT count(*)::int FROM page) AS scanned,
           (SELECT count(*)::int FROM updated) AS filled,
           (SELECT max(id) FROM page) AS last_id`,
-        [afterId]
+        [afterId, beforeId]
       )
       return row
     })

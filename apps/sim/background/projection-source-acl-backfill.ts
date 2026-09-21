@@ -10,11 +10,18 @@ import {
 const RUN_BUDGET_MS = 60 * 60 * 1000
 
 /**
+ * Runs admitted at once: one per shard the id space may be sliced into. Shards fill disjoint
+ * ranges, so runs never fill the same page against each other; an unsharded chain still runs one
+ * at a time because each run triggers its continuation only as it ends.
+ */
+export const PROJECTION_SOURCE_ACL_BACKFILL_SHARDS = 4
+
+/**
  * Trigger.dev wrapper around `runProjectionSourceAclBackfill`. A run fills unset rows for up to
  * {@link RUN_BUDGET_MS}, then triggers its continuation from the cursor it reached, so the whole
  * projection is filled across as many bounded runs as it takes. Retry-safe: every run writes only
- * rows still unset, so a retried or restarted run repeats no write. The queue admits one run at a
- * time, so two starts never fill the same pages against each other.
+ * rows still unset, so a retried or restarted run repeats no write. A shard's continuation keeps
+ * its shard, so a sliced fill stays sliced until every slice is done.
  */
 export const projectionSourceAclBackfillTask = task({
   id: PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID,
@@ -22,7 +29,7 @@ export const projectionSourceAclBackfillTask = task({
   retry: { maxAttempts: 3 },
   queue: {
     name: PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID,
-    concurrencyLimit: 1,
+    concurrencyLimit: PROJECTION_SOURCE_ACL_BACKFILL_SHARDS,
   },
   run: async (payload: ProjectionSourceAclBackfillPayload) => {
     const cursor = await runProjectionSourceAclBackfill(payload, { budgetMs: RUN_BUDGET_MS })
