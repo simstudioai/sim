@@ -2,9 +2,9 @@ import { useCallback, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ChipSelect,
   Code,
   CollapsibleCard,
+  Combobox,
   type ComboboxOption,
   calculateGutterWidth,
   cn,
@@ -378,15 +378,9 @@ export function FieldFormat({
   const renderValueInput = (field: Field) => {
     if (field.type === 'boolean') {
       return (
-        <ChipSelect
-          fullWidth
-          align='start'
-          dropdownWidth='trigger'
-          showSelectedCheck
-          modal={false}
-          maxHeight={192}
+        <Combobox
           options={BOOLEAN_OPTIONS}
-          value={field.value || undefined}
+          value={field.value ?? ''}
           onChange={(v) => !isReadOnly && updateField(field.id, 'value', v)}
           placeholder='Select value'
           disabled={isReadOnly}
@@ -663,13 +657,7 @@ export function FieldFormat({
           {showType && (
             <div className='flex flex-col gap-1.5'>
               {renderFieldLabel('Type')}
-              <ChipSelect
-                fullWidth
-                align='start'
-                dropdownWidth='trigger'
-                showSelectedCheck
-                modal={false}
-                maxHeight={192}
+              <Combobox
                 options={TYPE_OPTIONS}
                 value={field.type}
                 onChange={(value) => updateField(field.id, 'type', value)}

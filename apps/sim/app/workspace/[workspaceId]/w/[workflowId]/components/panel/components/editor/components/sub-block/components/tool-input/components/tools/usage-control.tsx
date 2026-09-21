@@ -1,4 +1,4 @@
-import { ChipSelect, Label } from '@sim/emcn'
+import { Combobox, Label } from '@sim/emcn'
 import type { CanonicalMode } from '@/lib/workflows/subblocks/visibility'
 import type { StoredTool } from '@/lib/workflows/tool-input/types'
 import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
@@ -41,7 +41,7 @@ function isUsageControlValue(value: string): value is UsageControlValue {
  * Variable mode edits a `usageControlExpression` that must resolve to auto, force, or none.
  * Both values are kept so toggling modes does not discard the inactive one.
  *
- * Renders the same label row, `ChipSelect`, and `ShortInput` as every other sub-block field, so
+ * Renders the same label row, `Combobox`, and `ShortInput` as every other sub-block field, so
  * the control matches the tool params beneath it.
  */
 export function ToolUsageControl({
@@ -83,36 +83,25 @@ export function ToolUsageControl({
           workflowSearchValuePath={[toolIndex, 'usageControlExpression']}
         />
       ) : (
-        <ChipSelect
-          fullWidth
-          align='start'
-          dropdownWidth='trigger'
-          showSelectedCheck
-          modal={false}
-          maxHeight={192}
+        <Combobox
           options={MODE_OPTIONS.map((option) => {
             const unsupported = option.value === 'force' && !supportsForce
             return {
               value: option.value,
-              label: (
-                <span className='flex w-full items-center justify-between gap-2'>
-                  <span>{option.label}</span>
-                  <span className='text-[var(--text-tertiary)]'>
-                    {unsupported ? '(not supported by model)' : option.hint}
-                  </span>
+              label: option.label,
+              disabled: unsupported,
+              suffixElement: (
+                <span className='text-[var(--text-tertiary)]'>
+                  {unsupported ? '(not supported by model)' : option.hint}
                 </span>
               ),
-              searchTerms: [option.label] as const,
-              disabled: unsupported,
             }
           })}
           value={tool.usageControl ?? 'auto'}
-          displayLabel={
-            MODE_OPTIONS.find((option) => option.value === (tool.usageControl ?? 'auto'))?.label
-          }
           onChange={(value) => {
             if (isUsageControlValue(value)) onFixedChange(value)
           }}
+          editable={false}
           disabled={disabled}
           aria-label='Permission Mode'
         />
