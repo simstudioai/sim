@@ -274,7 +274,7 @@ export const ClientChatMessage = memo(function ClientChatMessage({
                       <Button
                         aria-label={isCopied ? 'Copied!' : 'Copy to clipboard'}
                         variant='ghost-secondary'
-                        className='p-0'
+                        size='icon'
                         onClick={() => {
                           const contentToCopy =
                             typeof cleanTextContent === 'string'

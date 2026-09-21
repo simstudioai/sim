@@ -476,7 +476,7 @@ export function Editor() {
                   {userPermissions.canAdmin && currentBlock.locked && !isAncestorLocked ? (
                     <Button
                       variant='ghost'
-                      className='p-0'
+                      size='icon'
                       onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
                       aria-label='Unlock block'
                     >
@@ -505,7 +505,7 @@ export function Editor() {
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    className='p-0'
+                    size='icon'
                     onClick={isRenaming ? handleSaveRename : handleStartRename}
                     disabled={!canEditBlock}
                     aria-label={isRenaming ? 'Save name' : 'Rename block'}
@@ -544,7 +544,7 @@ export function Editor() {
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  className='p-0'
+                  size='icon'
                   onClick={handleOpenDocs}
                   aria-label='Open documentation'
                 >
