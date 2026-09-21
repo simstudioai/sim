@@ -28,6 +28,7 @@ import {
   type ReadWorkflowGraphResult,
   readWorkflowGraph,
 } from '@/lib/workflows/application/read-workflow-graph'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import {
   buildWorkflowLintReport,
@@ -56,191 +57,193 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
     return resolveActiveWorkflowApplicationContext(input)
   },
   async execute({ principal, context, input, request }): Promise<WorkflowLintDiagnostic> {
-    input.signal?.throwIfAborted()
-    const graph = await loadWorkflowGraph(context)
-    input.signal?.throwIfAborted()
-    const referenceNotes = new Set<string>()
-    let customToolIds: Set<string> | undefined
-    const tables = await readTableDiagnostics(graph, principal, input.signal, request)
-    const report = await buildWorkflowLintReport(
-      graph,
-      {
-        workflowId: graph.workflowId,
-        workspaceId: graph.workspaceId,
-        subjectUserId: requirePrincipalSubjectUserId(principal),
-      },
-      {
-        requireComplete: true,
-        tables,
-        async resolveAgentTool(reference) {
-          input.signal?.throwIfAborted()
-          if (hasRuntimeReference(reference.value)) {
-            referenceNotes.add(
-              `Agent references in block "${reference.blockName || reference.blockId}" require runtime resolution and were not checked.`
-            )
-            return undefined
-          }
-          const { kind, value } = reference
-          const missing =
-            kind === 'custom-tool'
-              ? `Custom tool "${value}" is not available to this actor in this workspace. Inspect custom-tools list and attach an available tool ID or an inline definition.`
-              : kind === 'skill'
-                ? `Skill "${value}" is not an accessible builtin or workspace skill. Inspect skills list for available IDs.`
-                : `MCP server "${value}" does not resolve to an accessible, enabled server in this workspace.`
-          try {
-            if (kind === 'custom-tool') {
-              if (!customToolIds) {
-                const { tools } = await listAvailableCustomToolsUseCase.execute({
+    return withWorkflowBlockScope(context, async () => {
+      input.signal?.throwIfAborted()
+      const graph = await loadWorkflowGraph(context)
+      input.signal?.throwIfAborted()
+      const referenceNotes = new Set<string>()
+      let customToolIds: Set<string> | undefined
+      const tables = await readTableDiagnostics(graph, principal, input.signal, request)
+      const report = await buildWorkflowLintReport(
+        graph,
+        {
+          workflowId: graph.workflowId,
+          workspaceId: graph.workspaceId,
+          subjectUserId: requirePrincipalSubjectUserId(principal),
+        },
+        {
+          requireComplete: true,
+          tables,
+          async resolveAgentTool(reference) {
+            input.signal?.throwIfAborted()
+            if (hasRuntimeReference(reference.value)) {
+              referenceNotes.add(
+                `Agent references in block "${reference.blockName || reference.blockId}" require runtime resolution and were not checked.`
+              )
+              return undefined
+            }
+            const { kind, value } = reference
+            const missing =
+              kind === 'custom-tool'
+                ? `Custom tool "${value}" is not available to this actor in this workspace. Inspect custom-tools list and attach an available tool ID or an inline definition.`
+                : kind === 'skill'
+                  ? `Skill "${value}" is not an accessible builtin or workspace skill. Inspect skills list for available IDs.`
+                  : `MCP server "${value}" does not resolve to an accessible, enabled server in this workspace.`
+            try {
+              if (kind === 'custom-tool') {
+                if (!customToolIds) {
+                  const { tools } = await listAvailableCustomToolsUseCase.execute({
+                    principal: bindCopilotWorkspaceOperation(
+                      principal,
+                      graph.workspaceId,
+                      ['sim:workflows'],
+                      listAvailableCustomToolsUseCase
+                    ),
+                    input: { workspaceId: graph.workspaceId },
+                    request,
+                  })
+                  customToolIds = new Set(tools.map((tool) => tool.id))
+                }
+                input.signal?.throwIfAborted()
+                return customToolIds.has(value) ? undefined : missing
+              }
+              if (kind === 'skill') {
+                await getSkillUseCase.execute({
                   principal: bindCopilotWorkspaceOperation(
                     principal,
                     graph.workspaceId,
                     ['sim:workflows'],
-                    listAvailableCustomToolsUseCase
+                    getSkillUseCase
                   ),
-                  input: { workspaceId: graph.workspaceId },
+                  input: { workspaceId: graph.workspaceId, skillId: value },
                   request,
                 })
-                customToolIds = new Set(tools.map((tool) => tool.id))
+                input.signal?.throwIfAborted()
+                return undefined
               }
-              input.signal?.throwIfAborted()
-              return customToolIds.has(value) ? undefined : missing
-            }
-            if (kind === 'skill') {
-              await getSkillUseCase.execute({
+              const { server } = await getMcpServerUseCase.execute({
                 principal: bindCopilotWorkspaceOperation(
                   principal,
                   graph.workspaceId,
                   ['sim:workflows'],
-                  getSkillUseCase
+                  getMcpServerUseCase
                 ),
-                input: { workspaceId: graph.workspaceId, skillId: value },
+                input: { workspaceId: graph.workspaceId, serverId: value },
                 request,
               })
               input.signal?.throwIfAborted()
-              return undefined
-            }
-            const { server } = await getMcpServerUseCase.execute({
-              principal: bindCopilotWorkspaceOperation(
-                principal,
-                graph.workspaceId,
-                ['sim:workflows'],
-                getMcpServerUseCase
-              ),
-              input: { workspaceId: graph.workspaceId, serverId: value },
-              request,
-            })
-            input.signal?.throwIfAborted()
-            if (!server.enabled) return missing
-            referenceNotes.add(
-              'MCP checks cover saved server access and enabled state; live connectivity and tool availability were not checked.'
-            )
-            return undefined
-          } catch (error) {
-            if (
-              !(error instanceof OrchestrationError) ||
-              (error.code !== 'not_found' && error.code !== 'forbidden')
-            )
-              throw error
-            return missing
-          }
-        },
-        async resolveSelector(reference) {
-          input.signal?.throwIfAborted()
-          const ids = (Array.isArray(reference.value) ? reference.value : [reference.value]).filter(
-            (id) => {
-              if (!id || id.trim() === '') return false
-              if (!hasRuntimeReference(id)) return true
+              if (!server.enabled) return missing
               referenceNotes.add(
-                `Runtime values in reference field "${reference.fieldName}" in block "${reference.blockName || reference.blockId}" were not checked.`
+                'MCP checks cover saved server access and enabled state; live connectivity and tool availability were not checked.'
               )
-              return false
-            }
-          )
-          if (ids.length === 0) return { valid: [], invalid: [] }
-          const isDocument = reference.selectorType === 'document-selector'
-          if (reference.selectorType !== 'workflow-selector' && !isDocument) {
-            return validateSelectorIds(
-              reference.selectorType,
-              ids,
-              {
-                userId: requirePrincipalSubjectUserId(principal),
-                workspaceId: graph.workspaceId,
-              },
-              { requireComplete: true }
-            )
-          }
-          const block = graph.blocks[reference.blockId]
-          const knowledgeBaseId = isDocument
-            ? buildSelectorContextFromBlock(reference.blockType, block.subBlocks, {
-                canonicalModes: block.data?.canonicalModes,
-                triggerMode: block.triggerMode,
-                selectorKey: 'knowledge.documents',
-              }).knowledgeBaseId
-            : undefined
-          if (isDocument && (!knowledgeBaseId || hasRuntimeReference(knowledgeBaseId))) {
-            referenceNotes.add(
-              `Document references in block "${reference.blockName || reference.blockId}" were not checked because its active knowledge base ID is empty or requires runtime resolution.`
-            )
-            return { valid: [], invalid: [] }
-          }
-          const valid: string[] = []
-          const invalid: string[] = []
-          for (const id of ids) {
-            input.signal?.throwIfAborted()
-            try {
-              if (isDocument && knowledgeBaseId) {
-                await readKnowledgeDocument.execute({
-                  principal: bindCopilotWorkspaceOperation(
-                    principal,
-                    graph.workspaceId,
-                    ['sim:workflows'],
-                    readKnowledgeDocument
-                  ),
-                  input: {
-                    knowledgeBaseId,
-                    documentId: id,
-                    assertedWorkspaceId: graph.workspaceId,
-                  },
-                  request,
-                })
-              } else {
-                const authorize = readWorkflowGraph.authorize
-                if (!authorize) throw new Error('Workflow reference authorization is unavailable')
-                await authorize({
-                  principal,
-                  input: { workflowId: id, assertedWorkspaceId: graph.workspaceId },
-                  request,
-                })
-              }
-              valid.push(id)
+              return undefined
             } catch (error) {
               if (
                 !(error instanceof OrchestrationError) ||
                 (error.code !== 'not_found' && error.code !== 'forbidden')
               )
                 throw error
-              invalid.push(id)
+              return missing
             }
-          }
-          return { valid, invalid }
-        },
+          },
+          async resolveSelector(reference) {
+            input.signal?.throwIfAborted()
+            const ids = (
+              Array.isArray(reference.value) ? reference.value : [reference.value]
+            ).filter((id) => {
+              if (!id || id.trim() === '') return false
+              if (!hasRuntimeReference(id)) return true
+              referenceNotes.add(
+                `Runtime values in reference field "${reference.fieldName}" in block "${reference.blockName || reference.blockId}" were not checked.`
+              )
+              return false
+            })
+            if (ids.length === 0) return { valid: [], invalid: [] }
+            const isDocument = reference.selectorType === 'document-selector'
+            if (reference.selectorType !== 'workflow-selector' && !isDocument) {
+              return validateSelectorIds(
+                reference.selectorType,
+                ids,
+                {
+                  userId: requirePrincipalSubjectUserId(principal),
+                  workspaceId: graph.workspaceId,
+                },
+                { requireComplete: true }
+              )
+            }
+            const block = graph.blocks[reference.blockId]
+            const knowledgeBaseId = isDocument
+              ? buildSelectorContextFromBlock(reference.blockType, block.subBlocks, {
+                  canonicalModes: block.data?.canonicalModes,
+                  triggerMode: block.triggerMode,
+                  selectorKey: 'knowledge.documents',
+                }).knowledgeBaseId
+              : undefined
+            if (isDocument && (!knowledgeBaseId || hasRuntimeReference(knowledgeBaseId))) {
+              referenceNotes.add(
+                `Document references in block "${reference.blockName || reference.blockId}" were not checked because its active knowledge base ID is empty or requires runtime resolution.`
+              )
+              return { valid: [], invalid: [] }
+            }
+            const valid: string[] = []
+            const invalid: string[] = []
+            for (const id of ids) {
+              input.signal?.throwIfAborted()
+              try {
+                if (isDocument && knowledgeBaseId) {
+                  await readKnowledgeDocument.execute({
+                    principal: bindCopilotWorkspaceOperation(
+                      principal,
+                      graph.workspaceId,
+                      ['sim:workflows'],
+                      readKnowledgeDocument
+                    ),
+                    input: {
+                      knowledgeBaseId,
+                      documentId: id,
+                      assertedWorkspaceId: graph.workspaceId,
+                    },
+                    request,
+                  })
+                } else {
+                  const authorize = readWorkflowGraph.authorize
+                  if (!authorize) throw new Error('Workflow reference authorization is unavailable')
+                  await authorize({
+                    principal,
+                    input: { workflowId: id, assertedWorkspaceId: graph.workspaceId },
+                    request,
+                  })
+                }
+                valid.push(id)
+              } catch (error) {
+                if (
+                  !(error instanceof OrchestrationError) ||
+                  (error.code !== 'not_found' && error.code !== 'forbidden')
+                )
+                  throw error
+                invalid.push(id)
+              }
+            }
+            return { valid, invalid }
+          },
+        }
+      )
+      input.signal?.throwIfAborted()
+      const referenced = new Map<string, Set<string>>()
+      for (const block of Object.values(graph.blocks)) {
+        for (const subBlock of Object.values(block.subBlocks ?? {})) {
+          collectEnvTokenNames(subBlock.value, referenced, block.name || 'unnamed block')
+        }
       }
-    )
-    input.signal?.throwIfAborted()
-    const referenced = new Map<string, Set<string>>()
-    for (const block of Object.values(graph.blocks)) {
-      for (const subBlock of Object.values(block.subBlocks ?? {})) {
-        collectEnvTokenNames(subBlock.value, referenced, block.name || 'unnamed block')
-      }
-    }
-    const undeclaredEnvVars = await collectUndeclaredEnvVars(
-      principal,
-      graph.workspaceId,
-      referenced,
-      input.signal,
-      request
-    )
-    return { ...report, notes: [...report.notes, ...referenceNotes], undeclaredEnvVars }
+      const undeclaredEnvVars = await collectUndeclaredEnvVars(
+        principal,
+        graph.workspaceId,
+        referenced,
+        input.signal,
+        request
+      )
+      return { ...report, notes: [...report.notes, ...referenceNotes], undeclaredEnvVars }
+    })
   },
 })
 

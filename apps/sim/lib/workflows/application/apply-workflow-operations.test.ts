@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   normalizeState: vi.fn(),
   sandboxAccess: vi.fn(),
   blockVisibility: vi.fn(),
+  customBlocks: vi.fn(),
   permissionConfig: vi.fn(),
   preValidate: vi.fn(),
   collectReferences: vi.fn(),
@@ -45,6 +46,9 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveContext,
+}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  listCustomBlocksWithInputsForWorkspace: mocks.customBlocks,
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
@@ -179,6 +183,7 @@ const EMPTY_GRAPH_LINT = {
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.customBlocks.mockResolvedValue([])
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -542,6 +547,7 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
 
     vi.clearAllMocks()
+    mocks.customBlocks.mockResolvedValue([])
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.sandboxAccess.mockResolvedValue(true)
