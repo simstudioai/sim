@@ -38,7 +38,6 @@ export type SearchStage =
   | 'usage_recording'
   | 'overage_billing'
   | 'tag_definitions'
-  | 'metadata'
   | 'metadata.sql'
   | 'metadata_provenance'
   | 'activity_recording'

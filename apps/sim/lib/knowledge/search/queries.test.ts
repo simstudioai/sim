@@ -557,6 +557,10 @@ describe('workspace-scoped vector retrieval', () => {
     expect(fields).toContain(String(schemaMock.embeddingSearch.vector512))
     expect(fields).not.toContain(String(schemaMock.embedding.embedding))
     expect(JSON.stringify(dbChainMockFns.leftJoin.mock.calls)).toContain('embeddingSearch')
+    /** The source card's name, URL and connector type ride on the same read; no second pass. */
+    expect(fields).toContain(String(schemaMock.document.filename))
+    expect(fields).toContain(String(schemaMock.knowledgeConnector.connectorType))
+    expect(JSON.stringify(dbChainMockFns.leftJoin.mock.calls)).toContain('knowledgeConnector')
   })
 
   it('passes over a slice whose documents went away instead of ending the pool there', async () => {
