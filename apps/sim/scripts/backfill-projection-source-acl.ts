@@ -25,8 +25,8 @@ const logger = createLogger('BackfillProjectionSourceAcl')
 /** A script has no long-lived process to detach into, so without a worker it fills inline. */
 async function main(): Promise<void> {
   if (isTriggerDevEnabled && env.TRIGGER_SECRET_KEY) {
-    const handle = await enqueueProjectionSourceAclBackfill({}, true)
-    logger.info('Backfill enqueued on the Trigger.dev worker', handle ?? {})
+    const handle = await enqueueProjectionSourceAclBackfill()
+    logger.info('Backfill enqueued on the Trigger.dev worker', handle)
     return
   }
   await runProjectionSourceAclBackfill({})

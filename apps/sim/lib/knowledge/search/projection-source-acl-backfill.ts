@@ -7,9 +7,6 @@ import {
 import { createLogger } from '@sim/logger'
 import postgres from 'postgres'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { runDetached } from '@/lib/core/utils/background'
 import { prewarmSearchProjection } from '@/lib/knowledge/search/prewarm'
 
 const logger = createLogger('ProjectionSourceAclBackfill')
@@ -86,23 +83,16 @@ export async function runProjectionSourceAclBackfill(
 }
 
 /**
- * Starts the backfill the way the table backfill is started: on the deployment's Trigger.dev
- * worker when one is configured, where bounded runs chain until both projections are filled, and
- * detached in this process otherwise. Safe to call again at any time — a run only fills rows still
- * unset.
+ * Starts the backfill on the deployment's Trigger.dev worker, where bounded runs chain until both
+ * projections are filled. Safe to call again at any time: a run only fills rows still unset.
  */
 export async function enqueueProjectionSourceAclBackfill(
-  payload: ProjectionSourceAclBackfillPayload = {},
-  useTrigger = Boolean(isTriggerDevEnabled && env.TRIGGER_SECRET_KEY)
-): Promise<{ runId: string } | null> {
-  if (useTrigger) {
-    const { tasks } = await import('@trigger.dev/sdk')
-    const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, payload, {
-      region: await resolveTriggerRegion(),
-    })
-    logger.info('Projection source and ACL backfill enqueued', { runId: handle.id })
-    return { runId: handle.id }
-  }
-  runDetached(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, () => runProjectionSourceAclBackfill(payload))
-  return null
+  payload: ProjectionSourceAclBackfillPayload = {}
+): Promise<{ runId: string }> {
+  const { tasks } = await import('@trigger.dev/sdk')
+  const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, payload, {
+    region: await resolveTriggerRegion(),
+  })
+  logger.info('Projection source and ACL backfill enqueued', { runId: handle.id })
+  return { runId: handle.id }
 }
