@@ -40,6 +40,7 @@ vi.mock('@/lib/webhooks/slack-stream-sessions', () => ({
 }))
 
 import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
+import type { SlackStreamChunk } from '@/lib/webhooks/slack-agent-api'
 import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
 import type { SlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import { type AgentStreamEvent, createAgentEventReadableStream } from '@/providers/stream-events'
@@ -596,6 +597,65 @@ describe('SlackExecutionStreamController', () => {
     expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
     expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
     controller.assertSucceeded()
+  })
+
+  it.each(['live', 'settled'] as const)(
+    'delivers a long %s answer with each Slack append inside the request limit',
+    async (delivery) => {
+      const answer = `${'x'.repeat(11_999)}🚀${'y'.repeat(17_000)}The complete ending.`
+      mockAppendSlackAgentStream.mockImplementation(
+        async (_token, _channel, _ts, chunks: SlackStreamChunk[]) => {
+          const text = chunks
+            .filter((chunk) => chunk.type === 'markdown_text')
+            .map((chunk) => chunk.text)
+            .join('')
+          if (text.length > 12_000) throw new Error('Slack chat.appendStream: msg_too_long')
+          expect(text.isWellFormed()).toBe(true)
+        }
+      )
+      const { controller } = await deliver(
+        delivery === 'live'
+          ? [
+              { type: 'text_delta', text: answer, turn: 'pending' },
+              { type: 'turn_end', turn: 'final' },
+            ]
+          : [],
+        answer
+      )
+      controller.assertSucceeded()
+      expect(sentText()).toBe(answer)
+      expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(3)
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('does not replay acknowledged long-answer chunks after a later append fails', async () => {
+    mockAppendSlackAgentStream.mockResolvedValueOnce(undefined)
+    mockAppendSlackAgentStream.mockRejectedValueOnce(new Error('append acknowledgment lost'))
+    const answer = `${'x'.repeat(25_000)}The complete ending.`
+    const { controller } = await deliver(
+      [
+        { type: 'text_delta', text: answer, turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+      answer
+    )
+    expect(() => controller.assertSucceeded()).toThrow('append acknowledgment lost')
+    expect(mockAppendSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(mockAppendSlackAgentStream.mock.calls.map((call) => call[3])).toEqual([
+      [{ type: 'markdown_text', text: answer.slice(0, 12_000) }],
+      [{ type: 'markdown_text', text: answer.slice(12_000, 24_000) }],
+    ])
+    expect(mockStopSlackAgentStream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'suspended',
+      undefined,
+      undefined,
+      [expect.objectContaining({ status: 'error' })]
+    )
   })
 
   it('reconciles a settled suffix without duplicating acknowledged text', async () => {

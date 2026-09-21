@@ -87,13 +87,14 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
   }
 }
 
-function splitMarkdown(text: string): SlackStreamChunk[] {
-  const chunks: SlackStreamChunk[] = []
-  for (let offset = 0; offset < text.length; offset += SLACK_MARKDOWN_LIMIT) {
-    chunks.push({
-      type: 'markdown_text',
-      text: text.slice(offset, offset + SLACK_MARKDOWN_LIMIT),
-    })
+function splitMarkdown(text: string): string[] {
+  const chunks: string[] = []
+  for (let offset = 0; offset < text.length; ) {
+    let end = Math.min(offset + SLACK_MARKDOWN_LIMIT, text.length)
+    const lastCodeUnit = text.charCodeAt(end - 1)
+    if (end < text.length && lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
+    chunks.push(text.slice(offset, end))
+    offset = end
   }
   return chunks
 }
@@ -156,6 +157,14 @@ class SlackInvocationStream {
     await appendSlackAgentStream(this.token, this.channel!, this.ts!, chunks, this.signal)
   }
 
+  /** Slack limits the whole append request, not each chunk within its array. */
+  private async appendAnswerText(text: string): Promise<void> {
+    for (const chunk of splitMarkdown(text)) {
+      await this.append([{ type: 'markdown_text', text: chunk }])
+      this.acknowledgedAnswer += chunk
+    }
+  }
+
   private async flushAnswer(force: boolean): Promise<void> {
     if (
       this.failure ||
@@ -165,8 +174,7 @@ class SlackInvocationStream {
       return
     const projected = await this.projectLiveText(this.answerBuffer)
     if (projected === null) return
-    if (projected) await this.append(splitMarkdown(projected))
-    this.acknowledgedAnswer += projected
+    await this.appendAnswerText(projected)
     this.answerBuffer = ''
   }
 
@@ -267,8 +275,7 @@ class SlackInvocationStream {
         throw new Error('Slack delivery failed: settled output differs from acknowledged answer')
       }
       const remaining = text.slice(this.acknowledgedAnswer.length)
-      if (remaining) await this.append(splitMarkdown(remaining))
-      this.acknowledgedAnswer = text
+      await this.appendAnswerText(remaining)
       this.answerBuffer = ''
     })
   }
