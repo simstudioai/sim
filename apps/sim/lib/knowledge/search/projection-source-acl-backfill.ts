@@ -162,6 +162,13 @@ export function projectionSourceAclChainTag(shard?: ProjectionSourceAclBackfillS
   return `${PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID}:shard:${index}/${count}`
 }
 
+/**
+ * How long a start's trigger stays idempotent. The in-flight lookup and the trigger are two
+ * calls, so two starts in the same instant could both find no chain; a key that lives just past
+ * that instant closes the gap without holding a later, legitimate restart.
+ */
+const START_IDEMPOTENCY_TTL = '2m'
+
 /** A run that has not ended: it, or the continuation it triggers, still owns its range. */
 const IN_FLIGHT_RUN_STATUSES = [
   'PENDING_VERSION',
@@ -216,6 +223,8 @@ export async function enqueueProjectionSourceAclBackfill(
     const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, shardPayload, {
       region,
       tags: [tag],
+      idempotencyKey: tag,
+      idempotencyKeyTTL: START_IDEMPOTENCY_TTL,
     })
     runIds.push(handle.id)
   }

@@ -200,7 +200,12 @@ describe('enqueueProjectionSourceAclBackfill', () => {
     expect(mockTasksTrigger).toHaveBeenCalledWith(
       'projection-source-acl-backfill',
       { pageSize: 25 },
-      { region: 'us-east-1', tags: ['projection-source-acl-backfill:shard:0/1'] }
+      {
+        region: 'us-east-1',
+        tags: ['projection-source-acl-backfill:shard:0/1'],
+        idempotencyKey: 'projection-source-acl-backfill:shard:0/1',
+        idempotencyKeyTTL: '2m',
+      }
     )
     expect(mockBackfill).not.toHaveBeenCalled()
   })
