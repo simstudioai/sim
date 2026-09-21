@@ -152,7 +152,7 @@ async function isProjectionFilled(
   return (await projectionFilled.fetch(projection, { context: { budget, stage } })) ?? false
 }
 
-/** Forgets whether the projections were filled, after their rows changed. */
+/** Forgets whether the projections were filled; the memo is per process and otherwise expires on its own. */
 export function forgetProjectionFilled(): void {
   projectionFilled.clear()
 }
@@ -216,6 +216,16 @@ export const VECTOR_PROBE_DOCUMENT_LIMIT = Math.round(
   (VECTOR_PROBE_BUDGET_MS * 1000) / VECTOR_PROBE_MICROSECONDS_PER_DOCUMENT
 )
 
+/**
+ * Documents a bounded permitted set may hold before ranking it exactly costs more than walking
+ * the graph on the row. Exact ranking reads every chunk of the set, a few per document, where an
+ * on-row walk reads at most {@link CANDIDATE_HNSW_MAX_SCAN_TUPLES} tuples; at this size the two
+ * meet. A set past it is walked first and ranked exactly only if the walk cannot fill its pool, so
+ * its recall is never below the exact ranking's and its usual cost is the walk's. The same size
+ * turns the keyword leg from a read of the set's every chunk into a ranking decided on the row.
+ */
+export const PERMITTED_EXACT_DOCUMENT_LIMIT = 5_000
+
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
 
@@ -229,8 +239,8 @@ let hnswSettingsUnsupportedUntil = 0
  */
 async function withVectorScanSettings<T>(
   run: (executor: SearchExecutor) => Promise<T>,
-  budget?: SearchBudget,
-  stage: SearchStage = 'vector.candidate_search',
+  budget: SearchBudget | undefined,
+  stage: SearchStage,
   maxScanTuples: number = Number(CANDIDATE_HNSW_MAX_SCAN_TUPLES)
 ): Promise<T> {
   const untuned = () => runSearchQuery(budget, stage, run)
@@ -272,65 +282,6 @@ async function withVectorScanSettings<T>(
     })
     return untuned()
   }
-}
-
-export interface DocumentMetadata {
-  filename: string
-  sourceUrl: string | null
-  /** When the source last changed the document; null for uploads and sources that do not say. */
-  sourceModifiedAt: Date | null
-  /** The connector the document was synced through; null for an upload. */
-  connectorType: string | null
-}
-
-/**
- * Batch-fetch display metadata for documents referenced by search results, under the full read
- * predicate and the scope the results were read under — with the live grants that scope resolved,
- * so a gated source's result keeps its name and URL, and a revoked one loses them here too.
- * Returns a map keyed by document id; missing ids indicate the document is no longer visible and
- * should be skipped.
- */
-export async function getDocumentMetadataByIds(
-  documentIds: string[],
-  access: KnowledgeAccessScope
-): Promise<Record<string, DocumentMetadata>> {
-  if (documentIds.length === 0) {
-    return {}
-  }
-
-  const uniqueIds = [...new Set(documentIds)]
-  const documents = await measureSearchStage('metadata.sql', () =>
-    db
-      .select({
-        id: document.id,
-        filename: document.filename,
-        sourceUrl: document.sourceUrl,
-        sourceModifiedAt: document.sourceModifiedAt,
-        connectorType: knowledgeConnector.connectorType,
-      })
-      .from(document)
-      .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
-      .where(
-        and(
-          inArray(document.id, uniqueIds),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access)
-        )
-      )
-  )
-  const map: Record<string, DocumentMetadata> = {}
-  documents.forEach((doc) => {
-    map[doc.id] = {
-      filename: doc.filename,
-      sourceUrl: doc.sourceUrl ?? null,
-      sourceModifiedAt: doc.sourceModifiedAt ?? null,
-      connectorType: doc.connectorType ?? null,
-    }
-  })
-
-  return map
 }
 
 export interface SearchResult {
@@ -732,8 +683,6 @@ export interface LiveSourceAccess {
   gates: (connectorId: string) => boolean
   /** The caller's scope with its grants, and the gated sources those grants do not cover. */
   resolve: () => Promise<{ access: KnowledgeAccessScope; denied: ReadonlySet<string> }>
-  /** The scope content was read under: with its grants once they were resolved, else as given. */
-  current: () => Promise<KnowledgeAccessScope>
 }
 
 /** Binds a search's gated sources to one memoized resolution of the caller's grants. */
@@ -755,7 +704,6 @@ export function liveSourceAccessFor(
   }
   return {
     gates: (connectorId) => gated.has(connectorId),
-    current: async () => (pending ? (await pending).access : access),
     resolve: () => {
       pending ??= measureSearchStage('live_source_grants', async () => {
         const scopes = await mapWithConcurrency(pages, SOURCE_RANKING_CONCURRENCY, (page) =>
@@ -840,8 +788,9 @@ async function selectAuthorizedSearchResults(input: {
         )
         if (!page.candidates.length) break
         scanned += page.candidates.length
+        /** Short means the ranking had fewer to give, not that a read recovered fewer than it asked. */
+        lastPageShort = page.nextOffset - offset < pageSize
         offset = page.nextOffset
-        lastPageShort = page.candidates.length < pageSize
         pending = page.candidates.filter((candidate) => !considered.has(candidate.id))
         if (!pending.length) {
           if (lastPageShort) break
@@ -894,11 +843,6 @@ async function selectAuthorizedSearchResults(input: {
         if (row) results.set(row.id, row)
         if (!input.compareResults && results.size === input.topK) break
       }
-      if (input.compareResults) {
-        const ranked = [...results.values()].sort(input.compareResults).slice(0, input.topK)
-        results.clear()
-        for (const row of ranked) results.set(row.id, row)
-      }
       if (refill) {
         /** The rebuilt pages are a new stream of candidates, so the scan budget starts over. */
         offset = 0
@@ -913,7 +857,9 @@ async function selectAuthorizedSearchResults(input: {
     if (!input.budget?.isTimeout(error)) throw error
   }
   input.signal?.throwIfAborted()
-  return [...results.values()]
+  const rows = [...results.values()]
+  /** A reordered leg keeps every page's rows until the end: a later page cannot displace what an earlier one ranked. */
+  return input.compareResults ? rows.sort(input.compareResults).slice(0, input.topK) : rows
 }
 
 /** Keeps the candidates of sources the caller turned out not to hold out of a page. */
@@ -975,15 +921,9 @@ export function hybridCandidateCount(topK: number): number {
 }
 
 export function getQueryStrategy(kbCount: number, topK: number) {
-  const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
-  const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
-  const parallelLimit = Math.ceil(topK / kbCount) + 5
-
   return {
-    useParallel,
-    distanceThreshold,
-    parallelLimit,
-    singleQueryOptimized: kbCount <= 2,
+    useParallel: kbCount > 4 || (kbCount > 2 && topK > 50),
+    distanceThreshold: kbCount > 3 ? 0.8 : 1.0,
   }
 }
 
@@ -1251,19 +1191,21 @@ const saturatedReach = new LRUCache<string, { broad: boolean }>({
 })
 
 /** How many documents the bases hold: the denominator of a reach share, and it moves slowly. */
-const indexDocumentCounts = new LRUCache<string, number>({
+const indexDocumentCounts = new LRUCache<string, number, SearchBudget | undefined>({
   max: 1000,
   ttl: SATURATED_REACH_TTL_MS,
   /**
    * The planner's estimate of the bases' documents, from the statistics it already keeps: a share
    * threshold needs the order of magnitude, and counting every row to learn it costs more than the
-   * search it serves.
+   * search it serves. The read that misses is the search's own, under its deadline.
    */
-  fetchMethod: async (key) => {
-    const [row] = await db.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
+  fetchMethod: async (key, _stale, { context: budget }) => {
+    const [row] = await runSearchQuery(budget, 'permitted_documents', (executor) =>
+      executor.execute<{ 'QUERY PLAN': Array<{ Plan: { 'Plan Rows': number } }> }>(sql`
       EXPLAIN (FORMAT JSON) SELECT 1 FROM ${document}
       WHERE ${document.knowledgeBaseId} = ANY(${textArrayLiteral(key.split(','))})
         AND ${document.deletedAt} IS NULL`)
+    )
     /** An empty answer is not remembered; the bases may simply not have been analyzed yet. */
     return Number(row?.['QUERY PLAN']?.[0]?.Plan?.['Plan Rows'] ?? 0) || undefined
   },
@@ -1307,20 +1249,25 @@ async function estimateFilteredDocuments(
 }
 
 /**
- * Whether a saturated reach is broad: the caller reaches at least {@link BROAD_REACH_SHARE} of the
- * bases' documents. Counted once against that bound and remembered with the saturation, so the
- * first search after the window pays for it and the rest do not.
+ * Whether a reach is broad: the caller reaches at least {@link BROAD_REACH_SHARE} of the bases'
+ * documents. Counted once against that bound and remembered, so the first search after the
+ * window pays for it and the rest do not. A caller whose probe already saturated is known to
+ * reach past the probe's limit, so a bound inside that limit is met without counting.
  */
 async function reachIsBroad(
   knowledgeBaseIds: string[],
   access: KnowledgeAccessScope,
   budget: SearchBudget | undefined,
-  plan: SearchAccessPlan | undefined
+  plan: SearchAccessPlan | undefined,
+  saturated: boolean
 ): Promise<boolean> {
   if (access.kind !== 'user') return true
-  const total = (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','))) ?? 0
+  const total =
+    (await indexDocumentCounts.fetch([...knowledgeBaseIds].sort().join(','), {
+      context: budget,
+    })) ?? 0
   const bound = Math.ceil(total * BROAD_REACH_SHARE)
-  if (bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
+  if (saturated && bound <= VECTOR_PROBE_DOCUMENT_LIMIT) return true
   const [row] = await runSearchQuery(budget, 'permitted_documents', (executor) =>
     executor.execute<{ n: number }>(sql`
       SELECT count(*) AS n FROM (
@@ -1385,7 +1332,7 @@ export async function resolveReach(
   const remembered = key ? saturatedReach.get(key) : undefined
   if (remembered) return { kind: 'unbounded', broad: remembered.broad }
   try {
-    const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan)
+    const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan, false)
     if (key) saturatedReach.set(key, { broad })
     return { kind: 'unbounded', broad }
   } catch (error) {
@@ -1417,10 +1364,11 @@ export async function resolvePermittedDocuments(params: {
    * A remembered reach says how much of the bases the caller reads, which a date filter does not
    * change; the filtered set still has to be enumerated, so under one the probe always runs.
    */
-  const remembered =
-    key && !(params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source))
-      ? saturatedReach.get(key)
-      : undefined
+  /** A plan under a date or source filter enumerates the filtered set directly; reach cannot stand in for it. */
+  const filteredDirectly = Boolean(
+    params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
+  )
+  const remembered = key && !filteredDirectly ? saturatedReach.get(key) : undefined
   if (remembered) {
     probe = { kind: 'saturated' }
     broad = remembered.broad
@@ -1437,9 +1385,7 @@ export async function resolvePermittedDocuments(params: {
         params.access,
         params.budget,
         'permitted_documents',
-        params.accessPlan && (dateFilterCondition(params.filters) || params.filters?.source)
-          ? 'direct'
-          : 'reach-first'
+        filteredDirectly ? 'direct' : 'reach-first'
       )
     } catch (error) {
       if (!params.budget?.isTimeout(error)) throw error
@@ -1451,12 +1397,14 @@ export async function resolvePermittedDocuments(params: {
           params.knowledgeBaseIds,
           params.access,
           params.budget,
-          params.accessPlan
+          params.accessPlan,
+          true
         )
+        if (key) saturatedReach.set(key, { broad })
       } catch (error) {
         if (!params.budget?.isTimeout(error)) throw error
+        /** A count that ran out of time decides this search only; the next one counts again. */
       }
-      if (key) saturatedReach.set(key, { broad })
     }
   }
   const permitted: PermittedDocuments =
@@ -1547,7 +1495,7 @@ async function selectSourceVectorCandidates(input: {
 }): Promise<SearchReadCandidate[]> {
   const sources = planSourceVectorCandidates({
     plan: input.plan,
-    indexedSources: await indexedVectorSources(),
+    indexedSources: await indexedVectorSources(input.budget),
   })
   annotateSearchDiagnostics({
     vectorRanking: 'per-source',
@@ -1778,11 +1726,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           candidatePool?.excludedKey === excludedKey ? candidatePool.limit : undefined
         )
         const plan = params.access.kind === 'user' ? params.accessPlan : undefined
-        const filled = await isProjectionFilled(
-          'embedding_search',
-          'vector.projection_filled',
-          params.budget
-        )
+        /** Two remembered facts, read together when neither is remembered. */
+        const [filled, plannedIndexedSources] = await Promise.all([
+          isProjectionFilled('embedding_search', 'vector.projection_filled', params.budget),
+          plan?.memberSources.length ? indexedVectorSources(params.budget) : undefined,
+        ])
         /**
          * A source the caller turned out not to hold is left out where the pool is built: the
          * pool is the page's order now, so a denied source's chunks would otherwise keep their
@@ -1794,13 +1742,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))) /* excluded sources */`
             : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${embeddingSearch.documentId} AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])})) /* excluded sources */`
           : undefined
-        const plannedIndexedSources =
-          params.access.kind === 'user' && params.accessPlan?.memberSources.length
-            ? await indexedVectorSources()
-            : undefined
         annotateSearchDiagnostics({
           vectorRanking: 'projection-walk',
-          vectorCandidateStorage: 'stored-halfvec',
           vectorCandidateLimit: candidateLimit,
           vectorCandidateScan: 'planned',
           vectorCandidateDimensions: embeddingCandidateDimensions(
@@ -1814,7 +1757,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
          * rather than re-deriving permission across the whole index. Exact ranking also honours
          * `statement_timeout`, which a traversal cannot.
          */
-        const rankPermittedExactly = async (documentIds: string[]) => {
+        /** Ranks the set's chunks exactly; `read` are chunks a pool already holds, ranked past. */
+        const rankPermittedExactly = async (documentIds: string[], read?: readonly string[]) => {
           annotateSearchDiagnostics({ vectorRanking: 'exact-candidates' })
           if (!documentIds.length) return []
           return runSearchQuery(params.budget, 'vector.exact_candidates', (executor) =>
@@ -1825,6 +1769,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
                 inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
                 eq(embeddingSearch.enabled, true),
                 sql`${embeddingSearch.documentId} = ANY(${textArrayLiteral(documentIds)})`,
+                read?.length
+                  ? sql`NOT (${embeddingSearch.id} = ANY(${textArrayLiteral([...read])}))`
+                  : undefined,
                 candidateTagCondition,
                 excludedOnRow
               )}
@@ -1833,56 +1780,19 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           )
         }
         let selected: SearchReadCandidate[]
+        /** Set where a pool's end is known better than by its length. */
+        let exhausted: boolean | undefined
         /**
-         * A source the caller is a member of that has its own index is walked on its own, which
-         * beats ranking it exactly once it is large enough to have earned that index.
+         * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
+         * authorization downstream of the traversal, with a primary-key lookup per candidate.
          */
-        const walksASource = plan?.memberSources.some(
-          (id) => plannedIndexedSources?.has(id) ?? false
+        const scopeOfWalk = and(
+          inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+          eq(embeddingSearch.enabled, true),
+          excludedOnRow
         )
-        if (
-          params.permitted?.kind === 'bounded' &&
-          (!walksASource || dateFilterCondition(params.filters) || params.filters?.source)
-        ) {
-          /**
-           * A bounded permitted set is ranked exactly without walking the graph first: the walk
-           * post-filters, so when the caller reads a small share of the index it spends its whole
-           * uninterruptible tuple budget and still returns almost none of their neighbours. A
-           * member's indexed source is otherwise walked instead, but not under a filter: the walk
-           * cannot see the date, and a filtered set is small by construction.
-           */
-          selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
-        } else if (plan && !(params.permitted?.kind === 'unbounded' && params.permitted.broad)) {
-          /**
-           * Readability follows sources, so each readable source is searched in its own index and
-           * the results merged. A member reads a source whole or barely at all: walking one source
-           * spends its budget among chunks they can read, where a walk over every source spends it
-           * on the sources they cannot. A caller whose reach is broad skips this: for them the
-           * whole graph's neighbours are mostly theirs already, and one walk is the cheaper answer.
-           */
-          selected = await selectSourceVectorCandidates({
-            access: params.access,
-            knowledgeBaseIds: params.knowledgeBaseIds,
-            plan,
-            exclusion: excludedOnRow,
-            projectionFilled: filled,
-            tagCondition: candidateTagCondition,
-            documentCondition,
-            candidateDistance,
-            candidateLimit,
-            budget: params.budget,
-          })
-        } else {
-          /**
-           * The bounded ANN traversal is the whole candidate set. LIMIT keeps document
-           * authorization downstream of the traversal, with a primary-key lookup per candidate.
-           */
-          const scopeOfWalk = and(
-            inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-            eq(embeddingSearch.enabled, true),
-            excludedOnRow
-          )
-          selected = await withVectorScanSettings(
+        const walkGraph = () =>
+          withVectorScanSettings(
             (executor) =>
               executor.execute<SearchReadCandidate>(
                 plan
@@ -1915,6 +1825,81 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
             'vector.candidate_search',
             plan ? onRowWalkScanTuples(documentCondition, filled) : undefined
           )
+        /**
+         * A source the caller is a member of that has its own index is walked on its own, which
+         * beats ranking it exactly once it is large enough to have earned that index.
+         */
+        const walksASource = plan?.memberSources.some(
+          (id) => plannedIndexedSources?.has(id) ?? false
+        )
+        if (
+          params.permitted?.kind === 'bounded' &&
+          plan &&
+          filled &&
+          params.permitted.documents.length >= PERMITTED_EXACT_DOCUMENT_LIMIT
+        ) {
+          /**
+           * A set this large costs more to rank exactly than to walk: exact ranking reads every
+           * chunk of every document in it, while the walk decides readability on the rows it
+           * visits and stops at its tuple cap. The walk answers whenever the set is a fair share
+           * of the graph; where it is not, the walk underfills and the exact ranking that was
+           * always complete takes over, so nothing is lost but the walk's bounded cost.
+           *
+           * The walk decides readability on the projection row, which is broader than the
+           * document predicate hydration applies, so a pool it filled can still run short of
+           * readable rows. That shortfall is what refills a pool: the refill is the exact ranking,
+           * complete over the set, ranked past the rows already read and placed behind them, so
+           * the pages keep their offsets and every refill is a full window of fresh rows.
+           */
+          const permittedIds = params.permitted.documents.map((entry) => entry.id)
+          const previous =
+            candidatePool?.excludedKey === excludedKey ? candidatePool.ids : undefined
+          if (previous) {
+            const exact = await rankPermittedExactly(
+              permittedIds,
+              previous.map((candidate) => candidate.id)
+            )
+            selected = [...previous, ...exact]
+            exhausted = exact.length < candidateLimit
+          } else {
+            selected = await walkGraph()
+            if (selected.length < candidateLimit)
+              selected = await rankPermittedExactly(permittedIds)
+          }
+        } else if (
+          params.permitted?.kind === 'bounded' &&
+          (!walksASource || dateFilterCondition(params.filters) || params.filters?.source)
+        ) {
+          /**
+           * A bounded permitted set is ranked exactly without walking the graph first: the walk
+           * post-filters, so when the caller reads a small share of the index it spends its whole
+           * uninterruptible tuple budget and still returns almost none of their neighbours. A
+           * member's indexed source is otherwise walked instead, but not under a filter: the walk
+           * cannot see the date, and a filtered set is small by construction.
+           */
+          selected = await rankPermittedExactly(params.permitted.documents.map((entry) => entry.id))
+        } else if (plan && !(params.permitted?.kind === 'unbounded' && params.permitted.broad)) {
+          /**
+           * Readability follows sources, so each readable source is searched in its own index and
+           * the results merged. A member reads a source whole or barely at all: walking one source
+           * spends its budget among chunks they can read, where a walk over every source spends it
+           * on the sources they cannot. A caller whose reach is broad skips this: for them the
+           * whole graph's neighbours are mostly theirs already, and one walk is the cheaper answer.
+           */
+          selected = await selectSourceVectorCandidates({
+            access: params.access,
+            knowledgeBaseIds: params.knowledgeBaseIds,
+            plan,
+            exclusion: excludedOnRow,
+            projectionFilled: filled,
+            tagCondition: candidateTagCondition,
+            documentCondition,
+            candidateDistance,
+            candidateLimit,
+            budget: params.budget,
+          })
+        } else {
+          selected = await walkGraph()
           /**
            * A full traversal is already the nearest permitted chunks, so nothing else is worth
            * running. An underfilled one is the signal that visibility removed neighbours the graph
@@ -1950,7 +1935,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           excludedKey,
           ids: selected,
           limit: candidateLimit,
-          exhausted: selected.length < candidateLimit || candidateLimit >= MAX_VECTOR_CANDIDATES,
+          exhausted:
+            (exhausted ?? selected.length < candidateLimit) ||
+            candidateLimit >= MAX_VECTOR_CANDIDATES,
           filled,
         }
         annotateSearchDiagnostics({
@@ -2025,6 +2012,8 @@ export interface KeywordSearchParams {
   permitted?: PermittedDocuments
   /** Connector state resolved once per search, so no candidate re-derives it. */
   accessPlan?: SearchAccessPlan
+  /** Every base is an organization search index; only those are projected for Tin ranking. */
+  searchIndexOnly?: boolean
 }
 
 /**
@@ -2086,24 +2075,32 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
      * A caller reaching past the permitted-set limit reads much of the index, so ranking every
      * match before checking access is the leg's whole cost for a common term. Where the Tin
      * projection is complete, BM25 ranks inside the bases first and access is checked only on the
-     * top of that ranking.
+     * top of that ranking. A bounded set past the exact-ranking size is read on the row like an
+     * unbounded one: the bounded read materializes every chunk of the set before it matches a
+     * term, where a ranking decided on the row costs what the term matches.
      */
+    const accessPlan = access.kind === 'user' ? params.accessPlan : undefined
+    const largePermittedSet =
+      accessPlan !== undefined &&
+      params.permitted?.kind === 'bounded' &&
+      params.permitted.documents.length >= PERMITTED_EXACT_DOCUMENT_LIMIT
+    const onRowReader = params.permitted?.kind === 'unbounded' || largePermittedSet
     let tinQuery: Awaited<ReturnType<typeof resolveTinKeywordQuery>> = null
-    if (params.permitted?.kind === 'unbounded' && tagFilterConditions.length === 0) {
+    if (onRowReader && tagFilterConditions.length === 0) {
       try {
-        tinQuery = await resolveTinKeywordQuery(knowledgeBaseIds, query, FTS_CONFIG, params.budget)
+        tinQuery = await resolveTinKeywordQuery(
+          params.searchIndexOnly === true,
+          query,
+          FTS_CONFIG,
+          params.budget
+        )
       } catch (error) {
         /** A leg whose deadline passed before it ranked anything is short, not failed. */
         if (!params.budget?.isTimeout(error)) throw error
         return []
       }
     }
-    annotateSearchDiagnostics({
-      ...(params.permitted?.kind === 'unbounded'
-        ? { keywordRanking: tinQuery ? 'tin' : 'gin' }
-        : {}),
-    })
-    const accessPlan = access.kind === 'user' ? params.accessPlan : undefined
+    if (onRowReader) annotateSearchDiagnostics({ keywordRanking: tinQuery ? 'tin' : 'gin' })
     /** A filled projection decides readability on the ranked row alone; none of its rows needs the document. */
     const tinFilled =
       accessPlan && tinQuery
@@ -2157,12 +2154,15 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       /**
        * A resolved scope decides readability on the ranked row. The windows widen while the page
        * is short, a narrow reader's to a wide one sooner and no further, and what the widest
-       * cannot fill is left short rather than handed to a ranking over every match.
+       * cannot fill is left short rather than handed to a ranking over every match. A large
+       * bounded set is the exception on its first page: its bounded read was exhaustive, so the
+       * widest window that still falls short hands that page to the GIN ranking, which covers
+       * every match. A later page stays with Tin: the two rankers order differently, so an offset
+       * advanced through one cannot resume the other.
        */
       const narrow =
         accessPlan !== undefined &&
-        params.permitted?.kind === 'unbounded' &&
-        !params.permitted.broad
+        ((params.permitted?.kind === 'unbounded' && !params.permitted.broad) || largePermittedSet)
       const windows: readonly number[] = narrow ? NARROW_KEYWORD_WINDOWS : TIN_KEYWORD_WINDOWS
       /**
        * A narrow reader's page is the readable remainder of a wide ranking, and that ranking is
@@ -2223,7 +2223,9 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         if (
           page.candidates.length >= limit ||
           page.ranked < window ||
-          (accessPlan !== undefined && window === windows[windows.length - 1])
+          (accessPlan !== undefined &&
+            !(largePermittedSet && offset === 0) &&
+            window === windows[windows.length - 1])
         ) {
           return { candidates: page.candidates, nextOffset: offset + page.candidates.length }
         }
@@ -2237,6 +2239,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           sql` || ' OR ' || `
         )} || ') AND (' || ${tinQuery} || ')'`
       : undefined
+    /**
+     * Tin and GIN order candidates differently, so a search that once handed a page to GIN stays
+     * with GIN: an offset advanced through one ranking cannot resume the other.
+     */
+    let handedToGin = false
     /** Keep readable identities and rank scalars separate so sorts never carry full text-search vectors. */
     return selectAuthorizedSearchResults({
       leg: 'keyword',
@@ -2253,13 +2260,14 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
          * still re-applies the candidate predicate, so the restriction can only narrow.
          */
         const permittedIds =
-          params.permitted?.kind === 'bounded'
+          params.permitted?.kind === 'bounded' && !largePermittedSet
             ? params.permitted.documents.map((entry) => entry.id)
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
-        if (tinScope && (accessPlan || !permittedIds)) {
+        if (tinScope && !handedToGin) {
           const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
           if (tinPage) return tinPage
+          handedToGin = true
           annotateSearchDiagnostics({ keywordRanking: 'gin' })
         }
         const baseScope = and(
@@ -2514,6 +2522,8 @@ export interface ExecuteKnowledgeSearchParams {
   queryVector?: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
   filters?: WorkspaceSearchFilters
+  /** Every base is an organization search index; only those are projected for Tin ranking. */
+  searchIndexOnly?: boolean
 }
 
 export interface RetrievalStatus {
@@ -2524,11 +2534,9 @@ export interface RetrievalStatus {
 export interface KnowledgeRetrievalResult {
   rows: SearchResult[]
   retrieval: RetrievalStatus
-  /** The scope the returned content was read under; what may see these rows may see their metadata. */
-  readAccess: KnowledgeAccessScope
 }
 
-/** Legacy surfaces cannot silently present partial retrieval as complete. */
+/** Retrieval for a surface that cannot present a partial result as complete. */
 export async function executeKnowledgeSearch(
   params: ExecuteKnowledgeSearchParams
 ): Promise<SearchResult[]> {
@@ -2563,14 +2571,12 @@ export async function retrieveKnowledgeSearch(
   }
   const finish = async (rows: SearchResult[]): Promise<KnowledgeRetrievalResult> => {
     params.signal?.throwIfAborted()
-    const readAccess = (await liveSourceAccess?.current()) ?? access
     const timedOutLegs = Object.values(budgets)
       .filter((budget) => budget.timedOut)
       .map((budget) => budget.leg)
     return {
       rows: boostRecency ? applyRecencyBoost(rows) : rows,
       retrieval: { status: timedOutLegs.length ? 'partial' : 'complete', timedOutLegs },
-      readAccess,
     }
   }
   /**
@@ -2605,6 +2611,7 @@ export async function retrieveKnowledgeSearch(
     filters: params.filters,
     structuredFilters,
     liveSourceAccess,
+    searchIndexOnly: params.searchIndexOnly,
   }
   const hasQuery = Boolean(query?.trim())
   const hasFilters = Boolean(structuredFilters?.length)

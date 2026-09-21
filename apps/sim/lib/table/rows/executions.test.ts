@@ -4,8 +4,12 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
-import { loadExecutionsByRow, writeExecutionsPatch } from '@/lib/table/rows/executions'
-import type { RowExecutionMetadata } from '@/lib/table/types'
+import {
+  loadExecutionsByRow,
+  tableMayHaveRunState,
+  writeExecutionsPatch,
+} from '@/lib/table/rows/executions'
+import type { RowExecutionMetadata, TableSchema } from '@/lib/table/types'
 
 const EXECUTION_STATE: RowExecutionMetadata = {
   status: 'running',
@@ -256,5 +260,41 @@ describe('loadExecutionsByRow', () => {
 
     expect(select).toHaveBeenCalledTimes(3)
     expect(byRow.size).toBe(750)
+  })
+})
+
+describe('tableMayHaveRunState', () => {
+  const column = (overrides: Partial<TableSchema['columns'][number]> = {}) => ({
+    id: 'col_1',
+    name: 'title',
+    type: 'string' as const,
+    ...overrides,
+  })
+
+  it('is false for a schema that declares no group', () => {
+    expect(tableMayHaveRunState({ columns: [column()] })).toBe(false)
+    expect(tableMayHaveRunState({ columns: [column()], workflowGroups: [] })).toBe(false)
+  })
+
+  it('is true once the schema declares a group', () => {
+    expect(
+      tableMayHaveRunState({
+        columns: [column()],
+        workflowGroups: [{ id: 'group-1' }] as TableSchema['workflowGroups'],
+      })
+    ).toBe(true)
+  })
+
+  /**
+   * A column still pointing at a group is group state whatever the group list says, so an
+   * unexpected schema shape must keep the sidecar read rather than silently drop run state.
+   */
+  it('is true for a column that still names a group the list has lost', () => {
+    expect(
+      tableMayHaveRunState({
+        columns: [column({ workflowGroupId: 'group-1' })],
+        workflowGroups: [],
+      })
+    ).toBe(true)
   })
 })

@@ -877,14 +877,4 @@ describe('Knowledge Search Utils', () => {
       )
     })
   })
-
-  describe('getDocumentMetadataByIds', () => {
-    it('should handle empty input gracefully', async () => {
-      const { getDocumentMetadataByIds } = await import('@/lib/knowledge/search/queries')
-
-      const result = await getDocumentMetadataByIds([])
-
-      expect(result).toEqual({})
-    })
-  })
 })

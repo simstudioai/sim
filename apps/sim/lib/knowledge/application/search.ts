@@ -66,7 +66,6 @@ const logger = createLogger('KnowledgeSearchApplication')
 export const KNOWLEDGE_SEARCH_COST_POLICY = {
   maxKnowledgeBases: 20,
   maxTopK: 100,
-  usageAdmission: 'before_model_execution',
 } as const
 
 export class KnowledgeSearchProvenanceUnavailableError extends Error {
@@ -383,38 +382,44 @@ export async function runKnowledgeSearch({
         dimensions: toKbEmbeddingDimensions(selectedTarget.dimensions),
       }
     : undefined
-  const preparedRegistry = input.prepareModelInputProvenance
-    ? await measureSearchStage('input_provenance', () =>
-        input.prepareModelInputProvenance!({ userId, workspaceId: context.workspaceId })
-      )
-    : undefined
-  const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
   input.signal?.throwIfAborted()
-  const [access, searchDefaults, billingAttribution, tagDefinitions, rerankerCredential] =
-    await Promise.all([
-      measureSearchStage('access_scope', () => context.access.get()),
-      measureSearchStage('defaults', () =>
-        resolveKnowledgeSearchDefaults({
-          workspaceId: context.workspaceId,
-          organizationId: context.organizationId,
+  const [
+    access,
+    searchDefaults,
+    billingAttribution,
+    tagDefinitions,
+    rerankerCredential,
+    preparedRegistry,
+  ] = await Promise.all([
+    measureSearchStage('access_scope', () => context.access.get()),
+    measureSearchStage('defaults', () =>
+      resolveKnowledgeSearchDefaults({
+        workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
 
-          /** The signed-in person, if any; never the billing owner or a key's creator. */
-          userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-          requestedMode: input.searchMode,
-        })
-      ),
-      admit(),
-      /** The tag names the results are labelled with depend on the bases alone. */
-      filters.length === 0
-        ? measureSearchStage('tag_definitions', () =>
-            getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
-          )
-        : Promise.resolve(definitionsByKnowledgeBase),
-      /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
-      input.rerankerEnabled && hasQuery
-        ? hasRerankerCredential(context.workspaceId, input.rerankerApiKey)
-        : false,
-    ])
+        /** The signed-in person, if any; never the billing owner or a key's creator. */
+        userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+        requestedMode: input.searchMode,
+      })
+    ),
+    admit(),
+    /** The tag names the results are labelled with depend on the bases alone. */
+    filters.length === 0
+      ? measureSearchStage('tag_definitions', () =>
+          getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+        )
+      : Promise.resolve(definitionsByKnowledgeBase),
+    /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
+    input.rerankerEnabled && hasQuery
+      ? hasRerankerCredential(context.workspaceId, input.rerankerApiKey)
+      : false,
+    input.prepareModelInputProvenance
+      ? measureSearchStage('input_provenance', () =>
+          input.prepareModelInputProvenance!({ userId, workspaceId: context.workspaceId })
+        )
+      : undefined,
+  ])
+  const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
   definitionsByKnowledgeBase = tagDefinitions
   input.signal?.throwIfAborted()
   /** Requested only once every prerequisite held: a search refused for any reason spends no model call. */
@@ -461,6 +466,7 @@ export async function runKnowledgeSearch({
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
+      searchIndexOnly: context.knowledgeBases.every((knowledgeBase) => knowledgeBase.isSearchIndex),
     })
   )
 
@@ -687,22 +693,32 @@ export async function runKnowledgeSearch({
     }
   })
   if (registry && provenanceSnapshot) {
-    for (const [documentId, document] of Object.entries(provenanceSnapshot.documentMetadata)) {
-      const renderedMetadata = results
-        .filter((result) => result.documentId === documentId)
-        .map((result) => ({
-          documentName: result.documentName,
-          sourceUrl: result.sourceUrl,
-          metadata: result.metadata,
-        }))
-      if (renderedMetadata.length === 0) continue
-      if (
-        !(await measureSearchStage('metadata_provenance', () =>
-          importDurableSecretProvenance(registry, document.provenance, renderedMetadata)
-        ))
-      ) {
-        registry.markIncomplete('knowledge-result-provenance-unavailable')
-      }
+    const renderedByDocument = new Map<
+      string,
+      Array<Pick<KnowledgeSearchItem, 'documentName' | 'sourceUrl' | 'metadata'>>
+    >()
+    for (const result of results) {
+      const rendered = renderedByDocument.get(result.documentId) ?? []
+      rendered.push({
+        documentName: result.documentName,
+        sourceUrl: result.sourceUrl,
+        metadata: result.metadata,
+      })
+      renderedByDocument.set(result.documentId, rendered)
+    }
+    /** Each document's provenance stands alone, so they are imported together. */
+    const imported = await measureSearchStage('metadata_provenance', () =>
+      Promise.all(
+        Object.entries(provenanceSnapshot.documentMetadata).map(([documentId, document]) => {
+          const renderedMetadata = renderedByDocument.get(documentId)
+          return renderedMetadata
+            ? importDurableSecretProvenance(registry, document.provenance, renderedMetadata)
+            : true
+        })
+      )
+    )
+    if (imported.includes(false)) {
+      registry.markIncomplete('knowledge-result-provenance-unavailable')
     }
   }
   annotateSearchDiagnostics({ resultCount: results.length })

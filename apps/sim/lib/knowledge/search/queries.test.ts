@@ -41,6 +41,7 @@ import {
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
+  PERMITTED_EXACT_DOCUMENT_LIMIT,
   type PermittedDocuments,
   resolvePermittedDocuments,
   resolveReach,
@@ -587,6 +588,21 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
   })
 
+  it('asks for the next page when an identity read recovers fewer rows than its slice', async () => {
+    const execute = dbChainMockFns.execute.getMockImplementation()!
+    let pages = 0
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query)
+      /** The first slice's read finds one of its twenty rows still present; the pool has more. */
+      if (isPageStatement(statement.sql)) return pages++ === 0 ? [ranked[0]] : ranked
+      return execute(query)
+    })
+    queueTableRows(schemaMock.embedding, [ranked[0]])
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(pages).toBe(2)
+  })
+
   it('sizes the pool to the pages asked for, doubling a pool the pages outran', () => {
     expect(vectorCandidatePoolLimit(20, undefined)).toBe(200)
     expect(vectorCandidatePoolLimit(150, undefined)).toBe(300)
@@ -710,7 +726,6 @@ describe('workspace-scoped vector retrieval', () => {
       ).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
-        readAccess: params.access,
       })
     }
   )
@@ -819,7 +834,6 @@ describe('workspace-scoped vector retrieval', () => {
       expect(result).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
-        readAccess: params.access,
       })
     }
     for (const resume of release) resume()
@@ -1537,6 +1551,7 @@ describe('permitted-document planner', () => {
         query: 'release',
         queryVector: params.queryVector!,
         permitted: unbounded,
+        searchIndexOnly: true,
         ...overrides,
       })
     const tinStatements = () =>
@@ -1562,7 +1577,7 @@ describe('permitted-document planner', () => {
       const results = await keyword()
       expect(results.map((row) => row.id)).toEqual(['a'])
       expect(mockResolveTinKeywordQuery).toHaveBeenCalledWith(
-        ['org-index'],
+        true,
         'release',
         'english',
         params.budget
@@ -1780,6 +1795,115 @@ describe('permitted-document planner', () => {
       expect(ginStatements()).toHaveLength(0)
     })
 
+    describe('a bounded set past the exact-ranking size', () => {
+      const large = Array.from({ length: PERMITTED_EXACT_DOCUMENT_LIMIT }, (_, index) => ({
+        id: `doc-${index}`,
+        connectorId: 'src-a',
+      }))
+      const accessPlan = {
+        connectors: { workspace: [], admin: ['src-a'], members: [], liveProofRequired: [] },
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
+        connectorTypes: new Map(),
+        uploads: true,
+      }
+
+      it('ranks with Tin as a narrow reader, decided on the row', async () => {
+        tinPages = [{ ranked: 1500, candidates: [hit('a', 'src-a')] }]
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        const results = await keyword({
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results.map((row) => row.id)).toEqual(['a'])
+        expect(mockResolveTinKeywordQuery).toHaveBeenCalledTimes(1)
+        expect(tinStatements()).toHaveLength(1)
+        expect(JSON.stringify(tinStatements()[0])).toContain('2000')
+        expect(JSON.stringify(tinStatements()[0])).not.toContain('doc-4999')
+        expect(ginStatements()).toHaveLength(0)
+      })
+
+      it('falls back to a GIN ranking that reads what the term matches, not every chunk of the set', async () => {
+        mockResolveTinKeywordQuery.mockResolvedValue(null)
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        await keyword({ permitted: { kind: 'bounded', documents: large }, accessPlan })
+        expect(tinStatements()).toHaveLength(0)
+        expect(ginStatements()).toHaveLength(1)
+        expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
+      })
+
+      it('hands the page to the GIN ranking when the widest window cannot fill it', async () => {
+        tinPages = [
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        await keyword({ permitted: { kind: 'bounded', documents: large }, accessPlan })
+        expect(tinStatements()).toHaveLength(2)
+        /** Every match is covered again, by the ranking whose cost follows the term, not the set. */
+        expect(ginStatements()).toHaveLength(1)
+        expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
+      })
+
+      it('leaves a later page short rather than resuming a different ranking at its offset', async () => {
+        /** The first page fills from Tin; hydration keeps half, so a second page is asked for. */
+        const first = Array.from({ length: 40 }, (_, index) => hit(`t-${index}`, 'src-a'))
+        tinPages = [
+          { ranked: 2000, candidates: first },
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(
+          schemaMock.embedding,
+          first.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+        )
+        const results = await keyword({
+          topK: 40,
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results).toHaveLength(20)
+        expect(tinStatements()).toHaveLength(3)
+        expect(ginStatements()).toHaveLength(0)
+      })
+
+      it('stays with the GIN ranking for the rest of a search once a page was handed to it', async () => {
+        /** Tin cannot fill the first page; GIN supplies it, and hydration keeps only half, so a second page follows. */
+        tinPages = [
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+          { ranked: 2000, candidates: [hit('never', 'src-a')] },
+        ]
+        const ginRows = Array.from({ length: 40 }, (_, index) => hit(`g-${index}`, 'src-a'))
+        const ginPages = [ginRows, []]
+        const execute = dbChainMockFns.execute.getMockImplementation()!
+        dbChainMockFns.execute.mockImplementation(async (query) =>
+          render(query).sql.includes('WITH matched_keyword_chunks')
+            ? (ginPages.shift() ?? [])
+            : execute(query)
+        )
+        queueTableRows(
+          schemaMock.embedding,
+          ginRows.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+        )
+        const results = await keyword({
+          topK: 40,
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results.map((row) => row.id)).not.toContain('never')
+        expect(tinStatements()).toHaveLength(2)
+        expect(ginStatements().length).toBeGreaterThanOrEqual(2)
+      })
+
+      it('keeps the bounded read for a set under the size', async () => {
+        mockResolveTinKeywordQuery.mockResolvedValue(null)
+        await keyword({ permitted: { kind: 'bounded', documents: large.slice(0, -1) }, accessPlan })
+        expect(mockResolveTinKeywordQuery).not.toHaveBeenCalled()
+        expect(JSON.stringify(ginStatements()[0])).toContain('doc-4998')
+      })
+    })
+
     it('leaves the page to the GIN ranking when the widest window cannot fill it', async () => {
       tinPages = [
         { ranked: 2000, candidates: [] },
@@ -1893,6 +2017,67 @@ describe('permitted-document planner', () => {
       const narrow = await resolve(scope('narrow-reach'))
       expect(narrow).toEqual({ kind: 'unbounded', broad: false })
       expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('does not remember a saturated reach whose count ran out of time', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached'))
+          throw Object.assign(new Error('canceling statement due to statement timeout'), {
+            code: '57014',
+          })
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const budget = () => new SearchBudget('vector', performance.now() + 10_000)
+      expect(
+        await resolvePermittedDocuments({
+          knowledgeBaseIds: ['org-index'],
+          access: scope('timed-saturated'),
+          budget: budget(),
+        })
+      ).toEqual({ kind: 'unbounded', broad: true })
+      expect(reachCounts()).toHaveLength(1)
+      /** The next search probes and counts again rather than trusting a reach that was never measured. */
+      await resolvePermittedDocuments({
+        knowledgeBaseIds: ['org-index'],
+        access: scope('timed-saturated'),
+        budget: budget(),
+      })
+      expect(probes()).toBe(2)
+      expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('counts a resolved reach against a small index instead of assuming it broad', async () => {
+      /** A bound inside the probe limit proves nothing without a saturated probe. */
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 100 }]
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const reach = await resolveReach(
+        ['org-index'],
+        scope('small-index'),
+        new SearchBudget('vector', performance.now() + 10_000),
+        {
+          connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+          connectorTypes: new Map(),
+          uploads: true,
+        }
+      )
+      expect(reach).toEqual({ kind: 'unbounded', broad: false })
+      expect(reachCounts()).toHaveLength(1)
+      /** The count is the search's own read: it runs inside the leg's deadline statement. */
+      const countAt = statements().findIndex((query) => query.sql.includes(') reached'))
+      expect(statements()[countAt - 1].sql).toContain('statement_timeout')
     })
 
     it('does not remember a reach whose count ran out of time', async () => {
@@ -2307,6 +2492,90 @@ describe('filters on a resolved scope', () => {
     const deadlines = statements().filter((query) => query.sql.includes('statement_timeout'))
     expect(deadlines.at(-1)?.params[0]).toBe('1500')
     expect(JSON.stringify(probes[0])).toContain('"type":"gte"')
+  })
+
+  it('tests a tag filter on every walked row of a planned scope', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'src-a')]
+    queueTableRows(schemaMock.embedding, [{ ...rerankRows[0], tag1: 'release' }])
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: plan(),
+      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' }],
+    })
+    const walks = statements().filter((query) => isWalk(query.sql))
+    expect(walks).toHaveLength(1)
+    /** The filter is chunk-level and the row does not carry it, so the walk asks the document: no unfiltered row fills the pool. */
+    expect(JSON.stringify(walks[0])).toContain('release')
+  })
+
+  describe('a bounded set past the exact-ranking size', () => {
+    const large = Array.from({ length: PERMITTED_EXACT_DOCUMENT_LIMIT }, (_, index) => ({
+      id: `doc-${index}`,
+      connectorId: 'src-a',
+    }))
+    const walked = Array.from({ length: 200 }, (_, index) => hit(`w-${index}`, 'src-a'))
+    const search = (documents: typeof large) =>
+      handleVectorOnlySearch({
+        ...params,
+        permitted: { kind: 'bounded', documents },
+        accessPlan: plan(),
+      })
+    beforeEach(() => {
+      const execute = dbChainMockFns.execute.getMockImplementation()!
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        /** The projection is filled, so a walk decides readability on the row. */
+        if (render(query).sql.includes('AS unfilled')) return [{ unfilled: false }]
+        return execute(query)
+      })
+    })
+
+    it('walks the graph on the row instead of ranking every chunk of the set', async () => {
+      traversedRows = walked
+      queueTableRows(schemaMock.embedding, [walked[0]])
+      expect((await search(large)).map((row) => row.id)).toEqual(['w-0'])
+      const walks = statements().filter((query) => isWalk(query.sql))
+      expect(walks).toHaveLength(1)
+      expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
+      /** Readability rides on the row through the plan; the set's identifiers never cross the wire. */
+      expect(JSON.stringify(walks[0])).not.toContain('doc-4999')
+      expect(JSON.stringify(walks[0])).toContain('src-a')
+    })
+
+    it('ranks the set exactly when the walk cannot fill its pool', async () => {
+      traversedRows = []
+      exactRows = [hit('a', 'src-a')]
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large)).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+      const exact = statements().filter((query) => isExactRanking(query.sql))
+      expect(exact).toHaveLength(1)
+      expect(JSON.stringify(exact[0])).toContain('doc-4999')
+    })
+
+    it('refills a pool the walk filled but hydration could not with the exact ranking', async () => {
+      traversedRows = walked
+      exactRows = [hit('a', 'src-a')]
+      /** None of the walked rows survives the document predicate; the set's own ranking then does. */
+      for (let page = 0; page < 10; page++) queueTableRows(schemaMock.embedding, [])
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large)).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(1)
+      const exact = statements().filter((query) => isExactRanking(query.sql))
+      expect(exact).toHaveLength(1)
+      /** The refill ranks past the rows already read, so nothing already rejected is read twice. */
+      expect(JSON.stringify(exact[0])).toContain('doc-4999')
+      expect(JSON.stringify(exact[0])).toContain('w-199')
+    })
+
+    it('ranks a set under the size exactly, without a walk', async () => {
+      exactRows = [hit('a', 'src-a')]
+      queueTableRows(schemaMock.embedding, [hit('a', 'src-a')])
+      expect((await search(large.slice(0, -1))).map((row) => row.id)).toEqual(['a'])
+      expect(statements().filter((query) => isWalk(query.sql))).toHaveLength(0)
+      expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(1)
+    })
   })
 
   it('ranks a date-bounded set exactly even when a member source has its own index', async () => {
