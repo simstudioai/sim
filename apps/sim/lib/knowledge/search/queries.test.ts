@@ -1845,6 +1845,28 @@ describe('permitted-document planner', () => {
         expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
       })
 
+      it('leaves a later page short rather than resuming a different ranking at its offset', async () => {
+        /** The first page fills from Tin; hydration keeps half, so a second page is asked for. */
+        const first = Array.from({ length: 40 }, (_, index) => hit(`t-${index}`, 'src-a'))
+        tinPages = [
+          { ranked: 2000, candidates: first },
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(
+          schemaMock.embedding,
+          first.slice(0, 20).map((row) => ({ ...row, content: 'release notes' }))
+        )
+        const results = await keyword({
+          topK: 40,
+          permitted: { kind: 'bounded', documents: large },
+          accessPlan,
+        })
+        expect(results).toHaveLength(20)
+        expect(tinStatements()).toHaveLength(3)
+        expect(ginStatements()).toHaveLength(0)
+      })
+
       it('keeps the bounded read for a set under the size', async () => {
         mockResolveTinKeywordQuery.mockResolvedValue(null)
         await keyword({ permitted: { kind: 'bounded', documents: large.slice(0, -1) }, accessPlan })

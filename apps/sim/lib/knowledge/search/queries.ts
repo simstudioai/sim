@@ -2155,8 +2155,10 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
        * A resolved scope decides readability on the ranked row. The windows widen while the page
        * is short, a narrow reader's to a wide one sooner and no further, and what the widest
        * cannot fill is left short rather than handed to a ranking over every match. A large
-       * bounded set is the exception: its bounded read was exhaustive, so the widest window that
-       * still falls short hands the page to the GIN ranking, which covers every match.
+       * bounded set is the exception on its first page: its bounded read was exhaustive, so the
+       * widest window that still falls short hands that page to the GIN ranking, which covers
+       * every match. A later page stays with Tin: the two rankers order differently, so an offset
+       * advanced through one cannot resume the other.
        */
       const narrow =
         accessPlan !== undefined &&
@@ -2221,7 +2223,9 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         if (
           page.candidates.length >= limit ||
           page.ranked < window ||
-          (accessPlan !== undefined && !largePermittedSet && window === windows[windows.length - 1])
+          (accessPlan !== undefined &&
+            !(largePermittedSet && offset === 0) &&
+            window === windows[windows.length - 1])
         ) {
           return { candidates: page.candidates, nextOffset: offset + page.candidates.length }
         }
