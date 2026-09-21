@@ -1180,11 +1180,9 @@ export const BROAD_REACH_SHARE = 0.25
 /**
  * How long a caller's saturated reach is remembered. Reach counts the documents a caller's tokens
  * touch in the bases, which moves slowly, and an unbounded set only means the legs search the
- * index with the full access predicate, so a stale answer costs speed, never access. Counting it
- * is the one read of a search that scales with the caller's reach rather than the query, so it is
- * remembered for long.
+ * index with the full access predicate, so a stale answer costs speed, never access.
  */
-const SATURATED_REACH_TTL_MS = 60 * 60 * 1000
+const SATURATED_REACH_TTL_MS = 5 * 60 * 1000
 
 /** A saturated reach, and whether it is broad enough to walk the whole graph for. */
 const saturatedReach = new LRUCache<string, { broad: boolean }>({
@@ -1346,11 +1344,17 @@ export async function resolveReach(
   const key = reachKey(knowledgeBaseIds, access, plan)
   const remembered = key ? saturatedReach.get(key) : undefined
   if (remembered) return { kind: 'unbounded', broad: remembered.broad }
-  const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan, false)
-  /** A count that ran out of time decides this search only; the next one counts again. */
-  if (broad === null) return { kind: 'unbounded', broad: true }
-  if (key) saturatedReach.set(key, { broad })
-  return { kind: 'unbounded', broad }
+  try {
+    const broad = await reachIsBroad(knowledgeBaseIds, access, budget, plan, false)
+    /** A count that ran out of time decides this search only; the next one counts again. */
+    if (broad === null) return { kind: 'unbounded', broad: true }
+    if (key) saturatedReach.set(key, { broad })
+    return { kind: 'unbounded', broad }
+  } catch (error) {
+    /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
+    if (!budget?.isTimeout(error)) throw error
+    return { kind: 'unbounded', broad: true }
+  }
 }
 
 /**
@@ -1403,17 +1407,22 @@ export async function resolvePermittedDocuments(params: {
       probe = { kind: 'timed_out' }
     }
     if (probe.kind === 'saturated') {
-      const counted = await reachIsBroad(
-        params.knowledgeBaseIds,
-        params.access,
-        params.budget,
-        params.accessPlan,
-        true
-      )
-      /** A count that ran out of time decides this search only; the next one counts again. */
-      if (counted !== null) {
-        broad = counted
-        if (key) saturatedReach.set(key, { broad })
+      try {
+        const counted = await reachIsBroad(
+          params.knowledgeBaseIds,
+          params.access,
+          params.budget,
+          params.accessPlan,
+          true
+        )
+        /** A count that ran out of time decides this search only; the next one counts again. */
+        if (counted !== null) {
+          broad = counted
+          if (key) saturatedReach.set(key, { broad })
+        }
+      } catch (error) {
+        /** The leg's own deadline passed during the count: the leg is short, the search is not failed. */
+        if (!params.budget?.isTimeout(error)) throw error
       }
     }
   }

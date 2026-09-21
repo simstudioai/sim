@@ -2051,6 +2051,20 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
+    it('reports a leg whose own deadline passed during the count as short, not failed', async () => {
+      const budget = new SearchBudget('vector', performance.now() - 1)
+      await expect(
+        resolveReach(['org-index'], scope('spent-leg'), budget, {
+          connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+          connectorTypes: new Map(),
+          uploads: true,
+        })
+      ).resolves.toEqual({ kind: 'unbounded', broad: true })
+      expect(budget.timedOut).toBe(true)
+    })
+
     it('counts a resolved reach against a small index instead of assuming it broad', async () => {
       /** A bound inside the probe limit proves nothing without a saturated probe. */
       dbChainMockFns.execute.mockImplementation(async (query) => {
