@@ -1757,7 +1757,8 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
          * rather than re-deriving permission across the whole index. Exact ranking also honours
          * `statement_timeout`, which a traversal cannot.
          */
-        const rankPermittedExactly = async (documentIds: string[]) => {
+        /** Ranks the set's chunks exactly; `read` are chunks a pool already holds, ranked past. */
+        const rankPermittedExactly = async (documentIds: string[], read?: readonly string[]) => {
           annotateSearchDiagnostics({ vectorRanking: 'exact-candidates' })
           if (!documentIds.length) return []
           return runSearchQuery(params.budget, 'vector.exact_candidates', (executor) =>
@@ -1768,6 +1769,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
                 inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
                 eq(embeddingSearch.enabled, true),
                 sql`${embeddingSearch.documentId} = ANY(${textArrayLiteral(documentIds)})`,
+                read?.length
+                  ? sql`NOT (${embeddingSearch.id} = ANY(${textArrayLiteral([...read])}))`
+                  : undefined,
                 candidateTagCondition,
                 excludedOnRow
               )}
@@ -1844,16 +1848,18 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
            * The walk decides readability on the projection row, which is broader than the
            * document predicate hydration applies, so a pool it filled can still run short of
            * readable rows. That shortfall is what refills a pool: the refill is the exact ranking,
-           * complete over the set, placed behind the rows already read so the pages keep their
-           * offsets.
+           * complete over the set, ranked past the rows already read and placed behind them, so
+           * the pages keep their offsets and every refill is a full window of fresh rows.
            */
           const permittedIds = params.permitted.documents.map((entry) => entry.id)
           const previous =
             candidatePool?.excludedKey === excludedKey ? candidatePool.ids : undefined
           if (previous) {
-            const exact = await rankPermittedExactly(permittedIds)
-            const read = new Set(previous.map((candidate) => candidate.id))
-            selected = [...previous, ...exact.filter((candidate) => !read.has(candidate.id))]
+            const exact = await rankPermittedExactly(
+              permittedIds,
+              previous.map((candidate) => candidate.id)
+            )
+            selected = [...previous, ...exact]
             exhausted = exact.length < candidateLimit
           } else {
             selected = await walkGraph()

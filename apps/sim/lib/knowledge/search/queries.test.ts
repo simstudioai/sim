@@ -2502,6 +2502,7 @@ describe('filters on a resolved scope', () => {
       expect(exact).toHaveLength(1)
       /** The refill ranks past the rows already read, so nothing already rejected is read twice. */
       expect(JSON.stringify(exact[0])).toContain('doc-4999')
+      expect(JSON.stringify(exact[0])).toContain('w-199')
     })
 
     it('ranks a set under the size exactly, without a walk', async () => {
