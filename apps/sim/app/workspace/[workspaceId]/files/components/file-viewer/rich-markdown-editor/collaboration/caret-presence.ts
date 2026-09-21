@@ -18,7 +18,7 @@ import type { Awareness } from 'y-protocols/awareness'
 export const CARET_LABEL_HOLD_MS = 2000
 
 /** Fallback caret color when a peer's awareness carries no `color`. */
-export const DEFAULT_CARET_COLOR = '#000000'
+export const DEFAULT_CARET_COLOR = 'var(--color-black)'
 
 /**
  * The active-state class {@link activateCaretLabel} toggles on the caret node to reveal the
