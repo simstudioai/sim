@@ -545,17 +545,19 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
   })
 
-  it('walks for a pool sized to the page, and scores results on the projection', async () => {
+  it('walks for a pool sized to the page, and scores the page on the original vectors', async () => {
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     await handleVectorOnlySearch(params)
     const walk = statements().find((query) => isWalk(query.sql))!
     /** The page is the walk's order, so the walk ends at a page's worth of candidates, not a rerank's. */
     expect(walk.params).toContain(200)
     expect(walk.params).not.toContain(1600)
-    /** Hydration scores each result on the stored halfvec; the original vector is never read. */
+    /** The hydrated page is scored on the original vector; the threshold stays on the projection. */
     const fields = JSON.stringify(dbChainMockFns.select.mock.calls[0][0])
-    expect(fields).toContain(String(schemaMock.embeddingSearch.vector512))
-    expect(fields).not.toContain(String(schemaMock.embedding.embedding))
+    expect(fields).toContain(String(schemaMock.embedding.embedding))
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls)).toContain(
+      String(schemaMock.embeddingSearch.vector512)
+    )
     expect(JSON.stringify(dbChainMockFns.leftJoin.mock.calls)).toContain('embeddingSearch')
     /** The source card's name, URL and connector type ride on the same read; no second pass. */
     expect(fields).toContain(String(schemaMock.document.filename))

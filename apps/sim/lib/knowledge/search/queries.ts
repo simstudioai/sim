@@ -65,6 +65,7 @@ import type { StructuredFilter } from '@/lib/knowledge/types'
 import {
   embeddingCandidateDimensions,
   embeddingCandidateDistance,
+  embeddingDistance,
 } from '@/lib/knowledge/vector-columns'
 
 const logger = createLogger('KnowledgeSearchQueries')
@@ -1943,11 +1944,16 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
       }
       return { candidates: [], nextOffset: candidatePool.ids.length }
     },
+    /**
+     * The page is scored on the original vectors: one out-of-line read per hydrated row, which
+     * is the page's size and nothing more, and it puts the page in the order the full vectors
+     * give. The walk and the threshold stay on the projection.
+     */
     hydrate: (ids, authorized) =>
       hydrateSearchCandidates(
         ids,
         authorized,
-        distance.as('distance'),
+        embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance'),
         params.filters,
         conditions,
         'vector',
