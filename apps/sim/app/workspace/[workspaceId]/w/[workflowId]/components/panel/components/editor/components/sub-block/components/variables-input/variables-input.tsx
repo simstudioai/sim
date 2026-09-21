@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
+  ChipSelect,
   CollapsibleCard,
   Combobox,
   type ComboboxOption,
@@ -474,13 +475,19 @@ export function VariablesInput({
                     )}
                   </div>
                   {assignment.type === 'boolean' && !isManualBoolean ? (
-                    <Combobox
+                    <ChipSelect
+                      fullWidth
+                      align='start'
+                      dropdownWidth='trigger'
+                      showSelectedCheck
+                      modal={false}
+                      maxHeight={192}
                       options={BOOLEAN_OPTIONS}
-                      value={assignment.value ?? ''}
+                      value={assignment.value || undefined}
                       onChange={(v) => !isReadOnly && updateAssignment(assignment.id, { value: v })}
                       placeholder='Select value'
                       disabled={isReadOnly}
-                      overlayContent={
+                      displayLabel={
                         booleanLabelHighlight ? (
                           <span className='truncate text-[var(--text-primary)]'>
                             {formatDisplayText(assignment.value ?? '', {

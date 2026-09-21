@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  ChipSelect,
   CollapsibleCard,
   Combobox,
   type ComboboxOption,
@@ -128,13 +129,19 @@ export function SortRuleRow({
 
       <div className='flex flex-col gap-1.5'>
         <Label className='text-small'>Direction</Label>
-        <Combobox
+        <ChipSelect
+          fullWidth
+          align='start'
+          dropdownWidth='trigger'
+          showSelectedCheck
+          modal={false}
+          maxHeight={192}
           options={directionOptions}
           value={rule.direction}
           onChange={(v) => onUpdate(rule.id, 'direction', v as 'asc' | 'desc')}
           disabled={isReadOnly}
           placeholder='Select direction'
-          overlayContent={
+          displayLabel={
             getLabelHighlight('direction', getDirectionLabel(rule.direction)) ? (
               <span className='truncate text-[var(--text-primary)]'>
                 {formatDisplayText(getDirectionLabel(rule.direction), {

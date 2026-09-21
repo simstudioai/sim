@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import {
   Badge,
   Button,
+  ChipSelect,
   CollapsibleCard,
   Combobox,
   type ComboboxOption,
@@ -204,12 +205,18 @@ export function FilterRuleRow({
       {index > 0 && (
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Logic</Label>
-          <Combobox
+          <ChipSelect
+            fullWidth
+            align='start'
+            dropdownWidth='trigger'
+            showSelectedCheck
+            modal={false}
+            maxHeight={192}
             options={logicalOptions}
             value={rule.logicalOperator}
             onChange={(v) => onUpdate(rule.id, 'logicalOperator', v as 'and' | 'or')}
             disabled={isReadOnly}
-            overlayContent={
+            displayLabel={
               getLabelHighlight('logicalOperator', rule.logicalOperator) ? (
                 <span className='truncate text-[var(--text-primary)]'>
                   {formatDisplayText(rule.logicalOperator, {
@@ -247,13 +254,19 @@ export function FilterRuleRow({
 
       <div className='flex flex-col gap-1.5'>
         <Label className='text-small'>Operator</Label>
-        <Combobox
+        <ChipSelect
+          fullWidth
+          align='start'
+          dropdownWidth='trigger'
+          showSelectedCheck
+          modal={false}
+          maxHeight={192}
           options={comparisonOptions}
           value={rule.operator}
           onChange={(v) => onUpdate(rule.id, 'operator', v)}
           disabled={isReadOnly}
           placeholder='Select operator'
-          overlayContent={
+          displayLabel={
             getLabelHighlight('operator', getOperatorLabel(rule.operator)) ? (
               <span className='truncate text-[var(--text-primary)]'>
                 {formatDisplayText(getOperatorLabel(rule.operator), {
