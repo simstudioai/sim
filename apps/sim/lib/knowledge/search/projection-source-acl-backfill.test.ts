@@ -3,10 +3,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBackfill, mockEnd, mockPostgres, mockTasksTrigger } = vi.hoisted(() => ({
+const { mockBackfill, mockEnd, mockPostgres, mockPrewarm, mockTasksTrigger } = vi.hoisted(() => ({
   mockBackfill: vi.fn(),
   mockEnd: vi.fn(async () => undefined),
   mockPostgres: vi.fn(),
+  mockPrewarm: vi.fn(async () => []),
   mockTasksTrigger: vi.fn(async () => ({ id: 'run-1' })),
 }))
 
@@ -16,6 +17,7 @@ vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
   backfillProjectionSourceAcl: mockBackfill,
 }))
 vi.mock('postgres', () => ({ default: mockPostgres }))
+vi.mock('@/lib/knowledge/search/prewarm', () => ({ prewarmSearchProjection: mockPrewarm }))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTasksTrigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
 vi.mock('@/lib/core/utils/background', () => ({
@@ -26,6 +28,7 @@ vi.mock('@/lib/core/utils/background', () => ({
 
 import {
   enqueueProjectionSourceAclBackfill,
+  PROJECTION_PREWARM_BUDGET_MS,
   runProjectionSourceAclBackfill,
 } from '@/lib/knowledge/search/projection-source-acl-backfill'
 
@@ -57,6 +60,15 @@ describe('runProjectionSourceAclBackfill', () => {
     expect(mockEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('warms the projections on the same connection once both are filled, before closing it', async () => {
+    await runProjectionSourceAclBackfill({})
+    expect(mockPrewarm).toHaveBeenCalledTimes(1)
+    expect(mockPrewarm).toHaveBeenCalledWith(connection, { budgetMs: PROJECTION_PREWARM_BUDGET_MS })
+    expect(mockPrewarm.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEnd.mock.invocationCallOrder[0]
+    )
+  })
+
   it('resumes after the cursor in its projection and from the start of the next', async () => {
     await runProjectionSourceAclBackfill({
       cursor: { projection: 'embedding_keyword_tin', afterId: 'chunk-9' },
@@ -80,6 +92,7 @@ describe('runProjectionSourceAclBackfill', () => {
     })
     expect(mockBackfill).toHaveBeenCalledTimes(1)
     expect(mockBackfill.mock.calls[0][2].budgetMs).toBeLessThanOrEqual(1000)
+    expect(mockPrewarm).not.toHaveBeenCalled()
     expect(mockEnd).toHaveBeenCalledTimes(1)
   })
 
