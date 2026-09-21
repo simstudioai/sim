@@ -1832,6 +1832,19 @@ describe('permitted-document planner', () => {
         expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
       })
 
+      it('hands the page to the GIN ranking when the widest window cannot fill it', async () => {
+        tinPages = [
+          { ranked: 2000, candidates: [] },
+          { ranked: 20_000, candidates: [] },
+        ]
+        queueTableRows(schemaMock.embedding, [{ ...hit('a', 'src-a'), content: 'release notes' }])
+        await keyword({ permitted: { kind: 'bounded', documents: large }, accessPlan })
+        expect(tinStatements()).toHaveLength(2)
+        /** Every match is covered again, by the ranking whose cost follows the term, not the set. */
+        expect(ginStatements()).toHaveLength(1)
+        expect(JSON.stringify(ginStatements()[0])).not.toContain('doc-4999')
+      })
+
       it('keeps the bounded read for a set under the size', async () => {
         mockResolveTinKeywordQuery.mockResolvedValue(null)
         await keyword({ permitted: { kind: 'bounded', documents: large.slice(0, -1) }, accessPlan })
