@@ -11,6 +11,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import {
+  forgetProjectionFilled,
   resolvePermittedDocuments,
   retrieveKnowledgeSearch,
   VECTOR_PROBE_DOCUMENT_LIMIT,
@@ -92,6 +93,8 @@ describe('API-key KB block fan-out', () => {
   it.each([false, true])(
     'completes 18 concurrent KB searches with access checks intact (tag filter: %s)',
     async (withTags) => {
+      /** The projection-fill memo outlives an iteration; each one must read it once, like a cold process. */
+      forgetProjectionFilled()
       const previousDebug = db.$client.options.debug
       const statements: string[] = []
       db.$client.options.debug = (_connection, query) => {
@@ -132,10 +135,11 @@ describe('API-key KB block fan-out', () => {
           statements.filter((query) => query.includes(fragment))
         /**
          * Every statement runs under the leg's deadline: the candidate search applies it with the
-         * scan settings in one statement, and the probe, the exact ranking, the rerank and
-         * hydration each open with one of their own.
+         * scan settings in one statement, and the probe, the exact ranking and hydration each
+         * open with one of their own. The projection-fill read is shared by the searches that
+         * miss its memo together, so it appears once.
          */
-        expect(matching('statement_timeout')).toHaveLength(bases.length * 5)
+        expect(matching('statement_timeout')).toHaveLength(bases.length * 4 + 1)
         /**
          * A scope this small leaves the bounded traversal short of its candidate limit, so every
          * search probes once and rescues once — never a widening retry loop.
@@ -143,7 +147,8 @@ describe('API-key KB block fan-out', () => {
         expect(matching('hnsw.iterative_scan')).toHaveLength(bases.length)
         expect(matching('AS visible')).toHaveLength(bases.length)
         expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
-        expect(matching('"embedding_search"."id" = ANY(')).toHaveLength(bases.length)
+        /** The walk carries each candidate's identities, so a filled projection reads no page. */
+        expect(matching('"embedding_search"."id" = ANY(')).toHaveLength(0)
         /** The probe enumerates visible documents and reports saturation; it never ranks them. */
         expect(
           statements.filter(

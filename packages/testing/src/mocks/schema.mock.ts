@@ -990,6 +990,8 @@ export const schemaMock = {
     id: 'embeddingSearch.id',
     knowledgeBaseId: 'embeddingSearch.knowledgeBaseId',
     documentId: 'embeddingSearch.documentId',
+    connectorId: 'embeddingSearch.connectorId',
+    acl: 'embeddingSearch.acl',
     enabled: 'embeddingSearch.enabled',
     binary: 'embeddingSearch.binary',
     binary384: 'embeddingSearch.binary384',

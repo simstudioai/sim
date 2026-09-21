@@ -36,6 +36,11 @@ import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availab
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
+import {
+  ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
+  type ActiveKnowledgeBaseReference,
+  toActiveKnowledgeBaseReference,
+} from '@/lib/knowledge/knowledge-base-reference'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type {
   ChunkingConfig,
@@ -949,28 +954,6 @@ export async function getKnowledgeBaseNames(
   return new Map(rows.map((row) => [row.id, row.name]))
 }
 
-export type ActiveKnowledgeBaseReference = Omit<
-  KnowledgeBaseWithCounts,
-  'tokenCount' | 'docCount' | 'connectorTypes' | 'hasPermissionScopedConnector'
->
-
-const ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS = {
-  id: knowledgeBase.id,
-  userId: knowledgeBase.userId,
-  name: knowledgeBase.name,
-  isSearchIndex: knowledgeBase.isSearchIndex,
-  description: knowledgeBase.description,
-  embeddingModel: knowledgeBase.embeddingModel,
-  embeddingDimension: knowledgeBase.embeddingDimension,
-  chunkingConfig: knowledgeBase.chunkingConfig,
-  createdAt: knowledgeBase.createdAt,
-  updatedAt: knowledgeBase.updatedAt,
-  deletedAt: knowledgeBase.deletedAt,
-  workspaceId: knowledgeBase.workspaceId,
-  organizationId: knowledgeBase.organizationId,
-  folderId: knowledgeBase.folderId,
-}
-
 /**
  * Canonical identity and configuration for application authorization and retrieval.
  * Reading a reference never scans the base's documents to compute display counts.
@@ -984,7 +967,7 @@ export async function getActiveKnowledgeBaseReference(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
-  return row ? { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig } : null
+  return row ? toActiveKnowledgeBaseReference(row) : null
 }
 
 /** Loads active references in one statement while preserving requested order and missing entries. */
@@ -1004,9 +987,7 @@ export async function getActiveKnowledgeBaseReferences(
         isNull(knowledgeBase.deletedAt)
       )
     )
-  const byId = new Map(
-    rows.map((row) => [row.id, { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig }])
-  )
+  const byId = new Map(rows.map((row) => [row.id, toActiveKnowledgeBaseReference(row)]))
   return knowledgeBaseIds.map((id) => byId.get(id) ?? null)
 }
 

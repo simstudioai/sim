@@ -64,6 +64,9 @@ const embeddingTable = {
   boolean1: 'boolean1',
 }
 
+/** The projection-fill memo outlives a test; every case starts without one. */
+beforeEach(() => forgetProjectionFilled())
+
 describe('retrieval leg budgets', () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -413,6 +416,8 @@ describe('workspace-scoped vector retrieval', () => {
     failCandidates = undefined
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (statement.includes('hnsw.iterative_scan')) {
         if (failSettings) throw failSettings
         return []
@@ -530,6 +535,8 @@ describe('workspace-scoped vector retrieval', () => {
     const execute = dbChainMockFns.execute.getMockImplementation()!
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (isProbeStatement(statement))
         throw new Error('canceling statement due to statement timeout', {
           cause: { code: '57014' },
@@ -545,17 +552,19 @@ describe('workspace-scoped vector retrieval', () => {
     expect(statements().filter((query) => isExactRanking(query.sql))).toHaveLength(0)
   })
 
-  it('walks for a pool sized to the page, and scores results on the projection', async () => {
+  it('walks for a pool sized to the page, and scores the page on the original vectors', async () => {
     queueTableRows(schemaMock.embedding, [...ranked].reverse())
     await handleVectorOnlySearch(params)
     const walk = statements().find((query) => isWalk(query.sql))!
     /** The page is the walk's order, so the walk ends at a page's worth of candidates, not a rerank's. */
     expect(walk.params).toContain(200)
     expect(walk.params).not.toContain(1600)
-    /** Hydration scores each result on the stored halfvec; the original vector is never read. */
+    /** The hydrated page is scored on the original vector; the threshold stays on the projection. */
     const fields = JSON.stringify(dbChainMockFns.select.mock.calls[0][0])
-    expect(fields).toContain(String(schemaMock.embeddingSearch.vector512))
-    expect(fields).not.toContain(String(schemaMock.embedding.embedding))
+    expect(fields).toContain(String(schemaMock.embedding.embedding))
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls)).toContain(
+      String(schemaMock.embeddingSearch.vector512)
+    )
     expect(JSON.stringify(dbChainMockFns.leftJoin.mock.calls)).toContain('embeddingSearch')
     /** The source card's name, URL and connector type ride on the same read; no second pass. */
     expect(fields).toContain(String(schemaMock.document.filename))
@@ -635,6 +644,7 @@ describe('workspace-scoped vector retrieval', () => {
     const execute = dbChainMockFns.execute.getMockImplementation()!
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query)
+      if (statement.sql.includes('AS unfilled')) return [{ unfilled: true }]
       if (isPageStatement(statement.sql)) {
         queueTableRows(
           schemaMock.embedding,
@@ -724,7 +734,7 @@ describe('workspace-scoped vector retrieval', () => {
       statements()
         .filter((query) => query.sql.includes('statement_timeout'))
         .map((query) => query.params[0])
-    ).toEqual(['100', '40', '20'])
+    ).toEqual(['100', '100', '40', '20'])
   })
 
   it('applies the scan settings in the deadline statement rather than one of their own', async () => {
@@ -814,7 +824,8 @@ describe('workspace-scoped vector retrieval', () => {
     }
     for (const resume of release) resume()
     const settled = await Promise.allSettled(transactions)
-    expect(settled).toHaveLength(18)
+    /** The searches that miss the projection-fill memo together share one read; each search's own read is refused at its deadline before it starts. */
+    expect(settled).toHaveLength(1)
     for (const transaction of settled) {
       expect(transaction.status).toBe('rejected')
       if (transaction.status === 'rejected')
@@ -838,7 +849,9 @@ describe('workspace search filters before ranking', () => {
       modifiedAfter: '2026-09-01T00:00:00Z',
     },
   }
-  beforeEach(() => resetDbChainMock())
+  beforeEach(() => {
+    resetDbChainMock()
+  })
 
   function expectScopeOnEveryQuery() {
     const queries = dbChainMockFns.where.mock.calls
@@ -945,6 +958,8 @@ describe('hydration follows ranked candidates', () => {
     keywordPages.length = 0
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (statement.includes('AS visible')) return candidatePages.shift() ?? []
       if (isPageStatement(statement)) return rerankPages.shift() ?? []
       if (statement.includes('WITH matched_keyword_chunks')) return keywordPages.shift() ?? []
@@ -1155,7 +1170,8 @@ describe('hydration follows ranked candidates', () => {
         )
       } else {
         const ranking = statements().find((query) => isExactRanking(query.sql))!
-        expect(ranking.sql).toContain('AS id FROM')
+        /** The identities are one nested fragment; the mock renders it into the parameters. */
+        expect(JSON.stringify(ranking)).toContain('connectorId')
         expect(ranking.sql).not.toContain('"content"')
       }
       const rankingOrder =
@@ -1299,9 +1315,10 @@ describe('permitted-document planner', () => {
     indexedSourceRows = []
     forgetIndexedVectorSources()
     forgetSearchReach()
-    forgetProjectionFilled()
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (statement.includes('pg_index')) return indexedSourceRows
       if (isWalk(statement)) return traversedRows
       if (isPageStatement(statement)) return rerankRows
@@ -1582,7 +1599,6 @@ describe('permitted-document planner', () => {
     })
 
     it('decides a row the backfill has not reached on its document while the fill runs', async () => {
-      forgetProjectionFilled()
       tinPages.push({
         ranked: 1,
         candidates: [{ id: 'a', documentId: 'doc-a', connectorId: 'src-a' }],
@@ -1604,7 +1620,6 @@ describe('permitted-document planner', () => {
       /** A row the backfill has not filled (`acl IS NULL`) is decided on its document instead. */
       expect(statement).toContain('IS NULL AND EXISTS (')
       expect(statement).toContain('ranked_tin_chunks.document_id')
-      forgetProjectionFilled()
     })
 
     it('widens the window for a broad resolved scope whose first page came back short', async () => {
@@ -2028,7 +2043,7 @@ describe('permitted-document planner', () => {
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
-  it('rebuilds the pages without a gated source the caller turns out not to hold', async () => {
+  it('rebuilds the pool without a gated source the caller turns out not to hold', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         id: 'gated-src',
@@ -2039,23 +2054,21 @@ describe('permitted-document planner', () => {
     ])
     /**
      * The first pool is filled by the gated source alone; only a pool built without it — the
-     * exclusion carries the source id into the statement — reaches the accessible candidate.
+     * exclusion carries the source id into the walk — reaches the accessible candidate. The
+     * projection is filled, so the walk carries each candidate's source and no page is read.
      */
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
-      /** The exclusion is the only clause that negates a connector membership. */
-      const rebuilt = JSON.stringify(query).includes('OR NOT (')
-      /** The page carries no exclusion of its own; the rebuilt pool is what asks for 'b'. */
-      if (isPageStatement(statement))
-        return JSON.stringify(render(query).params).includes('"b"')
-          ? [hit('b', 'other-src')]
-          : [hit('a', 'gated-src')]
-      /** The first walk's pool is the gated source's; the rebuilt one reaches the accessible chunk. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: false }]
+      const rebuilt = JSON.stringify(query).includes('/* excluded sources */')
       if (isWalk(statement))
-        return Array.from({ length: 400 }, (_, i) => ({
-          id: i === 0 ? (rebuilt ? 'b' : 'a') : `w-${i}`,
-          distance: 0.1,
-        }))
+        return Array.from({ length: 400 }, (_, i) =>
+          i === 0
+            ? rebuilt
+              ? hit('b', 'other-src')
+              : hit('a', 'gated-src')
+            : hit(`w-${i}`, rebuilt ? 'other-src' : 'gated-src')
+        )
       return []
     })
     queueTableRows(schemaMock.embedding, [])
@@ -2070,18 +2083,15 @@ describe('permitted-document planner', () => {
     })
     expect(getForConnectors).toHaveBeenCalledOnce()
     expect(result.rows.map((row) => row.id)).toEqual(['b'])
-    /** The exclusion lives in the walk that rebuilds the pool, so the rebuilt page asks for 'b'. */
     const walks = statements().filter((query) => isWalk(query.sql))
     expect(walks).toHaveLength(2)
-    expect(JSON.stringify(walks[0])).not.toContain('OR NOT (')
+    expect(JSON.stringify(walks[0])).not.toContain('/* excluded sources */')
+    expect(JSON.stringify(walks[1])).toContain('/* excluded sources */')
     expect(JSON.stringify(walks[1])).toContain('OR NOT (')
-    const pages = statements().filter((query) => isPageStatement(query.sql))
-    expect(pages).toHaveLength(2)
-    expect(JSON.stringify(pages[1].params)).toContain('"b"')
+    expect(statements().some((query) => isPageStatement(query.sql))).toBe(false)
   })
 
   it('excludes a denied source through its documents while the projection is unfilled', async () => {
-    forgetProjectionFilled()
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         id: 'gated-src',
@@ -2122,7 +2132,6 @@ describe('permitted-document planner', () => {
     expect(JSON.stringify(walks[0])).not.toContain('/* excluded sources */')
     expect(JSON.stringify(walks[1])).toContain('NOT EXISTS (SELECT 1 FROM')
     expect(JSON.stringify(walks[1])).toContain('/* excluded sources */')
-    forgetProjectionFilled()
   })
 
   it('hands back the unread slices of a page a denied source made it rebuild', async () => {
@@ -2141,6 +2150,8 @@ describe('permitted-document planner', () => {
      */
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       const rebuilt = JSON.stringify(query).includes('OR NOT (')
       if (isPageStatement(statement))
         return rebuilt
@@ -2233,7 +2244,6 @@ describe('filters on a resolved scope', () => {
     resetDbChainMock()
     forgetIndexedVectorSources()
     forgetSearchReach()
-    forgetProjectionFilled()
     probeRows = []
     traversedRows = []
     rerankRows = []
@@ -2241,6 +2251,8 @@ describe('filters on a resolved scope', () => {
     indexedSourceRows = []
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (statement.includes('EXPLAIN'))
         return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
       if (statement.includes('pg_index')) return indexedSourceRows
@@ -2319,6 +2331,8 @@ describe('filters on a resolved scope', () => {
   it("estimates a filter under the leg's deadline and walks when the estimate runs out of time", async () => {
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (statement.includes('EXPLAIN') && JSON.stringify(render(query)).includes('"type":"gte"'))
         throw Object.assign(new Error('canceling statement due to statement timeout'), {
           code: '57014',
@@ -2380,7 +2394,6 @@ describe('filters on a resolved scope', () => {
     expect(probes()).toHaveLength(1)
     estimated = 1_000_000
     forgetSearchReach()
-    forgetProjectionFilled()
     dbChainMockFns.execute.mockClear()
     await search()
     expect(probes()).toHaveLength(0)
@@ -2436,6 +2449,7 @@ describe('filters on a resolved scope', () => {
     queueTableRows(schemaMock.embedding, rerankRows)
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
+      /** The fixtures model the page read, which only an unfilled projection makes. */
       if (statement.includes('AS unfilled')) return [{ unfilled: true }]
       if (isWalk(statement)) return traversedRows
       if (isPageStatement(statement)) return rerankRows
@@ -2476,11 +2490,13 @@ describe('filters on a resolved scope', () => {
         .map((query) => query.params.find((param) => param === '20000' || param === '100000'))
     expect(scanCaps().at(-1)).toBe('20000')
     resetDbChainMock()
+    forgetProjectionFilled()
     queueTableRows(schemaMock.embedding, rerankRows)
     dbChainMockFns.execute.mockImplementation(async (query) => {
       const statement = render(query).sql
-      if (isWalk(statement)) return traversedRows
-      if (isPageStatement(statement)) return rerankRows
+      /** A filled projection: the walk carries the identities and no page is read. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: false }]
+      if (isWalk(statement)) return rerankRows
       return []
     })
     await handleVectorOnlySearch({
@@ -2490,6 +2506,7 @@ describe('filters on a resolved scope', () => {
     })
     expect(datesDocument(statements().filter((query) => isWalk(query.sql))[0])).toBe(false)
     expect(scanCaps().at(-1)).toBe('100000')
+    expect(statements().some((query) => isPageStatement(query.sql))).toBe(false)
   })
 
   it('leaves the keyword leg short when its deadline passes before the ranking is resolved', async () => {

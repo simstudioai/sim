@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  afterSearch: vi.fn(async () => undefined),
   resolveWorkspace: vi.fn(),
   permission: vi.fn(),
   search: vi.fn(),
@@ -21,7 +22,18 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: mocks.search },
+  runKnowledgeSearch: mocks.search,
+  buildKnowledgeSearchContext: (
+    _principal: unknown,
+    context: unknown,
+    knowledgeBases: unknown
+  ) => ({
+    ...(context as object),
+    knowledgeBases,
+    access: {},
+  }),
+  validateKnowledgeSearchInput: () => undefined,
+  afterKnowledgeSearch: mocks.afterSearch,
 }))
 
 import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'
@@ -47,10 +59,17 @@ describe('canonical workspace search', () => {
   it('authorizes the person before selecting the canonical active index and passes the same principal and filters', async () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'index' }])
     await searchWorkspaceKnowledge.execute({ principal, input })
-    expect(mocks.search).toHaveBeenCalledWith({
-      principal,
-      input: { ...input, knowledgeBaseIds: ['index'] },
-    })
+    /** The search runs under the context this use case resolved; the index is its one base. */
+    expect(mocks.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: { ...input, knowledgeBaseIds: ['index'] },
+        context: expect.objectContaining({
+          workspaceId: 'workspace',
+          knowledgeBases: [expect.objectContaining({ id: 'index' })],
+        }),
+      })
+    )
     expect(
       hasMockCondition(
         dbChainMockFns.where.mock.calls[0][0],
