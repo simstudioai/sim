@@ -114,7 +114,9 @@ export interface ProjectionSourceAclBackfillProgress {
  * cost of a page and far more than a deploy can wait for; the run paces itself with a pause between
  * pages and stops at its budget so a background task can chain runs until the projection is filled.
  * Search does not wait: an unfilled row is decided on its document by the on-row candidate
- * predicate, the join per candidate every row paid before the columns existed.
+ * predicate, the join per candidate every row paid before the columns existed. A run fills the
+ * range it was given and reports that range done; whether the projection as a whole is done, and
+ * the analysis the planner then needs, is the caller's, since several runs may share a projection.
  */
 export async function backfillProjectionSourceAcl(
   sql: Sql,
@@ -170,8 +172,6 @@ export async function backfillProjectionSourceAcl(
     })
     if (page.last_id === null) {
       done = true
-      /** The planner last saw every row unfilled; it should see the finished projection. */
-      await sql.unsafe(`ANALYZE ${projection}`)
       break
     }
     afterId = page.last_id
@@ -192,9 +192,12 @@ export async function backfillProjectionSourceAcl(
     if (Date.now() >= deadline) break
   }
   logger.info(
-    done ? 'Projection source and ACL backfilled' : 'Projection source and ACL backfill paused',
+    done
+      ? 'Projection source and ACL range backfilled'
+      : 'Projection source and ACL backfill paused',
     {
       projection,
+      beforeId,
       scanned,
       written,
       afterId,

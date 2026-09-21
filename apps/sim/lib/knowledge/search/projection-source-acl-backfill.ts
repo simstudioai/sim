@@ -36,6 +36,12 @@ export interface ProjectionSourceAclBackfillShard {
   count: number
 }
 
+/**
+ * Shards the id space may be sliced into at most: the runs the task's queue admits at once, so a
+ * sliced fill runs its slices together rather than in waves.
+ */
+export const PROJECTION_SOURCE_ACL_BACKFILL_SHARDS = 4
+
 export interface ProjectionSourceAclBackfillPayload {
   /** The first projection's first page when absent. */
   cursor?: ProjectionSourceAclBackfillCursor
@@ -49,6 +55,11 @@ export interface ProjectionSourceAclBackfillPayload {
 function assertProjectionSourceAclShard({ index, count }: ProjectionSourceAclBackfillShard): void {
   if (!Number.isInteger(count) || count < 1 || 16 % count !== 0) {
     throw new Error(`Projection backfill shard count must divide 16, got ${count}`)
+  }
+  if (count > PROJECTION_SOURCE_ACL_BACKFILL_SHARDS) {
+    throw new Error(
+      `Projection backfill shard count must be at most ${PROJECTION_SOURCE_ACL_BACKFILL_SHARDS}, got ${count}`
+    )
   }
   if (!Number.isInteger(index) || index < 0 || index >= count) {
     throw new Error(`Projection backfill shard index must be within 0..${count - 1}, got ${index}`)
@@ -117,12 +128,15 @@ export async function runProjectionSourceAclBackfill(
       elapsedMs: Date.now() - startedAt,
     })
     /**
-     * The fill just streamed through both projections; put the ranking pages back before anyone
-     * searches. With shards, the one that finishes last does it: a shard that still finds unfilled
-     * rows anywhere leaves the warm to whoever fills them. Two shards ending in the same moment can
-     * both read none left and both warm, which repeats reads and nothing else.
+     * The fill just streamed through both projections: the planner last saw every row unfilled and
+     * should see the finished projections, and the ranking pages should be back before anyone
+     * searches. With shards, the one that finishes last does both: a shard that still finds
+     * unfilled rows anywhere leaves them to whoever fills those. Two shards ending in the same
+     * moment can both read none left and both do this, which repeats reads and nothing else.
      */
     if (await projectionsFilled(sql)) {
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES)
+        await sql.unsafe(`ANALYZE ${projection}`)
       await prewarmSearchProjection(sql, { budgetMs: PROJECTION_PREWARM_BUDGET_MS })
     }
     return null
@@ -142,18 +156,26 @@ async function projectionsFilled(sql: postgres.Sql): Promise<boolean> {
   return true
 }
 
+/** How long a start stays idempotent: long enough that a retried command finds its runs, not a second set. */
+const ENQUEUE_IDEMPOTENCY_TTL = '1h'
+
 /**
  * Starts the backfill on the deployment's Trigger.dev worker, where bounded runs chain until the
  * projections are filled: one chain over the whole id space, or one per shard, each filling its
- * own slice at the same time. Safe to call again at any time: a run only fills rows still unset.
+ * own slice at the same time. Safe to call again at any time: a run only fills rows still unset,
+ * and a start repeated within the hour finds the runs it already made rather than making more. A
+ * cursor belongs to one chain, so a sliced start takes none: each slice begins at its own bound.
  */
 export async function enqueueProjectionSourceAclBackfill(
   payload: ProjectionSourceAclBackfillPayload = {},
   shards = 1
 ): Promise<{ runIds: string[] }> {
+  if (shards !== 1) {
+    assertProjectionSourceAclShard({ index: 0, count: shards })
+    if (payload.cursor) throw new Error('A sliced projection backfill cannot start from a cursor')
+  }
   const { tasks } = await import('@trigger.dev/sdk')
   const region = await resolveTriggerRegion()
-  if (shards !== 1) assertProjectionSourceAclShard({ index: 0, count: shards })
   const payloads: ProjectionSourceAclBackfillPayload[] =
     shards === 1
       ? [payload]
@@ -162,9 +184,11 @@ export async function enqueueProjectionSourceAclBackfill(
           shard: { index, count: shards },
         }))
   const runIds: string[] = []
-  for (const shardPayload of payloads) {
+  for (const [index, shardPayload] of payloads.entries()) {
     const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, shardPayload, {
       region,
+      idempotencyKey: `${PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID}:${shards}:${index}`,
+      idempotencyKeyTTL: ENQUEUE_IDEMPOTENCY_TTL,
     })
     runIds.push(handle.id)
   }

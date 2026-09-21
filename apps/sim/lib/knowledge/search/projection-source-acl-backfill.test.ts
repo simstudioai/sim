@@ -63,8 +63,11 @@ describe('runProjectionSourceAclBackfill', () => {
     expect(mockEnd).toHaveBeenCalledTimes(1)
   })
 
-  it('warms the projections on the same connection once both are filled, before closing it', async () => {
+  it('analyzes and warms the projections on the same connection once both are filled, before closing it', async () => {
     await runProjectionSourceAclBackfill({})
+    expect(mockUnsafe.mock.calls.map(([query]) => query)).toEqual(
+      expect.arrayContaining(['ANALYZE embedding_search', 'ANALYZE embedding_keyword_tin'])
+    )
     expect(mockPrewarm).toHaveBeenCalledTimes(1)
     expect(mockPrewarm).toHaveBeenCalledWith(connection, { budgetMs: PROJECTION_PREWARM_BUDGET_MS })
     expect(mockPrewarm.mock.invocationCallOrder[0]).toBeLessThan(
@@ -121,11 +124,12 @@ describe('runProjectionSourceAclBackfill', () => {
     expect(mockBackfill.mock.calls[1][2]).toMatchObject({ afterId: '4', beforeId: '8' })
   })
 
-  it('leaves the warm to whoever fills the rows another shard still holds', async () => {
+  it('leaves the analysis and the warm to whoever fills the rows another shard still holds', async () => {
     mockUnsafe.mockResolvedValueOnce([{ unfilled: true }])
     await expect(
       runProjectionSourceAclBackfill({ shard: { index: 0, count: 4 } })
     ).resolves.toBeNull()
+    expect(mockUnsafe.mock.calls.map(([query]) => query)).not.toContain('ANALYZE embedding_search')
     expect(mockPrewarm).not.toHaveBeenCalled()
     expect(mockEnd).toHaveBeenCalledTimes(1)
   })
@@ -149,6 +153,7 @@ describe('projectionSourceAclShardRange', () => {
 
   it.each([
     [{ index: 0, count: 3 }, 'shard count must divide 16'],
+    [{ index: 0, count: 8 }, 'shard count must be at most 4'],
     [{ index: 4, count: 4 }, 'shard index must be within 0..3'],
     [{ index: 0.5, count: 2 }, 'shard index must be within 0..1'],
   ])('refuses %j', (shard, message) => {
@@ -176,22 +181,42 @@ describe('enqueueProjectionSourceAclBackfill', () => {
     expect(mockTasksTrigger).toHaveBeenCalledWith(
       'projection-source-acl-backfill',
       { pageSize: 25 },
-      { region: 'us-east-1' }
+      {
+        region: 'us-east-1',
+        idempotencyKey: 'projection-source-acl-backfill:1:0',
+        idempotencyKeyTTL: '1h',
+      }
     )
     expect(mockBackfill).not.toHaveBeenCalled()
   })
 
-  it('starts one run per shard, each on its own slice', async () => {
+  it('starts one run per shard, each on its own slice with its own idempotency key', async () => {
     await expect(enqueueProjectionSourceAclBackfill({ pageSize: 25 }, 4)).resolves.toEqual({
       runIds: ['run-1', 'run-1', 'run-1', 'run-1'],
     })
     expect(mockTasksTrigger.mock.calls.map(([, payload]) => payload)).toEqual(
       [0, 1, 2, 3].map((index) => ({ pageSize: 25, shard: { index, count: 4 } }))
     )
+    expect(mockTasksTrigger.mock.calls.map(([, , options]) => options.idempotencyKey)).toEqual(
+      [0, 1, 2, 3].map((index) => `projection-source-acl-backfill:4:${index}`)
+    )
   })
 
-  it('refuses a shard count the id space cannot be sliced into before starting anything', async () => {
-    await expect(enqueueProjectionSourceAclBackfill({}, 3)).rejects.toThrow('must divide 16')
+  it.each([
+    [3, 'must divide 16'],
+    [8, 'must be at most 4'],
+  ])('refuses %s shards before starting anything', async (shards, message) => {
+    await expect(enqueueProjectionSourceAclBackfill({}, shards)).rejects.toThrow(message)
+    expect(mockTasksTrigger).not.toHaveBeenCalled()
+  })
+
+  it('refuses to slice a start that carries a cursor, which belongs to one chain', async () => {
+    await expect(
+      enqueueProjectionSourceAclBackfill(
+        { cursor: { projection: 'embedding_search', afterId: '5a' } },
+        4
+      )
+    ).rejects.toThrow('cannot start from a cursor')
     expect(mockTasksTrigger).not.toHaveBeenCalled()
   })
 })
