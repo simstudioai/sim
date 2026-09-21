@@ -232,7 +232,7 @@ export const CLI_TOOL_TITLES: Record<string, string> = {
   cli_logs_query: 'Querying run history',
   cli_outputs_get: 'Reading saved tool output',
   cli_reference: 'Reading command reference',
-  cli_to_sandbox: 'Saving command output to sandbox',
+  cli_to_sandbox: 'Saving results',
   cli_workflow_blocks: 'Listing workflow blocks',
   cli_workflow_deps: 'Tracing block inputs',
   cli_workflow_edges: 'Reading workflow wiring',
