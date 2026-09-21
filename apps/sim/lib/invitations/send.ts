@@ -20,9 +20,14 @@ import {
   renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
-import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
+import {
+  computeInvitationExpiry,
+  lockInvitationForMutation,
+  requireInvitationResendAuthority,
+} from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -271,14 +276,22 @@ async function createOrExtendPendingInvitation(
     })
 
     const organizationId = await resolveInvitationOrganizationId(tx, input, workspaceIds)
-    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
-    const existing = organizationId
+    let existing = organizationId
       ? await findPendingOrganizationInvitation(tx, organizationId, email)
       : null
 
     if (existing && existing.id !== knownPendingId) {
       throw new InvitationScopeChangedError()
     }
+
+    if (existing && existing.expiresAt.getTime() <= now.getTime()) {
+      await tx
+        .update(invitation)
+        .set({ status: 'expired', updatedAt: now })
+        .where(and(eq(invitation.id, existing.id), eq(invitation.status, 'pending')))
+      existing = null
+    }
+    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
 
     if (existing) {
       return extendPendingInvitation(tx, { existing, input, expiresAt, now })
@@ -696,21 +709,58 @@ export async function persistInvitationResend(params: {
   invitationId: string
   nextToken: string | null
   nextExpiresAt: Date
+  expectedOrganizationId?: string
+  expectedUpdatedAt: Date
+  actorUserId: string
 }): Promise<void> {
-  const [row] = await db
-    .update(invitation)
-    .set({
-      expiresAt: params.nextExpiresAt,
-      updatedAt: new Date(),
-      ...(params.nextToken ? { token: params.nextToken } : {}),
-    })
-    .where(and(eq(invitation.id, params.invitationId), eq(invitation.status, 'pending')))
-    .returning({ id: invitation.id })
-
-  if (!row) {
-    throw new Error(`Invitation ${params.invitationId} not found or no longer pending`)
+  async function persist(executor: DbOrTx) {
+    const [row] = await executor
+      .update(invitation)
+      .set({
+        expiresAt: params.nextExpiresAt,
+        updatedAt: new Date(),
+        ...(params.nextToken ? { token: params.nextToken } : {}),
+      })
+      .where(
+        and(
+          eq(invitation.id, params.invitationId),
+          eq(invitation.status, 'pending'),
+          params.expectedOrganizationId === undefined
+            ? undefined
+            : eq(invitation.organizationId, params.expectedOrganizationId),
+          eq(invitation.updatedAt, params.expectedUpdatedAt)
+        )
+      )
+      .returning({ id: invitation.id })
+    if (!row)
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed while the email was being delivered. Refresh before resending.'
+      )
   }
-
+  await db.transaction(async (tx) => {
+    const current = await lockInvitationForMutation(tx, params.invitationId, {
+      lockCurrentGrantWorkspaces: true,
+    })
+    if (
+      !current ||
+      (params.expectedOrganizationId !== undefined &&
+        current.organizationId !== params.expectedOrganizationId)
+    )
+      throw new OrchestrationError('not_found', 'Invitation not found')
+    await requireInvitationResendAuthority(
+      tx,
+      current,
+      params.actorUserId,
+      params.expectedOrganizationId
+    )
+    if (current.expiresAt.getTime() <= Date.now())
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation expired while the email was being delivered. Create a new invitation.'
+      )
+    await persist(tx)
+  })
   logger.info('Persisted invitation resend', {
     invitationId: params.invitationId,
     rotated: !!params.nextToken,

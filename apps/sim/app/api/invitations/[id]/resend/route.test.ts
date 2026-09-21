@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { member, user } from '@sim/db/schema'
+import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -71,6 +72,10 @@ vi.mock('@/lib/workspaces/policy', () => ({
   getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
 }))
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
+}))
+
 import { POST } from '@/app/api/invitations/[id]/resend/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -94,6 +99,9 @@ const workspaceInvitation = {
   email: 'invitee@example.com',
   role: 'member',
   token: 'token-1',
+  expiresAt: new Date('2099-01-01'),
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
   organizationId: 'organization-1',
   membershipIntent: 'internal',
   grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
@@ -107,7 +115,13 @@ const workspaceInvitation = {
 describe('POST /api/invitations/[id]/resend', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'admin@example.com' } })
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(user, [{ name: 'Admin', email: 'admin@example.com' }])
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'admin@example.com' },
+      session: { id: 'session-1' },
+    })
     mockGetInvitationById.mockResolvedValue(workspaceInvitation)
     mockResolveInvitationAdmissionOrganizationId.mockResolvedValue('organization-1')
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
@@ -148,7 +162,7 @@ describe('POST /api/invitations/[id]/resend', () => {
     const response = await callResend()
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       error: "Sending invitations is not available under your organization's permission group",
       details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
@@ -161,6 +175,8 @@ describe('POST /api/invitations/[id]/resend', () => {
    * someone with no admin standing to hear it.
    */
   it('checks admin standing before the permission group', async () => {
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'member' }])
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
     mockHasWorkspaceAdminAccess.mockResolvedValue(false)
 
@@ -274,5 +290,23 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
       organizationId: 'organization-1',
     })
+  })
+  it.each(['pending', 'expired'])(
+    'rejects an expired %s invitation consistently',
+    async (status) => {
+      mockGetInvitationById.mockResolvedValue({
+        ...workspaceInvitation,
+        status,
+        expiresAt: new Date('2000-01-01'),
+      })
+      expect((await callResend()).status).toBe(409)
+      expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    }
+  )
+
+  it('leaves the token unchanged when delivery fails', async () => {
+    mockSendInvitationEmail.mockResolvedValue({ success: false, error: 'Delivery unavailable' })
+    expect((await callResend()).status).toBe(502)
+    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
   })
 })

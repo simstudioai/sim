@@ -63,10 +63,12 @@ export async function addPermissionGroupMemberRecord(
   })
 }
 
+export type PermissionGroupMemberTarget = { memberId: string } | { userId: string }
+
 export async function removePermissionGroupMemberRecord(
   organizationId: string,
   groupId: string,
-  memberId: string
+  target: PermissionGroupMemberTarget
 ) {
   return withPermissionGroupMutation(organizationId, async (tx) => {
     const group = await requirePermissionGroup(organizationId, groupId, tx)
@@ -80,7 +82,9 @@ export async function removePermissionGroupMemberRecord(
       .innerJoin(user, eq(permissionGroupMember.userId, user.id))
       .where(
         and(
-          eq(permissionGroupMember.id, memberId),
+          'memberId' in target
+            ? eq(permissionGroupMember.id, target.memberId)
+            : eq(permissionGroupMember.userId, target.userId),
           eq(permissionGroupMember.permissionGroupId, groupId)
         )
       )
@@ -107,7 +111,7 @@ export async function removePermissionGroupMemberRecord(
       .delete(permissionGroupMember)
       .where(
         and(
-          eq(permissionGroupMember.id, memberId),
+          eq(permissionGroupMember.id, assignment.id),
           eq(permissionGroupMember.permissionGroupId, groupId)
         )
       )

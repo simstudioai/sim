@@ -48,7 +48,8 @@ export function defineAuthorizedPermissionGroupUseCase<
         if (
           error instanceof OrchestrationError &&
           error.code === 'forbidden' &&
-          !(error instanceof ForbiddenOperationError)
+          (!(error instanceof ForbiddenOperationError) ||
+            error.detailCode === 'ORGANIZATION_ADMIN_REQUIRED')
         )
           throw new ForbiddenOperationError(
             'ORGANIZATION_ADMIN_REQUIRED',

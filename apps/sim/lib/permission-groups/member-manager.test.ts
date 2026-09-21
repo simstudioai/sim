@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { member, permissionGroupMember } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -152,21 +152,57 @@ describe('permission-group membership mutations', () => {
       workspaceName: 'Engineering',
     })
     await expect(
-      removePermissionGroupMemberRecord('org-1', 'group-1', 'assignment-1')
+      removePermissionGroupMemberRecord('org-1', 'group-1', { memberId: 'assignment-1' })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
   it('can empty a group in explicit membership mode', async () => {
     mocks.group.mockResolvedValue({ ...group, membershipMode: 'explicit' })
     queueTableRows(permissionGroupMember, [{ id: 'assignment-1', userId: 'member-1', email: null }])
-    await removePermissionGroupMemberRecord('org-1', 'group-1', 'assignment-1')
+    await removePermissionGroupMemberRecord('org-1', 'group-1', { memberId: 'assignment-1' })
     expect(mocks.allConflict).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
   })
   it('does not delete an assignment absent from the requested group', async () => {
     await expect(
-      removePermissionGroupMemberRecord('org-1', 'group-1', 'other-assignment')
+      removePermissionGroupMemberRecord('org-1', 'group-1', { memberId: 'other-assignment' })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+  it('looks up a scoped user and deletes the canonical assignment ID', async () => {
+    mocks.group.mockResolvedValue({ ...group, membershipMode: 'explicit' })
+    queueTableRows(permissionGroupMember, [{ id: 'assignment-1', userId: 'user-1', email: null }])
+    await removePermissionGroupMemberRecord('org-1', 'group-1', { userId: 'user-1' })
+    const conditions = dbChainMockFns.where.mock.calls.map(([condition]) => condition)
+    expect(
+      conditions.some(
+        (condition) =>
+          hasMockCondition(
+            condition,
+            (node) =>
+              node.type === 'eq' &&
+              node.left === permissionGroupMember.userId &&
+              node.right === 'user-1'
+          ) &&
+          hasMockCondition(
+            condition,
+            (node) =>
+              node.type === 'eq' &&
+              node.left === permissionGroupMember.permissionGroupId &&
+              node.right === 'group-1'
+          )
+      )
+    ).toBe(true)
+    expect(
+      conditions.some((condition) =>
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'eq' &&
+            node.left === permissionGroupMember.id &&
+            node.right === 'assignment-1'
+        )
+      )
+    ).toBe(true)
   })
 })

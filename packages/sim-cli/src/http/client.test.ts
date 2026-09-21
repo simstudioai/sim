@@ -1026,6 +1026,9 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'createOrganizationInvitation',
+    'resendOrganizationInvitation',
+    'updateOrganizationMember',
     'createPermissionGroup',
     'updatePermissionGroup',
     'addPermissionGroupMember',

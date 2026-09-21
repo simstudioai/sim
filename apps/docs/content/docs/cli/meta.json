@@ -27,6 +27,7 @@
     "logs",
     "mcp-servers",
     "meta",
+    "organizations",
     "permission-groups",
     "sandboxes",
     "secrets",

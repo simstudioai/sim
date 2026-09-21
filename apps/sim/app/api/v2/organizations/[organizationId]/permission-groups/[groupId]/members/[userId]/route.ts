@@ -12,5 +12,5 @@ export const DELETE = defineV2JsonRoute({
   errorPolicy: v2PermissionGroupErrorPolicy,
   mapInput: ({ params }) => params,
   useCase: removePermissionGroupMember,
-  present: ({ member }) => ({ data: { id: member.id, deleted: true as const } }),
+  present: ({ member }) => ({ data: { userId: member.userId, deleted: true as const } }),
 })

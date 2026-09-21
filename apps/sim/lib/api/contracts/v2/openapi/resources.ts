@@ -31,6 +31,7 @@ import {
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
+import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
 import { permissionGroupOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/permission-groups'
 import {
   documentedSchema,
@@ -2149,6 +2150,7 @@ const declaredRoutes = [
     }
   ),
   ...permissionGroupOpenApiRoutes,
+  ...organizationOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
@@ -2172,6 +2174,10 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   },
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
+    {
+      name: 'Organizations',
+      description: 'Discover organizations and manage their members and invitations.',
+    },
     {
       name: 'Permission Groups',
       description: 'Manage organization permission groups, their restrictions, and membership.',

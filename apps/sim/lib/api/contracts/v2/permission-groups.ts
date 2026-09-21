@@ -32,9 +32,7 @@ export const v2PermissionGroupParamsSchema = v2PermissionGroupOrganizationParams
 })
 export type V2PermissionGroupParams = z.input<typeof v2PermissionGroupParamsSchema>
 export const v2PermissionGroupMemberParamsSchema = v2PermissionGroupParamsSchema.extend({
-  memberId: nonEmptyIdSchema.describe(
-    'Membership assignment identifier returned by List Permission Group Members.'
-  ),
+  userId: nonEmptyIdSchema.describe('User identifier of the member to remove.'),
 })
 export type V2PermissionGroupMemberParams = z.input<typeof v2PermissionGroupMemberParamsSchema>
 
@@ -107,25 +105,19 @@ export const v2ListPermissionGroupMembersQuerySchema = z
 export type V2ListPermissionGroupMembersQuery = z.output<
   typeof v2ListPermissionGroupMembersQuerySchema
 >
-export const v2ListPermissionGroupWorkspacesQuerySchema = z
-  .object({
-    search: v2SearchSchema.describe('Case-insensitive substring match against the workspace name.'),
-    ...v2SortFields(['name', 'id'] as const, { sortBy: 'name', sortOrder: 'asc' }),
-    ...v2PaginationFields({ description: 'Maximum organization workspaces to return per page.' }),
-  })
-  .strict()
-export type V2ListPermissionGroupWorkspacesQuery = z.output<
-  typeof v2ListPermissionGroupWorkspacesQuerySchema
->
 
-const configPatchSchema = permissionGroupConfigSchema
-  .strict()
-  .describe(
-    'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.'
-  )
+const configPatchSchema = permissionGroupConfigSchema.strict()
+
 export const v2CreatePermissionGroupBodySchema = createPermissionGroupBodySchema
   .safeExtend({
-    config: configPatchSchema.optional(),
+    workspaceIds: createPermissionGroupBodySchema.shape.workspaceIds.describe(
+      'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.'
+    ),
+    config: configPatchSchema
+      .describe(
+        'Permission restrictions to set. Omitted keys use the default permission configuration.'
+      )
+      .optional(),
   })
   .strict()
   .refine((body) => body.isDefault === true || Boolean(body.workspaceIds?.length), {
@@ -135,7 +127,11 @@ export const v2CreatePermissionGroupBodySchema = createPermissionGroupBodySchema
 export type V2CreatePermissionGroupBody = z.input<typeof v2CreatePermissionGroupBodySchema>
 export const v2UpdatePermissionGroupBodySchema = updatePermissionGroupBodySchema
   .safeExtend({
-    config: configPatchSchema.optional(),
+    config: configPatchSchema
+      .describe(
+        'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.'
+      )
+      .optional(),
   })
   .strict()
   .refine((body) => Object.values(body).some((value) => value !== undefined), {
@@ -270,7 +266,7 @@ export const v2AddPermissionGroupMemberContract = defineRouteContract({
 })
 export const v2RemovePermissionGroupMemberContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[memberId]',
+  path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]',
   params: v2PermissionGroupMemberParamsSchema,
   query: noInputSchema,
   response: {
@@ -278,7 +274,7 @@ export const v2RemovePermissionGroupMemberContract = defineRouteContract({
     schema: v2DataResponse(
       z
         .object({
-          id: z.string().describe('Removed membership assignment identifier.'),
+          userId: z.string().describe('User whose membership assignment was removed.'),
           deleted: z.literal(true).describe('Whether the assignment was removed.'),
         })
         .meta({
@@ -309,27 +305,6 @@ export const v2BulkAddPermissionGroupMembersContract = defineRouteContract({
           id: 'V2PermissionGroupBulkAdd',
           title: 'Permission group bulk addition',
           description: 'Counts of added and already assigned organization members.',
-        })
-    ),
-  },
-})
-export const v2ListPermissionGroupWorkspacesContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/organizations/[organizationId]/permission-groups/workspaces',
-  params: v2PermissionGroupOrganizationParamsSchema,
-  query: v2ListPermissionGroupWorkspacesQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(
-      z
-        .object({
-          id: z.string().describe('Workspace identifier.'),
-          name: z.string().describe('Workspace display name.'),
-        })
-        .meta({
-          id: 'V2PermissionGroupWorkspace',
-          title: 'Permission group workspace',
-          description: 'An organization workspace available for group targeting.',
         })
     ),
   },

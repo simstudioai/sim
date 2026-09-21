@@ -22,6 +22,10 @@
   ],
   "tags": [
     {
+      "name": "Organizations",
+      "description": "Discover organizations and manage their members and invitations."
+    },
+    {
       "name": "Permission Groups",
       "description": "Manage organization permission groups, their restrictions, and membership."
     },
@@ -5428,11 +5432,11 @@
         }
       }
     },
-    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/{memberId}": {
+    "/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/{userId}": {
       "delete": {
         "operationId": "removePermissionGroupMember",
         "summary": "Remove Permission Group Member",
-        "description": "Remove a membership assignment. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Remove a member by user identifier. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "permission_groups.members.remove",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
@@ -5460,14 +5464,14 @@
             }
           },
           {
-            "name": "memberId",
+            "name": "userId",
             "in": "path",
             "required": true,
-            "description": "Membership assignment identifier returned by List Permission Group Members.",
+            "description": "User identifier of the member to remove.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Membership assignment identifier returned by List Permission Group Members."
+              "description": "User identifier of the member to remove."
             }
           }
         ],
@@ -5618,24 +5622,207 @@
         }
       }
     },
-    "/api/v2/organizations/{organizationId}/permission-groups/workspaces": {
+    "/api/v2/organizations": {
       "get": {
-        "operationId": "listPermissionGroupWorkspaces",
-        "summary": "List Permission Group Workspaces",
-        "description": "List organization workspaces available for permission-group scope selection with cursor pagination. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
-        "x-sim-operation": "permission_groups.workspaces.list",
+        "operationId": "listOrganizations",
+        "summary": "List Organizations",
+        "description": "List organizations the acting user belongs to. Organizations that disallow the calling credential are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.list",
         "x-oauth-scope": "api:read",
-        "tags": ["Permission Groups"],
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the organization name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the organization name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Organizations result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOrganizationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}": {
+      "get": {
+        "operationId": "getOrganization",
+        "summary": "Get Organization",
+        "description": "Get organization metadata and the acting user’s organization role. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
         "parameters": [
           {
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization that owns the permission groups.",
+            "description": "Organization identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization that owns the permission groups."
+              "description": "Organization identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get Organization result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetOrganizationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/workspaces": {
+      "get": {
+        "operationId": "listOrganizationWorkspaces",
+        "summary": "List Organization Workspaces",
+        "description": "List active workspaces owned by the organization. Requires organization administrator access; does not require Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.workspaces.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
             }
           },
           {
@@ -5678,10 +5865,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum organization workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum organization workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -5701,7 +5888,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List Permission Group Workspaces result.",
+            "description": "List Organization Workspaces result.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -5716,7 +5903,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListPermissionGroupWorkspacesResponse"
+                  "$ref": "#/components/schemas/ListOrganizationWorkspacesResponse"
                 }
               }
             }
@@ -5732,6 +5919,788 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/members": {
+      "get": {
+        "operationId": "listOrganizationMembers",
+        "summary": "List Organization Members",
+        "description": "List organization members by name or email. Ordinary members must have access to the member directory; organization administrators retain access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.members.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against member name or email.",
+            "schema": {
+              "description": "Case-insensitive substring match against member name or email.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "email", "joinedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Organization Members result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOrganizationMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/members/{userId}": {
+      "patch": {
+        "operationId": "updateOrganizationMember",
+        "summary": "Update Organization Member",
+        "description": "Change a member’s organization role. Requires organization administrator access. The owner’s role and memberships managed by an identity provider cannot be changed here. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.members.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the organization member.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "User identifier of the organization member."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Update Organization Member input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationMemberBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update Organization Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateOrganizationMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeOrganizationMember",
+        "summary": "Remove Organization Member",
+        "description": "Remove a member and revoke their access to organization workspaces. Administrators may remove members; members may remove themselves. The organization owner cannot be removed. Owned organization resources are reassigned and the departing member’s sessions end. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.members.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the organization member.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "User identifier of the organization member."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove Organization Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveOrganizationMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/invitations": {
+      "get": {
+        "operationId": "listOrganizationInvitations",
+        "summary": "List Organization Invitations",
+        "description": "List invitations owned by the organization, including invitations with workspace grants. Requires organization administrator access. Expired invitations are reported without modifying them. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.invitations.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the invitee email.",
+            "schema": {
+              "description": "Case-insensitive substring match against the invitee email.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by current invitation status. Omit to include all statuses.",
+            "schema": {
+              "description": "Filter by current invitation status. Omit to include all statuses.",
+              "type": "string",
+              "enum": ["pending", "accepted", "rejected", "cancelled", "expired"]
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["email", "createdAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Organization Invitations result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOrganizationInvitationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOrganizationInvitation",
+        "summary": "Create Organization Invitation",
+        "description": "Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. A unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.invitations.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Create Organization Invitation input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationInvitationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create Organization Invitation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateOrganizationInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/invitations/{invitationId}": {
+      "get": {
+        "operationId": "getOrganizationInvitation",
+        "summary": "Get Organization Invitation",
+        "description": "Get an invitation owned by the organization. Requires organization administrator access. The response excludes the acceptance token. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.invitations.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "description": "Invitation identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Invitation identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get Organization Invitation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetOrganizationInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeOrganizationInvitation",
+        "summary": "Revoke Organization Invitation",
+        "description": "Cancel a unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "invitations.revoke",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "description": "Invitation identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Invitation identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoke Organization Invitation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeOrganizationInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "resendOrganizationInvitation",
+        "summary": "Resend Organization Invitation",
+        "description": "Email a unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "invitations.resend",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "description": "Invitation identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Invitation identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Resend Organization Invitation input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendOrganizationInvitationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resend Organization Invitation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendOrganizationInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -13083,14 +14052,14 @@
               }
             },
             "additionalProperties": false,
-            "description": "Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list."
+            "description": "Permission restrictions to set. Omitted keys use the default permission configuration."
           },
           "isDefault": {
             "description": "Whether the group is the organization default. Only one group can be the default.",
             "type": "boolean"
           },
           "workspaceIds": {
-            "description": "Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.",
+            "description": "Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.",
             "maxItems": 500,
             "type": "array",
             "items": {
@@ -13759,9 +14728,9 @@
       "V2PermissionGroupMemberDeletion": {
         "type": "object",
         "properties": {
-          "id": {
+          "userId": {
             "type": "string",
-            "description": "Removed membership assignment identifier."
+            "description": "User whose membership assignment was removed."
           },
           "deleted": {
             "type": "boolean",
@@ -13769,7 +14738,7 @@
             "description": "Whether the assignment was removed."
           }
         },
-        "required": ["id", "deleted"],
+        "required": ["userId", "deleted"],
         "additionalProperties": false,
         "title": "Permission group member deletion",
         "description": "Acknowledges membership removal."
@@ -13789,7 +14758,7 @@
         "examples": [
           {
             "data": {
-              "id": "assignment-123",
+              "userId": "user-123",
               "deleted": true
             }
           }
@@ -13860,30 +14829,56 @@
           }
         ]
       },
-      "V2PermissionGroupWorkspace": {
+      "V2Organization": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "description": "Workspace identifier."
+            "description": "Organization identifier."
           },
           "name": {
             "type": "string",
-            "description": "Workspace display name."
+            "description": "Organization display name."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Organization slug, or null when unset."
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Organization logo URL, or null when unset."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "admin", "member"],
+            "description": "The acting user’s role in this organization."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the organization was created."
           }
         },
-        "required": ["id", "name"],
+        "required": ["id", "name", "slug", "logo", "role", "createdAt"],
         "additionalProperties": false,
-        "title": "Permission group workspace",
-        "description": "An organization workspace available for group targeting."
+        "title": "Organization",
+        "description": "An organization the acting user belongs to."
       },
-      "ListPermissionGroupWorkspacesResponse": {
+      "ListOrganizationsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/V2PermissionGroupWorkspace"
+              "$ref": "#/components/schemas/V2Organization"
             },
             "description": "Items in the current page."
           },
@@ -13901,8 +14896,92 @@
         },
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
-        "title": "List Permission Group Workspaces response",
-        "description": "List Permission Group Workspaces result.",
+        "title": "List Organizations response",
+        "description": "List Organizations result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "org-123",
+                "name": "Example Organization",
+                "slug": "example",
+                "logo": null,
+                "role": "admin",
+                "createdAt": "2026-06-01T09:00:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "GetOrganizationResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Organization"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get Organization response",
+        "description": "Get Organization result.",
+        "examples": [
+          {
+            "data": {
+              "id": "org-123",
+              "name": "Example Organization",
+              "slug": "example",
+              "logo": null,
+              "role": "admin",
+              "createdAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "V2OrganizationWorkspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Workspace identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace display name."
+          }
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false,
+        "title": "Organization workspace",
+        "description": "A workspace owned by the organization."
+      },
+      "ListOrganizationWorkspacesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2OrganizationWorkspace"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Organization Workspaces response",
+        "description": "List Organization Workspaces result.",
         "examples": [
           {
             "data": [
@@ -13912,6 +14991,430 @@
               }
             ],
             "nextCursor": null
+          }
+        ]
+      },
+      "V2OrganizationMember": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User identifier; use this identifier to update or remove the member."
+          },
+          "name": {
+            "type": "string",
+            "description": "Member display name."
+          },
+          "email": {
+            "type": "string",
+            "description": "Member email address."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "admin", "member"],
+            "description": "Organization role; separate from workspace permissions."
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the user joined the organization."
+          }
+        },
+        "required": ["userId", "name", "email", "role", "joinedAt"],
+        "additionalProperties": false,
+        "title": "Organization member",
+        "description": "An organization membership identified by user ID."
+      },
+      "ListOrganizationMembersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2OrganizationMember"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Organization Members response",
+        "description": "List Organization Members result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "userId": "user-123",
+                "name": "Example Member",
+                "email": "member@example.com",
+                "role": "member",
+                "joinedAt": "2026-06-01T09:00:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "UpdateOrganizationMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationMember"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update Organization Member response",
+        "description": "Update Organization Member result.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "name": "Example Member",
+              "email": "member@example.com",
+              "role": "admin",
+              "joinedAt": "2026-06-01T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateOrganizationMemberBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["member", "admin"],
+            "description": "New organization role. Ownership transfers use a separate operation."
+          }
+        },
+        "required": ["role"],
+        "additionalProperties": false,
+        "title": "Update Organization Member body",
+        "description": "Update Organization Member input.",
+        "examples": [
+          {
+            "role": "admin"
+          }
+        ]
+      },
+      "V2OrganizationMemberDeletion": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User removed from the organization."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether membership and organization workspace access were removed."
+          }
+        },
+        "required": ["userId", "deleted"],
+        "additionalProperties": false,
+        "title": "Organization member removal",
+        "description": "Acknowledges removal of an organization member."
+      },
+      "RemoveOrganizationMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationMemberDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove Organization Member response",
+        "description": "Remove Organization Member result.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2OrganizationInvitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Invitation identifier."
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Organization that owns the invitation."
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the invitee."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["member", "admin"],
+            "description": "Organization role offered to an internal invitee."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["organization", "workspace"],
+            "description": "Whether the invitation originated from organization or workspace administration."
+          },
+          "membershipIntent": {
+            "type": "string",
+            "enum": ["internal", "external"],
+            "description": "Whether acceptance joins the organization or grants workspace access only."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "accepted", "rejected", "cancelled", "expired"],
+            "description": "Current invitation status; elapsed pending invitations are reported as expired."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the invitation was created."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the invitation expires."
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "email",
+          "role",
+          "kind",
+          "membershipIntent",
+          "status",
+          "createdAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false,
+        "title": "Organization invitation",
+        "description": "Invitation metadata without its acceptance token."
+      },
+      "ListOrganizationInvitationsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2OrganizationInvitation"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Organization Invitations response",
+        "description": "List Organization Invitations result.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "invitation-123",
+                "organizationId": "org-123",
+                "email": "member@example.com",
+                "role": "member",
+                "kind": "organization",
+                "membershipIntent": "internal",
+                "status": "pending",
+                "createdAt": "2026-06-01T09:00:00.000Z",
+                "expiresAt": "2026-06-08T09:00:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateOrganizationInvitationResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationInvitation"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create Organization Invitation response",
+        "description": "Create Organization Invitation result.",
+        "examples": [
+          {
+            "data": {
+              "id": "invitation-123",
+              "organizationId": "org-123",
+              "email": "member@example.com",
+              "role": "member",
+              "kind": "organization",
+              "membershipIntent": "internal",
+              "status": "pending",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "expiresAt": "2026-06-08T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "CreateOrganizationInvitationBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Email address of the person to invite."
+          },
+          "role": {
+            "default": "member",
+            "description": "Organization role to offer. Defaults to member; grants no workspace-specific permissions.",
+            "type": "string",
+            "enum": ["member", "admin"]
+          }
+        },
+        "required": ["email"],
+        "additionalProperties": false,
+        "title": "Create Organization Invitation body",
+        "description": "Create Organization Invitation input.",
+        "examples": [
+          {
+            "email": "member@example.com",
+            "role": "member"
+          }
+        ]
+      },
+      "GetOrganizationInvitationResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationInvitation"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get Organization Invitation response",
+        "description": "Get Organization Invitation result.",
+        "examples": [
+          {
+            "data": {
+              "id": "invitation-123",
+              "organizationId": "org-123",
+              "email": "member@example.com",
+              "role": "member",
+              "kind": "organization",
+              "membershipIntent": "internal",
+              "status": "pending",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "expiresAt": "2026-06-08T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "ResendOrganizationInvitationResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationInvitation"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Resend Organization Invitation response",
+        "description": "Resend Organization Invitation result.",
+        "examples": [
+          {
+            "data": {
+              "id": "invitation-123",
+              "organizationId": "org-123",
+              "email": "member@example.com",
+              "role": "member",
+              "kind": "organization",
+              "membershipIntent": "internal",
+              "status": "pending",
+              "createdAt": "2026-06-01T09:00:00.000Z",
+              "expiresAt": "2026-06-08T09:00:00.000Z"
+            }
+          }
+        ]
+      },
+      "ResendOrganizationInvitationBody": {
+        "default": {},
+        "title": "Resend Organization Invitation body",
+        "description": "Resend Organization Invitation input.",
+        "examples": [{}],
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "V2OrganizationInvitationRevocation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Revoked invitation identifier."
+          },
+          "status": {
+            "type": "string",
+            "const": "cancelled",
+            "description": "Revocation cancels the invitation and prevents acceptance."
+          }
+        },
+        "required": ["id", "status"],
+        "additionalProperties": false,
+        "title": "Organization invitation revocation",
+        "description": "Acknowledges cancellation of a pending invitation."
+      },
+      "RevokeOrganizationInvitationResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2OrganizationInvitationRevocation"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Revoke Organization Invitation response",
+        "description": "Revoke Organization Invitation result.",
+        "examples": [
+          {
+            "data": {
+              "id": "invitation-123",
+              "status": "cancelled"
+            }
           }
         ]
       }

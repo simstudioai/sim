@@ -13,7 +13,6 @@ import {
   v2GetPermissionGroupContract,
   v2ListPermissionGroupMembersContract,
   v2ListPermissionGroupsContract,
-  v2ListPermissionGroupWorkspacesContract,
   v2RemovePermissionGroupMemberContract,
   v2UpdatePermissionGroupContract,
 } from '@/lib/api/contracts/v2/permission-groups'
@@ -293,7 +292,7 @@ export const permissionGroupOpenApiRoutes = [
       applicationOperation: permissionGroupOperations.removeMember,
       operationId: 'removePermissionGroupMember',
       summary: 'Remove Permission Group Member',
-      description: `Remove a membership assignment. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. ${AUTHORITY}`,
+      description: `Remove a member by user identifier. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
@@ -314,7 +313,7 @@ export const permissionGroupOpenApiRoutes = [
         'RemovePermissionGroupMemberResponse',
         'Remove Permission Group Member response',
         'Remove Permission Group Member result.',
-        [{ data: { id: 'assignment-123', deleted: true } }]
+        [{ data: { userId: 'user-123', deleted: true } }]
       ),
     }
   ),
@@ -353,42 +352,6 @@ export const permissionGroupOpenApiRoutes = [
         'Bulk Add Permission Group Members response',
         'Bulk Add Permission Group Members result.',
         [{ data: { added: 1, skipped: 0 } }]
-      ),
-    }
-  ),
-  defineOpenApiRoute(
-    v2ListPermissionGroupWorkspacesContract,
-    {
-      applicationOperation: permissionGroupOperations.listWorkspaces,
-      operationId: 'listPermissionGroupWorkspaces',
-      summary: 'List Permission Group Workspaces',
-      description: `List organization workspaces available for permission-group scope selection with cursor pagination. ${AUTHORITY}`,
-      tags: ['Permission Groups'],
-      errors: RESOURCE_ERRORS,
-      success: {
-        description: 'List Permission Group Workspaces result.',
-        headers: RATE_LIMIT_HEADERS,
-      },
-    },
-    {
-      params: documentedSchema(
-        v2ListPermissionGroupWorkspacesContract.params,
-        'ListPermissionGroupWorkspacesParams',
-        'Organization parameters',
-        'Organization identifier.'
-      ),
-      query: documentedSchema(
-        v2ListPermissionGroupWorkspacesContract.query,
-        'ListPermissionGroupWorkspacesQuery',
-        'Permission group list query',
-        'Pagination and ordering controls.'
-      ),
-      response: documentedSchema(
-        v2ListPermissionGroupWorkspacesContract.response.schema,
-        'ListPermissionGroupWorkspacesResponse',
-        'List Permission Group Workspaces response',
-        'List Permission Group Workspaces result.',
-        [{ data: [{ id: 'workspace-123', name: 'Engineering' }], nextCursor: null }]
       ),
     }
   ),

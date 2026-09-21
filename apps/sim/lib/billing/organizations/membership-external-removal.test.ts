@@ -84,4 +84,49 @@ describe('external organization access removal', () => {
       ).toBe(true)
     }
   })
+  it.each(['40001', '40P01', '55P03'])(
+    'preserves retryable transaction failure %s',
+    async (code) => {
+      const failure = Object.assign(new Error('retry transaction'), { code })
+      dbChainMockFns.transaction.mockRejectedValueOnce(failure)
+      await expect(
+        removeExternalUserFromOrganizationWorkspaces({
+          organizationId: 'org-1',
+          userId: 'external',
+        })
+      ).rejects.toBe(failure)
+      queueTableRows(member, [{ id: 'membership', userId: 'target', role: 'member' }])
+      dbChainMockFns.transaction.mockRejectedValueOnce(failure)
+      await expect(
+        removeUserFromOrganization({
+          organizationId: 'org-1',
+          userId: 'target',
+          memberId: 'membership',
+        })
+      ).rejects.toBe(failure)
+    }
+  )
+
+  it('rejects an actor demoted before the locked removal', async () => {
+    queueTableRows(member, [{ id: 'membership', userId: 'target', role: 'member' }])
+    queueTableRows(member, [{ id: 'actor-membership', role: 'member' }])
+    await expect(
+      removeUserFromOrganization({
+        organizationId: 'org-1',
+        userId: 'target',
+        memberId: 'membership',
+        actorUserId: 'actor',
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('reports membership appearing during external removal as a conflict', async () => {
+    queueTableRows(member, [])
+    queueTableRows(member, [{ id: 'new-membership' }])
+    await expect(
+      removeExternalUserFromOrganizationWorkspaces({ organizationId: 'org-1', userId: 'external' })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
 })

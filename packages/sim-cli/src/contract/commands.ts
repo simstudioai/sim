@@ -1,11 +1,15 @@
 import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 
-const PERMISSION_GROUP_ORGANIZATION_FLAG = {
-  organizationId: { name: 'organization', describe: 'Organization that owns the permission group' },
+const ORGANIZATION_FLAG = {
+  organizationId: { name: 'organization', describe: 'Organization identifier' },
 } as const
 const PERMISSION_GROUP_MEMBER_FLAGS = {
-  ...PERMISSION_GROUP_ORGANIZATION_FLAG,
+  ...ORGANIZATION_FLAG,
   groupId: { name: 'group', describe: 'Permission group identifier' },
+} as const
+
+const DEFAULT_FLAG = {
+  isDefault: { name: 'default', boolean: true, negatable: true },
 } as const
 
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
@@ -942,9 +946,71 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'built-in', path: 'readOnly', format: 'bool' },
     ],
   },
+  listOrganizations: {
+    command: 'organizations list',
+    columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
+  },
+  getOrganization: { command: 'organizations get' },
+  listOrganizationWorkspaces: {
+    command: 'organizations workspaces',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'name' }],
+  },
+  listOrganizationMembers: {
+    command: 'organizations members list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name' },
+      { header: 'email' },
+      { header: 'role' },
+    ],
+  },
+  updateOrganizationMember: {
+    command: 'organizations members update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationMember: {
+    command: 'organizations members remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This removes the member, revokes their organization workspace access, and ends their sessions.',
+  },
+  listOrganizationInvitations: {
+    command: 'organizations invitations list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'email' },
+      { header: 'role' },
+      { header: 'membership', path: 'membershipIntent' },
+      { header: 'status' },
+      { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    ],
+  },
+  createOrganizationInvitation: {
+    command: 'organizations invitations create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationInvitation: {
+    command: 'organizations invitations get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  resendOrganizationInvitation: {
+    command: 'organizations invitations resend',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  revokeOrganizationInvitation: {
+    command: 'organizations invitations revoke',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This cancels the invitation and all its workspace grants, preventing acceptance.',
+  },
+  updateTableView: {
+    flags: { isDefault: { ...DEFAULT_FLAG.isDefault, renamedFrom: ['is-default'] } },
+  },
   listPermissionGroups: {
     command: 'permission-groups list',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    pathFlags: ORGANIZATION_FLAG,
     columns: [
       { header: 'id' },
       { header: 'name' },
@@ -954,26 +1020,27 @@ export const CLI_CONTRACT: CliContract = {
   },
   getPermissionGroup: {
     command: 'permission-groups get',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    pathFlags: ORGANIZATION_FLAG,
   },
   createPermissionGroup: {
     command: 'permission-groups create',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
   },
   updatePermissionGroup: {
     command: 'permission-groups update',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
   },
   deletePermissionGroup: {
     command: 'permission-groups delete',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
+    pathFlags: ORGANIZATION_FLAG,
     confirm: 'This permanently deletes the permission group and its member assignments.',
   },
   listPermissionGroupMembers: {
     command: 'permission-groups members list',
     pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
     columns: [
-      { header: 'id' },
       { header: 'user', path: 'userId' },
       { header: 'name', path: 'userName' },
       { header: 'email', path: 'userEmail' },
@@ -982,6 +1049,7 @@ export const CLI_CONTRACT: CliContract = {
   addPermissionGroupMember: {
     command: 'permission-groups members add',
     pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    flags: { userId: { name: 'user' } },
   },
   removePermissionGroupMember: {
     command: 'permission-groups members remove',
@@ -992,11 +1060,18 @@ export const CLI_CONTRACT: CliContract = {
   bulkAddPermissionGroupMembers: {
     command: 'permission-groups members batch-add',
     pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
-  },
-  listPermissionGroupWorkspaces: {
-    command: 'permission-groups workspaces',
-    pathFlags: PERMISSION_GROUP_ORGANIZATION_FLAG,
-    columns: [{ header: 'id' }, { header: 'name' }],
+    flags: {
+      userIds: {
+        name: 'user',
+        list: true,
+        describe: 'User IDs to add; cannot be combined with --all-members',
+      },
+      addAllOrganizationMembers: {
+        name: 'all-members',
+        boolean: true,
+        describe: 'Add every current organization member; cannot be combined with --user',
+      },
+    },
   },
   listCustomTools: {
     columns: [

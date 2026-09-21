@@ -26,6 +26,7 @@ import {
   addPermissionGroupMemberRecord,
   type BulkAddPermissionGroupMembersInput,
   bulkAddPermissionGroupMemberRecords,
+  type PermissionGroupMemberTarget,
   removePermissionGroupMemberRecord,
 } from '@/lib/permission-groups/member-manager'
 import { getGroupWorkspaces } from '@/lib/permission-groups/repository'
@@ -143,8 +144,8 @@ export const addPermissionGroupMember = defineAuthorizedPermissionGroupUseCase({
 
 export const removePermissionGroupMember = defineAuthorizedPermissionGroupUseCase({
   operation: permissionGroupOperations.removeMember,
-  execute: ({ input }: { input: PermissionGroupInput & { memberId: string } }) =>
-    removePermissionGroupMemberRecord(input.organizationId, input.groupId, input.memberId),
+  execute: ({ input }: { input: PermissionGroupInput & PermissionGroupMemberTarget }) =>
+    removePermissionGroupMemberRecord(input.organizationId, input.groupId, input),
   projectAudit: ({ result }) => ({
     action: AuditAction.PERMISSION_GROUP_MEMBER_REMOVED,
     resourceType: AuditResourceType.PERMISSION_GROUP,
