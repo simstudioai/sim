@@ -2051,6 +2051,75 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
+    it('reports a caller who reaches nothing as a bounded set of nothing, counted every time', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const plan = {
+        connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
+        connectorTypes: new Map(),
+        uploads: true,
+      }
+      const budget = () => new SearchBudget('vector', performance.now() + 10_000)
+      await expect(
+        resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+      /** Emptiness decides completeness, so it is never remembered: the next search counts again. */
+      await expect(
+        resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+      expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('reports a saturated probe whose count then finds nothing as a bounded set of nothing', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      await expect(
+        resolvePermittedDocuments({
+          knowledgeBaseIds: ['org-index'],
+          access: scope('saturated-then-nothing'),
+          budget: new SearchBudget('vector', performance.now() + 10_000),
+        })
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+    })
+
+    it('does not read an unanalyzed index as a reach of nothing', async () => {
+      /** The planner knows no rows yet, so the bound is zero and the count looked at nothing. */
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN')) return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 0 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      await expect(
+        resolveReach(
+          ['org-index'],
+          scope('unanalyzed'),
+          new SearchBudget('vector', performance.now() + 10_000),
+          {
+            connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+            observers: { confirmed: [], observed: [] },
+            memberSources: [],
+            connectorTypes: new Map(),
+            uploads: true,
+          }
+        )
+      ).resolves.toEqual({ kind: 'unbounded', broad: true })
+    })
+
     it('reports a leg whose own deadline passed during the count as short, not failed', async () => {
       const budget = new SearchBudget('vector', performance.now() - 1)
       await expect(
