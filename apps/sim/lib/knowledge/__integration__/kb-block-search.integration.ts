@@ -11,6 +11,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import {
+  forgetProjectionFilled,
   resolvePermittedDocuments,
   retrieveKnowledgeSearch,
   VECTOR_PROBE_DOCUMENT_LIMIT,
@@ -92,6 +93,8 @@ describe('API-key KB block fan-out', () => {
   it.each([false, true])(
     'completes 18 concurrent KB searches with access checks intact (tag filter: %s)',
     async (withTags) => {
+      /** The projection-fill memo outlives an iteration; each one must read it once, like a cold process. */
+      forgetProjectionFilled()
       const previousDebug = db.$client.options.debug
       const statements: string[] = []
       db.$client.options.debug = (_connection, query) => {
