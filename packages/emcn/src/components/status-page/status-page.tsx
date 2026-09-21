@@ -29,7 +29,7 @@ export function StatusPageContent({
         {title}
       </h1>
       <p className='text-[var(--text-body)] text-lg'>{description}</p>
-      <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>{children}</div>
+      <div className='mt-3 flex w-full flex-wrap items-center justify-center gap-2'>{children}</div>
       {detail}
     </div>
   )
