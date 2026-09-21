@@ -2051,6 +2051,89 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
+    it('reports a caller who reaches nothing as a bounded set of nothing, counted every time', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const plan = {
+        connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+        observers: { confirmed: [], observed: [] },
+        memberSources: [],
+        connectorTypes: new Map(),
+        uploads: true,
+      }
+      const budget = () => new SearchBudget('vector', performance.now() + 10_000)
+      await expect(
+        resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+      /** Emptiness decides completeness, so it is never remembered: the next search counts again. */
+      await expect(
+        resolveReach(['org-index'], scope('reaches-nothing'), budget(), plan)
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+      expect(reachCounts()).toHaveLength(2)
+    })
+
+    it('reports a saturated probe whose count then finds nothing as a bounded set of nothing', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      await expect(
+        resolvePermittedDocuments({
+          knowledgeBaseIds: ['org-index'],
+          access: scope('saturated-then-nothing'),
+          budget: new SearchBudget('vector', performance.now() + 10_000),
+        })
+      ).resolves.toEqual({ kind: 'bounded', documents: [] })
+    })
+
+    it('does not read an unanalyzed index as a reach of nothing', async () => {
+      /** The planner knows no rows yet, so the bound is zero and the count looked at nothing. */
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (statement.includes('EXPLAIN')) return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 0 } }] }]
+        if (statement.includes(') reached')) return [{ n: 0 }]
+        return []
+      })
+      await expect(
+        resolveReach(
+          ['org-index'],
+          scope('unanalyzed'),
+          new SearchBudget('vector', performance.now() + 10_000),
+          {
+            connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+            observers: { confirmed: [], observed: [] },
+            memberSources: [],
+            connectorTypes: new Map(),
+            uploads: true,
+          }
+        )
+      ).resolves.toEqual({ kind: 'unbounded', broad: true })
+    })
+
+    it('reports a leg whose own deadline passed during the count as short, not failed', async () => {
+      const budget = new SearchBudget('vector', performance.now() - 1)
+      await expect(
+        resolveReach(['org-index'], scope('spent-leg'), budget, {
+          connectors: { workspace: [], admin: [], members: [], liveProofRequired: [] },
+          observers: { confirmed: [], observed: [] },
+          memberSources: [],
+          connectorTypes: new Map(),
+          uploads: true,
+        })
+      ).resolves.toEqual({ kind: 'unbounded', broad: true })
+      expect(budget.timedOut).toBe(true)
+    })
+
     it('counts a resolved reach against a small index instead of assuming it broad', async () => {
       /** A bound inside the probe limit proves nothing without a saturated probe. */
       dbChainMockFns.execute.mockImplementation(async (query) => {
@@ -2075,9 +2158,10 @@ describe('permitted-document planner', () => {
       )
       expect(reach).toEqual({ kind: 'unbounded', broad: false })
       expect(reachCounts()).toHaveLength(1)
-      /** The count is the search's own read: it runs inside the leg's deadline statement. */
+      /** The count is the search's own read, under the probe's share of the deadline, not the leg's. */
       const countAt = statements().findIndex((query) => query.sql.includes(') reached'))
       expect(statements()[countAt - 1].sql).toContain('statement_timeout')
+      expect(Number(statements()[countAt - 1].params[0])).toBeLessThanOrEqual(600)
     })
 
     it('does not remember a reach whose count ran out of time', async () => {
@@ -2102,6 +2186,8 @@ describe('permitted-document planner', () => {
       })
       expect(plan).toEqual({ kind: 'unbounded', broad: true })
       expect(reachCounts()).toHaveLength(1)
+      /** Only the count's share of the deadline was spent; the leg is not the one that timed out. */
+      expect(budget.timedOut).toBe(false)
       /** The next search counts again rather than trusting an answer that never came. */
       await resolveReach(
         ['org-index'],

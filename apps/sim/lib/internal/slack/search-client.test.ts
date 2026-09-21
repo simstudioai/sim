@@ -45,6 +45,21 @@ describe('Slack Search provider verification', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(auth)))
     await expect(verifySlackSearchBot('token')).rejects.toThrow('Reinstall')
   })
+  it.each(['channels:read', 'groups:read'] as const)(
+    'rejects an installed bot missing channel picker scope %s',
+    async (missingScope) => {
+      fetchMock.mockResolvedValue(
+        reply(
+          auth,
+          SLACK_SEARCH_SCOPES.filter((scope) => scope !== missingScope)
+        )
+      )
+      await expect(verifySlackSearchBot('token')).rejects.toThrow(
+        `Reinstall the Slack bot with these scopes: ${missingScope}`
+      )
+      expect(fetchMock).toHaveBeenCalledOnce()
+    }
+  )
   it.each([
     { deleted: true },
     { is_bot: true },
