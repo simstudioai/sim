@@ -296,3 +296,24 @@ describe('list editing with delayed peer updates', () => {
     )
   })
 })
+
+it('publishes resolved global colours so older peers keep translucent selections', () => {
+  const doc = new Y.Doc()
+  const awareness = new Awareness(doc)
+  const user = { name: 'User', color: 'var(--color-pink-400)' }
+  const extensions = createMarkdownEditorExtensions({
+    placeholder: '',
+    collaboration: { doc, awareness, user },
+  })
+  document.documentElement.style.setProperty('--color-pink-400', '#f472b6')
+  const editor = new Editor({ extensions })
+  cleanups.push(() => {
+    editor.destroy()
+    awareness.destroy()
+    doc.destroy()
+    document.documentElement.style.removeProperty('--color-pink-400')
+  })
+
+  expect(awareness.getLocalState()?.user.color).toBe('#f472b6')
+  expect(user.color).toBe('var(--color-pink-400)')
+})
