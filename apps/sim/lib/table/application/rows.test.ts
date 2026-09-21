@@ -769,7 +769,6 @@ describe('row query and upsert application semantics', () => {
         includeTotal: false,
         withExecutions: false,
         runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
-        trustLoadedJob: true,
       },
       expect.any(String)
     )

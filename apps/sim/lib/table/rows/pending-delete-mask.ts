@@ -10,43 +10,6 @@ import type { TableDefinition, TableDeleteJobPayload } from '@/lib/table/types'
 const logger = createLogger('TablePendingDeleteMask')
 
 /**
- * Whether {@link PendingDeleteMaskOptions.trustLoadedJob} can rule a running delete job out.
- *
- * Every table loaded through `getTableById` / `listTables` already carries its latest non-export
- * job, folded into that same SELECT as a lateral, so a caller that loaded its table for this very
- * read already holds the answer and the lookup is pure overhead on the hot path.
- *
- * The derivation is exact, not a heuristic. `table_jobs_one_active_per_table` is unique on
- * `table_id WHERE status = 'running' AND type <> 'export'` — the same predicate the lateral
- * filters on — so a running delete job is the ONLY running non-export job on its table, and no
- * further non-export job can be inserted while it holds that slot. It is therefore the newest
- * non-export job by `started_at`, which is exactly the row the lateral returns.
- *
- * `jobStatus === undefined` means the fields were never hydrated (a `TableDefinition` assembled
- * by some other path), which is indistinguishable from "no job" in the shape alone — so that case
- * falls back to the query rather than assuming. A hydrated table with no job has
- * `jobStatus: null`.
- */
-function hydratedJobRulesOutDelete(table: TableDefinition): boolean {
-  if (table.jobStatus === undefined) return false
-  return !(table.jobStatus === 'running' && table.jobType === 'delete')
-}
-
-export interface PendingDeleteMaskOptions {
-  /**
-   * Answer from `table`'s own latest-job fields when they rule a running delete out, instead of
-   * querying for one.
-   *
-   * Only for a caller whose `table` was loaded for this read: the fields are then as fresh as the
-   * query would have been. A caller that loads a table once and then pages for a while — the
-   * export runner, the snapshot builder — must NOT set this, because a delete job starting
-   * mid-walk would never appear in its snapshot and its later pages would stop masking doomed
-   * rows. Those callers keep re-asking per page, which is what makes the mask appear mid-walk.
-   */
-  trustLoadedJob?: boolean
-}
-
-/**
  * Visibility mask for a running delete job: returns a clause keeping only rows the job will NOT
  * delete, or `undefined` when no delete job is running. The job's persisted scope
  * ({@link TableDeleteJobPayload}) defines the doomed set — `matches(filter) AND created_at <=
@@ -57,11 +20,7 @@ export interface PendingDeleteMaskOptions {
  * `(doomed) IS NOT TRUE` rather than `NOT (doomed)`: JSONB predicates evaluate to NULL on missing
  * cells, and those rows are NOT selected for deletion (NULL ≠ TRUE) — they must stay visible.
  */
-export async function pendingDeleteMask(
-  table: TableDefinition,
-  options?: PendingDeleteMaskOptions
-): Promise<SQL | undefined> {
-  if (options?.trustLoadedJob && hydratedJobRulesOutDelete(table)) return undefined
+export async function pendingDeleteMask(table: TableDefinition): Promise<SQL | undefined> {
   const [job] = await db
     .select({ payload: tableJobs.payload })
     .from(tableJobs)

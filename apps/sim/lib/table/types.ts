@@ -627,16 +627,6 @@ export interface QueryOptions {
    *  cursor seeks the anchor, then offsets past unkeyed rows consumed after it). */
   after?: TableRowsCursor
   /**
-   * Answer "is a delete job running?" from `table`'s own latest-job fields rather than querying
-   * for one, saving a round trip on every read.
-   *
-   * Set it only when `table` was loaded for this very read — a request handler that resolved its
-   * table and is about to return. A caller that loads a table once and then pages for a while
-   * (the export stream) must leave it off, so a delete job starting mid-walk still begins masking
-   * its doomed rows partway through.
-   */
-  trustLoadedJob?: boolean
-  /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
    * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
    * is returned as `null` to signal it was not computed.

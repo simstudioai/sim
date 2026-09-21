@@ -670,64 +670,15 @@ describe('queryRows byte budget', () => {
 })
 
 /**
- * Two reads the row path used to make unconditionally, each one round trip on the grid's hot
- * page. Both are now answered from state the caller already holds; these pin that the query is
- * actually skipped rather than merely ignored, and that the fallbacks still run.
+ * The run-state sidecar read the row path used to make unconditionally, one round trip (four on a
+ * full page) for tables that cannot hold a single sidecar row. This pins that the query is
+ * actually skipped rather than merely ignored, and that the fallback still runs.
  */
-describe('queryRows round-trip elision', () => {
+describe('queryRows run-state elision', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     vi.mocked(tableMayHaveRunState).mockReturnValue(true)
-  })
-
-  const hydrated = (
-    fields: Partial<Pick<TableDefinition, 'jobStatus' | 'jobType'>>
-  ): TableDefinition => ({ ...TABLE, jobStatus: null, jobType: null, ...fields })
-
-  it('skips the delete-job probe when the hydrated table shows no running delete', async () => {
-    await queryRows(
-      hydrated({}),
-      { limit: 5, includeTotal: false, withExecutions: false, trustLoadedJob: true },
-      'req-1'
-    )
-
-    // With no probe, the drain batch is the FIRST bounded query rather than the second.
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 6)
-  })
-
-  it('still probes when the hydrated table shows a running delete job', async () => {
-    await queryRows(
-      hydrated({ jobStatus: 'running', jobType: 'delete' }),
-      { limit: 5, includeTotal: false, withExecutions: false, trustLoadedJob: true },
-      'req-1'
-    )
-
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 1)
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(2, 6)
-  })
-
-  /** An unhydrated definition cannot rule the job out, so it keeps the lookup it always had. */
-  it('still probes when the table carries no job fields at all', async () => {
-    await queryRows(
-      TABLE,
-      { limit: 5, includeTotal: false, withExecutions: false, trustLoadedJob: true },
-      'req-1'
-    )
-
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 1)
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(2, 6)
-  })
-
-  /**
-   * A caller that holds its table across a long walk (the export stream) must keep re-asking, so
-   * a delete job starting mid-walk still begins masking its doomed rows.
-   */
-  it('still probes for a caller that did not vouch for its table', async () => {
-    await queryRows(hydrated({}), { limit: 5, includeTotal: false, withExecutions: false }, 'req-1')
-
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 1)
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(2, 6)
   })
 
   it('skips the run-state read for a table that can hold none, still reporting empty executions', async () => {

@@ -1042,9 +1042,7 @@ export async function findRowMatches(
   if (columnIds.length === 0) return { matches: [], truncated: false }
 
   // Same visibility rule as queryRows: don't surface rows a running delete job will remove.
-  // Search is always one shot against a table its caller just loaded, so the table's own
-  // latest-job fields are as fresh as a lookup would be — see `PendingDeleteMaskOptions`.
-  const deleteMask = await pendingDeleteMask(table, { trustLoadedJob: true })
+  const deleteMask = await pendingDeleteMask(table)
 
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
@@ -1164,7 +1162,6 @@ export async function queryRows(
     withExecutions = true,
     runStateBudgetBytes,
     columnIds,
-    trustLoadedJob = false,
   } = options
 
   const tableName = USER_TABLE_ROWS_SQL_NAME
@@ -1172,7 +1169,7 @@ export async function queryRows(
 
   // Hide rows a running delete job is about to remove — both the page and the count below share
   // this clause, so totals stay consistent with the visible rows.
-  const deleteMask = await pendingDeleteMask(table, { trustLoadedJob })
+  const deleteMask = await pendingDeleteMask(table)
 
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),

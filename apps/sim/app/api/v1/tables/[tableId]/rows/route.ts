@@ -185,8 +185,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
         offset: validated.offset,
         includeTotal: validated.includeTotal,
         withExecutions: false,
-        // `table` was loaded a few lines above, for this read.
-        trustLoadedJob: true,
       },
       requestId
     )
