@@ -2239,6 +2239,11 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           sql` || ' OR ' || `
         )} || ') AND (' || ${tinQuery} || ')'`
       : undefined
+    /**
+     * Tin and GIN order candidates differently, so a search that once handed a page to GIN stays
+     * with GIN: an offset advanced through one ranking cannot resume the other.
+     */
+    let handedToGin = false
     /** Keep readable identities and rank scalars separate so sorts never carry full text-search vectors. */
     return selectAuthorizedSearchResults({
       leg: 'keyword',
@@ -2259,9 +2264,10 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             ? params.permitted.documents.map((entry) => entry.id)
             : undefined
         if (permittedIds?.length === 0) return { candidates: [], nextOffset: offset }
-        if (tinScope) {
+        if (tinScope && !handedToGin) {
           const tinPage = await selectTinPage(tinScope, limit, offset, excludedSources)
           if (tinPage) return tinPage
+          handedToGin = true
           annotateSearchDiagnostics({ keywordRanking: 'gin' })
         }
         const baseScope = and(
