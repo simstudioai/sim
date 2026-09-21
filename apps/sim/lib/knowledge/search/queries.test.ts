@@ -2076,6 +2076,48 @@ describe('permitted-document planner', () => {
     expect(JSON.stringify(pages[1].params)).toContain('"b"')
   })
 
+  it('excludes a denied source through its documents while the projection is unfilled', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'gated-src',
+        accessMode: 'admin',
+        connectorType: 'confluence',
+        githubRepository: false,
+      },
+    ])
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      /** The fill has not reached every row, so a denied source cannot be read off the row. */
+      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
+      const rebuilt = JSON.stringify(query).includes('NOT EXISTS')
+      if (isPageStatement(statement))
+        return JSON.stringify(render(query).params).includes('"b"')
+          ? [hit('b', 'other-src')]
+          : [hit('a', 'gated-src')]
+      if (isWalk(statement))
+        return Array.from({ length: 400 }, (_, i) => ({
+          id: i === 0 ? (rebuilt ? 'b' : 'a') : `w-${i}`,
+          distance: 0.1,
+        }))
+      return []
+    })
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [hit('b', 'other-src')])
+    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
+    const result = await retrieveKnowledgeSearch({
+      ...liveSearch,
+      searchMode: 'vector',
+      access: reader,
+      accessProvider: { ...provider, getForConnectors },
+    })
+    expect(result.rows.map((row) => row.id)).toEqual(['b'])
+    const walks = statements().filter((query) => isWalk(query.sql))
+    expect(walks).toHaveLength(2)
+    expect(JSON.stringify(walks[1])).toContain('NOT EXISTS')
+    expect(JSON.stringify(walks[1])).toContain('gated-src')
+    forgetProjectionFilled()
+  })
+
   it('hands back the unread slices of a page a denied source made it rebuild', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       {

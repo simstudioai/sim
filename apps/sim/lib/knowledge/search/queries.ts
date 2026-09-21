@@ -1722,12 +1722,22 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         return { candidates, nextOffset: offset + candidates.length }
       }
       if (params.filters?.documentIds?.length) return exactPage()
+      const plan = params.access.kind === 'user' ? params.accessPlan : undefined
+      const filled = plan
+        ? ((await projectionFilled.fetch('embedding_search', {
+            context: { budget: params.budget, stage: 'vector.projection_filled' },
+          })) ?? false)
+        : false
       /**
        * A source the caller turned out not to hold is left out where the pool is built: the pool
        * is the page's order now, so a denied source's chunks would otherwise keep their slots.
+       * The row's mirrored source decides it once the fill is complete; until then a row the fill
+       * has not reached carries no source, so its document is asked instead.
        */
       const excludedOnRow = excludedSources.length
-        ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])})))`
+        ? filled
+          ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])})))`
+          : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${embeddingSearch.documentId} AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))`
         : undefined
       const needed = offset + limit
       if (
@@ -1776,12 +1786,6 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
           )
         }
         let selected: Array<{ id: string }>
-        const plan = params.access.kind === 'user' ? params.accessPlan : undefined
-        const filled = plan
-          ? ((await projectionFilled.fetch('embedding_search', {
-              context: { budget: params.budget, stage: 'vector.projection_filled' },
-            })) ?? false)
-          : false
         /**
          * A source the caller is a member of that has its own index is walked on its own, which
          * beats ranking it exactly once it is large enough to have earned that index.
