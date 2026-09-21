@@ -145,11 +145,17 @@ export async function runProjectionSourceAclBackfill(
   }
 }
 
-/** Whether no projection still holds a row without its source and ACL; each read is one index probe. */
+/**
+ * Whether no projection still holds a row the fill could give its source and ACL: a row without
+ * them whose document exists. A row whose document is gone is not the fill's to finish and never
+ * counts as left. Each read is one index probe while any such row remains.
+ */
 async function projectionsFilled(sql: postgres.Sql): Promise<boolean> {
   for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
     const [row] = await sql.unsafe<Array<{ unfilled: boolean }>>(
-      `SELECT EXISTS (SELECT 1 FROM ${projection} WHERE acl IS NULL) AS unfilled`
+      `SELECT EXISTS (
+        SELECT 1 FROM ${projection} s JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL
+      ) AS unfilled`
     )
     if (row?.unfilled) return false
   }
@@ -163,21 +169,22 @@ export function projectionSourceAclChainTag(shard?: ProjectionSourceAclBackfillS
 }
 
 /**
- * How long a start's trigger stays idempotent. The in-flight lookup and the trigger are two
- * calls, so two starts in the same instant could both find no chain; a key that lives just past
- * that instant closes the gap without holding a later, legitimate restart.
+ * How long a start's trigger stays idempotent. The lookup and the trigger are two calls, so two
+ * starts in the same instant could both find no chain in flight; the key is what they both saw,
+ * the chain's latest run, so they collapse into one start, while a start after another chain has
+ * ended sees a different latest run and is a new key.
  */
 const START_IDEMPOTENCY_TTL = '2m'
 
 /** A run that has not ended: it, or the continuation it triggers, still owns its range. */
-const IN_FLIGHT_RUN_STATUSES = [
+const IN_FLIGHT_RUN_STATUSES: ReadonlySet<string> = new Set([
   'PENDING_VERSION',
   'QUEUED',
   'DEQUEUED',
   'EXECUTING',
   'WAITING',
   'DELAYED',
-] as const
+])
 
 /**
  * Starts the backfill on the deployment's Trigger.dev worker, where bounded runs chain until the
@@ -190,6 +197,7 @@ export async function enqueueProjectionSourceAclBackfill(
   payload: ProjectionSourceAclBackfillPayload = {},
   shards = 1
 ): Promise<{ runIds: string[]; inFlight: string[] }> {
+  if (payload.shard) assertProjectionSourceAclShard(payload.shard)
   if (shards !== 1) {
     assertProjectionSourceAclShard({ index: 0, count: shards })
     if (payload.cursor) throw new Error('A sliced projection backfill cannot start from a cursor')
@@ -207,23 +215,23 @@ export async function enqueueProjectionSourceAclBackfill(
   const inFlight: string[] = []
   for (const shardPayload of payloads) {
     const tag = projectionSourceAclChainTag(shardPayload.shard)
-    let running: string | undefined
+    /** The chain's latest run, newest first, whatever its state. */
+    let latest: { id: string; status: string } | undefined
     for await (const run of runs.list({
       taskIdentifier: PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID,
       tag,
-      status: [...IN_FLIGHT_RUN_STATUSES],
       limit: 1,
     })) {
-      running = run.id
+      latest = run
     }
-    if (running) {
-      inFlight.push(running)
+    if (latest && IN_FLIGHT_RUN_STATUSES.has(latest.status)) {
+      inFlight.push(latest.id)
       continue
     }
     const handle = await tasks.trigger(PROJECTION_SOURCE_ACL_BACKFILL_TASK_ID, shardPayload, {
       region,
       tags: [tag],
-      idempotencyKey: tag,
+      idempotencyKey: `${tag}:after:${latest?.id ?? 'none'}`,
       idempotencyKeyTTL: START_IDEMPOTENCY_TTL,
     })
     runIds.push(handle.id)

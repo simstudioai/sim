@@ -17,7 +17,7 @@ const {
   mockPostgres: vi.fn(),
   mockPrewarm: vi.fn(async () => []),
   mockRunsList: vi.fn(
-    (_query: unknown): AsyncIterable<{ id: string }> => (async function* () {})()
+    (_query: unknown): AsyncIterable<{ id: string; status: string }> => (async function* () {})()
   ),
   mockTasksTrigger: vi.fn(async () => ({ id: 'run-1' })),
   mockUnsafe: vi.fn(async () => [{ unfilled: false }]),
@@ -78,6 +78,12 @@ describe('runProjectionSourceAclBackfill', () => {
 
   it('analyzes and warms the projections on the same connection once both are filled, before closing it', async () => {
     await runProjectionSourceAclBackfill({})
+    /** A row whose document is gone is not the fill's to finish; the probe joins the document. */
+    expect(
+      mockUnsafe.mock.calls.some(([query]) =>
+        String(query).includes('JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL')
+      )
+    ).toBe(true)
     expect(mockUnsafe.mock.calls.map(([query]) => query)).toEqual(
       expect.arrayContaining(['ANALYZE embedding_search', 'ANALYZE embedding_keyword_tin'])
     )
@@ -203,17 +209,40 @@ describe('enqueueProjectionSourceAclBackfill', () => {
       {
         region: 'us-east-1',
         tags: ['projection-source-acl-backfill:shard:0/1'],
-        idempotencyKey: 'projection-source-acl-backfill:shard:0/1',
+        idempotencyKey: 'projection-source-acl-backfill:shard:0/1:after:none',
         idempotencyKeyTTL: '2m',
       }
     )
     expect(mockBackfill).not.toHaveBeenCalled()
   })
 
+  it('keys a start after a chain that ended on that chain, so a restart is its own start', async () => {
+    mockRunsList.mockImplementation(() =>
+      (async function* () {
+        yield { id: 'run-done', status: 'COMPLETED' }
+      })()
+    )
+    await expect(enqueueProjectionSourceAclBackfill({})).resolves.toEqual({
+      runIds: ['run-1'],
+      inFlight: [],
+    })
+    expect(mockTasksTrigger.mock.calls[0][2].idempotencyKey).toBe(
+      'projection-source-acl-backfill:shard:0/1:after:run-done'
+    )
+  })
+
+  it('refuses a shard the id space cannot be sliced into before starting anything', async () => {
+    await expect(
+      enqueueProjectionSourceAclBackfill({ shard: { index: 5, count: 4 } })
+    ).rejects.toThrow('shard index must be within 0..3')
+    expect(mockTasksTrigger).not.toHaveBeenCalled()
+  })
+
   it('leaves a range whose chain is still in flight to that chain', async () => {
     mockRunsList.mockImplementation((query: unknown) =>
       (async function* () {
-        if ((query as { tag: string }).tag.endsWith(':shard:1/4')) yield { id: 'run-live' }
+        if ((query as { tag: string }).tag.endsWith(':shard:1/4'))
+          yield { id: 'run-live', status: 'EXECUTING' }
       })()
     )
     await expect(enqueueProjectionSourceAclBackfill({}, 4)).resolves.toEqual({
