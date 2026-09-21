@@ -23,6 +23,13 @@ vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/uploads/contexts/workspace/workspace-file-versions')
+  >()),
+  currentWorkspaceFileVersionNumberSql: vi.fn(() => ({ versionProjection: true })),
+}))
+
 vi.mock('@/lib/uploads', () => ({
   getServePathPrefix: vi.fn(() => '/api/files/serve/s3/'),
 }))
@@ -181,13 +188,18 @@ describe('resolveWorkspaceFileReference', () => {
   })
 
   it('reaches a chat upload by its own id only on opt-in', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [chatUploadRow()])
+    queueTableRows(schemaMock.workspaceFiles, [{ file: chatUploadRow(), currentVersion: 7 }])
 
     const record = await resolveWorkspaceFileReference(WS, 'wf_upload', {
       includeChatUploads: true,
     })
 
-    expect(record).toMatchObject({ id: 'wf_upload', name: 'face (2).png', vfsNamespace: 'uploads' })
+    expect(record).toMatchObject({
+      id: 'wf_upload',
+      name: 'face (2).png',
+      vfsNamespace: 'uploads',
+      currentVersion: 7,
+    })
     expect(lastConditions()).toContainEqual(
       expect.objectContaining({
         type: 'inArray',
@@ -219,7 +231,10 @@ describe('resolveWorkspaceFileReference', () => {
     ['7176afcc-31eb-426a-831b-254bce6670fb', 'notes.txt', 'text/plain'],
   ])('resolves UUID upload %s directly with opt-in', async (id, name, contentType) => {
     queueTableRows(schemaMock.workspaceFiles, [
-      chatUploadRow({ id, originalName: name, displayName: name, contentType }),
+      {
+        file: chatUploadRow({ id, originalName: name, displayName: name, contentType }),
+        currentVersion: 1,
+      },
     ])
 
     const record = await resolveWorkspaceFileReference(WS, id, { includeChatUploads: true })

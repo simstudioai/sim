@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
+import { escapeRegExp } from '@sim/utils/string'
 import { useQueries } from '@tanstack/react-query'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
@@ -25,10 +26,7 @@ import {
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import {
-  escapeRegex,
-  SKILL_CHIP_TRIGGER,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
@@ -131,7 +129,7 @@ export function Composer({
     for (const context of restoredContexts) {
       if (context.kind !== 'skill') continue
       restoredText = restoredText.replace(
-        new RegExp(`(^|\\s)/${escapeRegex(context.label)}(?=\\s|$)`, 'g'),
+        new RegExp(`(^|\\s)/${escapeRegExp(context.label)}(?=\\s|$)`, 'g'),
         `$1${SKILL_CHIP_TRIGGER}${context.label}`
       )
     }

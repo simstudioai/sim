@@ -187,13 +187,16 @@ function SearchResults({
     scope,
     awaitingRange ? '' : query,
     searchFilters,
-    topK ?? (expanded
-      ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
-      : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial)
+    topK ??
+      (expanded
+        ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
+        : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial)
   )
   /** A full first page may collapse to few cards, yet more documents may still match. */
   const mayHaveMore =
-    topK === undefined && !expanded && (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+    topK === undefined &&
+    !expanded &&
+    (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
   const { data: overview } = useSearchSourceOverview(scope)
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)

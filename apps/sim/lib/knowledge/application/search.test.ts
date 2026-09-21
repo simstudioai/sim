@@ -886,11 +886,8 @@ describe('knowledge search application use case', () => {
       expect(result.results[1]).toMatchObject({ similarity: 0.95, rankScore: 1 / 62 })
     })
 
-    it('assigns contiguous ranks after unreadable documents are removed', async () => {
-      mocks.executeSearch.mockResolvedValue([
-        row({ id: 'hidden', documentId: 'unreadable', rankScore: 0.9, rank: 1 }),
-        row({ id: 'visible', rankScore: 0.8, rank: 2 }),
-      ])
+    it('assigns contiguous ranks to the authorized retrieval rows', async () => {
+      mocks.executeSearch.mockResolvedValue([row({ id: 'visible', rankScore: 0.8, rank: 2 })])
 
       const result = await search()
 

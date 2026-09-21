@@ -1,5 +1,5 @@
-import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
+import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
 
 export function isToolInCatalog(toolId: string): boolean {
   return toolId in TOOL_CATALOG

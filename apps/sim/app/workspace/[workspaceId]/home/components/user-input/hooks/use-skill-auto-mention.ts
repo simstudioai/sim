@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react'
 import { escapeRegExp } from '@sim/utils/string'
-import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'

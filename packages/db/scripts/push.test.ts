@@ -38,7 +38,7 @@ describe('db:push policy and process boundaries', () => {
   it('sets create/drop only on the Drizzle child and forwards force independently', async () => {
     vi.stubEnv('SIM_DB_PUSH_RENAME_MODE', undefined)
     expect(await runPush(['--force'])).toBe(0)
-    expect(spawn).toHaveBeenCalledTimes(6)
+    expect(spawn).toHaveBeenCalledTimes(7)
     expect(spawn.mock.calls[0][0]).toContain('./scripts/prepare-push.ts')
     expect(spawn.mock.calls[1][0]).toEqual([
       'bunx',

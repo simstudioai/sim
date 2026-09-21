@@ -17,6 +17,11 @@ export const workspaceSearchFiltersSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe('ISO datetime; restricts results to documents modified after this time.'),
+  modifiedBefore: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe('ISO datetime; restricts results to documents modified before this time.'),
   documentIds: z
     .array(z.string().min(1).max(200))
     .min(1)

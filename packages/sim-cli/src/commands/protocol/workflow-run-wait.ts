@@ -101,7 +101,7 @@ function optionalString(value: unknown): string | null {
  */
 /** The run itself: v2 answers `{ data: run }` and the renderer prints exactly what it is handed. */
 function runData(raw: unknown): unknown {
-  return isRecord(raw) && isRecord(raw.data) ? raw.data : raw
+  return isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
 }
 
 function readRun(raw: unknown): RunSnapshot {

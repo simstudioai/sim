@@ -53,8 +53,8 @@ import {
   vectorCandidatePoolLimit,
   visibleDocumentsQuery,
 } from '@/lib/knowledge/search/queries'
-import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import { RRF_K } from '@/lib/knowledge/search/recency'
+import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 /**

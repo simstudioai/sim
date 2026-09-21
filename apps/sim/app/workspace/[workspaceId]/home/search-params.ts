@@ -61,13 +61,21 @@ function endOfLocalDay(day: Date): Date {
 
 /** Resolve the shared source/recency controls once for a particular search. */
 export function searchFiltersFromParams(
-  params: { source: string | null; updated: (typeof UPDATED_WINDOWS)[number]['id']; from?: Date | null; to?: Date | null },
+  params: {
+    source: string | null
+    updated: (typeof UPDATED_WINDOWS)[number]['id']
+    from?: Date | null
+    to?: Date | null
+  },
   searchedAt: number
 ): WorkspaceSearchFilters {
   const days = UPDATED_WINDOWS.find((entry) => entry.id === params.updated)?.days
   return {
     ...(params.updated === 'custom' && params.from && params.to
-      ? { modifiedAfter: startOfLocalDay(params.from).toISOString(), modifiedBefore: endOfLocalDay(params.to).toISOString() }
+      ? {
+          modifiedAfter: startOfLocalDay(params.from).toISOString(),
+          modifiedBefore: endOfLocalDay(params.to).toISOString(),
+        }
       : {}),
     ...(params.source ? { source: params.source } : {}),
     ...(days ? { modifiedAfter: new Date(searchedAt - days * 86_400_000).toISOString() } : {}),

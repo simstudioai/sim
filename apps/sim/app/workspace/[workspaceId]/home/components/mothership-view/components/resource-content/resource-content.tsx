@@ -1,7 +1,15 @@
 'use client'
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { OverflowText, PlayOutline, Skeleton, TabStripAction, Tooltip, toast } from '@sim/emcn'
+import {
+  Button,
+  OverflowText,
+  PlayOutline,
+  Skeleton,
+  TabStripAction,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import {
   Download,
   FileX,
@@ -640,16 +648,16 @@ function EmbeddedFileActions({
   return (
     <>
       {file && !isUpload && (
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <TabStripAction variant='subtle' onClick={handleOpenInFiles} aria-label='Open in files'>
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction variant='subtle' onClick={handleOpenInFiles} aria-label='Open in files'>
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in files</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
       )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
