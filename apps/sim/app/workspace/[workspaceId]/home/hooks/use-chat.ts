@@ -187,6 +187,13 @@ export interface SendMessageOptions {
   assistantSearchLevel?: AssistantSearchLevel
 }
 
+interface FinalizeOptions {
+  error?: boolean
+  targetChatId?: string
+  /** A lost transport must remain recoverable while the server is still running. */
+  streamTerminal?: boolean
+}
+
 /**
  * `true` when the send owns the transcript (rendered, or handed to reconnect),
  * `false` when the caller should restore the queue entry, and the object form
@@ -883,9 +890,7 @@ export function useChat(
   const resolveDetachedChatForStreamRef = useRef<
     (streamId: string, signal?: AbortSignal) => Promise<DetachedChatResolution>
   >(async () => ({ terminal: false }))
-  const finalizeRef = useRef<(options?: { error?: boolean; targetChatId?: string }) => void>(
-    () => {}
-  )
+  const finalizeRef = useRef<(options?: FinalizeOptions) => void>(() => {})
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
   const recoverActiveStreamRef = useRef<
     (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck') => Promise<void>
@@ -1238,21 +1243,34 @@ export function useChat(
     options?.requestMode ?? chatHistory?.mode ?? (organizationId ? 'assistant' : 'agent')
   const pendingTurn =
     chatHistory?.id === (initialChatId ?? chatIdRef.current) ? activeTurnRef.current : null
+  const liveContent = streamingContentRef.current
+  const liveBlocks = streamingBlocksRef.current
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? [...pendingMessages]
-    /** A resource-history read can lag admission; keep this chat's own optimistic user visible. */
-    if (pendingTurn && !source.some((message) => message.id === pendingTurn.userMessageId)) {
-      const assistantIndex = source.findIndex(
-        (message) => message.id === pendingTurn.assistantMessageId
-      )
-      source.splice(
-        assistantIndex < 0 ? source.length : assistantIndex,
-        0,
-        pendingTurn.optimisticUserMessage
-      )
+    /** History reads can lag the live turn; retain both its owner and current response. */
+    if (pendingTurn) {
+      let ownerIndex = source.findIndex((message) => message.id === pendingTurn.userMessageId)
+      if (ownerIndex < 0) {
+        const assistantIndex = source.findIndex(
+          (message) => message.id === pendingTurn.assistantMessageId
+        )
+        ownerIndex = assistantIndex < 0 ? source.length : assistantIndex
+        source.splice(ownerIndex, 0, pendingTurn.optimisticUserMessage)
+      }
+      const assistant = source[ownerIndex + 1]
+      const liveAssistant = {
+        ...pendingTurn.optimisticAssistantMessage,
+        content: liveContent,
+        contentBlocks: liveBlocks,
+      }
+      if (assistant?.id === pendingTurn.assistantMessageId) {
+        source[ownerIndex + 1] = { ...assistant, ...liveAssistant }
+      } else if (assistant?.role !== 'assistant') {
+        source.splice(ownerIndex + 1, 0, liveAssistant)
+      }
     }
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
-  }, [chatHistory, pendingMessages, pendingTurn])
+  }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
       // The single fan-in for tab creation, so the invariant lives here.
@@ -2006,7 +2024,11 @@ export function useChat(
         }
         if (!succeeded && streamGenRef.current === gen) {
           try {
-            finalizeRef.current({ error: true, targetChatId: chatHistory.id })
+            finalizeRef.current({
+              error: true,
+              targetChatId: chatHistory.id,
+              streamTerminal: false,
+            })
           } catch {
             setTransportIdle()
             abortControllerRef.current = null
@@ -2941,7 +2963,7 @@ export function useChat(
             shouldContinue: isSameRecoverySubject,
           })
           if (!succeeded && streamGenRef.current === recoveryGen && isSameRecoverySubject()) {
-            finalizeRef.current({ error: true, targetChatId: chatId })
+            finalizeRef.current({ error: true, targetChatId: chatId, streamTerminal: false })
           }
         }
       })()
@@ -3170,7 +3192,7 @@ export function useChat(
   )
 
   const finalize = useCallback(
-    (options?: { error?: boolean; targetChatId?: string }) => {
+    (options?: FinalizeOptions) => {
       const isError = !!options?.error
       if (isError) {
         const blocks = streamingBlocksRef.current
@@ -3219,8 +3241,10 @@ export function useChat(
       if (completedActivityTracker?.generation === streamGenRef.current) {
         clearResourceActivity(completedActivityTracker, true)
       }
-      locallyTerminalStreamIdRef.current =
-        streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+      if (options?.streamTerminal !== false) {
+        locallyTerminalStreamIdRef.current =
+          streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+      }
       clearActiveTurn()
       setTransportIdle()
       abortControllerRef.current = null
@@ -3804,6 +3828,7 @@ export function useChat(
         if (gen !== undefined && streamGenRef.current === gen) {
           finalize({
             error: true,
+            streamTerminal: false,
             ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
           })
         }

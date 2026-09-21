@@ -1153,9 +1153,13 @@ describe('useChat remount send recovery', () => {
     }
   )
 
-  it.each([false, true])(
-    'keeps the owning optimistic user through lagging resource history (model output: %s)',
-    async (hasOutput) => {
+  it.each(
+    [false, true].flatMap((hasOutput) =>
+      (['assistant', 'user', 'neither'] as const).map((retained) => ({ hasOutput, retained }))
+    )
+  )(
+    'keeps the live turn through lagging resource history (output: $hasOutput, retained: $retained)',
+    async ({ hasOutput, retained }) => {
       state.postBehavior = 'task'
       const history: MothershipChatHistory = {
         id: 'chat-lagging-user',
@@ -1208,19 +1212,22 @@ describe('useChat remount send recovery', () => {
         .messages.find((message) => message.role === 'assistant')!
       await act(async () => getResult().addResource(search))
       await waitFor(() => historyReads > 0)
+      const beforeHistoryRefresh = getResult()
       await act(async () =>
         staleHistory.resolve({
           chat: {
             ...history,
             title: 'Hydrated during run',
             activeStreamId: sentUser.id,
-            messages: [liveAssistant],
+            messages:
+              retained === 'assistant' ? [liveAssistant] : retained === 'user' ? [sentUser] : [],
             resources: [search],
           },
         })
       )
       await waitFor(
         () =>
+          getResult() !== beforeHistoryRefresh &&
           queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
             ?.title === 'Hydrated during run'
       )
@@ -1229,6 +1236,9 @@ describe('useChat remount send recovery', () => {
         liveAssistant.id,
       ])
       expect(getResult().messages[0].content).toBe('Orion acceptance policy')
+      expect(getResult().isSending).toBe(true)
+      expect(getResult().messages[1].content).toBe(liveAssistant.content)
+      if (hasOutput) expect(getResult().messages[1].contentBlocks).toHaveLength(1)
       await act(async () =>
         queryClient.setQueryData(mothershipChatKeys.detail(history.id), {
           ...history,
@@ -1409,6 +1419,62 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies[0]).not.toHaveProperty('assistantSearchLevel')
     expect(state.postBodies[0]).toHaveProperty('modelSelection')
     expect(state.postBodies[0]).toHaveProperty('effort')
+  })
+
+  it('recovers a running turn after reconnect exhaustion without reloading or resending', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let online = false
+      let recoveredTail = false
+      let failedReconnects = 0
+      const history: MothershipChatHistory = {
+        id: 'chat-reconnect-exhausted',
+        mode: 'agent',
+        title: 'Reconnect',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: {
+            ...history,
+            activeStreamId: state.postBodies[0]?.userMessageId ?? null,
+          },
+        })
+      )
+      state.postBehavior = 'accept'
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+        if (!online) {
+          failedReconnects++
+          throw new TypeError('Failed to fetch')
+        }
+        if (url.includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        recoveredTail = true
+        return new Response(new ReadableStream<Uint8Array>(), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Continue working')
+      })
+      for (let second = 0; second < 240 && failedReconnects < 12; second++) {
+        await act(async () => vi.advanceTimersByTimeAsync(1_000))
+      }
+      expect(failedReconnects).toBeGreaterThanOrEqual(12)
+      online = true
+      await act(async () => vi.advanceTimersByTimeAsync(30_000))
+      expect(recoveredTail).toBe(true)
+      expect(getResult().isSending).toBe(true)
+      expect(state.postBodies).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('preserves a visible workflow watch when Stop persists the partial response', async () => {
