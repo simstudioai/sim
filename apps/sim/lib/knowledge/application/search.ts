@@ -390,50 +390,41 @@ export async function runKnowledgeSearch({
     : undefined
   const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
   input.signal?.throwIfAborted()
-  /** The embedding is requested the moment admission passes, beside the scope and defaults reads. */
-  const admittedEmbedding = async () => {
-    const billingAttribution = await admit()
-    input.signal?.throwIfAborted()
-    const queryEmbedding = hasQuery
-      ? await measureSearchStage('embedding', () =>
-          runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-            generateSearchEmbedding(
-              input.query!,
-              embeddingTarget!,
-              context.workspaceId,
-              input.signal
-            )
-          )
-        )
-      : null
-    return { billingAttribution, queryEmbedding }
-  }
-  const [access, searchDefaults, admitted, tagDefinitions, rerankerCredential] = await Promise.all([
-    measureSearchStage('access_scope', () => context.access.get()),
-    measureSearchStage('defaults', () =>
-      resolveKnowledgeSearchDefaults({
-        workspaceId: context.workspaceId,
-        organizationId: context.organizationId,
+  const [access, searchDefaults, billingAttribution, tagDefinitions, rerankerCredential] =
+    await Promise.all([
+      measureSearchStage('access_scope', () => context.access.get()),
+      measureSearchStage('defaults', () =>
+        resolveKnowledgeSearchDefaults({
+          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
 
-        /** The signed-in person, if any; never the billing owner or a key's creator. */
-        userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-        requestedMode: input.searchMode,
-      })
-    ),
-    admittedEmbedding(),
-    /** The tag names the results are labelled with depend on the bases alone. */
-    filters.length === 0
-      ? measureSearchStage('tag_definitions', () =>
-          getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
-        )
-      : Promise.resolve(definitionsByKnowledgeBase),
-    /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
-    input.rerankerEnabled && hasQuery
-      ? hasRerankerCredential(context.workspaceId, input.rerankerApiKey)
-      : false,
-  ])
-  const { billingAttribution, queryEmbedding } = admitted
+          /** The signed-in person, if any; never the billing owner or a key's creator. */
+          userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+          requestedMode: input.searchMode,
+        })
+      ),
+      admit(),
+      /** The tag names the results are labelled with depend on the bases alone. */
+      filters.length === 0
+        ? measureSearchStage('tag_definitions', () =>
+            getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
+          )
+        : Promise.resolve(definitionsByKnowledgeBase),
+      /** A surface may ask to rerank; without a key for the workspace or the platform there is nothing to ask. */
+      input.rerankerEnabled && hasQuery
+        ? hasRerankerCredential(context.workspaceId, input.rerankerApiKey)
+        : false,
+    ])
   definitionsByKnowledgeBase = tagDefinitions
+  input.signal?.throwIfAborted()
+  /** Requested only once every prerequisite held: a search refused for any reason spends no model call. */
+  const queryEmbedding = hasQuery
+    ? await measureSearchStage('embedding', () =>
+        runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
+          generateSearchEmbedding(input.query!, embeddingTarget!, context.workspaceId, input.signal)
+        )
+      )
+    : null
   input.signal?.throwIfAborted()
   annotateSearchDiagnostics({
     accessScopeKind: access.kind,

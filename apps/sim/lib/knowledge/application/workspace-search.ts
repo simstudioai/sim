@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -111,6 +112,13 @@ function defineScopedSearchUseCase<
       const searchInput: SearchKnowledgeInput = {
         ...surface.searchInput(input, context),
         knowledgeBaseIds: [index.id],
+      }
+      /** An owner the request asserts is the one that was resolved, or the request names none. */
+      if (
+        (searchInput.organizationId && searchInput.organizationId !== context.organizationId) ||
+        (searchInput.workspaceId && searchInput.workspaceId !== context.workspaceId)
+      ) {
+        throw new OrchestrationError('not_found', 'Knowledge base not found')
       }
       validateKnowledgeSearchInput(searchInput)
       return runKnowledgeSearch({
