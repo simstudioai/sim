@@ -1909,6 +1909,38 @@ describe('permitted-document planner', () => {
       expect(reachCounts()).toHaveLength(2)
     })
 
+    it('does not remember a saturated reach whose count ran out of time', async () => {
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        if (isProbeStatement(statement)) return [{ id: null, connectorId: null, saturated: true }]
+        if (statement.includes('EXPLAIN'))
+          return [{ 'QUERY PLAN': [{ Plan: { 'Plan Rows': 1_000_000 } }] }]
+        if (statement.includes(') reached'))
+          throw Object.assign(new Error('canceling statement due to statement timeout'), {
+            code: '57014',
+          })
+        return []
+      })
+      const reachCounts = () => statements().filter((query) => query.sql.includes(') reached'))
+      const budget = () => new SearchBudget('vector', performance.now() + 10_000)
+      expect(
+        await resolvePermittedDocuments({
+          knowledgeBaseIds: ['org-index'],
+          access: scope('timed-saturated'),
+          budget: budget(),
+        })
+      ).toEqual({ kind: 'unbounded', broad: true })
+      expect(reachCounts()).toHaveLength(1)
+      /** The next search probes and counts again rather than trusting a reach that was never measured. */
+      await resolvePermittedDocuments({
+        knowledgeBaseIds: ['org-index'],
+        access: scope('timed-saturated'),
+        budget: budget(),
+      })
+      expect(probes()).toBe(2)
+      expect(reachCounts()).toHaveLength(2)
+    })
+
     it('counts a resolved reach against a small index instead of assuming it broad', async () => {
       /** A bound inside the probe limit proves nothing without a saturated probe. */
       dbChainMockFns.execute.mockImplementation(async (query) => {

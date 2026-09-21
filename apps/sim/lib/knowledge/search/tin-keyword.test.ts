@@ -36,11 +36,7 @@ describe('resolveTinKeywordQuery', () => {
   it('is off while the rollout flag is off, without touching the database', async () => {
     mockIsFeatureEnabled.mockResolvedValue(false)
     expect(await resolveTinKeywordQuery(true, 'release notes', 'english', undefined)).toBeNull()
-    expect(
-      dbChainMockFns.execute.mock.calls.some(([query]) =>
-        JSON.stringify(query).includes('websearch_to_tsquery')
-      )
-    ).toBe(false)
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 
   it('translates the analyzed query when every base is a search index', async () => {

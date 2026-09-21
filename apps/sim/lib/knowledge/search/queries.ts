@@ -1390,10 +1390,11 @@ export async function resolvePermittedDocuments(params: {
           params.accessPlan,
           true
         )
+        if (key) saturatedReach.set(key, { broad })
       } catch (error) {
         if (!params.budget?.isTimeout(error)) throw error
+        /** A count that ran out of time decides this search only; the next one counts again. */
       }
-      if (key) saturatedReach.set(key, { broad })
     }
   }
   const permitted: PermittedDocuments =

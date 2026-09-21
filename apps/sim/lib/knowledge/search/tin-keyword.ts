@@ -52,12 +52,9 @@ export async function resolveTinKeywordQuery(
 ): Promise<string | null> {
   if (!searchIndexOnly) return null
   try {
-    /** The flag and the index are independent facts; the search waits for the slower one only. */
-    const [enabled, ready] = await Promise.all([
-      isFeatureEnabled('knowledge-tin-keyword'),
-      indexReadiness.fetch('index', { context: budget }),
-    ])
-    if (!enabled || !ready) return null
+    /** The flag is read from memory and decides whether the index is worth asking about at all. */
+    if (!(await isFeatureEnabled('knowledge-tin-keyword'))) return null
+    if (!(await indexReadiness.fetch('index', { context: budget }))) return null
     const [{ rendered }] = await runSearchQuery(budget, 'keyword.tin_query', (executor) =>
       executor.execute<{ rendered: string }>(
         sql`SELECT websearch_to_tsquery(${ftsConfig}::regconfig, ${query})::text AS rendered`
