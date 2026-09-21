@@ -196,6 +196,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/infisical.mdx',
   'integrations/instantly.mdx',
   'integrations/intercom.mdx',
+  'integrations/jev.mdx',
   'integrations/jina.mdx',
   'integrations/jira.mdx',
   'integrations/jira_service_management.mdx',

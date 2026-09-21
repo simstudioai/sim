@@ -167,6 +167,7 @@ import {
   IntercomV2Block,
   IntercomV2BlockMeta,
 } from '@/blocks/blocks/intercom'
+import { JevBlock, JevBlockMeta } from '@/blocks/blocks/jev'
 import { JinaBlock, JinaBlockMeta } from '@/blocks/blocks/jina'
 import { JiraBlock, JiraBlockMeta } from '@/blocks/blocks/jira'
 import {
@@ -542,6 +543,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   instantly: InstantlyBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
+  jev: JevBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
@@ -883,6 +885,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   instantly: InstantlyBlockMeta,
   intercom: IntercomBlockMeta,
   intercom_v2: IntercomV2BlockMeta,
+  jev: JevBlockMeta,
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
