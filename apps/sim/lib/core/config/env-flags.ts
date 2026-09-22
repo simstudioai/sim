@@ -729,4 +729,5 @@ export const isLiveEnterpriseSearchEnabled =
 
 /** Private organizational planning, enabled only by this deployment. */
 export const isPlanModeEnabled =
-  typeof window === 'undefined' && (env.MSHIP_PLAN_MODE ?? process.env.NODE_ENV === 'development')
+  typeof window === 'undefined' &&
+  (envBoolean(env.MSHIP_PLAN_MODE) ?? process.env.NODE_ENV === 'development')
