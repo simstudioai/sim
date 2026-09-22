@@ -179,6 +179,7 @@ import {
   parseNumberValue,
   uncompilableTagFilterError,
   validateTagValue,
+  validateTagValueLength,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
@@ -552,7 +553,9 @@ function resolveDocumentTags(
 
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const actualFieldType = existingDef.fieldType || fieldType
-    const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
+    const validationError =
+      validateTagValueLength(tagName, String(rawValue)) ??
+      validateTagValue(tagName, String(rawValue), actualFieldType)
     if (validationError) {
       typeErrors.push(validationError)
     }

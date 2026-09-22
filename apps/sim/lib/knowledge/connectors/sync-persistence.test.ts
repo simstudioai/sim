@@ -450,6 +450,16 @@ describe('resolveTagMapping', () => {
     expect(tags?.tag2).toBe('Purchasing')
   })
 
+  it('keeps a value exactly at the limit untouched', () => {
+    const atLimit = 'z'.repeat(512)
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: atLimit },
+      { tagSlotMapping: { label: 'tag1' } }
+    )
+    expect(tags?.tag1).toBe(atLimit)
+  })
+
   it('cuts by code point so a bounded value never ends in half a surrogate pair', () => {
     const tags = resolveTagMapping(
       'fixture',

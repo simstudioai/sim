@@ -184,6 +184,7 @@ const INDEXED_TEXT_CUT_SUFFIX = '...'
  * never inside a surrogate pair. The result always passes the document APIs' own bound.
  */
 function boundIndexedText(value: string): string {
+  if (value.length <= MAX_DOCUMENT_INDEXED_TEXT_LENGTH) return value
   return truncateAtCodePoint(
     value,
     MAX_DOCUMENT_INDEXED_TEXT_LENGTH - INDEXED_TEXT_CUT_SUFFIX.length,
