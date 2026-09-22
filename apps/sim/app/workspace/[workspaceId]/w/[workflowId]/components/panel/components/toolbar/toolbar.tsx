@@ -875,12 +875,7 @@ export const Toolbar = memo(
           <h2 className='text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
-              <Button
-                variant='ghost'
-                className='p-0'
-                aria-label='Search toolbar'
-                onClick={focusSearch}
-              >
+              <Button variant='ghost' size='icon' aria-label='Search toolbar' onClick={focusSearch}>
                 <Search className='size-[14px]' />
               </Button>
             ) : (
