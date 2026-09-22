@@ -2626,13 +2626,6 @@
       "when": 1790051159355,
       "tag": "0375_document_connector_live_index",
       "breakpoints": true
-    },
-    {
-      "idx": 376,
-      "version": "7",
-      "when": 1790115159682,
-      "tag": "0376_member_tombstone_cursor",
-      "breakpoints": true
     }
   ]
 }
