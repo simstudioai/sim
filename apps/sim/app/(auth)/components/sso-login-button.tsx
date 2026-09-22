@@ -28,14 +28,10 @@ export function SSOLoginButton({
 
   return (
     <Chip
-      variant={variant === 'primary' ? 'primary' : undefined}
+      variant={variant}
       fullWidth
       onClick={handleSSOClick}
-      className={cn(
-        AUTH_BUTTON_CLASS,
-        variant === 'outline' && 'border border-[var(--border-1)]',
-        className
-      )}
+      className={cn(AUTH_BUTTON_CLASS, className)}
     >
       Sign in with SSO
     </Chip>

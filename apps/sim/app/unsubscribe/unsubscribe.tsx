@@ -1,13 +1,13 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Chip, cn, Loader } from '@sim/emcn'
+import { Chip, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
-import { InviteLayout } from '@/app/invite/components'
+import { InviteHeading, InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
 function UnsubscribeContent() {
@@ -39,10 +39,9 @@ function UnsubscribeContent() {
   if (loading) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>Loading</h1>
+        <InviteHeading title={'Loading'}>
           <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
-        </div>
+        </InviteHeading>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
           <Loader className='size-8 text-[var(--text-muted)]' animate />
         </div>
@@ -53,12 +52,9 @@ function UnsubscribeContent() {
   if (error) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>
-            Invalid Unsubscribe Link
-          </h1>
+        <InviteHeading title={'Invalid Unsubscribe Link'}>
           <p className={'text-[var(--text-muted)] text-md'}>{error}</p>
-        </div>
+        </InviteHeading>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <AuthSubmitButton type='button' onClick={() => window.history.back()} loadingLabel=''>
@@ -72,15 +68,12 @@ function UnsubscribeContent() {
   if (data?.isTransactional) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>
-            Important Account Emails
-          </h1>
+        <InviteHeading title={'Important Account Emails'}>
           <p className={'text-[var(--text-muted)] text-md'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
-        </div>
+        </InviteHeading>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
@@ -94,15 +87,12 @@ function UnsubscribeContent() {
   if (unsubscribed) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>
-            Successfully Unsubscribed
-          </h1>
+        <InviteHeading title={'Successfully Unsubscribed'}>
           <p className={'text-[var(--text-muted)] text-md'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
-        </div>
+        </InviteHeading>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
@@ -117,15 +107,12 @@ function UnsubscribeContent() {
 
   return (
     <InviteLayout>
-      <div className='space-y-1 text-center'>
-        <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>
-          Email Preferences
-        </h1>
+      <InviteHeading title={'Email Preferences'}>
         <p className={'text-[var(--text-muted)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
         <p className={'text-[var(--text-muted)] text-sm'}>{data?.email}</p>
-      </div>
+      </InviteHeading>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
         <AuthSubmitButton
@@ -152,7 +139,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -167,7 +155,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -182,7 +171,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
@@ -205,10 +195,9 @@ export default function Unsubscribe() {
     <Suspense
       fallback={
         <InviteLayout>
-          <div className='space-y-1 text-center'>
-            <h1 className={'text-[var(--text-primary)] text-title-lg tracking-tight'}>Loading</h1>
+          <InviteHeading title={'Loading'}>
             <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
-          </div>
+          </InviteHeading>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
             <Loader className='size-8 text-[var(--text-muted)]' animate />
           </div>
