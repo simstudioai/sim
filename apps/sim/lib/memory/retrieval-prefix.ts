@@ -1,9 +1,9 @@
 import { dbFor } from '@sim/db'
 import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { MemoryArtifactScope } from '@/lib/memory/artifacts'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
 
 export const MAX_MEMORY_RETRIEVAL_PREFIX_BYTES = 1024 * 1024
@@ -45,7 +45,7 @@ export async function readMemoryRetrievalPrefix(
     return { status: 'oversized' }
   if (
     !Array.isArray(row.data) ||
-    stringifyBoundedMemoryJson(row.data, MAX_MEMORY_RETRIEVAL_PREFIX_BYTES) === undefined
+    stringifyBoundedJson(row.data, MAX_MEMORY_RETRIEVAL_PREFIX_BYTES) === undefined
   )
     return { status: 'unavailable' }
   const provenance = readBoundMemorySecretProvenance(row)

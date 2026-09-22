@@ -1,8 +1,8 @@
 /** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 
-describe('bounded memory JSON', () => {
+describe('bounded JSON', () => {
   it.each([
     { value: { text: 'hello', values: [1, false, null] } },
     { value: { text: 'é😀\ud800\udc00\ud800' } },
@@ -12,8 +12,8 @@ describe('bounded memory JSON', () => {
   ])('uses the caller byte limit including UTF-8 and escaped JSON bytes', ({ value }) => {
     const json = JSON.stringify(value)
     const bytes = Buffer.byteLength(json, 'utf8')
-    expect(stringifyBoundedMemoryJson(value, bytes)).toBe(json)
-    expect(stringifyBoundedMemoryJson(value, bytes - 1)).toBeUndefined()
+    expect(stringifyBoundedJson(value, bytes)).toBe(json)
+    expect(stringifyBoundedJson(value, bytes - 1)).toBeUndefined()
   })
 
   it('rejects cycles, excessive depth, and excessive nodes', () => {
@@ -27,7 +27,7 @@ describe('bounded memory JSON', () => {
       Array(100_001),
       Object.fromEntries(Array.from({ length: 100_001 }, (_, index) => [index, undefined])),
     ]) {
-      expect(stringifyBoundedMemoryJson(value, 8 * 1024 * 1024)).toBeUndefined()
+      expect(stringifyBoundedJson(value, 8 * 1024 * 1024)).toBeUndefined()
     }
   })
 
@@ -37,7 +37,7 @@ describe('bounded memory JSON', () => {
     const accessor = Object.defineProperty({}, 'secret', { enumerable: true, get: getter })
     const custom = Object.defineProperty({}, 'toJSON', { value: toJSON })
     for (const value of [accessor, custom, { output: new Uint8Array([1, 2, 3]) }]) {
-      expect(stringifyBoundedMemoryJson(value, 1024)).toBeUndefined()
+      expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
     }
     expect(getter).not.toHaveBeenCalled()
     expect(toJSON).not.toHaveBeenCalled()
@@ -47,7 +47,7 @@ describe('bounded memory JSON', () => {
     const value = { output: 'x'.repeat(1025) }
     const serialize = vi.spyOn(JSON, 'stringify')
     try {
-      expect(stringifyBoundedMemoryJson(value, 1024)).toBeUndefined()
+      expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
       expect(serialize).not.toHaveBeenCalled()
     } finally {
       serialize.mockRestore()
@@ -61,7 +61,7 @@ describe('bounded memory JSON', () => {
   ])('rejects escaped bytes before serializing the captured graph', ({ value }) => {
     const serialize = vi.spyOn(JSON, 'stringify')
     try {
-      expect(stringifyBoundedMemoryJson(value, 1024)).toBeUndefined()
+      expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
       expect(serialize).not.toHaveBeenCalled()
     } finally {
       serialize.mockRestore()
@@ -71,7 +71,7 @@ describe('bounded memory JSON', () => {
   it('serializes the admitted descriptors without reading proxy values or toJSON', () => {
     const get = vi.fn(() => 'UNADMITTED')
     const value = new Proxy({ text: 'admitted' }, { get })
-    expect(stringifyBoundedMemoryJson(value, 1024)).toBe('{"text":"admitted"}')
+    expect(stringifyBoundedJson(value, 1024)).toBe('{"text":"admitted"}')
     expect(get).not.toHaveBeenCalled()
   })
 
@@ -79,13 +79,13 @@ describe('bounded memory JSON', () => {
     const get = vi.fn(() => 'UNADMITTED')
     const prototype = Object.create(Array.prototype, { 0: { get } })
     const value = Object.setPrototypeOf(Array(1), prototype)
-    expect(stringifyBoundedMemoryJson(value, 1024)).toBe('[null]')
+    expect(stringifyBoundedJson(value, 1024)).toBe('[null]')
     expect(get).not.toHaveBeenCalled()
   })
 
   it('allows repeated references without treating them as a cycle', () => {
     const result = { answer: 42 }
     const value = { rawResponse: result, modelResponse: result }
-    expect(stringifyBoundedMemoryJson(value, 1024)).toBe(JSON.stringify(value))
+    expect(stringifyBoundedJson(value, 1024)).toBe(JSON.stringify(value))
   })
 })

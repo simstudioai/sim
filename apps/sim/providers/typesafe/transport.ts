@@ -1,10 +1,12 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { PROVIDER_HEADERS_TIMEOUT_MS, PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { buildJevBody } from '@/providers/typesafe/schema'
 
 const MAX_EVALUATION_RESPONSE_BYTES = 10 * 1024 * 1024
+export const MAX_EVALUATION_REQUEST_BYTES = 10 * 1024 * 1024
 
 class TypeSafeHttpError extends Error {
   constructor(
@@ -21,7 +23,10 @@ export async function requestJevEvaluation(
   apiKey: string,
   abortSignal?: AbortSignal
 ): Promise<unknown> {
-  const payload = JSON.stringify(body)
+  const payload = stringifyBoundedJson(body, MAX_EVALUATION_REQUEST_BYTES)
+  if (payload === undefined) {
+    throw new Error('TypeSafe evaluation request exceeds the size or JSON complexity limit')
+  }
   for (let attempt = 0; ; attempt++) {
     abortSignal?.throwIfAborted()
     const timeout = AbortSignal.timeout(PROVIDER_HEADERS_TIMEOUT_MS)

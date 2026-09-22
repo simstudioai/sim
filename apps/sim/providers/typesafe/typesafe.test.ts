@@ -5,6 +5,7 @@ import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderRequest } from '@/providers/types'
 import { typesafeProvider } from '@/providers/typesafe'
 import { buildJevBody, parseJevResponse } from '@/providers/typesafe/schema'
+import { MAX_EVALUATION_REQUEST_BYTES, requestJevEvaluation } from '@/providers/typesafe/transport'
 import type { JevEvaluationResult, JevQuestion } from '@/providers/typesafe/types'
 import { getProviderFromModel, shouldBillModelUsage } from '@/providers/utils'
 
@@ -209,6 +210,28 @@ describe('TypeSafe provider', () => {
     fetchMock.mockResolvedValueOnce(new Response('{'))
     await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow()
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { label: 'ASCII values', character: 'x', bytes: 1, key: false },
+    { label: 'UTF-8 values', character: '😀', bytes: 4, key: false },
+    { label: 'control-character values', character: '\u0000', bytes: 6, key: false },
+    { label: 'control-character keys', character: '\u0000', bytes: 6, key: true },
+    { label: 'lone-surrogate values', character: '\ud800', bytes: 6, key: false },
+    { label: 'lone-surrogate keys', character: '\ud800', bytes: 6, key: true },
+  ])('rejects oversized $label before serialization or HTTP', async ({ character, bytes, key }) => {
+    const text = character.repeat(Math.ceil(MAX_EVALUATION_REQUEST_BYTES / bytes))
+    const body = {
+      model: REQUEST.model,
+      state: key ? { [text]: null } : text,
+      questions: QUESTIONS,
+    }
+    const serialize = vi.spyOn(JSON, 'stringify')
+    await expect(requestJevEvaluation(body, 'test-key')).rejects.toThrow(
+      'size or JSON complexity limit'
+    )
+    expect(serialize).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('honors cancellation before network access', async () => {
