@@ -6,7 +6,7 @@ Status: design only. This document specifies the first implementation; the table
 
 An HTML Sim file may read a table that its file metadata explicitly names. This works in a private workspace view and through every existing file-share mode, including a public link. The first version only queries rows. It cannot insert, update, delete, run table enrichments, read row-run state, execute SQL, or enumerate the workspace's tables.
 
-An author attaches up to ten table IDs to the file, beside its existing workflow IDs:
+An author attaches table IDs to the file, beside its existing workflow IDs:
 
 ```json
 {
@@ -43,7 +43,7 @@ The response matches the existing v2 named-row shape: `{ data: [{ id, data, crea
 
 `tableIds` is a whole-table read grant for this HTML file. It includes all current and future rows and all ordinary row-data columns, with arbitrary supported predicates and sorts. The UI must say this plainly when an author attaches a table or publishes an already configured file. A table containing data that should not be public must not be attached to a public file. Column- or row-scoped grants are a future design, not an implicit restriction or a silent partial result.
 
-Grant creation and replacement require permission to update the file and to query each named table in the same active workspace (`tables.rows.query` / `tables.use`). Lists have at most ten distinct IDs; a non-HTML file cannot hold table grants. A private file can be configured by a collaborator with those permissions. Enabling a share, or adding a table to an already shared file, also requires the existing file-publishing authority: workspace admin plus `public_api.use`, matching workflow dependency publication. The table need not expose its general v2 API publicly.
+Grant creation and replacement require permission to update the file and to query each named table in the same active workspace (`tables.rows.query` / `tables.use`). Table IDs must be distinct, but there is no separate ten-table cap: the metadata routes already limit the complete request body to 4 KiB, and each ID is validated. A non-HTML file cannot hold table grants. A private file can be configured by a collaborator with those permissions. Enabling a share, or adding a table to an already shared file, also requires the existing file-publishing authority: workspace admin plus `public_api.use`, matching workflow dependency publication. The table need not expose its general v2 API publicly.
 
 An active share plus the file's `tableIds` becomes the public read capability. It is not a saved owner session, API key, or a fabricated table principal. Public access persists until the grant or share is removed, the file/workspace/table becomes inactive, or the share's authentication gate denies the viewer. A publisher later losing personal access does not silently revoke a workspace-level published grant; an administrator must remove it or disable the share. Private callers must still have current permission to read both the file and table on each request.
 
