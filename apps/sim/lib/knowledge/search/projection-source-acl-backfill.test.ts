@@ -78,12 +78,21 @@ describe('runProjectionSourceAclBackfill', () => {
 
   it('analyzes and warms the projections on the same connection once both are filled, before closing it', async () => {
     await runProjectionSourceAclBackfill({})
-    /** A row whose document is gone is not the fill's to finish; the probe joins the document. */
-    expect(
-      mockUnsafe.mock.calls.some(([query]) =>
-        String(query).includes('JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL')
+    /**
+     * A row whose document is gone is not the fill's to finish; the probe joins the document. It is
+     * ordered and capped so only the unfilled-rows index can serve it: an `EXISTS` drops both and
+     * leaves the planner a sequential scan of the projection.
+     */
+    const probes = mockUnsafe.mock.calls
+      .map(([query]) => String(query).replace(/\s+/g, ' '))
+      .filter((query) => query.includes('AS unfilled'))
+    expect(probes).toHaveLength(2)
+    for (const probe of probes) {
+      expect(probe).not.toContain('EXISTS')
+      expect(probe).toContain(
+        'JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL ORDER BY s.id DESC LIMIT 1 ) IS NOT NULL AS unfilled'
       )
-    ).toBe(true)
+    }
     expect(mockUnsafe.mock.calls.map(([query]) => query)).toEqual(
       expect.arrayContaining(['ANALYZE embedding_search', 'ANALYZE embedding_keyword_tin'])
     )
