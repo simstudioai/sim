@@ -13,6 +13,7 @@ export type BYOKProviderId =
   | 'mistral'
   | 'zai'
   | 'kimi'
+  | 'typesafe'
   | 'xai'
   | 'fireworks'
   | 'together'

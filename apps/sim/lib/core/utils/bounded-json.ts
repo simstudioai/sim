@@ -1,5 +1,5 @@
-const MAX_MEMORY_JSON_NODES = 100_000
-const MAX_MEMORY_JSON_DEPTH = 64
+const MAX_JSON_NODES = 100_000
+const MAX_JSON_DEPTH = 64
 
 /** Counts JSON escapes without allocating the escaped string. */
 function quotedStringBytes(value: string, remaining: number): number | undefined {
@@ -22,7 +22,7 @@ function quotedStringBytes(value: string, remaining: number): number | undefined
 }
 
 /** Captures bounded plain JSON once, without executing accessors or serializing the source graph. */
-export function stringifyBoundedMemoryJson(value: unknown, maxBytes: number): string | undefined {
+export function stringifyBoundedJson(value: unknown, maxBytes: number): string | undefined {
   let nodes = 0
   let bytes = 0
   const invalid = Symbol('invalid JSON')
@@ -32,7 +32,7 @@ export function stringifyBoundedMemoryJson(value: unknown, maxBytes: number): st
     return bytes <= maxBytes
   }
   const capture = (item: unknown, depth: number): unknown => {
-    if (++nodes > MAX_MEMORY_JSON_NODES || depth > MAX_MEMORY_JSON_DEPTH) return invalid
+    if (++nodes > MAX_JSON_NODES || depth > MAX_JSON_DEPTH) return invalid
     if (typeof item === 'string') {
       const count = quotedStringBytes(item, maxBytes - bytes)
       if (count === undefined || !addBytes(count)) return invalid
@@ -53,7 +53,7 @@ export function stringifyBoundedMemoryJson(value: unknown, maxBytes: number): st
       : Object.create(null)
     if (isArray) {
       const length = Object.getOwnPropertyDescriptor(item, 'length')?.value
-      if (typeof length !== 'number' || length > MAX_MEMORY_JSON_NODES - nodes) return invalid
+      if (typeof length !== 'number' || length > MAX_JSON_NODES - nodes) return invalid
       for (let index = 0; index < length; index++) {
         const field = Object.getOwnPropertyDescriptor(item, index)
         if (field && !('value' in field)) return invalid
@@ -69,7 +69,7 @@ export function stringifyBoundedMemoryJson(value: unknown, maxBytes: number): st
         if (!field || !field.enumerable) continue
         if (!('value' in field)) return invalid
         if (field.value === undefined) {
-          if (++nodes > MAX_MEMORY_JSON_NODES) return invalid
+          if (++nodes > MAX_JSON_NODES) return invalid
           continue
         }
         const keyBytes = quotedStringBytes(key, maxBytes - bytes)

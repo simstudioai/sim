@@ -6,8 +6,8 @@ import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  getAgentModelOptions,
   getModelCapabilityCondition,
-  getModelOptions,
   getProviderCredentialSubBlocks,
   getSerializedModelProviderId,
   normalizeFileInput,
@@ -15,6 +15,7 @@ import {
 } from '@/blocks/utils'
 import {
   getBaseModelProviders,
+  getEvaluationModels,
   getMaxTemperature,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
@@ -41,6 +42,8 @@ const MODELS_WITH_THINKING = getModelsWithThinking()
 const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
+const EVALUATION_MODELS = getEvaluationModels()
+const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -82,7 +85,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   description: 'Build an agent',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Agent block is a core workflow block that is a wrapper around an LLM. It takes in system/user prompts and calls an LLM provider. It can also make tool calls by directly containing tools inside of its tool input. It can additionally return structured output.',
+    'The Agent block is a core workflow block that is a wrapper around an LLM. It takes in system/user prompts and calls an LLM provider. It can also make tool calls by directly containing tools inside of its tool input. It can additionally return structured output. Select a Jev model to evaluate state against typed Choice, Score, and Noul questions and return structured answers.',
   bestPractices: `
   - Prefer using integrations as tools within the agent block over separate integration blocks unless complete determinism needed. 
   - Response Format should be a valid JSON Schema. This determines the output of the agent only if present. Fields can be accessed at root level by the following blocks: e.g. <agent1.field>. If response format is not present, the agent will return the standard outputs: content, model, tokens, toolCalls.
@@ -105,6 +108,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   subBlocks: [
     {
       id: 'messages',
+      condition: { field: 'model', value: EVALUATION_MODELS, not: true },
       title: 'Messages',
       type: 'messages-input',
       placeholder: 'Enter messages...',
@@ -151,11 +155,41 @@ Return ONLY the JSON array.`,
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-5',
-      options: getModelOptions,
+      options: getAgentModelOptions,
       commandSearchable: true,
+    },
+    ...getProviderCredentialSubBlocks(),
+    {
+      id: 'evaluationState',
+      title: 'State',
+      type: 'long-input',
+      placeholder: 'Content or workflow data to evaluate...',
+      description:
+        'Text, a JSON object, or an array shared by every question. Jev supports text only.',
+      required: true,
+      condition: getModelCapabilityCondition(EVALUATION_MODELS),
+    },
+    {
+      id: 'evaluationQuestions',
+      title: 'Questions',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"passed":{"type":"noul","instructions":"Did the task succeed?"}}',
+      description:
+        'Questions keyed by ID: choice (1–255 named options), score (2–10 ordered levels), or noul (a yes/no probability). Answers use the same IDs.',
+      required: true,
+      condition: getModelCapabilityCondition(EVALUATION_MODELS),
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object of Jev evaluation questions keyed by descriptive IDs. Every question needs type and instructions. choice: criteria is an object with 1–255 option names mapped to descriptions or null. score: criteria is an array of 2–10 descriptions ordered lowest to highest. noul: criteria is optional, with true and false descriptions. Instructions and descriptions may be text, JSON objects, or arrays. Return only valid JSON. Current questions: {context}',
+        placeholder: 'Describe the decisions to make...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'attachmentFiles',
+      condition: { field: 'model', value: EVALUATION_MODELS, not: true },
       title: 'Files',
       type: 'file-upload',
       canonicalParamId: 'files',
@@ -166,6 +200,7 @@ Return ONLY the JSON array.`,
     },
     {
       id: 'files',
+      condition: { field: 'model', value: EVALUATION_MODELS, not: true },
       title: 'Files',
       type: 'short-input',
       canonicalParamId: 'files',
@@ -251,7 +286,6 @@ Return ONLY the JSON array.`,
       },
     },
 
-    ...getProviderCredentialSubBlocks(),
     {
       id: 'tools',
       title: 'Tools',
@@ -259,7 +293,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
+        value: MODELS_WITHOUT_CHAT_CONTROLS,
         not: true,
       },
     },
@@ -270,7 +304,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
+        value: MODELS_WITHOUT_CHAT_CONTROLS,
         not: true,
       },
     },
@@ -406,7 +440,7 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: {
         field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
+        value: MODELS_WITHOUT_CHAT_CONTROLS,
         not: true,
       },
     },
@@ -418,7 +452,7 @@ Return ONLY the JSON array.`,
       language: 'json',
       condition: {
         field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
+        value: MODELS_WITHOUT_CHAT_CONTROLS,
         not: true,
       },
       wandConfig: RESPONSE_FORMAT_WAND_CONFIG,
@@ -433,7 +467,10 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
       },
     },
-    getModelFallbackSubBlock(),
+    {
+      ...getModelFallbackSubBlock(),
+      condition: { field: 'model', value: EVALUATION_MODELS, not: true },
+    },
   ],
   tools: {
     access: [
@@ -501,6 +538,14 @@ Return ONLY the JSON array.`,
     },
   },
   inputs: {
+    evaluationState: {
+      type: 'string',
+      description: 'Content to evaluate: text, a JSON object, or an array',
+    },
+    evaluationQuestions: {
+      type: 'json',
+      description: 'Map of question IDs to native Jev Choice, Score, or Noul questions',
+    },
     messages: {
       type: 'json',
       description:
@@ -601,6 +646,12 @@ Return ONLY the JSON array.`,
     skills: { type: 'json', description: 'Selected skills configuration' },
   },
   outputs: {
+    answers: {
+      type: 'json',
+      description:
+        'Evaluation answers keyed by question ID: choice, score, or noul, with probabilities and confidence where applicable',
+      condition: { field: 'model', value: EVALUATION_MODELS, allowReference: true },
+    },
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
     tokens: { type: 'json', description: 'Token usage statistics' },

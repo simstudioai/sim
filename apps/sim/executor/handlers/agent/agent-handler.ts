@@ -120,7 +120,7 @@ import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
-import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { isAutoModel, isEvaluationModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import {
   type ProviderToolInputProvenance,
   registerProviderToolInputProvenance,
@@ -321,6 +321,15 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: AgentInputs,
     nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
+    /** Inactive fields can remain saved when the builder switches model modalities. */
+    inputs = isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)
+      ? {
+          model: inputs.model,
+          apiKey: inputs.apiKey,
+          evaluationState: inputs.evaluationState,
+          evaluationQuestions: inputs.evaluationQuestions,
+        }
+      : inputs
     ctx.mcpBlockId = block.id
     const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
       AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
@@ -379,6 +388,10 @@ export class AgentBlockHandler implements BlockHandler {
           userPrompt: filteredInputs.userPrompt,
           messages: filteredInputs.messages,
           memories: filteredInputs.memories,
+          ...(isEvaluationModel(filteredInputs.model || AGENT.DEFAULT_MODEL) && {
+            evaluationState: filteredInputs.evaluationState,
+            evaluationQuestions: filteredInputs.evaluationQuestions,
+          }),
         },
         coreModelInputPaths
       )
@@ -552,6 +565,9 @@ export class AgentBlockHandler implements BlockHandler {
         filteredInputs.fallbackModels,
         logger
       )
+      if (configuredFallbacks.some((candidate) => isEvaluationModel(candidate.model))) {
+        throw new Error('Evaluation models cannot serve as chat fallbacks')
+      }
       const retry = nodeMetadata?.retry
       const fallbacksHeld = retry !== undefined && !retry.isFinalTry
       const fallbackCandidates =
@@ -2487,6 +2503,9 @@ export class AgentBlockHandler implements BlockHandler {
 
   private getModelInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
     const paths: ResolvedSecretInputPath[] = [['systemPrompt'], ['userPrompt']]
+    if (isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)) {
+      paths.push(['evaluationState'], ['evaluationQuestions'])
+    }
     for (let index = 0; index < (inputs.messages?.length ?? 0); index++) {
       const message = inputs.messages?.[index]
       const messageRoot = ['messages', String(index)] as const
@@ -2841,8 +2860,11 @@ export class AgentBlockHandler implements BlockHandler {
     return {
       provider: providerId,
       model,
+      evaluation: isEvaluationModel(model)
+        ? { state: inputs.evaluationState, questions: inputs.evaluationQuestions }
+        : undefined,
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
-      context: validMessages ? undefined : stringifyJSON(messages),
+      context: validMessages || isEvaluationModel(model) ? undefined : stringifyJSON(messages),
       tools: formattedTools,
       temperature:
         inputs.temperature != null && inputs.temperature !== ''
@@ -2944,6 +2966,7 @@ export class AgentBlockHandler implements BlockHandler {
         providerId,
         {
           model,
+          evaluation: providerRequest.evaluation,
           systemPrompt:
             'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
           context: 'context' in providerRequest ? providerRequest.context : undefined,
@@ -3273,6 +3296,7 @@ export class AgentBlockHandler implements BlockHandler {
   private processStandardResponse(result: any): BlockOutput {
     return {
       content: result.content,
+      ...(result.answers && { answers: result.answers }),
       ...this.createResponseMetadata(result),
       ...(result.interactionId && { interactionId: result.interactionId }),
     }

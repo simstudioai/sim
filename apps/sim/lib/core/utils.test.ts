@@ -24,6 +24,9 @@ beforeAll(() => {
     XAI_API_KEY_1: 'test-xai-key-1',
     XAI_API_KEY_2: 'test-xai-key-2',
     XAI_API_KEY_3: 'test-xai-key-3',
+    TYPESAFE_API_KEY_1: 'test-typesafe-key-1',
+    TYPESAFE_API_KEY_2: 'test-typesafe-key-2',
+    TYPESAFE_API_KEY_3: 'test-typesafe-key-3',
     FIREWORKS_API_KEY_1: 'test-fireworks-key-1',
     FIREWORKS_API_KEY_2: 'test-fireworks-key-2',
     FIREWORKS_API_KEY_3: 'test-fireworks-key-3',
@@ -321,6 +324,9 @@ describe('getInvalidCharacters', () => {
 })
 
 describe('getRotatingApiKey', () => {
+  it.concurrent('rotates the TypeSafe key pool through the shared selector', () => {
+    expect(getRotatingApiKey('typesafe')).toMatch(/^test-typesafe-key-[1-3]$/)
+  })
   it.concurrent('should return OpenAI API key based on current minute', () => {
     const result = getRotatingApiKey('openai')
     expect(result).toMatch(/^test-openai-key-[1-3]$/)

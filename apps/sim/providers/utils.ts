@@ -160,6 +160,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   sakana: buildProviderMetadata('sakana'),
+  typesafe: buildProviderMetadata('typesafe'),
   nvidia: buildProviderMetadata('nvidia'),
   meta: buildProviderMetadata('meta'),
   zai: buildProviderMetadata('zai'),
@@ -1175,10 +1176,17 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isZaiModel = provider === 'zai'
   const isXaiModel = provider === 'xai'
   const isKimiModel = provider === 'kimi'
+  const isTypeSafeModel = provider === 'typesafe'
 
   if (
     isHosted &&
-    (isOpenAIModel || isClaudeModel || isGeminiModel || isZaiModel || isXaiModel || isKimiModel)
+    (isOpenAIModel ||
+      isClaudeModel ||
+      isGeminiModel ||
+      isZaiModel ||
+      isXaiModel ||
+      isKimiModel ||
+      isTypeSafeModel)
   ) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())

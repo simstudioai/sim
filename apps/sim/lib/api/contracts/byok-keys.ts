@@ -9,6 +9,7 @@ export const byokProviderIdSchema = z.enum([
   'mistral',
   'zai',
   'kimi',
+  'typesafe',
   'xai',
   'fireworks',
   'together',
