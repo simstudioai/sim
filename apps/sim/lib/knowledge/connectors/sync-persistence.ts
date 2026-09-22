@@ -3,6 +3,7 @@ import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
@@ -18,6 +19,7 @@ import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/conn
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import {
@@ -173,6 +175,23 @@ export async function persistDocumentAcls(
 
 const MAX_SAFE_TITLE_LENGTH = 200
 
+/** The suffix a cut value carries, counted inside {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH}. */
+const INDEXED_TEXT_CUT_SUFFIX = '...'
+
+/**
+ * Source titles and mapped tag values are untrusted machine input with no caller to refuse them,
+ * so they are cut to {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH} code units, suffix included, and
+ * never inside a surrogate pair. The result always passes the document APIs' own bound.
+ */
+function boundIndexedText(value: string): string {
+  if (value.length <= MAX_DOCUMENT_INDEXED_TEXT_LENGTH) return value
+  return truncateAtCodePoint(
+    value,
+    MAX_DOCUMENT_INDEXED_TEXT_LENGTH - INDEXED_TEXT_CUT_SUFFIX.length,
+    INDEXED_TEXT_CUT_SUFFIX
+  )
+}
+
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
@@ -250,7 +269,8 @@ export function resolveTagMapping(
   const result: Partial<DocumentTags> = {}
   for (const [semanticKey, slot] of Object.entries(mapping)) {
     const value = semanticTags[semanticKey]
-    ;(result as Record<string, unknown>)[slot] = value != null ? value : null
+    ;(result as Record<string, unknown>)[slot] =
+      typeof value === 'string' ? boundIndexedText(value) : (value ?? null)
   }
   return result
 }
@@ -278,7 +298,7 @@ function buildSkippedDocumentRow(
   return {
     id: generateId(),
     knowledgeBaseId,
-    filename: extDoc.title,
+    filename: boundIndexedText(extDoc.title),
     fileUrl: '',
     storageKey: null,
     /** No artifact was stored; a provider's reported source size is not local storage usage. */
@@ -630,7 +650,7 @@ export async function addDocument(
     await tx.insert(document).values({
       id: documentId,
       knowledgeBaseId,
-      filename: extDoc.title,
+      filename: boundIndexedText(extDoc.title),
       fileUrl,
       storageKey: fileInfo.key,
       fileSize: artifact.bytes.length,
@@ -745,7 +765,7 @@ export async function updateDocument(
     await tx
       .update(document)
       .set({
-        filename: extDoc.title,
+        filename: boundIndexedText(extDoc.title),
         fileUrl,
         storageKey: fileInfo.key,
         fileSize: artifact.bytes.length,

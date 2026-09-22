@@ -34,6 +34,21 @@ export function truncate(str: string, sliceLength: number, suffix = '...'): stri
 }
 
 /**
+ * Like {@link truncate}, but never cuts inside a surrogate pair: when the code unit at the cut
+ * would split an astral character, the cut moves one unit earlier. Lengths are still counted in
+ * UTF-16 code units, so the result of a cut is at most `sliceLength + suffix.length` units.
+ *
+ * @example
+ * truncateAtCodePoint('ab😀cd', 3)   // 'ab...' (the cut at 3 would split the emoji)
+ * truncateAtCodePoint('ab😀cd', 4)   // 'ab😀...'
+ */
+export function truncateAtCodePoint(str: string, sliceLength: number, suffix = '...'): string {
+  if (str.length <= sliceLength) return str
+  const splitsPair = sliceLength > 0 && (str.charCodeAt(sliceLength - 1) & 0xfc00) === 0xd800
+  return str.slice(0, splitsPair ? sliceLength - 1 : sliceLength) + suffix
+}
+
+/**
  * Lowercases `value` into the `[a-z0-9-]` charset: every run of other characters
  * becomes one hyphen, and leading and trailing hyphens are dropped.
  *

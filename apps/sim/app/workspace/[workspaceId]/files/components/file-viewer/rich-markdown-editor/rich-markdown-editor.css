@@ -440,7 +440,7 @@
  * text without ever shifting the text (or any following text) as the highlight is applied/removed.
  */
 .rich-markdown-nodes mark {
-  background-color: rgba(255, 212, 0, 0.4);
+  background-color: color-mix(in srgb, var(--color-amber-400) 40%, transparent);
   color: inherit;
   border-radius: 2px;
   padding: 0 0.1em;
@@ -604,5 +604,5 @@
  * its solid fill with a fixed dark ink for exactly this reason. */
 .rich-markdown-nodes .rich-find-match-active {
   background-color: var(--brand-secondary);
-  color: #000;
+  color: var(--color-black);
 }

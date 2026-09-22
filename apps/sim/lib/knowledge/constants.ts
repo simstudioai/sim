@@ -3,6 +3,14 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
 
+/**
+ * Max character length for a document's filename and text tag values. Both sit under btree
+ * indexes, and Postgres refuses an index row past about 2.7 KB (SQLSTATE 54000); 512 characters
+ * keeps a four-byte-per-character value inside that ceiling. Connectors truncate source titles to
+ * it; the document APIs reject longer input.
+ */
+export const MAX_DOCUMENT_INDEXED_TEXT_LENGTH = 512
+
 /** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
 export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
 

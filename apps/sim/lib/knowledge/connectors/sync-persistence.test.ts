@@ -27,7 +27,16 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   }),
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
-vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    fixture: {
+      mapTags: (metadata: Record<string, unknown>) => ({
+        label: metadata.label,
+        owner: metadata.owner,
+      }),
+    },
+  },
+}))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
@@ -35,6 +44,7 @@ import {
   addDocument,
   persistDocumentAcls,
   persistSourceDocumentFailures,
+  resolveTagMapping,
 } from '@/lib/knowledge/connectors/sync-persistence'
 
 const CONNECTOR = 'connector-1'
@@ -350,6 +360,18 @@ describe('persistSourceDocumentFailures', () => {
     expect(JSON.stringify(dbChainMockFns.set.mock.calls)).not.toContain('private body')
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
+  it('bounds a source title that would exceed the filename index row limit', async () => {
+    leaseHeld()
+    const title = 'x'.repeat(5000)
+    await persistSourceDocumentFailures({
+      ...input,
+      documents: [{ ...input.documents[0], title }],
+      priorByExternalId: new Map(),
+    })
+    const [rows] = dbChainMockFns.values.mock.calls[0] as [Array<{ filename: string }>]
+    expect(rows[0].filename).toBe(`${'x'.repeat(509)}...`)
+    expect(rows[0].filename.length).toBe(512)
+  })
   it('refuses to commit a failure under a reclaimed lease', async () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
     await expect(
@@ -414,5 +436,37 @@ describe('organization source cache persistence', () => {
       )
     ).rejects.toThrow('exactly one')
     expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveTagMapping', () => {
+  it('bounds a mapped tag value that would exceed its index row limit and keeps a short one intact', () => {
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: 'y'.repeat(5000), owner: 'Purchasing' },
+      { tagSlotMapping: { label: 'tag1', owner: 'tag2' } }
+    )
+    expect(tags?.tag1).toBe(`${'y'.repeat(509)}...`)
+    expect(tags?.tag2).toBe('Purchasing')
+  })
+
+  it('keeps a value exactly at the limit untouched', () => {
+    const atLimit = 'z'.repeat(512)
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: atLimit },
+      { tagSlotMapping: { label: 'tag1' } }
+    )
+    expect(tags?.tag1).toBe(atLimit)
+  })
+
+  it('cuts by code point so a bounded value never ends in half a surrogate pair', () => {
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: '\u{1F600}'.repeat(600) },
+      { tagSlotMapping: { label: 'tag1' } }
+    )
+    expect(tags?.tag1).toBe(`${'\u{1F600}'.repeat(254)}...`)
+    expect(tags?.tag1?.length).toBeLessThanOrEqual(512)
   })
 })

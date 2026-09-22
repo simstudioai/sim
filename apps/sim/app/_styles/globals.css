@@ -154,7 +154,6 @@
    */
   --color-amber-50: #fffbeb;
   --color-amber-200: #fde68a;
-  --color-amber-300: #fcd34d;
   --color-amber-400: #fbbf24;
   --color-amber-500: #f59e0b;
   --color-amber-600: #d97706;
@@ -166,7 +165,6 @@
   --color-emerald-400: #34d399;
   --color-emerald-500: #10b981;
   --color-green-500: #22c55e;
-  --color-orange-400: #fb923c;
   --color-purple-500: #a855f7;
   --color-red-50: #fef2f2;
   --color-red-300: #fca5a5;
@@ -233,6 +231,18 @@
   --animate-hero-file-drop: hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-hero-node-pop: hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-hero-edge-draw: hero-edge-draw 520ms ease-out forwards;
+}
+
+/** Runtime collaborator colours must exist even without a matching utility class. */
+@theme static {
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-amber-300: #fcd34d;
+  --color-orange-400: #fb923c;
+  --color-pink-400: #f472b6;
+  --color-purple-400: #c084fc;
+  --color-violet-500: #8b5cf6;
+  --color-cool-gray-500: #6b7280;
 }
 
 /**
