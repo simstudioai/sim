@@ -161,7 +161,35 @@ function ownerDocument(document: ExternalDocument, access: DelegatedUser): Exter
   return { ...document, acl: [`u:${access.user.email}`] }
 }
 
-/** Isolates narrow user-list failures; delegation, known scope errors and quota errors still fail. */
+/** A Directory user without a Gmail mailbox; the user scheduler decides whether to skip them. */
+export class GoogleWorkspaceMailboxNotSetup extends Error {
+  constructor() {
+    super('Google Workspace user has no Gmail mailbox')
+    this.name = 'GoogleWorkspaceMailboxNotSetup'
+  }
+}
+
+/**
+ * Evidence that a user lacks the service itself: no Gmail mailbox, or a Calendar list 403 whose
+ * only reason is `notACalendarUser`. Admin changes to a user's services can take up to a day to
+ * settle, so the user scheduler, which can see indexed documents, decides when this is a skip.
+ */
+export function serviceNotEnabledFailure(
+  error: unknown
+): Omit<ExternalListingFailures['samples'][number], 'scope'> | null {
+  if (error instanceof GoogleWorkspaceMailboxNotSetup)
+    return { operation: 'directory.users.get', reasons: ['mailboxNotSetup'] }
+  return error instanceof GoogleApiError &&
+    error.reasonsComplete &&
+    error.status === 403 &&
+    error.diagnostic?.operation === 'calendar.events.list' &&
+    error.diagnostic.reasons.length === 1 &&
+    error.diagnostic.reasons[0] === 'notACalendarUser'
+    ? { operation: 'calendar.events.list', status: 403, reasons: ['notACalendarUser'] }
+    : null
+}
+
+/** Isolates narrow user-list failures; a missing Calendar service propagates to the scheduler. */
 function userListingFailure(
   error: unknown,
   provider: GoogleWorkspaceProvider
@@ -169,7 +197,8 @@ function userListingFailure(
   if (!(error instanceof GoogleApiError) || !error.diagnostic || !error.reasonsComplete) return null
   const reasons = error.diagnostic.reasons
   const isolated =
-    provider === 'gmail'
+    !serviceNotEnabledFailure(error) &&
+    (provider === 'gmail'
       ? error.diagnostic.operation === 'gmail.threads.list' &&
         error.status === 400 &&
         reasons.length > 0 &&
@@ -177,7 +206,7 @@ function userListingFailure(
       : error.diagnostic.operation === 'calendar.events.list' &&
         error.status === 403 &&
         reasons.length > 0 &&
-        reasons.every((reason) => reason === 'forbidden' || reason === 'notACalendarUser')
+        reasons.every((reason) => reason === 'forbidden' || reason === 'notACalendarUser'))
   return isolated
     ? { operation: error.diagnostic.operation, status: error.status, reasons: [...reasons] }
     : null
@@ -317,9 +346,8 @@ export async function listGoogleWorkspaceDocuments(
     })
     return emptyPage(advance())
   }
-  if (provider === 'gmail' && user.isMailboxSetup === false) {
-    return failedUser({ operation: 'directory.users.get', reasons: ['mailboxNotSetup'] })
-  }
+  if (provider === 'gmail' && user.isMailboxSetup === false)
+    throw new GoogleWorkspaceMailboxNotSetup()
   const access: PageAccess = {
     provider,
     user,

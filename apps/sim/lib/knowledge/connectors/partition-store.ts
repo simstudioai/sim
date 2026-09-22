@@ -8,7 +8,11 @@ import type {
   ConnectorPartitionWorkKind,
   ConnectorPartitionWorkStore,
 } from '@/lib/knowledge/connectors/partition-work'
-import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
+import {
+  listingFailureSampleSchema,
+  listingFailuresSchema,
+  MAX_LISTING_FAILURE_SAMPLES,
+} from '@/connectors/listing-failures'
 
 type Row = typeof knowledgeConnectorPartition.$inferSelect
 const work = knowledgeConnectorPartition
@@ -25,6 +29,9 @@ function project<Context>(
     cursor: (kind === 'content' ? row.cursor : row.permissionCursor) ?? undefined,
     attempts: kind === 'content' ? row.attempts : row.permissionAttempts,
     hasFailure: row.failure !== null || row.permissionFailure !== null,
+    failure: listingFailureSampleSchema.safeParse(
+      kind === 'content' ? row.failure : row.permissionFailure
+    ).data,
     permissionStartedAt: row.permissionStartedAt ?? undefined,
   }
 }
