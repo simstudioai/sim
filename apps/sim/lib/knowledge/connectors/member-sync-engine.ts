@@ -2267,7 +2267,9 @@ export async function executeMemberSync(
          * Nobody has completed a listing yet — a connector that just entered
          * members mode, waiting for its first member to connect — so an
          * unobserved document says nothing about access and must not be
-         * tombstoned, let alone purged a week later.
+         * tombstoned, let alone purged a week later. What this run explicitly
+         * unobserved is tombstoned regardless, including after removing the
+         * last member that had completed a listing.
          */
         const [listed] = await db
           .select({ count: sql<number>`count(*)::int` })

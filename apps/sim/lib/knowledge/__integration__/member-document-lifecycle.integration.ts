@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import {
   document,
   knowledgeConnector,
+  knowledgeConnectorMember,
   knowledgeDocumentObservation,
   organization,
   user,
@@ -21,9 +22,11 @@ import {
   recordMemberObservations,
   removeMemberObservationsForDocuments,
 } from '@/lib/knowledge/connectors/member-observations'
+import { resumeMembershipRewrites } from '@/lib/knowledge/connectors/member-sync-engine'
 import { MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
+  createMemberSyncLease,
   SyncLockLostException,
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
@@ -143,10 +146,10 @@ describe('member document lifecycle in PostgreSQL', () => {
     const unobserved = Array.from({ length: pageBudget + 20 }, (_, index) =>
       row(`unobserved-${index}`)
     )
-    const lastSeen = sql`'2026-06-01 00:00:00'::timestamp`
+    /** Both sort after every unobserved document, beyond what this run's reconcile reaches. */
     const [lostByThisRun, stillObservedByBob] = [
-      { ...row('lost-by-this-run'), sourceSeenAt: lastSeen },
-      { ...row('still-observed-by-bob'), sourceSeenAt: lastSeen },
+      row('zz-lost-by-this-run'),
+      row('zz-still-observed-by-bob'),
     ]
     await insertRows([...unobserved, lostByThisRun, stillObservedByBob])
     await observe([lostByThisRun.id, stillObservedByBob.id])
@@ -172,13 +175,108 @@ describe('member document lifecycle in PostgreSQL', () => {
     expect(afterFirst.has(lostByThisRun.id)).toBe(true)
     expect(afterFirst.has(stillObservedByBob.id)).toBe(false)
     expect(unobserved.filter(({ id }) => !afterFirst.has(id))).toHaveLength(20)
-    expect(await savedCursor()).toEqual({ seenAt: expect.any(String), id: expect.any(String) })
+    expect(await savedCursor()).toEqual({ externalId: expect.any(String) })
 
     expect(await run()).toEqual({ tombstoned: 20, resurrected: 0, purged: 0, finished: true })
     const afterSecond = await tombstonedIds()
     expect(unobserved.every(({ id }) => afterSecond.has(id))).toBe(true)
     expect(afterSecond.has(stillObservedByBob.id)).toBe(false)
     expect(await savedCursor()).toBeNull()
+  })
+
+  it('tombstones what removing the only listed member unobserved, though no completed listing remains', async () => {
+    const [removedMember, otherMember] = members.members
+    await db
+      .update(knowledgeConnectorMember)
+      .set({
+        lastCompleteListingAt: new Date(),
+        listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true },
+      })
+      .where(eq(knowledgeConnectorMember.id, removedMember.id))
+    const onlyRemoved = row('only-the-removed-member')
+    const sharedWithOther = row('shared-with-other-member')
+    const neverObserved = row('never-observed')
+    await insertRows([onlyRemoved, sharedWithOther, neverObserved])
+    await observe([onlyRemoved.id, sharedWithOther.id])
+    await recordMemberObservations(db, otherMember.id, [sharedWithOther.id], members.runId)
+
+    const unobservedDocumentIds = new Set<string>()
+    expect(
+      await resumeMembershipRewrites({
+        connectorId: members.connectorId,
+        runId: members.runId,
+        deadlineAt: Date.now() + 60_000,
+        lease: createMemberSyncLease(members.connectorId, members.runId),
+        unobservedDocumentIds,
+      })
+    ).toBe(true)
+    const [completed] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(knowledgeConnectorMember)
+      .where(
+        and(
+          eq(knowledgeConnectorMember.connectorId, members.connectorId),
+          isNotNull(knowledgeConnectorMember.lastCompleteListingAt)
+        )
+      )
+    expect(completed.count).toBe(0)
+
+    expect(
+      await run({
+        allowRemoval: completed.count > 0,
+        unobservedDocumentIds: [...unobservedDocumentIds],
+      })
+    ).toEqual({ tombstoned: 1, resurrected: 0, purged: 0, finished: true })
+    const tombstoned = await tombstonedIds()
+    expect(tombstoned.has(onlyRemoved.id)).toBe(true)
+    expect(tombstoned.has(sharedWithOther.id)).toBe(false)
+    expect(tombstoned.has(neverObserved.id)).toBe(false)
+  })
+
+  it('finishes a pass within its page budget while listings re-stamp every observed document', async () => {
+    const pageBudget = MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN * 500
+    const total = pageBudget + 500
+    const runsPerPass = Math.ceil(total / pageBudget)
+    const firstInEveryOrder = {
+      ...row('walk-0000000'),
+      id: '00000000-0000-4000-8000-000000000000',
+    }
+    const rest = Array.from({ length: total - 1 }, (_, index) =>
+      row(`walk-${String(index + 1).padStart(7, '0')}`)
+    )
+    await insertRows([firstInEveryOrder, ...rest])
+    const all = [firstInEveryOrder, ...rest].map(({ id }) => id)
+    for (let offset = 0; offset < all.length; offset += 5000)
+      await observe(all.slice(offset, offset + 5000))
+    /** A listing stamps what it saw with its start; the document nobody observes keeps its old stamp. */
+    const relist = () =>
+      db
+        .update(document)
+        .set({ sourceSeenAt: new Date() })
+        .where(
+          and(
+            eq(document.connectorId, members.connectorId),
+            sql`EXISTS (SELECT 1 FROM knowledge_document_observation o WHERE o.document_id = ${document.id})`
+          )
+        )
+
+    expect(await run()).toMatchObject({ tombstoned: 0 })
+    expect(await savedCursor()).not.toBeNull()
+    await db
+      .delete(knowledgeDocumentObservation)
+      .where(eq(knowledgeDocumentObservation.documentId, firstInEveryOrder.id))
+    for (let pass = 1; pass < runsPerPass; pass++) {
+      await relist()
+      await run()
+    }
+    expect(await savedCursor()).toBeNull()
+    expect((await tombstonedIds()).has(firstInEveryOrder.id)).toBe(false)
+
+    for (let next = 0; next < runsPerPass; next++) {
+      await relist()
+      await run()
+    }
+    expect(await tombstonedIds()).toEqual(new Set([firstInEveryOrder.id]))
   })
 
   it('continues past a full selected batch even if its observations change before UPDATE', async () => {

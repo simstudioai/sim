@@ -371,15 +371,17 @@ interface MemberDocumentLifecycleInput {
   withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
   deadlineAt: number
   /**
-   * Whether absence of observers may hide or purge a document. False until at
-   * least one member has completed a listing: before that, nothing has been
-   * observed yet, so absence says nothing.
+   * Whether absence of observers may hide or purge a document the run has no
+   * explicit word on. False until at least one member has completed a listing:
+   * before that, nothing has been observed yet, so absence says nothing.
    */
   allowRemoval: boolean
   /**
    * Documents whose observations this run removed. Each is tombstoned if it has
-   * no observer left; absence arising any other way is found by the resumable
-   * reconcile.
+   * no observer left, whether or not `allowRemoval` holds: a removal is the
+   * source's or the directory's explicit word, not an absence, just as the
+   * stale-member sweep tombstones what it removes. Absence arising any other
+   * way is found by the resumable reconcile.
    */
   unobservedDocumentIds: Iterable<string>
 }
@@ -395,7 +397,7 @@ function unobservedLiveDocument(connectorId: string) {
   )
 }
 
-/** The order of `doc_connector_reconciliation_idx`, which every lifecycle page walks. */
+/** The order of `doc_connector_reconciliation_idx`, which the resurrection pages walk. */
 const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
 
 type TombstoneCursor = NonNullable<
@@ -432,13 +434,16 @@ async function tombstoneUnobserved(
  * The backstop for absence the run did not cause itself — a member row
  * deleted by an earlier run, a document restored from exclusion, a connector
  * whose first listing just completed, or a run that stopped between removing
- * observations and tombstoning. Walks the connector's documents in index
- * order, one page per statement, and checks observations only in the UPDATE
- * over that page's live ids: filtering the walk itself by observation lets
- * the LIMIT stop bounding it, and a select-list `EXISTS` can be planned as a
- * hash over every observation. Resumes from the cursor the previous run saved,
- * so each run's cost is bounded by the page budget rather than the
- * connector's size. Returns false when the deadline stopped it.
+ * observations and tombstoning. Walks the connector's live documents by
+ * external id through `doc_connector_external_id_idx`, one page per
+ * statement, and checks observations only in the UPDATE over that page's ids:
+ * filtering the walk itself by observation lets the LIMIT stop bounding it,
+ * and a select-list `EXISTS` can be planned as a hash over every observation.
+ * The key never changes for a document, unlike `source_seen_at`, which every
+ * listing rewrites: a walk ordered by it would chase the documents each run
+ * re-stamps and never reach the end of a pass. Resumes from the cursor the
+ * previous run saved, so each run's cost is bounded by the page budget rather
+ * than the connector's size. Returns false when the deadline stopped it.
  */
 async function reconcileUnobservedPages(
   input: MemberDocumentLifecycleInput,
@@ -454,29 +459,26 @@ async function reconcileUnobservedPages(
   for (let page = 0; page < MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN; page++) {
     if (Date.now() >= input.deadlineAt) return false
     await input.lease.beatIfDue()
+    /** Exclusion and archival are left to the UPDATE so every page is exactly one LIMIT of index entries. */
     const rows = await db
-      .select({
-        id: document.id,
-        seenAt: sql<string>`${seenOrder}::text`,
-        live: sql<boolean>`(${document.deletedAt} IS NULL)`,
-      })
+      .select({ id: document.id, externalId: document.externalId })
       .from(document)
       .where(
         and(
           eq(document.connectorId, connectorId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          after
-            ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
-            : undefined
+          isNull(document.deletedAt),
+          isNotNull(document.externalId),
+          after ? gt(document.externalId, after.externalId) : undefined
         )
       )
-      .orderBy(seenOrder, asc(document.id))
+      .orderBy(asc(document.externalId))
       .limit(MATERIALIZE_BATCH_SIZE)
-    const candidates = rows.filter((row) => row.live).map((row) => row.id)
-    const last = rows.at(-1)
+    const candidates = rows.map((row) => row.id)
+    const lastExternalId = rows.at(-1)?.externalId
     const next: TombstoneCursor | null =
-      rows.length < MATERIALIZE_BATCH_SIZE || !last ? null : { seenAt: last.seenAt, id: last.id }
+      rows.length < MATERIALIZE_BATCH_SIZE || !lastExternalId
+        ? null
+        : { externalId: lastExternalId }
     if (Date.now() >= input.deadlineAt) return false
     const changed = await input.withLease(async (tx) => {
       const tombstoned =
@@ -508,7 +510,8 @@ async function reconcileUnobservedPages(
  * observation graph; visibility follows the active observers through the ACL.
  *
  * Tombstoning is driven by the documents whose observations this run removed,
- * then by a bounded slice of a resumable pass over the whole connector, so a
+ * then, once a member has completed a listing, by a bounded slice of a
+ * resumable pass over the whole connector, so a
  * run never evaluates every live document of a large connector in one
  * statement.
  *
@@ -528,11 +531,9 @@ export async function applyMemberDocumentLifecycle(
     purged: 0,
     finished: false,
   }
-  if (input.allowRemoval) {
-    const unobserved = [...new Set(input.unobservedDocumentIds)]
-    if (!(await tombstoneUnobserved(input, unobserved, now, result))) return result
-    if (!(await reconcileUnobservedPages(input, now, result))) return result
-  }
+  const unobserved = [...new Set(input.unobservedDocumentIds)]
+  if (!(await tombstoneUnobserved(input, unobserved, now, result))) return result
+  if (input.allowRemoval && !(await reconcileUnobservedPages(input, now, result))) return result
 
   let after: { id: string; seenAt: string } | undefined
   for (;;) {
