@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
@@ -18,13 +18,15 @@ export function ChatErrorState({ error }: ChatErrorStateProps) {
           Chat Unavailable
         </h1>
         <p className='text-[var(--text-muted)] text-lg'>{error}</p>
-        <Button
+        <Chip
           variant='primary'
           onClick={() => router.push(APP_ENTRY_PATH)}
-          className='h-[32px] w-full gap-2 px-2.5 text-sm'
+          fullWidth
+          type='button'
+          className='text-center'
         >
           Open Sim
-        </Button>
+        </Chip>
       </div>
     </div>
   )
