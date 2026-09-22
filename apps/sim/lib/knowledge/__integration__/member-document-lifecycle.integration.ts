@@ -184,7 +184,7 @@ describe('member document lifecycle in PostgreSQL', () => {
     expect(await savedCursor()).toBeNull()
   })
 
-  it('tombstones what removing the only listed member unobserved, though no completed listing remains', async () => {
+  it('tombstones what removing the only listed member unobserved, though the run stops right after the removal', async () => {
     const [removedMember, otherMember] = members.members
     await db
       .update(knowledgeConnectorMember)
@@ -193,23 +193,38 @@ describe('member document lifecycle in PostgreSQL', () => {
         listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true },
       })
       .where(eq(knowledgeConnectorMember.id, removedMember.id))
-    const onlyRemoved = row('only-the-removed-member')
+    const onlyRemoved = Array.from({ length: 1_200 }, (_, index) => row(`only-removed-${index}`))
     const sharedWithOther = row('shared-with-other-member')
     const neverObserved = row('never-observed')
-    await insertRows([onlyRemoved, sharedWithOther, neverObserved])
-    await observe([onlyRemoved.id, sharedWithOther.id])
+    await insertRows([...onlyRemoved, sharedWithOther, neverObserved])
+    await observe([...onlyRemoved.map(({ id }) => id), sharedWithOther.id])
     await recordMemberObservations(db, otherMember.id, [sharedWithOther.id], members.runId)
-
-    const unobservedDocumentIds = new Set<string>()
-    expect(
-      await resumeMembershipRewrites({
+    const removal = (stopAfterFirstPage: boolean) => {
+      const lease = createMemberSyncLease(members.connectorId, members.runId)
+      const input: Parameters<typeof resumeMembershipRewrites>[0] = {
         connectorId: members.connectorId,
         runId: members.runId,
         deadlineAt: Date.now() + 60_000,
-        lease: createMemberSyncLease(members.connectorId, members.runId),
-        unobservedDocumentIds,
-      })
-    ).toBe(true)
+        tombstonesUnobserved: true,
+        lease: {
+          ...lease,
+          beatIfDue: async () => {
+            await lease.beatIfDue()
+            if (stopAfterFirstPage) input.deadlineAt = Date.now() - 1
+          },
+        },
+      }
+      return resumeMembershipRewrites(input)
+    }
+
+    /** The first run walks one page before its deadline; the second finishes and deletes the member. */
+    expect(await removal(true)).toBe(false)
+    const [paused] = await db
+      .select({ checkpoint: knowledgeConnectorMember.listingCheckpoint })
+      .from(knowledgeConnectorMember)
+      .where(eq(knowledgeConnectorMember.id, removedMember.id))
+    expect(paused.checkpoint).toMatchObject({ removeMember: true, cursor: expect.any(String) })
+    expect(await removal(false)).toBe(true)
     const [completed] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(knowledgeConnectorMember)
@@ -220,17 +235,40 @@ describe('member document lifecycle in PostgreSQL', () => {
         )
       )
     expect(completed.count).toBe(0)
+    /** No lifecycle ran in either run: the tombstones landed with the removal itself. */
+    const afterRemoval = await tombstonedIds()
+    expect(onlyRemoved.every(({ id }) => afterRemoval.has(id))).toBe(true)
+    expect(afterRemoval.has(sharedWithOther.id)).toBe(false)
+    expect(afterRemoval.has(neverObserved.id)).toBe(false)
 
+    expect(await run({ allowRemoval: false })).toEqual({
+      tombstoned: 0,
+      resurrected: 0,
+      purged: 0,
+      finished: true,
+    })
+    expect(await tombstonedIds()).toEqual(afterRemoval)
+  })
+
+  it('leaves a service-owned corpus alone when a member is removed', async () => {
+    const [removedMember] = members.members
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true } })
+      .where(eq(knowledgeConnectorMember.id, removedMember.id))
+    const onlyRemoved = row('service-owned')
+    await insertRows([onlyRemoved])
+    await observe([onlyRemoved.id])
     expect(
-      await run({
-        allowRemoval: completed.count > 0,
-        unobservedDocumentIds: [...unobservedDocumentIds],
+      await resumeMembershipRewrites({
+        connectorId: members.connectorId,
+        runId: members.runId,
+        deadlineAt: Date.now() + 60_000,
+        lease: createMemberSyncLease(members.connectorId, members.runId),
+        tombstonesUnobserved: false,
       })
-    ).toEqual({ tombstoned: 1, resurrected: 0, purged: 0, finished: true })
-    const tombstoned = await tombstonedIds()
-    expect(tombstoned.has(onlyRemoved.id)).toBe(true)
-    expect(tombstoned.has(sharedWithOther.id)).toBe(false)
-    expect(tombstoned.has(neverObserved.id)).toBe(false)
+    ).toBe(true)
+    expect((await tombstonedIds()).size).toBe(0)
   })
 
   it('finishes a pass within its page budget while listings re-stamp every observed document', async () => {

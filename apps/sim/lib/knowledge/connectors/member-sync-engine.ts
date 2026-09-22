@@ -60,6 +60,7 @@ import {
   removeUnseenMemberObservations,
   renewMemberObservationsInScopes,
   rewriteConnectorAcls,
+  tombstoneDocumentsObservedOnlyBy,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
@@ -363,6 +364,11 @@ interface MemberSyncRun {
    * for a remaining observer before anything else.
    */
   unobservedDocumentIds: Set<string>
+  /**
+   * Whether observations decide which documents exist: false when a dedicated
+   * content credential owns the corpus, which outlives its last observer.
+   */
+  tombstonesUnobserved: boolean
 }
 
 /** A token minted for a member, reused within the run until it ages out. */
@@ -527,47 +533,20 @@ function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
 }
 
 /**
- * Hands the lifecycle every document a removed member observed below `through`:
- * the pages an earlier, interrupted run already walked. Their observations are
- * still there — only the member's deletion cascades them — so they are read
- * again rather than left to the absence reconcile, which does not run while no
- * member has completed a listing.
+ * Keeps observations available until every changed ACL is rewritten, resuming by document identity.
+ *
+ * For a member being removed, each page also tombstones the documents nobody
+ * else observes, in the transaction that advances the checkpoint: the
+ * member's deletion cascades its observations away, after which nothing
+ * records which documents it alone kept alive, and the absence reconcile does
+ * not run once no member with a completed listing remains. Only where
+ * observations decide existence (`tombstonesUnobserved`); a service-owned
+ * corpus outlives its last observer.
  */
-async function collectWalkedObservations(
-  run: Pick<MemberSyncRun, 'deadlineAt' | 'lease'>,
-  memberId: string,
-  through: string,
-  into: Set<string>
-): Promise<boolean> {
-  let after: string | undefined
-  for (;;) {
-    if (Date.now() >= run.deadlineAt) return false
-    await run.lease.beatIfDue()
-    const page = await db
-      .select({ documentId: knowledgeDocumentObservation.documentId })
-      .from(knowledgeDocumentObservation)
-      .where(
-        and(
-          eq(knowledgeDocumentObservation.memberId, memberId),
-          lte(knowledgeDocumentObservation.documentId, through),
-          after ? gt(knowledgeDocumentObservation.documentId, after) : undefined
-        )
-      )
-      .orderBy(asc(knowledgeDocumentObservation.documentId))
-      .limit(500)
-    for (const row of page) into.add(row.documentId)
-    if (page.length < 500) return true
-    after = page.at(-1)!.documentId
-  }
-}
-
-/** Keeps observations available until every changed ACL is rewritten, resuming by document identity. */
 export async function resumeMembershipRewrites(
   run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'> &
-    Partial<Pick<MemberSyncRun, 'unobservedDocumentIds'>>
+    Partial<Pick<MemberSyncRun, 'tombstonesUnobserved' | 'result'>>
 ): Promise<boolean> {
-  /** Removed members whose earlier-walked documents this call has already collected. */
-  const collected = new Set<string>()
   for (;;) {
     if (Date.now() >= run.deadlineAt) return false
     await run.lease.beatIfDue()
@@ -588,15 +567,6 @@ export async function resumeMembershipRewrites(
     if (!member) return true
     const checkpoint = membershipRewrite(member.checkpoint)
     if (!checkpoint) throw new Error('Invalid membership ACL checkpoint')
-    if (checkpoint.removeMember && run.unobservedDocumentIds && !collected.has(member.id)) {
-      const into = run.unobservedDocumentIds
-      if (
-        checkpoint.cursor &&
-        !(await collectWalkedObservations(run, member.id, checkpoint.cursor, into))
-      )
-        return false
-      collected.add(member.id)
-    }
     await withMemberLease(run, async (tx) => {
       const documents = await tx
         .select({ documentId: knowledgeDocumentObservation.documentId })
@@ -616,8 +586,14 @@ export async function resumeMembershipRewrites(
         documents.map((row) => row.documentId),
         tx
       )
-      if (checkpoint.removeMember) {
-        for (const row of documents) run.unobservedDocumentIds?.add(row.documentId)
+      if (checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        const tombstoned = await tombstoneDocumentsObservedOnlyBy(
+          tx,
+          run.connectorId,
+          member.id,
+          documents.map((row) => row.documentId)
+        )
+        if (run.result) run.result.docsTombstoned += tombstoned
       }
       if (documents.length === 0 && checkpoint.removeMember) {
         await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
@@ -1954,6 +1930,7 @@ export async function executeMemberSync(
       result,
       lease: createMemberSyncLease(connectorId, runId),
       unobservedDocumentIds: new Set(),
+      tombstonesUnobserved: !connector.credentialId,
     }
     await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
@@ -2336,7 +2313,7 @@ export async function executeMemberSync(
           allowRemoval: (listed?.count ?? 0) > 0,
           unobservedDocumentIds: run.unobservedDocumentIds,
         })
-        result.docsTombstoned = lifecycle.tombstoned
+        result.docsTombstoned += lifecycle.tombstoned
         result.docsResurrected = lifecycle.resurrected
         result.docsPurged = lifecycle.purged
         result.docsDeleted = lifecycle.purged

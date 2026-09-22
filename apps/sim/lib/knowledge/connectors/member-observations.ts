@@ -273,6 +273,53 @@ export async function removeMemberObservationsForDocuments(
 }
 
 /**
+ * Tombstones, among `documentIds`, the connector's live documents that no
+ * member other than `memberId` observes: what that member's removal leaves
+ * without an observer. Runs in the caller's transaction so the tombstones land
+ * with the removal's progress; a document someone observes again later is
+ * resurrected by the lifecycle.
+ */
+export async function tombstoneDocumentsObservedOnlyBy(
+  executor: DbOrTx,
+  connectorId: string,
+  memberId: string,
+  documentIds: readonly string[]
+): Promise<number> {
+  if (documentIds.length === 0) return 0
+  const now = new Date()
+  let tombstoned = 0
+  for (let offset = 0; offset < documentIds.length; offset += OBSERVATION_BATCH_SIZE) {
+    const batch = documentIds.slice(offset, offset + OBSERVATION_BATCH_SIZE)
+    const rows = await executor
+      .update(document)
+      .set({ deletedAt: now })
+      .where(
+        and(
+          inArray(document.id, batch),
+          eq(document.connectorId, connectorId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(knowledgeDocumentObservation)
+              .where(
+                and(
+                  eq(knowledgeDocumentObservation.documentId, document.id),
+                  ne(knowledgeDocumentObservation.memberId, memberId)
+                )
+              )
+          )
+        )
+      )
+      .returning({ id: document.id })
+    tombstoned += rows.length
+  }
+  return tombstoned
+}
+
+/**
  * Rewrites `document.acl` from the observation graph: the sorted subject
  * tokens of every active observer, or nobody. Scoped to the connector so a
  * document id that was detached or re-owned since it was collected is left
@@ -469,7 +516,14 @@ async function reconcileUnobservedPages(
       break
     }
     await input.lease.beatIfDue()
-    /** Exclusion and archival are left to the UPDATE so every page is exactly one LIMIT of index entries. */
+    /**
+     * Exclusion and archival are left to the UPDATE so every page is exactly one
+     * LIMIT of index entries. `external_id IS NOT NULL` excludes nothing: the
+     * only writers that set `connector_id` on a document are the connector sync's
+     * inserts (`addDocument`, `buildSkippedDocumentRow`), which copy the
+     * `ExternalDocument`'s required `externalId`, and no writer clears it; the
+     * two columns were introduced together.
+     */
     const rows = await db
       .select({ id: document.id, externalId: document.externalId })
       .from(document)
