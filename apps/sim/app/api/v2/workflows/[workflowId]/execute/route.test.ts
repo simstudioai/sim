@@ -359,6 +359,51 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
   })
 
+  it('selects the latest deployment after preparation and executes that same graph across a redeploy', async () => {
+    const selected = {
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: { release: 'latest' },
+      deploymentVersionId: 'version-at-start',
+    }
+    const prepared = await mockPreprocessExecution()
+    mockPreprocessExecution.mockImplementationOnce(async () => {
+      mockLoadDeployedWorkflowState.mockResolvedValue(selected)
+      return prepared
+    })
+    mockExecuteWorkflowCore.mockImplementationOnce(async () => {
+      mockLoadDeployedWorkflowState.mockResolvedValue({
+        ...selected,
+        deploymentVersionId: 'version-after-start',
+      })
+      return { success: true, output: { result: 'done' } }
+    })
+    const result = await executeWorkflowService({
+      workflowId: 'workflow-1',
+      principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+      userId: 'actor-1',
+      input: {},
+      triggerType: 'api',
+      requestId: 'request-1',
+      mode: 'sync',
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      status: 'completed',
+      deploymentVersionId: 'version-at-start',
+    })
+    expect(mockLoadDeployedWorkflowState).toHaveBeenCalledOnce()
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot: expect.objectContaining({
+          metadata: expect.objectContaining({ workflowStateOverride: selected }),
+        }),
+      })
+    )
+  })
+
   it('streams an immediate heartbeat and the same sync result when NDJSON is accepted', async () => {
     vi.useFakeTimers()
     try {

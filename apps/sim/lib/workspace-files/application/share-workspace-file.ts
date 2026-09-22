@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -14,6 +15,10 @@ import {
   loadActiveWorkspaceContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  authorizeFileWorkflowConfiguration,
+  lockWorkflowFile,
+} from '@/lib/workspace-files/application/file-workflow-policy'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
@@ -111,27 +116,43 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
       )
     }
 
-    const existingShare = await getShareForResource('file', context.fileId)
-    if (input.noOpIfInactive && !input.isActive && !existingShare?.isActive) {
-      throw new WorkspaceFileShareNoopError()
-    }
-
-    if (input.isActive) {
-      const effectiveAuthType = input.authType ?? existingShare?.authType ?? 'public'
-      await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
-    }
-
     let share: ShareRecord
     try {
-      share = await upsertFileShare({
-        workspaceId: context.workspaceId,
-        fileId: context.fileId,
-        userId,
-        isActive: input.isActive,
-        authType: input.authType,
-        password: input.password,
-        allowedEmails: input.allowedEmails,
-        token: input.token,
+      share = await db.transaction(async (tx) => {
+        const file = await lockWorkflowFile(tx, context.fileId, context.workspaceId)
+        const existingShare = await getShareForResource('file', context.fileId, tx)
+        if (input.noOpIfInactive && !input.isActive && !existingShare?.isActive) {
+          throw new WorkspaceFileShareNoopError()
+        }
+        if (input.isActive) {
+          await validatePublicFileSharing(
+            userId,
+            context.workspaceId,
+            input.authType ?? existingShare?.authType ?? 'public'
+          )
+        }
+        if (input.isActive)
+          await authorizeFileWorkflowConfiguration({
+            principal,
+            workspaceId: context.workspaceId,
+            fileId: context.fileId,
+            contentType: file.contentType,
+            workflowIds: file.workflowIds,
+            publishing: true,
+          })
+        return upsertFileShare(
+          {
+            workspaceId: context.workspaceId,
+            fileId: context.fileId,
+            userId,
+            isActive: input.isActive,
+            authType: input.authType,
+            password: input.password,
+            allowedEmails: input.allowedEmails,
+            token: input.token,
+          },
+          tx
+        )
       })
     } catch (error) {
       if (error instanceof ShareValidationError) {

@@ -26,6 +26,7 @@ export type AbortFileUploadHeaders = {
 type AbortFileUploadResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -1349,6 +1350,7 @@ export type CompleteFileUploadHeaders = {
 type CompleteFileUploadResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -1649,6 +1651,7 @@ type CreateFileBodyRef0 = string
 
 export type CreateFileBody = {
   workspaceId: string
+  workflowIds?: Array<string>
   name: string
   contentType?: string
   folderPath?: CreateFileBodyRef0
@@ -1659,6 +1662,7 @@ export type CreateFileBody = {
 type CreateFileResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -1712,6 +1716,7 @@ export type CreateFileUploadBody = {
 type CreateFileUploadResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -4599,6 +4604,7 @@ export type EditFileContentBody = {
 type EditFileContentResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -5175,6 +5181,7 @@ type GetFileResponseRef0 = {
 type GetFileResponseRef1 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -5234,6 +5241,7 @@ export type GetFileUploadHeaders = {
 type GetFileUploadResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -7575,6 +7583,7 @@ export type ListFilesQuery = {
 type ListFilesResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -10903,6 +10912,30 @@ export type ReadFileVersionTextResponse = {
   data: ReadFileVersionTextResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/workflows/[workflowId]` */
+export type ReadFileWorkflowParams = {
+  fileId: string
+  workflowId: string
+}
+
+export type ReadFileWorkflowQuery = {
+  workspaceId: string
+}
+
+type ReadFileWorkflowResponseRef0 = {
+  status: 'empty' | 'running' | 'completed' | 'failed'
+  executionId: string | null
+  deploymentVersionId: string | null
+  generatedAt: string | null
+  nextRunAt: string | null
+  output: unknown
+  error: string | null
+}
+
+export type ReadFileWorkflowResponse = {
+  data: ReadFileWorkflowResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -11046,6 +11079,7 @@ export type RenameFileBody = {
 type RenameFileResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -11457,6 +11491,7 @@ export type RestoreFileBody = {
 type RestoreFileResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -11733,6 +11768,7 @@ export type RevertFileVersionBody = {
 type RevertFileVersionResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -11905,6 +11941,32 @@ type RollbackWorkspaceForkResponseRef0 = {
 
 export type RollbackWorkspaceForkResponse = {
   data: RollbackWorkspaceForkResponseRef0
+}
+
+/** `POST /api/v2/files/[fileId]/workflows/[workflowId]` */
+export type RunFileWorkflowParams = {
+  fileId: string
+  workflowId: string
+}
+
+export type RunFileWorkflowQuery = Record<string, unknown>
+
+export type RunFileWorkflowBody = {
+  workspaceId: string
+}
+
+type RunFileWorkflowResponseRef0 = {
+  status: 'empty' | 'running' | 'completed' | 'failed'
+  executionId: string | null
+  deploymentVersionId: string | null
+  generatedAt: string | null
+  nextRunAt: string | null
+  output: unknown
+  error: string | null
+}
+
+export type RunFileWorkflowResponse = {
+  data: RunFileWorkflowResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
@@ -12417,6 +12479,7 @@ export type UpdateFileContentBody = {
 type UpdateFileContentResponseRef0 = {
   id: string
   webUrl: string
+  workflowIds: Array<string>
   name: string
   size: number
   type: string
@@ -12431,6 +12494,26 @@ type UpdateFileContentResponseRef0 = {
 
 export type UpdateFileContentResponse = {
   data: UpdateFileContentResponseRef0
+}
+
+/** `PATCH /api/v2/files/[fileId]/metadata` */
+export type UpdateFileMetadataParams = {
+  fileId: string
+}
+
+export type UpdateFileMetadataQuery = Record<string, unknown>
+
+export type UpdateFileMetadataBody = {
+  workspaceId: string
+  workflowIds: Array<string>
+}
+
+type UpdateFileMetadataResponseRef0 = {
+  workflowIds: Array<string>
+}
+
+export type UpdateFileMetadataResponse = {
+  data: UpdateFileMetadataResponseRef0
 }
 
 /** `PATCH /api/v2/knowledge/[knowledgeBaseId]` */
@@ -14395,6 +14478,10 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace in which to create the file.',
+      },
+      workflowIds: {
+        kind: 'array',
+        describe: 'Deployed workflows in this workspace that the HTML document may call.',
       },
       name: {
         kind: 'string',
@@ -19812,6 +19899,20 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  readFileWorkflow: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/workflows/[workflowId]',
+    pathParams: ['fileId', 'workflowId'] as const,
+    pathParamDocs: {
+      fileId: 'HTML file identifier.',
+      workflowId: 'Workflow ID configured in the file metadata.',
+    },
+    responseMode: 'json',
+    summary: 'Get File Workflow Result',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   relocateFileFolder: {
     method: 'PATCH',
     path: '/api/v2/files/folders',
@@ -20287,6 +20388,20 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  runFileWorkflow: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/workflows/[workflowId]',
+    pathParams: ['fileId', 'workflowId'] as const,
+    pathParamDocs: {
+      fileId: 'HTML file identifier.',
+      workflowId: 'Workflow ID configured in the file metadata.',
+    },
+    responseMode: 'json',
+    summary: 'Run File Workflow',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   runRowEnrichment: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
@@ -20640,6 +20755,23 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
+    },
+  },
+  updateFileMetadata: {
+    method: 'PATCH',
+    path: '/api/v2/files/[fileId]/metadata',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'HTML file identifier.' },
+    responseMode: 'json',
+    summary: 'Update File Metadata',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Replace the workflows this HTML file may call. Send an empty array to remove all dependencies. Sharing exposes these calls to the file audience.',
       },
     },
   },

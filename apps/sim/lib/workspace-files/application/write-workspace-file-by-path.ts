@@ -24,6 +24,7 @@ export interface WriteWorkspaceFileByPathInput {
   content: string
   encoding: 'utf-8' | 'base64'
   contentType: string
+  workflowIds?: string[]
   mode: 'create' | 'overwrite'
   exactName?: boolean
   syncLiveDoc?: boolean
@@ -94,6 +95,7 @@ async function executeCreate({
       workspaceId: input.workspaceId,
       name: parsed.fileName,
       contentType: input.contentType,
+      workflowIds: input.workflowIds,
       content: input.content,
       encoding: input.encoding,
       folderId,
@@ -111,6 +113,11 @@ async function executeOverwrite({
   principal: Principal
   input: WriteWorkspaceFileByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  if (input.workflowIds !== undefined)
+    throw new OrchestrationError(
+      'validation',
+      'Update workflowIds through file metadata before overwriting content'
+    )
   const existing = await resolveWorkspaceFileReference({
     principal,
     operation: fileOperations.updateContent,
@@ -154,6 +161,7 @@ async function executeCreateBuffer({
       workspaceId: input.workspaceId,
       name: parsed.fileName,
       contentType: input.contentType,
+      workflowIds: input.workflowIds,
       content: input.content,
       folderId,
       exactName: input.exactName ?? true,
@@ -170,6 +178,11 @@ async function executeOverwriteBuffer({
   principal: Principal
   input: WriteWorkspaceFileBufferByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  if (input.workflowIds !== undefined)
+    throw new OrchestrationError(
+      'validation',
+      'Update workflowIds through file metadata before overwriting content'
+    )
   const existing = await resolveWorkspaceFileReference({
     principal,
     operation: fileOperations.updateContent,

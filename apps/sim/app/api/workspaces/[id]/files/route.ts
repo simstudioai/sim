@@ -49,6 +49,7 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ params, body }) => ({
     workspaceId: params.id,
     name: body.name,
+    workflowIds: body.workflowIds,
     contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
     content: body.content,
     encoding: body.encoding,

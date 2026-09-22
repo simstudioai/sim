@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { inlineFileRefQuerySchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { fileWorkflowIdsSchema } from '@/lib/workspace-files/workflows/types'
 
 export const shareResourceTypeSchema = z.enum(['file', 'folder'])
 
@@ -99,6 +100,8 @@ export const publicFileTokenParamsSchema = z.object({
 })
 
 const publicFileMetadataSchema = z.object({
+  workflowIds: fileWorkflowIdsSchema,
+  version: z.number(),
   token: z.string(),
   name: z.string(),
   type: z.string(),

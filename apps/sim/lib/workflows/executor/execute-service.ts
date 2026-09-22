@@ -135,6 +135,7 @@ export interface ExecuteWorkflowServiceFailure {
 }
 
 export interface ExecuteWorkflowServiceRun {
+  deploymentVersionId?: string
   ok: true
   executionId: string
   workflowId: string
@@ -459,6 +460,7 @@ export async function executeWorkflowService(
     let processedInput = input
     let workflowVariables: Record<string, unknown> = {}
     let workflowBlocks: Record<string, unknown> = {}
+    let admittedDeployment: ExecutionMetadata['workflowStateOverride']
     try {
       const workflowData = useDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
@@ -481,6 +483,16 @@ export async function executeWorkflowService(
       }
 
       if (workflowData) {
+        if (
+          !useDraftState &&
+          'deploymentVersionId' in workflowData &&
+          typeof workflowData.deploymentVersionId === 'string'
+        ) {
+          admittedDeployment = {
+            ...workflowData,
+            deploymentVersionId: workflowData.deploymentVersionId,
+          }
+        }
         workflowBlocks = workflowData.blocks
         workflowVariables =
           ('variables' in workflowData
@@ -641,6 +653,7 @@ export async function executeWorkflowService(
     }
 
     const metadata: ExecutionMetadata = {
+      workflowStateOverride: admittedDeployment,
       requestId,
       executionId,
       workflowId,
@@ -794,6 +807,7 @@ export async function executeWorkflowService(
               : null,
           resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: workflowHasResponseBlock(result),
+          deploymentVersionId: admittedDeployment?.deploymentVersionId,
           startedAt: result.metadata?.startTime,
           endedAt: result.metadata?.endTime,
           durationMs: result.metadata?.duration,

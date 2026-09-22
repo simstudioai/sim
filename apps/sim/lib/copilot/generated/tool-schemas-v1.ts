@@ -2996,6 +2996,62 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  file_workflow: {
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description:
+            'Configure allowed workflows, run one configured workflow, or read its cached result.',
+          enum: ['configure', 'run', 'read'],
+        },
+        audience: {
+          type: 'string',
+          description:
+            "Use share for the active public share's cache, or private for the calling user's cache. Defaults to private. Applies to run and read.",
+          enum: ['private', 'share'],
+        },
+        path: {
+          type: 'string',
+          description: 'Canonical HTML workspace file path, for example files/Dashboard.html.',
+        },
+        workflowId: {
+          type: 'string',
+          description: 'Configured workflow ID to run or read. Required for those actions.',
+        },
+        workflowIds: {
+          type: 'array',
+          description:
+            'Complete replacement list of deployed workflow IDs for configure. Empty array clears the list. Maximum 10 IDs.',
+          items: {
+            type: 'string',
+          },
+          maxItems: 10,
+        },
+      },
+      required: ['path', 'action'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description:
+            'For configure: workflowIds. For run/read: status, output, executionId, deploymentVersionId, generatedAt, nextRunAt, and error.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable action outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the file workflow action succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   generate_api_key: {
     parameters: {
       type: 'object',

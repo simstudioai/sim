@@ -201,7 +201,10 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
   ],
 
-  'frame-src': [...STATIC_FRAME_SRC],
+  'frame-src': [
+    ...STATIC_FRAME_SRC,
+    ...(getEnv('HTML_CONTENT_ORIGIN') ? [new URL(getEnv('HTML_CONTENT_ORIGIN')!).origin] : []),
+  ],
   'frame-ancestors': ["'self'"],
   'form-action': ["'self'"],
   'base-uri': ["'self'"],
@@ -250,6 +253,10 @@ export function generateRuntimeCSP(): string {
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
+    'frame-src': [
+      ...STATIC_FRAME_SRC,
+      ...(getEnv('HTML_CONTENT_ORIGIN') ? [new URL(getEnv('HTML_CONTENT_ORIGIN')!).origin] : []),
+    ],
 
     'img-src': [...STATIC_IMG_SRC],
 

@@ -64,6 +64,11 @@ import {
   v2RevertFileVersionContract,
 } from '@/lib/api/contracts/v2/file-versions'
 import {
+  v2ReadFileWorkflowContract,
+  v2RunFileWorkflowContract,
+  v2UpdateFileMetadataContract,
+} from '@/lib/api/contracts/v2/file-workflows'
+import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
   v2CompleteFileUploadContract,
@@ -2210,6 +2215,14 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  readFileWorkflow: {
+    contract: v2ReadFileWorkflowContract,
+    summary: 'Get File Workflow Result',
+    description:
+      'Read the latest cached result available to the caller. This operation never starts a workflow. An empty result means no result is available for this caller; nextRunAt indicates the earliest next attempt.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/workflows/[workflowId]/route').then((route) => route.GET),
+  },
   relocateFileFolder: {
     contract: v2RelocateFileFolderContract,
     summary: 'Rename or Move Folder',
@@ -2425,6 +2438,16 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.POST
       ),
   },
+  runFileWorkflow: {
+    contract: v2RunFileWorkflowContract,
+    summary: 'Run File Workflow',
+    description:
+      'Run a workflow configured in an HTML file, using its latest deployment when execution starts. Calls reuse results within the five-minute execution window, shared across viewers of this file and workflow. A running status means an existing run is in progress; use Get File Workflow Result to poll.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/workflows/[workflowId]/route').then(
+        (route) => route.POST
+      ),
+  },
   runRowEnrichment: {
     contract: v2RunRowEnrichmentContract,
     summary: 'Run Enrichment For One Row',
@@ -2545,6 +2568,14 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/content/route').then((route) => route.PUT),
+  },
+  updateFileMetadata: {
+    contract: v2UpdateFileMetadataContract,
+    summary: 'Update File Metadata',
+    description:
+      'Replace the workflows an HTML file can call. Workflows must belong to the same workspace and be deployed. Updating a shared file also checks permission to expose those workflows to its audience.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/metadata/route').then((route) => route.PATCH),
   },
   updateKnowledgeBase: {
     contract: v2UpdateKnowledgeBaseContract,

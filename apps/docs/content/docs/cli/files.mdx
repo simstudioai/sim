@@ -38,6 +38,7 @@ sim files create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--workflow-ids <json\|@file>` | No | Deployed workflows in this workspace that the HTML document may call. (JSON, or @path / @- to read a file or stdin). |
 | `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
 | `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
@@ -502,6 +503,40 @@ sim files read <fileId> [options]
 
 </CommandTable>
 
+## Get file workflow result
+
+```bash
+sim files workflows get <fileId> <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | HTML file identifier. |
+| `workflowId` | Yes | Workflow ID configured in the file metadata. |
+
+</CommandTable>
+
+## Run file workflow
+
+```bash
+sim files workflows create <fileId> <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | HTML file identifier. |
+| `workflowId` | Yes | Workflow ID configured in the file metadata. |
+
+</CommandTable>
+
 ## Rename a file
 
 ```bash
@@ -616,6 +651,32 @@ sim files set-content <fileId> [options]
 | `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
 | `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
 | `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+
+</CommandTable>
+
+## Update file metadata
+
+```bash
+sim files metadata update <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | HTML file identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-ids <json\|@file>` | Yes | Replace the workflows this HTML file may call. Send an empty array to remove all dependencies. Sharing exposes these calls to the file audience. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 

@@ -38,6 +38,7 @@ import {
   moveFileServerTool,
   renameFileFolderServerTool,
 } from '@/lib/copilot/tools/server/files/file-folders'
+import { fileWorkflowServerTool } from '@/lib/copilot/tools/server/files/file-workflow'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { shareFileServerTool } from '@/lib/copilot/tools/server/files/share-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
@@ -147,6 +148,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [PrepareFileEdit.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateEmptyFile.id]: ['*'],
+  [fileWorkflowServerTool.name]: ['configure'],
   rename_file: ['*'],
   [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
@@ -196,6 +198,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
+  [fileWorkflowServerTool.name]: fileWorkflowServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [shareFileServerTool.name]: shareFileServerTool,
   [moveFileServerTool.name]: moveFileServerTool,

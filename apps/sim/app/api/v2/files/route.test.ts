@@ -153,6 +153,7 @@ describe('/api/v2/files', () => {
         {
           id: FILE.id,
           webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE.id}`,
+          workflowIds: [],
           name: 'notes.md',
           size: 0,
           type: 'text/markdown',

@@ -182,6 +182,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
       data: {
         id: FILE_ID,
         webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
+        workflowIds: [],
         name: 'data.csv',
         size: 8,
         type: 'text/csv',

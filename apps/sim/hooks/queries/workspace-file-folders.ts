@@ -16,6 +16,7 @@ import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
 } from '@/lib/workspace-files/folder-display-path'
+import { fileWorkflowKeys } from '@/hooks/queries/file-workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
@@ -53,6 +54,7 @@ export function invalidateWorkspaceFileBrowsers(
   queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId) })
   queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
   queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+  queryClient.invalidateQueries({ queryKey: fileWorkflowKeys.lists() })
 }
 
 export function useWorkspaceFileFolders(

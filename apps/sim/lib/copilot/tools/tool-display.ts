@@ -934,6 +934,14 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'toolTitle', 'title') || (path ? pathLeaf(path) : 'file')
       return action === 'unshare' ? `Unsharing ${target}` : `Sharing ${target}`
     }
+    case 'file_workflow': {
+      const action = stringArg(args, 'action')
+      const path = stringArg(args, 'path')
+      const target = path ? pathLeaf(path) : 'file'
+      if (action === 'configure') return `Configuring workflows for ${target}`
+      if (action === 'read') return `Reading ${target} workflow result`
+      return `Running ${target} workflow`
+    }
     case 'create_workflow': {
       const target = firstStringArg(args, 'name', 'workflowName', 'title')
       return `Creating ${target || 'workflow'}`

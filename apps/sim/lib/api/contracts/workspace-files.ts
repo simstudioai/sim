@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { fileWorkflowIdsSchema } from '@/lib/workspace-files/workflows/types'
 
 /**
  * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
@@ -75,6 +76,7 @@ export const updateWorkspaceFileContentBodySchema = z
 export const createWorkspaceFileBodySchema = z
   .object({
     name: workspaceFileNameSchema,
+    workflowIds: fileWorkflowIdsSchema.optional(),
     contentType: z
       .string()
       .trim()
@@ -152,6 +154,7 @@ export const workspaceFileRecordSchema = z.object({
   /** Intrinsic image dimensions (px), populated lazily; null for non-images/un-backfilled rows. */
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
+  workflowIds: fileWorkflowIdsSchema.optional(),
   uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),

@@ -116,6 +116,7 @@ export default async function PublicFilePage({ params }: PublicFilePageProps) {
   return (
     <PublicFileView
       token={token}
+      workflowIds={file.workflowIds}
       name={file.originalName}
       type={file.contentType}
       size={getWorkspaceFileSize(file)}

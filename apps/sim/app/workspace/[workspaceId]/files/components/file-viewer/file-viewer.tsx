@@ -314,6 +314,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
       <div className='flex min-h-0 w-full flex-1 flex-col overflow-auto'>
         <PreviewPanel
           content={content}
+          workflowIds={file.workflowIds}
           mimeType={file.type}
           filename={file.name}
           workspaceId={workspaceId}

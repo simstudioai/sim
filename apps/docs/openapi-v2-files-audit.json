@@ -39,6 +39,382 @@
     }
   ],
   "paths": {
+    "/api/v2/files/{fileId}/metadata": {
+      "patch": {
+        "operationId": "updateFileMetadata",
+        "summary": "Update File Metadata",
+        "description": "Replace the workflows an HTML file can call. Workflows must belong to the same workspace and be deployed. Updating a shared file also checks permission to expose those workflows to its audience.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.update_metadata",
+        "x-oauth-scope": "api:write",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "HTML file identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "HTML file identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "UpdateFileMetadata body schema.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFileMetadataBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update File Metadata result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateFileMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getFile",
+        "summary": "Get File Metadata",
+        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.read_metadata",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
+              "type": "string",
+              "enum": ["active", "archived"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File metadata and public-share state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/workflows/{workflowId}": {
+      "get": {
+        "operationId": "getFileWorkflowResult",
+        "summary": "Get File Workflow Result",
+        "description": "Read the latest cached result available to the caller. This operation never starts a workflow. An empty result means no result is available for this caller; nextRunAt indicates the earliest next attempt.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "files.workflows.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "HTML file identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "HTML file identifier."
+            }
+          },
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Workflow ID configured in the file metadata.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workflow ID configured in the file metadata."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get File Workflow Result result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetFileWorkflowResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "runFileWorkflow",
+        "summary": "Run File Workflow",
+        "description": "Run a workflow configured in an HTML file, using its latest deployment when execution starts. Calls reuse results within the five-minute execution window, shared across viewers of this file and workflow. A running status means an existing run is in progress; use Get File Workflow Result to poll.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "files.workflows.run",
+        "x-oauth-scope": "api:write",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "HTML file identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "HTML file identifier."
+            }
+          },
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Workflow ID configured in the file metadata.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workflow ID configured in the file metadata."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "RunFileWorkflow body schema.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunFileWorkflowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Run File Workflow result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunFileWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/files": {
       "get": {
         "operationId": "listFiles",
@@ -2064,99 +2440,6 @@
         }
       }
     },
-    "/api/v2/files/{fileId}/metadata": {
-      "get": {
-        "operationId": "getFile",
-        "summary": "Get File Metadata",
-        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.",
-        "x-sim-operation": "files.read_metadata",
-        "x-oauth-scope": "api:read",
-        "tags": ["Files"],
-        "parameters": [
-          {
-            "name": "fileId",
-            "in": "path",
-            "required": true,
-            "description": "File identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_-]+$",
-              "description": "File identifier."
-            }
-          },
-          {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "Workspace that owns the file.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "description": "Workspace that owns the file."
-            }
-          },
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
-            "schema": {
-              "default": "active",
-              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
-              "type": "string",
-              "enum": ["active", "archived"]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File metadata and public-share state.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2FileMetadataResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        }
-      }
-    },
     "/api/v2/audit-logs": {
       "get": {
         "operationId": "listAuditLogs",
@@ -3902,6 +4185,188 @@
           }
         ]
       },
+      "V2FileWorkflowMetadata": {
+        "type": "object",
+        "properties": {
+          "workflowIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Deployed workflows this HTML file may call, in the same workspace."
+          }
+        },
+        "required": ["workflowIds"],
+        "additionalProperties": false,
+        "title": "File workflow metadata",
+        "description": "Saved workflows that an HTML file may call."
+      },
+      "UpdateFileMetadataResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileWorkflowMetadata"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "UpdateFileMetadata response",
+        "description": "UpdateFileMetadata response schema."
+      },
+      "UpdateFileMetadataBody": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the file."
+          },
+          "workflowIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Replace the workflows this HTML file may call. Send an empty array to remove all dependencies. Sharing exposes these calls to the file audience."
+          }
+        },
+        "required": ["workspaceId", "workflowIds"],
+        "additionalProperties": false,
+        "title": "UpdateFileMetadata body",
+        "description": "UpdateFileMetadata body schema."
+      },
+      "V2FileWorkflowSnapshot": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["empty", "running", "completed", "failed"],
+            "description": "Result availability for this caller. Empty includes an expired or evicted cache entry."
+          },
+          "executionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Run identifier, visible only to the audience that started it."
+          },
+          "deploymentVersionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployment selected when this execution started, when available."
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time the result was generated, or null when unavailable."
+          },
+          "nextRunAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Earliest next attempt. A still-running execution also prevents a new attempt."
+          },
+          "output": {
+            "description": "Arbitrary workflow JSON output, limited to 1 MB; null when no completed output is available."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe execution error message, or null."
+          }
+        },
+        "required": [
+          "status",
+          "executionId",
+          "deploymentVersionId",
+          "generatedAt",
+          "nextRunAt",
+          "output",
+          "error"
+        ],
+        "additionalProperties": false,
+        "title": "File workflow result",
+        "description": "Execution status and cached output for the authorized caller."
+      },
+      "GetFileWorkflowResultResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileWorkflowSnapshot"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "GetFileWorkflowResult response",
+        "description": "GetFileWorkflowResult response schema."
+      },
+      "RunFileWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileWorkflowSnapshot"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "RunFileWorkflow response",
+        "description": "RunFileWorkflow response schema."
+      },
+      "RunFileWorkflowBody": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the file."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "RunFileWorkflow body",
+        "description": "RunFileWorkflow body schema."
+      },
       "FolderPathInput": {
         "title": "Folder path input",
         "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
@@ -3920,6 +4385,16 @@
             "type": "string",
             "format": "uri",
             "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
+          "workflowIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Workflows callable through this HTML file. Empty for files without workflow dependencies."
           },
           "name": {
             "type": "string",
@@ -3984,6 +4459,7 @@
         "required": [
           "id",
           "webUrl",
+          "workflowIds",
           "name",
           "size",
           "type",
@@ -4031,6 +4507,7 @@
                 "id": "wf_V1StGXR8z5jdHi6BmyT91",
                 "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
                 "name": "data.csv",
+                "workflowIds": [],
                 "size": 1024,
                 "type": "text/csv",
                 "key": "workspace/example/data.csv",
@@ -4063,6 +4540,7 @@
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
               "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
+              "workflowIds": [],
               "size": 1024,
               "type": "text/csv",
               "key": "workspace/example/data.csv",
@@ -4083,6 +4561,16 @@
             "minLength": 1,
             "maxLength": 128,
             "description": "Workspace in which to create the file."
+          },
+          "workflowIds": {
+            "description": "Deployed workflows in this workspace that the HTML document may call.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
           },
           "name": {
             "type": "string",
@@ -4956,6 +5444,7 @@
                 "id": "wf_V1StGXR8z5jdHi6BmyT91",
                 "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
                 "name": "data.csv",
+                "workflowIds": [],
                 "size": 1024,
                 "type": "text/csv",
                 "key": "workspace/example/data.csv",
@@ -5151,6 +5640,7 @@
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
               "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data_restored.csv",
+              "workflowIds": [],
               "size": 1024,
               "type": "text/csv",
               "key": "workspace/example/data.csv",
@@ -5260,6 +5750,16 @@
             "format": "uri",
             "description": "Canonical absolute URL for opening this resource in the Sim web application."
           },
+          "workflowIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Workflows callable through this HTML file. Empty for files without workflow dependencies."
+          },
           "name": {
             "type": "string",
             "description": "Original file name.",
@@ -5344,6 +5844,7 @@
         "required": [
           "id",
           "webUrl",
+          "workflowIds",
           "name",
           "size",
           "type",
@@ -5378,6 +5879,7 @@
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
               "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
+              "workflowIds": [],
               "size": 1024,
               "type": "text/csv",
               "key": "workspace/example/data.csv",
@@ -5396,6 +5898,7 @@
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
               "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
+              "workflowIds": [],
               "size": 1024,
               "type": "text/csv",
               "key": "workspace/example/data.csv",
@@ -5850,6 +6353,7 @@
                 "id": "wf_V1StGXR8z5jdHi6BmyT91",
                 "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
                 "name": "data.csv",
+                "workflowIds": [],
                 "size": 1024,
                 "type": "text/csv",
                 "key": "workspace/example/data.csv",
@@ -6164,6 +6668,16 @@
             "format": "uri",
             "description": "Canonical absolute URL for opening this resource in the Sim web application."
           },
+          "workflowIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Workflows callable through this HTML file. Empty for files without workflow dependencies."
+          },
           "name": {
             "type": "string",
             "description": "Original file name.",
@@ -6231,6 +6745,7 @@
         "required": [
           "id",
           "webUrl",
+          "workflowIds",
           "name",
           "size",
           "type",
@@ -6263,6 +6778,7 @@
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
               "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
+              "workflowIds": [],
               "size": 1024,
               "type": "text/csv",
               "key": "workspace/example/data.csv",

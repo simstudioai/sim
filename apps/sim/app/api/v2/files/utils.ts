@@ -37,6 +37,7 @@ function serializeV2File(
     id: record.id,
     webUrl: workspaceResourceWebUrl(baseUrl, record.workspaceId, 'file', record.id),
     name: record.name,
+    workflowIds: record.workflowIds ?? [],
     size: record.size,
     type: record.type,
     key: record.key,

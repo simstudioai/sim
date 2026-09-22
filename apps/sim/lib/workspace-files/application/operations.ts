@@ -33,6 +33,31 @@ const DIRECT_PRINCIPAL_POLICY = {
 } as const
 
 export const fileOperations = {
+  runWorkflow: defineWorkspaceOperation({
+    id: 'files.workflows.run',
+    oauthScope: 'api:write',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...ALL_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readWorkflowResult: defineWorkspaceOperation({
+    id: 'files.workflows.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...ALL_COPILOT_PRINCIPAL_POLICY,
+  }),
+  publishWorkflows: defineWorkspaceOperation({
+    id: 'files.workflows.publish',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'public_api.use',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
+  }),
   list: defineWorkspaceOperation({
     id: 'files.list',
     oauthScope: 'api:read',

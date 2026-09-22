@@ -137,6 +137,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       data: {
         id: FILE_ID,
         webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
+        workflowIds: [],
         name: 'data.csv',
         size: 1024,
         type: 'text/csv',
@@ -196,6 +197,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       data: {
         id: FILE_ID,
         webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
+        workflowIds: [],
         name: 'data.csv',
         size: 1024,
         type: 'text/csv',

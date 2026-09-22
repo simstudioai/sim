@@ -8,6 +8,11 @@ import {
   v2RevertFileVersionContract,
 } from '@/lib/api/contracts/v2/file-versions'
 import {
+  v2ReadFileWorkflowContract,
+  v2RunFileWorkflowContract,
+  v2UpdateFileMetadataContract,
+} from '@/lib/api/contracts/v2/file-workflows'
+import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
   v2BulkDownloadFilesContract,
@@ -71,6 +76,7 @@ const FILE_EXAMPLE = {
   webUrl:
     'https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91',
   name: 'data.csv',
+  workflowIds: [],
   size: 1024,
   type: 'text/csv',
   key: 'workspace/example/data.csv',
@@ -154,6 +160,114 @@ function auditOperation(
 }
 
 const declaredRoutes = [
+  defineOpenApiRoute(
+    v2UpdateFileMetadataContract,
+    filesOperation({
+      applicationOperation: fileOperations.updateMetadata,
+      operationId: 'updateFileMetadata',
+      summary: 'Update File Metadata',
+      description:
+        'Replace the workflows an HTML file can call. Workflows must belong to the same workspace and be deployed. Updating a shared file also checks permission to expose those workflows to its audience.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Update File Metadata result.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateFileMetadataContract.params,
+        'UpdateFileMetadataParams',
+        'UpdateFileMetadata params',
+        'UpdateFileMetadata params schema.'
+      ),
+      query: documentedSchema(
+        v2UpdateFileMetadataContract.query,
+        'UpdateFileMetadataQuery',
+        'UpdateFileMetadata query',
+        'UpdateFileMetadata query schema.'
+      ),
+      body: documentedSchema(
+        v2UpdateFileMetadataContract.body,
+        'UpdateFileMetadataBody',
+        'UpdateFileMetadata body',
+        'UpdateFileMetadata body schema.'
+      ),
+      response: documentedSchema(
+        v2UpdateFileMetadataContract.response.schema,
+        'UpdateFileMetadataResponse',
+        'UpdateFileMetadata response',
+        'UpdateFileMetadata response schema.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReadFileWorkflowContract,
+    filesOperation({
+      applicationOperation: fileOperations.readWorkflowResult,
+      operationId: 'getFileWorkflowResult',
+      summary: 'Get File Workflow Result',
+      description:
+        'Read the latest cached result available to the caller. This operation never starts a workflow. An empty result means no result is available for this caller; nextRunAt indicates the earliest next attempt.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Get File Workflow Result result.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ReadFileWorkflowContract.params,
+        'GetFileWorkflowResultParams',
+        'GetFileWorkflowResult params',
+        'GetFileWorkflowResult params schema.'
+      ),
+      query: documentedSchema(
+        v2ReadFileWorkflowContract.query,
+        'GetFileWorkflowResultQuery',
+        'GetFileWorkflowResult query',
+        'GetFileWorkflowResult query schema.'
+      ),
+      response: documentedSchema(
+        v2ReadFileWorkflowContract.response.schema,
+        'GetFileWorkflowResultResponse',
+        'GetFileWorkflowResult response',
+        'GetFileWorkflowResult response schema.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RunFileWorkflowContract,
+    filesOperation({
+      applicationOperation: fileOperations.runWorkflow,
+      operationId: 'runFileWorkflow',
+      summary: 'Run File Workflow',
+      description:
+        'Run a workflow configured in an HTML file, using its latest deployment when execution starts. Calls reuse results within the five-minute execution window, shared across viewers of this file and workflow. A running status means an existing run is in progress; use Get File Workflow Result to poll.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Run File Workflow result.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RunFileWorkflowContract.params,
+        'RunFileWorkflowParams',
+        'RunFileWorkflow params',
+        'RunFileWorkflow params schema.'
+      ),
+      query: documentedSchema(
+        v2RunFileWorkflowContract.query,
+        'RunFileWorkflowQuery',
+        'RunFileWorkflow query',
+        'RunFileWorkflow query schema.'
+      ),
+      body: documentedSchema(
+        v2RunFileWorkflowContract.body,
+        'RunFileWorkflowBody',
+        'RunFileWorkflow body',
+        'RunFileWorkflow body schema.'
+      ),
+      response: documentedSchema(
+        v2RunFileWorkflowContract.response.schema,
+        'RunFileWorkflowResponse',
+        'RunFileWorkflow response',
+        'RunFileWorkflow response schema.'
+      ),
+    }
+  ),
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({

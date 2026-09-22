@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
+import { useStreamBatchedValue } from '@/hooks/use-stream-batched-value'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -14,6 +15,7 @@ import {
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import { WorkflowHtmlPreview } from '@/app/workspace/[workspaceId]/files/components/file-viewer/workflow-html-preview'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { ChartPreview } from './chart-preview'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
@@ -56,6 +58,7 @@ export function resolvePreviewType(mimeType: string | null, filename: string): P
 }
 
 interface PreviewPanelProps {
+  workflowIds?: string[]
   content: string
   mimeType: string | null
   filename: string
@@ -80,9 +83,21 @@ export const PreviewPanel = memo(function PreviewPanel({
   fileKey,
   isStreaming,
   readOnly,
+  workflowIds,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
+  if (previewType === 'html' && workflowIds?.length)
+    return (
+      <WorkflowHtmlPreview
+        content={content}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        fileKey={fileKey}
+        workflowIds={workflowIds}
+        isStreaming={isStreaming}
+      />
+    )
   if (previewType === 'html')
     return (
       <HtmlPreview
@@ -220,36 +235,6 @@ export function buildHtmlPreviewDocument(
 }
 
 /**
- * Batches iframe content updates while an agent streams. Every content change
- * replaces the srcDoc (a full document reload), so applying each chunk as it
- * arrives would reload the page several times a second; ~2s batches keep the
- * growing page readable. Off-stream, the live value passes straight through.
- */
-function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: number): string {
-  const [batched, setBatched] = useState(value)
-  const lastAppliedAtRef = useRef(0)
-  useEffect(() => {
-    if (!streaming) {
-      lastAppliedAtRef.current = 0
-      setBatched(value)
-      return
-    }
-    const elapsed = Date.now() - lastAppliedAtRef.current
-    if (elapsed >= intervalMs) {
-      lastAppliedAtRef.current = Date.now()
-      setBatched(value)
-      return
-    }
-    const timer = setTimeout(() => {
-      lastAppliedAtRef.current = Date.now()
-      setBatched(value)
-    }, intervalMs - elapsed)
-    return () => clearTimeout(timer)
-  }, [value, streaming, intervalMs])
-  return streaming ? batched : value
-}
-
-/**
  * The sandboxed frame carries no cookies, so a workspace image
  * (`/api/files/view/<id>`, what `![alt](sim:file/<id>)` compiles to) would
  * 401 inside it. The host fetches the bytes with its own session and hands
@@ -321,6 +306,7 @@ const HtmlPreview = memo(function HtmlPreview({
 }) {
   const { resolvedTheme } = useTheme()
   const router = useRouter()
+  const frameRef = useRef<HTMLIFrameElement>(null)
   const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
   // A SAVED sim page prefers the server-compiled document — the pptx/docx
   // model: the serve route resolves chart references (reading a table's
@@ -352,6 +338,7 @@ const HtmlPreview = memo(function HtmlPreview({
   // routes them in the app. Only workspace-internal paths are honored.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return
       const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
       if (typeof href !== 'string') return
       if (href.startsWith('/workspace/')) {
@@ -431,6 +418,7 @@ const HtmlPreview = memo(function HtmlPreview({
     <div ref={containerRef} className='flex min-h-0 flex-1 overflow-hidden'>
       {isRenderable && (
         <iframe
+          ref={frameRef}
           key={resumeNonce}
           srcDoc={wrappedContent}
           /* No clipboard-write delegation: this frame also renders untrusted

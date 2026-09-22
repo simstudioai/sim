@@ -856,6 +856,7 @@ export const TextEditor = memo(function TextEditor({
               <PreviewPanel
                 key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
                 content={content}
+                workflowIds={file.workflowIds}
                 mimeType={file.type}
                 filename={file.name}
                 workspaceId={workspaceId}

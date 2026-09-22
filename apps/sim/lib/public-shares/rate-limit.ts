@@ -6,6 +6,7 @@ import { MAX_EMBEDDED_IMAGES } from '@/lib/uploads/server/embedded-image-refs'
 const rateLimiter = new RateLimiter()
 
 const PUBLIC_FILE_RATE_LIMITS = {
+  workflow: { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 },
   metadata: { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 },
   content: { maxTokens: 60, refillRate: 60, refillIntervalMs: 60_000 },
   /** Allow three image-heavy page loads in a burst without consuming the document's budget. */
@@ -20,8 +21,8 @@ const PUBLIC_FILE_RATE_LIMITS = {
  * Per-IP rate limit for the unauthenticated public share endpoints, returning a
  * `429` response when exceeded (or `null` to proceed). The token is unguessable,
  * so this defends a *known* link against hammering (DoS / S3 egress) rather than
- * enumeration. Fails open on storage errors (availability over strictness), but
- * fails closed when the forwarded chain cannot identify a safe client key.
+ * enumeration. Workflow requests fail closed on limiter storage errors. File reads
+ * retain their availability policy. All requests require a safe client IP key.
  */
 export async function enforcePublicFileRateLimit(
   request: { headers: { get(name: string): string | null } },
@@ -35,7 +36,9 @@ export async function enforcePublicFileRateLimit(
       { status: 429, headers: { 'Retry-After': String(config.refillIntervalMs / 1000) } }
     )
   }
-  const result = await rateLimiter.checkRateLimitDirect(`public-file:${scope}:${ip}`, config)
+  const result = await rateLimiter.checkRateLimitDirect(`public-file:${scope}:${ip}`, config, {
+    failClosed: scope === 'workflow',
+  })
   if (result.allowed) return null
 
   const headers =

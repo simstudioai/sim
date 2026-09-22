@@ -75,6 +75,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   context_compaction: Asterisk,
   cp: Layout,
   create_empty_file: File,
+  file_workflow: File,
   create_workflow: Layout,
   create_workspace_mcp_server: Integration,
   custom_tool: Wrench,

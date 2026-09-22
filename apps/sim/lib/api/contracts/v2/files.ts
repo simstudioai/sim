@@ -51,6 +51,7 @@ import {
   FILE_SEARCH_MIN_QUERY_LENGTH,
 } from '@/lib/workspace-files/search/constants'
 import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
+import { fileWorkflowIdsSchema } from '@/lib/workspace-files/workflows/types'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -94,6 +95,9 @@ export const v2FileSchema = z
       .describe('Unique file identifier.')
       .meta({ examples: ['wf_V1StGXR8z5jdHi6BmyT91'] }),
     webUrl: v2ResourceWebUrlSchema,
+    workflowIds: fileWorkflowIdsSchema.describe(
+      'Workflows callable through this HTML file. Empty for files without workflow dependencies.'
+    ),
     name: z
       .string()
       .describe('Original file name.')
@@ -289,6 +293,9 @@ export type V2FileParams = z.output<typeof v2FileParamsSchema>
 export const v2CreateFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the file.'),
+    workflowIds: fileWorkflowIdsSchema
+      .optional()
+      .describe('Deployed workflows in this workspace that the HTML document may call.'),
     name: workspaceFileNameSchema.describe(
       'File name, including its extension. Path separators and dot segments are rejected.'
     ),
