@@ -97,10 +97,9 @@
 
   --text-micro: 10px;
   /**
-   * `xs` is the one size here that also exists in Tailwind's own scale, so it
-   * inherits `--text-xs--line-height` unless that is overridden too. v4's ratio
-   * (4/3) against an 11px size yields 14.67px, where v3 resolved 16.5px; the
-   * paired value keeps the leading where it was.
+   * Tailwind pairs `xs` with a default line-height ratio. Its v4 ratio (4/3)
+   * against our 11px size yields 14.67px; the explicit 1.5 preserves the
+   * existing 16.5px leading.
    */
   --text-xs: 11px;
   --text-xs--line-height: 1.5;
