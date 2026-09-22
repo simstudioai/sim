@@ -4,12 +4,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('OAuthTerminalErrors')
 
-/**
- * Refresh error codes that no retry can recover from: the credential stays dead until
- * its owner reconnects. `unauthorized_client` is how Atlassian rejects a revoked or
- * rotated-out refresh token, and under RFC 6749 section 5.2 it otherwise means the
- * client may not use the refresh grant, which is equally persistent.
- */
+/** Refresh error codes that no retry can recover from: the credential stays dead until its owner reconnects. */
 const TERMINAL_ERRORS = new Set<string>([
   'invalid_refresh_token',
   'bad_refresh_token',
@@ -20,7 +15,17 @@ const TERMINAL_ERRORS = new Set<string>([
   'invalid_client',
   'bad_redirect_uri',
   'token_revoked',
-  'unauthorized_client',
+])
+
+/**
+ * Codes terminal only for the providers listed. Atlassian rejects a revoked or rotated-out
+ * refresh token with `unauthorized_client`; elsewhere that code usually describes the app
+ * registration, and treating it as terminal would send every credential of the provider to
+ * reauthorization over one configuration fault.
+ */
+const PROVIDER_TERMINAL_ERRORS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ['confluence', new Set(['unauthorized_client'])],
+  ['jira', new Set(['unauthorized_client'])],
 ])
 
 const DEAD_CACHE_TTL_SEC = 60 * 60
@@ -29,9 +34,13 @@ function deadKey(accountId: string): string {
   return `oauth:dead:${accountId}`
 }
 
-export function isTerminalRefreshError(code: string | undefined | null): boolean {
+export function isTerminalRefreshError(
+  code: string | undefined | null,
+  providerId?: string
+): boolean {
   if (!code) return false
-  return TERMINAL_ERRORS.has(code)
+  if (TERMINAL_ERRORS.has(code)) return true
+  return providerId !== undefined && (PROVIDER_TERMINAL_ERRORS.get(providerId)?.has(code) ?? false)
 }
 
 export async function markCredentialDead(accountId: string, code: string): Promise<void> {

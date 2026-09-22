@@ -50,10 +50,20 @@ describe('isTerminalRefreshError', () => {
     'invalid_client',
     'bad_redirect_uri',
     'token_revoked',
-    'unauthorized_client',
   ])('returns true for %s', (code) => {
     expect(isTerminalRefreshError(code)).toBe(true)
   })
+
+  it.each(['confluence', 'jira'])('treats unauthorized_client as terminal for %s', (providerId) => {
+    expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(true)
+  })
+
+  it.each([undefined, 'microsoft', 'salesforce', 'google-email', 'constructor', '__proto__'])(
+    'does not treat unauthorized_client as terminal for %s',
+    (providerId) => {
+      expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(false)
+    }
+  )
 
   it.each(['ratelimited', 'internal_error', 'service_unavailable', undefined, null, ''])(
     'returns false for %s',
