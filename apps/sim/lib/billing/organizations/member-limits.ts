@@ -11,6 +11,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import type { UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -143,43 +144,45 @@ export async function getOrgMemberUsageForBillingPeriod(
   userId: string,
   billingPeriod: UsageQueryPeriod
 ): Promise<number> {
-  const [row] = await db
-    .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
-    .from(usageLog)
-    .leftJoin(workspace, eq(workspace.id, usageLog.workspaceId))
-    .where(
-      and(
-        eq(usageLog.userId, userId),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              eq(usageLog.billingEntityType, 'organization'),
-              eq(usageLog.billingEntityId, organizationId),
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              or(
-                and(
-                  eq(usageLog.billingEntityType, 'organization'),
-                  eq(usageLog.billingEntityId, organizationId),
-                  eq(usageLog.billingPeriodStart, billingPeriod.start),
-                  eq(usageLog.billingPeriodEnd, billingPeriod.end)
-                ),
-                and(
-                  isNull(usageLog.billingEntityType),
-                  isNull(usageLog.billingEntityId),
-                  eq(workspace.organizationId, organizationId),
-                  or(
-                    isNull(workspace.organizationAssignedAt),
-                    gte(usageLog.createdAt, workspace.organizationAssignedAt)
+  const [row] = await readLedgerBounded(db, (tx) =>
+    tx
+      .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
+      .from(usageLog)
+      .leftJoin(workspace, eq(workspace.id, usageLog.workspaceId))
+      .where(
+        and(
+          eq(usageLog.userId, userId),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                eq(usageLog.billingEntityType, 'organization'),
+                eq(usageLog.billingEntityId, organizationId),
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                or(
+                  and(
+                    eq(usageLog.billingEntityType, 'organization'),
+                    eq(usageLog.billingEntityId, organizationId),
+                    eq(usageLog.billingPeriodStart, billingPeriod.start),
+                    eq(usageLog.billingPeriodEnd, billingPeriod.end)
                   ),
-                  gte(usageLog.createdAt, billingPeriod.start),
-                  lt(usageLog.createdAt, billingPeriod.end)
-                )
-              ),
-            ])
+                  and(
+                    isNull(usageLog.billingEntityType),
+                    isNull(usageLog.billingEntityId),
+                    eq(workspace.organizationId, organizationId),
+                    or(
+                      isNull(workspace.organizationAssignedAt),
+                      gte(usageLog.createdAt, workspace.organizationAssignedAt)
+                    ),
+                    gte(usageLog.createdAt, billingPeriod.start),
+                    lt(usageLog.createdAt, billingPeriod.end)
+                  )
+                ),
+              ])
+        )
       )
-    )
+  )
 
   return Number.parseFloat(row?.cost ?? '0')
 }

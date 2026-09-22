@@ -3,6 +3,7 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 
 const {
   schemaTables,
@@ -57,7 +58,10 @@ vi.mock('drizzle-orm', () => ({
   isNull: mockIsNull,
   lt: mockLt,
   or: mockOr,
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+    { raw: (rawSql: string) => ({ rawSql, toSQL: () => ({ sql: rawSql, params: [] }) }) }
+  ),
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -108,6 +112,16 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
     await expect(
       getOrgMemberUsageForBillingPeriod('snapshot-org', 'actor-2', billingPeriod)
     ).resolves.toBe(4.5)
+
+    /** The member sum is a ledger aggregate: it runs inside the bounded ledger transaction. */
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(
+      dbChainMockFns.execute.mock.calls.some(([statement]) =>
+        String((statement as { toSQL?: () => { sql: string } }).toSQL?.().sql).includes(
+          `SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`
+        )
+      )
+    ).toBe(true)
 
     expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityType', 'organization')
     expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'snapshot-org')
