@@ -417,14 +417,16 @@ export async function getStampedPeriodRangeUsageCostByUser(
     )
   }
 
-  const rows = await executor
-    .select({
-      userId: usageLog.userId,
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
-    .groupBy(usageLog.userId)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        userId: usageLog.userId,
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+      .groupBy(usageLog.userId)
+  )
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }

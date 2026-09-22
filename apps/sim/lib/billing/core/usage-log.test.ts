@@ -41,6 +41,7 @@ import {
   getBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset,
   getBillingPeriodWorkflowRunCount,
+  getStampedPeriodRangeUsageCostByUser,
   getUserUsageLogs,
   getWorkspaceUsageLogs,
   recordCumulativeUsage,
@@ -597,6 +598,16 @@ describe('ledger aggregates', () => {
       read: () => getBillingPeriodUsageCostByUser(billingEntity, billingPeriod),
       rows: [{ userId: 'user-1', cost: '3' }],
       expected: new Map([['user-1', 3]]),
+    },
+    {
+      name: 'getStampedPeriodRangeUsageCostByUser',
+      read: () =>
+        getStampedPeriodRangeUsageCostByUser(billingEntity, {
+          from: billingPeriod.start,
+          to: billingPeriod.end,
+        }),
+      rows: [{ userId: 'user-2', cost: '4' }],
+      expected: new Map([['user-2', 4]]),
     },
   ]
 
