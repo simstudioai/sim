@@ -45,7 +45,7 @@ export function KnowledgeUploadRow({
                 aria-label='Retry upload'
                 type='button'
                 variant='ghost'
-                className='size-4 p-0'
+                size='icon'
                 onClick={onRetry}
                 disabled={disabled}
               >
@@ -56,7 +56,7 @@ export function KnowledgeUploadRow({
               aria-label='Remove file'
               type='button'
               variant='ghost'
-              className='size-4 p-0'
+              size='icon'
               onClick={onRemove}
               disabled={disabled}
             >
