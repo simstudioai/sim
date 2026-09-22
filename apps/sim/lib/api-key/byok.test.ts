@@ -79,6 +79,14 @@ const storedOrganizationKey = (organizationId: string, id: string) => ({
 afterAll(resetDbChainMock)
 
 describe('getBYOKKey', () => {
+  it('refuses corrupt configured keys in enterprise mode instead of falling back to hosted', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('enterprise-corrupt')])
+    mockDecryptSecret.mockRejectedValueOnce(new Error('cannot decrypt'))
+    await expect(
+      getBYOKKey(uniqueWorkspaceId(), 'anthropic', { failClosed: true })
+    ).rejects.toThrow('Configured BYOK credentials are unavailable')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()

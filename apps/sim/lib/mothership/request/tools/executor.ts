@@ -13,6 +13,7 @@ import {
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -338,10 +339,12 @@ async function executeToolWithWatchdog(
   ])
   const execute = () =>
     withCopilotSpan(TraceSpan.CopilotToolRuntime, { [TraceAttr.ToolCallId]: toolCall.id }, () =>
-      executeTool(executableName, toolCall.params || {}, {
-        ...toolContext,
-        abortSignal: signal,
-      })
+      withToolServiceMeter(toolContext, () =>
+        executeTool(executableName, toolCall.params || {}, {
+          ...toolContext,
+          abortSignal: signal,
+        })
+      )
     )
   const execution = lifetime.hold(
     (executableName === RunCode.id || executableName === RunFunction.id) &&

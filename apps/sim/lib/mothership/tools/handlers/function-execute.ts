@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -26,6 +26,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
+import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
@@ -679,6 +680,8 @@ export async function executeFunctionExecute(
             internalSandboxProfile: 'mothership',
           })
       )
+      const cost = toRecord(toRecord(result.output)?.cost)
+      if (typeof cost?.raw === 'number') await recordServiceCost('sandbox', cost.raw)
       crossingValue = result
       return result
     } catch (error) {

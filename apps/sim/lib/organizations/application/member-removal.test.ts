@@ -82,6 +82,8 @@ describe('organization member removal', () => {
       userId: 'target',
       organizationId: 'org',
       memberId: 'member-id',
+      actorUserId: 'actor',
+      onError: 'throw',
     })
     expect(mocks.seats).toHaveBeenCalledWith({
       organizationId: 'org',
@@ -120,6 +122,8 @@ describe('organization member removal', () => {
       organizationId: 'org',
       memberId: 'member-id',
       spareSessionId: 'live-session',
+      actorUserId: 'actor',
+      onError: 'throw',
     })
     expect(mocks.active).toHaveBeenCalledWith(null)
   })
@@ -134,7 +138,11 @@ describe('organization member removal', () => {
       workspaceAccessRevoked: 2,
       credentialMembershipsRevoked: 1,
     })
-    expect(mocks.external).toHaveBeenCalledWith({ userId: 'target', organizationId: 'org' })
+    expect(mocks.external).toHaveBeenCalledWith({
+      userId: 'target',
+      organizationId: 'org',
+      actorUserId: 'actor',
+    })
     expect(mocks.seats).not.toHaveBeenCalled()
   })
   it('preserves completed removal and reports seat reconciliation failure', async () => {

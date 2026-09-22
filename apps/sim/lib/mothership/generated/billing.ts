@@ -45,3 +45,15 @@ export const BillingCallbackResult = z.object({
   code: z.string().optional(),
 });
 export const BillingDuplicateCode = "DUPLICATE_BILLING_EVENT";
+
+/** Sim authors receipts at the paid execution boundary; tool output carries no billing authority. */
+export const ServiceUsageReceipt = z.strictObject({
+  id: z.uuid(),
+  streamId: z.uuid(),
+  toolCallId: z.string().min(1).max(500),
+  service: z.string().min(1).max(100),
+  costUsd: z.number().finite().nonnegative(),
+});
+export type ServiceUsageReceipt = z.infer<typeof ServiceUsageReceipt>;
+export const ServiceUsageBatch = z.strictObject({ receipts: z.array(ServiceUsageReceipt).min(1).max(100) });
+export const ServiceUsageAcknowledgment = z.strictObject({ accepted: z.array(z.uuid()).max(100) });

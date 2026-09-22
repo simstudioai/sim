@@ -8,6 +8,7 @@ import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/mothership/application/execute-file-use-case'
+import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { GenerateImage } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -191,6 +192,8 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
           message: `Image generation returned no image data. ${textParts ? `Model response: ${textParts.slice(0, 500)}` : 'No response from model.'}`,
         }
       }
+
+      await recordServiceCost('nano_banana_2', NANO_BANANA_IMAGE_COST_USD)
 
       const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
       const outputFile = params.outputs?.files?.[0]

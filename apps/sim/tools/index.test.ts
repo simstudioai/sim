@@ -1,3 +1,4 @@
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 /**
  * @vitest-environment node
  *
@@ -6790,18 +6791,22 @@ describe('Cost Field Handling', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool(
-      'test_copilot_hosted_cost',
-      {},
-      {
-        executionContext: createToolExecutionContext({
-          userId: 'user-123',
-          workspaceId: 'workspace-456',
-          copilotToolExecution: true,
-        }),
-      }
+    const metered = vi.fn().mockResolvedValue(undefined)
+    const result = await observeServiceCosts(metered, () =>
+      executeTool(
+        'test_copilot_hosted_cost',
+        {},
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-123',
+            workspaceId: 'workspace-456',
+            copilotToolExecution: true,
+          }),
+        }
+      )
     )
 
+    expect(metered).toHaveBeenCalledExactlyOnceWith('exa', 0.005)
     expect(result.success).toBe(true)
     expect(mockRateLimiterFns.acquireKey).toHaveBeenCalled()
     expect(result.output.cost).toEqual({ total: 0.005 })

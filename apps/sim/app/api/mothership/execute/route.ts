@@ -36,6 +36,7 @@ import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -301,6 +302,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         : m
     )
     const requestPayload: Record<string, unknown> = {
+      simConnection: getSimConnection(),
       messages: wireMessages,
       ...(useConversationHistory !== undefined ? { useConversationHistory } : {}),
       ...(modelSelection ? { modelSelection } : {}),

@@ -7,6 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
@@ -638,6 +639,9 @@ export async function requestChatTitle(params: {
       ) {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
+
+      const admission = await checkAttributedUsageLimits(attribution)
+      if (admission.isExceeded) return null
 
       const billingRequest = createAttributedBillingRequestEnvelope(attribution)
       Object.assign(headers, billingRequest.headers)

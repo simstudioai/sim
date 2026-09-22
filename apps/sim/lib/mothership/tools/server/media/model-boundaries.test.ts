@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 const {
   mockGenerateContent,
@@ -112,6 +113,21 @@ describe('Mothership media model boundaries', () => {
       model: 'music-model',
       cost: { costDollars: 0.1 },
     })
+  })
+
+  it('meters image, video and audio at their provider boundary before file persistence', async () => {
+    const context = contextWithSecrets([])
+    const charges = vi.fn().mockResolvedValue(undefined)
+    await observeServiceCosts(charges, async () => {
+      await generateImageServerTool.execute({ prompt: 'image' }, context)
+      await generateVideoServerTool.execute({ prompt: 'video' }, context)
+      await generateAudioServerTool.execute({ prompt: 'audio', type: 'music' }, context)
+    })
+    expect(charges.mock.calls).toEqual([
+      ['nano_banana_2', 0.101],
+      ['falai_video', 0.1],
+      ['falai_audio', 0.1],
+    ])
   })
 
   it('preserves image prompts that merely collide with ambient secret plaintext', async () => {

@@ -83,6 +83,10 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
+vi.mock('@/lib/mothership/transport/connection', () => ({
+  getSimConnection: () => ({ mode: 'checkpoint', channelId: 'f'.repeat(64) }),
+}))
+
 vi.mock('@/lib/core/config/env-flags', () => ({
   isDocSandboxEnabled: false,
 }))

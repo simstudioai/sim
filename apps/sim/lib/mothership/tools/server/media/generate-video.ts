@@ -6,6 +6,7 @@ import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/mothership/application/execute-file-use-case'
+import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { GenerateVideo } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -107,6 +108,8 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
       })
+
+      await recordServiceCost('falai_video', result.cost.costDollars)
 
       const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || 'files/generated-video.mp4'

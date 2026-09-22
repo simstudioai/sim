@@ -824,6 +824,25 @@ describe('runCopilotLifecycle', () => {
     expect(sent.byokApiKey).toBe('sk-ant-enterprise-test')
   })
 
+  it('removes a previous key when fresh enterprise resolution returns none', async () => {
+    mockResolveEnterpriseByokKey.mockResolvedValueOnce(null)
+    const payload = {
+      message: 'hi',
+      workspaceId: 'ws-ent',
+      messageId: 'stream-byok-revoked',
+      byokApiKey: 'revoked-key',
+    }
+    await runCopilotLifecycle(payload, {
+      userId: 'user-1',
+      workspaceId: 'ws-ent',
+      executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-ent' },
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    })
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))).not.toHaveProperty(
+      'byokApiKey'
+    )
+  })
+
   it('preserves large ordinary tool catalogs without scanning configured secret values', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },

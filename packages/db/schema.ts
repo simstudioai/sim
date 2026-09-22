@@ -7665,3 +7665,24 @@ export const copilotTaskSubscriptions = pgTable(
     uniqueIndex('copilot_task_subscriptions_task_idx').on(table.taskId),
   ]
 )
+
+/** Provider costs outlive tool results and chat deletion until the billing owner acknowledges them. */
+export const copilotServiceUsage = pgTable(
+  'copilot_service_usage',
+  {
+    id: uuid('id').primaryKey(),
+    streamId: uuid('stream_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    service: text('service').notNull(),
+    costUsd: decimal('cost_usd', { precision: 12, scale: 8 }),
+    workerOrigin: text('worker_origin').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer('attempts').notNull().default(0),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    lastError: text('last_error'),
+  },
+  (t) => [
+    index('copilot_service_usage_pending_idx').on(t.nextAttemptAt).where(sql`delivered_at IS NULL`),
+  ]
+)

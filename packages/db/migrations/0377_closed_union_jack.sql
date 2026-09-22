@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_service_usage" ALTER COLUMN "cost_usd" DROP NOT NULL;

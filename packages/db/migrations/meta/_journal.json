@@ -2626,6 +2626,20 @@
       "when": 1790007865918,
       "tag": "0375_member_sync_partial_status",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1790041270336,
+      "tag": "0376_icy_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1790041979710,
+      "tag": "0377_closed_union_jack",
+      "breakpoints": true
     }
   ]
 }

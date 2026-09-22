@@ -412,4 +412,7 @@ export async function register() {
 
   const { startSimReceivers } = await import('./lib/mothership/transport/receiver')
   await startSimReceivers()
+
+  const { startServiceUsageReplay } = await import('./lib/mothership/billing/service-delivery')
+  startServiceUsageReplay()
 }

@@ -401,6 +401,7 @@ export interface ProtocolMismatch {
  * discovery and execution resolve selected operations through Sim.
  */
 export interface ExecuteRequest extends StreamResponseReceipt {
+  simConnection?: SimConnection | undefined;
   effort?: ChatRequest["effort"];
   modelSelection?: ModelSelection | undefined;
   messages: ExecuteMessage[];

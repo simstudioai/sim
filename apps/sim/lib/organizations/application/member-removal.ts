@@ -101,6 +101,7 @@ export const removeOrganizationMember: OperationUseCase<
       const result = await removeExternalUserFromOrganizationWorkspaces({
         userId: input.userId,
         organizationId: context.organizationId,
+        actorUserId: context.userId,
       })
       if (!result.success) {
         const message = result.error || 'External workspace member not found'
@@ -150,6 +151,8 @@ export const removeOrganizationMember: OperationUseCase<
       userId: input.userId,
       organizationId: context.organizationId,
       memberId: target.id,
+      actorUserId: context.userId,
+      onError: 'throw',
       ...(principal.kind === 'session' && selfRemoval
         ? { spareSessionId: principal.sessionId }
         : {}),

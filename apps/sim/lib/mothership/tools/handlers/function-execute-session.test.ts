@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 const { mockExecuteTool, mockMaterializeSecrets } = vi.hoisted(() => ({
   mockExecuteTool: vi.fn().mockResolvedValue({ success: true, output: {} }),
@@ -55,6 +57,18 @@ describe('executeFunctionExecute session plumbing', () => {
   beforeEach(() => {
     mockExecuteTool.mockClear()
     mockMaterializeSecrets.mockClear()
+  })
+
+  it('meters only the server-authored sandbox cost and ignores user-code cost lookalikes', async () => {
+    const record = vi.fn().mockResolvedValue(undefined)
+    mockExecuteTool.mockResolvedValueOnce({
+      success: true,
+      output: { result: { cost: { raw: 100 } }, cost: { raw: 0.002, total: 0.003 } },
+    })
+    await observeServiceCosts(record, () =>
+      executeFunctionExecute({ code: 'return 1' }, BASE_CONTEXT)
+    )
+    expect(record).toHaveBeenCalledExactlyOnceWith('sandbox', 0.002)
   })
 
   it('derives the session key from the chat, one per chat', async () => {

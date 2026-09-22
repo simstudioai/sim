@@ -1045,6 +1045,7 @@ async function runCheckpointLoop(
   let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  execContext.mothershipBaseURL = mothershipBaseURL
   if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
     const simConnection = getSimConnection()
     payload = { ...payload, simConnection }
@@ -1646,7 +1647,8 @@ async function withEnterpriseByokKey(
 ): Promise<Record<string, unknown>> {
   if (!BYOK_ROUTES.includes(route)) return payload
   const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
-  return byokApiKey ? { ...payload, byokApiKey } : payload
+  const refreshed = omit(payload, ['byokApiKey'])
+  return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {

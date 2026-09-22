@@ -79,6 +79,10 @@ import {
   assistantConnectedAccountTokenParam,
   projectAssistantConnectedAccountTool,
 } from '@/lib/mothership/assistant/connected-account-tool'
+import {
+  recordServiceCost,
+  recordServiceMeteringFailure,
+} from '@/lib/mothership/billing/service-observer'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -1010,6 +1014,7 @@ async function applyHostedKeyCostToResult(
       `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
       { provider, error: getErrorMessage(error) }
     )
+    await recordServiceMeteringFailure(`Hosted provider ${provider}: ${getErrorMessage(error)}`)
     hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
   }
 
@@ -1018,6 +1023,7 @@ async function applyHostedKeyCostToResult(
 
   if (hostedKeyCost > 0) {
     const { copilotToolExecution } = resolveToolScope(params, executionContext)
+    if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
     finalResult.output = {
       ...finalResult.output,
       cost: {

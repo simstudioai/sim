@@ -6,6 +6,7 @@ import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/mothership/application/execute-file-use-case'
+import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { GenerateAudio } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -126,6 +127,8 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         instrumental: params.instrumental,
         voiceSampleDataUri,
       })
+
+      await recordServiceCost('falai_audio', result.cost.costDollars)
 
       const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)

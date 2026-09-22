@@ -33,6 +33,7 @@ const {
   unregisterActiveStream,
   fetchGo,
   buildChatTitleContext,
+  checkTitleUsage,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -51,6 +52,7 @@ const {
   unregisterActiveStream: vi.fn(),
   fetchGo: vi.fn(),
   buildChatTitleContext: vi.fn().mockResolvedValue(undefined),
+  checkTitleUsage: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -75,6 +77,11 @@ vi.mock('@/lib/mothership/request/session/abort', () => ({
 vi.mock('@/lib/mothership/request/session/controller-lease', async (original) => ({
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
+  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
+  checkAttributedUsageLimits: checkTitleUsage,
 }))
 
 vi.mock('@/lib/mothership/chat/title-context', () => ({ buildChatTitleContext }))
@@ -731,6 +738,20 @@ describe('requestChatTitle billing protocol', () => {
         }
       )
     })
+  })
+
+  it('refuses title model egress when its canonical payer has no headroom', async () => {
+    checkTitleUsage.mockResolvedValueOnce({ isExceeded: true })
+    const title = await requestChatTitle({
+      message: 'explain billing',
+      model: 'claude-opus-4.8',
+      userId: 'user-1',
+      workspaceId: BILLING_ATTRIBUTION.workspaceId,
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+    expect(checkTitleUsage).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+    expect(title).toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
   })
 
   it('freezes and forwards a dedicated attributed identity before title work', async () => {

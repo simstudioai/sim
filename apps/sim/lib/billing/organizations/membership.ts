@@ -48,10 +48,13 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
+import { isRetryableTransactionError } from '@/lib/db/transaction'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
@@ -483,6 +486,10 @@ export interface RemoveMemberParams {
   spareSessionToken?: string
   /** Authenticated session identity; avoids carrying its bearer token into application operations. */
   spareSessionId?: string
+  /** Acting member whose management authority is rechecked under the mutation lock. */
+  actorUserId?: string
+  /** Legacy compound callers consume failure results; application use cases propagate errors. */
+  onError?: 'return-failure' | 'throw'
   /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
@@ -1282,6 +1289,8 @@ export async function removeUserFromOrganization(
     revokePersonalApiKeys = false,
     spareSessionToken,
     spareSessionId,
+    actorUserId,
+    onError = 'return-failure',
   } = params
 
   const billingActions = {
@@ -1314,6 +1323,8 @@ export async function removeUserFromOrganization(
     const result = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'all' },
       async (tx, { workspaceIds, invitationIds }) => {
+        if (actorUserId)
+          await requireMemberManagementAuthority(tx, organizationId, actorUserId, userId)
         if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
           const [remainingAccess] = await tx
             .select({ id: permissions.id })
@@ -1338,8 +1349,9 @@ export async function removeUserFromOrganization(
           .returning({ id: member.id })
 
         if (deletedMember.length === 0) {
-          throw new Error(
-            'Member could not be removed — they may have been promoted to owner concurrently'
+          throw new OrchestrationError(
+            'conflict',
+            'The membership changed before removal. Refresh and try again.'
           )
         }
 
@@ -1523,6 +1535,7 @@ export async function removeUserFromOrganization(
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return { success: false, error: error.message, billingActions }
     }
+    if (onError === 'throw') throw error
 
     logger.error('Failed to remove user from organization', {
       userId,
@@ -1541,6 +1554,7 @@ export async function removeUserFromOrganization(
 export async function removeExternalUserFromOrganizationWorkspaces(params: {
   userId: string
   organizationId: string
+  actorUserId?: string
 }): Promise<RemoveExternalWorkspaceAccessResult> {
   const { userId, organizationId } = params
 
@@ -1570,12 +1584,18 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
     } = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'external' },
       async (tx, { workspaceIds, invitationIds }) => {
+        if (params.actorUserId)
+          await requireMemberManagementAuthority(tx, organizationId, params.actorUserId)
         const [currentMember] = await tx
           .select({ id: member.id })
           .from(member)
           .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
           .limit(1)
-        if (currentMember) throw new Error('User is an organization member')
+        if (currentMember)
+          throw new OrchestrationError(
+            'conflict',
+            'User is now an organization member. Refresh before removing them.'
+          )
 
         await setOrgMemberUsageLimit(organizationId, userId, null, undefined, tx)
 
@@ -1690,6 +1710,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       pendingInvitationsCancelled,
     }
   } catch (error) {
+    if (error instanceof OrchestrationError || isRetryableTransactionError(error)) throw error
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return {
         success: false,
