@@ -116,12 +116,10 @@ describe('OrganizationFooter settings navigation', () => {
       [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
     ).toEqual(['Settings', 'My access requests', 'Sign out'])
     expect(document.querySelector('[role="separator"]')).toBeNull()
-    const requests = document.querySelector<HTMLAnchorElement>(
-      'a[href="/access-requests?organizationId=org-1"]'
-    )
+    const requests = document.querySelector<HTMLAnchorElement>('a[href="/o/org-1/access-requests"]')
     expect(requests).not.toBeNull()
     await act(async () => requests!.click())
-    expect(mockPush).toHaveBeenCalledWith('/access-requests?organizationId=org-1')
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/access-requests')
   })
 
   it('navigates immediately when settings are clean', async () => {

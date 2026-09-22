@@ -37,7 +37,14 @@ function invitation(id: string) {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     inviterName: 'Ada',
     inviterEmail: 'ada@example.com',
-    grants: [{ workspaceId: 'ws-1', workspaceName: 'WS', permission: 'read' }],
+    grants: [
+      {
+        workspaceId: 'ws-1',
+        workspaceName: 'WS',
+        workspaceLogoUrl: 'https://example.com/workspace.png',
+        permission: 'read',
+      },
+    ],
   }
 }
 
@@ -56,6 +63,7 @@ describe('GET /api/invitations', () => {
     const { invitations } = await (await GET(createMockRequest('GET'))).json()
 
     expect(invitations.map((i: { id: string }) => i.id)).toEqual(['a', 'b', 'c'])
+    expect(invitations[0].grants[0].workspaceLogoUrl).toBe('https://example.com/workspace.png')
     expect(invitations.map((i: { joinPreview: unknown }) => i.joinPreview)).toEqual([
       { for: 'a' },
       { for: 'b' },

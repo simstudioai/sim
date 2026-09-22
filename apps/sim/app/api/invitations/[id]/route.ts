@@ -104,6 +104,7 @@ export const GET = withRouteHandler(
           grants: inv.grants.map((grant) => ({
             workspaceId: grant.workspaceId,
             workspaceName: grant.workspaceName,
+            workspaceLogoUrl: grant.workspaceLogoUrl,
             permission: grant.permission,
           })),
         },

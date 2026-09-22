@@ -23,6 +23,7 @@ const accessRequestSearchParser = createParser({
   serialize: String,
 }).withDefault('')
 
+/** Missing IDs mean no request selection or organization context, so there is no default. */
 const accessRequestIdParser = createParser({
   parse: (value) =>
     value.length > 0 && value.length <= ACCESS_REQUEST_MAX_ID_LENGTH ? value : null,

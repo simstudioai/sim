@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
   usePathname: () => '/workspace/workspace',
 }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   useCreateAccessRequest: () => ({ mutate: mocks.create, isPending: false, error: null }),
   useDiscoverAccessRequests: mocks.discovery,
 }))

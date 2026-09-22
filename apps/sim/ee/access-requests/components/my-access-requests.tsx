@@ -1,12 +1,23 @@
 'use client'
 
-import { Chip, ChipInput, ChipLink, ChipSwitch, ChipTag } from '@sim/emcn'
+import { useRef } from 'react'
+import {
+  Chip,
+  ChipInput,
+  ChipLink,
+  ChipSwitch,
+  ChipTag,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { Lock, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   RESOURCE_LIST_STACK,
@@ -19,21 +30,24 @@ import {
   accessRequestUrlOptions,
 } from '@/ee/access-requests/components/search-params'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
+import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import {
   ACCESS_REQUEST_PAGE_SIZE,
   useDiscoverAccessRequests,
   useMyAccessRequests,
-} from '@/ee/access-requests/hooks/access-requests'
-import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
+} from '@/hooks/queries/access-requests'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface MyAccessRequestsProps {
   scope: AccessRequestScope
+  standalone?: boolean
 }
 
-export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
+export function MyAccessRequests({ scope, standalone = false }: MyAccessRequestsProps) {
+  const scrollRef = useRef<HTMLElement>(null)
+  const scrollEdges = useScrollEdges(scrollRef)
   const { hosted } = useDeploymentShape()
   const workspace = useWorkspaceHostContextQuery(
     scope.kind === 'workspace' ? scope.workspaceId : ''
@@ -68,8 +82,15 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
       : 'Organization requests'
 
   return (
-    <main className='flex h-full min-h-0 flex-col overflow-y-auto bg-[var(--bg)]'>
-      <div className='mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8'>
+    <main
+      ref={scrollRef}
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-y-auto bg-[var(--bg)] py-8',
+        scrollFadeClass
+      )}
+      {...scrollFadeAttributes(scrollEdges)}
+    >
+      <div className='mx-auto flex w-full max-w-3xl flex-col gap-6 px-6'>
         <div className='flex items-start justify-between gap-4'>
           <div className='space-y-1'>
             <h1 className='text-[var(--text-primary)] text-lg'>My access requests</h1>
@@ -80,9 +101,7 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
               </p>
             )}
           </div>
-          {scope.kind === 'organization' && (
-            <ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>
-          )}
+          {standalone && <ChipLink href={APP_ENTRY_PATH}>Back to Sim</ChipLink>}
         </div>
         {showCatalog && (
           <ChipSwitch
@@ -142,7 +161,6 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
                 }
                 onClick={() => void setParams({ requestId: request.id }, { history: 'push' })}
                 clickLabel={`View request for ${request.targetLabel}`}
-                navigable
               />
             ))}
           </div>

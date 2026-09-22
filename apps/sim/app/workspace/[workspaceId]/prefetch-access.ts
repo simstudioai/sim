@@ -11,7 +11,7 @@ import {
   ACCESS_REQUESTS_STALE_TIME,
   accessRequestKeys,
   workspaceFeatureDiscoveryQuery,
-} from '@/ee/access-requests/hooks/access-request-keys'
+} from '@/hooks/queries/utils/access-request-keys'
 import {
   PERMISSION_GROUPS_STALE_TIME,
   permissionGroupKeys,

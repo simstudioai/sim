@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, type ComponentProps } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +21,7 @@ vi.mock('@/lib/core/config/deployment-shape', () => ({
 vi.mock('@/hooks/queries/workspace-host', () => ({
   useWorkspaceHostContextQuery: mocks.workspace,
 }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   ACCESS_REQUEST_PAGE_SIZE: 25,
   useMyAccessRequests: mocks.mine,
   useDiscoverAccessRequests: mocks.discovery,
@@ -69,11 +69,14 @@ describe('compact requester history', () => {
     act(() => root.unmount())
     container.remove()
   })
-  const render = (searchParams = '') =>
+  const render = (
+    searchParams = '',
+    props: Partial<ComponentProps<typeof MyAccessRequests>> = {}
+  ) =>
     act(() =>
       root.render(
         <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mocks.url}>
-          <MyAccessRequests scope={scope} />
+          <MyAccessRequests scope={scope} {...props} />
         </NuqsTestingAdapter>
       )
     )
@@ -85,12 +88,38 @@ describe('compact requester history', () => {
     expect(container.textContent).not.toContain('Cancel')
     expect(container.querySelector('[aria-label="View request for Slack"]')).not.toBeNull()
   })
+
+  it('uses organization scope inside the organization shell without a workspace exit link', () => {
+    const organizationScope = { kind: 'organization', organizationId: 'organization' } as const
+    render('', { scope: organizationScope })
+    expect(mocks.mine).toHaveBeenCalledWith(organizationScope, 0, undefined, true)
+    expect(container.textContent).toContain('Organization requests')
+    expect(container.textContent).not.toContain('Your workspaces')
+    expect(container.textContent).not.toContain('Back to Sim')
+  })
+
+  it('returns standalone visitors through the shared app entry', () => {
+    render('', {
+      scope: { kind: 'organization', organizationId: 'organization' },
+      standalone: true,
+    })
+    const back = container.querySelector<HTMLAnchorElement>('a[href="/home"]')
+    expect(back?.textContent).toBe('Back to Sim')
+  })
   it('loads a deep-linked request independently of the retained list page', () => {
     render('?page=3&requestId=request')
     expect(mocks.mine).toHaveBeenCalledWith(scope, 75, undefined, true)
     expect(mocks.mine).toHaveBeenCalledWith(scope, 0, 'request')
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain(request.reason)
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Cancel request')
+  })
+  it('leaves the list visible when a deep-linked request no longer exists', () => {
+    mocks.mine.mockImplementation((_scope, _offset, id) => successful(id ? [] : [request]))
+    render('?page=3&requestId=removed-request')
+    expect(mocks.mine).toHaveBeenCalledWith(scope, 0, 'removed-request')
+    expect(container.textContent).toContain('Slack')
+    expect(container.textContent).toContain('Page 4')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
   it('does not show cached detail or allow cancellation after an authorized detail refresh fails', () => {
     mocks.mine.mockImplementation((_scope, _offset, id) =>

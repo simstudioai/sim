@@ -71,6 +71,7 @@ export interface InvitationWithGrants {
     workspaceId: string
     permission: 'admin' | 'write' | 'read'
     workspaceName: string | null
+    workspaceLogoUrl: string | null
   }>
   organizationName: string | null
   inviterName: string | null
@@ -221,6 +222,7 @@ async function hydrateInvitation(
       workspaceId: invitationWorkspaceGrant.workspaceId,
       permission: invitationWorkspaceGrant.permission,
       workspaceName: workspace.name,
+      workspaceLogoUrl: workspace.logoUrl,
     })
     .from(invitationWorkspaceGrant)
     .leftJoin(workspace, eq(workspace.id, invitationWorkspaceGrant.workspaceId))
@@ -266,6 +268,7 @@ async function hydrateInvitation(
       workspaceId: grant.workspaceId,
       permission: grant.permission,
       workspaceName: grant.workspaceName,
+      workspaceLogoUrl: grant.workspaceLogoUrl,
     })),
     organizationName,
     inviterName: inviterRow?.name ?? null,

@@ -1,11 +1,17 @@
 import type { InvitationDetails, MyInvitation } from '@/lib/api/contracts/invitations'
+import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
 
 interface InvitationDisclosureProps {
   invitation: InvitationDetails
   joinPreview: MyInvitation['joinPreview']
+  showWorkspaceAccess?: boolean
 }
 
-export function InvitationDisclosure({ invitation, joinPreview }: InvitationDisclosureProps) {
+export function InvitationDisclosure({
+  invitation,
+  joinPreview,
+  showWorkspaceAccess = true,
+}: InvitationDisclosureProps) {
   const outcome =
     joinPreview?.outcome ?? (invitation.membershipIntent === 'external' ? 'external' : null)
   const organizationName =
@@ -14,7 +20,7 @@ export function InvitationDisclosure({ invitation, joinPreview }: InvitationDisc
     'the workspace’s organization'
 
   return (
-    <div className='space-y-3 text-left text-[var(--text-body)] text-sm'>
+    <div className='space-y-3 text-left text-[var(--text-body)] text-small'>
       {outcome === 'will-join' && (
         <>
           <p>
@@ -50,13 +56,6 @@ export function InvitationDisclosure({ invitation, joinPreview }: InvitationDisc
           additional seat is used, and none of your personal workspaces will move.
         </p>
       )}
-      {outcome === 'external' && (
-        <p>
-          You will receive workspace access without joining an organization or using one of its
-          seats. Your organization membership will stay the same, and none of your personal
-          workspaces will move.
-        </p>
-      )}
       {outcome === 'blocked' && (
         <p>
           This invitation cannot currently be accepted. Try accepting to see what needs to be
@@ -69,16 +68,10 @@ export function InvitationDisclosure({ invitation, joinPreview }: InvitationDisc
           Refresh the invitation to review these details before accepting.
         </p>
       )}
-      {invitation.grants.length > 0 && (
-        <div>
-          <p>Invited workspace access:</p>
-          <ul className='mt-1 list-disc space-y-1 pl-5' aria-label='Invited workspace access'>
-            {invitation.grants.map((grant) => (
-              <li key={grant.workspaceId} className='break-words'>
-                {grant.workspaceName || 'Unnamed workspace'}: {grant.permission} access
-              </li>
-            ))}
-          </ul>
+      {showWorkspaceAccess && invitation.grants.length > 0 && (
+        <div className='space-y-2'>
+          <p className='text-[var(--text-muted)] text-caption'>Workspace access</p>
+          <InvitationWorkspaceAccess grants={invitation.grants} />
         </div>
       )}
     </div>

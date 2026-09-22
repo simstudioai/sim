@@ -2,7 +2,7 @@
 
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
-import { useDiscoverAccessRequests } from '@/ee/access-requests/hooks/access-requests'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 
 interface MemberLimitRequestActionProps {
   scope: AccessRequestScope

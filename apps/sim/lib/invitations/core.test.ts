@@ -90,6 +90,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 import {
   acceptInvitation,
+  getInvitationById,
   rejectInvitation,
   resolveInvitationAdmissionOrganizationId,
   revokeInvitationAsAdmin,
@@ -127,6 +128,39 @@ function executedSqlContaining(substring: string): boolean {
 }
 
 afterAll(resetEnvFlagsMock)
+
+describe('invitation workspace identity', () => {
+  it('hydrates uploaded logos and workspaces without a logo in the grant query', async () => {
+    resetDbChainMock()
+    queueWhereResponses([
+      [{ id: 'invitation', organizationId: null, inviterId: 'inviter' }],
+      [
+        {
+          id: 'grant-one',
+          workspaceId: 'one',
+          workspaceName: 'Design',
+          workspaceLogoUrl: 'https://example.com/design.png',
+          permission: 'read',
+        },
+        {
+          id: 'grant-two',
+          workspaceId: 'two',
+          workspaceName: 'Engineering',
+          workspaceLogoUrl: null,
+          permission: 'write',
+        },
+      ],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+    ])
+
+    const result = await getInvitationById('invitation')
+
+    expect(result?.grants.map((grant) => grant.workspaceLogoUrl)).toEqual([
+      'https://example.com/design.png',
+      null,
+    ])
+  })
+})
 
 describe('acceptInvitation', () => {
   beforeEach(() => {

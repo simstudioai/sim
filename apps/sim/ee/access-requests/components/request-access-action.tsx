@@ -14,14 +14,10 @@ import {
   type ChipProps,
   toast,
 } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import type { AccessRequestScope, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
-import {
-  useCreateAccessRequest,
-  useDiscoverAccessRequests,
-} from '@/ee/access-requests/hooks/access-requests'
 import { getAccessRequestTargetKey } from '@/ee/access-requests/lib/targets'
+import { useCreateAccessRequest, useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 
 interface RequestAccessActionProps {
   scope: AccessRequestScope
@@ -55,7 +51,6 @@ export function RequestAccessAction({
       return (
         <Chip
           variant={variant}
-          leftIcon={Lock}
           onClick={() => onViewRequest(pendingRequestId)}
           aria-label={`View request for ${label}`}
         >
@@ -67,7 +62,6 @@ export function RequestAccessAction({
       <ChipLink
         variant={variant}
         href={accessRequestHref(scope, pendingRequestId)}
-        leftIcon={Lock}
         aria-label={`View request for ${label}`}
       >
         View request
@@ -100,7 +94,6 @@ function RequestableAccessAction({
     <>
       <Chip
         variant={variant}
-        leftIcon={Lock}
         onClick={() => setOpen(true)}
         aria-label={
           target.kind === 'usage_limit'

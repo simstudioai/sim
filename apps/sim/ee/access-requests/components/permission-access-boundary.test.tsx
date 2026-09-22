@@ -34,7 +34,7 @@ vi.mock('@sim/emcn/icons', () => ({
   BookOpen: () => null,
 }))
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   useDiscoverAccessRequests: discovery,
 }))
 vi.mock('@/ee/access-requests/components/request-access-action', () => ({
