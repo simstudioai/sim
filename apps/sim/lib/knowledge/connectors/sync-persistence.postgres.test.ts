@@ -33,6 +33,11 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
   let sql: Sql
   const schemaName = `acl_write_${generateId().replaceAll('-', '')}`
 
+  const fannedOut = async () =>
+    (
+      await sql<{ document_id: string }[]>`SELECT document_id FROM fan_out ORDER BY document_id`
+    ).map((row) => row.document_id)
+
   const projected = () =>
     sql<{ id: string; acl: string[] | null }[]>`
       SELECT id, acl FROM embedding_search
@@ -68,6 +73,15 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       )`
     }
     await installProjectionSourceAcl(sql)
+    /**
+     * Counts the documents whose write fired the projection fan-out: the trigger fires on any
+     * assignment of `acl`, changed or not, so this is the cost an unchanged write must not pay.
+     */
+    await sql`CREATE TABLE fan_out (document_id text NOT NULL)`
+    await sql.unsafe(`CREATE FUNCTION count_fan_out() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN INSERT INTO fan_out VALUES (NEW.id); RETURN NEW; END; $$`)
+    await sql`CREATE TRIGGER count_fan_out AFTER UPDATE OF connector_id, acl ON document
+      FOR EACH ROW EXECUTE FUNCTION count_fan_out()`
     await sql`ALTER TABLE embedding_search DISABLE TRIGGER embedding_search_source_acl_set`
     await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
   }, 60_000)
@@ -79,7 +93,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE embedding_search, embedding_keyword_tin, document`
+    await sql`TRUNCATE embedding_search, embedding_keyword_tin, document, fan_out`
     await sql`INSERT INTO document (id, external_id, connector_id, acl, acl_verified_at) VALUES
       ('doc-same', 'file-same', 'admin', ARRAY[${ALICE}], now() - interval '1 day'),
       ('doc-moved', 'file-moved', 'admin', ARRAY[${ALICE}], now() - interval '1 day')`
@@ -93,7 +107,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
     }
   })
 
-  it('refreshes the evidence of an unchanged ACL without rewriting any chunk projection row', async () => {
+  it('refreshes the evidence of an unchanged ACL without firing the projection fan-out', async () => {
     await expect(persist(new Map([['file-same', [ALICE]]]))).resolves.toEqual({
       updated: 1,
       rejected: 0,
@@ -103,6 +117,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       SELECT acl, acl_verified_at > now() AT TIME ZONE 'UTC' - interval '1 minute' AS fresh
       FROM document WHERE id = 'doc-same'`
     expect(stored).toEqual({ acl: [ALICE], fresh: true })
+    expect(await fannedOut()).toEqual([])
     expect((await projected()).filter((row) => row.id.includes('-same-'))).toEqual([
       { id: 'kw-same-filled', acl: [ALICE] },
       { id: 'kw-same-unfilled', acl: null },
@@ -111,7 +126,8 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
     ])
   })
 
-  it('propagates a changed ACL to every chunk projection row, filled or not', async () => {
+  /** A chunk the backfill has not filled keeps a NULL ACL; the backfill copies the current one. */
+  it('propagates a changed ACL to every filled chunk projection row', async () => {
     await expect(persist(new Map([['file-moved', [BOB]]]))).resolves.toEqual({
       updated: 1,
       rejected: 0,
@@ -121,9 +137,9 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
     expect(stored.acl).toEqual([BOB])
     expect((await projected()).filter((row) => row.id.includes('-moved-'))).toEqual([
       { id: 'kw-moved-filled', acl: [BOB] },
-      { id: 'kw-moved-unfilled', acl: [BOB] },
+      { id: 'kw-moved-unfilled', acl: null },
       { id: 'vec-moved-filled', acl: [BOB] },
-      { id: 'vec-moved-unfilled', acl: [BOB] },
+      { id: 'vec-moved-unfilled', acl: null },
     ])
   })
 
@@ -156,9 +172,10 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       { id: 'doc-moved', acl: [ALICE, BOB] },
       { id: 'doc-same', acl: [ALICE] },
     ])
+    expect(await fannedOut()).toEqual(['doc-moved'])
     expect(
-      (await projected()).filter((row) => row.id.endsWith('-unfilled')).map((row) => row.acl)
-    ).toEqual([[ALICE, BOB], null, [ALICE, BOB], null])
+      (await projected()).filter((row) => row.id.endsWith('-filled')).map((row) => row.acl)
+    ).toEqual([[ALICE, BOB], [ALICE], [ALICE, BOB], [ALICE]])
   })
   it('writes a changed ACL group larger than one change batch completely', async () => {
     const ids = Array.from(
