@@ -3328,6 +3328,16 @@ export const document = pgTable(
     deletedAtPartialIdx: index('doc_deleted_at_partial_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * The connector sync's tombstone check asks whether a connector still has a recently deleted
+     * or never-hydrated document. Without this index the planner scans the whole table for the
+     * first match, and a connector with none reads every row.
+     */
+    connectorTombstoneIdx: index('doc_connector_tombstone_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.archivedAt} IS NULL AND (${table.deletedAt} IS NOT NULL OR ${table.contentHash} IS NULL)`
+      ),
     // Text tag indexes
     tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
     tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
