@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Expandable, ExpandableContent } from '@sim/emcn'
-import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn'
+import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { HomeSection } from '@/components/home/home-section'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -132,64 +133,29 @@ export function GetStarted() {
   }
 
   return (
-    <div className='group/suggested mx-auto mt-7 w-full max-w-chat'>
-      {/* Full width so the whole line toggles, not just the label and chevron. */}
-      <button
-        type='button'
-        onClick={handleToggleExpanded}
-        aria-expanded={expanded}
-        className='group/toggle flex w-full cursor-pointer items-center gap-2'
-      >
-        <span className='text-[var(--text-muted)] text-caption'>Get started</span>
-        {/*
-         * Revealed by hovering anywhere in the section — the group sits on the
-         * section wrapper rather than this row, so the rows below arm it just as
-         * the header does. Focus is keyed off the toggle instead, the only element
-         * here that can hold it, and matters because globals clear focus outlines.
-         * One transition covers the fade and the rotation so the two cannot drift
-         * apart. Mirrors the sidebar's section headers.
-         */}
-        <ChevronDown
-          className={cn(
-            'size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
-            'group-hover/suggested:opacity-100 group-focus-visible/toggle:opacity-100',
-            !expanded && '-rotate-90'
-          )}
-        />
-      </button>
-      <Expandable expanded={expanded}>
-        <ExpandableContent className={cn(!animationsEnabled && 'animate-none!')}>
-          {/* 6px, matching a sidebar section header to its first item — both headers
-              are an 18px box around 12px text, so equal padding reads as equal
-              distance. Padding an inner wrapper rather than the animated element:
-              `collapsible-up`/`-down` interpolate height alone, so a margin here
-              would hold its full value through the close and then vanish on unmount,
-              snapping the content below up. */}
-          <div className='flex flex-col pt-1.5'>
-            {steps.map((step, i) => {
-              const complete = completed[step.id]
-              return (
-                <Link
-                  key={step.id}
-                  href={hrefs[step.id]}
-                  className={cn(ROW_CLASS, i > 0 && 'border-t')}
-                >
-                  <StepMark complete={complete} />
-                  <span
-                    className={cn(
-                      'flex-1 truncate text-sm',
-                      complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                </Link>
-              )
-            })}
-          </div>
-        </ExpandableContent>
-      </Expandable>
-    </div>
+    <HomeSection
+      title='Get started'
+      expanded={expanded}
+      animationsEnabled={animationsEnabled}
+      onToggle={handleToggleExpanded}
+    >
+      {steps.map((step, i) => {
+        const complete = completed[step.id]
+        return (
+          <Link key={step.id} href={hrefs[step.id]} className={cn(ROW_CLASS, i > 0 && 'border-t')}>
+            <StepMark complete={complete} />
+            <span
+              className={cn(
+                'flex-1 truncate text-sm',
+                complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
+              )}
+            >
+              {step.label}
+            </span>
+            <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+          </Link>
+        )
+      })}
+    </HomeSection>
   )
 }
