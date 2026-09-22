@@ -58,6 +58,7 @@ export interface ToolCatalogEntry {
     | 'extract_doc_assets'
     | 'ffmpeg'
     | 'file'
+    | 'file_workflow'
     | 'generate_api_key'
     | 'generate_audio'
     | 'generate_image'
@@ -196,6 +197,7 @@ export interface ToolCatalogEntry {
     | 'extract_doc_assets'
     | 'ffmpeg'
     | 'file'
+    | 'file_workflow'
     | 'generate_api_key'
     | 'generate_audio'
     | 'generate_image'
@@ -281,7 +283,7 @@ export interface ToolCatalogEntry {
     | 'web_search'
     | 'workflow'
   parameters: unknown
-  requiredPermission?: 'admin' | 'write'
+  requiredPermission?: 'admin' | 'read' | 'write'
   requiresApproval?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
@@ -2997,6 +2999,60 @@ export const File: ToolCatalogEntry = {
   },
   subagentId: 'file',
   internal: true,
+}
+
+export const FileWorkflow: ToolCatalogEntry = {
+  id: 'file_workflow',
+  name: 'file_workflow',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        description:
+          'Configure allowed workflows, run one configured workflow, or read its cached result.',
+        enum: ['configure', 'run', 'read'],
+      },
+      audience: {
+        type: 'string',
+        description:
+          "Use share for the active public share's cache, or private for the calling user's cache. Defaults to private. Applies to run and read.",
+        enum: ['private', 'share'],
+      },
+      path: {
+        type: 'string',
+        description: 'Canonical HTML workspace file path, for example files/Dashboard.html.',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Configured workflow ID to run or read. Required for those actions.',
+      },
+      workflowIds: {
+        type: 'array',
+        description:
+          'Complete replacement list of deployed workflow IDs for configure. Empty array clears the list. Maximum 10 IDs.',
+        items: { type: 'string' },
+        maxItems: 10,
+      },
+    },
+    required: ['path', 'action'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'For configure: workflowIds. For run/read: status, output, executionId, deploymentVersionId, generatedAt, nextRunAt, and error.',
+      },
+      message: { type: 'string', description: 'Human-readable action outcome.' },
+      success: { type: 'boolean', description: 'Whether the file workflow action succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'read',
 }
 
 export const GenerateApiKey: ToolCatalogEntry = {
@@ -7675,6 +7731,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ExtractDocAssets.id]: ExtractDocAssets,
   [Ffmpeg.id]: Ffmpeg,
   [File.id]: File,
+  [FileWorkflow.id]: FileWorkflow,
   [GenerateApiKey.id]: GenerateApiKey,
   [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,

@@ -12,6 +12,7 @@ import {
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { authorizeFileWorkflowConfiguration } from '@/lib/workspace-files/application/file-workflow-policy'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -21,6 +22,7 @@ export interface CreateWorkspaceFileInput {
   workspaceId: string
   name: string
   contentType: string
+  workflowIds?: string[]
   content: string
   encoding: 'utf-8' | 'base64'
   folderId?: string | null
@@ -56,6 +58,14 @@ async function createAuthorizedWorkspaceFile({
   content: Buffer
   workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
 }): Promise<CreateWorkspaceFileResult> {
+  if (input.workflowIds)
+    await authorizeFileWorkflowConfiguration({
+      principal,
+      workspaceId: workspace.workspaceId,
+      contentType: input.contentType,
+      workflowIds: input.workflowIds,
+      publishing: false,
+    })
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: workspace.billedAccountUserId,
   })
@@ -68,6 +78,7 @@ async function createAuthorizedWorkspaceFile({
       input.name,
       input.contentType,
       {
+        workflowIds: input.workflowIds,
         folderId: input.folderId,
         folderPath: input.folderPath,
         exactName: input.exactName,

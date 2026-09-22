@@ -28,13 +28,15 @@ describe('enforcePublicFileRateLimit', () => {
 
   it.each([
     ['metadata', 120, 120],
+    ['workflow', 120, 120],
     ['content', 60, 60],
     ['inline', MAX_EMBEDDED_IMAGES * 3, 60],
   ] as const)('uses a separate bounded per-IP %s bucket', async (scope, maxTokens, refillRate) => {
     expect(await enforcePublicFileRateLimit(request, scope)).toBeNull()
     expect(mockCheckRateLimitDirect).toHaveBeenCalledExactlyOnceWith(
       `public-file:${scope}:192.0.2.1`,
-      { maxTokens, refillRate, refillIntervalMs: 60_000 }
+      { maxTokens, refillRate, refillIntervalMs: 60_000 },
+      { failClosed: scope === 'workflow' }
     )
   })
 

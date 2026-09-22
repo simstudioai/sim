@@ -96,6 +96,7 @@ describe('POST /api/v2/files/[fileId]/restore', () => {
       data: {
         id: FILE_ID,
         webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
+        workflowIds: [],
         name: 'notes_restored.md',
         size: 12,
         type: 'text/markdown',

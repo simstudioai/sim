@@ -55,14 +55,19 @@ export const GET = withRouteHandler(
       }
 
       const { file, workspaceName, ownerName } = resolved
-      return NextResponse.json({
-        token,
-        name: file.originalName,
-        type: file.contentType,
-        size: getWorkspaceFileSize(file),
-        workspaceName,
-        ownerName,
-      })
+      return NextResponse.json(
+        {
+          token,
+          name: file.originalName,
+          workflowIds: file.workflowIds,
+          version: file.updatedAt.getTime(),
+          type: file.contentType,
+          size: getWorkspaceFileSize(file),
+          workspaceName,
+          ownerName,
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      )
     } catch (error) {
       logger.error('Error fetching public file metadata:', error)
       return NextResponse.json(

@@ -53,6 +53,8 @@ const publicShare = {
     originalName: 'report.pdf',
     contentType: 'application/pdf',
     sizeBytes: 2048,
+    workflowIds: [],
+    updatedAt: new Date('2026-09-22T00:00:00.000Z'),
   },
   workspaceName: 'Acme Workspace',
   ownerName: 'Jane Doe',
@@ -95,6 +97,8 @@ describe('GET /api/files/public/[token]', () => {
       name: 'report.pdf',
       type: 'application/pdf',
       size: 2048,
+      workflowIds: [],
+      version: new Date('2026-09-22T00:00:00.000Z').getTime(),
       workspaceName: 'Acme Workspace',
       ownerName: 'Jane Doe',
     })

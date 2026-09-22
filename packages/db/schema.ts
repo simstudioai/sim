@@ -2206,6 +2206,26 @@ export const workspaceFile = pgTable(
   })
 )
 
+/** Durable admission survives cache eviction, metadata edits and share revocation. */
+export const workspaceFileWorkflowRun = pgTable(
+  'workspace_file_workflow_run',
+  {
+    fileId: text('file_id')
+      .notNull()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    audience: text('audience').notNull(),
+    deploymentVersionId: text('deployment_version_id'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    finishedAt: timestamp('finished_at'),
+    status: text('status').$type<'running' | 'completed' | 'failed'>().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.fileId, table.workflowId] })]
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -2243,6 +2263,9 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
+    /** Deployed workflows callable through this HTML document. */
+    workflowIds: jsonb('workflow_ids').$type<string[]>().notNull().default([]),
+    workflowConfigVersion: integer('workflow_config_version').notNull().default(0),
     /** Exact byte size. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**

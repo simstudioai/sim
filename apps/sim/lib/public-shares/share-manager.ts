@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { publicShare, user, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type {
   ShareAuthType,
@@ -11,6 +11,7 @@ import type {
 } from '@/lib/api/contracts/public-shares'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('PublicShareManager')
 
@@ -47,9 +48,10 @@ function mapShareRecord(row: PublicShareRow): ShareRecord {
 
 export async function getShareForResource(
   resourceType: ShareResourceType,
-  resourceId: string
+  resourceId: string,
+  executor: DbOrTx = db
 ): Promise<ShareRecord | null> {
-  const [row] = await db
+  const [row] = await executor
     .select()
     .from(publicShare)
     .where(and(eq(publicShare.resourceType, resourceType), eq(publicShare.resourceId, resourceId)))
@@ -164,17 +166,20 @@ interface UpsertFileShareInput {
  * Disabling (going Private) always succeeds and preserves the stored config so a
  * later re-enable restores it. Validation failures throw {@link ShareValidationError}.
  */
-export async function upsertFileShare({
-  workspaceId,
-  fileId,
-  userId,
-  isActive,
-  authType,
-  password,
-  allowedEmails,
-  token,
-}: UpsertFileShareInput): Promise<ShareRecord> {
-  const [existing] = await db
+export async function upsertFileShare(
+  {
+    workspaceId,
+    fileId,
+    userId,
+    isActive,
+    authType,
+    password,
+    allowedEmails,
+    token,
+  }: UpsertFileShareInput,
+  executor: DbOrTx = db
+): Promise<ShareRecord> {
+  const [existing] = await executor
     .select()
     .from(publicShare)
     .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
@@ -214,7 +219,7 @@ export async function upsertFileShare({
     }
   }
 
-  const [row] = await db
+  const [row] = await executor
     .insert(publicShare)
     .values({
       id: generateId(),
@@ -235,7 +240,7 @@ export async function upsertFileShare({
         authType: finalAuthType,
         password: finalPassword,
         allowedEmails: finalAllowedEmails,
-        updatedAt: new Date(),
+        updatedAt: sql`GREATEST(now(), ${publicShare.updatedAt} + interval '1 millisecond')`,
       },
     })
     .returning()

@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { APP_ENTRY_PATH, isAppSurfacePath } from '@/lib/navigation/paths'
+import { htmlContentOrigin } from '@/lib/workspace-files/html-runtime/config'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -337,6 +338,16 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
+  const configuredHtmlOrigin = getEnv('HTML_CONTENT_ORIGIN')
+  if (configuredHtmlOrigin) {
+    const origin = htmlContentOrigin(configuredHtmlOrigin, getEnv('NEXT_PUBLIC_APP_URL')!)
+    if (request.headers.get('host') === new URL(origin).host) {
+      return url.pathname === '/html-frame'
+        ? NextResponse.next()
+        : new NextResponse(null, { status: 404 })
+    }
+  }
+  if (url.pathname === '/html-frame') return new NextResponse(null, { status: 404 })
 
   const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
   if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })

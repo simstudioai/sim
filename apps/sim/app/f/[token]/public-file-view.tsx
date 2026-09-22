@@ -5,13 +5,16 @@ import { Chip, OverflowText, SimWordmark } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { isWorkflowHtml } from '@/lib/workspace-files/workflows/types'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useBrandConfig } from '@/ee/whitelabeling'
+import { useWorkflowHtmlPublicMetadata } from '@/hooks/queries/file-workflows'
 import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
 
 interface PublicFileViewProps {
+  workflowIds: string[]
   token: string
   name: string
   type: string
@@ -24,13 +27,22 @@ interface PublicFileViewProps {
 
 export function PublicFileView({
   token,
-  name,
-  type,
-  size,
-  version,
+  workflowIds: initialWorkflowIds,
+  name: initialName,
+  type: initialType,
+  size: initialSize,
+  version: initialVersion,
   workspaceName,
   ownerName,
 }: PublicFileViewProps) {
+  const metadata = useWorkflowHtmlPublicMetadata(token, isWorkflowHtml(initialType))
+  const { workflowIds, name, type, size, version } = metadata.data ?? {
+    workflowIds: initialWorkflowIds,
+    name: initialName,
+    type: initialType,
+    size: initialSize,
+    version: initialVersion,
+  }
   const contentUrl = `/api/files/public/${token}/content`
   const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
@@ -52,6 +64,7 @@ export function PublicFileView({
       id: token,
       workspaceId: token,
       name,
+      workflowIds,
       key: `${token}@${version}`,
       path: contentUrl,
       size,
@@ -61,8 +74,15 @@ export function PublicFileView({
       uploadedAt: new Date(version),
       updatedAt: new Date(version),
     }),
-    [token, name, type, size, version, contentUrl]
+    [token, name, type, size, version, contentUrl, workflowIds]
   )
+
+  if (metadata.error)
+    return (
+      <div role='alert' className='p-4'>
+        This shared file is no longer available. Reload to authenticate again.
+      </div>
+    )
 
   return (
     <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>

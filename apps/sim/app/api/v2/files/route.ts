@@ -86,6 +86,7 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     name: body.name,
+    workflowIds: body.workflowIds,
     contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
     content: body.content,
     encoding: body.encoding,

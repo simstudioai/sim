@@ -132,6 +132,7 @@ export class FileConflictError extends OrchestrationError {
 }
 
 export interface WorkspaceFileRecord {
+  workflowIds?: string[]
   id: string
   workspaceId: string
   name: string
@@ -257,6 +258,7 @@ const MAX_COPY_SUFFIX = 1000
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
+  workflowIds?: string[]
   id: string
   key: string
   userId: string
@@ -422,6 +424,7 @@ export async function uploadWorkspaceFile(
     exactName?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
+    workflowIds?: string[]
   }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
@@ -518,6 +521,7 @@ export async function uploadWorkspaceFile(
             originalName: uniqueName,
             contentType: effectiveContentType,
             size: effectiveBuffer.length,
+            workflowIds: options?.workflowIds,
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
@@ -1148,6 +1152,7 @@ function mapWorkspaceFileRecord(
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
     contentUpdatedAt: file.contentUpdatedAt,
+    workflowIds: file.workflowIds,
   }
 }
 
@@ -1268,6 +1273,7 @@ function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileSc
  * so `select()` would ship five unprojected columns for every row of the scan.
  */
 const workspaceFileListColumns = {
+  workflowIds: workspaceFiles.workflowIds,
   id: workspaceFiles.id,
   key: workspaceFiles.key,
   userId: workspaceFiles.userId,

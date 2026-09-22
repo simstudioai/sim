@@ -130,6 +130,15 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | Operation
   diff_workflows: 'compared workflows',
   download_file: 'downloaded files',
   edit_workflow: 'edited workflows',
+  file_workflow: {
+    label: 'used file workflows',
+    parameter: 'action',
+    operations: {
+      configure: 'configured file workflows',
+      run: 'ran file workflows',
+      read: 'read file workflow results',
+    },
+  },
   extract_doc_assets: 'extracted document assets',
   ffmpeg: {
     label: 'used media tools',

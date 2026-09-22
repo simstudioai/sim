@@ -107,6 +107,7 @@ export const env = createEnv({
   skipValidation: true,
 
   server: {
+    HTML_CONTENT_ORIGIN: z.string().url().optional(),
     OUTBOUND_ROUTING_SOURCE: z.enum(['env', 'appconfig']).optional(),
     OUTBOUND_ROUTING_CONFIG: z.string().optional(),
     OUTBOUND_GATEWAYS: z.string().optional(),

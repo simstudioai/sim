@@ -56,6 +56,7 @@ export interface ImageDimensionsSource {
  * this source so the same components work in both contexts.
  */
 export interface FileContentSource {
+  workflowShareToken?: string
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
   /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
@@ -117,11 +118,16 @@ export function createPublicFileContentSource(
   token: string,
   contentUrl: string
 ): FileContentSource {
-  return inlineImageSource(
-    (_key, opts) =>
-      opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
-    `/api/files/public/${token}/inline`
-  )
+  return {
+    workflowShareToken: token,
+    ...inlineImageSource(
+      (_key, opts) =>
+        opts?.preview
+          ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1`
+          : contentUrl,
+      `/api/files/public/${token}/inline`
+    ),
+  }
 }
 
 /**

@@ -110,7 +110,7 @@ async function routeApplicationOperation(routePath: string, method: string): Pro
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
   ['apps/docs/openapi-v2-workflows.json', 58],
   ['apps/docs/openapi-v2-logs.json', 3],
-  ['apps/docs/openapi-v2-files-audit.json', 35],
+  ['apps/docs/openapi-v2-files-audit.json', 38],
   ['apps/docs/openapi-v2-tables.json', 53],
   ['apps/docs/openapi-v2-knowledge.json', 45],
   ['apps/docs/openapi-v2-billing.json', 2],
@@ -310,7 +310,7 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(288)
+    expect(totalOperations).toBe(291)
   })
 
   it('documents mixed workflow execution and resume responses', () => {

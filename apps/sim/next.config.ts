@@ -405,7 +405,7 @@ const nextConfig: NextConfig = {
       // Middleware handles: /, /login, /signup, /workspace/*
       // Exclude chat routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|login|signup|$).*)',
+        source: '/((?!workspace|chat|login|signup|html-frame|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
