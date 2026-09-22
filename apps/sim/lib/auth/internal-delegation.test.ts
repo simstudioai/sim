@@ -11,6 +11,8 @@ const { mockResolveWorkflow, mockResolveRun, mockResolveExecution, mockResolveDe
     mockResolveDeploymentVersion: vi.fn(),
   }))
 
+vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
+
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mockResolveWorkflow,
   resolveActiveWorkflowRunApplicationContext: mockResolveRun,
@@ -323,5 +325,44 @@ describe('bindInternalExecutorDelegation', () => {
     await expect(
       bindInternalExecutorDelegation(claims, { audience: 'sim:workspace-files' })
     ).rejects.toBe(infrastructureError)
+    expect(mockResolveWorkflow).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a canonical load that failed on a reset database connection', async () => {
+    const connectionReset = Object.assign(new Error('Failed query'), {
+      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    })
+    mockResolveRun.mockRejectedValueOnce(connectionReset)
+
+    const principal = await bindInternalExecutorDelegation(
+      { ...claims, executionId: 'execution-1' },
+      { audience: 'sim:function-execute' }
+    )
+
+    expect(principal.workspaceId).toBe('workspace-1')
+    expect(mockResolveRun).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a current-workflow load that failed on a reset database connection', async () => {
+    const connectionReset = Object.assign(new Error('Failed query'), {
+      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    })
+    mockResolveDeploymentVersion.mockRejectedValueOnce(connectionReset)
+
+    const principal = await bindInternalExecutorDelegation(
+      {
+        ...claims,
+        executionId: 'execution-1',
+        currentWorkflow: {
+          workflowId: 'child-workflow',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-version-1',
+        },
+      },
+      { audience: 'sim:credential-groups' }
+    )
+
+    expect(principal.workspaceId).toBe('workspace-1')
+    expect(mockResolveDeploymentVersion).toHaveBeenCalledTimes(2)
   })
 })
