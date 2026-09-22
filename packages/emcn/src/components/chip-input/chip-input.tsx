@@ -28,11 +28,19 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
+import {
+  chipContentGeometryClass,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipRadiusClass,
+  chipSizeClasses,
+} from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  /** Control height: 30px by default, or the larger 36px auth spacing scale. */
+  size?: keyof typeof chipSizeClasses
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
   /** Custom leading content, such as a color swatch. Takes precedence over `icon`. */
@@ -62,6 +70,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       error,
       disabled,
       type = 'text',
+      size = 'md',
       ...props
     },
     ref
@@ -69,7 +78,9 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
     <div
       className={cn(
         'flex w-full',
-        chipGeometryClass,
+        chipContentGeometryClass,
+        chipRadiusClass,
+        chipSizeClasses[size],
         chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',

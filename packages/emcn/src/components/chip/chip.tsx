@@ -14,17 +14,18 @@ import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-t
 import {
   chipActiveSurfaceClass,
   chipBorderShadowRing,
+  chipContentGeometryClass,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
-  chipGeometryUnroundedClass,
   chipHoverSurfaceClass,
   chipPrimaryFillTokens,
   chipRadiusClass,
+  chipSizeClasses,
 } from './chip-chrome'
 
 /**
- * 30px pill — the platform's most common chrome pattern.
+ * 30px pill (36px with `size="lg"` at the default root font size) — the platform's most common chrome pattern.
  *
  * Render targets:
  * - {@link Chip} → `<button>`
@@ -41,6 +42,7 @@ import {
  * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
  * no CSS border, no fill); outline (a true border with no shadow or hover fill).
  * `active` renders the default/filled chip in its selected state — `--surface-active`, held through hover.
+ * `align="center"` centers the complete icon/label group while allowing long labels to shrink.
  * `fullWidth` swaps `inline-flex` for block-level `flex`.
  * `shape` picks the corner radius: the implicit `default` is the `rounded-lg` pill; `round` is fully round
  * (`rounded-full`) for a chip sitting in a row of round controls. The radius lives in this variant rather than
@@ -60,7 +62,7 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipContentGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
       variant: {
@@ -74,6 +76,8 @@ const chipVariants = cva(
         outline:
           'border border-[var(--border)] bg-transparent hover-hover:border-[color-mix(in_srgb,var(--border)_80%,var(--text-secondary))]',
       },
+      size: chipSizeClasses,
+      align: { start: '', center: 'justify-center' },
       shape: { default: chipRadiusClass, round: 'rounded-full' },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex w-full', false: 'inline-flex' },
@@ -82,7 +86,14 @@ const chipVariants = cva(
       { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
       { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
-    defaultVariants: { variant: 'default', shape: 'default', active: false, fullWidth: false },
+    defaultVariants: {
+      variant: 'default',
+      size: 'md',
+      align: 'start',
+      shape: 'default',
+      active: false,
+      fullWidth: false,
+    },
   }
 )
 
@@ -116,6 +127,7 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
  */
 function ChipContent({
   variant,
+  align,
   leftIcon: LeftIcon,
   leftAdornment,
   rightIcon: RightIcon,
@@ -124,7 +136,11 @@ function ChipContent({
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
-  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const labelClass = cn(
+    chipContentLabelClass,
+    align === 'center' ? 'flex-initial' : 'flex-1',
+    isInverse && 'text-current'
+  )
   const textLabel =
     typeof children === 'string' || typeof children === 'number' ? String(children) : null
   return (
@@ -151,6 +167,8 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
     className,
     variant,
+    size,
+    align,
     shape,
     active,
     fullWidth,
@@ -168,11 +186,12 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, size, align, shape, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent
         variant={variant}
+        align={align}
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
@@ -196,6 +215,8 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   {
     className,
     variant,
+    size,
+    align,
     shape,
     active,
     fullWidth,
@@ -211,11 +232,12 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, size, align, shape, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent
         variant={variant}
+        align={align}
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
