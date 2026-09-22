@@ -33,7 +33,7 @@ Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Ollama, vLLM, and Lit
 
 ### Jev evaluation models
 
-Select `jev-1.13.0`, `jev-latest`, or `jev-preview` from TypeSafe in the Agent model selector, then enter your TypeSafe API key. These models use **State** and **Questions** in place of conversational messages. State accepts text or a reference to a JSON object or array. Questions is a JSON object keyed by the answer names you want:
+Select `jev-latest` from TypeSafe in the Agent model selector. Hosted Sim supplies a key and bills model usage through the normal credit system; workspace or organization BYOK keys override the hosted key without model charges. Self-hosted users enter their TypeSafe key in the block. Use `jev-1.13.0` to pin a version or `jev-preview` to follow preview releases. These models use **State** and **Questions** in place of conversational messages. State accepts text or a reference to a JSON object or array. Questions is a JSON object keyed by the answer names you want:
 
 ```json
 {
@@ -51,9 +51,9 @@ Select `jev-1.13.0`, `jev-latest`, or `jev-preview` from TypeSafe in the Agent m
 }
 ```
 
-Read results from `<agent.answers>`. Each Choice answer includes `choice`, `probabilities`, and `confidence`; each Score answer includes `score`, `legend`, `probabilities`, and `confidence`; each Noul answer includes `noul`, a probability from 0 to 1. `content` contains the same answers as JSON text, and the standard model, token, timing, and cost outputs remain available. Use a Condition block to route on these results.
+Read results from `<agent.answers>` or expand an answer in the reference picker, such as `<agent.answers.route.choice>`. Each Choice answer includes `choice`, `probabilities`, and `confidence`; each Score answer includes `score`, `legend`, `probabilities`, and `confidence`; each Noul answer includes `noul`, a probability from 0 to 1. `content` contains the same answers as JSON text, and the standard model, token, timing, and cost outputs remain available. Use a Condition block to route on these results.
 
-Jev evaluates the supplied state in one request. Chat messages, files, tools, skills, conversation memory, response-format schemas, and chat model fallbacks are hidden for these models. Saved settings return when you switch back to a chat model. Bring your own key; Sim does not provide hosted Jev credits. TypeSafe documents a 64,000-token total request limit and a 32,000-token limit for state plus the longest question. See [TypeSafe's model documentation](https://docs.typesafe.ai/models) and [question formats](https://docs.typesafe.ai/api).
+Jev evaluates the supplied state in one request. Chat messages, files, tools, skills, conversation memory, response-format schemas, and chat model fallbacks are hidden for these models. Saved settings return when you switch back to a chat model. TypeSafe documents a 64,000-token total request limit and a 32,000-token limit for state plus the longest question. See [TypeSafe's model documentation](https://docs.typesafe.ai/models) and [question formats](https://docs.typesafe.ai/api).
 
 ### Files
 
@@ -128,7 +128,7 @@ Some settings live under advanced, or appear only for models that support them:
 - **Max output tokens.** Caps the response length. Defaults to the model's full limit.
 - **Reasoning effort / Thinking level.** For models with extended reasoning, how much the model thinks before answering. Higher is more thorough but slower and costs more tokens.
 - **Prompt caching.** For Anthropic Claude models, reuses the system prompt and tool definitions between runs instead of re-reading them every time. Cached input costs a tenth of the normal rate, but writing the cache costs 1.25x, so leave it off for one-off runs and turn it on when the same agent runs repeatedly. The cache covers a prefix only if it reaches 1,024 tokens (2,048 on Haiku) — below that Anthropic ignores it and nothing changes. Entries expire after five minutes of no use.
-- **API key.** Your key for the chosen provider. Hidden when hosted Sim supplies a key for the selected model. Jev requires your own TypeSafe key.
+- **API key.** Your key for the chosen provider. Hidden when hosted Sim supplies a key for the selected model, including Jev.
 - **Fallback models.** An ordered list of up to five models to try when the request to the selected model fails, whether the provider is overloaded, rate-limited, or down. Sim tries the 2nd choice, then the 3rd, and so on, once each, and `<agent.model>` reports the model that answered. On hosted Sim, hosted models use your workspace's BYOK or platform credentials; local and self-hosted installations may still require a key. A model that needs its own key takes it from a workspace environment variable you pick on the row; a model on the same provider as the selected model reuses the block's key. A stored row key stops applying when its key field is hidden. Providers that require family-specific credentials, such as Vertex, can only be fallbacks for a selected model of the same family. The Auto model cannot be a fallback. A fallback runs with the selected model's settings where its provider accepts them: temperature and max output tokens are clamped to the fallback's limits, and when the fallback has a reasoning effort, thinking level, or verbosity setting that the selected model's value does not fit, the row shows that field so you can pick a value for it; leave it empty and the provider's default applies.
 - **Retry on fail.** Retries the selected model after a failure, up to a maximum number of tries with a wait between them. When its tries run out, the fallback models are tried in order, once each, with no wait before the first of them. A fallback is never retried. See [Retries and fallbacks](#retries-and-fallbacks) for how recorded tool results are reused and when a tool can execute again.
 

@@ -1,6 +1,12 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getHostedModels, getModelCapabilities, getProviderIcon } from '@/providers/models'
+import {
+  getHostedModels,
+  getModelCapabilities,
+  getProviderDefaultModel,
+  getProviderIcon,
+  getProviderModels,
+} from '@/providers/models'
 import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderRequest } from '@/providers/types'
 import { typesafeProvider } from '@/providers/typesafe'
@@ -61,11 +67,11 @@ describe('TypeSafe provider', () => {
   })
 
   it.each(['jev-1.13.0', 'jev-latest', 'jev-preview'])(
-    'routes %s through native BYOK evaluation',
+    'routes hosted-capable %s through native evaluation',
     async (model) => {
       expect(getProviderFromModel(model)).toBe('typesafe')
-      expect(getHostedModels()).not.toContain(model)
-      expect(shouldBillModelUsage(model)).toBe(false)
+      expect(getHostedModels()).toContain(model)
+      expect(shouldBillModelUsage(model)).toBe(true)
       expect(getModelCapabilities(model)).toMatchObject({ evaluation: true, memory: false })
       expect(getProviderIcon(model)).toBeDefined()
       const result = await typesafeProvider.executeRequest({ ...REQUEST, model })
@@ -87,6 +93,12 @@ describe('TypeSafe provider', () => {
       })
     }
   )
+
+  it('defaults to the stable alias while retaining the pinned model', () => {
+    expect(getProviderDefaultModel('typesafe')).toBe('jev-latest')
+    expect(getProviderModels('typesafe')[0]).toBe('jev-latest')
+    expect(getProviderModels('typesafe')).toContain('jev-1.13.0')
+  })
 
   it.each(['42', 'false', 'null', { text: 'Refund required' }, ['first', { second: true }]])(
     'preserves native state %j',

@@ -178,13 +178,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#F386A1',
     models: [
       {
-        id: 'jev-1.13.0',
+        id: 'jev-latest',
         pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
         capabilities: { evaluation: true, memory: false },
         contextWindow: 64000,
       },
       {
-        id: 'jev-latest',
+        id: 'jev-1.13.0',
         pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
         capabilities: { evaluation: true, memory: false },
         contextWindow: 64000,
@@ -196,7 +196,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 64000,
       },
     ],
-    defaultModel: 'jev-1.13.0',
+    defaultModel: 'jev-latest',
   },
   fireworks: {
     id: 'fireworks',
@@ -5423,6 +5423,7 @@ export function getProvidersWithToolUsageControl(): string[] {
 
 export function getHostedModels(): string[] {
   return [
+    ...getProviderModels('typesafe'),
     ...getProviderModels('openai'),
     ...getProviderModels('anthropic'),
     ...getProviderModels('google'),

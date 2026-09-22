@@ -1,5 +1,6 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputs,
@@ -19,6 +20,7 @@ const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
 vi.mock('@/blocks', () => ({ getBlock: mockGetBlock }))
 
 describe('Agent evaluation configuration', () => {
+  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
     mockGetBlock.mockReturnValue(AgentBlock)
   })
@@ -37,6 +39,12 @@ describe('Agent evaluation configuration', () => {
     for (const field of AgentBlock.subBlocks.filter((field) => field.id.startsWith('evaluation'))) {
       expect(evaluateSubBlockCondition(field.condition, { model: '<start.model>' })).toBe(true)
     }
+  })
+
+  it.each([false, true])('shows TypeSafe credentials only when needed, hosted=%s', (hosted) => {
+    setEnvFlags({ isHosted: hosted })
+    const apiKey = AgentBlock.subBlocks.find((field) => field.id === 'apiKey')!
+    expect(evaluateSubBlockCondition(apiKey.condition, { model: 'jev-latest' })).toBe(!hosted)
   })
 
   it.each(['jev-1.13.0', '<start.model>', '{{MODEL_ID}}'])(
