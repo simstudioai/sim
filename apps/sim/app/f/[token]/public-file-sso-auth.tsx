@@ -82,7 +82,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
               setEmail(e.target.value)
               setError(null)
             }}
-            className='h-[34px]'
+            size='lg'
             error={Boolean(error)}
           />
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}

@@ -143,7 +143,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     autoCorrect='off'
                     value={email}
                     onChange={handleEmailChange}
-                    className='h-[34px]'
+                    size='lg'
                     error={Boolean(hasEmailError)}
                   />
                   {hasEmailError && (
