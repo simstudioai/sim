@@ -158,7 +158,7 @@ function booleanRestriction(
   enforcement: PermissionGroupEnforcement,
   feature: PlatformFeatureMeta
 ): BooleanRestrictionField {
-  const schema = z.boolean()
+  const schema = z.boolean().describe(feature.hint)
   return {
     kind: 'boolean-restriction',
     writeSchema: schema.optional(),
@@ -175,7 +175,12 @@ function allowlist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: AllowlistPhrasing
 ): AllowlistField<TItem> {
-  const schema = z.array(item).nullable()
+  const schema = z
+    .array(item)
+    .nullable()
+    .describe(
+      `${phrasing.limited.replace(/effectiveConfig\.\w+/g, 'this list')} Null permits every value; an empty list permits none.`
+    )
   return {
     kind: 'allowlist',
     writeSchema: schema.optional(),
@@ -192,7 +197,7 @@ function denylist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: string
 ): DenylistField<TItem> {
-  const schema = z.array(item)
+  const schema = z.array(item).describe(phrasing.replace(/effectiveConfig\.\w+/g, 'this list'))
   return {
     kind: 'denylist',
     writeSchema: schema.optional(),

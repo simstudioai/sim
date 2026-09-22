@@ -395,6 +395,33 @@ function countTraceSpans(traceSpans?: TraceSpan[]): number {
   return traceSpans.reduce((count, span) => count + 1 + countTraceSpans(span.children), 0)
 }
 
+/** The fields a traversed value carries when it is recognized as a file reference. */
+interface TraversedFile {
+  id: unknown
+  name: unknown
+  size: unknown
+  type: unknown
+  url: unknown
+  key: unknown
+  version?: unknown
+}
+
+/**
+ * One recorded file entry in the log's `files` column. `version` rides along only for a workspace
+ * file read with it, so an execution-scoped file simply carries none.
+ */
+function recordedFile(file: TraversedFile) {
+  return {
+    id: file.id,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    url: file.url,
+    key: file.key,
+    ...(typeof file.version === 'number' ? { version: file.version } : {}),
+  }
+}
+
 export class ExecutionLogger implements IExecutionLoggerService {
   private compactExecutionDataForStorage(
     executionData: ExecutionData,
@@ -1886,14 +1913,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           if (file?.name && file.key && file.id) {
             if (!seenFileIds.has(file.id)) {
               seenFileIds.add(file.id)
-              files.push({
-                id: file.id,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                url: file.url,
-                key: file.key,
-              })
+              files.push(recordedFile(file))
             }
           }
         }
@@ -1905,14 +1925,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           if (file?.name && file.key && file.id) {
             if (!seenFileIds.has(file.id)) {
               seenFileIds.add(file.id)
-              files.push({
-                id: file.id,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                url: file.url,
-                key: file.key,
-              })
+              files.push(recordedFile(file))
             }
           }
         }
@@ -1928,12 +1941,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         if (!seenFileIds.has(obj.id)) {
           seenFileIds.add(obj.id)
           files.push({
-            id: obj.id,
-            name: obj.name,
-            size: obj.size,
-            type: obj.type,
-            url: obj.url,
-            key: obj.key,
+            ...recordedFile(obj),
             uploadedAt: obj.uploadedAt,
             expiresAt: obj.expiresAt,
             storageProvider: obj.storageProvider,

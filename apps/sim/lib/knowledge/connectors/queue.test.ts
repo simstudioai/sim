@@ -42,6 +42,14 @@ vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
 }))
 
 vi.mock('@/lib/knowledge/connectors/sync-lock', () => ({
+  buildSyncUnscheduledUpdate: (now: Date, lastSyncError: string) => ({
+    status: 'error',
+    lastSyncError,
+    nextSyncAt: null,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }),
   connectorIsLive: () => ({ type: 'connectorIsLive' }),
   LOCKABLE_CONNECTOR_STATUSES: ['active', 'error', 'pending'],
 }))

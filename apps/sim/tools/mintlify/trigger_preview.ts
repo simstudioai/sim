@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyTriggerPreviewParams,
   MintlifyTriggerPreviewResponse,
@@ -7,7 +8,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,8 +55,8 @@ export const mintlifyTriggerPreviewTool: ToolConfig<
     return {
       success: true,
       output: {
-        statusId: toNullableString(data.statusId),
-        previewUrl: toNullableString(data.previewUrl),
+        statusId: toStringOrNull(data.statusId),
+        previewUrl: toStringOrNull(data.previewUrl),
       },
     }
   },

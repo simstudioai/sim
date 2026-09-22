@@ -1,3 +1,4 @@
+import { toNumberOrNull } from '@sim/utils/coerce'
 import type {
   CodaDocAnalyticsItem,
   CodaListDocAnalyticsParams,
@@ -45,10 +46,6 @@ interface RawDocAnalyticsItem {
     publishedAt?: string
   }
   metrics?: Array<Record<string, unknown> & { date?: string }>
-}
-
-function toNumberOrNull(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
 }
 
 export const codaListDocAnalyticsTool: ToolConfig<

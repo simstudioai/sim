@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SmartleadCampaignIdParams,
@@ -54,11 +54,11 @@ export const markLeadCompleteTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'lead completion')
-    const status = isRecordLike(record.status) ? record.status : {}
+    const status = toRecord(record.status)
     // `nextSequence` is an object ({ id, delayInDays }) when a step remains, else null.
     // Both members go through the shared numeric coercion: Smartlead string-encodes
     // numbers inconsistently, and `delayInDays` is legitimately "0" for an immediate step.
-    const next = isRecordLike(status.nextSequence) ? status.nextSequence : null
+    const next = toRecordOrNull(status.nextSequence)
 
     return {
       success: true,

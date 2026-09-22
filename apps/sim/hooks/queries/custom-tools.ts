@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -125,8 +125,8 @@ async function fetchCustomTools(
     }
 
     const functionSchema = tool.schema.function
-    const parameters = isRecordLike(functionSchema.parameters) ? functionSchema.parameters : {}
-    const properties = isRecordLike(parameters.properties) ? parameters.properties : {}
+    const parameters = toRecord(functionSchema.parameters)
+    const properties = toRecord(parameters.properties)
     const required = Array.isArray(parameters.required)
       ? parameters.required.filter((value): value is string => typeof value === 'string')
       : undefined

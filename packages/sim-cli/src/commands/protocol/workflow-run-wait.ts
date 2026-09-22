@@ -1,3 +1,4 @@
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import chalk from 'chalk'
 import { type Command, Option } from 'commander'
 import { clientFrom } from '../../context'
@@ -85,10 +86,6 @@ interface RunSnapshot {
   contextId: string | null
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null
 }
@@ -101,11 +98,11 @@ function optionalString(value: unknown): string | null {
  * still polls, rather than refusing to find a status that is right there.
  */
 function readRun(raw: unknown): RunSnapshot {
-  const run = isRecord(raw) && isRecord(raw.data) ? raw.data : raw
-  if (!isRecord(run) || typeof run.status !== 'string') {
+  const run = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
+  if (!isRecordLike(run) || typeof run.status !== 'string') {
     throw new SimApiError('Run status response carried no status.', 0)
   }
-  const paused = isRecord(run.paused) ? run.paused : null
+  const paused = toRecordOrNull(run.paused)
   return {
     status: run.status,
     pauseKind: paused ? optionalString(paused.pauseKind) : null,

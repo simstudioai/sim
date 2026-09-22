@@ -68,7 +68,7 @@ import {
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { validateTagValue } from '@/lib/knowledge/tags/utils'
+import { validateTagValue, validateTagValueLength } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
@@ -252,7 +252,9 @@ async function resolveKnowledgeDocumentTagValueUpdates(
         `Tag "${definition.displayName}" requires a value; use null to clear it`
       )
     }
-    const validationError = validateTagValue(definition.displayName, value, definition.fieldType)
+    const validationError =
+      validateTagValueLength(definition.displayName, value) ??
+      validateTagValue(definition.displayName, value, definition.fieldType)
     if (validationError) {
       throw new OrchestrationError('validation', validationError)
     }

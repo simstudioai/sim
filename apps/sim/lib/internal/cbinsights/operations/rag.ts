@@ -1,7 +1,7 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsRagParams } from '@/tools/cbinsights/rag'
 import {
-  asString,
   asStringArray,
   cbInsightsRequest,
   parseOptionalStringParam,
@@ -19,7 +19,7 @@ export const executeCbinsightsRagOperation: InternalToolOperationImplementation<
   return cbInsightsRequest<{ data?: unknown; guidance?: unknown }>(
     params,
     { path: '/v2/cbirag', body: { message } },
-    (data) => ({ data: asString(data.data), guidance: asStringArray(data.guidance) }),
+    (data) => ({ data: toStringOrNull(data.data), guidance: asStringArray(data.guidance) }),
     signal
   )
 }

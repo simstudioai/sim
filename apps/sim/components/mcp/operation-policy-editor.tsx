@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { ChipSelect, TagInput } from '@sim/emcn'
+import { Combobox, TagInput } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 
@@ -41,11 +41,7 @@ export function McpOperationPolicyEditor({
 
   return (
     <div className='flex flex-col gap-2'>
-      <ChipSelect
-        showSelectedCheck
-        dropdownWidth='trigger'
-        modal={false}
-        className='w-auto max-w-none'
+      <Combobox
         aria-label='Operations access'
         value={policy.mode}
         disabled={disabled}

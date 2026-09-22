@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import type { DbOrTx } from '@/lib/db/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { PermissionGroupScopeKey } from '@/lib/permission-groups/request-scope.server'
 import { getPermissionGroupConfigStore } from '@/lib/permission-groups/request-scope.server'
@@ -25,7 +26,8 @@ const resolveCached = cache(
 
 /**
  * The permission-group config governing `userId` in `workspaceId`, resolved at
- * most once per scope.
+ * most once per scope. An explicit executor bypasses both caches so transaction
+ * reauthorization cannot reuse policy read before acquiring its locks.
  *
  * Caches the promise rather than the value, so concurrent callers share one
  * query instead of racing to start several. Caches `null` too — "no group
@@ -53,8 +55,16 @@ const resolveCached = cache(
 export function resolvePermissionGroupConfig(
   userId: string,
   workspaceId: string,
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  executor?: DbOrTx
 ): Promise<PermissionGroupConfig | null> {
+  if (executor) {
+    return organizationId === undefined
+      ? getUserPermissionConfig(userId, workspaceId, executor)
+      : resolveVerifiedUserAccessControlContext(userId, workspaceId, organizationId, executor).then(
+          (context) => context.config
+        )
+  }
   const store = getPermissionGroupConfigStore()
   if (!store) return resolveCached(userId, workspaceId, organizationId)
 

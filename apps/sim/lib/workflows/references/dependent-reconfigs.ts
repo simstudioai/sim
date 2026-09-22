@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
@@ -399,7 +399,7 @@ export function collectForkDependentReconfigs(
           }
           const toolConfig = getBlock(tool.type)
           if (!toolConfig) continue
-          const toolParams = isRecordLike(tool.params) ? tool.params : {}
+          const toolParams = toRecord(tool.params)
           // A tool's `operation` is stored at the tool level, not in params, but subblock
           // conditions reference it (e.g. a Gmail label only under `read_gmail`). Merge it
           // in so condition-gating matches the editor's `{ operation, ...params }`.

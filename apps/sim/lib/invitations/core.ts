@@ -35,6 +35,7 @@ import {
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx } from '@/lib/db/types'
@@ -183,6 +184,31 @@ async function lockWorkspaceAdminAuthority(
   if (!ws.organizationId) return false
 
   return lockOrganizationAdminAuthority(tx, actorId, ws.organizationId)
+}
+
+/** Rechecks resend authority while the invitation and all grant workspaces are locked. */
+export async function requireInvitationResendAuthority(
+  tx: DbOrTx,
+  invitation: InvitationWithGrants,
+  actorId: string,
+  assertedOrganizationId?: string
+): Promise<void> {
+  if (
+    invitation.organizationId &&
+    (await lockOrganizationAdminAuthority(tx, actorId, invitation.organizationId))
+  )
+    return
+  if (assertedOrganizationId === undefined) {
+    for (const workspaceId of [
+      ...new Set(invitation.grants.map((grant) => grant.workspaceId)),
+    ].sort()) {
+      if (await lockWorkspaceAdminAuthority(tx, actorId, workspaceId)) return
+    }
+  }
+  throw new ForbiddenOperationError(
+    assertedOrganizationId ? 'ORGANIZATION_ADMIN_REQUIRED' : 'INSUFFICIENT_WORKSPACE_ROLE',
+    'Administrator access is required to resend this invitation'
+  )
 }
 
 async function hydrateInvitation(
@@ -1721,6 +1747,7 @@ export type AuthorizedInvitationRevocationResult =
 export async function revokeInvitationAsAdmin(input: {
   actorId: string
   invitationId: string
+  organizationId?: string
   workspaceId?: string
 }): Promise<AuthorizedInvitationRevocationResult> {
   return db.transaction(async (tx): Promise<AuthorizedInvitationRevocationResult> => {
@@ -1728,12 +1755,17 @@ export async function revokeInvitationAsAdmin(input: {
       lockCurrentGrantWorkspaces: input.workspaceId === undefined,
       additionalWorkspaceIds: input.workspaceId ? [input.workspaceId] : [],
     })
-    if (!inv) return { success: false, kind: 'not-found' }
-    if (inv.status !== 'pending') return { success: false, kind: 'not-pending' }
+    if (!inv || (input.organizationId !== undefined && inv.organizationId !== input.organizationId))
+      return { success: false, kind: 'not-found' }
+    if (inv.status !== 'pending' || inv.expiresAt.getTime() <= Date.now())
+      return { success: false, kind: 'not-pending' }
 
     const isOrganizationAdmin = inv.organizationId
       ? await lockOrganizationAdminAuthority(tx, input.actorId, inv.organizationId)
       : false
+
+    if (input.organizationId !== undefined && !isOrganizationAdmin)
+      return { success: false, kind: 'whole-forbidden' }
 
     if (input.workspaceId) {
       if (!inv.grants.some((grant) => grant.workspaceId === input.workspaceId)) {
@@ -1746,9 +1778,12 @@ export async function revokeInvitationAsAdmin(input: {
         return { success: false, kind: 'scoped-forbidden' }
       }
 
+      if (inv.expiresAt.getTime() <= Date.now()) return { success: false, kind: 'not-pending' }
+
       const revoked = await revokeInvitationWorkspaceGrantTx(tx, {
         invitationId: input.invitationId,
         workspaceId: input.workspaceId,
+        requireUnexpired: true,
       })
       if (!revoked.revoked) return { success: false, kind: 'not-cancellable' }
       return {
@@ -1777,10 +1812,18 @@ export async function revokeInvitationAsAdmin(input: {
       }
     }
 
+    if (inv.expiresAt.getTime() <= Date.now()) return { success: false, kind: 'not-pending' }
+
     const cancelled = await tx
       .update(invitation)
       .set({ status: 'cancelled', updatedAt: new Date() })
-      .where(and(eq(invitation.id, input.invitationId), eq(invitation.status, 'pending')))
+      .where(
+        and(
+          eq(invitation.id, input.invitationId),
+          eq(invitation.status, 'pending'),
+          sql`${invitation.expiresAt} > clock_timestamp()`
+        )
+      )
       .returning({ id: invitation.id })
     if (cancelled.length === 0) return { success: false, kind: 'not-cancellable' }
 
@@ -1809,9 +1852,12 @@ export async function revokeInvitationWorkspaceGrantTx(
   {
     invitationId,
     workspaceId,
+    requireUnexpired = false,
   }: {
     invitationId: string
     workspaceId: string
+    /** User revocation checks expiry; direct-grant cleanup may remove stale pending grants. */
+    requireUnexpired?: boolean
   }
 ): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
   const [pending] = await tx
@@ -1827,7 +1873,13 @@ export async function revokeInvitationWorkspaceGrantTx(
     .where(
       and(
         eq(invitationWorkspaceGrant.invitationId, invitationId),
-        eq(invitationWorkspaceGrant.workspaceId, workspaceId)
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId),
+        requireUnexpired
+          ? sql`exists (select 1 from ${invitation}
+              where ${invitation.id} = ${invitationId}
+                and ${invitation.status} = 'pending'
+                and ${invitation.expiresAt} > clock_timestamp())`
+          : undefined
       )
     )
     .returning({ id: invitationWorkspaceGrant.id })

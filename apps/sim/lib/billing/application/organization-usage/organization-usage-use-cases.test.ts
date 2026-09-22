@@ -6,15 +6,15 @@ import { setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  canUserManageBillingEntity: vi.fn(),
+  authorizeOrganizationOperation: vi.fn(),
   isOrganizationFeatureEntitled: vi.fn(),
   getOrganizationSubscription: vi.fn(),
   readUsageTotals: vi.fn(),
   readUsageTimeSeries: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
-  canUserManageBillingEntity: mocks.canUserManageBillingEntity,
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mocks.authorizeOrganizationOperation,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationFeatureEntitled: mocks.isOrganizationFeatureEntitled,
@@ -64,7 +64,7 @@ describe('organization usage authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
-    mocks.canUserManageBillingEntity.mockResolvedValue(true)
+    mocks.authorizeOrganizationOperation.mockResolvedValue(true)
     mocks.isOrganizationFeatureEntitled.mockResolvedValue(true)
     mocks.getOrganizationSubscription.mockResolvedValue({
       plan: 'enterprise',
@@ -79,15 +79,23 @@ describe('organization usage authorization', () => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
   })
 
-  it('refuses an API key: pooled usage discloses every member’s spend', async () => {
-    // The operation names `session` alone. Widening it is a deliberate decision, not
-    // something that should fall out of a principal shape happening to carry a userId.
-    expect(await codeOf(run(personalKey))).toBe('PRINCIPAL_KIND_NOT_PERMITTED')
-    expect(mocks.canUserManageBillingEntity).not.toHaveBeenCalled()
+  it('admits personal keys through the shared current-organization authorization', async () => {
+    await run(personalKey)
+    expect(mocks.authorizeOrganizationOperation).toHaveBeenCalledWith(
+      personalKey,
+      expect.objectContaining({
+        id: 'organization_usage.summary.read',
+        minimumRole: 'admin',
+        oauthScope: 'api:read',
+      }),
+      { organizationId: ORG }
+    )
   })
 
   it('refuses a member who is not an organization admin', async () => {
-    mocks.canUserManageBillingEntity.mockResolvedValue(false)
+    mocks.authorizeOrganizationOperation.mockRejectedValue(
+      new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
+    )
 
     expect(await codeOf(run())).toBe('ORGANIZATION_ADMIN_REQUIRED')
   })
@@ -99,7 +107,9 @@ describe('organization usage authorization', () => {
   })
 
   it('checks authority before entitlement, so a non-admin learns nothing about the plan', async () => {
-    mocks.canUserManageBillingEntity.mockResolvedValue(false)
+    mocks.authorizeOrganizationOperation.mockRejectedValue(
+      new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
+    )
     mocks.isOrganizationFeatureEntitled.mockResolvedValue(false)
 
     expect(await codeOf(run())).toBe('ORGANIZATION_ADMIN_REQUIRED')

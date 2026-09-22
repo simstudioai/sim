@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipLink, cn } from '@sim/emcn'
+import { Chip, ChipDatePicker, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import type {
-  WorkspaceKnowledgeSearchResult,
-  WorkspaceSearchFilters,
+import {
+  WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
+  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceSearchFilters,
 } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/auth-client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
@@ -27,6 +28,17 @@ import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/conn
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The picker names calendar days; the URL keeps them as dates. A day's bounds are its local
+ * midnight and the last millisecond before the next, so "September 1" means the reader's own day.
+ */
+function startOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate())
+}
+function endOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate() + 1, 0, 0, 0, -1)
+}
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
 
@@ -127,6 +139,11 @@ interface SearchResultsProps {
 function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
+  /**
+   * More results are a second, wider search: the first paint stays as quick as it is, and a
+   * refinement of the filters starts over at the first page.
+   */
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
   const {
     data: index,
     isPending: basesPending,
@@ -136,12 +153,24 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   } = useSearchIndex(scope)
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
+  /** A custom window is inclusive of both days; `to` runs to the end of its day. */
+  const custom = filters.updated === 'custom'
   const searchFilters: WorkspaceSearchFilters = {
     ...(filters.source ? { source: filters.source } : {}),
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
       : {}),
+    ...(custom && filters.from && filters.to
+      ? {
+          modifiedAfter: startOfLocalDay(filters.from).toISOString(),
+          modifiedBefore: endOfLocalDay(filters.to).toISOString(),
+        }
+      : {}),
   }
+  const filtersKey = JSON.stringify(searchFilters)
+  const expanded = expandedFor === filtersKey
+  /** A custom window is two-ended: until both days are chosen, nothing is searched. */
+  const awaitingRange = custom && !(filters.from && filters.to)
   const {
     data: search,
     isPending,
@@ -149,7 +178,17 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     isPlaceholderData,
     isError: searchFailed,
     refetch: refetchSearch,
-  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
+  } = useWorkspaceKnowledgeSearch(
+    scope,
+    awaitingRange ? '' : query,
+    searchFilters,
+    expanded
+      ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
+      : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+  )
+  /** A full first page may collapse to few cards, yet more documents may still match. */
+  const mayHaveMore =
+    !expanded && (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
   const { data: overview } = useSearchSourceOverview(scope)
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)
@@ -175,8 +214,12 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
       : null
 
   const showResults = !noSources && !failed && !basesPending && documents.length > 0
+  /** A custom window waiting for its days must show the filters, or the picker is unreachable. */
   const showFilters =
-    hasShownFilters || showResults || (!noSources && !pending && !failed && !!search && !partial)
+    hasShownFilters ||
+    showResults ||
+    awaitingRange ||
+    (!noSources && !pending && !failed && !!search && !partial)
   if (showFilters && !hasShownFilters) setHasShownFilters(true)
 
   return noSources ? (
@@ -196,7 +239,11 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <div className='min-w-0 flex-1'>
-          {fetching || (pending && !failed) ? (
+          {awaitingRange ? (
+            <p role='status' className='text-[var(--text-muted)] text-caption'>
+              Choose the days to search.
+            </p>
+          ) : fetching || (pending && !failed) ? (
             <ActivityStatus label={pending ? 'Searching…' : 'Updating results…'} isActive />
           ) : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
@@ -257,11 +304,29 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               shape='round'
               active={filters.updated === window.id}
               aria-pressed={filters.updated === window.id}
-              onClick={() => setFilters({ updated: window.id })}
+              onClick={() =>
+                setFilters(
+                  window.id === 'custom'
+                    ? { updated: window.id }
+                    : { updated: window.id, from: null, to: null }
+                )
+              }
             >
               {window.label}
             </Chip>
           ))}
+          {custom && (
+            <ChipDatePicker
+              mode='range'
+              placeholder='Updated between'
+              startDate={filters.from?.toISOString().slice(0, 10)}
+              endDate={filters.to?.toISOString().slice(0, 10)}
+              onRangeChange={(start, end) =>
+                void setFilters({ from: new Date(start), to: new Date(end) })
+              }
+              onClear={() => void setFilters({ from: null, to: null })}
+            />
+          )}
         </div>
       )}
       {showResults && (
@@ -291,6 +356,17 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
               />
             )
           })}
+          {mayHaveMore && (
+            <div className='flex px-2 py-2'>
+              <Chip
+                variant='border'
+                disabled={isFetching}
+                onClick={() => setExpandedFor(filtersKey)}
+              >
+                Show more
+              </Chip>
+            </div>
+          )}
         </div>
       )}
     </div>

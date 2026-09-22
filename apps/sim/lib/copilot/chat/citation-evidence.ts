@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecordOrNull } from '@sim/utils/object'
 
 export interface RetrievalCitationBlock {
   toolCall?: { name: string; status: string; result?: { success: boolean; output?: unknown } }
@@ -12,7 +12,7 @@ export function parseCitationRecord(value: unknown): Record<string, unknown> | n
       return null
     }
   }
-  return isRecordLike(value) ? value : null
+  return toRecordOrNull(value)
 }
 
 /** Only successful retrieval tool results may supply source destinations. */

@@ -23,6 +23,7 @@ vi.mock('@/lib/core/network/context.server', () => ({
 }))
 
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
+import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application/authorized-workspace-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { defineAuthorizedAccessRequestUseCase } from '@/ee/access-requests/lib/application/authorized-use-case'
@@ -48,19 +49,8 @@ beforeEach(() => {
 })
 
 describe('authorized access request execution', () => {
-  it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'owner', keyId: 'key' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
-    {
-      kind: 'oauth_access_token',
-      userId: 'owner',
-      tokenId: 'token',
-      clientId: 'client',
-      scopes: ['api:write'],
-      expiresAt: new Date('2099-01-01'),
-    },
-  ])('refuses $kind before scope lookup or preparation', async (caller) => {
-    const prepare = vi.fn().mockResolvedValue({ ready: true })
+  it('refuses workspace keys before scope lookup or preparation', async () => {
+    const prepare = vi.fn()
     const execute = vi.fn()
     const getScope = vi.fn().mockReturnValue(scope)
     const useCase = defineAuthorizedAccessRequestUseCase({
@@ -69,12 +59,98 @@ describe('authorized access request execution', () => {
       prepare,
       execute,
     })
-    await expect(useCase.execute({ principal: caller, input })).rejects.toThrow('signed-in user')
+    await expect(
+      useCase.execute({
+        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        input,
+      })
+    ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
     expect(getScope).not.toHaveBeenCalled()
     expect(mocks.authorize).not.toHaveBeenCalled()
     expect(prepare).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
   })
+
+  it.each<Principal>([
+    { kind: 'personal_api_key', userId: 'requester', keyId: 'key' },
+    {
+      kind: 'oauth_access_token',
+      userId: 'requester',
+      tokenId: 'token',
+      clientId: 'client',
+      scopes: ['api:write'],
+      expiresAt: new Date('2099-01-01'),
+    },
+  ])(
+    'preserves the $kind actor through preparation, transactional reauthorization and audit',
+    async (caller) => {
+      const prepare = vi.fn().mockResolvedValue(true)
+      const execute = vi.fn().mockResolvedValue('result')
+      const audit: WorkspaceUseCaseAuditEntry[] = []
+      const useCase = defineAuthorizedAccessRequestUseCase({
+        operation: accessRequestOperations.create,
+        scope: () => scope,
+        mutation: true,
+        prepare,
+        execute,
+        projectAudit: () => audit,
+      })
+      await expect(useCase.execute({ principal: caller, input })).resolves.toBe('result')
+      expect(prepare).toHaveBeenCalledWith({ principal: caller, input, context })
+      expect(mocks.authorize).toHaveBeenNthCalledWith(
+        2,
+        caller,
+        accessRequestOperations.create,
+        scope,
+        transaction,
+        true,
+        context
+      )
+      expect(execute).toHaveBeenCalledWith({
+        principal: caller,
+        input,
+        context,
+        executor: transaction,
+        prepared: true,
+      })
+      expect(mocks.audit).toHaveBeenCalledWith(
+        accessRequestOperations.create,
+        'workspace',
+        caller,
+        undefined,
+        audit,
+        'org'
+      )
+    }
+  )
+
+  it.each([
+    { scopes: ['api:read'], expiresAt: new Date('2099-01-01'), code: 'forbidden' },
+    { scopes: ['api:write'], expiresAt: new Date('2000-01-01'), code: 'unauthorized' },
+  ])(
+    'rejects an insufficient or expired OAuth grant before loading scope',
+    async ({ scopes, expiresAt, code }) => {
+      const useCase = defineAuthorizedAccessRequestUseCase({
+        operation: accessRequestOperations.create,
+        scope: () => scope,
+        execute: vi.fn(),
+      })
+      await expect(
+        useCase.execute({
+          principal: {
+            kind: 'oauth_access_token',
+            userId: 'requester',
+            tokenId: 'token',
+            clientId: 'client',
+            scopes,
+            expiresAt,
+          },
+          input,
+        })
+      ).rejects.toMatchObject({ code })
+      expect(mocks.authorize).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not prepare or execute when the initial authorization fails', async () => {
     mocks.authorize.mockRejectedValue(new OrchestrationError('not_found', 'Workspace not found'))

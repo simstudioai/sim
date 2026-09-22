@@ -17,17 +17,29 @@ const {
   mockCheckRateLimit,
   mockCheckWorkspaceScope,
   mockGetTableById,
-  mockGetUserEntityPermissions,
+  mockCheckWorkspaceAccess,
   mockPerformDeleteTable,
   mockResolveWorkspaceRequestActor,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockCheckWorkspaceScope: vi.fn(),
   mockGetTableById: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
   mockPerformDeleteTable: vi.fn(),
   mockResolveWorkspaceRequestActor: vi.fn(),
 }))
+
+/** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
+function workspaceAccess(permission: string | null, organizationId: string | null = 'org-1') {
+  return {
+    exists: true,
+    hasAccess: permission !== null,
+    canWrite: permission === 'admin' || permission === 'write',
+    canAdmin: permission === 'admin',
+    workspace: { id: 'ws-1', organizationId },
+    permission,
+  }
+}
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -69,7 +81,10 @@ vi.mock('@/lib/table', () => ({
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+  /** The v1 middleware reads the permission alone; `checkAccess` reads the whole access. */
+  getUserEntityPermissions: async (...args: unknown[]) =>
+    (await mockCheckWorkspaceAccess(...args)).permission,
 }))
 
 vi.mock('@/lib/workspaces/utils', () => ({
@@ -117,7 +132,7 @@ describe('DELETE /api/v1/tables/[tableId] — orchestration failure projection',
       name: 'Table',
       workspaceId: WORKSPACE_ID,
     })
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
   })
 
   /**

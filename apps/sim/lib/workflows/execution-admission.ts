@@ -4,9 +4,9 @@ import {
 } from '@/lib/billing/calculations/usage-reservation'
 import {
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import {
   getReservationDenialDescriptor,
   type ReservationDenialReason,
@@ -83,7 +83,7 @@ export async function prepareWorkflowExecutionAdmission(
     return { billingAttribution, targetReservation: false }
   }
 
-  const usage = await checkAttributedUsageLimits(billingAttribution)
+  const usage = await checkExecutionUsageLimits(billingAttribution)
   if (usage.isExceeded) {
     const descriptor = getReservationDenialDescriptor(
       usage.scope === 'member' ? 'member_headroom' : 'payer_headroom'

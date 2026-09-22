@@ -1,5 +1,5 @@
 /** Tailwind class applied to selected rows / columns / cells. */
-export const SELECTION_TINT_BG = 'bg-[rgba(37,99,235,0.06)]'
+export const SELECTION_TINT_BG = 'bg-[color-mix(in_srgb,var(--selection)_6%,transparent)]'
 
 /**
  * Fill marking every cell matching the active find query. Reuses the app's

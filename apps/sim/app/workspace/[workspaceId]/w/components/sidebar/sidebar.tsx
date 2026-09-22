@@ -27,6 +27,7 @@ import {
   Database,
   Files,
   Integration,
+  ListChecks,
   MoreHorizontal,
   PanelLeft,
   Pin,
@@ -848,6 +849,16 @@ export const Sidebar = memo(function Sidebar() {
       href: getSettingsHref({ section: id }),
       onNavigate: () => handleOpenSettings(id),
     }))
+
+  if (hostContext.hostOrganizationId) {
+    const accessRequestsHref = `/workspace/${workspaceId}/access-requests`
+    profileNavigationLinks.push({
+      label: 'My access requests',
+      icon: ListChecks,
+      href: accessRequestsHref,
+      onNavigate: () => router.push(accessRequestsHref),
+    })
+  }
 
   const organizationHref = getWorkspaceOrganizationHref(hostContext)
   if (organizationHref) {

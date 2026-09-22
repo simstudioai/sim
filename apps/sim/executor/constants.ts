@@ -469,10 +469,6 @@ export function stripCustomToolPrefix(name: string): string {
     : name
 }
 
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /**
  * Normalizes a name for comparison by converting to lowercase and removing
  * spaces and dots. Used for both block names and variable names to ensure

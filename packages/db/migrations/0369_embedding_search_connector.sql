@@ -1,0 +1,1 @@
+ALTER TABLE "embedding_search" ADD COLUMN "connector_id" text;

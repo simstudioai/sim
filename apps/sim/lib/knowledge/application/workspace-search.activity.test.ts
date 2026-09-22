@@ -4,6 +4,7 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  afterSearch: vi.fn(async () => undefined),
   context: vi.fn(),
   policy: vi.fn(),
   findIndex: vi.fn(),
@@ -33,7 +34,18 @@ vi.mock('@/lib/knowledge/search/activity', () => ({
   recordOrganizationSearchActivity: mocks.activity,
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: mocks.search },
+  runKnowledgeSearch: mocks.search,
+  buildKnowledgeSearchContext: (
+    _principal: unknown,
+    context: unknown,
+    knowledgeBases: unknown
+  ) => ({
+    ...(context as object),
+    knowledgeBases,
+    access: {},
+  }),
+  validateKnowledgeSearchInput: () => undefined,
+  afterKnowledgeSearch: mocks.afterSearch,
 }))
 
 import {
@@ -52,7 +64,11 @@ beforeEach(() => {
   mocks.findIndex.mockResolvedValue(null)
   mocks.available.mockResolvedValue(undefined)
   mocks.activity.mockResolvedValue(undefined)
-  mocks.search.mockResolvedValue({ results: [], knowledgeBases: [{ id: 'index' }] })
+  mocks.search.mockResolvedValue({
+    results: [],
+    knowledgeBases: [{ id: 'index' }],
+    knowledgeBaseId: 'index',
+  })
 })
 
 describe.each([
@@ -82,10 +98,14 @@ describe.each([
     mocks.findIndex.mockResolvedValueOnce({ id: 'index' })
     await operation.execute({ principal, input })
     expect(mocks.search).toHaveBeenCalledOnce()
-    expect(mocks.search).toHaveBeenCalledWith({
-      principal,
-      input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
-    })
+    expect(mocks.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
+      })
+    )
+    /** A searched index is followed up once, by the shared hook; the empty path records nothing here. */
+    expect(mocks.afterSearch).toHaveBeenCalledOnce()
     expect(mocks.activity).not.toHaveBeenCalled()
   })
 

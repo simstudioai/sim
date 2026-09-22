@@ -50,6 +50,7 @@ vi.mock('@/lib/table/rows/executions', () => ({
   })),
   loadExecutionsByRow: mockLoadExecutionsByRow,
   loadExecutionsForRow: vi.fn(async () => ({})),
+  tableMayHaveRunState: vi.fn(() => true),
   writeExecutionsPatch: vi.fn(async () => 'wrote'),
 }))
 
@@ -65,6 +66,7 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
+import { tableMayHaveRunState } from '@/lib/table/rows/executions'
 import {
   deleteRow,
   deleteRowsByFilter,
@@ -664,5 +666,42 @@ describe('queryRows byte budget', () => {
       after: { orderKey: 'a5', id: 'row_5' },
       offset: 2,
     })
+  })
+})
+
+/**
+ * The run-state sidecar read the row path used to make unconditionally, one round trip (four on a
+ * full page) for tables that cannot hold a single sidecar row. This pins that the query is
+ * actually skipped rather than merely ignored, and that the fallback still runs.
+ */
+describe('queryRows run-state elision', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.mocked(tableMayHaveRunState).mockReturnValue(true)
+  })
+
+  it('skips the run-state read for a table that can hold none, still reporting empty executions', async () => {
+    vi.mocked(tableMayHaveRunState).mockReturnValue(false)
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'row-1', data: {}, position: 0, orderKey: 'a0', createdAt: null, updatedAt: null },
+    ])
+
+    const result = await queryRows(TABLE, { limit: 5, includeTotal: false }, 'req-1')
+
+    expect(mockLoadExecutionsByRow).not.toHaveBeenCalled()
+    expect(result.rows[0].executions).toEqual({})
+  })
+
+  it('reads run state for a table that can hold it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'row-1', data: {}, position: 0, orderKey: 'a0', createdAt: null, updatedAt: null },
+    ])
+
+    await queryRows(TABLE, { limit: 5, includeTotal: false }, 'req-1')
+
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledTimes(1)
   })
 })

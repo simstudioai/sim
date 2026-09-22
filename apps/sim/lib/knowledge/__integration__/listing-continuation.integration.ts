@@ -462,7 +462,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
     })
     expect(getDocument).not.toHaveBeenCalled()
     expect(pass.checkpoint.permissionFailures).toBe(rejectAcl)
-    if (rejectAcl) expect(pass.holdNotice).toBe(SOURCE_PERMISSION_ERROR)
+    if (rejectAcl) expect(pass.holdNotice?.split('\n')).toContain(SOURCE_PERMISSION_ERROR)
   })
 
   it('preserves a permission-repaired document through the remaining content crawl and EOF reconciliation', async () => {

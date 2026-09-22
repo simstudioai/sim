@@ -1,4 +1,4 @@
-import { escapeRegExp } from '@/executor/constants'
+import { escapeRegExp } from '@sim/utils/string'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 

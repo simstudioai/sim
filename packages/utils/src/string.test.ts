@@ -3,8 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  compareStrings,
+  escapeRegExp,
   forEachSearchOccurrence,
   formatQuotedNameList,
+  hasRegexMetacharacter,
   isVersionedType,
   normalizeEmail,
   projectEscapedMarkdownForSearch,
@@ -13,6 +16,7 @@ import {
   slugify,
   stripVersionSuffix,
   truncate,
+  truncateAtCodePoint,
 } from './string.js'
 
 describe('slugify', () => {
@@ -244,5 +248,76 @@ describe('forEachSearchOccurrence', () => {
     // '\u0130'.toLowerCase() is TWO characters. A plain lowercase would slide every later index by
     // one, so the caller would slice the wrong span out of the string it passed in.
     expect(spans('\u0130xyz target', 'target')).toEqual(['target'])
+  })
+})
+
+describe('escapeRegExp', () => {
+  it('escapes every regex metacharacter', () => {
+    const metacharacters = '.*+?^$' + '{}()|[]\\'
+    expect(escapeRegExp(metacharacters)).toBe('\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(escapeRegExp('plain text 42')).toBe('plain text 42')
+  })
+
+  it('matches the literal value once interpolated', () => {
+    const pattern = new RegExp(escapeRegExp('a.b'))
+    expect(pattern.test('a.b')).toBe(true)
+    expect(pattern.test('axb')).toBe(false)
+  })
+
+  it('escapes every occurrence, not just the first', () => {
+    expect(escapeRegExp('a.b.c')).toBe('a\\.b\\.c')
+  })
+})
+
+describe('compareStrings', () => {
+  it('orders by code unit', () => {
+    expect(compareStrings('a', 'b')).toBe(-1)
+    expect(compareStrings('b', 'a')).toBe(1)
+    expect(compareStrings('a', 'a')).toBe(0)
+  })
+
+  it('sorts uppercase before lowercase, unlike localeCompare', () => {
+    expect(compareStrings('Z', 'a')).toBe(-1)
+    expect(['a', 'Z'].sort(compareStrings)).toEqual(['Z', 'a'])
+  })
+
+  it('orders digit-led keys lexically, not numerically', () => {
+    expect(['2', '10'].sort(compareStrings)).toEqual(['10', '2'])
+  })
+})
+
+describe('hasRegexMetacharacter', () => {
+  it('reports the characters escapeRegExp would escape', () => {
+    expect(hasRegexMetacharacter('a.b')).toBe(true)
+    expect(hasRegexMetacharacter('a|b')).toBe(true)
+  })
+
+  it('reports plain text as free of them', () => {
+    expect(hasRegexMetacharacter('plain text 42')).toBe(false)
+  })
+
+  it('agrees with escapeRegExp about what needs escaping', () => {
+    for (const value of ['plain', 'a.b', 'a|b', '', 'x-y']) {
+      expect(hasRegexMetacharacter(value)).toBe(escapeRegExp(value) !== value)
+    }
+  })
+})
+
+describe('truncateAtCodePoint', () => {
+  it('returns the input untouched when it fits', () => {
+    expect(truncateAtCodePoint('ab😀cd', 10)).toBe('ab😀cd')
+  })
+
+  it('cuts like truncate when the cut lands between code points', () => {
+    expect(truncateAtCodePoint('ab😀cd', 4)).toBe('ab😀...')
+    expect(truncateAtCodePoint('hello world', 8, ' …')).toBe('hello wo …')
+  })
+
+  it('moves the cut back one unit rather than splitting a surrogate pair', () => {
+    expect(truncateAtCodePoint('ab😀cd', 3)).toBe('ab...')
+    expect(truncateAtCodePoint('😀'.repeat(3), 3)).toBe('😀...')
   })
 })

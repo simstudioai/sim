@@ -14,7 +14,7 @@ const { mockUseOrganizationBilling, mockUseUserPermissionConfig, mockUsePermissi
 
 vi.mock('@sim/emcn', () => ({
   Checkbox: () => null,
-  ChipSwitch: () => null,
+  ChipLink: () => null,
   ChipModal: ({ children }: { children?: ReactNode }) => <>{children}</>,
   ChipModalBody: ({ children }: { children?: ReactNode }) => <>{children}</>,
   ChipModalError: () => null,
@@ -30,10 +30,6 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('nuqs', () => ({
   useQueryState: () => [null, vi.fn()],
-  useQueryStates: () => [{ 'access-view': 'groups' }, vi.fn()],
-}))
-vi.mock('@/ee/access-requests/components/organization-access-requests', () => ({
-  OrganizationAccessRequests: () => null,
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -104,14 +100,30 @@ describe('AccessControl entitlement states', () => {
       isFetching: false,
       refetch,
     })
-    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <AccessControl
+          isOrganizationAdmin
+          organizationId='org-1'
+          requestsHref='/o/org-1/settings/requests'
+        />
+      )
+    )
     expect(container.textContent).toContain('Groups unavailable')
     expect(container.textContent).not.toContain('No permission groups yet')
     await act(async () => container.querySelector('button')?.click())
     expect(refetch).toHaveBeenCalledOnce()
 
     mockUsePermissionGroups.mockReturnValue({ data: [], isPending: false, error: null })
-    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <AccessControl
+          isOrganizationAdmin
+          organizationId='org-1'
+          requestsHref='/o/org-1/settings/requests'
+        />
+      )
+    )
     expect(container.textContent).toContain('No permission groups yet')
     expect(container.textContent).not.toContain('Groups unavailable')
   })
@@ -127,7 +139,15 @@ describe('AccessControl entitlement states', () => {
       isPending: false,
     })
 
-    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <AccessControl
+          isOrganizationAdmin
+          organizationId='org-1'
+          requestsHref='/o/org-1/settings/requests'
+        />
+      )
+    )
 
     expect(container.textContent).toContain('Access Control billing failed')
     expect(container.textContent).not.toContain('Only organization admins on Enterprise plans')
@@ -145,7 +165,15 @@ describe('AccessControl entitlement states', () => {
       isPending: false,
     })
 
-    act(() => root.render(<AccessControl isOrganizationAdmin organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <AccessControl
+          isOrganizationAdmin
+          organizationId='org-1'
+          requestsHref='/o/org-1/settings/requests'
+        />
+      )
+    )
 
     expect(container.textContent).toContain('Only organization admins on Enterprise plans')
   })

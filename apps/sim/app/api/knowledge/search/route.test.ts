@@ -47,6 +47,9 @@ describe('workspace search route', () => {
     expect(call.input.signal).toBe(request.signal)
     expect(call.input.allowPartialResults).toBe(true)
     expect(call.input.vectorBudgetMs).toBe(3000)
+    /** A person's search asks for reranking; the use case reranks when a credential exists. */
+    expect(call.input.rerankerEnabled).toBe(true)
+    expect(call.input.rerankerModel).toBe('rerank-v4.0-fast')
     controller.abort()
     expect(call.input.signal.aborted).toBe(true)
     await expect(response.json()).resolves.toEqual({

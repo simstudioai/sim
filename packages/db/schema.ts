@@ -3253,6 +3253,11 @@ export const document = pgTable(
   (table) => ({
     // Primary access pattern - filter by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    /** Search's updated-after filter: the documents of a base changed since a time, without a base scan. */
+    sourceModifiedLookupIdx: index('doc_kb_source_modified_idx')
+      .on(table.knowledgeBaseId, table.sourceModifiedAt)
+      .where(sql`${table.deletedAt} IS NULL`)
+      .concurrently(),
     /**
      * Serves the access predicate (`acl && tokens`) when a token set is
      * selective — one member's subject over a large base — and the
@@ -3323,6 +3328,26 @@ export const document = pgTable(
     deletedAtPartialIdx: index('doc_deleted_at_partial_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * The connector sync's tombstone check asks whether a connector still has a recently deleted
+     * or never-hydrated document. Without this index the planner scans the whole table for the
+     * first match, and a connector with none reads every row.
+     */
+    connectorTombstoneIdx: index('doc_connector_tombstone_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.archivedAt} IS NULL AND (${table.deletedAt} IS NOT NULL OR ${table.contentHash} IS NULL)`
+      ),
+    /**
+     * The live documents a connector owns, counted at every sync completion for the connector's
+     * document count. The reconciliation index deliberately keeps tombstones, so this one exists
+     * to make that count an index-only scan.
+     */
+    connectorLiveIdx: index('doc_connector_live_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Text tag indexes
     tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
     tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
@@ -3576,15 +3601,28 @@ export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
  * the index, and the embedding and knowledge base triggers that own these rows, and only where
  * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
  */
-export const embeddingKeywordTin = pgTable('embedding_keyword_tin', {
-  id: text('id')
-    .primaryKey()
-    .references(() => embedding.id, { onDelete: 'cascade' }),
-  knowledgeBaseId: text('knowledge_base_id').notNull(),
-  documentId: text('document_id').notNull(),
-  enabled: boolean('enabled').notNull(),
-  content: text('content').notNull(),
-})
+export const embeddingKeywordTin = pgTable(
+  'embedding_keyword_tin',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    content: text('content').notNull(),
+    /**
+     * The document's source and ACL, mirrored by trigger so ranking decides readability on the row it
+     * scores rather than through a join per ranked chunk. Hydration still reads under the full predicate.
+     */
+    connectorId: text('connector_id'),
+    acl: text('acl').array(),
+  },
+  (table) => ({
+    /** The document ACL trigger fans out by document; without this it scans the projection per document. */
+    documentIdx: index('embedding_keyword_tin_document_idx').on(table.documentId),
+  })
+)
 
 /**
  * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
@@ -3600,7 +3638,17 @@ export const embeddingSearch = pgTable(
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     enabled: boolean('enabled').notNull(),
-    /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
+    /**
+     * The connector whose documents this chunk belongs to, copied from the document so a vector
+     * index can cover one source. A member reads a source whole or barely at all, so searching
+     * each readable source in its own index finds their nearest chunks; one index over every
+     * source spends its scan budget on chunks the graph reached but the member cannot read.
+     * NULL for uploads.
+     */
+    connectorId: text('connector_id'),
+    /** The document's ACL, mirrored by trigger, so a walk can test readability on the row it visits. */
+    acl: text('acl').array(),
+    /** contract-pending(after the projection sync trigger stops writing them): drop the binary columns; their ANN indexes were dropped in 0372, and nothing reads them. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),
     binary768: bit('binary_768', { dimensions: 768 }),
@@ -3619,21 +3667,6 @@ export const embeddingSearch = pgTable(
       .on(table.documentId, table.knowledgeBaseId, table.id)
       .concurrently()
       .where(sql`${table.enabled}`),
-    binaryIdx: index('embedding_search_binary_hnsw_idx')
-      .using('hnsw', table.binary.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary384Idx: index('embedding_search_384_binary_hnsw_idx')
-      .using('hnsw', table.binary384.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary768Idx: index('embedding_search_768_binary_hnsw_idx')
-      .using('hnsw', table.binary768.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary1024Idx: index('embedding_search_1024_binary_hnsw_idx')
-      .using('hnsw', table.binary1024.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
-    binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
-      .using('hnsw', table.binary3072.op('bit_hamming_ops'))
-      .with({ m: 16, ef_construction: 64 }),
     vectorIdx: index('embedding_search_cosine_hnsw_idx')
       .using('hnsw', table.vector.op('halfvec_cosine_ops'))
       .with({ m: 16, ef_construction: 64 }),

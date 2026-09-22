@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   checkActorUsage: vi.fn(),
   generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
-  getDocumentMetadata: vi.fn(),
   getTagDefinitions: vi.fn(),
   recordEmbeddingUsage: vi.fn(),
 }))
@@ -66,7 +65,6 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
     rows: await mocks.executeSearch(...args),
     retrieval: { status: 'complete', timedOutLegs: [] },
   }),
-  getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
@@ -240,9 +238,6 @@ beforeEach(() => {
   mocks.checkActorUsage.mockResolvedValue({ isExceeded: false })
   mocks.generateEmbedding.mockResolvedValue({ embedding: [0.1], isBYOK: false })
   mocks.executeSearch.mockResolvedValue([row])
-  mocks.getDocumentMetadata.mockResolvedValue({
-    'document-1': { filename: 'synthetic.txt', sourceUrl: null },
-  })
   mocks.getTagDefinitions.mockResolvedValue([])
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)

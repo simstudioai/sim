@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
 const mocks = vi.hoisted(() => ({
   authority: vi.fn(),
@@ -11,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   workspace: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
-  canUserManageBillingEntity: mocks.authority,
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mocks.authority,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationFeatureEntitled: mocks.entitlement,
@@ -76,11 +77,17 @@ describe.each([
   })
 
   it('requires current organization admin authority before checking entitlement or reading activity', async () => {
-    mocks.authority.mockResolvedValue(false)
+    mocks.authority.mockRejectedValue(
+      new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
+    )
     await expect(run(principal)).rejects.toMatchObject({
       detailCode: 'ORGANIZATION_ADMIN_REQUIRED',
     })
-    expect(mocks.authority).toHaveBeenCalledWith({ type: 'organization', id: 'org' }, 'admin')
+    expect(mocks.authority).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({ minimumRole: 'admin', principalKinds: ['session'] }),
+      { organizationId: 'org' }
+    )
     expect(mocks.entitlement).not.toHaveBeenCalled()
     expect(mocks.workspace).not.toHaveBeenCalled()
     expect(mocks.summary).not.toHaveBeenCalled()

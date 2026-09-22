@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { organizationMemberUsageLimit, usageLog, workspace } from '@sim/db/schema'
+import {
+  member,
+  organizationMemberUsageLimit,
+  permissions,
+  usageLog,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
@@ -11,6 +17,44 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrgMemberLimits')
+
+/**
+ * Includes external collaborators whose explicit workspace access belongs to the organization.
+ * Retained grants on archived workspaces still qualify so their caps remain manageable.
+ * Mutations hold the organization fence before requesting a shared relationship lock;
+ * together these stabilize workspace scope and access through the write.
+ */
+export async function isOrgMemberUsageLimitTarget(
+  organizationId: string,
+  userId: string,
+  options: { executor?: DbOrTx; forShare?: boolean } = {}
+): Promise<boolean> {
+  const executor = options.executor ?? db
+  const memberQuery = executor
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+    .limit(1)
+  const [organizationMember] = options.forShare ? await memberQuery.for('share') : await memberQuery
+  if (organizationMember) return true
+
+  const workspaceQuery = executor
+    .select({ id: permissions.id })
+    .from(permissions)
+    .innerJoin(workspace, eq(workspace.id, permissions.entityId))
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(workspace.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  const [workspaceMember] = options.forShare
+    ? await workspaceQuery.for('share', { of: permissions })
+    : await workspaceQuery
+  return Boolean(workspaceMember)
+}
 
 /**
  * Read a member's per-organization usage limit (dollars). Returns `null` when no

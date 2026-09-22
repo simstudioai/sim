@@ -2577,6 +2577,55 @@
       "when": 1789842468472,
       "tag": "0368_durable_agent_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1789879464494,
+      "tag": "0369_embedding_search_connector",
+      "breakpoints": true
+    },
+    {
+      "idx": 370,
+      "version": "7",
+      "when": 1789890789212,
+      "tag": "0370_projection_acl",
+      "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1789922529920,
+      "tag": "0371_document_modified_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1790006041116,
+      "tag": "0372_drop_binary_search_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1790007865916,
+      "tag": "0373_keyword_tin_document_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 374,
+      "version": "7",
+      "when": 1790044060326,
+      "tag": "0374_document_connector_tombstone_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 375,
+      "version": "7",
+      "when": 1790051159355,
+      "tag": "0375_document_connector_live_index",
+      "breakpoints": true
     }
   ]
 }

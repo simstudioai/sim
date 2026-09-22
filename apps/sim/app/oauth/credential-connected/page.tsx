@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink, StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
@@ -22,19 +22,18 @@ export default async function CredentialConnectedPage({
 
   return (
     <LogoShell center>
-      <div className='flex w-full max-w-[410px] flex-col items-center gap-3 text-center'>
-        <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-          {connected ? 'Credential connected' : 'Connection failed'}
-        </h1>
-        <p className='text-pretty text-[var(--text-muted)] text-lg'>
-          {connected
+      <StatusPageContent
+        title={connected ? 'Credential connected' : 'Connection failed'}
+        description={
+          connected
             ? 'The credential is ready to use. You can close this tab and return to the app that started the connection.'
-            : 'The credential could not be connected. Return to the app that started the connection and try again.'}
-        </p>
-        <ChipLink variant='primary' href={APP_ENTRY_PATH} className='mt-3'>
+            : 'The credential could not be connected. Return to the app that started the connection and try again.'
+        }
+      >
+        <ChipLink variant='primary' href={APP_ENTRY_PATH}>
           Open Sim
         </ChipLink>
-      </div>
+      </StatusPageContent>
     </LogoShell>
   )
 }

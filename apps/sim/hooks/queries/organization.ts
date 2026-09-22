@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   queryOptions,
   type UseQueryResult,
@@ -269,7 +269,7 @@ export function useUpdateOrganizationUsageLimit() {
         organizationKeys.billing(organizationId),
         (old: unknown) => {
           if (!isRecordLike(old) || !isRecordLike(old.data)) return old
-          const usage = isRecordLike(old.data.usage) ? old.data.usage : {}
+          const usage = toRecord(old.data.usage)
           const currentUsage =
             readNumber(old.data.currentUsage) ??
             readNumber(usage.current) ??

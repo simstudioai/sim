@@ -127,7 +127,18 @@ jobs:
           lib/billing/core/usage-log.postgres.test.ts
           lib/billing/core/organization-activity.postgres.test.ts
           lib/billing/core/usage-analytics-queries.postgres.test.ts
+          lib/billing/core/organization-usage-pagination.postgres.test.ts
+          lib/billing/organizations/member-limits.postgres.test.ts
+          lib/workspaces/organization-workspaces.postgres.test.ts
           lib/billing/calculations/usage-reservation.test.ts
+
+      - name: Verify access request pagination and impact in PostgreSQL
+        working-directory: apps/sim
+        env:
+          ACCESS_REQUESTS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_access_requests_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql.unsafe("CREATE DATABASE sim_access_requests_test"); await sql.end()'
+          bunx vitest run ee/access-requests/lib/repository.postgres.test.ts ee/access-requests/lib/impact.postgres.test.ts
 
       - name: Verify fork previews ignore execution file history in PostgreSQL
         working-directory: apps/sim

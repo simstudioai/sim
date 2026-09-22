@@ -68,6 +68,31 @@ function findExecutedRawSql(substring: string): string | undefined {
   return undefined
 }
 
+/** Every string reachable from a drizzle `sql` fragment — its literal chunks AND its bound values. */
+function collectStrings(node: unknown, out: string[] = []): string[] {
+  if (typeof node === 'string') out.push(node)
+  else if (Array.isArray(node)) for (const entry of node) collectStrings(entry, out)
+  else if (node && typeof node === 'object')
+    for (const entry of Object.values(node as Record<string, unknown>)) collectStrings(entry, out)
+  return out
+}
+
+/**
+ * Whether one `set_config(<setting>, '<value>', true)` guard was executed.
+ *
+ * The guards bind their values as parameters, so the setting name lives in the statement's
+ * literal chunks while the duration lives in its bound values — asserting on a rendered string
+ * would only re-check the placeholder.
+ */
+function executedTxTimeout(setting: string, value: string): boolean {
+  return dbChainMockFns.execute.mock.calls.some(([arg]) => {
+    const strings = collectStrings(arg)
+    return (
+      strings.some((entry) => entry.includes(`set_config('${setting}'`)) && strings.includes(value)
+    )
+  })
+}
+
 /**
  * The `data` payload of the last `.set(...)` row write. `updateRow` always writes a JSONB merge
  * (`data = data || {changed}::jsonb`), so this is a `sql` fragment exposing `{ strings, values }`.
@@ -420,11 +445,9 @@ describe('mutation paths — SET LOCAL timeouts', () => {
       insertRow({ tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1' }, TABLE, 'req-1')
     ).rejects.toBeDefined()
 
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '10000ms'")).toBeDefined()
-    expect(findExecutedRawSql("SET LOCAL lock_timeout = '3000ms'")).toBeDefined()
-    expect(
-      findExecutedRawSql("SET LOCAL idle_in_transaction_session_timeout = '5000ms'")
-    ).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '10000ms')).toBe(true)
+    expect(executedTxTimeout('lock_timeout', '3000ms')).toBe(true)
+    expect(executedTxTimeout('idle_in_transaction_session_timeout', '5000ms')).toBe(true)
   })
 
   it('batchInsertRows raises statement_timeout to 60s', async () => {
@@ -436,7 +459,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
       )
     ).rejects.toBeDefined()
 
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '60000ms'")).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '60000ms')).toBe(true)
   })
 
   it('replaceTableRows scales statement_timeout with (existing + new) row count', async () => {
@@ -450,7 +473,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     )
 
     // (100_000 + 50_000) × 3ms/row = 450_000ms; above 120_000 floor, below 600_000 cap
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '450000ms'")).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '450000ms')).toBe(true)
   })
 
   it('replaceTableRows caps scaled timeout at 10 minutes for very large tables', async () => {
@@ -459,7 +482,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     await replaceTableRows({ tableId: 'tbl-1', workspaceId: 'ws-1', rows: [] }, hugeTable, 'req-1')
 
     // 10M × 3ms = 30M ms, capped at 600_000ms (10 min)
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '600000ms'")).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '600000ms')).toBe(true)
   })
 
   it('replaceTableRows uses the 120s floor on small tables', async () => {
@@ -472,7 +495,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     )
 
     // 12 × 3ms = 36ms → floored at 120_000ms
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '120000ms'")).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '120000ms')).toBe(true)
   })
 
   it('renameColumn is metadata-only — no per-row JSONB rewrite regardless of row count', async () => {
@@ -491,7 +514,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     await deleteColumn({ tableId: 'tbl-1', columnName: 'age' }, 'req-1')
 
     // 100 × 2ms = 200ms → floored at 60_000ms
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '60000ms'")).toBeDefined()
+    expect(executedTxTimeout('statement_timeout', '60000ms')).toBe(true)
   })
 
   it('replaceTableRows acquires the per-table advisory lock to serialize concurrent replaces', async () => {

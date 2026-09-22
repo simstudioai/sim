@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge, Button, ChipModalTabs, cn, X } from '@sim/emcn'
+import { Badge, Button, ChipModalTabs, cn, DetailsPanel, X } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {
@@ -340,45 +340,31 @@ export function EnrichmentDetails({
   }, [isOpen, onClose])
 
   return (
-    <>
-      {isOpen && (
-        <div
-          className='absolute top-0 bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
-          style={{ right: `calc(${effectiveWidth} - 4px)` }}
-          onMouseDown={handleMouseDown}
-          role='separator'
-          aria-label='Resize enrichment details panel'
-          aria-orientation='vertical'
-        />
-      )}
-
-      <div
-        className={cn(
-          'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        )}
-        style={{ width: effectiveWidth }}
-        aria-label='Enrichment details sidebar'
-      >
-        {rowId && groupId && (
-          <div className='flex h-full flex-col px-3.5 pt-3'>
-            <div className='flex items-center justify-between'>
-              <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
-              <Button variant='ghost' iconPadding='sm' onClick={onClose} aria-label='Close'>
-                <X className='size-[14px]' />
-              </Button>
-            </div>
-
-            <EnrichmentDetailsContent
-              tableId={tableId}
-              rowId={rowId}
-              groupId={groupId}
-              groupName={groupName}
-              isOpen={isOpen}
-            />
+    <DetailsPanel
+      open={isOpen}
+      width={effectiveWidth}
+      onResizeStart={handleMouseDown}
+      resizeLabel='Resize enrichment details panel'
+      aria-label='Enrichment details sidebar'
+    >
+      {rowId && groupId && (
+        <div className='flex h-full flex-col px-3.5 pt-3'>
+          <div className='flex items-center justify-between'>
+            <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
+            <Button variant='ghost' iconPadding='sm' onClick={onClose} aria-label='Close'>
+              <X className='size-[14px]' />
+            </Button>
           </div>
-        )}
-      </div>
-    </>
+
+          <EnrichmentDetailsContent
+            tableId={tableId}
+            rowId={rowId}
+            groupId={groupId}
+            groupName={groupName}
+            isOpen={isOpen}
+          />
+        </div>
+      )}
+    </DetailsPanel>
   )
 }

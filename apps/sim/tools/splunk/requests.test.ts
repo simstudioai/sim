@@ -188,7 +188,7 @@ describe('list tools project the paging envelope', () => {
 /**
  * The reference renders the job entry's `earliestTime` as an ISO string but
  * `searchEarliestTime` as a bare number (`1308589800.000000000`). Reading it with
- * `asString` returned `null` for every JSON response, which is what
+ * `toStringOrNull` returned `null` for every JSON response, which is what
  * `output_mode=json` always produces.
  */
 describe('getSearchJobTool time bounds', () => {

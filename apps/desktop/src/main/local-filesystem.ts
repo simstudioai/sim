@@ -19,6 +19,7 @@ import {
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
@@ -1114,7 +1115,7 @@ export class LocalFilesystemService {
       regex =
         rawPattern !== undefined
           ? new RegExp(expression, ignoreCase ? 'i' : '')
-          : new RegExp(expression.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ignoreCase ? 'i' : '')
+          : new RegExp(escapeRegExp(expression), ignoreCase ? 'i' : '')
     } catch {
       // An empty result set would tell the model the string appears nowhere in
       // the user's files — a factual claim it will act on, when in truth the

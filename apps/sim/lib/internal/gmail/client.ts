@@ -1,3 +1,4 @@
+import { toArray } from '@sim/utils/object'
 import {
   type ReadResponseWithLimitOptions,
   readResponseJsonWithLimit,
@@ -18,7 +19,7 @@ export function asObject(value: unknown): JsonObject {
 }
 
 export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return toArray(value)
 }
 
 export function nested(value: unknown, ...keys: string[]): unknown {

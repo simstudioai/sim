@@ -10,6 +10,7 @@ import {
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
 const {
   mockAcquireInvitationMutationLocks,
@@ -177,6 +178,35 @@ describe('grantWorkspaceAccessDirectly', () => {
     })
   })
 
+  it('rechecks application admission after locks and before any grant or side effect', async () => {
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    await expect(
+      grantWorkspaceAccessDirectly({
+        ...baseInput,
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(validateLockedWorkspace).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ id: 'ws-1', organizationId: 'org-1' })
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockRevokeInvitationWorkspaceGrantTx).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
   it('retries provider-declined notification delivery instead of dropping it', async () => {
     mockSendWorkspaceAddedEmail.mockResolvedValueOnce({
       success: false,
@@ -250,6 +280,25 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('retains public credential identity on the existing direct-grant audit', async () => {
+    const metadata = {
+      actor: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      operation: 'invitations.send_batch',
+    } as const
+    await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      auditActor: { id: 'user-1', name: 'Owner', email: 'owner@example.com', metadata },
+    })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        action: 'member.added',
+        metadata: expect.objectContaining(metadata),
+      })
+    )
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
   })
 
   it('does not upgrade an existing lower permission (invites never modify access)', async () => {

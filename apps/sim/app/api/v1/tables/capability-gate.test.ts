@@ -29,20 +29,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAuthenticateV1Request,
-  mockGetUserEntityPermissions,
+  mockCheckWorkspaceAccess,
   mockGetWorkspaceBillingSettings,
   mockGetTableById,
 } = vi.hoisted(() => ({
   mockAuthenticateV1Request: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockGetTableById: vi.fn(),
 }))
 
+/** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
+function workspaceAccess(permission: string | null, organizationId: string | null = 'org-1') {
+  return {
+    exists: true,
+    hasAccess: permission !== null,
+    canWrite: permission === 'admin' || permission === 'write',
+    canAdmin: permission === 'admin',
+    workspace: { id: 'ws-1', organizationId },
+    permission,
+  }
+}
+
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+  /** The v1 middleware reads the permission alone; `checkAccess` reads the whole access. */
+  getUserEntityPermissions: async (...args: unknown[]) =>
+    (await mockCheckWorkspaceAccess(...args)).permission,
 }))
 vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
@@ -103,7 +118,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(MEMBER_ID))
-  mockGetUserEntityPermissions.mockResolvedValue('admin')
+  mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
   mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
   mockGetTableById.mockResolvedValue(TABLE)
 })
@@ -147,7 +162,7 @@ describe('tables.use gate on /api/v1/tables/[tableId]', () => {
   })
 
   it('still refuses either key kind on role, before naming the capability', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess(null))
     governedBy({ hideTablesTab: true })
 
     const response = await readTable()

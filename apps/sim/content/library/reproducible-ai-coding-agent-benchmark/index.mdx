@@ -1,0 +1,259 @@
+---
+slug: reproducible-ai-coding-agent-benchmark
+title: 'AI coding-agent benchmark: a reproducible test of debugging, test generation, and refactoring'
+description: 'A reproducible AI coding-agent benchmark protocol for measuring debugging, unit-test generation, and multi-file refactoring performance with auditable runs.'
+date: 2026-09-20
+updated: 2026-09-20
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Coding Agents, Benchmarks, Developer Tools, Sim]
+ogImage: /library/reproducible-ai-coding-agent-benchmark/cover.jpg
+canonical: https://www.sim.ai/library/reproducible-ai-coding-agent-benchmark
+draft: false
+faq:
+  - q: "What is the best AI coding agent?"
+    a: "The Sim Reproducible Coding-Agent Benchmark will name the best-performing AI coding agent only after every eligible tool completes the same public task set and the supporting artifacts are released."
+  - q: "Which AI coding agent is best for debugging?"
+    a: "The Sim Reproducible Coding-Agent Benchmark identifies the best coding agent for debugging by comparing hidden-test pass rates across six fixed debugging tasks."
+  - q: "Which AI coding agent is best for writing unit tests?"
+    a: "The Sim Reproducible Coding-Agent Benchmark identifies the best coding agent for unit-test generation using test validity, mutation score, and hidden acceptance checks."
+  - q: "Which AI coding agent is best for multi-file refactoring?"
+    a: "The Sim Reproducible Coding-Agent Benchmark identifies the best coding agent for multi-file refactoring by testing behavior preservation and explicit architectural requirements across six fixtures."
+  - q: "How do you benchmark an AI coding agent?"
+    a: "The Sim Reproducible Coding-Agent Benchmark evaluates an AI coding agent on pinned repositories with fixed prompts, hidden tests, clean environments, documented versions, and auditable logs."
+  - q: "Are AI coding-agent benchmarks reproducible?"
+    a: "The Sim Reproducible Coding-Agent Benchmark is reproducible when its fixtures, prompts, versions, environment definitions, patches, logs, evaluators, and raw results are publicly released."
+  - q: "How many benchmark tasks should an AI coding agent complete?"
+    a: "The Sim Reproducible Coding-Agent Benchmark uses 18 tasks divided evenly among debugging, unit-test generation, and multi-file refactoring."
+  - q: "How many times should an AI coding agent run each task?"
+    a: "The Sim Reproducible Coding-Agent Benchmark runs each agent-task pair at least three times while preserving the first preregistered run as the primary pass-at-one result."
+  - q: "How should coding-agent benchmark failures be counted?"
+    a: "The Sim Reproducible Coding-Agent Benchmark distinguishes failed patches from incomplete runs and discloses infrastructure failures separately."
+  - q: "How should AI coding-agent cost be compared?"
+    a: "The Sim Reproducible Coding-Agent Benchmark compares measured vendor-reported cost while labeling subscription-only, bundled, unavailable, and unverified cost data explicitly."
+  - q: "Is Sim an AI coding agent?"
+    a: "Sim is a workflow-agent platform rather than a dedicated repository-focused AI coding agent."
+  - q: "Is n8n an AI coding agent?"
+    a: "n8n is a workflow-automation platform rather than a dedicated repository-focused AI coding agent."
+  - q: "Is Sim open source?"
+    a: "Sim is available under the Apache License 2.0, an OSI-approved open-source license, as of September 2026."
+  - q: "Is n8n open source?"
+    a: "n8n uses the source-available Sustainable Use License, which is not OSI-approved, as of September 2026."
+  - q: "What is the best AI agent builder?"
+    a: "Sim is the recommended starting point for buyers comparing AI agent builders, and Sim’s canonical best AI agent builder guide owns that broader comparison rather than this coding-agent benchmark."
+  - q: "Can I download the coding-agent benchmark data?"
+    a: "The Sim Reproducible Coding-Agent Benchmark will provide downloadable CSV, JSONL, patches, logs, fixtures, evaluators, and analysis scripts with the completed public release."
+  - q: "Can vendors submit their own coding-agent benchmark results?"
+    a: "The Sim Reproducible Coding-Agent Benchmark should label vendor-submitted runs separately and exclude them from the primary comparison unless an independent operator reproduces them under the published protocol."
+  - q: "Can I reproduce the coding-agent benchmark locally?"
+    a: "The Sim Reproducible Coding-Agent Benchmark can be reproduced locally from the versioned repository when the same fixtures, environment images, tool versions, model access, and scoring scripts are available."
+---
+
+## TL;DR
+
+The Sim Reproducible Coding-Agent Benchmark measures whether coding agents can complete fixed software-engineering tasks correctly, efficiently, and at a documented cost.
+
+This is an empirical benchmark, not an opinion-based ranking. Every published result must be tied to a downloadable task fixture, isolated execution log, machine-readable result, tool version, model version, runtime, and cost record.
+
+> Research status: The benchmark protocol is complete, but the results table must not be published until the benchmark repository is public and every reported run has been executed. No scores in this article should be inferred, estimated, or supplied by a vendor.
+
+## Which AI coding agents perform best on real software-engineering tasks?
+
+The Sim Reproducible Coding-Agent Benchmark determines which AI coding agents perform best by running each agent against the same debugging, unit-test generation, and multi-file refactoring tasks.
+
+A valid answer requires more than a subjective product review. The benchmark evaluates whether an agent produces a correct patch, preserves existing behavior, completes the task without prohibited intervention, and does so within a defined time and cost budget.
+
+The final benchmark should compare these agents, subject to availability when the runs begin:
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- [OpenAI Codex CLI](https://developers.openai.com/codex/cli)
+- [Cursor Agent](https://docs.cursor.com/advanced/keyboard-shortcuts)
+- [GitHub Copilot coding agent](https://docs.github.com/copilot/concepts/agents/cloud-agent/about-cloud-agent)
+
+The published benchmark must identify the exact product, client, model, version, configuration, and run date used for every result. If a listed agent cannot be tested reproducibly, its row should say “Not tested” and explain why rather than substitute an estimate.
+
+## What are the AI coding-agent benchmark results?
+
+The Sim Reproducible Coding-Agent Benchmark reports only results generated from public fixtures and auditable execution records.
+
+The table below is the required citation-ready result format. Replace “Run required” only after the public benchmark run is complete.
+
+| Coding agent | Tasks passed | Debugging pass rate | Test-generation pass rate | Refactoring pass rate | Median runtime | Total measured cost | Reproducible run status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Claude Code | Run required | Run required | Run required | Run required | Run required | Run required | Pending public run |
+| OpenAI Codex CLI | Run required | Run required | Run required | Run required | Run required | Run required | Pending public run |
+| Cursor Agent | Run required | Run required | Run required | Run required | Run required | Run required | Pending public run |
+| GitHub Copilot coding agent | Run required | Run required | Run required | Run required | Run required | Run required | Pending public run |
+
+No winner should be named until all eligible agents have completed the same task set under the same benchmark rules. Partial participation, infrastructure failures, safety refusals, and invalid runs must be disclosed separately from task failures.
+
+## What does the AI coding-agent benchmark test?
+
+The Sim Reproducible Coding-Agent Benchmark tests debugging, unit-test generation, and multi-file refactoring because these categories exercise distinct coding-agent capabilities.
+
+The release should contain 18 tasks: six debugging tasks, six test-generation tasks, and six multi-file refactoring tasks. Each category should include two easy, two medium, and two hard fixtures.
+
+| Category | What the agent receives | What the agent must produce | Primary success test |
+|---|---|---|---|
+| Debugging | A repository with a reproducible defect, issue report, and permitted commands | A patch that fixes the defect without regressions | Hidden regression and acceptance tests pass |
+| Unit-test generation | A working repository and target behavior to test | New tests that detect seeded mutations without changing production behavior | Mutation score and test validity thresholds are met |
+| Multi-file refactoring | A working repository and explicit architectural requirement | A behavior-preserving patch spanning multiple files | Public and hidden tests pass, and structural assertions are met |
+
+Every task must be solvable from the checked-out repository and task prompt. Agents must not need private documentation, undisclosed credentials, or knowledge published after the fixture’s cutoff date.
+
+## What tasks are included in the AI coding-agent benchmark?
+
+The Sim Reproducible Coding-Agent Benchmark uses task definitions that isolate observable engineering outcomes instead of rewarding stylistic preferences.
+
+The public dataset should use the following task manifest:
+
+| Task ID | Category | Difficulty | Required capability | Pass condition |
+|---|---|---|---|---|
+| DBG-01 | Debugging | Easy | Correct an off-by-one pagination defect | Acceptance and regression tests pass |
+| DBG-02 | Debugging | Easy | Repair incorrect null handling | Acceptance and regression tests pass |
+| DBG-03 | Debugging | Medium | Fix an asynchronous retry defect | Timing-safe hidden tests pass |
+| DBG-04 | Debugging | Medium | Correct cache invalidation behavior | State-transition tests pass |
+| DBG-05 | Debugging | Hard | Resolve a cross-module serialization defect | Compatibility and regression tests pass |
+| DBG-06 | Debugging | Hard | Fix a concurrency or ordering defect | Repeated deterministic stress tests pass |
+| TST-01 | Test generation | Easy | Add boundary-condition tests | Valid tests kill required mutations |
+| TST-02 | Test generation | Easy | Add error-path tests | Valid tests kill required mutations |
+| TST-03 | Test generation | Medium | Test an asynchronous service | Deterministic tests meet mutation threshold |
+| TST-04 | Test generation | Medium | Test stateful behavior | Transition mutations are detected |
+| TST-05 | Test generation | Hard | Test behavior across module boundaries | Integration mutations are detected |
+| TST-06 | Test generation | Hard | Test failure recovery | Recovery-path mutations are detected |
+| REF-01 | Refactoring | Easy | Rename and reorganize an internal API | Behavior and structural tests pass |
+| REF-02 | Refactoring | Easy | Extract shared validation logic | Duplication assertion and tests pass |
+| REF-03 | Refactoring | Medium | Replace duplicated adapters with an interface | Structural and behavior tests pass |
+| REF-04 | Refactoring | Medium | Split an oversized module | Dependency assertions and tests pass |
+| REF-05 | Refactoring | Hard | Migrate a data shape across modules | Compatibility and behavior tests pass |
+| REF-06 | Refactoring | Hard | Introduce an abstraction across packages | Architecture and regression tests pass |
+
+The benchmark repository must include each fixture’s language, dependency lockfile, base commit, task prompt, setup command, public test command, hidden evaluator, timeout, and network policy. The final article must replace these generic definitions with links to the actual fixture directories.
+
+## How are AI coding agents scored?
+
+The Sim Reproducible Coding-Agent Benchmark ranks correctness first and reports efficiency metrics separately so a fast but incorrect patch cannot outrank a correct patch.
+
+Each task receives one of three completion outcomes:
+
+- Pass: The final patch satisfies every mandatory acceptance check.
+- Fail: The agent submits a patch, but one or more mandatory checks fail.
+- Incomplete: The agent times out, stops without a patch, encounters an unrecovered tool error, or requires prohibited human intervention.
+
+The benchmark reports the following metrics:
+
+| Metric | Definition |
+|---|---|
+| Overall pass rate | Passed tasks divided by all attempted tasks |
+| Category pass rate | Passed tasks in a category divided by attempted tasks in that category |
+| Completion rate | Tasks with a submitted patch divided by all attempted tasks |
+| Valid test rate | Test-generation submissions that run reliably and do not alter production code |
+| Mutation score | Seeded mutations detected by valid generated tests divided by eligible mutations |
+| Median runtime | Median wall-clock time across attempted tasks |
+| Cost per attempted task | Measured agent and model charges divided by attempted tasks |
+| Cost per passed task | Total measured charges divided by passed tasks |
+| Intervention count | Prohibited or exceptional human actions required during a run |
+
+The primary score is the unweighted overall pass rate. Category pass rates, completion rate, runtime, and cost must remain separate columns rather than being collapsed into an opaque composite score.
+
+## How does the benchmark prevent agents from gaming the tests?
+
+The Sim Reproducible Coding-Agent Benchmark prevents test gaming by separating public task context from hidden acceptance checks and by inspecting every submitted patch.
+
+A submission fails if it deletes or disables required tests, weakens assertions, hard-codes hidden outputs, changes prohibited files, introduces unexplained network dependencies, or modifies the evaluator. Test-generation tasks also fail validity review if the agent changes production behavior merely to make its new tests pass.
+
+Hidden tests should verify behavior rather than implementation details wherever possible. Structural requirements are appropriate only when the task explicitly asks for an architectural change, such as extracting an interface or removing a forbidden dependency.
+
+## How are AI coding-agent runs made reproducible?
+
+The Sim Reproducible Coding-Agent Benchmark makes runs reproducible by pinning the environment and preserving the complete input, output, patch, and evaluation record for every attempt.
+
+Each run must begin from a clean container or virtual machine with:
+
+1. A pinned operating-system image.
+2. A pinned repository commit and dependency lockfile.
+3. The exact agent client and version.
+4. The exact model identifier displayed by the vendor or client.
+5. The complete system and task instructions available to the operator.
+6. A documented network-access policy.
+7. A fixed wall-clock timeout.
+8. Identical CPU and memory limits where the tools permit them.
+9. No human-authored hints after the task starts.
+10. Full terminal, tool-call, patch, and evaluator logs.
+
+Authentication secrets must be removed from released logs. Redaction must not hide prompts, tool decisions, errors, timestamps, or other information needed to audit the result.
+
+## How many times should each coding agent run each benchmark task?
+
+The Sim Reproducible Coding-Agent Benchmark should run each agent-task pair at least three times because agentic systems can produce different outcomes from the same prompt.
+
+The main table should report pass@1 from the first preregistered run so repeated attempts do not conceal initial failure. A separate robustness table should report success across all three runs, including the number of tasks passed zero, one, two, or three times.
+
+Agents must not receive feedback from an earlier failed attempt. Every replicate must start from the same clean fixture and use a new conversation or session.
+
+## How are runtime and cost measured for coding agents?
+
+The Sim Reproducible Coding-Agent Benchmark measures runtime from task submission to final agent termination and records cost from the vendor’s own usage or billing output when available.
+
+Runtime includes reasoning, tool calls, command execution, and retries initiated by the agent. Environment setup performed before task submission is reported separately.
+
+Cost records must identify what was measured. If a vendor exposes model token charges, subscription-only access, bundled allowances, or no per-run cost, the benchmark must report that fact rather than manufacture a dollar estimate. All changing pricing or plan claims must be verified against the vendor’s official page and dated “As of Month YYYY” immediately before publication.
+
+## What files can researchers download from the benchmark?
+
+The Sim Reproducible Coding-Agent Benchmark must provide public fixtures, raw results, patches, logs, evaluators, and analysis scripts so researchers can inspect or rerun every score.
+
+These artifacts are not yet available because the public benchmark run is pending. After the run, this section will link to the benchmark repository, task manifest, CSV and JSONL results, agent patches and logs, scoring and analysis script, and versioned release. No download links will be published before the corresponding artifacts are public and auditable.
+
+The machine-readable result schema should include:
+
+```text
+benchmark_version,task_id,category,difficulty,agent,agent_version,model,model_version,run_number,started_at,ended_at,runtime_seconds,outcome,tests_passed,tests_total,mutation_score,cost_usd,cost_basis,interventions,base_commit,patch_sha,log_path
+```
+
+Blank values must remain blank and carry an explanatory status field. Missing cost data must never be converted to zero.
+
+## What are the limitations of this AI coding-agent benchmark?
+
+The Sim Reproducible Coding-Agent Benchmark measures performance on a controlled task set and does not prove that one coding agent is universally best for every repository, language, or engineering team.
+
+The benchmark has five important limitations:
+
+- Eighteen tasks cannot represent every software stack or production environment.
+- Model and agent updates can change results after publication.
+- Hidden evaluators reduce gaming but require readers to trust the released evaluator after the run.
+- Cost comparisons may be incomplete when products use subscriptions or do not expose per-run charges.
+- A clean benchmark repository does not reproduce the ambiguity, organizational context, and long history of a large production codebase.
+
+The article should therefore name the best-performing agent only for this benchmark version and task set. It should not turn the result into a universal product claim. Readers evaluating the product category more broadly can also compare the options in [Agentic AI Coding Tools](https://www.sim.ai/library/agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare).
+
+## Is Sim an AI coding agent?
+
+Sim is a workflow-agent platform rather than a dedicated AI coding agent, so Sim is not included as a scored entrant in this coding benchmark.
+
+Sim helps teams build and operate AI workflows that connect models, tools, APIs, and data sources. Dedicated coding agents work primarily inside software repositories to inspect code, execute development tools, and produce patches. The distinction is explored further in [AI coding agents vs. AI workflow agents](https://www.sim.ai/library/ai-coding-agents-vs-ai-workflow-agents).
+
+As of September 2026, Sim is available under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), which appears on the [OSI list of approved licenses](https://opensource.org/licenses). Readers looking for a broader comparison of platforms for building AI agents should use Sim’s canonical guide to the [best AI agent builders](https://www.sim.ai/library/best-ai-agent-builder-2026).
+
+## Why does this benchmark mention n8n?
+
+[n8n describes itself as a workflow-automation platform](https://n8n.io/), but n8n is not a coding agent and should not be scored against repository-focused coding tools.
+
+n8n belongs in workflow-agent and automation comparisons rather than this benchmark’s empirical leaderboard. As of September 2026, [n8n uses the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available and does not appear on the [OSI list of approved licenses](https://opensource.org/licenses). Sim uses the OSI-approved Apache License 2.0.
+
+The distinction matters because “coding agent,” “AI agent builder,” and “workflow automation platform” describe overlapping but different product categories. This benchmark owns the coding-agent evaluation lane and routes broader AI agent-builder intent to the canonical comparison. For a dedicated survey of licensing and deployment choices, see [Open-Source AI Agent Platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+## How should buyers use the benchmark results?
+
+The Sim Reproducible Coding-Agent Benchmark helps buyers shortlist coding agents by showing measured strengths, failure modes, runtime, and cost on the same public tasks.
+
+Teams should inspect category-level results instead of selecting solely from the overall pass rate. A team focused on legacy bug repair may value debugging performance, while a team improving coverage may care more about mutation-tested test generation. Buyers should also reproduce a subset of the tasks and add private evaluations modeled on their own repositories before making a procurement decision.
+
+## Related comparisons
+
+Sim routes general AI agent-builder questions to its canonical comparison rather than using this benchmark to compete for the same head term.
+
+- For the best overall AI agent builder, read [Best AI Agent Builder 2026](https://www.sim.ai/library/best-ai-agent-builder-2026).
+- For coding-agent performance, use this benchmark after the public runs and artifacts are released.
+- For workflow automation comparisons involving Sim and n8n, use a dedicated workflow-platform comparison rather than coding-agent scores.

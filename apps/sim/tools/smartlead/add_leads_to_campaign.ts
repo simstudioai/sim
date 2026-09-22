@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SmartleadAddLeadsResponse, SmartleadCampaignIdParams } from '@/tools/smartlead/types'
 import {
@@ -37,7 +37,7 @@ interface AddLeadsToCampaignParams extends SmartleadCampaignIdParams {
 
 /** Keeps only fields Smartlead accepts so stray keys can't fail the whole import. */
 function toLeadPayload(value: unknown): Record<string, unknown> {
-  const record = isRecordLike(value) ? value : {}
+  const record = toRecord(value)
   const payload: Record<string, unknown> = {}
 
   for (const field of LEAD_FIELDS) {

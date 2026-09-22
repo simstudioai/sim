@@ -98,7 +98,7 @@ export function PresenceAvatars({
               style={{ zIndex: 0 }}
               aria-label={`${overflowCount} more ${overflowCount === 1 ? 'user' : 'users'}`}
             >
-              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white leading-none'>
+              <AvatarFallback className='border-0 bg-gray-700 font-semibold text-[7px] text-white leading-none'>
                 +{overflowCount}
               </AvatarFallback>
             </Avatar>

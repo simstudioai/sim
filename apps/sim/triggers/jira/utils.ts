@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -508,7 +508,7 @@ export function isJiraEventMatch(
 }
 
 export function extractIssueData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -520,7 +520,7 @@ export function extractIssueData(body: unknown) {
 }
 
 export function extractCommentData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -531,7 +531,7 @@ export function extractCommentData(body: unknown) {
 }
 
 export function extractWorklogData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -743,7 +743,7 @@ export function buildVersionReleasedOutputs(): Record<string, TriggerOutput> {
  * Extracts sprint data from a Jira webhook payload
  */
 export function extractSprintData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -756,7 +756,7 @@ export function extractSprintData(body: unknown) {
  * Extracts project data from a Jira webhook payload
  */
 export function extractProjectData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -769,7 +769,7 @@ export function extractProjectData(body: unknown) {
  * Extracts version data from a Jira webhook payload
  */
 export function extractVersionData(body: unknown) {
-  const obj = isRecordLike(body) ? body : {}
+  const obj = toRecord(body)
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,

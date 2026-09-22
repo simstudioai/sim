@@ -10,12 +10,13 @@ import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
+  getWorkspaceFileWithCurrentVersion,
   updateWorkspaceFileContent as updateStoredWorkspaceFileContent,
-  type WorkspaceFileRecord,
+  type VersionedWorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -39,10 +40,16 @@ export interface EditWorkspaceFileContentInput {
   assertedWorkspaceId?: string
   edit: EditWorkspaceFileContentEdit
   secretProvenance?: WorkspaceFileSecretProvenance
+  /**
+   * Refuse the edit unless the file still holds exactly this content, as reported by the
+   * `revision` an earlier read or write returned.
+   */
+  expectedRevision?: string
 }
 
 export interface EditWorkspaceFileContentResult {
-  file: WorkspaceFileRecord
+  /** The updated record, carrying the number of the version this edit recorded. */
+  file: VersionedWorkspaceFileRecord
   /** Lines in the file after the edit, so a caller can re-anchor without re-reading. */
   lineCount: number
 }
@@ -85,9 +92,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     }
 
     try {
-      const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
-        throwOnError: true,
-      })
+      const file = await getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId)
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       if (!file.contentUpdatedAt) {
         throw new OrchestrationError(
@@ -172,7 +177,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       const attribution = resolvePrincipalAttribution(principal, {
         workspaceBillingOwnerUserId: context.billedAccountUserId,
       })
-      let updated: WorkspaceFileRecord
+      let updated: VersionedWorkspaceFileRecord
       try {
         updated = await updateStoredWorkspaceFileContent(
           context.workspaceId,
@@ -182,7 +187,13 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           file.type,
           {
             version: resolveWorkspaceFileVersionWrite(principal),
-            expectedUpdatedAt: file.contentUpdatedAt,
+            /*
+             * The caller's own revision when it sent one, so the guard covers everything since
+             * the content it read — not merely since this use case loaded the file.
+             */
+            expectedUpdatedAt: input.expectedRevision
+              ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
+              : file.contentUpdatedAt,
             secretProvenancePolicy: input.secretProvenance
               ? { mode: 'replace' as const, provenance: input.secretProvenance }
               : /*

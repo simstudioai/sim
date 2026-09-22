@@ -1,13 +1,9 @@
+import { compareStrings } from '@sim/utils/string'
+
 const MAX_MATCHER_NODES = 250_000
 const MAX_SECRET_LITERAL_LENGTH = 64 * 1024
 
 export type ResolvedSecretMatcherCapacityFailure = 'literal-too-long' | 'node-limit-exceeded'
-
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
-}
 
 function commonPrefixLength(left: string, right: string): number {
   const limit = Math.min(left.length, right.length)

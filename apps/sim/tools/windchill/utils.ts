@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import {
   type WindchillOperationResponse,
   windchillOperationResponseSchema,
@@ -213,7 +213,7 @@ export function normalizeWindchillDocuments(value: unknown): WindchillDocument[]
 }
 
 export function windchillPageInfo(value: unknown, pageCount: number) {
-  const record = isRecordLike(value) ? value : {}
+  const record = toRecord(value)
   return {
     count: pageCount,
     totalCount: numberValue(record, '@odata.count'),

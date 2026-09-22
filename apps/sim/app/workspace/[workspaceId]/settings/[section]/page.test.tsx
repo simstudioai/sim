@@ -52,6 +52,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
       'organization',
       'usage',
       'access-control',
+      'requests',
       'audit-logs',
       'sso',
       'security',
@@ -131,6 +132,36 @@ describe('WorkspaceSettingsSectionPage', () => {
         userId: 'viewer-a',
         section,
       })
+    }
+  )
+
+  it.each([
+    { organizationSearch: false, destination: '/workspace/workspace-b/settings/requests' },
+    { organizationSearch: true, destination: '/o/org-target/settings/requests' },
+  ])(
+    'moves saved request review tabs to the canonical destination with org rollout=$organizationSearch',
+    async ({ organizationSearch, destination }) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch },
+      })
+      await expect(
+        WorkspaceSettingsSectionPage({
+          ...pageProps('access-control'),
+          searchParams: Promise.resolve({
+            'access-view': 'requests',
+            'request-id': 'selected',
+            'request-status': 'all',
+            'group-id': 'old-group',
+          }),
+        })
+      ).rejects.toThrow(`NEXT_REDIRECT:${destination}?request-id=selected&request-status=all`)
+      expect(mockAuthorizeSection).toHaveBeenCalledWith({
+        workspaceId: 'workspace-b',
+        userId: 'viewer-a',
+        section: 'requests',
+      })
+      expect(mockSectionPrefetch).not.toHaveBeenCalled()
     }
   )
 

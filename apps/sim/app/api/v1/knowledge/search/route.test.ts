@@ -14,8 +14,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockResolveV1KnowledgeReadAccess,
   mockExecuteKnowledgeSearch,
+  mockRetrievalStatus,
   mockGenerateSearchEmbedding,
-  mockGetDocumentMetadataByIds,
   mockGetDocumentTagDefinitions,
   mockAuthenticateRequest,
   mockValidateWorkspaceAccess,
@@ -25,8 +25,8 @@ const {
 } = vi.hoisted(() => ({
   mockResolveV1KnowledgeReadAccess: vi.fn(),
   mockExecuteKnowledgeSearch: vi.fn(),
+  mockRetrievalStatus: vi.fn(() => ({ status: 'complete', timedOutLegs: [] })),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentMetadataByIds: vi.fn(),
   mockGetDocumentTagDefinitions: vi.fn(),
   mockAuthenticateRequest: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
@@ -54,8 +54,11 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
 }))
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
-  executeKnowledgeSearch: mockExecuteKnowledgeSearch,
-  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
+  /** The route reads the retrieval result; the rows come from the same mock the tests drive. */
+  retrieveKnowledgeSearch: async (params: { access: unknown }) => ({
+    rows: await mockExecuteKnowledgeSearch(params),
+    retrieval: mockRetrievalStatus(),
+  }),
 }))
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
@@ -67,7 +70,9 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-  checkAttributedUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkSearchUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -125,7 +130,6 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       isBYOK: false,
     })
     mockExecuteKnowledgeSearch.mockResolvedValue([])
-    mockGetDocumentMetadataByIds.mockResolvedValue({})
     mockGetDocumentTagDefinitions.mockResolvedValue([])
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
@@ -137,6 +141,26 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     )
     mockResolveSystemBillingAttribution.mockResolvedValue(SYSTEM_BILLING_ATTRIBUTION)
     mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
+  })
+
+  it('fails a search whose retrieval ran out of time instead of returning partial rows', async () => {
+    const access = { kind: 'user' as const, userId: 'user-1', tokens: ['reader-token'] }
+    mockResolveV1KnowledgeReadAccess.mockResolvedValue({
+      get: vi.fn().mockResolvedValue(access),
+      getForConnectors: vi.fn(),
+      getForDocuments: vi.fn(),
+    })
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: baseKb('kb-1', 'text-embedding-3-small'),
+    })
+    mockRetrievalStatus.mockReturnValueOnce({ status: 'partial', timedOutLegs: ['vector'] })
+    mockExecuteKnowledgeSearch.mockResolvedValue([])
+    const response = await POST(
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+    )
+    expect(mockExecuteKnowledgeSearch).toHaveBeenCalledOnce()
+    expect(response.status).toBe(500)
   })
 
   it('retains the reader provider for ranked results and returned document metadata', async () => {
@@ -165,17 +189,11 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
         accessProvider: provider,
       })
     )
-    expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith([], access, provider)
   })
 
-  it.each([
-    ['query', false],
-    ['query', true],
-    ['filters', false],
-    ['filters', true],
-  ] as const)(
-    'omits newly denied content from %s results and counts when all denied is %s',
-    async (mode, allDenied) => {
+  it.each(['query', 'filters'] as const)(
+    'renders the source card each %s result row carries',
+    async (mode) => {
       const access = { kind: 'user' as const, userId: 'user-1', tokens: ['reader-token'] }
       const provider = {
         get: vi.fn().mockResolvedValue(access),
@@ -192,25 +210,16 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       ])
       mockExecuteKnowledgeSearch.mockResolvedValue([
         {
-          documentId: 'revoked-document',
-          knowledgeBaseId: 'kb-1',
-          content: 'revoked page content',
-          tag1: 'revoked tag',
-          chunkIndex: 0,
-          distance: 0.1,
-        },
-        {
           documentId: 'allowed-document',
           knowledgeBaseId: 'kb-1',
           content: 'allowed page content',
+          filename: 'Allowed page',
+          sourceUrl: null,
           tag1: 'docs',
           chunkIndex: 0,
           distance: 0.2,
         },
       ])
-      mockGetDocumentMetadataByIds.mockResolvedValue(
-        allDenied ? {} : { 'allowed-document': { filename: 'Allowed page', sourceUrl: null } }
-      )
       const response = await POST(
         createMockRequest('POST', {
           workspaceId: 'ws-1',
@@ -222,25 +231,19 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
       )
       const body = await response.json()
       expect(response.status).toBe(200)
-      expect(mockGetDocumentMetadataByIds).toHaveBeenCalledWith(
-        ['revoked-document', 'allowed-document'],
-        access,
-        provider
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ access, accessProvider: provider })
       )
-      expect(body.data.results).toEqual(
-        allDenied
-          ? []
-          : [
-              expect.objectContaining({
-                documentId: 'allowed-document',
-                documentName: 'Allowed page',
-                content: 'allowed page content',
-                metadata: { category: 'docs' },
-              }),
-            ]
-      )
-      expect(body.data.totalResults).toBe(allDenied ? 0 : 1)
-      expect(JSON.stringify(body)).not.toContain('revoked')
+      expect(body.data.results).toEqual([
+        expect.objectContaining({
+          documentId: 'allowed-document',
+          documentName: 'Allowed page',
+          sourceUrl: null,
+          content: 'allowed page content',
+          metadata: { category: 'docs' },
+        }),
+      ])
+      expect(body.data.totalResults).toBe(1)
     }
   )
 
@@ -345,7 +348,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
   })
 
-  it('surfaces sourceUrl from document metadata in search results', async () => {
+  it('surfaces the sourceUrl a result row carries', async () => {
     mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
       hasAccess: true,
       knowledgeBase: baseKb('kb-confluence', 'text-embedding-3-small'),
@@ -355,16 +358,12 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
         documentId: 'doc-confluence',
         knowledgeBaseId: 'kb-confluence',
         content: 'page content',
+        filename: 'Runbook.md',
+        sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
         chunkIndex: 0,
         distance: 0.1,
       },
     ])
-    mockGetDocumentMetadataByIds.mockResolvedValue({
-      'doc-confluence': {
-        filename: 'Runbook.md',
-        sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
-      },
-    })
 
     const req = createMockRequest('POST', {
       workspaceId: 'ws-1',

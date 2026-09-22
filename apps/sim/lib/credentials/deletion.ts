@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, notExists, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notExists, or, sql } from 'drizzle-orm'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { NextRequest } from 'next/server'
 import {
@@ -11,6 +11,9 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
+import { CREDENTIAL_REMOVED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import { buildSyncUnscheduledUpdate } from '@/lib/knowledge/connectors/sync-lock'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
@@ -336,10 +339,31 @@ async function readWorkspaceCredentialRefs(
   `)
 }
 
+/**
+ * A content-engine connector whose credential is gone cannot sync until it is reconnected, so
+ * it leaves the due sweep with the reconnect error; paused and disabled connectors keep their
+ * status. A connector that still holds an API key, or a members-mode connector that only loses
+ * its optional dedicated content credential, keeps running and merely drops the reference.
+ */
 async function clearInKnowledgeConnectors(credentialId: string): Promise<void> {
+  const now = new Date()
   await db
     .update(schema.knowledgeConnector)
-    .set({ credentialId: null, updatedAt: new Date() })
+    .set({
+      ...buildSyncUnscheduledUpdate(now, CREDENTIAL_REMOVED_SYNC_ERROR),
+      credentialId: null,
+      status: sql`CASE WHEN ${schema.knowledgeConnector.status} IN ('paused', 'disabled') THEN ${schema.knowledgeConnector.status} ELSE 'error' END`,
+    })
+    .where(
+      and(
+        eq(schema.knowledgeConnector.credentialId, credentialId),
+        inArray(schema.knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+        isNull(schema.knowledgeConnector.encryptedApiKey)
+      )
+    )
+  await db
+    .update(schema.knowledgeConnector)
+    .set({ credentialId: null, updatedAt: now })
     .where(eq(schema.knowledgeConnector.credentialId, credentialId))
 }
 

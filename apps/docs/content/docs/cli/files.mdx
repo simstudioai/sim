@@ -299,7 +299,8 @@ sim files versions revert <fileId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number. |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
 
 </CommandTable>
 
@@ -354,6 +355,7 @@ sim files edit <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 
@@ -613,6 +615,7 @@ sim files set-content <fileId> [options]
 | --- | --- | --- |
 | `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
 | `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 

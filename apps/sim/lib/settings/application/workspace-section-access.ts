@@ -114,8 +114,10 @@ async function canOpenOrganizationSection(
     })
   }
 
-  const needsEnterprisePlan = organizationSection !== 'members' && organizationSection !== 'billing'
-  /** Same split as the organization surface: Access Control follows the regime, everything else the plan. */
+  const needsEnterprisePlan =
+    organizationSection !== 'members' &&
+    organizationSection !== 'billing' &&
+    organizationSection !== 'requests'
   const readsRegime = needsEnterprisePlan && organizationSection === 'access-control'
   const [canOpenSection, isEnterpriseOrganization, governanceActive] = await Promise.all([
     canOpenOrganizationSettingsSection(workspace.organizationId, input.userId, organizationSection),

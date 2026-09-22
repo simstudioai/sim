@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   type SecureFetchResponse,
@@ -54,9 +55,7 @@ export async function requestGoogleDrive(
 export type JsonObject = Record<string, unknown>
 
 export function asObject(value: unknown): JsonObject {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonObject)
-    : {}
+  return toRecord(value)
 }
 
 export async function responseObject(response: SecureFetchResponse): Promise<JsonObject> {

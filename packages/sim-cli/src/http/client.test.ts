@@ -1026,6 +1026,22 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    /** These amend access or request history without discarding a resource. */
+    'cancelOrganizationAccessRequest',
+    'cancelWorkspaceAccessRequest',
+    'createOrganizationAccessRequest',
+    'createWorkspaceAccessRequest',
+    'createWorkspaceInvitations',
+    'resolveOrganizationAccessRequest',
+    'updateOrganizationAccessRequestSettings',
+    'updateOrganizationMemberUsageLimit',
+    'createOrganizationInvitation',
+    'resendOrganizationInvitation',
+    'updateOrganizationMember',
+    'createPermissionGroup',
+    'updatePermissionGroup',
+    'addPermissionGroupMember',
+    'bulkAddPermissionGroupMembers',
     'forkWorkspace',
     'getSelector',
     'listSelector',

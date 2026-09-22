@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   MicrosoftTeamsClient,
@@ -71,7 +71,7 @@ function optionalString(data: MicrosoftTeamsGraphObject, key: string): string | 
 }
 
 function nestedObject(data: MicrosoftTeamsGraphObject, key: string): MicrosoftTeamsGraphObject {
-  return isRecordLike(data[key]) ? data[key] : {}
+  return toRecord(data[key])
 }
 
 function requiredId(value: string, label: string): string {

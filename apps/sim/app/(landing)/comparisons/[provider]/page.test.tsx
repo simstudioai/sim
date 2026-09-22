@@ -38,6 +38,7 @@ vi.mock('@/app/(landing)/comparisons/components/comparison-cards', () => ({
   ComparisonCards: () => null,
 }))
 
+import { escapeRegExp } from '@sim/utils/string'
 import type { Prose } from '@/lib/compare/data'
 import { dustProfile } from '@/lib/compare/data'
 import ComparisonProviderPage from '@/app/(landing)/comparisons/[provider]/page'
@@ -64,7 +65,7 @@ function countMatches(markup: string, pattern: RegExp): number {
  * against the wrong anchor.
  */
 function anchorWrapping(markup: string, text: string): string {
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escaped = escapeRegExp(text)
   return markup.match(new RegExp(`<a [^>]*>${escaped}</a>`))?.[0] ?? ''
 }
 

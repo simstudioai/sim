@@ -61,6 +61,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-text', () => ({
 vi.mock('@/lib/uploads', () => ({ getServePathPrefix: () => '/api/files/serve/' }))
 
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import {
   deleteWorkspaceFileVersion,
   downloadWorkspaceFileVersion,
@@ -114,6 +115,14 @@ function version(number: number, overrides: Record<string, unknown> = {}) {
 
 const current = version(3, { key: file.key, isCurrent: true, supersededAt: null })
 
+/** After a revert of v2: v2 is the source, v4 the new current version the write recorded. */
+const getVersionAfterRevert = async (_file: unknown, number: number) =>
+  number === 2
+    ? version(2)
+    : number === 4
+      ? version(4, { source: 'revert', restoredFromVersion: 2, isCurrent: true })
+      : current
+
 function objectMissing() {
   return Object.assign(new Error('Failed to download file: missing'), {
     cause: Object.assign(new Error('missing'), { name: 'NoSuchKey' }),
@@ -138,13 +147,7 @@ describe('file version use cases', () => {
 
   describe('revertWorkspaceFileVersion', () => {
     it('writes the version as a new revert version carrying its provenance snapshot', async () => {
-      mocks.getVersion.mockImplementation(async (_file: unknown, number: number) =>
-        number === 2
-          ? version(2)
-          : number === 4
-            ? version(4, { source: 'revert', restoredFromVersion: 2, isCurrent: true })
-            : current
-      )
+      mocks.getVersion.mockImplementation(getVersionAfterRevert)
 
       const result = await revertWorkspaceFileVersion.execute({
         principal,
@@ -207,6 +210,84 @@ describe('file version use cases', () => {
       expect(mocks.updateContent).not.toHaveBeenCalled()
       expect(mocks.recordAudit).not.toHaveBeenCalled()
       expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The surface presents `workspaceFileRevision(result.file)`, so the record has to be the one
+     * the write produced — a pre-write record would hand the caller a revision their next
+     * conditional write is guaranteed to fail on.
+     */
+    it('returns the record the write produced, so its revision names the new content', async () => {
+      mocks.getVersion.mockImplementation(getVersionAfterRevert)
+      const contentUpdatedAt = new Date('2026-01-04T00:00:00Z')
+      mocks.updateContent.mockResolvedValue({
+        ...file,
+        key: 'new-key',
+        currentVersion: 4,
+        contentUpdatedAt,
+      })
+
+      const result = await revertWorkspaceFileVersion.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', version: 2 },
+      })
+
+      expect(result.file.contentUpdatedAt).toEqual(contentUpdatedAt)
+    })
+
+    /** The revision guards content, so it catches an edit that folded into the current version. */
+    it('reverts when the revision still names the current content', async () => {
+      mocks.getVersion.mockImplementation(async (_file: unknown, number: number) =>
+        number === 2 ? version(2) : number === 4 ? version(4, { isCurrent: true }) : current
+      )
+
+      await revertWorkspaceFileVersion.execute({
+        principal,
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-1',
+          version: 2,
+          expectedRevision: workspaceFileRevision(file),
+        },
+      })
+
+      expect(mocks.updateContent.mock.calls[0][5]).toMatchObject({
+        expectedUpdatedAt: file.contentUpdatedAt,
+      })
+    })
+
+    /** Reverting to the version that is already current must still honour a stale revision. */
+    it('refuses a stale revision even when the requested version is already current', async () => {
+      await expect(
+        revertWorkspaceFileVersion.execute({
+          principal,
+          input: {
+            fileId: 'file-1',
+            assertedWorkspaceId: 'workspace-1',
+            version: 3,
+            expectedRevision: workspaceFileRevision({
+              ...file,
+              contentUpdatedAt: new Date('2020-01-01T00:00:00Z'),
+            }),
+          },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.updateContent).not.toHaveBeenCalled()
+    })
+
+    it('refuses a revision issued for a different file', async () => {
+      await expect(
+        revertWorkspaceFileVersion.execute({
+          principal,
+          input: {
+            fileId: 'file-1',
+            assertedWorkspaceId: 'workspace-1',
+            version: 2,
+            expectedRevision: workspaceFileRevision({ ...file, id: 'file-2' }),
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.updateContent).not.toHaveBeenCalled()
     })
 
     it('refuses a stale expected current version without writing', async () => {

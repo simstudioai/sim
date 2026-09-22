@@ -51,6 +51,9 @@ const ORIGINAL_UPLOAD_TOLERANCE_MS = 1000
  */
 const COALESCING_SOURCES: ReadonlySet<WorkspaceFileVersionSource> = new Set(['collab', 'workflow'])
 
+/** The version a file's first content holds: history starts at 1, recorded or implicit. */
+export const INITIAL_WORKSPACE_FILE_VERSION = 1
+
 /** How the write being committed should be recorded in the file's history. */
 export interface WorkspaceFileVersionWrite {
   source: WorkspaceFileVersionSource
@@ -219,7 +222,7 @@ export async function recordWorkspaceFileVersionInTx(
         id: generateId(),
         fileId: previous.id,
         workspaceId: params.workspaceId,
-        version: (head?.version ?? 0) + 1,
+        version: head ? head.version + 1 : INITIAL_WORKSPACE_FILE_VERSION,
         ...contentColumns(previous, params.previousProvenance),
         contentHash: null,
         source: original ? 'upload' : 'unknown',
@@ -630,7 +633,7 @@ export function currentWorkspaceFileVersionNumberSql() {
     where ${head.fileId} = ${file.id}
     order by ${head.version} desc
     limit 1
-  ), 1)`.mapWith(Number)
+  ), ${INITIAL_WORKSPACE_FILE_VERSION})`.mapWith(Number)
 }
 
 /** One version of a file, or null when it never existed or retention removed it. */

@@ -1,3 +1,4 @@
+import { toArray } from '@sim/utils/object'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 
@@ -13,7 +14,7 @@ export function asObject(value: unknown): AsanaJsonObject {
 }
 
 export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return toArray(value)
 }
 
 function providerErrorMessage(response: Response, text: string): string {

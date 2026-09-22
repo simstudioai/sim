@@ -10,6 +10,7 @@ import {
   highlight,
   languages,
 } from '@sim/emcn'
+import { escapeRegExp } from '@sim/utils/string'
 import Editor from 'react-simple-code-editor'
 import type { SchemaParameter } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
 import {
@@ -152,7 +153,7 @@ export function CodeEditor({
 
     if (schemaParameters.length > 0) {
       schemaParameters.forEach((param) => {
-        const escapedName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escapedName = escapeRegExp(param.name)
         const paramRegex = new RegExp(`\\b(${escapedName})\\b`, 'g')
         processedCode = processedCode.replace(paramRegex, (match) => {
           const placeholder = `__PARAM_${placeholders.length}__`
