@@ -1,5 +1,5 @@
 'use client'
-import { Chip, cn, Loader } from '@sim/emcn'
+import { Chip, Loader } from '@sim/emcn'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { InviteHeading } from '@/app/invite/components/invite-heading'
@@ -80,7 +80,8 @@ export function InviteStatusCard({
               fullWidth
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
-              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
+              variant='outline'
+              className={AUTH_BUTTON_CLASS}
             >
               {action.loading ? (
                 <span className='flex items-center gap-2'>

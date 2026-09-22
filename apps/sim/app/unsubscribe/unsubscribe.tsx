@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Chip, cn, Loader } from '@sim/emcn'
+import { Chip, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
@@ -139,7 +139,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -154,7 +155,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -169,7 +171,8 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
+          className={AUTH_BUTTON_CLASS}
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
