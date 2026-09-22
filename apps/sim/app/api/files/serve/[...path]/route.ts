@@ -68,16 +68,25 @@ interface ServeOptions {
   versioned: boolean
 }
 
+/**
+ * Whether a resolved response is a function of the stored object alone.
+ *
+ * `stored-bytes` may be cached for the life of the storage key: a content write stores the new
+ * bytes under a NEW key, so a given key's response never changes. `derived-from-referenced-files`
+ * may not — a sim page inlining its images, or a document compiled against the files it
+ * references, is re-resolved per request and changes when a referenced file changes, while this
+ * file's own key and `updatedAt` stay put.
+ *
+ * Declared rather than inferred, and REQUIRED, so a branch added to the resolver cannot inherit
+ * the cacheable default by saying nothing — the same reason the transfer ceiling is asserted where
+ * the branches converge rather than inside each one.
+ */
+type ServableCacheability = 'stored-bytes' | 'derived-from-referenced-files'
+
 interface ServableBytes {
   buffer: Buffer
   contentType: string
-  /**
-   * These bytes were resolved against OTHER files' current content — a sim page inlining its
-   * images, or a document compiled against the files it references. The same storage key can
-   * therefore serve different bytes over time, with nothing about this file changing, so the
-   * response must stay revalidated even when the request carries a version.
-   */
-  dependsOnReferencedFiles?: boolean
+  cacheability: ServableCacheability
 }
 
 /**
@@ -111,8 +120,12 @@ async function resolveServableBytes(params: {
   // `raw` is the stored source, already bounded by the read that produced it, but it
   // goes through the same check so the ceiling holds for everything this returns
   // rather than for every branch someone remembered to cover.
-  const resolved = params.options.raw
-    ? { buffer: params.buffer, contentType: getContentType(params.filename) }
+  const resolved: ServableBytes = params.options.raw
+    ? {
+        buffer: params.buffer,
+        contentType: getContentType(params.filename),
+        cacheability: 'stored-bytes',
+      }
     : await resolveTransformedBytes(params)
   assertKnownSizeWithinLimit(
     resolved.buffer.length,
@@ -159,7 +172,11 @@ async function resolveTransformedBytes(params: {
         'utf8'
       )
       // Inlines the workspace images the page references, read at their CURRENT content.
-      return { buffer: rendered, contentType: 'text/html', dependsOnReferencedFiles: true }
+      return {
+        buffer: rendered,
+        contentType: 'text/html',
+        cacheability: 'derived-from-referenced-files',
+      }
     }
   }
 
@@ -167,10 +184,11 @@ async function resolveTransformedBytes(params: {
     // Images resolve independently of the document path: a HEIF has no compiled-source
     // concept, so it never reaches the doc branch.
     const image = await resolveServableImageBytes(buffer, storageKey)
-    if (image) return image
+    // Transcoded from THIS file's stored bytes, so it lives and dies with the storage key.
+    if (image) return { ...image, cacheability: 'stored-bytes' }
   }
 
-  return resolveServableDocBytes({
+  const doc = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
     workspaceId,
@@ -178,6 +196,11 @@ async function resolveTransformedBytes(params: {
     ownerKey,
     signal,
   })
+  return {
+    buffer: doc.buffer,
+    contentType: doc.contentType,
+    cacheability: doc.dependsOnReferencedFiles ? 'derived-from-referenced-files' : 'stored-bytes',
+  }
 }
 
 const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
@@ -205,7 +228,7 @@ const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
  * then resolve from cache with no round trip.
  *
  * That promise does NOT hold when the response was resolved against other files' current content
- * (`dependsOnReferencedFiles`): a document compiled against the files it references, or a sim page
+ * (`derived-from-referenced-files`): a document compiled against the files it references, or a page
  * inlining its images, recompiles per request, so the same key serves different bytes once a
  * referenced file changes — while this file's key and `updatedAt`, and therefore the whole URL,
  * stay put. Promising immutability there pins a stale render in the browser cache for a year, so
@@ -214,12 +237,11 @@ const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
 function resolveServeCacheControl(
   versioned: boolean,
   context: string | undefined,
-  dependsOnReferencedFiles: boolean | undefined
+  cacheability: ServableCacheability
 ): string | undefined {
-  if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' || dependsOnReferencedFiles
-    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
-    : undefined
+  const derived = cacheability === 'derived-from-referenced-files'
+  if (versioned && !derived) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' || derived ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
 }
 
 export const GET = withRouteHandler(
@@ -409,11 +431,7 @@ async function handleWorkspaceFile(
     buffer: resolved.buffer,
     contentType: resolved.contentType,
     filename: file.name,
-    cacheControl: resolveServeCacheControl(
-      options.versioned,
-      'workspace',
-      resolved.dependsOnReferencedFiles
-    ),
+    cacheControl: resolveServeCacheControl(options.versioned, 'workspace', resolved.cacheability),
   })
 }
 
@@ -458,7 +476,7 @@ async function handleLocalFile(
     const {
       buffer: fileBuffer,
       contentType,
-      dependsOnReferencedFiles,
+      cacheability,
     } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
@@ -475,7 +493,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context, dependsOnReferencedFiles),
+      cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
     })
   } catch (error) {
     logServeFailure('Error reading local file:', error)
@@ -529,7 +547,7 @@ async function handleCloudProxy(
     const {
       buffer: fileBuffer,
       contentType,
-      dependsOnReferencedFiles,
+      cacheability,
     } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
@@ -551,7 +569,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context, dependsOnReferencedFiles),
+      cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
     })
   } catch (error) {
     logServeFailure('Error downloading from cloud storage:', error)
