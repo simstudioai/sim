@@ -71,6 +71,11 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
+import {
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
@@ -695,6 +700,7 @@ describe('useChat remount send recovery', () => {
       act(() => root.unmount())
     }
     queryClient?.clear()
+    resetDeploymentShape()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.clearAllMocks()
@@ -917,6 +923,66 @@ describe('useChat remount send recovery', () => {
       if (loading === 'delayed') await act(async () => pending.resolve({ chat: history }))
       await waitFor(() => getResult().resources.length === 2)
       expect(getResult().activeResourceId).toBe('selected-table')
+    }
+  )
+
+  it.each([true, false])(
+    'restores one evidence tab from a saved search and sources pair when live search is %s',
+    async (liveEnterpriseSearch) => {
+      const shape = resolveDeploymentShape()
+      seedDeploymentShape({
+        ...shape,
+        features: { ...shape.features, liveEnterpriseSearch },
+      })
+      const search = createSearchResource({
+        query: 'evidence',
+        scope: { kind: 'workspace', workspaceId: 'ws-1' },
+      })
+      const sources = {
+        type: 'sources' as const,
+        id: 'cited-sources',
+        title: 'Sources',
+        sources: { messageId: 'answer-1' },
+      }
+      const history: MothershipChatHistory = {
+        id: 'chat-saved-evidence',
+        mode: 'assistant',
+        title: 'Evidence',
+        messages: [],
+        activeStreamId: null,
+        resources: [search, sources],
+      }
+      let storedResources = [search, sources]
+      mockRequestJson.mockImplementation((contract, input) => {
+        if (contract.path === '/api/mothership/chat/resources') {
+          if (contract.method === 'DELETE') {
+            expect(input.body).toMatchObject({
+              chatId: history.id,
+              resourceType: 'search',
+              resourceId: search.id,
+              workspaceId: search.workspaceId,
+            })
+            storedResources = [sources]
+          }
+          return Promise.resolve({ success: true })
+        }
+        return Promise.resolve({ chat: { ...history, resources: storedResources } })
+      })
+      const { getResult } = renderUseChatInChat(
+        history.id,
+        history,
+        undefined,
+        undefined,
+        'assistant'
+      )
+      await waitFor(() => getResult().resources.length === (liveEnterpriseSearch ? 1 : 2))
+      expect(getResult().resources).toEqual(liveEnterpriseSearch ? [sources] : [search, sources])
+      expect(getResult().activeResourceId).toBe(sources.id)
+      if (liveEnterpriseSearch) {
+        await waitFor(() => storedResources.length === 1)
+      } else {
+        expect(storedResources).toHaveLength(2)
+      }
     }
   )
 

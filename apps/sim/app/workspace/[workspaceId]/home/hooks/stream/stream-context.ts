@@ -68,6 +68,8 @@ export interface StreamLoopState {
    */
   model: TurnModel
   streamRequestId: string | undefined
+  /** Search tab opened during this turn, even before React commits it to resourcesRef. */
+  liveSearchResource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'> | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
   /** The terminal complete frame's status — the SERVER's verdict on the turn. */
@@ -219,6 +221,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       ? contentBlocksToModel(deps.streamingBlocksRef.current)
       : createTurnModel(),
     streamRequestId: undefined,
+    liveSearchResource: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
     completionStatus: null,

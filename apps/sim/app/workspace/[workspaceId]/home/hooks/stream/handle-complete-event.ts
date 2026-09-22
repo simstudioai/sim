@@ -38,6 +38,21 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
       ...(ctx.state.streamRequestId ? { requestId: ctx.state.streamRequestId } : {}),
     },
   }
+  // Search results have already served their purpose once the answer names its
+  // evidence. Include the streamed address: React may not have rendered the
+  // search resource into resourcesRef before this completion frame arrives.
+  const searchResources = new Map<string, { id: string; workspaceId?: string }>(
+    ctx.deps.resourcesRef.current
+      .filter((item) => item.type === 'search')
+      .map((item) => [`${item.workspaceId ?? ''}:${item.id}`, item] as const)
+  )
+  const streamedSearch = ctx.state.liveSearchResource
+  if (streamedSearch) {
+    searchResources.set(`${streamedSearch.workspaceId ?? ''}:${streamedSearch.id}`, streamedSearch)
+  }
+  for (const search of searchResources.values()) {
+    ctx.deps.removeResource('search', search.id, search.workspaceId)
+  }
   ctx.deps.addResource(resource)
   ctx.deps.onResourceEventRef.current?.(resource.id, { revealCitedSources: true })
 }

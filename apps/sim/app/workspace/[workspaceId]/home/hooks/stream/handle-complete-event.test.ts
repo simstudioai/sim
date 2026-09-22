@@ -73,7 +73,17 @@ describe('completed answer source panel', () => {
     expect(citations).toHaveLength(1)
     expect(citations[0].title).toBe('Group DM · Sid, Waleed')
     const ctx = context()
+    ctx.deps.resourcesRef.current = [
+      {
+        type: 'search',
+        id: 'search:workspace:ws-1',
+        title: 'Search results',
+        workspaceId: 'ws-1',
+        search: { query: 'evidence', scope: { kind: 'workspace', workspaceId: 'ws-1' } },
+      },
+    ]
     handleCompleteEvent(ctx, event())
+    expect(ctx.deps.removeResource).toHaveBeenCalledWith('search', 'search:workspace:ws-1', 'ws-1')
     expect(ctx.deps.addResource).toHaveBeenCalledWith({
       type: 'sources',
       id: 'cited-sources',
@@ -84,6 +94,19 @@ describe('completed answer source panel', () => {
       revealCitedSources: true,
     })
   })
+  it('replaces a search streamed before the panel has rendered it', () => {
+    const ctx = context()
+    ctx.state.liveSearchResource = {
+      type: 'search',
+      id: 'search:workspace:ws-1',
+      workspaceId: 'ws-1',
+    }
+    handleCompleteEvent(ctx, event())
+    expect(ctx.deps.removeResource).toHaveBeenCalledWith('search', 'search:workspace:ws-1', 'ws-1')
+    expect(ctx.deps.addResource).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'sources', id: 'cited-sources' })
+    )
+  })
   it.each(['closed', 'open-empty', 'open-with-content'])(
     'leaves the %s panel exactly alone without a valid citation',
     () => {
@@ -91,8 +114,14 @@ describe('completed answer source panel', () => {
         blocks[0],
         { type: 'text', content: 'Answer <source>{"id":"invented"}</source>' },
       ])
+      ctx.state.liveSearchResource = {
+        type: 'search',
+        id: 'search:workspace:ws-1',
+        workspaceId: 'ws-1',
+      }
       handleCompleteEvent(ctx, event())
       expect(ctx.deps.addResource).not.toHaveBeenCalled()
+      expect(ctx.deps.removeResource).not.toHaveBeenCalled()
       expect(ctx.deps.setResources).not.toHaveBeenCalled()
       expect(ctx.deps.setActiveResourceId).not.toHaveBeenCalled()
       expect(ctx.deps.onResourceEventRef.current).not.toHaveBeenCalled()

@@ -128,6 +128,19 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       return
     }
+    if (ctx.deps.citedSourcesEnabled) {
+      // A new search takes over the evidence slot from the previous answer.
+      if (!ctx.state.liveSearchResource) {
+        for (const item of resourcesRef.current) {
+          if (item.type === 'sources') removeResource(item.type, item.id, item.workspaceId)
+        }
+      }
+      ctx.state.liveSearchResource = {
+        type: 'search',
+        id: resource.id,
+        workspaceId: resource.workspaceId,
+      }
+    }
     if (payload.effectId)
       setResources((current) => {
         const found = current.find(

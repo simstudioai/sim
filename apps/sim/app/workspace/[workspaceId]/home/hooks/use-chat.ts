@@ -1891,13 +1891,32 @@ export function useChat(
     const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
-    // A stored panel this client cannot open is kept out of the tab strip
-    // rather than restored onto an error, but stays in the stored set so the
-    // desktop app still gets it back.
-    const updatedResources = resourcePersistenceQueue.applyPendingUpdates(
+    let updatedResources = resourcePersistenceQueue.applyPendingUpdates(
       chatHistory.id,
       persistedResources
     )
+    // Chats saved by earlier live-search clients can hold both tabs. Keep only
+    // the cited evidence when restoring that completed answer, and remove the
+    // obsolete search row through the same persistence queue as a tab close.
+    if (
+      getDeploymentShape().features.liveEnterpriseSearch &&
+      requestModeRef.current === 'assistant' &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status)) &&
+      updatedResources.some((resource) => resource.type === 'sources')
+    ) {
+      for (const resource of updatedResources) {
+        if (resource.type === 'search') {
+          removeResource('search', resource.id, resource.workspaceId)
+        }
+      }
+      updatedResources = resourcePersistenceQueue.applyPendingUpdates(
+        chatHistory.id,
+        persistedResources
+      )
+    }
+    // A stored panel this client cannot open is kept out of the tab strip
+    // rather than restored onto an error, but stays in the stored set so the
+    // desktop app still gets it back.
     const pendingOrder = pendingResourceReordersRef.current.get(chatHistory.id)
     const projectedResources = pendingOrder
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
@@ -2048,6 +2067,7 @@ export function useChat(
     cancelActiveStreamRecovery,
     flushPendingResources,
     reconcileHydratedWorkflowResources,
+    removeResource,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,

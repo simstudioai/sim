@@ -29,7 +29,10 @@ vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'
-import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import {
+  createStreamLoopContext,
+  type StreamLoopContext,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -650,6 +653,15 @@ it('shows live search results while the answer is running', () => {
     viewerId: 'reader',
     onResourceEventRef: { current: onResourceEvent },
   })
+  deps.resourcesRef.current = [
+    {
+      type: 'sources',
+      id: 'cited-sources',
+      title: 'Sources',
+      sources: { messageId: 'previous-answer' },
+    },
+  ]
+  const ctx = createStreamLoopContext(deps)
   const nativeQueries = [{ provider: 'github' as const, query: 'repo:simstudioai/sim deployment' }]
   const data = {
     query: 'deployment',
@@ -673,7 +685,13 @@ it('shows live search results while the answer is running', () => {
       searchResult: { actorUserId: 'reader', data },
     },
   }
-  handleResourceEvent({ deps } as StreamLoopContext, event)
+  handleResourceEvent(ctx, event)
+  expect(deps.removeResource).toHaveBeenCalledWith('sources', 'cited-sources', undefined)
+  expect(ctx.state.liveSearchResource).toEqual({
+    type: 'search',
+    id: 'search:organization:org',
+    workspaceId: undefined,
+  })
   expect(deps.addResource).toHaveBeenCalledWith(event.payload.resource)
   expect(onResourceEvent).toHaveBeenCalledWith('search:organization:org')
   expect(deps.queryClient.setQueryData).toHaveBeenCalledWith(
@@ -690,4 +708,6 @@ it('shows live search results while the answer is running', () => {
     ],
     data
   )
+  handleResourceEvent(ctx, event)
+  expect(deps.removeResource).toHaveBeenCalledOnce()
 })
