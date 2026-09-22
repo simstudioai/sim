@@ -1,5 +1,4 @@
-import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
-;('use client')
+'use client'
 
 import {
   isServer,
@@ -33,6 +32,7 @@ import {
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
   revokeOrganizationAccountEnrollmentContract,
+  type StartOrganizationAccountConnectionBody,
   startOrganizationAccountConnectionContract,
   type UpdateOrganizationAccountsBody,
   type UpdateOrganizationAccountWorkspaceAccessBody,
