@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { htmlContentOrigin } from '@/lib/workspace-files/html-runtime/config'
 
 describe('HTML content origin', () => {
-  it('allows html.simstudio.ai with the application on sim.ai', () => {
-    expect(htmlContentOrigin('https://html.simstudio.ai', 'https://sim.ai')).toBe(
-      'https://html.simstudio.ai'
+  it('allows file.simstudio.ai with the application on sim.ai', () => {
+    expect(htmlContentOrigin('https://file.simstudio.ai', 'https://sim.ai')).toBe(
+      'https://file.simstudio.ai'
     )
   })
   it.each([
     undefined,
     'https://sim.ai',
-    'https://html.sim.ai',
-    'https://html.simstudio.ai/path',
-    'https://user:password@html.simstudio.ai',
-    'http://html.simstudio.ai',
+    'https://file.sim.ai',
+    'https://file.simstudio.ai/path',
+    'https://user:password@file.simstudio.ai',
+    'http://file.simstudio.ai',
     'http://localhost:3001',
   ])('rejects unsafe production configuration %s', (origin) => {
     expect(() => htmlContentOrigin(origin, 'https://sim.ai')).toThrow()

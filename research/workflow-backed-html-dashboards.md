@@ -11,7 +11,7 @@ Implemented in the Sim worktree based on staging `7de662eee7c25998e777a4dab3f69e
 - Retain normal workflow authority and server-side API/tool access. No new file principal, read-only workflow profile, or workflow block restrictions.
 - Private callers retain their own principal and workspace access. Shared calls authenticate against the file share and use the existing workflow-scoped `public_api` system principal. The workflow's general public API need not be enabled.
 - Each file/workflow pair admits at most one attempt per 300 seconds, across viewers, with only one in flight. Button clicks and headless API requests use the same gate.
-- The HTML runs on a different site, proposed as `https://html.simstudio.ai` for an app on `sim.ai`.
+- The HTML runs on a different site, selected by the `HTML_CONTENT_ORIGIN` environment variable for each deployment. `https://file.simstudio.ai` is the production hostname, not a hostname in application code.
 
 ## Metadata and authorization
 
@@ -112,9 +112,9 @@ Mothership's HTML writing guidance now describes workflow-backed pages and uses 
 ## Deployment setup
 
 1. Apply the additive migration `packages/db/migrations/0376_petite_sue_storm.sql` using the normal migration/release process. It adds the admission table and file metadata columns with defaults; it changes no existing data semantics.
-2. Configure Redis and `HTML_CONTENT_ORIGIN=https://html.simstudio.ai` at build and runtime. `NEXT_PUBLIC_APP_URL` must identify the trusted viewer origin.
+2. Configure Redis and set `HTML_CONTENT_ORIGIN` independently at build and runtime for each environment. Use `https://file.simstudio.ai` in production; staging could use `https://file.staging.simstudio.ai`. `NEXT_PUBLIC_APP_URL` must identify that environment's trusted viewer origin. Neither hostname is hardcoded in the runtime.
 3. Route the content hostname's `/html-frame` to this app with TLS and preserve the Host header. Block other content-host paths at ingress. The app proxy also rejects application/API paths on that host; its static-asset exclusions are why ingress should enforce the narrow route.
-4. Keep authentication cookies off the content domain. The apex `simstudio.ai` redirect does not determine how its `html` hostname is routed. No DNS, ingress, certificate, or redirect changes are included here.
+4. Keep authentication cookies off the content domain. The apex `simstudio.ai` redirect does not determine how its `file` hostname is routed. No DNS, ingress, certificate, or redirect changes are included here.
 
 Deploy Sim's application operations, tool handler, and database migration before enabling the Mothership `file_workflow` catalog entry. Otherwise Mothership can advertise a tool that the current Sim server does not recognize. Both changes target staging first; neither PR is merge approval.
 
