@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AuthSubmitButton } from '@/app/(auth)/components'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { InviteHeading, InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
@@ -140,7 +139,8 @@ function UnsubscribeContent() {
             data?.currentPreferences.unsubscribeMarketing
           }
           variant='outline'
-          className={AUTH_BUTTON_CLASS}
+          size='lg'
+          align='center'
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -156,7 +156,8 @@ function UnsubscribeContent() {
             data?.currentPreferences.unsubscribeUpdates
           }
           variant='outline'
-          className={AUTH_BUTTON_CLASS}
+          size='lg'
+          align='center'
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -172,7 +173,8 @@ function UnsubscribeContent() {
             data?.currentPreferences.unsubscribeNotifications
           }
           variant='outline'
-          className={AUTH_BUTTON_CLASS}
+          size='lg'
+          align='center'
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, ChipInput, Label } from '@sim/emcn'
+import { ChipInput, ChipLink, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -213,7 +213,7 @@ function SSOFormContent({
               onChange={handleEmailChange}
               aria-invalid={hasEmailError || undefined}
               aria-describedby={hasEmailError ? 'sso-email-errors' : undefined}
-              className='h-[34px]'
+              size='lg'
               error={Boolean(hasEmailError)}
             />
             {hasEmailError && (
@@ -247,13 +247,15 @@ function SSOFormContent({
           </div>
 
           <div className='space-y-3'>
-            <Link
+            <ChipLink
               href={`/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
+              variant='outline'
+              fullWidth
+              size='lg'
+              align='center'
             >
-              <Button variant='outline' className='w-full rounded-[10px]' type='button'>
-                Sign in with email
-              </Button>
-            </Link>
+              Sign in with email
+            </ChipLink>
           </div>
         </>
       )}

@@ -7,7 +7,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 const logger = createLogger('SocialLoginButtons')
 
@@ -74,7 +73,8 @@ export function SocialLoginButtons({
       fullWidth
       leftIcon={GithubIcon}
       variant='outline'
-      className={AUTH_BUTTON_CLASS}
+      size='lg'
+      align='center'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -87,7 +87,8 @@ export function SocialLoginButtons({
       fullWidth
       leftIcon={GoogleIcon}
       variant='outline'
-      className={AUTH_BUTTON_CLASS}
+      size='lg'
+      align='center'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
@@ -100,7 +101,8 @@ export function SocialLoginButtons({
       fullWidth
       leftIcon={MicrosoftIcon}
       variant='outline'
-      className={AUTH_BUTTON_CLASS}
+      size='lg'
+      align='center'
       disabled={!microsoftAvailable || isMicrosoftLoading}
       onClick={signInWithMicrosoft}
     >

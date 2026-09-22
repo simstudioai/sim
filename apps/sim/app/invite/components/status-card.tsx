@@ -1,7 +1,6 @@
 'use client'
 import { Chip, Loader } from '@sim/emcn'
 import { AuthSubmitButton } from '@/app/(auth)/components'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { InviteHeading } from '@/app/invite/components/invite-heading'
 
 /** A document navigation, so the marketing surface initializes its own theme store. */
@@ -81,7 +80,8 @@ export function InviteStatusCard({
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
               variant='outline'
-              className={AUTH_BUTTON_CLASS}
+              size='lg'
+              align='center'
             >
               {action.loading ? (
                 <span className='flex items-center gap-2'>

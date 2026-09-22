@@ -226,7 +226,7 @@ function StepConfigure({
           onChange={(e) => onAppNameChange(e.target.value)}
           disabled={disabled}
           placeholder={DEFAULT_APP_NAME}
-          className='h-9'
+          size='lg'
         />
       </div>
       <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
@@ -416,7 +416,7 @@ function SecretField({ id, label, value, onChange, disabled, placeholder }: Secr
         onChange={onChange}
         disabled={disabled}
         placeholder={placeholder}
-        className='h-9'
+        size='lg'
       />
     </div>
   )
