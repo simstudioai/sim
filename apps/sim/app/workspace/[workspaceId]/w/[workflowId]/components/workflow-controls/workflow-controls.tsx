@@ -25,6 +25,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { CanvasControlButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/canvas-control-button'
 import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -109,17 +110,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
-                    className='size-[28px] rounded-sm p-0'
-                    variant='active'
-                  >
+                  <CanvasControlButton aria-label={mode === 'hand' ? 'Mover' : 'Pointer'} active>
                     {mode === 'hand' ? (
                       <Hand className='size-[14px]' />
                     ) : (
                       <Cursor className='size-[14px]' />
                     )}
-                  </Button>
+                  </CanvasControlButton>
                 </Tooltip.Trigger>
                 <Button
                   aria-label='Change canvas mode'
@@ -160,15 +157,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Undo'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={undo}
-              disabled={!canUndo}
-            >
+            <CanvasControlButton aria-label='Undo' onClick={undo} disabled={!canUndo}>
               <Undo className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
@@ -177,15 +168,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Redo'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={redo}
-              disabled={!canRedo}
-            >
+            <CanvasControlButton aria-label='Redo' onClick={redo} disabled={!canRedo}>
               <Redo className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
@@ -196,14 +181,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Fit to View'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={handleFitToView}
-            >
+            <CanvasControlButton aria-label='Fit to View' onClick={handleFitToView}>
               <SelectAll className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>
