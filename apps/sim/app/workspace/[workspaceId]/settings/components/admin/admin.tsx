@@ -443,9 +443,8 @@ export function Admin() {
                     Page {currentPage} of {totalPages} ({usersData.total} users)
                   </span>
                   <div className='flex gap-1'>
-                    <Button
-                      variant='active'
-                      className='h-[28px] text-caption'
+                    <Chip
+                      variant='border-shadow'
                       onClick={() =>
                         setAdminParams((prev) => ({
                           offset: Math.max(0, prev.offset - PAGE_SIZE),
@@ -454,17 +453,16 @@ export function Admin() {
                       disabled={usersOffset === 0 || usersLoading}
                     >
                       Previous
-                    </Button>
-                    <Button
-                      variant='active'
-                      className='h-[28px] text-caption'
+                    </Chip>
+                    <Chip
+                      variant='border-shadow'
                       onClick={() =>
                         setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
                       }
                       disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
                     >
                       Next
-                    </Button>
+                    </Chip>
                   </div>
                 </div>
               )}
