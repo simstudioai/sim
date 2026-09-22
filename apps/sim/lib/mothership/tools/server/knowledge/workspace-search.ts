@@ -120,10 +120,17 @@ export const searchWorkspaceServerTool: BaseServerTool = {
               },
             }
           }
-          if (nativeQueries)
+          if (
+            nativeQueries ||
+            !safeQuery.trim() ||
+            requestedFilters.startDate ||
+            requestedFilters.endDate ||
+            requestedFilters.sortBy
+          )
             return {
               success: false,
-              message: 'Provider-native queries require live search to be enabled.',
+              message:
+                'Native queries, date-only search, startDate/endDate and sorting require live search. Use modifiedAfter/modifiedBefore with a text query for indexed search.',
             }
           recordSearchStageDuration('tool_input', performance.now() - inputStarted)
           const result = await measureSearchStage('tool_application', () =>

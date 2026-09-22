@@ -179,6 +179,70 @@ describe('authorized live retrieval', () => {
     expect(mocks.search).not.toHaveBeenCalled()
     expect(mocks.adminSearch).not.toHaveBeenCalled()
   })
+  it('propagates generic dates, sorts matching results, and reports missing-date coverage', async () => {
+    const filters = {
+      startDate: '2026-09-01T00:00:00Z',
+      endDate: '2026-10-01T00:00:00Z',
+      sortBy: 'newest' as const,
+    }
+    mocks.search.mockResolvedValue({
+      documents: [
+        {
+          ...document,
+          id: 'old',
+          url: 'https://docs.google.com/old',
+          modifiedAt: '2026-09-02T00:00:00Z',
+        },
+        {
+          ...document,
+          id: 'outside',
+          url: 'https://docs.google.com/outside',
+          modifiedAt: '2026-08-01T00:00:00Z',
+        },
+        {
+          ...document,
+          id: 'missing',
+          url: 'https://docs.google.com/missing',
+          modifiedAt: undefined,
+        },
+        {
+          ...document,
+          id: 'new',
+          url: 'https://docs.google.com/new',
+          modifiedAt: '2026-09-20T00:00:00Z',
+        },
+      ],
+    })
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: '', filters },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'new',
+      'old',
+    ])
+    expect(result.results[0]).toMatchObject({
+      sourceDate: '2026-09-20T00:00:00Z',
+      sourceDateType: 'modified',
+    })
+    expect(result.retrieval?.status).toBe('partial')
+    expect(result.live?.accounts[0]?.message).toContain('lacked date metadata')
+    expect(mocks.search).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ filters })
+    )
+  })
+  it('rejects invalid dates before resolving provider credentials', async () => {
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { startDate: 'today' } },
+      })
+    ).rejects.toThrow()
+    expect(mocks.resolveAccount).not.toHaveBeenCalled()
+    expect(mocks.search).not.toHaveBeenCalled()
+  })
   it('searches current personal grants without loading any knowledge base', async () => {
     const result = await searchLiveKnowledge.execute({ principal, input })
     expect(result.results).toHaveLength(1)

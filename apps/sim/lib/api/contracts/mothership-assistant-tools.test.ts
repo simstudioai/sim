@@ -67,7 +67,11 @@ describe('Assistant execution contracts', () => {
       documentId: 'doc-1',
       limit: 3,
     })
-    expect(TOOL_CATALOG.search_workspace?.parameters).toMatchObject({ required: ['query'] })
+    expect(TOOL_CATALOG.search_workspace?.parameters).not.toHaveProperty('required')
+    expect(searchWorkspaceInputSchema.parse({ startDate: '2026-09-22T00:00:00Z' })).toMatchObject({
+      query: '',
+      topK: 20,
+    })
     expect(TOOL_CATALOG.read_document?.parameters).toMatchObject({ required: ['documentId'] })
   })
 })

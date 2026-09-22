@@ -1,3 +1,4 @@
+import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
 import type {
@@ -126,13 +127,37 @@ export async function searchGitHub(
       'unavailable',
       'GitHub search supports issues, code, or repositories.'
     )
+  if (kind === 'code' && hasDateBounds(input.filters))
+    throw new NativeSearchError(
+      'unavailable',
+      'GitHub code search does not provide file modification dates. Date-filtered coverage includes issues and pull requests, not code.'
+    )
+  const dates = nativeDateBounds(input)
+  const text = nativeText(input)
+  const datedQuery =
+    kind === 'issues'
+      ? [
+          text ? `(${text})` : '',
+          dates.start ? `updated:>=${dates.start}` : '',
+          dates.end ? `updated:<=${dates.end}` : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : text
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,3}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitHub page.')
   let response: unknown
   try {
     response = await client.json(`/search/${kind}`, {
-      query: { q: input.native?.query ?? input.query, per_page: String(input.limit), page },
+      query: {
+        q: hasDateBounds(input.filters) ? datedQuery : text,
+        per_page: String(input.limit),
+        page,
+        ...(kind === 'issues' && input.filters?.sortBy && input.filters.sortBy !== 'relevance'
+          ? { sort: 'updated', order: input.filters.sortBy === 'oldest' ? 'asc' : 'desc' }
+          : {}),
+      },
     })
   } catch (error) {
     if (error instanceof NativeSearchError)

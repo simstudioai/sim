@@ -119,6 +119,11 @@ export async function searchCodaMcp(
   client: CodaMcpClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
+  if (!(input.native?.query ?? input.query).trim())
+    throw new NativeSearchError(
+      'unavailable',
+      'Coda MCP requires text search terms; date-only listing is unavailable.'
+    )
   const result = object(
     await client.call('search', {
       query: input.native?.query ?? input.query,

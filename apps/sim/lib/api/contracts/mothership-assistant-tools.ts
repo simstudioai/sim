@@ -17,7 +17,7 @@ export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 export const nativeSearchQuerySchema = z
   .object({
     provider: liveSearchProviderSchema,
-    query: z.string().trim().min(1).max(2000),
+    query: z.string().trim().max(2000),
     accountId: z.string().min(1).max(200).optional(),
     kind: z.enum(['issues', 'code', 'repositories', 'merge_requests', 'wiki']).optional(),
     project: z.string().min(1).max(300).optional(),
@@ -72,6 +72,26 @@ export const liveSearchCoverageSchema = z.object({
 
 /** Connected-source filters are shared by composer search and Assistant retrieval. */
 export const workspaceSearchFiltersSchema = z.object({
+  startDate: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe(
+      'Live search: inclusive lower date bound. Calendar uses scheduled event start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
+    ),
+  endDate: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe(
+      'Live search: exclusive upper bound on the same date as startDate. For a whole day, use the next local midnight.'
+    ),
+  sortBy: z
+    .enum(['relevance', 'newest', 'oldest'])
+    .optional()
+    .describe(
+      'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall.'
+    ),
   source: z
     .string()
     .trim()
@@ -99,28 +119,67 @@ export const workspaceSearchFiltersSchema = z.object({
     ),
 })
 
-export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema.extend({
-  nativeQueries: nativeSearchQueriesSchema
-    .optional()
-    .describe(
-      'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
-    ),
-  query: z
-    .string()
-    .trim()
-    .min(1)
-    .max(2000)
-    .describe('Search query describing the information needed.'),
-  topK: z
-    .number()
-    .int()
-    .min(1)
-    .max(50)
-    .default(20)
-    .describe(
-      'Maximum matching passage previews; retrieval ranking is independent of preview length.'
-    ),
-})
+export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
+  .extend({
+    nativeQueries: nativeSearchQueriesSchema
+      .optional()
+      .describe(
+        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+      ),
+    query: z
+      .string()
+      .trim()
+      .max(2000)
+      .default('')
+      .describe(
+        'Search terms, without dates already supplied as filters. May be empty for a live date-bounded listing.'
+      ),
+    topK: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .default(20)
+      .describe(
+        'Maximum matching passage previews; retrieval ranking is independent of preview length.'
+      ),
+  })
+  .superRefine((input, context) => {
+    if (
+      !input.query &&
+      !input.startDate &&
+      !input.endDate &&
+      !input.modifiedAfter &&
+      !input.modifiedBefore
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'Supply search terms or a date bound.',
+      })
+    if (
+      input.startDate &&
+      input.endDate &&
+      Date.parse(input.startDate) >= Date.parse(input.endDate)
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['endDate'],
+        message: 'endDate must be after startDate.',
+      })
+    if (
+      input.nativeQueries?.some((query) => !query.query) &&
+      !input.startDate &&
+      !input.endDate &&
+      !input.modifiedAfter &&
+      !input.modifiedBefore
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['nativeQueries'],
+        message: 'Empty native queries require a date bound.',
+      })
+  })
 
 export const readDocumentInputSchema = z.object({
   documentId: z
@@ -261,6 +320,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
   sourceUrl: z.string().nullable(),
   connectorType: z.string().nullable(),
   sourceModifiedAt: z.string().nullable(),
+  sourceDate: z.string().nullable().optional(),
+  sourceDateType: z.enum(['event_start', 'message', 'modified']).optional(),
   /** The person behind the document, from its author-like tag; null when the source names none. */
   author: z.string().nullable(),
   content: z.string(),

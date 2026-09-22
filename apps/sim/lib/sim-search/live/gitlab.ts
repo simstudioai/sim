@@ -1,3 +1,4 @@
+import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
 import type {
@@ -99,16 +100,35 @@ export async function searchGitLab(
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,4}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitLab page.')
+  if (['code', 'wiki'].includes(kind) && hasDateBounds(input.filters))
+    throw new NativeSearchError(
+      'unavailable',
+      'GitLab code/wiki search does not provide modification dates. Use issues or merge_requests for date-filtered search.'
+    )
+  const dates = nativeDateBounds(input)
+  const listing = Boolean(
+    input.native?.project &&
+      ['issues', 'merge_requests'].includes(kind) &&
+      (hasDateBounds(input.filters) ||
+        (input.filters?.sortBy && input.filters.sortBy !== 'relevance'))
+  )
   let response: unknown
   try {
     response = await client.json(
-      input.native?.project
-        ? `/api/v4/projects/${segment(input.native.project)}/search`
-        : '/api/v4/search',
+      listing
+        ? `/api/v4/projects/${segment(input.native!.project!)}/${kind}`
+        : input.native?.project
+          ? `/api/v4/projects/${segment(input.native.project)}/search`
+          : '/api/v4/search',
       {
         query: {
-          scope,
-          search: input.native?.query ?? input.query,
+          scope: listing ? 'all' : scope,
+          ...(nativeText(input) ? { search: nativeText(input) } : {}),
+          ...(listing && dates.start ? { updated_after: dates.start } : {}),
+          ...(listing && dates.end ? { updated_before: dates.end } : {}),
+          ...(listing
+            ? { order_by: 'updated_at', sort: input.filters?.sortBy === 'oldest' ? 'asc' : 'desc' }
+            : {}),
           per_page: String(input.limit),
           page,
         },

@@ -1,3 +1,4 @@
+import { nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import {
   array,
   NativeSearchError,
@@ -17,8 +18,8 @@ export const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /** Place trusted scope before ORDER BY while respecting quoted JQL/CQL values. */
-export function scopeAtlassianQuery(query: string, scope?: string): string {
-  if (!scope) return query
+export function scopeAtlassianQuery(query: string, scope?: string, order?: string): string {
+  if (!scope && !order) return query
   let quote = ''
   for (let i = 0; i < query.length; i++) {
     const char = query[i]
@@ -36,10 +37,11 @@ export function scopeAtlassianQuery(query: string, scope?: string): string {
     }
     if ((i === 0 || /\s/.test(query[i - 1]!)) && /^order\s+by\b/i.test(query.slice(i))) {
       const filter = query.slice(0, i).trim()
-      return `${filter ? `(${filter}) AND ` : ''}${scope} ${query.slice(i)}`
+      return `${scope ? `${filter ? `(${filter}) AND ` : ''}${scope}` : filter} ${order ? `ORDER BY ${order}` : query.slice(i)}`.trim()
     }
   }
-  return query.trim() ? `(${query}) AND ${scope}` : scope
+  const result = scope ? (query.trim() ? `(${query}) AND ${scope}` : scope) : query
+  return order ? `${result} ORDER BY ${order}`.trim() : result
 }
 
 function issue(row: Record<string, unknown>, cloudId: string, site: string): NativeDocument {
@@ -106,17 +108,37 @@ export async function searchAtlassian(
   for (const site of selected) {
     const cloudId = string(site.id)
     const origin = string(site.url).replace(/\/$/, '')
-    const scope =
+    const policyScope =
       input.policy?.mode === 'selected'
         ? `(${input.policy.included.map((id) => `${provider === 'jira' ? 'project' : 'space'} = ${JSON.stringify(id)}`).join(' OR ')})`
         : undefined
+    const dates = nativeDateBounds(input)
+    const field = provider === 'jira' ? 'updated' : 'lastmodified'
+    const scope =
+      [
+        policyScope,
+        dates.start
+          ? `${field} >= "${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}"`
+          : '',
+        dates.end
+          ? `${field} <= "${new Date(Date.parse(dates.end) + 86400000).toISOString().slice(0, 10)}"`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' AND ') || undefined
+    const order =
+      input.filters?.sortBy && input.filters.sortBy !== 'relevance'
+        ? `${field} ${input.filters.sortBy === 'oldest' ? 'ASC' : 'DESC'}`
+        : undefined
+    const text = nativeText(input)
     if (provider === 'jira') {
       const data = object(
         await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
           body: {
             jql: scopeAtlassianQuery(
-              input.native?.query ?? `text ~ ${escapeSearchPhrase(input.query)}`,
-              scope
+              input.native?.query || (text ? `text ~ ${escapeSearchPhrase(text)}` : ''),
+              scope,
+              order
             ),
             maxResults: input.limit,
             fields: ['summary', 'description', 'updated', 'creator', 'status'],
@@ -134,8 +156,10 @@ export async function searchAtlassian(
         await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
           query: {
             cql: scopeAtlassianQuery(
-              input.native?.query ?? `type = page AND text ~ ${escapeSearchPhrase(input.query)}`,
-              scope
+              input.native?.query ||
+                `type = page${text ? ` AND text ~ ${escapeSearchPhrase(text)}` : ''}`,
+              scope,
+              order
             ),
             limit: String(input.limit),
             expand: 'content.version',

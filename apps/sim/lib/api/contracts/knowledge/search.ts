@@ -189,11 +189,23 @@ export type WorkspaceKnowledgeSearchLimit =
 export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
   .safeExtend({
     filters: workspaceSearchFiltersSchema.optional(),
-    query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
+    query: z.string().trim().max(2000, 'Query is too long').default(''),
     topK: z.number().int().min(1).max(50).optional().default(20),
   })
   .superRefine((body, ctx) => {
-    const { modifiedAfter, modifiedBefore } = body.filters ?? {}
+    const { modifiedAfter, modifiedBefore, startDate, endDate } = body.filters ?? {}
+    if (!body.query && !startDate && !endDate && !modifiedAfter && !modifiedBefore)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'A search query or date bound is required',
+      })
+    if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters', 'endDate'],
+        message: 'endDate must be after startDate',
+      })
     if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
       ctx.addIssue({
         code: 'custom',

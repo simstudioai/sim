@@ -71,7 +71,7 @@ function toSource(
     connectorType: result.connectorType ?? undefined,
     snippet: matchSnippet(result.content, query),
     author: result.author ?? undefined,
-    updatedAt: result.sourceModifiedAt ?? undefined,
+    updatedAt: result.sourceDate ?? result.sourceModifiedAt ?? undefined,
   }
 }
 

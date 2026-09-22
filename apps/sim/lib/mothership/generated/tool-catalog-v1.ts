@@ -4850,7 +4850,7 @@ export const ReadDocument: ToolCatalogEntry = {
       documentId: {
         type: 'string',
         minLength: 1,
-        maxLength: 200,
+        maxLength: 4000,
         description: 'Canonical document ID returned by search or selected document context.',
       },
       limit: {
@@ -5702,6 +5702,28 @@ export const SearchWorkspace: ToolCatalogEntry = {
     $schema: 'http://json-schema.org/draft-07/schema#',
     type: 'object',
     properties: {
+      startDate: {
+        description:
+          'Live search: inclusive lower date bound. Calendar uses scheduled event start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
+        type: 'string',
+        format: 'date-time',
+        pattern:
+          '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$',
+      },
+      endDate: {
+        description:
+          'Live search: exclusive upper bound on the same date as startDate. For a whole day, use the next local midnight.',
+        type: 'string',
+        format: 'date-time',
+        pattern:
+          '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$',
+      },
+      sortBy: {
+        description:
+          'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall.',
+        type: 'string',
+        enum: ['relevance', 'newest', 'oldest'],
+      },
       source: {
         description: 'Connector type or upload source; narrows the selected search scope.',
         type: 'string',
@@ -5728,13 +5750,53 @@ export const SearchWorkspace: ToolCatalogEntry = {
         minItems: 1,
         maxItems: 20,
         type: 'array',
-        items: { type: 'string', minLength: 1, maxLength: 200 },
+        items: { type: 'string', minLength: 1, maxLength: 4000 },
+      },
+      nativeQueries: {
+        description:
+          'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.',
+        minItems: 1,
+        maxItems: 9,
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            provider: {
+              type: 'string',
+              enum: [
+                'google_drive',
+                'gmail',
+                'google_calendar',
+                'slack',
+                'jira',
+                'confluence',
+                'github',
+                'gitlab',
+                'coda',
+              ],
+            },
+            query: { type: 'string', maxLength: 2000 },
+            accountId: { type: 'string', minLength: 1, maxLength: 200 },
+            kind: {
+              type: 'string',
+              enum: ['issues', 'code', 'repositories', 'merge_requests', 'wiki'],
+            },
+            project: { type: 'string', minLength: 1, maxLength: 300 },
+            cursor: { type: 'string', maxLength: 4000 },
+            termClauses: { maxItems: 10, type: 'array', items: { type: 'string', maxLength: 500 } },
+            modifiers: { type: 'string', maxLength: 1000 },
+            keywordOnly: { type: 'boolean' },
+          },
+          required: ['provider', 'query'],
+          additionalProperties: false,
+        },
       },
       query: {
+        default: '',
+        description:
+          'Search terms, without dates already supplied as filters. May be empty for a live date-bounded listing.',
         type: 'string',
-        minLength: 1,
         maxLength: 2000,
-        description: 'Search query describing the information needed.',
       },
       topK: {
         default: 20,
@@ -5745,7 +5807,6 @@ export const SearchWorkspace: ToolCatalogEntry = {
         maximum: 50,
       },
     },
-    required: ['query'],
   },
 }
 

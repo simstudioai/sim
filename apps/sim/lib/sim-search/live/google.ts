@@ -1,3 +1,5 @@
+import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { permitsResources } from '@/lib/sim-search/live/policy'
 import type {
@@ -31,11 +33,22 @@ export async function searchDrive(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
-  const query = input.native?.query ?? `fullText contains '${escapeDriveLiteral(input.query)}'`
+  const text = nativeText(input)
+  const query =
+    input.native?.query ||
+    (text ? `fullText contains '${escapeDriveLiteral(text)}'` : 'trashed = false')
+  const dates = nativeDateBounds(input)
   const data = object(
     await client.json('/drive/v3/files', {
       query: {
-        q: `trashed = false and (${query})`,
+        q: [
+          `trashed = false and (${query})`,
+          ...(dates.start ? [`modifiedTime >= '${dates.start}'`] : []),
+          ...(dates.end ? [`modifiedTime <= '${dates.end}'`] : []),
+        ].join(' and '),
+        ...(input.filters?.sortBy && input.filters.sortBy !== 'relevance'
+          ? { orderBy: `modifiedTime${input.filters.sortBy === 'oldest' ? '' : ' desc'}` }
+          : {}),
         fields: `nextPageToken,incompleteSearch,files(${DRIVE_FIELDS})`,
         pageSize: String(input.limit),
         spaces: 'drive',
@@ -126,10 +139,19 @@ export async function searchGmail(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
+  const dates = nativeDateBounds(input)
+  const text = nativeText(input)
+  const query = [
+    text ? (dates.start || dates.end ? `(${text})` : text) : '',
+    dates.start ? `after:${Math.floor(Date.parse(dates.start) / 1000) - 1}` : '',
+    dates.end ? `before:${Math.ceil(Date.parse(dates.end) / 1000) + 1}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
   const data = object(
     await client.json('/gmail/v1/users/me/messages', {
       query: {
-        q: input.native?.query ?? input.query,
+        q: query,
         maxResults: String(Math.min(input.limit, 20)),
         ...(input.native?.cursor ? { pageToken: input.native.cursor } : {}),
       },
@@ -187,8 +209,16 @@ export async function readGmail(client: NativeClient, id: string): Promise<Nativ
 function eventDocument(
   row: Record<string, unknown>,
   calendarId: string,
-  includeAttendees = true
+  includeAttendees = true,
+  calendarTimeZone?: string
 ): NativeDocument {
+  const start = object(row.start)
+  const zone = string(start.timeZone) || calendarTimeZone
+  const eventStartAt =
+    string(start.dateTime) ||
+    (string(start.date) && zone
+      ? zonedWallClockToUtc(`${string(start.date)}T00:00:00`, zone).toISOString()
+      : undefined)
   return {
     id: string(row.id),
     container: calendarId,
@@ -206,6 +236,7 @@ function eventDocument(
     ]
       .filter(Boolean)
       .join('\n'),
+    eventStartAt,
     modifiedAt: string(row.updated),
     author: string(object(row.organizer).email),
   }
@@ -242,7 +273,26 @@ export async function searchCalendar(
         const data = object(
           await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
             query: {
-              q: input.native?.query ?? input.query,
+              ...(nativeText(input) ? { q: nativeText(input) } : {}),
+              ...(input.filters?.startDate
+                ? {
+                    timeMin: new Date(
+                      Math.floor(Date.parse(input.filters.startDate) / 1000) * 1000 - 1000
+                    ).toISOString(),
+                  }
+                : {}),
+              ...(input.filters?.endDate
+                ? {
+                    timeMax: new Date(
+                      Math.ceil(Date.parse(input.filters.endDate) / 1000) * 1000
+                    ).toISOString(),
+                  }
+                : {}),
+              ...(input.filters?.modifiedAfter ? { updatedMin: input.filters.modifiedAfter } : {}),
+              ...(hasDateBounds(input.filters) ||
+              (input.filters?.sortBy && input.filters.sortBy !== 'relevance')
+                ? { singleEvents: 'true', orderBy: 'startTime' }
+                : {}),
               maxResults: String(input.limit),
               showDeleted: 'false',
               ...(input.native?.cursor && input.native.project
@@ -251,7 +301,7 @@ export async function searchCalendar(
             },
           })
         )
-        return { data, calendarId }
+        return { data, calendarId, timeZone: string(data.timeZone) || string(row.timeZone) }
       })
     )
     for (const result of pages) {
@@ -261,11 +311,13 @@ export async function searchCalendar(
         failedCalendars++
         continue
       }
-      const { data, calendarId } = result.value
+      const { data, calendarId, timeZone } = result.value
       documents.push(
         ...array(data.items)
           .filter((event) => event.status !== 'cancelled')
-          .map((event) => eventDocument(event, calendarId, input.policy?.includeAttendees))
+          .map((event) =>
+            eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone)
+          )
       )
       partial ||= Boolean(data.nextPageToken)
       if (input.native?.project) nextCursor = string(data.nextPageToken) || undefined
@@ -281,7 +333,7 @@ export async function searchCalendar(
     partial,
     nextCursor,
     message:
-      'Calendar searches text across up to 20 calendars. Use project = calendar ID to target and paginate a calendar; dates on results are last-updated dates.',
+      'Calendar supports text and date-only searches across up to 20 calendars. startDate/endDate filter scheduled starts; recurring events expand within the window. sourceDate is scheduled start and sourceModifiedAt is last edit. Use project = calendar ID to paginate; reverse ordering is limited to the fetched page.',
   }
 }
 
@@ -289,11 +341,16 @@ export async function readCalendar(
   client: NativeClient,
   id: string,
   calendarId?: string,
-  includeAttendees = true
+  includeAttendees = true,
+  requireScheduledDate = false
 ): Promise<NativeDocument> {
   if (!calendarId) throw new NativeSearchError('unavailable', 'Missing calendar reference.')
   const row = object(
     await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events/${segment(id)}`)
   )
-  return eventDocument(row, calendarId, includeAttendees)
+  const timeZone =
+    requireScheduledDate && string(object(row.start).date)
+      ? string(object(await client.json(`/calendar/v3/calendars/${segment(calendarId)}`)).timeZone)
+      : undefined
+  return eventDocument(row, calendarId, includeAttendees, timeZone)
 }

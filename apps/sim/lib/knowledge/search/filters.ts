@@ -2,6 +2,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** Document constraints shared by Search and Assistant, applied before ranking. */
 export interface WorkspaceSearchFilters {
+  startDate?: string
+  endDate?: string
+  sortBy?: 'relevance' | 'newest' | 'oldest'
   source?: string
   modifiedAfter?: string
   modifiedBefore?: string
@@ -36,7 +39,21 @@ export function intersectWorkspaceSearchFilters(
   if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
     throw new OrchestrationError('validation', 'The requested dates are outside this search')
   }
+  const startDate = [requested.startDate, scope.startDate]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => Date.parse(a) - Date.parse(b))
+    .at(-1)
+  const endDate = [requested.endDate, scope.endDate]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => Date.parse(a) - Date.parse(b))
+    .at(0)
+  if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
+    throw new OrchestrationError('validation', 'The requested dates are outside this search')
+  const sortBy = requested.sortBy ?? scope.sortBy
   return {
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+    ...(sortBy ? { sortBy } : {}),
     ...(scope.source || requested.source ? { source: scope.source ?? requested.source } : {}),
     ...(modifiedAfter ? { modifiedAfter } : {}),
     ...(modifiedBefore ? { modifiedBefore } : {}),

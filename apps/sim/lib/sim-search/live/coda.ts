@@ -1,3 +1,4 @@
+import { nativeText } from '@/lib/sim-search/live/dates'
 import { array, object, segment, string } from '@/lib/sim-search/live/http'
 import type {
   NativeClient,
@@ -25,7 +26,7 @@ export async function searchCoda(
   const data = object(
     await client.json('/apis/v1/docs', {
       query: {
-        query: input.native?.query ?? input.query,
+        ...(nativeText(input) ? { query: nativeText(input) } : {}),
         limit: String(input.limit),
         ...(input.native?.cursor ? { pageToken: input.native.cursor } : {}),
       },

@@ -1,3 +1,4 @@
+import { nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import type {
   NativeClient,
@@ -45,10 +46,22 @@ export async function searchSlack(
         (input.policy?.includeDirectMessages !== false || !['im', 'mpim'].includes(type))
     )
     .map(([type]) => type)
+  const dates = nativeDateBounds(input)
+  const dateModifiers = [
+    dates.start
+      ? `after:${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}`
+      : '',
+    dates.end
+      ? `before:${new Date(Date.parse(dates.end) + 86400000).toISOString().slice(0, 10)}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const modifiers = [input.native?.modifiers, dateModifiers].filter(Boolean).join(' ')
   const data = slackResult(
     await client.json('/api/assistant.search.context', {
       body: {
-        query: input.native?.query ?? input.query,
+        query: nativeText(input) || dateModifiers,
         channel_types: channels,
         include_archived_channels: input.policy?.includeArchived ?? true,
         content_types: input.scopes.includes('search:read.files')
@@ -58,8 +71,10 @@ export async function searchSlack(
         limit: Math.min(input.limit, 20),
         ...(input.native?.cursor ? { cursor: input.native.cursor } : {}),
         ...(input.native?.termClauses ? { term_clauses: input.native.termClauses } : {}),
-        ...(input.native?.modifiers ? { modifiers: input.native.modifiers } : {}),
-        ...(input.native?.keywordOnly ? { disable_semantic_search: true } : {}),
+        ...(modifiers ? { modifiers } : {}),
+        ...(input.native?.keywordOnly || !nativeText(input)
+          ? { disable_semantic_search: true }
+          : {}),
       },
     })
   )
@@ -68,7 +83,8 @@ export async function searchSlack(
     const ts = string(message.message_ts)
     const timestamp = Number(ts) * 1000
     return {
-      id: string(message.thread_ts) || ts,
+      id: ts,
+      ...(string(message.thread_ts) ? { threadId: string(message.thread_ts) } : {}),
       container: string(message.channel_id),
       title: `#${string(message.channel_name)} · ${string(message.author_name)}`,
       url: string(message.permalink),
@@ -110,7 +126,8 @@ export async function readSlack(
   client: NativeClient,
   id: string,
   channel?: string,
-  kind?: string
+  kind?: string,
+  threadId?: string
 ): Promise<NativeDocument> {
   if (kind === 'file') {
     if (!/^F[A-Z0-9]+$/.test(id))
@@ -125,14 +142,27 @@ export async function readSlack(
       content: `File preview (open the source for full contents):\n${string(file.preview_plain_text) || string(file.preview) || string(file.title)}`,
     }
   }
-  if (!channel || !/^\d+\.\d+$/.test(id) || !/^[A-Z0-9]+$/.test(channel))
+  if (
+    !channel ||
+    !/^\d+\.\d+$/.test(id) ||
+    (threadId && !/^\d+\.\d+$/.test(threadId)) ||
+    !/^[A-Z0-9]+$/.test(channel)
+  )
     throw new NativeSearchError('unavailable', 'Invalid Slack message reference.')
   const data = slackResult(
     await client.json('/api/conversations.replies', {
-      query: { channel, ts: id, limit: '100' },
+      query: {
+        channel,
+        ts: threadId ?? id,
+        limit: '100',
+        ...(threadId && threadId !== id ? { oldest: id, inclusive: 'true' } : {}),
+      },
     })
   )
-  if (array(data.messages).length === 0)
+  if (
+    array(data.messages).length === 0 ||
+    (threadId && !array(data.messages).some((message) => string(message.ts) === id))
+  )
     throw new NativeSearchError('unavailable', 'The message is no longer accessible.')
   const link = slackResult(
     await client.json('/api/chat.getPermalink', { query: { channel, message_ts: id } })
@@ -140,6 +170,7 @@ export async function readSlack(
   return {
     id,
     container: channel,
+    threadId,
     title: `Slack thread in ${channel}`,
     url: string(link.permalink),
     modifiedAt: new Date(Number(id) * 1000).toISOString(),

@@ -23,7 +23,7 @@ export async function searchWithinPolicy(
     return search(
       withQuery(
         [
-          `(${query})`,
+          ...(query ? [`(${query})`] : []),
           ...(policy.mode === 'selected' ? [`{${policy.included.map(label).join(' ')}}`] : []),
           ...policy.excluded.map((id) => `-${label(id)}`),
           ...(policy.excludePromotions ? ['-category:promotions'] : []),
@@ -49,7 +49,10 @@ export async function searchWithinPolicy(
             native: {
               provider,
               query:
-                input.native?.query ?? `fullText contains '${escapeDriveLiteral(input.query)}'`,
+                input.native?.query ??
+                (input.query
+                  ? `fullText contains '${escapeDriveLiteral(input.query)}'`
+                  : 'trashed = false'),
               ...input.native,
               project: id,
             },
@@ -103,7 +106,9 @@ export async function searchWithinPolicy(
       }
       partial ||= frontier.length > 0
     }
-    const text = input.native?.query ?? `fullText contains '${escapeDriveLiteral(input.query)}'`
+    const text =
+      input.native?.query ??
+      (input.query ? `fullText contains '${escapeDriveLiteral(input.query)}'` : 'trashed = false')
     const result = await search(
       withQuery(
         `(${text}) and (${[...folders].map((id) => `'${escapeDriveLiteral(id)}' in parents`).join(' or ')})`

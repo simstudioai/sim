@@ -1,3 +1,4 @@
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type {
   LiveSearchProvider,
   NativeSearchQuery,
@@ -26,9 +27,11 @@ export interface NativeDocument {
   container?: string
   kind?: string
   revision?: string
+  threadId?: string
   title: string
   url: string
   content: string
+  eventStartAt?: string
   modifiedAt?: string
   author?: string
 }
@@ -53,6 +56,7 @@ export interface NativeClient {
 }
 
 export interface NativeSearchInput {
+  filters?: WorkspaceSearchFilters
   policy?: LiveSearchPolicy
   query: string
   native?: NativeSearchQuery

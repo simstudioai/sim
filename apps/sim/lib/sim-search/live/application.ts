@@ -10,6 +10,7 @@ import {
   liveSearchProviderSchema,
   type NativeSearchQuery,
   nativeSearchQueriesSchema,
+  workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -25,6 +26,12 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import {
+  hasDateBounds,
+  matchesSourceDates,
+  sourceDate,
+  sourceDateType,
+} from '@/lib/sim-search/live/dates'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
@@ -51,6 +58,10 @@ const referenceSchema = z
     container: z.string().max(500).optional(),
     kind: z.string().max(200).optional(),
     revision: z.string().max(200).optional(),
+    threadId: z
+      .string()
+      .regex(/^\d+\.\d+$/)
+      .optional(),
   })
   .strict()
 type Reference = z.output<typeof referenceSchema>
@@ -99,6 +110,7 @@ export function matchesLiveFilters(
   provider: string,
   filters?: WorkspaceSearchFilters
 ): boolean {
+  if (!matchesSourceDates(document, provider, filters)) return false
   if (filters?.source && filters.source !== provider) return false
   if (filters?.documentIds && !filters.documentIds.includes(documentId)) return false
   if (filters?.modifiedAfter || filters?.modifiedBefore) {
@@ -137,6 +149,7 @@ function resultFor(
     ...(document.container ? { container: document.container } : {}),
     ...(document.kind ? { kind: document.kind } : {}),
     ...(document.revision ? { revision: document.revision } : {}),
+    ...(document.threadId ? { threadId: document.threadId } : {}),
   })
   // The shared UI wire shape retains its index fields; live results never use them as identifiers.
   return {
@@ -150,6 +163,8 @@ function resultFor(
       document.modifiedAt && Number.isFinite(Date.parse(document.modifiedAt))
         ? new Date(document.modifiedAt).toISOString()
         : null,
+    sourceDate: sourceDate(document, account.provider) ?? null,
+    sourceDateType: sourceDateType(account.provider, document),
     author: document.author ? safeContent(document.author, registry) : null,
     content: safeContent(document.content, registry).slice(0, 1800),
     chunkIndex: 0,
@@ -166,16 +181,26 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
     if (
-      !input.query.trim() ||
+      (!input.query.trim() && !hasDateBounds(input.filters)) ||
       input.query.length > 2000 ||
       !Number.isInteger(input.topK) ||
       input.topK < 1 ||
       input.topK > 50
     )
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
+    if (input.filters)
+      input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
+    if (
+      input.filters?.startDate &&
+      input.filters.endDate &&
+      Date.parse(input.filters.startDate) >= Date.parse(input.filters.endDate)
+    )
+      throw new OrchestrationError('validation', 'endDate must be after startDate')
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
+    if (queries?.some((query) => !query.query) && !hasDateBounds(input.filters))
+      throw new OrchestrationError('validation', 'Empty native queries require a date bound')
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
       : AbortSignal.timeout(20_000)
@@ -244,6 +269,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               mcp
             )
             const searchInput = {
+              filters: input.filters,
               policy,
               query: input.query,
               native,
@@ -290,10 +316,34 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               status: {
                 ...status,
                 status:
-                  unverified || page.partial || page.nextCursor || matching.length < rows.length
+                  (input.filters?.sortBy &&
+                    input.filters.sortBy !== 'relevance' &&
+                    rows.some(
+                      ({ document }) =>
+                        !Number.isFinite(Date.parse(sourceDate(document, account.provider) ?? ''))
+                    )) ||
+                  unverified ||
+                  page.partial ||
+                  page.nextCursor ||
+                  matching.length < rows.length
                     ? ('partial' as const)
                     : ('ok' as const),
-                message: page.message,
+                message:
+                  [
+                    page.message,
+                    (input.filters?.startDate || input.filters?.endDate) &&
+                    rows.some(
+                      ({ document }) =>
+                        !Number.isFinite(Date.parse(sourceDate(document, account.provider) ?? ''))
+                    )
+                      ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'
+                      : undefined,
+                    input.filters?.sortBy && input.filters.sortBy !== 'relevance'
+                      ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
+                      : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined,
                 nextCursor: page.nextCursor,
               },
               results: matching,
@@ -347,7 +397,18 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     }
     const seen = new Set<string>()
     const ranked = results
-      .sort((a, b) => b.similarity - a.similarity)
+      .sort((a, b) => {
+        if (!input.filters?.sortBy || input.filters.sortBy === 'relevance')
+          return b.similarity - a.similarity
+        const left = Date.parse(a.sourceDate ?? '')
+        const right = Date.parse(b.sourceDate ?? '')
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+        if (!Number.isFinite(right)) return -1
+        return (
+          (input.filters.sortBy === 'oldest' ? left - right : right - left) ||
+          b.similarity - a.similarity
+        )
+      })
       .filter((item) => {
         const key = item.sourceUrl || item.documentId
         if (seen.has(key)) return false
@@ -445,7 +506,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     const document = admin
       ? await admin.read(reference)
       : client
-        ? await readNativeProvider(reference.provider, client, reference, policy)
+        ? await readNativeProvider(reference.provider, client, reference, policy, input.filters)
         : await readCodaMcp(mcp!, reference.id)
     if (
       !(await createPolicyVerifier(
