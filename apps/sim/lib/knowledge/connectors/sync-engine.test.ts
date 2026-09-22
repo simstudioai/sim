@@ -2307,6 +2307,16 @@ describe('completeSuccessfulSync', () => {
     expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
   })
 
+  it('does not tolerate a non-database failure of the document count', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    dbChainMockFns.where.mockImplementationOnce(() => Promise.reject(new TypeError('broken')))
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).rejects.toThrow(
+      'broken'
+    )
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
   it('commits the completed log and connector state in one guarded transaction', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 

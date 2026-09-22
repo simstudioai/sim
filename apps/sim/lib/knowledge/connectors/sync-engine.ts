@@ -418,9 +418,11 @@ export async function completeSuccessfulSync(
    * guard already treats as a floor.
    */
   const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    if (diagnostic?.category !== 'database') throw error
     logger.warn('Could not count connector documents; keeping the previous count', {
       connectorId,
-      diagnostic: getConnectorFailureDiagnostic(error),
+      diagnostic,
     })
     return null
   })
@@ -434,7 +436,10 @@ export async function completeSuccessfulSync(
       if (!lockedKnowledgeBase) throw new SyncCompletionOwnershipLost()
 
       const [lockedConnector] = await tx
-        .select({ id: knowledgeConnector.id })
+        .select({
+          id: knowledgeConnector.id,
+          lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
+        })
         .from(knowledgeConnector)
         .where(stillHoldsSyncLock(connectorId, syncLogId))
         .for('update')
@@ -466,9 +471,15 @@ export async function completeSuccessfulSync(
               ? 'partial'
               : 'completed',
           completedAt: now,
+          /**
+           * An incremental pass lists only the delta, so its log carries the live corpus size
+           * instead; when that count could not be read the previous size stands, otherwise the
+           * next pass would reconstruct the delta as the corpus and read a broken listing as
+           * corroborated.
+           */
           listedCount: contentPass?.complete
             ? contentPass.checkpoint.incrementalSince
-              ? actualDocCount
+              ? (actualDocCount ?? lockedConnector.lastSyncDocCount)
               : contentPass.checkpoint.listedCount
             : null,
           docsAdded: result.docsAdded,
@@ -710,7 +721,6 @@ export function buildSyncCapacityUpdate(
  * `consecutiveFailures` still resets: a held pass is a healthy sync that declined
  * to delete, not a failure, and marking it broken would stop it syncing at all.
  */
-
 export function buildSyncSuccessUpdate(
   now: Date,
   actualDocCount: number | null,

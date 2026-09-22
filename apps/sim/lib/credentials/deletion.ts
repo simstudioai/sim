@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, notExists, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notExists, or, sql } from 'drizzle-orm'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { NextRequest } from 'next/server'
 import {
@@ -342,8 +342,8 @@ async function readWorkspaceCredentialRefs(
 /**
  * A content-engine connector whose credential is gone cannot sync until it is reconnected, so
  * it leaves the due sweep with the reconnect error; paused and disabled connectors keep their
- * status. A members-mode connector only loses its optional dedicated content credential: its
- * member crawls keep running, so it merely drops the reference.
+ * status. A connector that still holds an API key, or a members-mode connector that only loses
+ * its optional dedicated content credential, keeps running and merely drops the reference.
  */
 async function clearInKnowledgeConnectors(credentialId: string): Promise<void> {
   const now = new Date()
@@ -357,7 +357,8 @@ async function clearInKnowledgeConnectors(credentialId: string): Promise<void> {
     .where(
       and(
         eq(schema.knowledgeConnector.credentialId, credentialId),
-        inArray(schema.knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES])
+        inArray(schema.knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+        isNull(schema.knowledgeConnector.encryptedApiKey)
       )
     )
   await db

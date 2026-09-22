@@ -215,6 +215,7 @@ describe('clearCredentialRefs', () => {
       `CASE WHEN "knowledge_connector"."status" IN ('paused', 'disabled')`
     )
     expect(statement).toContain('"access_mode" in ($')
+    expect(statement).toContain('"encrypted_api_key" is null')
     expect(updates[0].params).toEqual(
       expect.arrayContaining([
         'Credential removed. Reconnect the connector to resume syncing.',
