@@ -1,4 +1,5 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
@@ -94,6 +95,17 @@ export function uncompilableTagFilterError(filter: {
  * Validate a tag value against its expected field type
  * Returns an error message if invalid, or null if valid
  */
+/**
+ * Text tag values sit under an index whose rows Postgres caps in size; a value past
+ * {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH} would fail the document write itself, so it is
+ * refused with a message naming the tag instead.
+ */
+export function validateTagValueLength(tagName: string, value: string): string | null {
+  return value.length > MAX_DOCUMENT_INDEXED_TEXT_LENGTH
+    ? `Tag "${tagName}" cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+    : null
+}
+
 export function validateTagValue(tagName: string, value: string, fieldType: string): string | null {
   if (fieldType !== 'boolean' && fieldType !== 'number' && fieldType !== 'date') return null
 

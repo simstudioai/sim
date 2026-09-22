@@ -5,11 +5,14 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   bulkCreateDocumentsBodySchema,
+  createDocumentBodySchema,
   documentDataSchema,
   listKnowledgeDocumentsQuerySchema,
   parseDocumentTagFiltersParam,
+  updateDocumentBodySchema,
   upsertDocumentBodySchema,
 } from '@/lib/api/contracts/knowledge/documents'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 
 describe('document processing response compatibility', () => {
@@ -253,5 +256,41 @@ describe('internal document processingOptions', () => {
         keys: ['chunkSize'],
       })
     })
+  })
+})
+
+describe('document filename and tag bounds', () => {
+  const base = { fileUrl: 'https://example.com/a.txt', fileSize: 1, mimeType: 'text/plain' }
+  const atLimit = 'a'.repeat(MAX_DOCUMENT_INDEXED_TEXT_LENGTH)
+  const overLimit = `${atLimit}a`
+
+  it('accepts a filename and tag exactly at the indexed-text limit', () => {
+    expect(
+      createDocumentBodySchema.safeParse({ ...base, filename: atLimit, tag1: atLimit }).success
+    ).toBe(true)
+  })
+
+  it('rejects a filename over the limit on create, upsert, and update with a descriptive message', () => {
+    for (const schema of [
+      createDocumentBodySchema,
+      upsertDocumentBodySchema,
+      updateDocumentBodySchema,
+    ]) {
+      const result = schema.safeParse({ ...base, filename: overLimit })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(
+        `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+      )
+    }
+  })
+
+  it('rejects a tag value over the limit on create and update', () => {
+    for (const schema of [createDocumentBodySchema, updateDocumentBodySchema]) {
+      const result = schema.safeParse({ ...base, filename: 'a.txt', tag3: overLimit })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(
+        `Tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+      )
+    }
   })
 })
