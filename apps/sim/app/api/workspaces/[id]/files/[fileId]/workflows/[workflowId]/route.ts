@@ -31,11 +31,12 @@ export const POST = defineInternalJsonRoute({
   operation: fileOperations.runWorkflow,
   rateLimit: internalRateLimits.user({ bucketName: 'file-workflow-run' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  parseOptions: { maxBodyBytes: 1024 },
-  mapInput: ({ params }) => ({
+  parseOptions: { maxBodyBytes: 20 * 1024 },
+  mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
     workflowId: params.workflowId,
+    input: body.input,
   }),
   useCase: runFileWorkflow,
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },

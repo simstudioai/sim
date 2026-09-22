@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/v2/file-versions'
 import {
   v2ReadFileWorkflowContract,
+  v2ReadFileWorkflowInputContract,
   v2RunFileWorkflowContract,
   v2UpdateFileMetadataContract,
 } from '@/lib/api/contracts/v2/file-workflows'
@@ -237,7 +238,7 @@ const declaredRoutes = [
       operationId: 'runFileWorkflow',
       summary: 'Run File Workflow',
       description:
-        'Run a workflow configured in an HTML file, using its latest deployment when execution starts. Calls reuse results within the five-minute execution window, shared across viewers of this file and workflow. A running status means an existing run is in progress; use Get File Workflow Result to poll.',
+        'Run a workflow configured in an HTML file synchronously, using its latest deployment when execution starts. Optional declared input values select a per-input, per-audience result cache with a five-minute cooldown. A file and workflow may admit at most twenty runs across inputs in five minutes. A running status means an existing run is in progress; read that input’s result to poll.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Run File Workflow result.' },
     }),
@@ -265,6 +266,39 @@ const declaredRoutes = [
         'RunFileWorkflowResponse',
         'RunFileWorkflow response',
         'RunFileWorkflow response schema.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReadFileWorkflowInputContract,
+    filesOperation({
+      applicationOperation: fileOperations.readWorkflowResult,
+      operationId: 'readFileWorkflowInputResult',
+      summary: 'Read File Workflow Input Result',
+      description:
+        'Read the cached result for a specific declared input object without starting a workflow. Use the same input sent to Run File Workflow.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The result cached for this input and caller.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ReadFileWorkflowInputContract.params,
+        'ReadFileWorkflowInputResultParams',
+        'Read file workflow input result params',
+        'File and workflow identifiers.'
+      ),
+      query: v2ReadFileWorkflowInputContract.query,
+      body: documentedSchema(
+        v2ReadFileWorkflowInputContract.body,
+        'ReadFileWorkflowInputResultBody',
+        'Read file workflow input result body',
+        'Workspace and declared input values.'
+      ),
+      response: documentedSchema(
+        v2ReadFileWorkflowInputContract.response.schema,
+        'ReadFileWorkflowInputResultResponse',
+        'Read file workflow input result response',
+        'The cached result for the input.'
       ),
     }
   ),

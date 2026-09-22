@@ -11,6 +11,7 @@ import {
   usesSimArtifactStyles,
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { fileWorkflowInputSchema } from '@/lib/workspace-files/workflows/types'
 import {
   type FileWorkflowTarget,
   useFileWorkflowRequest,
@@ -142,13 +143,24 @@ function WorkflowHtmlFrame({
           respond({ error: 'This workflow is not configured for the file' })
           return
         }
+        const input = fileWorkflowInputSchema.safeParse(data.input === undefined ? {} : data.input)
+        if (!input.success) {
+          respond({ error: 'Workflow input must be a JSON object' })
+          return
+        }
         if (pending >= 8) {
           respond({ error: 'Too many pending workflow calls' })
           return
         }
         pending++
         try {
-          respond({ result: await request({ method: data.method, workflowId: data.workflowId }) })
+          respond({
+            result: await request({
+              method: data.method,
+              workflowId: data.workflowId,
+              input: input.data,
+            }),
+          })
         } catch (error) {
           respond({ error: getErrorMessage(error, 'Workflow request failed') })
         } finally {

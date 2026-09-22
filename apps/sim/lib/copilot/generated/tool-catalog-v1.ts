@@ -3021,6 +3021,11 @@ export const FileWorkflow: ToolCatalogEntry = {
           "Use share for the active public share's cache, or private for the calling user's cache. Defaults to private. Applies to run and read.",
         enum: ['private', 'share'],
       },
+      input: {
+        type: 'object',
+        description:
+          'JSON object of deployed workflow input fields for run or read. Omit for workflows with no inputs. The same values identify the cached result.',
+      },
       path: {
         type: 'string',
         description: 'Canonical HTML workspace file path, for example files/Dashboard.html.',

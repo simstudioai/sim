@@ -21,14 +21,14 @@ export function htmlRuntimeShell(appOrigin: string): string {
     const pending = new Map();
     const subscribers = new Map();
     let sequence = 0;
-    function request(method, workflowId) {
+    function request(method, workflowId, input) {
       if (typeof workflowId !== 'string') return Promise.reject(new Error('workflowId is required'));
       if (pending.size >= 8) return Promise.reject(new Error('Too many pending workflow calls'));
       return new Promise((resolve, reject) => {
         const requestId = ++sequence;
         const timeout = setTimeout(() => { pending.delete(requestId); reject(new Error('Workflow request timed out; read its status before retrying')); }, 600000);
         pending.set(requestId, { resolve, reject, timeout });
-        port.postMessage({ type: 'sim:workflow:request', requestId, method, workflowId });
+        port.postMessage({ type: 'sim:workflow:request', requestId, method, workflowId, input });
       });
     }
     port.onmessage = ({ data }) => {
@@ -44,8 +44,8 @@ export function htmlRuntimeShell(appOrigin: string): string {
       }
     };
     Object.defineProperty(window, 'sim', { value: Object.freeze({ workflows: Object.freeze({
-      run: (id) => request('run', id),
-      read: (id) => request('read', id),
+      run: (id, input = {}) => request('run', id, input),
+      read: (id, input = {}) => request('read', id, input),
       subscribe: (id, callback) => {
         if (typeof id !== 'string' || typeof callback !== 'function') throw new Error('subscribe requires a workflow ID and callback');
         const callbacks = subscribers.get(id) ?? new Set();

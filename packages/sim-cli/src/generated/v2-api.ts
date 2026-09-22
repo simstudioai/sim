@@ -10936,6 +10936,33 @@ export type ReadFileWorkflowResponse = {
   data: ReadFileWorkflowResponseRef0
 }
 
+/** `POST /api/v2/files/[fileId]/workflows/[workflowId]/result` */
+export type ReadFileWorkflowInputParams = {
+  fileId: string
+  workflowId: string
+}
+
+export type ReadFileWorkflowInputQuery = Record<string, unknown>
+
+export type ReadFileWorkflowInputBody = {
+  workspaceId: string
+  input: Record<string, unknown>
+}
+
+type ReadFileWorkflowInputResponseRef0 = {
+  status: 'empty' | 'running' | 'completed' | 'failed'
+  executionId: string | null
+  deploymentVersionId: string | null
+  generatedAt: string | null
+  nextRunAt: string | null
+  output: unknown
+  error: string | null
+}
+
+export type ReadFileWorkflowInputResponse = {
+  data: ReadFileWorkflowInputResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -11953,6 +11980,7 @@ export type RunFileWorkflowQuery = Record<string, unknown>
 
 export type RunFileWorkflowBody = {
   workspaceId: string
+  input?: Record<string, unknown>
 }
 
 type RunFileWorkflowResponseRef0 = {
@@ -19913,6 +19941,25 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  readFileWorkflowInput: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/workflows/[workflowId]/result',
+    pathParams: ['fileId', 'workflowId'] as const,
+    pathParamDocs: {
+      fileId: 'HTML file identifier.',
+      workflowId: 'Workflow ID configured in the file metadata.',
+    },
+    responseMode: 'json',
+    summary: 'Read File Workflow Input Result',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      input: {
+        kind: 'object',
+        required: true,
+        describe: 'The same declared JSON input values used to run this workflow.',
+      },
+    },
+  },
   relocateFileFolder: {
     method: 'PATCH',
     path: '/api/v2/files/folders',
@@ -20400,6 +20447,10 @@ export const V2_OPERATIONS = {
     summary: 'Run File Workflow',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      input: {
+        kind: 'object',
+        describe: 'JSON values for fields declared by the current workflow deployment.',
+      },
     },
   },
   runRowEnrichment: {

@@ -10,6 +10,7 @@ import {
   cacheFileWorkflowResult,
   claimFileWorkflowRun,
   type FileWorkflowRun,
+  type FileWorkflowRunKey,
   finishFileWorkflowRun,
   readFileWorkflowResult,
   readFileWorkflowRun,
@@ -22,31 +23,40 @@ import {
 
 const logger = createLogger('FileWorkflowExecution')
 
-function emptySnapshot(run: FileWorkflowRun | null, audience: string): FileWorkflowSnapshot {
-  const own = run?.audience === audience
+function emptySnapshot(
+  run: FileWorkflowRun | null,
+  deploymentVersionId: string,
+  audience: string
+): FileWorkflowSnapshot {
+  const current = run?.deploymentVersionId === deploymentVersionId && run.audience === audience
   return {
-    status: own && run.status !== 'completed' ? run.status : 'empty',
-    executionId: own ? run.executionId : null,
-    deploymentVersionId: own ? run.deploymentVersionId : null,
-    generatedAt: own ? (run.finishedAt?.toISOString() ?? null) : null,
-    nextRunAt: run
-      ? new Date(run.startedAt.getTime() + FILE_WORKFLOW_INTERVAL_MS).toISOString()
-      : null,
+    status: current && run.status !== 'completed' ? run.status : 'empty',
+    executionId: current ? run.executionId : null,
+    deploymentVersionId: current ? run.deploymentVersionId : null,
+    generatedAt: current ? (run.finishedAt?.toISOString() ?? null) : null,
+    nextRunAt:
+      current && run
+        ? new Date(run.startedAt.getTime() + FILE_WORKFLOW_INTERVAL_MS).toISOString()
+        : null,
     output: null,
     error:
-      own && run.status === 'failed'
+      current && run.status === 'failed'
         ? 'Workflow execution failed. Inspect the workflow run for details.'
         : null,
   }
 }
 
-async function readSnapshot(fileId: string, workflowId: string, audience: string) {
-  const run = await readFileWorkflowRun(fileId, workflowId)
-  if (run?.audience === audience && run.status === 'completed') {
-    const cached = await readFileWorkflowResult(audience, run.executionId)
+async function readSnapshot(key: FileWorkflowRunKey, deploymentVersionId: string) {
+  const run = await readFileWorkflowRun(key)
+  if (
+    run?.deploymentVersionId === deploymentVersionId &&
+    run.audience === key.audience &&
+    run.status === 'completed'
+  ) {
+    const cached = await readFileWorkflowResult(key.audience, run.executionId)
     if (cached) return cached
   }
-  return emptySnapshot(run, audience)
+  return emptySnapshot(run, deploymentVersionId, key.audience)
 }
 
 /** Called only after application authorization, and reauthorized before executing and delivering results. */
@@ -56,13 +66,17 @@ export async function accessFileWorkflow(args: {
   principal: WorkflowExecutionPrincipal
   userId: string
   audience: string
+  inputHash: string
+  input: Record<string, unknown>
+  deploymentVersionId: string
   run: boolean
   publicAccess: boolean
   reauthorize(): Promise<void>
 }): Promise<FileWorkflowSnapshot> {
-  const { fileId, workflow, audience } = args
-  if (args.run) await reconcileFileWorkflowRun(fileId, workflow.workflowId)
-  const snapshot = await readSnapshot(fileId, workflow.workflowId, audience)
+  const { fileId, workflow, audience, inputHash, deploymentVersionId } = args
+  const key = { fileId, workflowId: workflow.workflowId, audience, inputHash }
+  if (args.run) await reconcileFileWorkflowRun(key)
+  const snapshot = await readSnapshot(key, deploymentVersionId)
   if (
     !args.run ||
     snapshot.status === 'running' ||
@@ -74,18 +88,17 @@ export async function accessFileWorkflow(args: {
   await assertFileWorkflowCacheAvailable()
   await args.reauthorize()
   const admission = await claimFileWorkflowRun({
-    fileId,
-    workflowId: workflow.workflowId,
+    ...key,
     executionId: generateId(),
-    audience,
+    deploymentVersionId,
   })
   if (!admission) {
-    const current = await readSnapshot(fileId, workflow.workflowId, audience)
+    const current = await readSnapshot(key, deploymentVersionId)
     await args.reauthorize()
     return current
   }
   let result: FileWorkflowSnapshot = {
-    ...emptySnapshot(admission, audience),
+    ...emptySnapshot(admission, deploymentVersionId, audience),
     status: 'failed',
     error: 'Workflow execution failed. Inspect the workflow run for details.',
   }
@@ -97,8 +110,8 @@ export async function accessFileWorkflow(args: {
       workflowId: workflow.workflowId,
       principal: args.principal,
       userId: args.userId,
-      input: {},
-      triggerType: 'api',
+      input: args.input,
+      triggerType: 'file',
       requestId: generateId(),
       executionId: admission.executionId,
       workflowRecord: workflow.workflow,

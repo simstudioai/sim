@@ -19,6 +19,10 @@ const workflowParams = fileParams.extend({
 const workspaceQuery = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace that owns the file.') })
   .strict()
+const v2FileWorkflowInputSchema = z.record(
+  z.string(),
+  z.unknown().describe('A JSON value accepted by the declared workflow input field.')
+)
 export const v2FileWorkflowMetadataSchema = z.object({ workflowIds: fileWorkflowIdsSchema }).meta({
   id: 'V2FileWorkflowMetadata',
   title: 'File workflow metadata',
@@ -58,11 +62,28 @@ export const v2RunFileWorkflowContract = defineRouteContract({
   path: '/api/v2/files/[fileId]/workflows/[workflowId]',
   params: workflowParams,
   query: noInputSchema,
-  body: workspaceQuery,
+  body: workspaceQuery.extend({
+    input: v2FileWorkflowInputSchema
+      .optional()
+      .describe('JSON values for fields declared by the current workflow deployment.'),
+  }),
+  response: { mode: 'json', schema: v2DataResponse(v2FileWorkflowSnapshotSchema) },
+})
+export const v2ReadFileWorkflowInputContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/workflows/[workflowId]/result',
+  params: workflowParams,
+  query: noInputSchema,
+  body: workspaceQuery.extend({
+    input: v2FileWorkflowInputSchema.describe(
+      'The same declared JSON input values used to run this workflow.'
+    ),
+  }),
   response: { mode: 'json', schema: v2DataResponse(v2FileWorkflowSnapshotSchema) },
 })
 export type V2FileWorkflowMetadata = z.output<typeof v2FileWorkflowMetadataSchema>
 export type V2FileWorkflowSnapshot = z.output<typeof v2FileWorkflowSnapshotSchema>
 export type V2UpdateFileMetadataBody = z.input<typeof v2UpdateFileMetadataContract.body>
 export type V2RunFileWorkflowBody = z.input<typeof v2RunFileWorkflowContract.body>
+export type V2ReadFileWorkflowInputBody = z.input<typeof v2ReadFileWorkflowInputContract.body>
 export type V2ReadFileWorkflowQuery = z.input<typeof v2ReadFileWorkflowContract.query>

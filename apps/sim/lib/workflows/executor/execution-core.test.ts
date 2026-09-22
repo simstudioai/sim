@@ -654,6 +654,27 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
   })
 
+  it('uses the API input block for file-triggered executions', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: { ...createSnapshot().metadata, triggerType: 'file' },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'api', false)
+  })
+
   it('preserves manifest-backed workflow variables during execution setup', async () => {
     const manifest = {
       __simLargeArrayManifest: true,

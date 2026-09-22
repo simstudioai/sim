@@ -25,6 +25,7 @@ export function getTriggerOptions(): TriggerOption[] {
   const coreTypes: TriggerOption[] = [
     { value: 'manual', label: 'Manual', color: '#6b7280' },
     { value: 'api', label: 'API', color: '#2563eb' },
+    { value: 'file', label: 'File', color: '#2563eb' },
     { value: 'schedule', label: 'Schedule', color: '#059669' },
     { value: 'chat', label: 'Chat', color: '#7c3aed' },
     { value: 'webhook', label: 'Webhook', color: '#ea580c' },

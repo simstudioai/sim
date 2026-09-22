@@ -2633,6 +2633,13 @@
       "when": 1790104681168,
       "tag": "0376_petite_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1790116198348,
+      "tag": "0377_flaky_quicksilver",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,15 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   fileWorkflowIdsSchema,
+  fileWorkflowInputSchema,
   fileWorkflowSnapshotSchema,
 } from '@/lib/workspace-files/workflows/types'
 
 export type FileWorkflowSnapshot = z.output<typeof fileWorkflowSnapshotSchema>
+export const runFileWorkflowBodySchema = z
+  .object({ input: fileWorkflowInputSchema.optional() })
+  .strict()
+export type RunFileWorkflowBody = z.input<typeof runFileWorkflowBodySchema>
 export const updateFileWorkflowMetadataBodySchema = z
   .object({ workflowIds: fileWorkflowIdsSchema })
   .strict()
@@ -31,7 +36,14 @@ export const runFileWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/workspaces/[id]/files/[fileId]/workflows/[workflowId]',
   params: fileWorkflowParamsSchema,
-  body: z.object({}).strict(),
+  body: runFileWorkflowBodySchema,
+  response: { mode: 'json', schema: fileWorkflowSnapshotSchema },
+})
+export const readFileWorkflowInputContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/workflows/[workflowId]/result',
+  params: fileWorkflowParamsSchema,
+  body: runFileWorkflowBodySchema,
   response: { mode: 'json', schema: fileWorkflowSnapshotSchema },
 })
 export const updateFileWorkflowMetadataContract = defineRouteContract({
@@ -56,7 +68,14 @@ export const runPublicFileWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/public/[token]/workflows/[workflowId]',
   params: publicFileWorkflowParamsSchema,
-  body: z.object({}).strict(),
+  body: runFileWorkflowBodySchema,
+  response: { mode: 'json', schema: fileWorkflowSnapshotSchema },
+})
+export const readPublicFileWorkflowInputContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/public/[token]/workflows/[workflowId]/result',
+  params: publicFileWorkflowParamsSchema,
+  body: runFileWorkflowBodySchema,
   response: { mode: 'json', schema: fileWorkflowSnapshotSchema },
 })
 

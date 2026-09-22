@@ -680,11 +680,13 @@ async function executeWorkflowCoreImpl(
       })
     } else if (!triggerBlockId) {
       const executionKind =
-        triggerType === 'api' || triggerType === 'chat'
-          ? (triggerType as 'api' | 'chat')
-          : triggerType === 'webhook' || triggerType === 'schedule'
-            ? 'external'
-            : 'manual'
+        triggerType === 'api' || triggerType === 'file'
+          ? 'api'
+          : triggerType === 'chat'
+            ? 'chat'
+            : triggerType === 'webhook' || triggerType === 'schedule'
+              ? 'external'
+              : 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 

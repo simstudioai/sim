@@ -39,6 +39,9 @@ function input() {
     fileId: 'file-1',
     workflow,
     audience: 'audience-1',
+    inputHash: 'empty-input',
+    input: {},
+    deploymentVersionId: 'deployment-1',
     userId: 'user-1',
     run: true,
     principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
@@ -52,10 +55,11 @@ function run(status = 'completed', audience = 'audience-1') {
     workflowId: 'workflow-1',
     executionId: 'run-1',
     audience,
+    inputHash: 'empty-input',
     status,
     startedAt: new Date(),
     finishedAt: null,
-    deploymentVersionId: null,
+    deploymentVersionId: 'deployment-1',
   }
 }
 
@@ -88,9 +92,20 @@ describe('file workflow execution', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
+  it('passes declared inputs through to the workflow and isolates the admission key', async () => {
+    const args = { ...input(), inputHash: 'incident-123', input: { incidentId: '123' } }
+    await accessFileWorkflow(args)
+    expect(mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({ inputHash: 'incident-123', audience: 'audience-1' })
+    )
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { incidentId: '123' } })
+    )
+  })
+
   it('does not read another audience’s cache or reveal its execution ID', async () => {
     mocks.readRun.mockResolvedValue(run('completed', 'someone-else'))
-    expect(await accessFileWorkflow(input())).toMatchObject({
+    expect(await accessFileWorkflow({ ...input(), run: false })).toMatchObject({
       status: 'empty',
       executionId: null,
       output: null,
@@ -111,6 +126,7 @@ describe('file workflow execution', () => {
       expect.objectContaining({
         principal: args.principal,
         input: {},
+        triggerType: 'file',
         mode: 'sync',
         useAuthenticatedUserAsActor: true,
       })

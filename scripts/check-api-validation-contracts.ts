@@ -42,6 +42,9 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  /** Public file workflow adapters select and parse their shared contracts in publicWorkflowRoute. */
+  'apps/sim/app/api/files/public/[token]/workflows/[workflowId]/route.ts',
+  'apps/sim/app/api/files/public/[token]/workflows/[workflowId]/result/route.ts',
   /** Shared MCP protocol factory validates the owner and JSON-RPC envelope before SDK dispatch. */
   'apps/sim/app/api/mcp/search/[workspaceId]/route.ts',
   'apps/sim/app/api/mcp/search/organizations/[organizationId]/route.ts',

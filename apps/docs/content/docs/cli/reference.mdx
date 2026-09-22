@@ -1286,7 +1286,7 @@ sim files workflows get <fileId> <workflowId>
 Run File Workflow
 
 ```bash
-sim files workflows create <fileId> <workflowId>
+sim files workflows create <fileId> <workflowId> [options]
 ```
 
 **Arguments**
@@ -1297,6 +1297,45 @@ sim files workflows create <fileId> <workflowId>
 | --- | --- | --- |
 | `fileId` | Yes | HTML file identifier. |
 | `workflowId` | Yes | Workflow ID configured in the file metadata. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | JSON values for fields declared by the current workflow deployment. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim files result create
+
+Read File Workflow Input Result
+
+```bash
+sim files result create <fileId> <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | HTML file identifier. |
+| `workflowId` | Yes | Workflow ID configured in the file metadata. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | Yes | The same declared JSON input values used to run this workflow. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 

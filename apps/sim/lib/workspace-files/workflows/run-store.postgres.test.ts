@@ -37,6 +37,8 @@ const args = {
   workflowId: 'workflow-1',
   executionId: 'run-1',
   audience: 'audience-1',
+  inputHash: 'empty-input',
+  deploymentVersionId: 'deployment-1',
 }
 const completed: FileWorkflowSnapshot = {
   status: 'completed',
@@ -57,7 +59,7 @@ describe.skipIf(!testUrl)('file workflow PostgreSQL admission and migration', ()
     )
       throw new Error('Disposable test database required')
     await pool.unsafe(
-      'DROP TABLE IF EXISTS workspace_file_workflow_run, workflow_execution_logs, workspace_files, workflow CASCADE'
+      'DROP TABLE IF EXISTS workspace_file_workflow_budget, workspace_file_workflow_input_run, workspace_file_workflow_run, workflow_execution_logs, workspace_files, workflow CASCADE'
     )
     await pool.unsafe(
       'CREATE TABLE workspace_files (id text PRIMARY KEY); CREATE TABLE workflow (id text PRIMARY KEY); CREATE TABLE workflow_execution_logs (execution_id text PRIMARY KEY, status text NOT NULL, ended_at timestamp)'
@@ -71,9 +73,20 @@ describe.skipIf(!testUrl)('file workflow PostgreSQL admission and migration', ()
         'utf8'
       )
     )
+    await pool.unsafe(
+      readFileSync(
+        new URL(
+          '../../../../../packages/db/migrations/0377_flaky_quicksilver.sql',
+          import.meta.url
+        ),
+        'utf8'
+      )
+    )
   })
   beforeEach(async () => {
-    await pool!.unsafe('TRUNCATE workspace_file_workflow_run, workflow_execution_logs')
+    await pool!.unsafe(
+      'TRUNCATE workspace_file_workflow_budget, workspace_file_workflow_input_run, workflow_execution_logs'
+    )
   })
   afterAll(async () => {
     await pool?.end()
@@ -101,26 +114,50 @@ describe.skipIf(!testUrl)('file workflow PostgreSQL admission and migration', ()
     await finishFileWorkflowRun(first!, completed)
     expect(await claimFileWorkflowRun({ ...args, executionId: 'too-soon' })).toBeNull()
     await pool!.unsafe(
-      "UPDATE workspace_file_workflow_run SET started_at = now() - interval '301 seconds'"
+      "UPDATE workspace_file_workflow_input_run SET started_at = now() - interval '301 seconds'"
     )
     expect(await claimFileWorkflowRun({ ...args, executionId: 'run-2' })).toMatchObject({
       executionId: 'run-2',
     })
   })
+  it('admits a distinct input without replacing the cached input run', async () => {
+    const first = await claimFileWorkflowRun(args)
+    await finishFileWorkflowRun(first!, completed)
+    const other = await claimFileWorkflowRun({
+      ...args,
+      inputHash: 'other-input',
+      executionId: 'run-2',
+    })
+    expect(other?.executionId).toBe('run-2')
+    expect((await readFileWorkflowRun(args))?.executionId).toBe('run-1')
+  })
+  it('caps all input variants at twenty executions per five-minute window', async () => {
+    for (let index = 0; index < 20; index++) {
+      const admitted = await claimFileWorkflowRun({
+        ...args,
+        inputHash: `input-${index}`,
+        executionId: `run-${index}`,
+      })
+      expect(admitted).not.toBeNull()
+    }
+    await expect(
+      claimFileWorkflowRun({ ...args, inputHash: 'input-20', executionId: 'run-20' })
+    ).rejects.toThrow('run limit')
+  })
   it('does not expire an active run or assume a missing log means stopped', async () => {
     await claimFileWorkflowRun(args)
     await pool!.unsafe(
-      "UPDATE workspace_file_workflow_run SET started_at = now() - interval '1 day'"
+      "UPDATE workspace_file_workflow_input_run SET started_at = now() - interval '1 day'"
     )
-    await reconcileFileWorkflowRun(args.fileId, args.workflowId)
+    await reconcileFileWorkflowRun(args)
     expect(await claimFileWorkflowRun({ ...args, executionId: 'run-2' })).toBeNull()
   })
   it('allows another attempt after a paused run has a terminal durable log', async () => {
     await claimFileWorkflowRun(args)
     await pool!.unsafe(
-      "UPDATE workspace_file_workflow_run SET started_at = now() - interval '301 seconds'; INSERT INTO workflow_execution_logs (execution_id, status) VALUES ('run-1', 'completed')"
+      "UPDATE workspace_file_workflow_input_run SET started_at = now() - interval '301 seconds'; INSERT INTO workflow_execution_logs (execution_id, status) VALUES ('run-1', 'completed')"
     )
-    await reconcileFileWorkflowRun(args.fileId, args.workflowId)
+    await reconcileFileWorkflowRun(args)
     expect(await claimFileWorkflowRun({ ...args, executionId: 'run-2' })).toMatchObject({
       executionId: 'run-2',
     })
@@ -129,14 +166,14 @@ describe.skipIf(!testUrl)('file workflow PostgreSQL admission and migration', ()
     const first = await claimFileWorkflowRun(args)
     await finishFileWorkflowRun(first!, completed)
     await pool!.unsafe(
-      "UPDATE workspace_file_workflow_run SET started_at = now() - interval '301 seconds'"
+      "UPDATE workspace_file_workflow_input_run SET started_at = now() - interval '301 seconds'"
     )
     await claimFileWorkflowRun({ ...args, executionId: 'run-2' })
     await finishFileWorkflowRun(first!, completed)
-    expect(await readFileWorkflowRun(args.fileId, args.workflowId)).toMatchObject({
+    expect(await readFileWorkflowRun(args)).toMatchObject({
       executionId: 'run-2',
       status: 'running',
-      deploymentVersionId: null,
+      deploymentVersionId: 'deployment-1',
     })
   })
 
@@ -145,12 +182,12 @@ describe.skipIf(!testUrl)('file workflow PostgreSQL admission and migration', ()
     await pool!.unsafe(
       "INSERT INTO workflow_execution_logs (execution_id, status, ended_at) VALUES ('run-1', 'completed', now())"
     )
-    expect(await readFileWorkflowRun(args.fileId, args.workflowId)).toMatchObject({
+    expect(await readFileWorkflowRun(args)).toMatchObject({
       status: 'completed',
     })
-    expect((await pool!.unsafe('SELECT status FROM workspace_file_workflow_run'))[0].status).toBe(
-      'running'
-    )
+    expect(
+      (await pool!.unsafe('SELECT status FROM workspace_file_workflow_input_run'))[0].status
+    ).toBe('running')
     expect(await claimFileWorkflowRun({ ...args, executionId: 'run-2' })).toBeNull()
   })
 })

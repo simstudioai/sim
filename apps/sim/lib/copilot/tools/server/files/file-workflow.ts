@@ -18,6 +18,7 @@ import {
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { updateWorkspaceFileMetadata } from '@/lib/workspace-files/application/update-workspace-file-metadata'
 import {
+  type FileWorkflowInputValues,
   type FileWorkflowSnapshot,
   fileWorkflowIdsSchema,
 } from '@/lib/workspace-files/workflows/types'
@@ -27,6 +28,7 @@ interface FileWorkflowArgs {
   action: 'configure' | 'run' | 'read'
   workflowIds?: string[]
   workflowId?: string
+  input?: FileWorkflowInputValues
   audience?: 'private' | 'share'
 }
 
@@ -47,6 +49,7 @@ export const fileWorkflowServerTool: BaseServerTool<FileWorkflowArgs, FileWorkfl
         if (
           params.workflowIds === undefined ||
           params.workflowId !== undefined ||
+          params.input !== undefined ||
           params.audience !== undefined
         )
           throw new OrchestrationError('validation', 'configure requires workflowIds only')
@@ -83,6 +86,7 @@ export const fileWorkflowServerTool: BaseServerTool<FileWorkflowArgs, FileWorkfl
         fileId: file.id,
         assertedWorkspaceId: workspaceId,
         workflowId: params.workflowId,
+        input: params.input,
       }
       let data: FileWorkflowSnapshot
       if (params.audience === 'share') {

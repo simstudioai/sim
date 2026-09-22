@@ -6,11 +6,14 @@ import {
   type FileWorkflowSnapshot,
   getHtmlRuntimeContract,
   readFileWorkflowContract,
+  readFileWorkflowInputContract,
   readPublicFileWorkflowContract,
+  readPublicFileWorkflowInputContract,
   runFileWorkflowContract,
   runPublicFileWorkflowContract,
 } from '@/lib/api/contracts/file-workflows'
 import { getPublicFileContract } from '@/lib/api/contracts/public-shares'
+import type { FileWorkflowInputValues } from '@/lib/workspace-files/workflows/types'
 
 export const FILE_WORKFLOW_STALE_TIME = 5_000
 export const HTML_RUNTIME_STALE_TIME = 60_000
@@ -30,18 +33,24 @@ async function accessWorkflow(
   target: FileWorkflowTarget,
   workflowId: string,
   method: 'run' | 'read',
+  input?: FileWorkflowInputValues,
   signal?: AbortSignal
 ): Promise<FileWorkflowSnapshot> {
+  const hasInput = input && Object.keys(input).length > 0
   if (target.kind === 'public') {
     const params = { token: target.token, workflowId }
     return method === 'run'
-      ? requestJson(runPublicFileWorkflowContract, { params, body: {}, signal })
-      : requestJson(readPublicFileWorkflowContract, { params, signal })
+      ? requestJson(runPublicFileWorkflowContract, { params, body: { input }, signal })
+      : hasInput
+        ? requestJson(readPublicFileWorkflowInputContract, { params, body: { input }, signal })
+        : requestJson(readPublicFileWorkflowContract, { params, signal })
   }
   const params = { id: target.workspaceId, fileId: target.fileId, workflowId }
   return method === 'run'
-    ? requestJson(runFileWorkflowContract, { params, body: {}, signal })
-    : requestJson(readFileWorkflowContract, { params, signal })
+    ? requestJson(runFileWorkflowContract, { params, body: { input }, signal })
+    : hasInput
+      ? requestJson(readFileWorkflowInputContract, { params, body: { input }, signal })
+      : requestJson(readFileWorkflowContract, { params, signal })
 }
 
 export function useHtmlRuntime() {
@@ -60,7 +69,7 @@ export function useFileWorkflowResults(target: FileWorkflowTarget, workflowIds: 
       const values = await Promise.all(
         workflowIds.map(async (workflowId) => ({
           workflowId,
-          result: await accessWorkflow(target, workflowId, 'read', signal),
+          result: await accessWorkflow(target, workflowId, 'read', undefined, signal),
         }))
       )
       return values
@@ -75,8 +84,15 @@ export function useFileWorkflowResults(target: FileWorkflowTarget, workflowIds: 
 export function useFileWorkflowRequest(target: FileWorkflowTarget) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ method, workflowId }: { method: 'run' | 'read'; workflowId: string }) =>
-      accessWorkflow(target, workflowId, method),
+    mutationFn: ({
+      method,
+      workflowId,
+      input,
+    }: {
+      method: 'run' | 'read'
+      workflowId: string
+      input?: FileWorkflowInputValues
+    }) => accessWorkflow(target, workflowId, method, input),
     onSettled: () => client.invalidateQueries({ queryKey: fileWorkflowKeys.lists() }),
   })
 }

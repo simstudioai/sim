@@ -2226,6 +2226,49 @@ export const workspaceFileWorkflowRun = pgTable(
   (table) => [primaryKey({ columns: [table.fileId, table.workflowId] })]
 )
 
+/** Input-specific admissions are isolated by caller audience and normalized input. */
+export const workspaceFileWorkflowInputRun = pgTable(
+  'workspace_file_workflow_input_run',
+  {
+    fileId: text('file_id')
+      .notNull()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    audience: text('audience').notNull(),
+    inputHash: text('input_hash').notNull(),
+    executionId: text('execution_id').notNull(),
+    deploymentVersionId: text('deployment_version_id').notNull(),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    finishedAt: timestamp('finished_at'),
+    status: text('status').$type<'running' | 'completed' | 'failed'>().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'workspace_file_workflow_input_run_pk',
+      columns: [table.fileId, table.workflowId, table.audience, table.inputHash],
+    }),
+    index('workspace_file_workflow_input_run_started_idx').on(table.startedAt),
+  ]
+)
+
+/** A file/workflow may admit only a bounded number of distinct runs per window. */
+export const workspaceFileWorkflowBudget = pgTable(
+  'workspace_file_workflow_budget',
+  {
+    fileId: text('file_id')
+      .notNull()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    windowStartedAt: timestamp('window_started_at').notNull().defaultNow(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.fileId, table.workflowId] })]
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {

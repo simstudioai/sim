@@ -75,7 +75,12 @@ describe('Mothership file workflow tool', () => {
       expect.objectContaining({
         operation: expect.objectContaining({ id: 'files.workflows.run' }),
       }),
-      { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', workflowId: 'workflow-1' },
+      {
+        fileId: 'file-1',
+        assertedWorkspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        input: undefined,
+      },
       { fileId: 'file-1' }
     )
   })
@@ -91,6 +96,19 @@ describe('Mothership file workflow tool', () => {
       context
     )
     expect(mocks.execute.mock.calls[1][1]).toBe(readFileWorkflow)
+  })
+
+  it('passes the selected input to the shared workflow operation', async () => {
+    await fileWorkflowServerTool.execute(
+      {
+        path: 'files/Dashboard.html',
+        action: 'run',
+        workflowId: 'workflow-1',
+        input: { incidentId: '123' },
+      },
+      context
+    )
+    expect(mocks.execute.mock.calls[0][2]).toMatchObject({ input: { incidentId: '123' } })
   })
 
   it('rejects malformed configure calls before resolving any file', async () => {

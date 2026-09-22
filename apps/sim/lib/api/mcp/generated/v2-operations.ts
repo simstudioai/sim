@@ -65,6 +65,7 @@ import {
 } from '@/lib/api/contracts/v2/file-versions'
 import {
   v2ReadFileWorkflowContract,
+  v2ReadFileWorkflowInputContract,
   v2RunFileWorkflowContract,
   v2UpdateFileMetadataContract,
 } from '@/lib/api/contracts/v2/file-workflows'
@@ -2223,6 +2224,16 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/files/[fileId]/workflows/[workflowId]/route').then((route) => route.GET),
   },
+  readFileWorkflowInput: {
+    contract: v2ReadFileWorkflowInputContract,
+    summary: 'Read File Workflow Input Result',
+    description:
+      'Read the cached result for a specific declared input object without starting a workflow. Use the same input sent to Run File Workflow.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/files/[fileId]/workflows/[workflowId]/result/route').then(
+        (route) => route.POST
+      ),
+  },
   relocateFileFolder: {
     contract: v2RelocateFileFolderContract,
     summary: 'Rename or Move Folder',
@@ -2442,7 +2453,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2RunFileWorkflowContract,
     summary: 'Run File Workflow',
     description:
-      'Run a workflow configured in an HTML file, using its latest deployment when execution starts. Calls reuse results within the five-minute execution window, shared across viewers of this file and workflow. A running status means an existing run is in progress; use Get File Workflow Result to poll.\n\nOAuth scope: `api:write`.',
+      'Run a workflow configured in an HTML file synchronously, using its latest deployment when execution starts. Optional declared input values select a per-input, per-audience result cache with a five-minute cooldown. A file and workflow may admit at most twenty runs across inputs in five minutes. A running status means an existing run is in progress; read that input’s result to poll.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/files/[fileId]/workflows/[workflowId]/route').then(
         (route) => route.POST

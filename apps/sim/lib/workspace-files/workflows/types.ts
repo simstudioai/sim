@@ -1,8 +1,11 @@
 import { z } from 'zod'
 
 export const FILE_WORKFLOW_INTERVAL_MS = 300_000
+export const FILE_WORKFLOW_MAX_RUNS_PER_WINDOW = 20
 export const FILE_WORKFLOW_RESULT_MAX_BYTES = 1024 * 1024
 export const FILE_WORKFLOW_RESULT_TTL_SECONDS = 300
+export const fileWorkflowInputSchema = z.record(z.string(), z.json())
+export type FileWorkflowInputValues = z.output<typeof fileWorkflowInputSchema>
 export const fileWorkflowIdsSchema = z
   .array(z.string().min(1).max(128))
   .max(10, 'A file can call at most 10 workflows')

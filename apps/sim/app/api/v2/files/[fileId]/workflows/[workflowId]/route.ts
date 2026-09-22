@@ -27,11 +27,12 @@ export const POST = defineV2JsonRoute({
   operation: fileOperations.runWorkflow,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
-  parseOptions: { maxBodyBytes: 1024 },
+  parseOptions: { maxBodyBytes: 20 * 1024 },
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     workflowId: params.workflowId,
     assertedWorkspaceId: body.workspaceId,
+    input: body.input,
   }),
   useCase: runFileWorkflow,
   present: (result) => ({ data: result }),

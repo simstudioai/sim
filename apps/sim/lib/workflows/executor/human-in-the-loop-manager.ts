@@ -1457,8 +1457,14 @@ export class PauseResumeManager {
     })
 
     const triggerType =
-      (metadata.triggerType as 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | undefined) ??
-      'manual'
+      (metadata.triggerType as
+        | 'api'
+        | 'file'
+        | 'webhook'
+        | 'schedule'
+        | 'manual'
+        | 'chat'
+        | undefined) ?? 'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
       parentExecutionId,

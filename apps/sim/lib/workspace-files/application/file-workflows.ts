@@ -18,12 +18,14 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { accessFileWorkflow } from '@/lib/workspace-files/workflows/execute'
+import { prepareFileWorkflowInput } from '@/lib/workspace-files/workflows/input'
 import { isWorkflowHtml } from '@/lib/workspace-files/workflows/types'
 
 export interface FileWorkflowInput {
   fileId: string
   assertedWorkspaceId?: string
   workflowId: string
+  input?: unknown
 }
 
 export function fileWorkflowAudience(parts: readonly (string | number)[]) {
@@ -96,6 +98,11 @@ function privateUseCase<
     resolveContext: ({ input }: { input: FileWorkflowInput }) => resolveFileWorkflow(input),
     authorizeResource: ({ principal, context }) => authorizeWorkflow(principal, context, run),
     async execute({ principal, input, context }) {
+      const prepared = await prepareFileWorkflowInput(
+        input.workflowId,
+        context.workspaceId,
+        input.input
+      )
       const audience = fileWorkflowAudience([
         context.workspaceId,
         context.fileId,
@@ -110,6 +117,7 @@ function privateUseCase<
         fileId: context.fileId,
         workflow: context.workflow,
         audience,
+        ...prepared,
         principal: executionCaller(principal),
         userId: attribution.attributedUserId,
         publicAccess: false,
@@ -144,6 +152,7 @@ function sharedMemberUseCase<
       return accessSharedFileWorkflow({
         token: share.token,
         workflowId: input.workflowId,
+        input: input.input,
         run,
         async authenticateShare(activeShare) {
           if (
@@ -181,6 +190,7 @@ type SharedFile = NonNullable<Awaited<ReturnType<typeof resolveActiveShareByToke
 export async function accessSharedFileWorkflow(args: {
   token: string
   workflowId: string
+  input?: unknown
   run: boolean
   authenticateShare(share: SharedFile['share']): Promise<void>
 }) {
@@ -215,6 +225,11 @@ export async function accessSharedFileWorkflow(args: {
     }
   }
   const admitted = await authorize()
+  const prepared = await prepareFileWorkflowInput(
+    args.workflowId,
+    admitted.file.workspaceId!,
+    args.input
+  )
   return accessFileWorkflow({
     fileId: admitted.file.id,
     workflow: admitted.workflow,
@@ -226,6 +241,7 @@ export async function accessSharedFileWorkflow(args: {
     },
     userId: admitted.workflow.billedAccountUserId,
     audience: admitted.audience,
+    ...prepared,
     publicAccess: true,
     run: args.run,
     async reauthorize() {
