@@ -90,14 +90,24 @@ export const userPermissionConfigQuerySchema = z.object({
 })
 
 export const userPermissionConfigSchema = z.object({
-  permissionGroupId: z.string().nullable(),
-  groupName: z.string().nullable(),
-  config: permissionGroupFullConfigSchema.nullable(),
-  entitled: z.boolean(),
-  /** The workspace's owning organization id (null when the workspace has no org). */
-  organizationId: z.string().nullable(),
-  /** Whether the caller is an owner/admin of the workspace's owning organization. */
-  isOrgAdmin: z.boolean(),
+  permissionGroupId: z
+    .string()
+    .nullable()
+    .describe('Identifier of the group governing the caller; null when no group applies.'),
+  groupName: z.string().nullable().describe('Name of the governing permission group.'),
+  config: permissionGroupFullConfigSchema
+    .nullable()
+    .describe(
+      'Effective group restrictions. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies.'
+    ),
+  entitled: z.boolean().describe('Whether organization permission governance is active.'),
+  organizationId: z
+    .string()
+    .nullable()
+    .describe('Organization that owns the workspace; null for a personal workspace.'),
+  isOrgAdmin: z
+    .boolean()
+    .describe('Whether the caller is an owner or administrator of the workspace’s organization.'),
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 

@@ -166,6 +166,9 @@ export function SettingsSidebar({
             hostContext.features?.credentialGroups
         )
       }
+      if (item.id === 'requests') {
+        return Boolean(hostContext.hostOrganizationId && isOrgAdminOrOwner)
+      }
       if (item.id === 'organization') {
         return Boolean(
           hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember

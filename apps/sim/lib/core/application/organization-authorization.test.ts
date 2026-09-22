@@ -68,7 +68,11 @@ describe('organization operation authorization', () => {
     query.from.mockReturnValue(query)
     query.where.mockReturnValue(query)
     query.for.mockReturnValue(query)
-    const executor = { select: vi.fn().mockReturnValue(query) }
+    const select = vi.fn().mockReturnValue(query)
+    const executor = new Proxy(db, {
+      get: (target, key, receiver) =>
+        key === 'select' ? select : Reflect.get(target, key, receiver),
+    })
     const review = defineOrganizationOperation({
       id: 'access_requests.resolve',
       minimumRole: 'admin',

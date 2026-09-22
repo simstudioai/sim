@@ -259,12 +259,18 @@ async function resolveUserAccessControlContextForOrganization(
 export async function resolveVerifiedUserAccessControlContext(
   userId: string,
   workspaceId: string,
-  organizationId: string | null
+  organizationId: string | null,
+  executor?: DbOrTx
 ): Promise<UserAccessControlContext> {
   if (!isHosted && !isAccessControlEnabled) {
     return inactiveUserAccessControlContext(null)
   }
-  return resolveUserAccessControlContextForOrganization(userId, workspaceId, organizationId)
+  return resolveUserAccessControlContextForOrganization(
+    userId,
+    workspaceId,
+    organizationId,
+    executor
+  )
 }
 
 /**

@@ -62,6 +62,7 @@ const ids = reuseReportFile
           organizationId: z.uuid(),
           knowledgeBaseId: z.uuid(),
           connectorId: z.uuid(),
+          credentialId: z.uuid(),
           lockId: z.uuid(),
           groups: z.array(z.string().max(128)).length(3),
           groupIds: z.array(z.uuid()).length(3),

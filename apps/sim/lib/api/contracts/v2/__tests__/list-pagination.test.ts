@@ -45,6 +45,14 @@ import {
 
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
+  'GET /api/v2/organizations/[organizationId]/usage/events',
+  'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
+  'GET /api/v2/organizations/[organizationId]/access-requests',
+  'GET /api/v2/organizations/[organizationId]/access-requests/mine',
+  'GET /api/v2/workspaces/[workspaceId]/access-requests',
+  'GET /api/v2/organizations/[organizationId]/access-requests/discovery',
+  'GET /api/v2/workspaces/[workspaceId]/access-requests/discovery',
+
   'GET /api/v2/organizations',
   'GET /api/v2/organizations/[organizationId]/members',
   'GET /api/v2/organizations/[organizationId]/invitations',
@@ -154,6 +162,47 @@ const FULL_SET_LISTS = [
  * therefore fails here until someone decides whether the cursor is bound to it.
  */
 const CURSOR_BINDINGS: Record<string, readonly string[]> = {
+  'GET /api/v2/organizations/[organizationId]/usage/events': [
+    'preset',
+    'startDate',
+    'endDate',
+    'timezone',
+    'source',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces': [
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/organizations/[organizationId]/access-requests': [
+    'status',
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/organizations/[organizationId]/access-requests/mine': [
+    'status',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/workspaces/[workspaceId]/access-requests': ['status', 'sortBy', 'sortOrder'],
+  'GET /api/v2/organizations/[organizationId]/access-requests/discovery': [
+    'search',
+    'targetKind',
+    'state',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/workspaces/[workspaceId]/access-requests/discovery': [
+    'search',
+    'targetKind',
+    'state',
+    'sortBy',
+    'sortOrder',
+  ],
+
   'GET /api/v2/organizations': ['search', 'sortBy', 'sortOrder'],
   'GET /api/v2/organizations/[organizationId]/members': ['search', 'sortBy', 'sortOrder'],
   'GET /api/v2/organizations/[organizationId]/invitations': [
@@ -311,6 +360,17 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces': [
+    'organizationId',
+    'invitationId',
+  ],
+  'GET /api/v2/organizations/[organizationId]/access-requests': ['organizationId'],
+  'GET /api/v2/organizations/[organizationId]/access-requests/mine': ['organizationId'],
+  'GET /api/v2/workspaces/[workspaceId]/access-requests': ['workspaceId'],
+  'GET /api/v2/organizations/[organizationId]/access-requests/discovery': ['organizationId'],
+  'GET /api/v2/workspaces/[workspaceId]/access-requests/discovery': ['workspaceId'],
+  'GET /api/v2/organizations/[organizationId]/usage/events': ['organizationId'],
+
   'GET /api/v2/organizations/[organizationId]/members': ['organizationId'],
   'GET /api/v2/organizations/[organizationId]/invitations': ['organizationId'],
   'GET /api/v2/organizations/[organizationId]/workspaces': ['organizationId'],

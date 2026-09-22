@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { AccountSettingsRenderer } from '@/components/settings/account-settings-renderer'
 import {
+  getOrganizationSettingsHref,
   getSettingsSectionMeta,
   ORGANIZATION_SETTINGS_ITEMS,
 } from '@/components/settings/navigation'
@@ -16,9 +17,11 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationSettings } from '@/app/o/[organizationId]/settings/[section]/settings'
 import { resolveOrganizationSurfaceSection } from '@/app/o/[organizationId]/settings/navigation'
+import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
 
 interface OrganizationSettingsSectionPageProps {
   params: Promise<{ organizationId: string; section: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({
@@ -42,6 +45,7 @@ export async function generateMetadata({
  */
 export default async function OrganizationSettingsSectionPage({
   params,
+  searchParams,
 }: OrganizationSettingsSectionPageProps) {
   const { organizationId, section } = await params
   const routes = organizationRoutes(organizationId)
@@ -58,14 +62,22 @@ export default async function OrganizationSettingsSectionPage({
   }
 
   if (resolved.plane === 'organization') {
+    const legacyRequestsQuery = getLegacyAccessRequestsQuery(
+      resolved.section,
+      (await searchParams) ?? {}
+    )
+    const organizationSection = legacyRequestsQuery ? 'requests' : resolved.section
     if (
       !(await authorizeOrganizationSettingsSection({
         organizationId,
         userId: session.user.id,
-        section: resolved.section,
+        section: organizationSection,
       }))
     ) {
       notFound()
+    }
+    if (legacyRequestsQuery) {
+      redirect(getOrganizationSettingsHref(organizationId, 'requests', legacyRequestsQuery))
     }
     return <OrganizationSettings section={resolved.section} />
   }

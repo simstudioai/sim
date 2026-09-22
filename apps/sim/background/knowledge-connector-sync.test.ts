@@ -5,12 +5,16 @@
 import { AbortTaskRunError } from '@trigger.dev/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertConnectorSyncPayload, mockExecuteSync, mockTask } = vi.hoisted(() => ({
+const { mockAssertConnectorSyncPayload, mockExecuteSync, mockTask, mockWarn } = vi.hoisted(() => ({
+  mockWarn: vi.fn(),
   mockAssertConnectorSyncPayload: vi.fn(),
   mockExecuteSync: vi.fn(),
   mockTask: vi.fn((config) => config),
 }))
 
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() }),
+}))
 vi.mock('@trigger.dev/sdk', () => ({
   task: mockTask,
   AbortTaskRunError: class AbortTaskRunError extends Error {},
@@ -114,7 +118,7 @@ describe('knowledge connector sync worker', () => {
     })
   })
 
-  it('fails visibly without retrying an already-persisted partial sync', async () => {
+  it('returns a partial sync as an outcome instead of failing the run', async () => {
     mockAssertConnectorSyncPayload.mockReturnValue({
       connectorId: 'connector-1',
       requestId: 'request-1',
@@ -136,8 +140,15 @@ describe('knowledge connector sync worker', () => {
       billingAttribution: BILLING_ATTRIBUTION,
     })
 
-    await expect(run).rejects.toBeInstanceOf(AbortTaskRunError)
-    await expect(run).rejects.toThrow('Connector sync partially failed')
+    await expect(run).resolves.toMatchObject({
+      success: false,
+      outcome: 'partial',
+      docsFailed: 1,
+      processingDispatch: { failed: 1 },
+    })
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('1 source failures, 1 dispatch failures')
+    )
   })
 
   it('completes a durably scheduled capacity wait while preserving existing source failures', async () => {
@@ -163,7 +174,7 @@ describe('knowledge connector sync worker', () => {
       deferred: waiting.deferred,
     })
     mockExecuteSync.mockResolvedValue({ ...waiting, docsFailed: 1 })
-    await expect(executeConnectorSyncJob({})).rejects.toThrow('partially failed')
+    expect(await executeConnectorSyncJob({})).toMatchObject({ outcome: 'partial', success: false })
     mockExecuteSync.mockResolvedValue({ ...waiting, error: 'Retry persistence failed' })
     await expect(executeConnectorSyncJob({})).rejects.toThrow('Retry persistence failed')
   })
@@ -266,6 +277,7 @@ describe('knowledge connector sync worker', () => {
       outcome: 'partial',
       listingIncomplete: true,
     })
+    expect(mockWarn).not.toHaveBeenCalled()
   })
 
   it('classifies a persisted connector error as a failed task', () => {

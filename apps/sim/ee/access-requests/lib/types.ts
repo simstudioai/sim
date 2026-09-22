@@ -1,3 +1,4 @@
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import type { AccessRequestDecision } from '@/ee/access-requests/lib/schemas'
 import type { AccessRequestScope, AccessRequestTarget } from '@/ee/access-requests/lib/targets'
 
@@ -22,8 +23,15 @@ export interface AccessRequestRecord {
   requester: { id: string; name: string | null; email: string }
 }
 
+export interface AccessRequestPaging {
+  sortBy: 'createdAt' | 'targetLabel'
+  sortOrder: ListSortOrder
+  cursorKeys?: CursorKey[]
+}
+
 export interface AccessRequestList {
   requests: AccessRequestRecord[]
+  nextCursorKeys?: CursorKey[] | null
   total: number
   hasMore: boolean
 }
@@ -38,6 +46,7 @@ export type DiscoverAccessRequestsInput = AccessRequestScope & {
   limit: number
   offset: number
   search?: string
+  sortOrder?: ListSortOrder
   targetKind?: AccessRequestTarget['kind']
   targetKey?: string
   state?: 'allowed' | 'requestable' | 'unavailable'

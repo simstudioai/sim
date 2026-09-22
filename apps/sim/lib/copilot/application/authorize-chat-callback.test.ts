@@ -93,7 +93,8 @@ describe('fresh chat callback authorization', () => {
       'actor',
       'workspace',
       'copilot.use',
-      'current-organization'
+      'current-organization',
+      undefined
     )
     expect(mocks.permission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.capability.mock.invocationCallOrder[0]

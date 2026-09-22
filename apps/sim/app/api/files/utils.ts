@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import {
@@ -265,6 +266,56 @@ export function createFileResponse(file: FileResponse): NextResponse {
   }
 
   return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
+}
+
+/**
+ * Whether an `If-None-Match` header claims the client already holds `etag`.
+ *
+ * Compared weakly, per RFC 9110: a cache that stored the response under a weak validator sends
+ * `W/"…"` back, and that still identifies the same bytes for a GET.
+ */
+function ifNoneMatchHolds(header: string | null, etag: string): boolean {
+  if (!header) return false
+  if (header.trim() === '*') return true
+  return header.split(',').some((candidate) => candidate.trim().replace(/^W\//, '').trim() === etag)
+}
+
+/**
+ * A file response carrying a strong validator, answering 304 when the client already holds
+ * exactly these bytes.
+ *
+ * For responses the browser is told to revalidate, the alternative is re-sending the whole body on
+ * every check — and a document resolved against other files is re-resolved per request precisely
+ * BECAUSE its bytes may have changed, so it cannot be given a cache lifetime instead. The
+ * validator is the digest of the bytes about to be sent, which makes it exact by construction: it
+ * cannot claim freshness for a body that differs, however the body was produced.
+ *
+ * This is deliberately NOT folded into {@link createFileResponse}. Digesting costs a pass over the
+ * buffer — up to the full transfer ceiling — which is worth it only where a 304 can actually be
+ * returned. A response already served as immutable is never revalidated, so it would pay the pass
+ * and never collect.
+ */
+export function createConditionalFileResponse(
+  file: FileResponse,
+  ifNoneMatch: string | null
+): NextResponse {
+  const etag = `"${createHash('sha256').update(file.buffer).digest('base64url')}"`
+
+  if (ifNoneMatchHolds(ifNoneMatch, etag)) {
+    // A 304 repeats the headers that govern caching, so the stored response is refreshed with the
+    // lifetime this request would have granted it rather than keeping the one it was stored with.
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Cache-Control': file.cacheControl || 'private, no-cache',
+      },
+    })
+  }
+
+  const response = createFileResponse(file)
+  response.headers.set('ETag', etag)
+  return response
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {

@@ -97,6 +97,7 @@ describe('settings navigation boundaries', () => {
       'desktop',
       'browser',
       'terminal',
+      'requests',
       'access-control',
       'audit-logs',
       'forks',
@@ -302,6 +303,7 @@ describe('settings navigation boundaries', () => {
       'data-drains',
       'data-retention',
       'organization',
+      'requests',
       'security',
       'sso',
       'usage',
@@ -318,6 +320,7 @@ describe('settings navigation boundaries', () => {
       billing: 'billing',
       'connected-accounts': 'connected-accounts',
       'access-control': 'access-control',
+      requests: 'requests',
       'audit-logs': 'audit-logs',
       sso: 'sso',
       security: 'security',
@@ -500,12 +503,52 @@ describe('settings navigation boundaries', () => {
     expect(isOrganizationSettingsSectionAvailable('members', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('recently-deleted', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('billing', hostedFree)).toBe(true)
+    expect(isOrganizationSettingsSectionAvailable('requests', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('sso', hostedFree)).toBe(false)
     expect(
       isOrganizationSettingsSectionAvailable('sso', {
         ...hostedFree,
         hasEnterprisePlan: true,
       })
+    ).toBe(true)
+  })
+
+  it('limits request settings to organization admins while preserving self-hosted history', () => {
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('unavailable')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: false,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('unavailable')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('manage')
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, SELF_HOSTED)
+      )
+    ).toBe(true)
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, {
+          ...SELF_HOSTED,
+          features: { ...SELF_HOSTED.features, accessControl: true },
+        })
+      )
     ).toBe(true)
   })
 

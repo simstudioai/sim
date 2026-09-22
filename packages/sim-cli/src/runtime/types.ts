@@ -9,6 +9,11 @@ export interface OperationSpec {
   pathParamDocs?: Record<string, string>
   query?: Record<string, FieldSpec>
   body?: Record<string, FieldSpec>
+  /** Selects the body fields and their requirements from the caller's discriminator flag. */
+  bodyDiscriminator?: {
+    field: string
+    variants: Record<string, Record<string, FieldSpec>>
+  }
   /** Contract-declared request headers, minus any the CLI sets itself. */
   headers?: Record<string, FieldSpec>
   opaqueBody?: boolean

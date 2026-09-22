@@ -185,13 +185,12 @@ afterEach(() => {
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
   it.each([null, 'organization'])(
-    'only offers request history for an organization workspace (%s)',
+    'keeps access requests out of the workspace switcher (%s)',
     (organizationId) => {
       hostContext.hostOrganizationId = organizationId
       render()
-      expect(document.body.textContent?.includes('My access requests')).toBe(
-        Boolean(organizationId)
-      )
+      expect(document.body).not.toHaveTextContent('My access requests')
+      expect(document.body).not.toHaveTextContent('Review access requests')
     }
   )
 

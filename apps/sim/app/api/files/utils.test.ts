@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createConditionalFileResponse,
   createFileResponse,
   encodeFilenameForHeader,
   extractFilename,
@@ -506,5 +507,63 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
         }
       }
     )
+  })
+})
+
+describe('createConditionalFileResponse', () => {
+  const file = {
+    buffer: Buffer.from('compiled-document-bytes'),
+    contentType: 'application/pdf',
+    filename: 'report.pdf',
+    cacheControl: 'private, no-cache, must-revalidate',
+  }
+
+  function etagOf(ifNoneMatch: string | null = null): string {
+    return createConditionalFileResponse(file, ifNoneMatch).headers.get('ETag') as string
+  }
+
+  it('sends the body with a strong validator when the client holds nothing', () => {
+    const response = createConditionalFileResponse(file, null)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('ETag')).toMatch(/^"[A-Za-z0-9_-]+"$/)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
+  })
+
+  it('answers 304 without a body when the client already holds these bytes', async () => {
+    const response = createConditionalFileResponse(file, etagOf())
+
+    expect(response.status).toBe(304)
+    expect(await response.text()).toBe('')
+    // Repeated so the stored response is refreshed with this request's lifetime.
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
+  })
+
+  it('sends the body when the client holds a validator for different bytes', () => {
+    const stale = createConditionalFileResponse(
+      { ...file, buffer: Buffer.from('an-earlier-render') },
+      null
+    ).headers.get('ETag') as string
+
+    expect(createConditionalFileResponse(file, stale).status).toBe(200)
+  })
+
+  it('matches weakly, so a cache that stored a weak validator still revalidates', () => {
+    expect(createConditionalFileResponse(file, `W/${etagOf()}`).status).toBe(304)
+  })
+
+  it('matches one entry out of a list, and the wildcard', () => {
+    expect(createConditionalFileResponse(file, `"other", ${etagOf()}`).status).toBe(304)
+    expect(createConditionalFileResponse(file, '*').status).toBe(304)
+  })
+
+  it('gives bytes that differ only in one byte different validators', () => {
+    const a = etagOf()
+    const b = createConditionalFileResponse(
+      { ...file, buffer: Buffer.from('compiled-document-byteS') },
+      null
+    ).headers.get('ETag')
+
+    expect(a).not.toBe(b)
   })
 })

@@ -186,7 +186,7 @@ describe('v2 workspace routes', () => {
     })
   })
 
-  it('keeps member user IDs out of data and cursors', async () => {
+  it('returns canonical member user IDs while preserving email-based cursors', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/members?limit=1`
     )
@@ -195,6 +195,7 @@ describe('v2 workspace routes', () => {
 
     expect(response.status).toBe(200)
     expect(body.data[0]).toEqual({
+      userId: 'user-1',
       email: 'ada@example.com',
       name: 'Ada',
       image: null,

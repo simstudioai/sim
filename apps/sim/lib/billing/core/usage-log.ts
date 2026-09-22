@@ -5,6 +5,16 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
+import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -983,6 +993,7 @@ export interface GetUsageLogsOptions {
    * Skips the row lookup that would otherwise resolve it from `cursor`.
    */
   cursorCreatedAt?: Date
+  keyset?: { sortOrder: ListSortOrder; cursorKeys?: CursorKey[] }
   /**
    * Whether to compute the full-filter `summary` aggregate (default `true`).
    * A cursor-paginated caller collecting every page (e.g. a CSV export) only
@@ -1023,9 +1034,15 @@ export interface UsageLogsResult {
   }
   pagination: {
     nextCursor?: string
+    nextCursorKeys?: CursorKey[] | null
     hasMore: boolean
   }
 }
+
+const USAGE_LOG_KEYS = [
+  timestampKey(usageLog.createdAt, (row: { createdAt: Date; id: string }) => row.createdAt),
+  textKey(usageLog.id, (row: { createdAt: Date; id: string }) => row.id),
+]
 
 /**
  * Gets one bounded usage-log page for an explicit actor or workspace scope.
@@ -1044,6 +1061,7 @@ async function getUsageLogs(
     limit = 50,
     cursor,
     cursorCreatedAt,
+    keyset,
     includeSummary = true,
   } = options
 
@@ -1057,7 +1075,10 @@ async function getUsageLogs(
       billingPeriod,
     })
 
-    if (cursor) {
+    if (keyset) {
+      const after = resumeKeyset(USAGE_LOG_KEYS, keyset.cursorKeys, keyset.sortOrder)
+      if (after) conditions.push(after)
+    } else if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
@@ -1100,11 +1121,16 @@ async function getUsageLogs(
       .from(usageLog)
       .leftJoin(workflow, eq(usageLog.workflowId, workflow.id))
       .where(and(...conditions))
-      .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
+      .orderBy(
+        ...(keyset
+          ? listOrderBy(keysetColumns(USAGE_LOG_KEYS), keyset.sortOrder)
+          : [desc(usageLog.createdAt), desc(usageLog.id)])
+      )
       .limit(limit + 1)
 
     const hasMore = logs.length > limit
-    const resultLogs = hasMore ? logs.slice(0, limit) : logs
+    const page = keyset ? keysetPage(USAGE_LOG_KEYS, logs, limit) : undefined
+    const resultLogs = page?.data ?? (hasMore ? logs.slice(0, limit) : logs)
 
     const transformedLogs: UsageLogEntry[] = resultLogs.map((log) => ({
       id: log.id,
@@ -1156,6 +1182,7 @@ async function getUsageLogs(
         bySource,
       },
       pagination: {
+        ...(page ? { nextCursorKeys: page.nextCursorKeys } : {}),
         nextCursor:
           hasMore && resultLogs.length > 0 ? resultLogs[resultLogs.length - 1].id : undefined,
         hasMore,

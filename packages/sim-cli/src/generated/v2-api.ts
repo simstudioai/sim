@@ -859,6 +859,108 @@ export type BulkUpdateTableRowsResponse = {
   data: BulkUpdateTableRowsResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel` */
+export type CancelOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type CancelOrganizationAccessRequestQuery = Record<string, unknown>
+
+type CancelOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelOrganizationAccessRequestResponse = {
+  data: CancelOrganizationAccessRequestResponseRef0
+}
+
 /** `DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
 export type CancelTableDispatchParams = {
   tableId: string
@@ -1103,6 +1205,108 @@ type CancelWorkflowRunResponseRef0 = {
 
 export type CancelWorkflowRunResponse = {
   data: CancelWorkflowRunResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel` */
+export type CancelWorkspaceAccessRequestParams = {
+  workspaceId: string
+  requestId: string
+}
+
+export type CancelWorkspaceAccessRequestQuery = Record<string, unknown>
+
+type CancelWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelWorkspaceAccessRequestResponse = {
+  data: CancelWorkspaceAccessRequestResponseRef0
 }
 
 /** `POST /api/v2/chat` */
@@ -1956,6 +2160,183 @@ type CreateMcpServerResponseRef0 = {
 
 export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/access-requests` */
+export type CreateOrganizationAccessRequestParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type CreateOrganizationAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateOrganizationAccessRequestResponse = {
+  data: CreateOrganizationAccessRequestResponseRef0
 }
 
 /** `POST /api/v2/organizations/[organizationId]/invitations` */
@@ -2907,6 +3288,219 @@ export type CreateWorkflowMcpServerResponse = {
   data: CreateWorkflowMcpServerResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests` */
+export type CreateWorkspaceAccessRequestParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceAccessRequestQuery = Record<string, unknown>
+
+export type CreateWorkspaceAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateWorkspaceAccessRequestResponse = {
+  data: CreateWorkspaceAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/invitations` */
+export type CreateWorkspaceInvitationsParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceInvitationsQuery = Record<string, unknown>
+
+export type CreateWorkspaceInvitationsBody = {
+  emails: Array<string>
+  permission?: 'admin' | 'write' | 'read'
+  membership?: 'member' | 'admin' | 'external'
+}
+
+type CreateWorkspaceInvitationsResponseRef0 = {
+  success: boolean
+  successful: Array<string>
+  added: Array<string>
+  failed: Array<{
+    email: string
+    error: string
+  }>
+  invitations: Array<{
+    id: string
+    email: string
+    workspaceIds: Array<string>
+    permission: 'admin' | 'write' | 'read'
+    membershipIntent: 'internal' | 'external'
+    instantAdd?: boolean
+    outcome?: 'added' | 'updated' | 'unchanged'
+  }>
+}
+
+export type CreateWorkspaceInvitationsResponse = {
+  data: CreateWorkspaceInvitationsResponseRef0
+}
+
 /** `DELETE /api/v2/credentials/[credentialId]` */
 export type DeleteCredentialParams = {
   credentialId: string
@@ -3676,6 +4270,222 @@ type DeployWorkflowMcpToolResponseRef0 = {
 
 export type DeployWorkflowMcpToolResponse = {
   data: DeployWorkflowMcpToolResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/discovery` */
+export type DiscoverOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type DiscoverOrganizationAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverOrganizationAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverOrganizationAccessRequestsResponse = {
+  data: Array<DiscoverOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests/discovery` */
+export type DiscoverWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type DiscoverWorkspaceAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverWorkspaceAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverWorkspaceAccessRequestsResponse = {
+  data: Array<DiscoverWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
 }
 
 /** `GET /api/v2/files/[fileId]` */
@@ -4889,6 +5699,21 @@ export type GetOrganizationResponse = {
   data: GetOrganizationResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type GetOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type GetOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+type GetOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type GetOrganizationAccessRequestSettingsResponse = {
+  data: GetOrganizationAccessRequestSettingsResponseRef0
+}
+
 /** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
 export type GetOrganizationInvitationParams = {
   organizationId: string
@@ -4911,6 +5736,100 @@ type GetOrganizationInvitationResponseRef0 = {
 
 export type GetOrganizationInvitationResponse = {
   data: GetOrganizationInvitationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type GetOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type GetOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+type GetOrganizationMemberUsageLimitResponseRef0 = {
+  creditsUsed: number
+  creditLimit: number | null
+  billingInterval: 'month' | 'year'
+}
+
+export type GetOrganizationMemberUsageLimitResponse = {
+  data: GetOrganizationMemberUsageLimitResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/breakdown` */
+export type GetOrganizationUsageBreakdownParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageBreakdownQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  limit?: number
+}
+
+type GetOrganizationUsageBreakdownResponseRef0 = {
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  rows: Array<{
+    id: string
+    label: string
+    credits: number
+    events: number
+    share: number
+    providerId?: string
+    tokens?: number
+  }>
+  other: {
+    credits: number
+    events: number
+    rowCount: number
+    tokens: number
+  }
+  totalCredits: number
+}
+
+export type GetOrganizationUsageBreakdownResponse = {
+  data: GetOrganizationUsageBreakdownResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/summary` */
+export type GetOrganizationUsageSummaryParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageSummaryQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+}
+
+type GetOrganizationUsageSummaryResponseRef0 = {
+  window: {
+    start: string
+    end: string
+    source: 'reporting' | 'stripe' | 'default' | 'range'
+  }
+  bucket: 'day' | 'week' | 'month'
+  totals: {
+    credits: number
+  }
+  previousTotals: {
+    credits: number
+  } | null
+  series: Array<{
+    timestamp: string
+    credits: number
+    events: number
+  }>
+}
+
+export type GetOrganizationUsageSummaryResponse = {
+  data: GetOrganizationUsageSummaryResponseRef0
 }
 
 /** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
@@ -6033,6 +6952,69 @@ export type GetWorkspaceOperationResponse = {
   data: GetWorkspaceOperationResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/permission-config` */
+export type GetWorkspacePermissionConfigParams = {
+  workspaceId: string
+}
+
+export type GetWorkspacePermissionConfigQuery = Record<string, unknown>
+
+type GetWorkspacePermissionConfigResponseRef0 = {
+  permissionGroupId: string | null
+  groupName: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  } | null
+  entitled: boolean
+  organizationId: string | null
+  isOrgAdmin: boolean
+}
+
+export type GetWorkspacePermissionConfigResponse = {
+  data: GetWorkspacePermissionConfigResponseRef0
+}
+
 /** `POST /api/v2/skills/[skillId]/editors` */
 export type GrantSkillEditorParams = {
   skillId: string
@@ -7083,6 +8065,331 @@ export type ListMcpServerToolsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/access-requests/mine` */
+export type ListMyOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListMyOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyOrganizationAccessRequestsResponse = {
+  data: Array<ListMyOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests` */
+export type ListMyWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type ListMyWorkspaceAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyWorkspaceAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyWorkspaceAccessRequestsResponse = {
+  data: Array<ListMyWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests` */
+export type ListOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+  search?: string
+}
+
+type ListOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListOrganizationAccessRequestsResponse = {
+  data: Array<ListOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/organizations/[organizationId]/invitations` */
 export type ListOrganizationInvitationsParams = {
   organizationId: string
@@ -7111,6 +8418,32 @@ type ListOrganizationInvitationsResponseRef0 = {
 
 export type ListOrganizationInvitationsResponse = {
   data: Array<ListOrganizationInvitationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces` */
+export type ListOrganizationInvitationWorkspacesParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ListOrganizationInvitationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+  permission: 'admin' | 'write' | 'read'
+  archivedAt: string | null
+}
+
+export type ListOrganizationInvitationWorkspacesResponse = {
+  data: Array<ListOrganizationInvitationWorkspacesResponseRef0>
   nextCursor: string | null
 }
 
@@ -7160,6 +8493,58 @@ type ListOrganizationsResponseRef0 = {
 
 export type ListOrganizationsResponse = {
   data: Array<ListOrganizationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/events` */
+export type ListOrganizationUsageEventsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationUsageEventsQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  source?:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListOrganizationUsageEventsResponseRef0 = {
+  id: string
+  createdAt: string
+  source:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  description: string
+  workflowName: string | null
+  credits: number
+  hasCost: boolean
+}
+
+export type ListOrganizationUsageEventsResponse = {
+  data: Array<ListOrganizationUsageEventsResponseRef0>
   nextCursor: string | null
 }
 
@@ -8048,6 +9433,7 @@ export type ListWorkspaceMembersQuery = {
 }
 
 type ListWorkspaceMembersResponseRef0 = {
+  userId: string
   email: string
   name: string
   image: string | null
@@ -8221,6 +9607,327 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
+export type PreviewOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type PreviewOrganizationAccessRequestQuery = Record<string, unknown>
+
+type PreviewOrganizationAccessRequestResponseRef0 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'permission'
+  group: {
+    id: string
+    name: string
+  } | null
+  currentLimitCredits: null
+}
+
+type PreviewOrganizationAccessRequestResponseRef1 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'usage_limit'
+  group: null
+  currentLimitCredits: number | null
+}
+
+export type PreviewOrganizationAccessRequestResponse = {
+  data: PreviewOrganizationAccessRequestResponseRef0 | PreviewOrganizationAccessRequestResponseRef1
 }
 
 /** `POST /api/v2/workflows/import/preview` */
@@ -9623,6 +11330,119 @@ export type ResendOrganizationInvitationResponse = {
   data: ResendOrganizationInvitationResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve` */
+export type ResolveOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type ResolveOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type ResolveOrganizationAccessRequestBody =
+  | {
+      action: 'apply'
+      expectedFingerprint: string
+      newLimitCredits?: number
+    }
+  | {
+      action: 'decline'
+      reason: string
+    }
+
+type ResolveOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ResolveOrganizationAccessRequestResponse = {
+  data: ResolveOrganizationAccessRequestResponseRef0
+}
+
 /** `POST /api/v2/files/[fileId]/restore` */
 export type RestoreFileParams = {
   fileId: string
@@ -10910,6 +12730,25 @@ export type UpdateMcpServerResponse = {
   data: UpdateMcpServerResponseRef0
 }
 
+/** `PATCH /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type UpdateOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+export type UpdateOrganizationAccessRequestSettingsBody = {
+  allowRequests: boolean
+}
+
+type UpdateOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type UpdateOrganizationAccessRequestSettingsResponse = {
+  data: UpdateOrganizationAccessRequestSettingsResponseRef0
+}
+
 /** `PATCH /api/v2/organizations/[organizationId]/members/[userId]` */
 export type UpdateOrganizationMemberParams = {
   organizationId: string
@@ -10932,6 +12771,26 @@ type UpdateOrganizationMemberResponseRef0 = {
 
 export type UpdateOrganizationMemberResponse = {
   data: UpdateOrganizationMemberResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type UpdateOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberUsageLimitBody = {
+  creditLimit: number | null
+}
+
+type UpdateOrganizationMemberUsageLimitResponseRef0 = {
+  creditLimit: number | null
+}
+
+export type UpdateOrganizationMemberUsageLimitResponse = {
+  data: UpdateOrganizationMemberUsageLimitResponseRef0
 }
 
 /** `PATCH /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
@@ -11908,8 +13767,8 @@ export type UpsertTableRowResponse = {
  * `query`, `body`, and `headers` describe each field well enough for the CLI
  * to build a flag for it and coerce the string argv gives back: its kind,
  * whether it is required, its enum values, and its server-side default. A slot
- * the contract does not declare — or one whose shape is a union with no flat
- * field list — is absent, and the runtime falls back to taking it as JSON.
+ * the contract does not declare is absent. Discriminated bodies carry branch
+ * field maps; other unions fall back to taking their variant data as JSON.
  * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
@@ -12284,6 +14143,18 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  cancelOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Organization Access Request',
+    workspaceKeyUnsupported: true,
+  },
   cancelTableDispatch: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
@@ -12375,6 +14246,18 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
+  },
+  cancelWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel',
+    pathParams: ['workspaceId', 'requestId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace in which the acting user requests access.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Workspace Access Request',
+    workspaceKeyUnsupported: true,
   },
   chat: {
     method: 'POST',
@@ -12891,6 +14774,24 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Create Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
   createOrganizationInvitation: {
     method: 'POST',
     path: '/api/v2/organizations/[organizationId]/invitations',
@@ -13270,6 +15171,54 @@ export const V2_OPERATIONS = {
       workflowIds: {
         kind: 'array',
         describe: 'Deployed workflows to publish as tools on the new server.',
+      },
+    },
+  },
+  createWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
+  createWorkspaceInvitations: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/invitations',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Invitations',
+    workspaceKeyUnsupported: true,
+    body: {
+      emails: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients.',
+      },
+      permission: {
+        kind: 'enum',
+        values: ['admin', 'write', 'read'] as const,
+        default: 'read',
+        describe: 'Workspace permission to grant. Existing workspace access is preserved.',
+      },
+      membership: {
+        kind: 'enum',
+        values: ['member', 'admin', 'external'] as const,
+        default: 'member',
+        describe:
+          'Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external.',
       },
     },
   },
@@ -13788,6 +15737,124 @@ export const V2_OPERATIONS = {
         kind: 'array',
         describe:
           'Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored.',
+      },
+    },
+  },
+  discoverOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/discovery',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Discover Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  discoverWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/discovery',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Discover Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -14346,6 +16413,15 @@ export const V2_OPERATIONS = {
     summary: 'Get Organization',
     workspaceKeyUnsupported: true,
   },
+  getOrganizationAccessRequestSettings: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Get Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+  },
   getOrganizationInvitation: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
@@ -14357,6 +16433,101 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Organization Invitation',
     workspaceKeyUnsupported: true,
+  },
+  getOrganizationMemberUsageLimit: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationUsageBreakdown: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/breakdown',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Breakdown',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+      dimension: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'workspace', 'workflow', 'model', 'byok', 'source'] as const,
+        describe: 'Usage grouping dimension.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+    },
+  },
+  getOrganizationUsageSummary: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/summary',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Summary',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+    },
   },
   getPermissionGroup: {
     method: 'GET',
@@ -14820,6 +16991,15 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Workspace Operation',
+  },
+  getWorkspacePermissionConfig: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/permission-config',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Permission Config',
+    workspaceKeyUnsupported: true,
   },
   grantSkillEditor: {
     method: 'POST',
@@ -15887,6 +18067,128 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listMyOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/mine',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List My Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listMyWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'List My Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      search: {
+        kind: 'string',
+        describe:
+          'Case-insensitive substring match against the target label or requester name or email.',
+      },
+    },
+  },
   listOrganizationInvitations: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/invitations',
@@ -15922,6 +18224,48 @@ export const V2_OPERATIONS = {
         default: 50,
         describe:
           'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationInvitationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Organization Invitation Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
       cursor: {
         kind: 'string',
@@ -16004,6 +18348,76 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationUsageEvents: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/events',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Usage Events',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      source: {
+        kind: 'enum',
+        values: [
+          'workflow',
+          'wand',
+          'sim-chat',
+          'mcp_copilot',
+          'mothership_block',
+          'knowledge-base',
+          'voice-input',
+          'enrichment',
+          'voice-output',
+          'api-tool',
+        ] as const,
+        describe: 'Restrict events to one product surface.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -17052,6 +19466,18 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  previewOrganizationAccessRequest: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Preview Organization Access Request',
+    workspaceKeyUnsupported: true,
+  },
   previewWorkflowImport: {
     method: 'POST',
     path: '/api/v2/workflows/import/preview',
@@ -17586,6 +20012,77 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Resend Organization Invitation',
     workspaceKeyUnsupported: true,
+  },
+  resolveOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resolve Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      action: {
+        kind: 'enum',
+        required: true,
+        values: ['apply', 'decline'] as const,
+        describe:
+          'apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits.',
+      },
+      expectedFingerprint: {
+        kind: 'string',
+        describe:
+          'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply.',
+      },
+      newLimitCredits: {
+        kind: 'integer',
+        describe:
+          'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply.',
+      },
+      reason: {
+        kind: 'string',
+        describe:
+          'Required explanation for declining this request. Available when action is decline. Required when action is decline.',
+      },
+    },
+    bodyDiscriminator: {
+      field: 'action',
+      variants: {
+        apply: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Apply the reviewed change to the governing group or member credit cap.',
+          },
+          expectedFingerprint: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict.',
+          },
+          newLimitCredits: {
+            kind: 'integer',
+            describe:
+              'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests.',
+          },
+        },
+        decline: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Decline the request without changing permissions or credit limits.',
+          },
+          reason: {
+            kind: 'string',
+            required: true,
+            describe: 'Required explanation for declining this request.',
+          },
+        },
+      },
+    },
   },
   restoreFile: {
     method: 'POST',
@@ -18392,6 +20889,23 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateOrganizationAccessRequestSettings: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Update Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+    body: {
+      allowRequests: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline.',
+      },
+    },
+  },
   updateOrganizationMember: {
     method: 'PATCH',
     path: '/api/v2/organizations/[organizationId]/members/[userId]',
@@ -18409,6 +20923,28 @@ export const V2_OPERATIONS = {
         required: true,
         values: ['member', 'admin'] as const,
         describe: 'New organization role. Ownership transfers use a separate operation.',
+      },
+    },
+  },
+  updateOrganizationMemberUsageLimit: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+    body: {
+      creditLimit: {
+        kind: 'integer',
+        nullable: true,
+        required: true,
+        describe:
+          'Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply.',
       },
     },
   },

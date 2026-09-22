@@ -1,10 +1,22 @@
 import { permissionAccessRequest, user } from '@sim/db/schema'
 import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
-import { escapeLikePattern } from '@/lib/api/list-query'
+import {
+  escapeLikePattern,
+  keysetColumns,
+  keysetPage,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { storedAccessRequestTargetSchema } from '@/ee/access-requests/lib/schemas'
-import type { AccessRequestList, AccessRequestRecord } from '@/ee/access-requests/lib/types'
+import type {
+  AccessRequestList,
+  AccessRequestPaging,
+  AccessRequestRecord,
+} from '@/ee/access-requests/lib/types'
 
 export type StoredAccessRequest = typeof permissionAccessRequest.$inferSelect
 
@@ -81,7 +93,8 @@ export async function listAccessRequestRecords(
   where: SQL,
   limit: number,
   offset: number,
-  search?: string
+  search?: string,
+  paging?: AccessRequestPaging
 ): Promise<AccessRequestList> {
   const searchTerm = search?.trim()
   const pattern = searchTerm ? `%${escapeLikePattern(searchTerm)}%` : undefined
@@ -95,6 +108,13 @@ export async function listAccessRequestRecords(
         )
       : undefined
   )
+  type PageRow = { row: AccessRequestPresentation; requester: AccessRequestRecord['requester'] }
+  const keys = [
+    paging?.sortBy === 'targetLabel'
+      ? textKey<PageRow>(permissionAccessRequest.targetLabel, ({ row }) => row.targetLabel)
+      : timestampKey<PageRow>(permissionAccessRequest.createdAt, ({ row }) => row.createdAt),
+    textKey<PageRow>(permissionAccessRequest.id, ({ row }) => row.id),
+  ]
   const rows = await executor
     .select({
       row: {
@@ -114,16 +134,34 @@ export async function listAccessRequestRecords(
     })
     .from(permissionAccessRequest)
     .innerJoin(user, eq(user.id, permissionAccessRequest.requesterId))
-    .where(filteredWhere)
-    .orderBy(desc(permissionAccessRequest.createdAt), desc(permissionAccessRequest.id))
-    .limit(limit)
-    .offset(offset)
+    .where(
+      and(
+        filteredWhere,
+        paging ? resumeKeyset(keys, paging.cursorKeys, paging.sortOrder) : undefined
+      )
+    )
+    .orderBy(
+      ...(paging
+        ? listOrderBy(keysetColumns(keys), paging.sortOrder)
+        : [desc(permissionAccessRequest.createdAt), desc(permissionAccessRequest.id)])
+    )
+    .limit(paging ? limit + 1 : limit)
+    .offset(paging ? 0 : offset)
   const [aggregate] = await executor
     .select({ total: count() })
     .from(permissionAccessRequest)
     .innerJoin(user, eq(user.id, permissionAccessRequest.requesterId))
     .where(filteredWhere)
   const total = aggregate?.total ?? 0
+  if (paging) {
+    const page = keysetPage(keys, rows, limit)
+    return {
+      requests: page.data.map(({ row, requester }) => projectAccessRequest(row, requester)),
+      nextCursorKeys: page.nextCursorKeys,
+      hasMore: page.nextCursorKeys !== null,
+      total,
+    }
+  }
   return {
     requests: rows.map(({ row, requester }) => projectAccessRequest(row, requester)),
     total,

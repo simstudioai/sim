@@ -88,6 +88,7 @@ const fixtureSchema = z.object({
   organizationId: z.uuid(),
   knowledgeBaseId: z.uuid(),
   connectorId: z.uuid(),
+  credentialId: z.uuid(),
   lockId: z.uuid(),
   groups: z.array(z.string()).length(3),
   groupIds: z.array(z.uuid()).length(3),
@@ -101,7 +102,7 @@ function readFixtureReport(file: string) {
       fixture: fixtureSchema,
       unrelatedFixture: fixtureSchema,
       fullWidthFixture: fixtureSchema.optional(),
-      method: z.object({ fixtureVersion: z.literal(2) }),
+      method: z.object({ fixtureVersion: z.literal(3) }),
     })
     .parse(JSON.parse(readFileSync(file, 'utf8')))
 }
@@ -148,7 +149,7 @@ const report: Record<string, unknown> = {
   unrelatedFixture: unrelated,
   fullWidthFixture,
   method: {
-    fixtureVersion: 2,
+    fixtureVersion: 3,
     chunkCount,
     unrelatedChunkCount,
     fullWidthChunkCount: FULL_WIDTH_CHUNK_COUNT,

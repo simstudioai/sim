@@ -10,6 +10,7 @@ import {
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
   v2ListOrganizationInvitationsContract,
+  v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
@@ -368,7 +369,7 @@ export const organizationOpenApiRoutes = [
       applicationOperation: organizationOperations.readInvitation,
       operationId: 'getOrganizationInvitation',
       summary: 'Get Organization Invitation',
-      description: `Get an invitation owned by the organization. Requires organization administrator access. The response excludes the acceptance token. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Get an invitation owned by the organization. Requires organization administrator access. Use List Organization Invitation Workspaces to inspect its workspace grants. The response excludes the acceptance token. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: { description: 'Get Organization Invitation result.', headers: RATE_LIMIT_HEADERS },
@@ -399,6 +400,49 @@ export const organizationOpenApiRoutes = [
               createdAt: TIMESTAMP,
               expiresAt: '2026-06-08T09:00:00.000Z',
             },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListOrganizationInvitationWorkspacesContract,
+    {
+      applicationOperation: organizationOperations.listInvitationWorkspaces,
+      operationId: 'listOrganizationInvitationWorkspaces',
+      summary: 'List Organization Invitation Workspaces',
+      description: `List workspace grants attached to an invitation of any status. Includes archived workspaces still owned by the organization; workspaces moved to another organization are omitted. Requires organization administrator access. These grants describe the invitation, not the invitee's current access. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Organizations'],
+      errors: RESOURCE_ERRORS,
+      success: {
+        description: 'A page of workspace grants attached to the invitation.',
+        headers: RATE_LIMIT_HEADERS,
+      },
+    },
+    {
+      params: documentedSchema(
+        v2ListOrganizationInvitationWorkspacesContract.params,
+        'ListOrganizationInvitationWorkspacesParams',
+        'List Organization Invitation Workspaces parameters',
+        'Organization and invitation identifiers.'
+      ),
+      query: documentedSchema(
+        v2ListOrganizationInvitationWorkspacesContract.query,
+        'ListOrganizationInvitationWorkspacesQuery',
+        'List Organization Invitation Workspaces query',
+        'Filtering, sorting, and pagination controls.'
+      ),
+      response: documentedSchema(
+        v2ListOrganizationInvitationWorkspacesContract.response.schema,
+        'ListOrganizationInvitationWorkspacesResponse',
+        'List Organization Invitation Workspaces response',
+        'Workspace grants retained on an invitation.',
+        [
+          {
+            data: [
+              { id: 'workspace-123', name: 'Engineering', permission: 'write', archivedAt: null },
+            ],
+            nextCursor: null,
           },
         ]
       ),

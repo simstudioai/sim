@@ -9,15 +9,13 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
-import {
-  readUserPermissionConfig,
-  readUserPermissionConfigOperation,
-} from '@/lib/permission-groups/application/read-user-config'
+import { permissionGroupWorkspaceOperations } from '@/lib/permission-groups/application/operations'
+import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 
 export const GET = defineInternalJsonRoute({
   contract: getUserPermissionConfigContract,
   auth: internalSessionAuth,
-  operation: readUserPermissionConfigOperation,
+  operation: permissionGroupWorkspaceOperations.readUserConfig,
   rateLimit: internalRateLimits.none({
     reason: 'Preserve the existing internal policy read rate.',
   }),

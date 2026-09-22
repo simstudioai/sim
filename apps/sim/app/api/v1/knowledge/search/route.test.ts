@@ -70,7 +70,9 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-  checkAttributedUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkSearchUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({

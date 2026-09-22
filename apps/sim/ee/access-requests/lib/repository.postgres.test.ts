@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { CursorKey } from '@/lib/api/list-query'
 import { listAccessRequestRecords } from '@/ee/access-requests/lib/repository'
 
 vi.unmock('@sim/db/schema')
@@ -96,5 +97,48 @@ describe.skipIf(!databaseUrl)('organization request search on PostgreSQL', () =>
     expect(cleared.total).toBe(4)
     const missing = await listAccessRequestRecords(fixture.executor, where, 25, 0, 'missing')
     expect(missing).toEqual({ requests: [], total: 0, hasMore: false })
+  })
+
+  it.each([
+    ['createdAt', 'asc'],
+    ['createdAt', 'desc'],
+    ['targetLabel', 'asc'],
+    ['targetLabel', 'desc'],
+  ] as const)(
+    'pages %s %s across tied values without repeats or omissions',
+    async (sortBy, sortOrder) => {
+      const expected = await listAccessRequestRecords(fixture.executor, where, 100, 0, undefined, {
+        sortBy,
+        sortOrder,
+      })
+      const ids: string[] = []
+      let cursorKeys: CursorKey[] | undefined
+      for (let pageNumber = 0; pageNumber < 10; pageNumber++) {
+        const page = await listAccessRequestRecords(
+          fixture.executor,
+          where,
+          pageNumber === 0 ? 1 : 2,
+          0,
+          undefined,
+          { sortBy, sortOrder, cursorKeys }
+        )
+        ids.push(...page.requests.map(({ id }) => id))
+        expect(page.total).toBe(4)
+        if (!page.nextCursorKeys) break
+        cursorKeys = page.nextCursorKeys
+      }
+      expect(ids).toEqual(expected.requests.map(({ id }) => id))
+      expect(new Set(ids).size).toBe(4)
+    }
+  )
+
+  it('rejects invalid timestamp cursor values before PostgreSQL', async () => {
+    await expect(
+      listAccessRequestRecords(fixture.executor, where, 1, 0, undefined, {
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        cursorKeys: ['not-a-date', 'a'],
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

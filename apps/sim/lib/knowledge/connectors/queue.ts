@@ -18,7 +18,11 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
-import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  buildSyncUnscheduledUpdate,
+  connectorIsLive,
+  LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
@@ -331,25 +335,7 @@ export async function dispatchSync(
     })
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        nextSyncAt: null,
-        lastSyncError: 'Knowledge base deleted',
-        /**
-         * Clears the lock alongside the status.
-         *
-         * This write runs BEFORE the lock is taken, but it is unconditional on
-         * status, so it can land on a row a previous run left `syncing` — a run
-         * that may still be alive. Flipping status without releasing the token
-         * left a row that was neither locked nor reclaimable: the reaper only
-         * looks at `syncing` rows, and the old run's terminal write could still
-         * match its own token and resurrect a state for a knowledge base that no
-         * longer exists. Releasing both makes the transition terminal.
-         */
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
+      .set(buildSyncUnscheduledUpdate(new Date(), 'Knowledge base deleted'))
       .where(eq(knowledgeConnector.id, connectorId))
     return { queued: false, reason: 'Knowledge base has been deleted' }
   }

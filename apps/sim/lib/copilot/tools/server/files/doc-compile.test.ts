@@ -169,6 +169,7 @@ describe('collectReferencedFileIds', () => {
     ).resolves.toEqual({
       buffer: Buffer.from('%PDF-built'),
       contentType: 'application/pdf',
+      dependsOnReferencedFiles: true,
       contributingFiles: [
         {
           fileId: ID,
@@ -219,6 +220,7 @@ describe('collectReferencedFileIds', () => {
     ).resolves.toEqual({
       buffer: Buffer.from('%PDF-cached'),
       contentType: 'application/pdf',
+      dependsOnReferencedFiles: true,
       contributingFiles: [
         {
           fileId: ID,

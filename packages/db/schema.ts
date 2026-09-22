@@ -3338,6 +3338,16 @@ export const document = pgTable(
       .where(
         sql`${table.archivedAt} IS NULL AND (${table.deletedAt} IS NOT NULL OR ${table.contentHash} IS NULL)`
       ),
+    /**
+     * The live documents a connector owns, counted at every sync completion for the connector's
+     * document count. The reconciliation index deliberately keeps tombstones, so this one exists
+     * to make that count an index-only scan.
+     */
+    connectorLiveIdx: index('doc_connector_live_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Text tag indexes
     tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
     tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),

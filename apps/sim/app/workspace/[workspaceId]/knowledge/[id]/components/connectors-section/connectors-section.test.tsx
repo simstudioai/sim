@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SyncLogData } from '@/lib/api/contracts/knowledge/connectors'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
+  CREDENTIAL_REMOVED_SYNC_ERROR,
   MEMBER_SYNC_STALE_LOCK_TTL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
 
@@ -478,6 +479,21 @@ describe('Connector credential reauthorization', () => {
     expect(container.textContent).toContain('Loading connections…')
     act(() => root?.render(renderEmpty(false)))
     expect(container.textContent).toContain('No connected sources yet.')
+  })
+
+  it('offers reconnect for a connector whose credential was removed', () => {
+    oauthCredentialsState.current = [
+      { id: 'credential-1', name: 'Workspace Slack', provider: 'slack-custom' },
+    ]
+    const container = renderSection(
+      makeConnector({
+        status: 'error',
+        credentialId: null,
+        lastSyncError: CREDENTIAL_REMOVED_SYNC_ERROR,
+      })
+    )
+    expect(container.textContent).toContain('Reconnect to resume syncing')
+    expect(findButton(container, 'Reconnect')).not.toBeDisabled()
   })
 
   it('reauthorizes with the resolved credential provider and identity', () => {
