@@ -14,7 +14,9 @@ interface AuthHeaderProps {
 export function AuthHeader({ title, description }: AuthHeaderProps) {
   return (
     <div className='space-y-1 text-center'>
-      <h1 className='text-balance text-[32px] text-[var(--text-primary)] leading-[1.2]'>{title}</h1>
+      <h1 className='text-balance text-[var(--text-primary)] text-title-lg leading-[1.2]'>
+        {title}
+      </h1>
       {description != null && (
         <p className='text-[var(--text-muted)] text-base leading-[1.5]'>{description}</p>
       )}

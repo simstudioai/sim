@@ -19,7 +19,7 @@ export function ResourceNotFound({ icon: Icon, title, description }: ResourceNot
     <div className='flex h-full flex-col items-center justify-center gap-3'>
       <Icon className='size-[32px] text-[var(--text-muted)]' />
       <div className='flex flex-col items-center gap-1'>
-        <h2 className='text-[20px] text-[var(--text-secondary)]'>{title}</h2>
+        <h2 className='text-[var(--text-secondary)] text-xl leading-[inherit]'>{title}</h2>
         <p className='text-[var(--text-muted)] text-small'>{description}</p>
       </div>
     </div>

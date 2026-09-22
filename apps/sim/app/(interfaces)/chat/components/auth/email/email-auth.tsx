@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ChipInput, cn, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { PublicAuthHeader } from '@/components/auth/public-auth-header'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
@@ -110,16 +111,14 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
     <div className='flex flex-1 items-center justify-center px-4 py-16'>
       <div className='w-full max-w-[410px]'>
         <div className='flex flex-col items-center justify-center'>
-          <div className='space-y-1 text-center'>
-            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-              {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
-            </h1>
-            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-              {showOtpVerification
+          <PublicAuthHeader
+            title={showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
+            description={
+              showOtpVerification
                 ? `A verification code has been sent to ${email}`
-                : 'This chat requires email verification'}
-            </p>
-          </div>
+                : 'This chat requires email verification'
+            }
+          />
 
           <div className='mt-8 w-full max-w-[410px]'>
             {!showOtpVerification ? (
@@ -230,7 +229,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                   </p>
                 </div>
 
-                <div className='text-center font-light text-sm'>
+                <div className='text-center font-normal text-sm'>
                   <button
                     onClick={() => {
                       setShowOtpVerification(false)

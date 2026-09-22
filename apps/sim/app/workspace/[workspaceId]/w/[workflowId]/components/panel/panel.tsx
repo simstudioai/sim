@@ -854,7 +854,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
                 <Button
-                  className={`h-[28px] truncate rounded-md border py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border py-[5px] text-small ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
                       : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
@@ -867,7 +867,7 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border py-[5px] text-small ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
@@ -879,7 +879,7 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border py-[5px] text-small ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'

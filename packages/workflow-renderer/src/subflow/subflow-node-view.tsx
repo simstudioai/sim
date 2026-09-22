@@ -620,7 +620,7 @@ export function SubflowNodeView({
           >
             <OverflowSpan
               value={blockName}
-              className={cn('text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
+              className={cn('text-md', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
           <div className='relative z-10 flex shrink-0 items-center gap-1'>

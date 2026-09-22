@@ -2060,7 +2060,7 @@ function FilesContent() {
           <Button
             variant='ghost'
             onClick={clearFileFilters}
-            className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full hover-hover:bg-[var(--surface-active)]'
           >
             Clear all filters
           </Button>

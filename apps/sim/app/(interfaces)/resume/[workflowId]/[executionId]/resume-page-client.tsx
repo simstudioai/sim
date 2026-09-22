@@ -146,7 +146,7 @@ function renderStructuredValuePreview(value: unknown) {
           className='max-h-[220px]'
         />
         {truncated && (
-          <p className='mt-1 text-[11px] text-[var(--text-muted)]'>
+          <p className='mt-1 text-[var(--text-muted)] text-xs leading-[inherit]'>
             Value truncated for preview ({DISPLAY_VALUE_PREVIEW_MAX_CHARS.toLocaleString()} of{' '}
             {prettyPrinted.length.toLocaleString()} characters shown).
           </p>
@@ -162,7 +162,7 @@ function renderStructuredValuePreview(value: unknown) {
         {truncated ? `${stringValue}…` : stringValue}
       </div>
       {truncated && (
-        <p className='mt-1 text-[11px] text-[var(--text-muted)]'>
+        <p className='mt-1 text-[var(--text-muted)] text-xs leading-[inherit]'>
           Value truncated for preview ({DISPLAY_VALUE_PREVIEW_MAX_CHARS.toLocaleString()} of{' '}
           {String(value).length.toLocaleString()} characters shown).
         </p>
@@ -774,8 +774,10 @@ export default function ResumeExecutionPage({
         {/* Header */}
         <div className='mb-8 flex items-center justify-between'>
           <div>
-            <h1 className='text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
-            <p className='mt-1 text-[14px] text-[var(--text-secondary)]'>
+            <h1 className='text-[var(--text-primary)] text-xl leading-[inherit]'>
+              Paused Execution
+            </h1>
+            <p className='mt-1 text-[var(--text-secondary)] text-sm leading-[inherit]'>
               Select a pause point to review and resume
             </p>
           </div>

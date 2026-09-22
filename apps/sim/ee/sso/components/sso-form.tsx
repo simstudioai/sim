@@ -5,6 +5,7 @@ import { Button, ChipInput, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { PublicAuthHeader } from '@/components/auth/public-auth-header'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { resolveSsoProviderContract } from '@/lib/api/contracts/auth'
@@ -186,22 +187,7 @@ function SSOFormContent({
 
   return (
     <>
-      <div className='space-y-1 text-center'>
-        <h1
-          className={
-            'text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'
-          }
-        >
-          Sign in with SSO
-        </h1>
-        <p
-          className={
-            'text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
-          }
-        >
-          Enter your work email to continue
-        </p>
-      </div>
+      <PublicAuthHeader title='Sign in with SSO' description='Enter your work email to continue' />
 
       <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
         {formError && (
@@ -251,7 +237,7 @@ function SSOFormContent({
 
       {emailEnabled && (
         <>
-          <div className='relative my-6 font-light'>
+          <div className='relative my-6 font-normal'>
             <div className='absolute inset-0 flex items-center'>
               <div className='w-full border-[var(--border)] border-t' />
             </div>
@@ -273,7 +259,7 @@ function SSOFormContent({
       )}
 
       {emailEnabled && !registrationDisabled && (
-        <div className='pt-6 text-center font-light text-base'>
+        <div className='pt-6 text-center font-normal text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}

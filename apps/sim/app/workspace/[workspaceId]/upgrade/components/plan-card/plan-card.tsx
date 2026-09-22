@@ -78,13 +78,15 @@ export function UpgradePlanCard({
     >
       <div className='flex flex-col gap-4'>
         <div className='flex items-start justify-between gap-2'>
-          <h3 className='text-[24px] text-[var(--text-primary)]'>{name}</h3>
+          <h3 className='text-2xl text-[var(--text-primary)] leading-[inherit]'>{name}</h3>
           {bannerText && <ChipTag variant='gray'>{bannerText}</ChipTag>}
         </div>
 
         <div className='flex flex-col'>
           <div className='flex items-center gap-2'>
-            <span className='text-[20px] text-[var(--text-primary)] tabular-nums'>{price}</span>
+            <span className='text-[var(--text-primary)] text-xl tabular-nums leading-[inherit]'>
+              {price}
+            </span>
             {discountLabel && <ChipTag variant='mono'>{discountLabel}</ChipTag>}
           </div>
           <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? '\u00A0'}</p>

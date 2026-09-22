@@ -445,7 +445,7 @@ export function Admin() {
                   <div className='flex gap-1'>
                     <Button
                       variant='active'
-                      className='h-[28px] text-caption'
+                      className='h-[28px]'
                       onClick={() =>
                         setAdminParams((prev) => ({
                           offset: Math.max(0, prev.offset - PAGE_SIZE),
@@ -457,7 +457,7 @@ export function Admin() {
                     </Button>
                     <Button
                       variant='active'
-                      className='h-[28px] text-caption'
+                      className='h-[28px]'
                       onClick={() =>
                         setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
                       }

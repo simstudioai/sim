@@ -772,7 +772,7 @@ export function WorkflowBlockView({
             <OverflowSpan
               value={humanizeBlockName(name)}
               className={cn(
-                'text-[17px]',
+                'text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
             />

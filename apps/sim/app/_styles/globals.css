@@ -71,6 +71,7 @@
     "Noto Color Emoji";
 
   --font-season: var(--font-season);
+  --font-inter: var(--font-inter);
   --font-body:
     ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial,
     sans-serif, Segoe UI Emoji, Segoe UI Symbol;
@@ -90,19 +91,32 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
   --text-micro: 10px;
   /**
-   * `xs` is the one size here that also exists in Tailwind's own scale, so it
-   * inherits `--text-xs--line-height` unless that is overridden too. v4's ratio
-   * (4/3) against an 11px size yields 14.67px, where v3 resolved 16.5px; the
-   * paired value keeps the leading where it was.
+   * Tailwind pairs `xs` with a default line-height ratio. Its v4 ratio (4/3)
+   * against our 11px size yields 14.67px; the explicit 1.5 preserves the
+   * existing 16.5px leading.
    */
   --text-xs: 11px;
   --text-xs--line-height: 1.5;
   --text-caption: 12px;
   --text-small: 13px;
+  /** Adopt the imported scale without changing its rem units or default leading. */
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
   --text-base: 15px;
   --text-md: 16px;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: calc(2 / 1.5);
+  --text-title: 28px;
+  --text-title-lg: 32px;
+  --text-display: 40px;
 
   /**
    * Hairline scale key. Overriding `spacing` rather than `width`/`height` keeps
