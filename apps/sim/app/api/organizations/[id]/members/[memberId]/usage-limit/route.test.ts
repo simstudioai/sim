@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import {
   auditMock,
@@ -187,9 +188,10 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   })
 
   it('persists the limit as dollars (credits / 200) and audits', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
     const res = await PUT(putRequest({ creditLimit: 400 }), context())
     expect(res.status).toBe(200)
-    expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith('org-1', 'user-2', 2, 'admin-1')
+    expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith('org-1', 'user-2', 2, 'admin-1', db)
     expect(auditMock.recordAudit).toHaveBeenCalledTimes(1)
     await expect(res.json()).resolves.toEqual({
       success: true,
@@ -199,9 +201,10 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   })
 
   it('clears the cap when creditLimit is null', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
     const res = await PUT(putRequest({ creditLimit: null }), context())
     expect(res.status).toBe(200)
-    expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith('org-1', 'user-2', null, 'admin-1')
+    expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith('org-1', 'user-2', null, 'admin-1', db)
   })
 
   it.each([400, null])(

@@ -2,6 +2,7 @@
 
 import { recordAudit } from '@sim/audit'
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -144,13 +145,14 @@ describe('organization credit-limit API', () => {
     async (principal) => {
       authenticate(principal)
       admin()
+      admin()
       const response = await setLimit(
         request('members/external-user/usage-limit', { creditLimit: 400 }),
         context
       )
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ data: { creditLimit: 400 } })
-      expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', 2, 'actor')
+      expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', 2, 'actor', db)
       expect(mocks.limitTarget).toHaveBeenCalledWith('org', 'external-user')
       expect(recordAudit).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
@@ -168,12 +170,67 @@ describe('organization credit-limit API', () => {
 
   it.each([null, 0])('supports the distinct cap value %s', async (creditLimit) => {
     admin()
+    admin()
     expect(
       (await setLimit(request('members/external-user/usage-limit', { creditLimit }), context))
         .status
     ).toBe(200)
-    expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', creditLimit, 'actor')
+    expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', creditLimit, 'actor', db)
   })
+
+  it('rechecks the target after acquiring mutation locks', async () => {
+    admin()
+    admin()
+    mocks.limitTarget.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const response = await setLimit(
+      request('members/external-user/usage-limit', { creditLimit: 400 }),
+      context
+    )
+    expect(response.status).toBe(404)
+    expect(mocks.limitTarget).toHaveBeenLastCalledWith('org', 'external-user', {
+      executor: db,
+      forShare: true,
+    })
+    expect(mocks.setLimit).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses an actor demoted while waiting for mutation locks', async () => {
+    admin()
+    queueTableRows(member, [{ role: 'member' }])
+    const response = await setLimit(
+      request('members/external-user/usage-limit', { creditLimit: 400 }),
+      context
+    )
+    expect(response.status).toBe(403)
+    expect(mocks.setLimit).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [personal, { disablePersonalApiKeys: true }],
+    [oauth, { disableOAuthAppAccess: true }],
+    [{ ...oauth, clientId: SIM_CLI_CLIENT_ID }, { disableCliAccess: true }],
+  ] as const)(
+    'rechecks $0.kind credential policy inside the mutation',
+    async (principal, restriction) => {
+      authenticate(principal)
+      admin()
+      admin()
+      mocks.config.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        ...restriction,
+      })
+      const response = await setLimit(
+        request('members/external-user/usage-limit', { creditLimit: 400 }),
+        context
+      )
+      expect(response.status).toBe(403)
+      expect(mocks.config).toHaveBeenLastCalledWith('org', db)
+      expect(mocks.setLimit).not.toHaveBeenCalled()
+      expect(recordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns credits and the resolved organization billing interval', async () => {
     admin()

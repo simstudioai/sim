@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { memberUsageLimitOperations } from '@/lib/billing/application/member-usage-limits/operations'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -10,10 +11,12 @@ import {
   isOrgMemberUsageLimitTarget,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
+import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -67,16 +70,33 @@ export const updateOrganizationMemberUsageLimit = defineAuthorizedOrganizationUs
   operation: memberUsageLimitOperations.update,
   authorizeResource: requireMemberUsageLimitTarget,
   async execute({
+    principal,
     input,
     context,
   }: OrganizationUseCaseContext<UpdateOrganizationMemberUsageLimitInput>) {
     const { organizationId, userId, creditLimit } = input
-    await setOrgMemberUsageLimit(
-      organizationId,
-      userId,
-      creditLimit === null ? null : creditsToDollars(creditLimit),
-      context.userId
-    )
+    await db.transaction(async (tx) => {
+      await acquireOrganizationUserMutationLocks(tx, { userId, organizationIds: [organizationId] })
+      await authorizeOrganizationOperation(principal, memberUsageLimitOperations.update, input, {
+        executor: tx,
+        forUpdate: true,
+      })
+      if (
+        !(await isOrgMemberUsageLimitTarget(organizationId, userId, {
+          executor: tx,
+          forShare: true,
+        }))
+      ) {
+        throw new OrchestrationError('not_found', 'Member not found')
+      }
+      await setOrgMemberUsageLimit(
+        organizationId,
+        userId,
+        creditLimit === null ? null : creditsToDollars(creditLimit),
+        context.userId,
+        tx
+      )
+    })
     logger.info('Updated per-member usage limit', {
       organizationId,
       memberId: userId,

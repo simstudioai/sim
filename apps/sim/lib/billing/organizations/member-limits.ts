@@ -21,19 +21,24 @@ const logger = createLogger('OrgMemberLimits')
 /**
  * Includes external collaborators whose explicit workspace access belongs to the organization.
  * Retained grants on archived workspaces still qualify so their caps remain manageable.
+ * Mutations hold the organization fence before requesting a shared relationship lock;
+ * together these stabilize workspace scope and access through the write.
  */
 export async function isOrgMemberUsageLimitTarget(
   organizationId: string,
-  userId: string
+  userId: string,
+  options: { executor?: DbOrTx; forShare?: boolean } = {}
 ): Promise<boolean> {
-  const [organizationMember] = await db
+  const executor = options.executor ?? db
+  const memberQuery = executor
     .select({ id: member.id })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
     .limit(1)
+  const [organizationMember] = options.forShare ? await memberQuery.for('share') : await memberQuery
   if (organizationMember) return true
 
-  const [workspaceMember] = await db
+  const workspaceQuery = executor
     .select({ id: permissions.id })
     .from(permissions)
     .innerJoin(workspace, eq(workspace.id, permissions.entityId))
@@ -45,6 +50,9 @@ export async function isOrgMemberUsageLimitTarget(
       )
     )
     .limit(1)
+  const [workspaceMember] = options.forShare
+    ? await workspaceQuery.for('share', { of: permissions })
+    : await workspaceQuery
   return Boolean(workspaceMember)
 }
 

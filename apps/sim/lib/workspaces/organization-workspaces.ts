@@ -426,6 +426,7 @@ export async function detachOrganizationWorkspacesTx(
   tx: DbOrTx,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
+  await acquireOrganizationMutationLock(tx, organizationId)
   const organizationOwnerId = await getOrganizationOwnerId(organizationId, tx)
   if (!organizationOwnerId) {
     logger.warn(

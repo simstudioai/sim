@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,6 +53,7 @@ vi.mock('@sim/utils/id', () => ({
 import {
   attachOwnedWorkspacesToOrganization,
   detachOrganizationWorkspaces,
+  detachOrganizationWorkspacesTx,
   WorkspaceOrganizationMembershipConflictError,
 } from '@/lib/workspaces/organization-workspaces'
 
@@ -313,43 +315,59 @@ describe('organization workspace helpers', () => {
     ).resolves.toMatchObject({ attachedWorkspaceIds: ['ws-1'] })
   })
 
-  it('detaches organization workspaces into grandfathered shared mode', async () => {
-    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
-    queueTableRows(schemaMock.workspace, [
-      { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
-    ])
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+  it.each(['standalone', 'enlisted'] as const)(
+    'detaches under the organization lock in a %s transaction',
+    async (mode) => {
+      queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+      queueTableRows(schemaMock.workspace, [
+        { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
+      ])
+      queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
-    const result = await detachOrganizationWorkspaces('org-1')
+      const result =
+        mode === 'standalone'
+          ? await detachOrganizationWorkspaces('org-1')
+          : await db.transaction((tx) => detachOrganizationWorkspacesTx(tx, 'org-1'))
 
-    expect(result.detachedWorkspaceIds).toEqual(['ws-1'])
-    expect(result.billedAccountUserId).toBe('owner-1')
-    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
-      mockChangeWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
-    )
-    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
-      {
-        workspaceId: 'ws-1',
-        organizationId: null,
-        billedAccountUserId: 'owner-1',
-        expectedCurrentPayer: {
-          organizationId: 'org-1',
-          billedAccountUserId: 'old-owner',
+      expect(result.detachedWorkspaceIds).toEqual(['ws-1'])
+      expect(result.billedAccountUserId).toBe('owner-1')
+      expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        'org-1'
+      )
+      expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.select.mock.invocationCallOrder[0]
+      )
+      expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.for.mock.invocationCallOrder[0]
+      )
+      expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+        mockChangeWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
+      )
+      expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
+        {
+          workspaceId: 'ws-1',
+          organizationId: null,
+          billedAccountUserId: 'owner-1',
+          expectedCurrentPayer: {
+            organizationId: 'org-1',
+            billedAccountUserId: 'old-owner',
+          },
         },
-      },
-    ])
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceMode: 'grandfathered_shared',
-        organizationAssignedAt: null,
-      })
-    )
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
-    ])
-    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
-  })
+      ])
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceMode: 'grandfathered_shared',
+          organizationAssignedAt: null,
+        })
+      )
+      expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith([
+        expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
+      ])
+      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
+    }
+  )
 })
