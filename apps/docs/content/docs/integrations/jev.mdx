@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.
+Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Add Jev to an Agent’s tools to make decisions during a conversation, or use the Jev block for an explicit workflow step. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.
 
 
 
@@ -56,7 +56,7 @@ Score content against an ordered rubric with Jev, including probabilities and co
 | `model` | string | No | Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0. |
 | `state` | json | Yes | Content to evaluate: a text string, JSON object, or array. |
 | `instructions` | json | Yes | The question to evaluate, as text, a JSON object, or an array. |
-| `criteria` | json | Yes | Ordered array of 2–10 rubric descriptions, from lowest to highest score. |
+| `criteria` | array | Yes | Ordered array of 2–10 rubric descriptions, from lowest to highest score. |
 
 #### Output
 

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-21",
+  "updatedAt": "2026-09-22",
   "integrations": [
     {
       "type": "onepassword",
@@ -12564,7 +12564,7 @@
       "slug": "jev",
       "name": "Jev",
       "description": "Make structured decisions with TypeSafe AI",
-      "longDescription": "Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.",
+      "longDescription": "Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Add Jev to an Agent’s tools to make decisions during a conversation, or use the Jev block for an explicit workflow step. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.",
       "bgColor": "#F386A1",
       "iconName": "TypeSafeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/jev",

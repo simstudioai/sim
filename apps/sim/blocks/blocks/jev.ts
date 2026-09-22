@@ -14,7 +14,7 @@ export const JevBlock: BlockConfig<
   name: 'Jev',
   description: 'Make structured decisions with TypeSafe AI',
   longDescription:
-    'Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.',
+    'Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Add Jev to an Agent’s tools to make decisions during a conversation, or use the Jev block for an explicit workflow step. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.',
   docsLink: 'https://docs.sim.ai/integrations/jev',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -152,11 +152,11 @@ export const JevBlock: BlockConfig<
       params: (params) => {
         switch (params.operation || 'jev_choice') {
           case 'jev_choice':
-            return { criteria: params.choiceCriteria }
+            return { criteria: params.criteria ?? params.choiceCriteria }
           case 'jev_score':
-            return { criteria: params.scoreCriteria }
+            return { criteria: params.criteria ?? params.scoreCriteria }
           case 'jev_noul':
-            return { criteria: params.noulCriteria }
+            return { criteria: params.criteria ?? params.noulCriteria }
           default:
             return {}
         }

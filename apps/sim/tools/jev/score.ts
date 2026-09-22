@@ -19,10 +19,19 @@ export const jevScoreTool: ToolConfig<JevScoreParams, JevScoreResponse> = {
     ...JEV_COMMON_PARAMS,
     instructions: JEV_INSTRUCTIONS_PARAM,
     criteria: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description: 'Ordered array of 2–10 rubric descriptions, from lowest to highest score.',
+      minItems: 2,
+      maxItems: 10,
+      items: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'object', additionalProperties: true },
+          { type: 'array', items: {} },
+        ],
+      },
     },
   },
   request: {
