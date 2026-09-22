@@ -66,7 +66,8 @@ export async function enqueueConnectorDeletion(
 export async function removeDrainedConnector(
   tx: DbOrTx,
   target: { connectorId: string; knowledgeBaseId: string },
-  retiredBy: SQL
+  retiredBy: SQL,
+  signal: AbortSignal
 ): Promise<'progress' | 'complete'> {
   for (const table of [
     knowledgeConnectorSyncLog,
@@ -85,6 +86,7 @@ export async function removeDrainedConnector(
         rows.map(({ id }) => id)
       )
     )
+    signal.throwIfAborted()
     return 'progress'
   }
   await tx
@@ -158,7 +160,8 @@ export const cleanupKnowledgeConnector: OutboxHandler = async (rawPayload, conte
         return removeDrainedConnector(
           tx,
           payload,
-          eq(knowledgeConnector.deletedAt, new Date(payload.deletedAt))
+          eq(knowledgeConnector.deletedAt, new Date(payload.deletedAt)),
+          context.signal
         )
       }
       const documentIds = docs.map(({ id }) => id)

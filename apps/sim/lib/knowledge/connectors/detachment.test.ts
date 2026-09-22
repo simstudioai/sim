@@ -14,12 +14,14 @@ import type { OutboxEventContext } from '@/lib/core/outbox/service'
 const mocks = vi.hoisted(() => ({
   resolveStorage: vi.fn(),
   incrementStorage: vi.fn(),
+  decrementStorage: vi.fn(),
   notifyStorage: vi.fn(),
   revoke: vi.fn(),
 }))
 vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mocks.resolveStorage,
   incrementAdmittedStorageUsageForBillingContextInTx: mocks.incrementStorage,
+  decrementStorageUsageForBillingContextInTx: mocks.decrementStorage,
   maybeNotifyStorageLimitForBillingContext: mocks.notifyStorage,
 }))
 vi.mock('@/lib/knowledge/connectors/member-access', () => ({
@@ -56,9 +58,9 @@ function context(): OutboxEventContext {
   }
 }
 
-function queueBatch(documentIds: string[]) {
+function queueBatch(documentIds: string[], reservedBytes = 0) {
   queueTableRows(knowledgeBase, [owner])
-  queueTableRows(knowledgeConnector, [{ detachedAt: new Date(payload.detachedAt) }])
+  queueTableRows(knowledgeConnector, [{ detachedAt: new Date(payload.detachedAt), reservedBytes }])
   queueTableRows(
     document,
     documentIds.map((id) => ({ id }))
@@ -100,14 +102,15 @@ describe('connector detachment', () => {
     )
   })
 
-  it('releases documents, bills them in the same transaction, then deletes the connector', async () => {
-    queueBatch(['doc-1', 'doc-2'])
+  it('releases documents against the reservation, then settles what remains with the connector', async () => {
+    queueBatch(['doc-1', 'doc-2'], 25)
     releaseProjectionRows(3, 3)
     dbChainMockFns.returning.mockResolvedValueOnce([
       { fileSize: 10, deletedAt: null },
       { fileSize: 5, deletedAt: new Date('2026-09-01T00:00:00.000Z') },
     ])
-    queueBatch([])
+    // A kept document deleted before its release leaves part of the reservation unmatched.
+    queueBatch([], 15)
 
     await detachKnowledgeConnector(
       {
@@ -117,15 +120,20 @@ describe('connector detachment', () => {
       context()
     )
 
-    expect(updatedTables()).toEqual([embeddingSearch, embeddingKeywordTin, document])
+    expect(updatedTables()).toEqual([
+      embeddingSearch,
+      embeddingKeywordTin,
+      document,
+      knowledgeConnector,
+    ])
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ connectorId: null })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ connectorId: null, deletedAt: expect.anything() })
     )
-    // The archived tombstone stays deleted, so only the live document is billed.
-    expect(mocks.incrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 10)
-    expect(mocks.notifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 1_000)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ detachReservedBytes: expect.anything() })
+    expect(mocks.incrementStorage).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete.mock.calls.map(([table]) => table)).toEqual([knowledgeConnector])
+    expect(mocks.decrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 15)
     expect(mocks.revoke).toHaveBeenCalledWith(
       { workspaceId: 'ws-1', credentialGroupId: 'g-1', connectorId: 'connector-1' },
       'u-1'
@@ -164,8 +172,9 @@ describe('connector detachment', () => {
       embeddingSearch,
       embeddingKeywordTin,
       document,
+      knowledgeConnector,
     ])
-    expect(mocks.incrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 7)
+    expect(mocks.decrementStorage).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete.mock.calls.map(([table]) => table)).toEqual([knowledgeConnector])
   })
 
@@ -181,17 +190,24 @@ describe('connector detachment', () => {
     }
   )
 
-  it('rolls the page back when the storage ledger cannot be written', async () => {
-    queueBatch(['doc-1'])
-    releaseProjectionRows(1, 1)
-    dbChainMockFns.returning.mockResolvedValueOnce([{ fileSize: 10, deletedAt: null }])
-    mocks.incrementStorage.mockRejectedValueOnce(new Error('Storage payer changed'))
+  it('charges documents that grew past their reservation without refusing', async () => {
+    queueBatch([], -4)
+
+    await detachKnowledgeConnector(payload, context())
+
+    expect(mocks.incrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 4)
+    expect(mocks.notifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 1_000)
+    expect(mocks.decrementStorage).not.toHaveBeenCalled()
+  })
+
+  it('fails the final transaction when the reservation cannot be settled', async () => {
+    queueBatch([], 9)
+    mocks.decrementStorage.mockRejectedValueOnce(new Error('Storage payer changed'))
 
     await expect(detachKnowledgeConnector(payload, context())).rejects.toThrow(
       'Storage payer changed'
     )
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(mocks.notifyStorage).not.toHaveBeenCalled()
+    expect(mocks.revoke).not.toHaveBeenCalled()
   })
 
   it('stops when the knowledge base is gone', async () => {

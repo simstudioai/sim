@@ -42,7 +42,10 @@ import {
   rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
-import { MEMBER_LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  connectorIsLive,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -288,8 +291,7 @@ export async function assertKnowledgeConnectorCredentialAccess(
           resourceScopeCondition(knowledgeBase, scope),
           resourceScopeCondition(credentialGroup, scope),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
+          connectorIsLive()
         )
       )
       .limit(1)

@@ -23,7 +23,8 @@ const {
   mockEncryptApiKey,
   mockValidateGitHub,
   mockResolveStorageBillingContext,
-  mockCheckStorageQuota,
+  mockIncrementStorage,
+  mockNotifyStorage,
   mockEnqueueConnectorDeletion,
   mockEnqueueConnectorDetachment,
 } = vi.hoisted(() => ({
@@ -37,7 +38,8 @@ const {
   mockEncryptApiKey: vi.fn(),
   mockValidateGitHub: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
+  mockIncrementStorage: vi.fn(),
+  mockNotifyStorage: vi.fn(),
   mockEnqueueConnectorDeletion: vi.fn(),
   mockEnqueueConnectorDetachment: vi.fn(),
 }))
@@ -58,8 +60,8 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mockResolveStorageBillingContext,
-  checkStorageQuotaForBillingContext: mockCheckStorageQuota,
-  StorageLimitExceededError: class StorageLimitExceededError extends Error {},
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorage,
+  maybeNotifyStorageLimitForBillingContext: mockNotifyStorage,
   applyStorageUsageDeltasInTx: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
@@ -357,7 +359,7 @@ describe('performDeleteKnowledgeConnector', () => {
     resetDbChainMock()
     queueConnectorDeletionOwnerAndLock()
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
-    mockCheckStorageQuota.mockResolvedValue({ allowed: true })
+    mockIncrementStorage.mockResolvedValue(30)
   })
 
   afterAll(resetDbChainMock)
@@ -378,7 +380,11 @@ describe('performDeleteKnowledgeConnector', () => {
     // been removed while taking exactly this path.
     expect(outcome).toMatchObject({ success: true, documentsKept: 2, documentsDeleted: 0 })
     expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(document)
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith(STORAGE_CONTEXT, 30)
+    expect(mockIncrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 30)
+    expect(mockNotifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 30)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ detachedAt: expect.any(Date), detachReservedBytes: 30 })
+    )
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({ deleteDocuments: false, documentsKept: 2 }),
@@ -534,10 +540,7 @@ describe('performDeleteKnowledgeConnector', () => {
       { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
     ])
     queueTableRows(document, [{ count: 2, keptBytes: '30' }])
-    mockCheckStorageQuota.mockResolvedValueOnce({
-      allowed: false,
-      error: 'Storage limit exceeded',
-    })
+    mockIncrementStorage.mockRejectedValueOnce(new Error('Storage limit exceeded'))
 
     const outcome = await performDeleteKnowledgeConnector({
       ...ACTOR,
@@ -548,6 +551,7 @@ describe('performDeleteKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: false, error: 'Storage limit exceeded' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueConnectorDetachment).not.toHaveBeenCalled()
+    expect(mockNotifyStorage).not.toHaveBeenCalled()
   })
 })
 

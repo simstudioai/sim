@@ -796,7 +796,20 @@ export async function updateKnowledgeBase(
             )
           )
           .limit(1)
-        const billableBytes = Number(billableStorage?.bytes ?? 0)
+        /** A detaching connector's reservation is already on this workspace's ledger. */
+        const [reservedStorage] = await tx
+          .select({
+            bytes: sql<number>`COALESCE(SUM(${knowledgeConnector.detachReservedBytes}), 0)`,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(knowledgeConnector.detachedAt)
+            )
+          )
+        const billableBytes =
+          Number(billableStorage?.bytes ?? 0) + Number(reservedStorage?.bytes ?? 0)
         transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
           workspaceDeltas: [
             { context: storageMove.sourceContext, deltaBytes: -billableBytes },

@@ -9,6 +9,7 @@ import {
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
+  decrementStorageUsageForBillingContextInTx,
   incrementAdmittedStorageUsageForBillingContextInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
@@ -87,8 +88,10 @@ const SEARCH_PROJECTIONS = [embeddingSearch, embeddingKeywordTin] as const
  * read as an upload in the meantime, which grants the same access: only workspace-access
  * connectors can keep their documents.
  *
- * Each flipped document is billed in the transaction that releases it, so a document is billable
- * exactly when it no longer names a connector. Admission was decided by the removal request.
+ * The removal request admitted and charged the kept bytes and recorded them on the connector as
+ * `detach_reserved_bytes`. Each page consumes the bytes it releases from that reservation in the
+ * same transaction, and the transaction that deletes the connector settles whatever is left, such
+ * as a document deleted before its release, so the ledger ends exactly at the released documents.
  */
 export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, context) => {
   const payload = detachmentPayloadSchema.parse(rawPayload)
@@ -125,7 +128,10 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
         throw new Error('Knowledge base workspace changed during connector detachment')
       }
       const [connector] = await tx
-        .select({ detachedAt: knowledgeConnector.detachedAt })
+        .select({
+          detachedAt: knowledgeConnector.detachedAt,
+          reservedBytes: knowledgeConnector.detachReservedBytes,
+        })
         .from(knowledgeConnector)
         .where(
           and(
@@ -152,11 +158,31 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
           .for('update')
       ).map(({ id }) => id)
       if (documentIds.length === 0) {
-        return removeDrainedConnector(
+        const drained = await removeDrainedConnector(
           tx,
           payload,
-          eq(knowledgeConnector.detachedAt, new Date(payload.detachedAt))
+          eq(knowledgeConnector.detachedAt, new Date(payload.detachedAt)),
+          context.signal
         )
+        if (drained === 'complete' && storageContext) {
+          if (connector.reservedBytes > 0) {
+            await decrementStorageUsageForBillingContextInTx(
+              tx,
+              storageContext,
+              connector.reservedBytes
+            )
+          } else if (connector.reservedBytes < 0) {
+            const updatedUsage = await incrementAdmittedStorageUsageForBillingContextInTx(
+              tx,
+              storageContext,
+              -connector.reservedBytes
+            )
+            if (updatedUsage !== undefined) {
+              storageNotification = { context: storageContext, updatedUsage }
+            }
+          }
+        }
+        return drained
       }
 
       let projectionPageFull = false
@@ -195,15 +221,14 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
         0
       )
       if (storageContext && releasedBytes > 0) {
-        const updatedUsage = await incrementAdmittedStorageUsageForBillingContextInTx(
-          tx,
-          storageContext,
-          releasedBytes
-        )
-        if (updatedUsage !== undefined) {
-          storageNotification = { context: storageContext, updatedUsage }
-        }
+        await tx
+          .update(knowledgeConnector)
+          .set({
+            detachReservedBytes: sql`${knowledgeConnector.detachReservedBytes} - ${releasedBytes}`,
+          })
+          .where(eq(knowledgeConnector.id, payload.connectorId))
       }
+      context.signal.throwIfAborted()
       return 'progress'
     })
     if (Date.now() >= deadline) break

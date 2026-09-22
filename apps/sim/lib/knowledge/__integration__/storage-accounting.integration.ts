@@ -178,8 +178,8 @@ describe('knowledge document storage ledgers', () => {
       { success: true, documentsKept: 6, documentsDeleted: 0 },
     ])
     expect(outcomes.filter((result) => !result.success)).toHaveLength(1)
-    /** Detached documents stay attached, readable, and unbilled until the release runs. */
-    expect(await ledger(ids)).toEqual({ workspaceBytes: 29, payerBytes: 29 })
+    /** Kept bytes are reserved at removal; the documents stay attached and readable until released. */
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 70, payerBytes: 70 })
     expect(
       await getKnowledgeDocument(ids.knowledgeBaseId, source[0].id, WORKSPACE_ACCESS_SCOPE)
     ).not.toBeNull()
@@ -217,6 +217,22 @@ describe('knowledge document storage ledgers', () => {
     expect(removed.reduce((sum, count) => sum + count, 0)).toBe(6)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 29, payerBytes: 29 })
     expect(await hardDeleteDocuments([manual.id], generateId())).toBe(1)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
+  })
+
+  it('settles the reservation of a kept document deleted before its release', async () => {
+    const ids = await seed()
+    const [kept, removed] = [sourceDocument(ids, 37), sourceDocument(ids, 5)]
+    await db.insert(document).values([kept, removed])
+
+    expect(await disconnect(ids)).toMatchObject({ success: true, documentsKept: 2 })
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 42, payerBytes: 42 })
+    expect(await hardDeleteDocuments([removed.id], generateId())).toBe(1)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 42, payerBytes: 42 })
+
+    await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 37, payerBytes: 37 })
+    expect(await hardDeleteDocuments([kept.id], generateId())).toBe(1)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 

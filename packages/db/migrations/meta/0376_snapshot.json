@@ -1,5 +1,5 @@
 {
-  "id": "ce88419e-3ef4-4161-8630-4318487ec492",
+  "id": "fb108041-12c1-473b-9d0a-d5bdb8400aa3",
   "prevId": "87868a52-2de4-4d3b-92f8-b7b811f44910",
   "version": "7",
   "dialect": "postgresql",
@@ -9490,6 +9490,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "detach_reserved_bytes": {
+          "name": "detach_reserved_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {

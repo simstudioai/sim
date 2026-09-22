@@ -19,9 +19,10 @@ import {
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 import {
-  checkStorageQuotaForBillingContext,
+  incrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
-  StorageLimitExceededError,
+  type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import {
@@ -1160,6 +1161,7 @@ export async function performDeleteKnowledgeConnector(
   }
 
   let docCount: number
+  let storageNotification: { context: StorageBillingContext; updatedUsage: number } | undefined
   try {
     const [owner] = await db
       .select({
@@ -1191,7 +1193,7 @@ export async function performDeleteKnowledgeConnector(
     docCount = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
       await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
-      /** Match source writes and document deletion: parent KB, then connector. */
+      /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
       const [lockedOwner] = await tx
         .select({
           workspaceId: knowledgeBase.workspaceId,
@@ -1241,15 +1243,24 @@ export async function performDeleteKnowledgeConnector(
         .from(document)
         .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
       const count = totals?.count ?? 0
+      /**
+       * Kept bytes are admitted and charged now, against the locked ledger, where the user can
+       * still choose to delete instead. The connector carries the charge as a reservation that
+       * the release consumes page by page and settles when it finishes.
+       */
+      let reservedBytes = 0
       if (storageContext) {
-        const keptBytes = Number(totals?.keptBytes ?? 0)
-        if (!Number.isSafeInteger(keptBytes) || keptBytes < 0) {
+        reservedBytes = Number(totals?.keptBytes ?? 0)
+        if (!Number.isSafeInteger(reservedBytes) || reservedBytes < 0) {
           throw new Error('Invalid retained connector storage size')
         }
-        /** Admission is decided here, where the user can still choose to delete instead. */
-        const quota = await checkStorageQuotaForBillingContext(storageContext, keptBytes)
-        if (!quota.allowed) {
-          throw new StorageLimitExceededError(quota.error ?? 'Storage limit exceeded')
+        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+          tx,
+          storageContext,
+          reservedBytes
+        )
+        if (updatedUsage !== undefined) {
+          storageNotification = { context: storageContext, updatedUsage }
         }
       }
 
@@ -1257,7 +1268,9 @@ export async function performDeleteKnowledgeConnector(
       await tx
         .update(knowledgeConnector)
         .set({
-          ...(deleteDocuments ? { deletedAt: retiredAt } : { detachedAt: retiredAt }),
+          ...(deleteDocuments
+            ? { deletedAt: retiredAt }
+            : { detachedAt: retiredAt, detachReservedBytes: reservedBytes }),
           updatedAt: retiredAt,
           status: 'disabled',
           memberSyncStatus: 'disabled',
@@ -1307,6 +1320,30 @@ export async function performDeleteKnowledgeConnector(
       return fail('Connection is busy. Try removing it again in a moment.', 'conflict')
     }
     return classifyKnowledgeFailure(error, requestId, `Delete connector ${connectorId}`)
+  }
+
+  if (storageNotification) {
+    await maybeNotifyStorageLimitForBillingContext(
+      storageNotification.context,
+      storageNotification.updatedUsage
+    )
+  }
+
+  /** The detach worker revokes durably once released; revoking now closes access immediately. */
+  if (!deleteDocuments && existing.credentialGroupId && kb.workspaceId) {
+    await revokeKnowledgeConnectorCredentialAccess(
+      {
+        workspaceId: kb.workspaceId,
+        credentialGroupId: existing.credentialGroupId,
+        connectorId,
+      },
+      params.userId
+    ).catch((error) => {
+      logger.error(`[${requestId}] Failed to revoke the detached connector's credential access`, {
+        connectorId,
+        error,
+      })
+    })
   }
 
   logger.info(
