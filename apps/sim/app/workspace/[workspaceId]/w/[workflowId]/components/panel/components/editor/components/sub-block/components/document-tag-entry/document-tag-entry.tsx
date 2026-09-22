@@ -4,12 +4,13 @@ import { useMemo, useRef } from 'react'
 import {
   Badge,
   Button,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
   cn,
-  handleKeyboardActivation,
   Input,
   Label,
+  OverflowText,
   Trash,
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
@@ -235,55 +236,46 @@ export function DocumentTagEntry({
   }
 
   /**
-   * Renders the tag header with name, badge, and action buttons
+   * Renders the tag summary with its type badge
    * Shows tag name only when collapsed (as summary), generic label when expanded
    */
-  const renderTagHeader = (tag: DocumentTag, index: number) => (
-    <div
-      role='group'
-      aria-label={`Tag ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(tag.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(tag.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
-        </span>
-        {tag.collapsed && tag.tagName && (
-          <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
+  const renderTitle = (tag: DocumentTag, index: number) => (
+    <span className='flex min-w-0 items-center gap-2'>
+      <OverflowText
+        label={tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
+        focusTarget='nearest-interactive'
       >
-        <Button
-          variant='ghost'
-          onClick={addTag}
-          disabled={isReadOnly || !canAddMoreTags}
-          className='h-auto p-0'
-        >
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Tag</span>
-        </Button>
-        <Button
-          variant='ghost-destructive'
-          onClick={() => removeTag(tag.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Tag</span>
-        </Button>
-      </div>
-    </div>
+        {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
+      </OverflowText>
+      {tag.collapsed && tag.tagName && (
+        <Badge variant='type' size='sm'>
+          {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+        </Badge>
+      )}
+    </span>
+  )
+
+  const renderActions = (tag: DocumentTag) => (
+    <>
+      <Button
+        variant='ghost'
+        onClick={addTag}
+        disabled={isReadOnly || !canAddMoreTags}
+        className='h-auto p-0'
+      >
+        <Plus className='size-[14px]' />
+        <span className='sr-only'>Add Tag</span>
+      </Button>
+      <Button
+        variant='ghost-destructive'
+        onClick={() => removeTag(tag.id)}
+        disabled={isReadOnly}
+        className='h-auto p-0'
+      >
+        <Trash className='size-[14px]' />
+        <span className='sr-only'>Delete Tag</span>
+      </Button>
+    </>
   )
 
   /**
@@ -385,7 +377,7 @@ export function DocumentTagEntry({
     }))
 
     return (
-      <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+      <>
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Tag</Label>
           <Combobox
@@ -401,24 +393,25 @@ export function DocumentTagEntry({
           <Label className='text-small'>Value</Label>
           {renderValueInput(tag)}
         </div>
-      </div>
+      </>
     )
   }
 
   return (
     <div className='space-y-2'>
       {tags.map((tag, index) => (
-        <div
+        <CollapsibleCard
           key={tag.id}
           data-tag-id={tag.id}
-          className={cn(
-            'rounded-sm border border-[var(--border-1)]',
-            tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
-          )}
+          role='group'
+          aria-label={`Tag ${index + 1}`}
+          title={renderTitle(tag, index)}
+          actions={renderActions(tag)}
+          collapsed={Boolean(tag.collapsed)}
+          onToggleCollapse={() => toggleCollapse(tag.id)}
         >
-          {renderTagHeader(tag, index)}
           {!tag.collapsed && renderTagContent(tag)}
-        </div>
+        </CollapsibleCard>
       ))}
     </div>
   )
