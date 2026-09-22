@@ -526,11 +526,48 @@ function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
     : null
 }
 
+/**
+ * Hands the lifecycle every document a removed member observed below `through`:
+ * the pages an earlier, interrupted run already walked. Their observations are
+ * still there — only the member's deletion cascades them — so they are read
+ * again rather than left to the absence reconcile, which does not run while no
+ * member has completed a listing.
+ */
+async function collectWalkedObservations(
+  run: Pick<MemberSyncRun, 'deadlineAt' | 'lease'>,
+  memberId: string,
+  through: string,
+  into: Set<string>
+): Promise<boolean> {
+  let after: string | undefined
+  for (;;) {
+    if (Date.now() >= run.deadlineAt) return false
+    await run.lease.beatIfDue()
+    const page = await db
+      .select({ documentId: knowledgeDocumentObservation.documentId })
+      .from(knowledgeDocumentObservation)
+      .where(
+        and(
+          eq(knowledgeDocumentObservation.memberId, memberId),
+          lte(knowledgeDocumentObservation.documentId, through),
+          after ? gt(knowledgeDocumentObservation.documentId, after) : undefined
+        )
+      )
+      .orderBy(asc(knowledgeDocumentObservation.documentId))
+      .limit(500)
+    for (const row of page) into.add(row.documentId)
+    if (page.length < 500) return true
+    after = page.at(-1)!.documentId
+  }
+}
+
 /** Keeps observations available until every changed ACL is rewritten, resuming by document identity. */
 export async function resumeMembershipRewrites(
   run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'> &
     Partial<Pick<MemberSyncRun, 'unobservedDocumentIds'>>
 ): Promise<boolean> {
+  /** Removed members whose earlier-walked documents this call has already collected. */
+  const collected = new Set<string>()
   for (;;) {
     if (Date.now() >= run.deadlineAt) return false
     await run.lease.beatIfDue()
@@ -551,6 +588,15 @@ export async function resumeMembershipRewrites(
     if (!member) return true
     const checkpoint = membershipRewrite(member.checkpoint)
     if (!checkpoint) throw new Error('Invalid membership ACL checkpoint')
+    if (checkpoint.removeMember && run.unobservedDocumentIds && !collected.has(member.id)) {
+      const into = run.unobservedDocumentIds
+      if (
+        checkpoint.cursor &&
+        !(await collectWalkedObservations(run, member.id, checkpoint.cursor, into))
+      )
+        return false
+      collected.add(member.id)
+    }
     await withMemberLease(run, async (tx) => {
       const documents = await tx
         .select({ documentId: knowledgeDocumentObservation.documentId })

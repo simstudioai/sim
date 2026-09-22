@@ -129,8 +129,12 @@ export async function lockCredentialGroupOption(
 /** A connector row exactly as stored, including its encrypted API key. */
 export type KnowledgeConnectorRow = typeof knowledgeConnector.$inferSelect
 type ConnectorRow = KnowledgeConnectorRow
-/** The connector row as it reaches every caller: never carrying the stored API key. */
-export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey'>
+/**
+ * The connector row as it reaches every caller: never carrying the stored API
+ * key, nor the members-mode reconcile cursor, which names a document the
+ * caller may not be able to read.
+ */
+export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey' | 'memberTombstoneCursor'>
 
 /** A refused `sourceConfig`, with the failure class the caller wants surfaced. */
 export interface SourceConfigRejection {
@@ -146,8 +150,8 @@ export interface ConnectorKnowledgeBase {
   organizationId?: string | null
 }
 
-function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
-  const { encryptedApiKey: _encryptedApiKey, ...rest } = row
+export function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
+  const { encryptedApiKey: _encryptedApiKey, memberTombstoneCursor: _cursor, ...rest } = row
   return rest
 }
 

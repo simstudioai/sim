@@ -443,7 +443,12 @@ async function tombstoneUnobserved(
  * listing rewrites: a walk ordered by it would chase the documents each run
  * re-stamps and never reach the end of a pass. Resumes from the cursor the
  * previous run saved, so each run's cost is bounded by the page budget rather
- * than the connector's size. Returns false when the deadline stopped it.
+ * than the connector's size, and a pass ends within
+ * `ceil(live documents / (MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN × 500))`
+ * runs; a document that loses its last observer outside a run's own removals
+ * is tombstoned within two passes. An unfinished pass does not make the run
+ * unfinished: the next scheduled run continues it, rather than re-dispatching
+ * back to back. Returns false when the deadline stopped it.
  */
 async function reconcileUnobservedPages(
   input: MemberDocumentLifecycleInput,
@@ -456,8 +461,13 @@ async function reconcileUnobservedPages(
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connectorId))
   let after: TombstoneCursor | null = connector?.cursor ?? null
+  let advanced = false
+  let finished = true
   for (let page = 0; page < MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN; page++) {
-    if (Date.now() >= input.deadlineAt) return false
+    if (Date.now() >= input.deadlineAt) {
+      finished = false
+      break
+    }
     await input.lease.beatIfDue()
     /** Exclusion and archival are left to the UPDATE so every page is exactly one LIMIT of index entries. */
     const rows = await db
@@ -473,33 +483,40 @@ async function reconcileUnobservedPages(
       )
       .orderBy(asc(document.externalId))
       .limit(MATERIALIZE_BATCH_SIZE)
-    const candidates = rows.map((row) => row.id)
+    if (Date.now() >= input.deadlineAt) {
+      finished = false
+      break
+    }
+    if (rows.length > 0) {
+      const candidates = rows.map((row) => row.id)
+      const changed = await input.withLease((tx) =>
+        tx
+          .update(document)
+          .set({ deletedAt: now })
+          .where(and(unobservedLiveDocument(connectorId), inArray(document.id, candidates)))
+          .returning({ id: document.id })
+      )
+      result.tombstoned += changed.length
+    }
+    advanced = true
     const lastExternalId = rows.at(-1)?.externalId
-    const next: TombstoneCursor | null =
+    after =
       rows.length < MATERIALIZE_BATCH_SIZE || !lastExternalId
         ? null
         : { externalId: lastExternalId }
-    if (Date.now() >= input.deadlineAt) return false
-    const changed = await input.withLease(async (tx) => {
-      const tombstoned =
-        candidates.length === 0
-          ? []
-          : await tx
-              .update(document)
-              .set({ deletedAt: now })
-              .where(and(unobservedLiveDocument(connectorId), inArray(document.id, candidates)))
-              .returning({ id: document.id })
-      await tx
-        .update(knowledgeConnector)
-        .set({ memberTombstoneCursor: next })
-        .where(eq(knowledgeConnector.id, connectorId))
-      return tombstoned
-    })
-    result.tombstoned += changed.length
-    if (!next) return true
-    after = next
+    if (!after) break
   }
-  return true
+  /** One write per run, not per page: the connector row is hot, and a lost write only repeats pages. */
+  if (advanced) {
+    const saved = after
+    await input.withLease((tx) =>
+      tx
+        .update(knowledgeConnector)
+        .set({ memberTombstoneCursor: saved })
+        .where(eq(knowledgeConnector.id, connectorId))
+    )
+  }
+  return finished
 }
 
 /**

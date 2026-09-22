@@ -97,6 +97,7 @@ import {
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
   type SourceConfigRejection,
+  withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
 import type {
   KnowledgeOperationSource,
@@ -551,11 +552,14 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
           })
         : new Map<string, ViewerConnectorMembership>()
     return {
-      connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => ({
-        ...rest,
-        permissionConfig: permissionSummaries.get(rest.id),
-        viewerMembership: memberships.get(rest.id) ?? null,
-      })),
+      connectors: page.map((row) => {
+        const rest = withoutSecret(row)
+        return {
+          ...rest,
+          permissionConfig: permissionSummaries.get(rest.id),
+          viewerMembership: memberships.get(rest.id) ?? null,
+        }
+      }),
       hasMore,
       offset,
       limit: input.limit ?? page.length,
@@ -712,7 +716,7 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         ? summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes)
         : { active: 0, suspended: 0, stale: 0 },
     ])
-    const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
+    const connectorData = withoutSecret(connector)
     const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
       viewerUserId && (context.workspaceId || context.organizationId)

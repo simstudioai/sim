@@ -357,7 +357,8 @@ describe('applyMemberDocumentLifecycle', () => {
     const cursors = dbChainMockFns.set.mock.calls
       .map(([value]) => value)
       .filter((value) => 'memberTombstoneCursor' in value)
-    expect(cursors).toHaveLength(MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN)
+    /** Written once for the run, not once per page. */
+    expect(cursors).toHaveLength(1)
     expect(cursors.at(-1)).toEqual({
       memberTombstoneCursor: {
         externalId: `ext-p${MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN - 1}-499`,

@@ -273,6 +273,7 @@ jobs:
           lib/knowledge/__integration__/connector-partition-work.integration.ts
           lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/member-scope-renewal.integration.ts
+          lib/knowledge/__integration__/member-document-lifecycle.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/core/outbox/service.integration.ts

@@ -1506,14 +1506,13 @@ describe('durable source and member cycles in PostgreSQL', () => {
         unobservedDocumentIds,
       })
     ).toBe(true)
-    /** Every observation the removed member still held when this run resumed is handed to the lifecycle. */
+    /**
+     * Every observation the removed member held reaches the lifecycle, including
+     * the pages the interrupted run walked before this one resumed.
+     */
     const pausedAt = (paused.listingCheckpoint as { cursor: string }).cursor
-    expect([...unobservedDocumentIds].sort()).toEqual(
-      retained
-        .map((row) => row.id)
-        .filter((id) => id > pausedAt)
-        .sort()
-    )
+    expect(retained.some((row) => row.id <= pausedAt)).toBe(true)
+    expect([...unobservedDocumentIds].sort()).toEqual(retained.map((row) => row.id).sort())
     expect(
       await db
         .select()
