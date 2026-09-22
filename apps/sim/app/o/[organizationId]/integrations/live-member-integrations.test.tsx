@@ -122,10 +122,12 @@ describe('live member connection states', () => {
   it.each([
     ['disabled', { credentialGroup: { ...group, status: 'disabled' } }],
     ['unconfigured', { credentialGroup: null }],
-  ])('does not offer a connection when %s', async (_name, overrides) => {
+  ])('disables connection when %s', async (_name, overrides) => {
     mocks.inventory.mockReturnValue({ data: inventory(overrides) })
     await render()
-    expect(button('Connect')).toBeUndefined()
+    expect(button('Connect')?.disabled).toBe(true)
+    await act(async () => button('Connect')!.click())
+    expect(mocks.connect).not.toHaveBeenCalled()
   })
   it('shows the current account and reconnect action without enabling a disabled integration', async () => {
     mocks.inventory.mockReturnValue({
@@ -192,13 +194,21 @@ describe('live member connection states', () => {
     await render()
     expect(container.textContent).toBe('')
   })
-  it('sends admins to Credential Groups when member sign-in is not configured', async () => {
-    mocks.inventory.mockReturnValue({ data: inventory({ credentialGroup: null, canManage: true }) })
-    await render()
-    expect(container.querySelector('a')?.getAttribute('href')).toBe(
-      '/o/org/settings/connected-accounts'
-    )
-  })
+  it.each([false, true])(
+    'keeps Slack app setup out of member Integrations, admin=%s',
+    async (canManage) => {
+      mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
+      mocks.inventory.mockReturnValue({ data: inventory({ canManage }) })
+      await render()
+      expect(container.textContent).toContain('Slack')
+      expect(container.textContent).toContain('Not configured')
+      expect(container.textContent).not.toContain('Finish setup')
+      expect(container.querySelector('a')).toBeNull()
+      expect(button('Connect')?.disabled).toBe(true)
+      await act(async () => button('Connect')!.click())
+      expect(mocks.connect).not.toHaveBeenCalled()
+    }
+  )
   it('explains service-account scope without hiding member connection controls', async () => {
     mocks.policies.mockReturnValue({
       data: [

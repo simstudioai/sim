@@ -1,8 +1,7 @@
 'use client'
 
-import { Chip, ChipLink, toast } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn'
 import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { connectorDisplayName, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
@@ -149,7 +148,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           : group && group.status !== 'active'
             ? 'Connections are paused by your organization'
             : !ready
-              ? 'An admin needs to finish connection setup'
+              ? 'Not configured'
               : accounts.length
                 ? scope
                 : undefined
@@ -191,10 +190,10 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                       Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
                     </Chip>
                   ))}
-                {ready ? (
+                {approved && (
                   <Chip
                     variant={accounts.length ? undefined : 'primary'}
-                    disabled={pending}
+                    disabled={pending || !ready}
                     onClick={() =>
                       connect.mutate(
                         {
@@ -216,13 +215,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                         ? 'Add account'
                         : 'Connect'}
                   </Chip>
-                ) : data.canManage && approved ? (
-                  <ChipLink
-                    href={organizationRoutes(organizationId).settingsSection('connected-accounts')}
-                  >
-                    Finish setup
-                  </ChipLink>
-                ) : null}
+                )}
               </div>
             }
           />
