@@ -271,7 +271,11 @@ describe('document filename and tag bounds', () => {
   })
 
   it('rejects a filename over the limit on create, upsert, and update with a descriptive message', () => {
-    for (const schema of [createDocumentBodySchema, upsertDocumentBodySchema, updateDocumentBodySchema]) {
+    for (const schema of [
+      createDocumentBodySchema,
+      upsertDocumentBodySchema,
+      updateDocumentBodySchema,
+    ]) {
       const result = schema.safeParse({ ...base, filename: overLimit })
       expect(result.success).toBe(false)
       expect(result.error?.issues[0]?.message).toBe(

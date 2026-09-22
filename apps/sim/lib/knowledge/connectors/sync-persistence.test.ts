@@ -30,7 +30,10 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     fixture: {
-      mapTags: (metadata: Record<string, unknown>) => ({ label: metadata.label, owner: metadata.owner }),
+      mapTags: (metadata: Record<string, unknown>) => ({
+        label: metadata.label,
+        owner: metadata.owner,
+      }),
     },
   },
 }))
@@ -366,7 +369,8 @@ describe('persistSourceDocumentFailures', () => {
       priorByExternalId: new Map(),
     })
     const [rows] = dbChainMockFns.values.mock.calls[0] as [Array<{ filename: string }>]
-    expect(rows[0].filename).toBe(`${'x'.repeat(512)}...`)
+    expect(rows[0].filename).toBe(`${'x'.repeat(509)}...`)
+    expect(rows[0].filename.length).toBe(512)
   })
   it('refuses to commit a failure under a reclaimed lease', async () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
@@ -442,7 +446,7 @@ describe('resolveTagMapping', () => {
       { label: 'y'.repeat(5000), owner: 'Purchasing' },
       { tagSlotMapping: { label: 'tag1', owner: 'tag2' } }
     )
-    expect(tags?.tag1).toBe(`${'y'.repeat(512)}...`)
+    expect(tags?.tag1).toBe(`${'y'.repeat(509)}...`)
     expect(tags?.tag2).toBe('Purchasing')
   })
 
@@ -452,6 +456,7 @@ describe('resolveTagMapping', () => {
       { label: '\u{1F600}'.repeat(600) },
       { tagSlotMapping: { label: 'tag1' } }
     )
-    expect(tags?.tag1).toBe(`${'\u{1F600}'.repeat(512)}...`)
+    expect(tags?.tag1).toBe(`${'\u{1F600}'.repeat(254)}...`)
+    expect(tags?.tag1?.length).toBeLessThanOrEqual(512)
   })
 })

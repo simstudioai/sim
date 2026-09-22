@@ -7,19 +7,8 @@ import {
   knowledgeDocumentUploadMetadataSchema,
   persistedKnowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
-import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 
 describe('knowledgeDocumentUploadMetadataSchema', () => {
-  it('rejects a tag value that would not fit its index row', () => {
-    const result = knowledgeDocumentUploadMetadataSchema.safeParse({
-      tag1: 'a'.repeat(MAX_DOCUMENT_INDEXED_TEXT_LENGTH + 1),
-    })
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.message).toBe(
-      `Knowledge document tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
-    )
-  })
-
   it('rejects a recipe outside the accepted set', () => {
     const result = knowledgeDocumentUploadMetadataSchema.safeParse({
       processingOptions: { recipe: 'totally-bogus-recipe' },

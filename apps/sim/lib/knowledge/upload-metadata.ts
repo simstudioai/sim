@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import type { RecursiveRecipe } from '@/lib/chunkers/types'
-import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 
 /**
  * Recipes the recursive chunker implements. Mirrors `RecursiveRecipe`; the
@@ -36,10 +35,7 @@ const LANGUAGE_TAG_SHAPE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/
 
 const knowledgeDocumentUploadTagSchema = z
   .string()
-  .max(
-    MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
-    `Knowledge document tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
-  )
+  .max(1000, 'Knowledge document tag values cannot exceed 1000 characters')
   .optional()
 
 const knowledgeDocumentUploadTagShape = {

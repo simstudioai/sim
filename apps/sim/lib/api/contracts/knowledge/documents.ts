@@ -122,13 +122,19 @@ export function parseDocumentTagFiltersParam(
 /** A text tag value that fits its index row; see {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH}. */
 const documentTagValueSchema = z
   .string()
-  .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`)
+  .max(
+    MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
+    `Tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+  )
 
 export const createDocumentBodySchema = z.object({
   filename: z
     .string()
     .min(1, 'Filename is required')
-    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`),
+    .max(
+      MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
+      `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+    ),
   fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
@@ -180,7 +186,10 @@ export const upsertDocumentBodySchema = z.object({
   filename: z
     .string()
     .min(1, 'Filename is required')
-    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`),
+    .max(
+      MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
+      `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+    ),
   fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
@@ -214,7 +223,11 @@ export const updateDocumentBodySchema = z.object({
   filename: z
     .string()
     .min(1, 'Filename is required')
-    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`).optional(),
+    .max(
+      MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
+      `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+    )
+    .optional(),
   enabled: z.boolean().optional(),
   chunkCount: z.number().min(0).optional(),
   tokenCount: z.number().min(0).optional(),
