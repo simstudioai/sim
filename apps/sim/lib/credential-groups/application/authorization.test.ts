@@ -276,6 +276,37 @@ describe('requireCredentialGroupCredentialAccess', () => {
     await expect(requireAccess(executorPrincipal())).rejects.toMatchObject({ code: 'not_found' })
   })
 
+  it('requires a live connector grant to execute a managed MCP credential', async () => {
+    mocks.loadBinding.mockResolvedValue(null)
+    const managedContext = { ...context, credentialType: 'mcp:fireflies' as const }
+    const principal = executorPrincipal()
+    const requireManagedAccess = () =>
+      requireCredentialGroupCredentialAccess(
+        principal,
+        managedContext,
+        credentialOperations.useManagedMcp.resourcePolicy
+      )
+
+    await expect(requireManagedAccess()).resolves.toBeUndefined()
+
+    mocks.requirePolicy.mockResolvedValue(storedPolicy([]))
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: context.workspaceId,
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ]),
+    })
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.requirePolicy.mockResolvedValue(storedPolicy())
+    mocks.isAvailable.mockResolvedValue(false)
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'not_found' })
+  })
+
   it('rejects inconsistent Sim and external subject assertions before loading policy', async () => {
     const simPrincipal = executorPrincipal()
     simPrincipal.subjectUserId = 'user-2'
