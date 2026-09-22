@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { chipGeometryClass } from '@sim/emcn/components/chip/chip-chrome'
+import { chipGeometryClass } from '@sim/emcn'
 import { describe, expect, it } from 'vitest'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
 
