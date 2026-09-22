@@ -40,6 +40,15 @@ export const DEFAULT_OVERAGE_THRESHOLD = 100
 export const BILLING_LOCK_TIMEOUT_MS = 5_000
 
 /**
+ * Bound on one ledger sum. A large payer's period covers millions of rows, and from a cold
+ * cache or under heavy I/O the sum can run for tens of seconds; past this the database ends it
+ * and the read fails, so a caller that admits on the sum fails closed rather than waiting
+ * without limit. The usage gate derives its coalescing deadline from this bound, so the sum
+ * always ends at the database before the gate gives up on it.
+ */
+export const USAGE_LEDGER_STATEMENT_TIMEOUT_MS = 60_000
+
+/**
  * Available credit tiers. Each tier maps a credit amount to the underlying dollar
  * cost and carries that tier's fixed weekly refresh allowance.
  * 1 credit = $0.005, so credits = dollars * 200.

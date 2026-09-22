@@ -16,6 +16,7 @@ import {
   checkIngestionUsageLimits,
   checkSearchUsageLimits,
   resetUsageGateCache,
+  USAGE_GATE_SETTLE_TIMEOUT_MS,
   USAGE_GATE_TTL_MS,
 } from '@/lib/billing/core/usage-gate-cache'
 
@@ -177,5 +178,37 @@ describe('checkExecutionUsageLimits', () => {
     await checkExecutionUsageLimits(ATTRIBUTION)
     await checkExecutionUsageLimits(ATTRIBUTION)
     expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('waits for a slow ledger read past the singleflight default instead of blocking', async () => {
+    vi.useFakeTimers()
+    try {
+      mockCheck.mockImplementationOnce(() => sleep(45_000).then(() => ({ isExceeded: false })))
+      const pending = checkExecutionUsageLimits(ATTRIBUTION)
+      await vi.advanceTimersByTimeAsync(45_000)
+      await expect(pending).resolves.toEqual({ isExceeded: false })
+      expect(mockCheck).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up on a read that never answers at the gate deadline, then reads fresh', async () => {
+    vi.useFakeTimers()
+    try {
+      mockCheck.mockReturnValueOnce(new Promise(() => {}))
+      const hung = checkExecutionUsageLimits(ATTRIBUTION)
+      const rejection = expect(hung).rejects.toThrow(
+        `did not settle within ${USAGE_GATE_SETTLE_TIMEOUT_MS}ms`
+      )
+      await vi.advanceTimersByTimeAsync(USAGE_GATE_SETTLE_TIMEOUT_MS)
+      await rejection
+      await expect(checkExecutionUsageLimits(ATTRIBUTION)).resolves.toEqual({
+        isExceeded: false,
+      })
+      expect(mockCheck).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

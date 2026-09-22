@@ -15,6 +15,7 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -215,6 +216,10 @@ async function resolveBillingContext(
 /**
  * Returns attributed ledger usage for a billing entity/period. The ledger is
  * the sole source of truth for usage — there is no userStats baseline.
+ *
+ * The sum runs in a transaction of its own on the given client so that it can
+ * be bounded by {@link USAGE_LEDGER_STATEMENT_TIMEOUT_MS} for that statement
+ * alone: `SET LOCAL` ends with the transaction and never reaches the pool.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -238,12 +243,17 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await executor
-    .select({
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
+  const [row] = await executor.transaction(async (tx) => {
+    await tx.execute(
+      sql.raw(`SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`)
+    )
+    return tx
+      .select({
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+  })
 
   return Number.parseFloat(row?.cost ?? '0')
 }
