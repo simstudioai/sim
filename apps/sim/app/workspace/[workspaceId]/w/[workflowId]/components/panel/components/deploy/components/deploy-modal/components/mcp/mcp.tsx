@@ -8,6 +8,7 @@ import {
   ChipInput,
   ChipModalField,
   type ComboboxOption,
+  FieldCard,
   Skeleton,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -578,38 +579,31 @@ export function McpDeploy({
           </p>
           <div className='flex flex-col gap-2'>
             {inputFormat.map((field) => (
-              <div
+              <FieldCard
                 key={field.name}
-                className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                title={field.name}
+                badge={
+                  <Badge variant='type' size='sm'>
+                    {field.type}
+                  </Badge>
+                }
               >
-                <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
-                  <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-                      {field.name}
-                    </span>
-                    <Badge variant='type' size='sm'>
-                      {field.type}
-                    </Badge>
-                  </div>
-                </div>
-                <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                  <ChipModalField
-                    type='input'
-                    title='Description'
-                    flush
-                    value={
-                      parameterDescriptions[field.name] ?? startBlockDescriptions[field.name] ?? ''
-                    }
-                    onChange={(value) =>
-                      setParameterDescriptions((prev) => ({
-                        ...prev,
-                        [field.name]: value,
-                      }))
-                    }
-                    placeholder={startBlockDescriptions[field.name] || `Describe ${field.name}`}
-                  />
-                </div>
-              </div>
+                <ChipModalField
+                  type='input'
+                  title='Description'
+                  flush
+                  value={
+                    parameterDescriptions[field.name] ?? startBlockDescriptions[field.name] ?? ''
+                  }
+                  onChange={(value) =>
+                    setParameterDescriptions((prev) => ({
+                      ...prev,
+                      [field.name]: value,
+                    }))
+                  }
+                  placeholder={startBlockDescriptions[field.name] || `Describe ${field.name}`}
+                />
+              </FieldCard>
             ))}
           </div>
         </ChipModalField>

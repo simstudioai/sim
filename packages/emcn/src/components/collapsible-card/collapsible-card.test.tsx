@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode, useState } from 'react'
-import { CollapsibleCard } from '@sim/emcn'
+import { CollapsibleCard, FieldCard } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -102,4 +102,20 @@ describe('CollapsibleCard', () => {
     expect(toggle).not.toHaveBeenCalled()
     expect(parentClick).not.toHaveBeenCalled()
   })
+})
+
+it('keeps static FieldCard content visible without a collapse target', () => {
+  mount(
+    <FieldCard title='query' badge={<span>string</span>} data-field='query'>
+      <input aria-label='Description' defaultValue='Search terms' />
+    </FieldCard>
+  )
+  const card = container!.querySelector('[data-field="query"]')!
+  const input = card.querySelector('input')!
+  expect(card.textContent).toContain('query')
+  expect(card.textContent).toContain('string')
+  expect(card.querySelector('[role="button"], button, [aria-expanded]')).toBeNull()
+  act(() => card.querySelector<HTMLElement>('[data-overflow-text]')!.click())
+  expect(card.querySelector('input')).toBe(input)
+  expect(input.value).toBe('Search terms')
 })

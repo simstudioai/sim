@@ -147,7 +147,7 @@ export function EvalInput({
               variant='ghost'
               onClick={addMetric}
               disabled={isPreview || disabled}
-              className='h-auto p-0'
+              size='icon'
             >
               <Plus className='size-[14px]' />
               <span className='sr-only'>Add Metric</span>
@@ -162,7 +162,7 @@ export function EvalInput({
               variant='ghost-destructive'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0'
+              size='icon'
             >
               <Trash className='size-[14px]' />
               <span className='sr-only'>Delete Metric</span>
