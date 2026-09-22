@@ -2057,7 +2057,7 @@ function FilesContent() {
           </div>
         )}
         {hasActiveFilters && (
-          <Chip fullWidth onClick={clearFileFilters} className='text-center'>
+          <Chip fullWidth onClick={clearFileFilters} align='center'>
             Clear all filters
           </Chip>
         )}
