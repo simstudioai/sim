@@ -13,11 +13,7 @@ export function KnowledgeFilterHeading({ title, active, onClear }: KnowledgeFilt
     <div className='flex h-5 items-center justify-between'>
       <span className={FILTER_SECTION_LABEL_CLASS}>{title}</span>
       {active && (
-        <Button
-          variant='ghost'
-          onClick={onClear}
-          className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
-        >
+        <Button variant='ghost-secondary' size='inline' onClick={onClear} className='-mr-1'>
           Clear
         </Button>
       )}
