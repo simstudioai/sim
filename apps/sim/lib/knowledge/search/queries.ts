@@ -2175,14 +2175,13 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
           ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, dateFilterCondition(params.filters))})`
           : undefined,
         /**
-         * The row's mirrored source decides it once the fill is complete; until then a row the
-         * fill has not reached carries no source, so its document is asked instead, as the
-         * vector leg does.
+         * A filled row's mirrored source decides it; a row the fill has not reached carries no
+         * source, so only its document is asked, as the vector leg does.
          */
         excludedSources.length
           ? tinFilled
             ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
-            : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ranked_tin_chunks.document_id AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))`
+            : sql`((ranked_tin_chunks.acl IS NOT NULL AND (ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))) OR (ranked_tin_chunks.acl IS NULL AND NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ranked_tin_chunks.document_id AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))))`
           : undefined
       )
     const documentConditions = (excludedSources: readonly string[]) =>
