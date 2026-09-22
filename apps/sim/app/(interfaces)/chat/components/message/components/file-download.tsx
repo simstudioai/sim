@@ -254,7 +254,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
         variant='ghost-secondary'
         onClick={handleDownloadAll}
         disabled={isDownloading}
-        size='icon'
+        className='p-0'
       >
         {isDownloading ? (
           <Loader className='size-3' animate />

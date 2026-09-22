@@ -476,11 +476,11 @@ export function Editor() {
                   {userPermissions.canAdmin && currentBlock.locked && !isAncestorLocked ? (
                     <Button
                       variant='ghost'
-                      size='icon'
+                      className='p-0'
                       onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
                       aria-label='Unlock block'
                     >
-                      <Unlock className='size-[14px]' />
+                      <Unlock className='size-[14px] text-[var(--text-secondary)]' />
                     </Button>
                   ) : (
                     <div className='flex items-center justify-center'>
@@ -505,7 +505,7 @@ export function Editor() {
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    size='icon'
+                    className='p-0'
                     onClick={isRenaming ? handleSaveRename : handleStartRename}
                     disabled={!canEditBlock}
                     aria-label={isRenaming ? 'Save name' : 'Rename block'}
@@ -544,7 +544,7 @@ export function Editor() {
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
+                  className='p-0'
                   onClick={handleOpenDocs}
                   aria-label='Open documentation'
                 >

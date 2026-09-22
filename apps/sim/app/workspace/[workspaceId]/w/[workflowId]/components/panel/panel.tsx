@@ -915,7 +915,7 @@ export const Panel = memo(function Panel() {
                     <Button
                       aria-label='New Chat'
                       variant='ghost'
-                      size='icon'
+                      className='p-0'
                       onClick={handleCopilotNewChat}
                     >
                       <Plus className='size-[14px]' />
@@ -928,7 +928,7 @@ export const Panel = memo(function Panel() {
                       }}
                     >
                       <DropdownMenuTrigger asChild>
-                        <Button variant='ghost' size='icon' aria-label='Chat history'>
+                        <Button variant='ghost' className='p-0' aria-label='Chat history'>
                           <BubbleChatDelay className='size-[14px]' />
                         </Button>
                       </DropdownMenuTrigger>
