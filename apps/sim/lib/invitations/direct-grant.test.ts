@@ -145,12 +145,39 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
       mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
     )
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(4)
     expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
       mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
     )
     expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
   })
+
+  it.each(['admin', 'owner'] as const)(
+    'preserves an invitee who became organization %s before the transaction without redundant effects',
+    async (role) => {
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
+
+      const result = await grantWorkspaceAccessDirectly({
+        ...baseInput,
+        existingPermissionPolicy: 'ensure-at-least',
+      })
+
+      expect(result).toEqual({ outcome: 'unchanged', permission: 'admin' })
+      expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.for.mock.invocationCallOrder[1]
+      )
+      expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
+        mockGetUserOrganization.mock.invocationCallOrder[0]
+      )
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+      expect(mockSyncWorkspaceEnvCredentials).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
+      expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+    }
+  )
 
   it('delivers the transactionally enqueued notification through the outbox', async () => {
     await directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](

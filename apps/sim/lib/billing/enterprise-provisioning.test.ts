@@ -740,6 +740,195 @@ describe('Enterprise creation invitations', () => {
     })
   })
 
+  it.each(['admin', 'owner'] as const)(
+    'recognizes inherited organization %s access without explicit workspace grants',
+    async (role) => {
+      const payload = operationPayload({
+        request: {
+          ...operationPayload().request,
+          workspaceIds: ['workspace-1', 'workspace-2'],
+        },
+        applicationResult: {
+          appliedAt: '2026-08-13T00:00:00.000Z',
+          subscriptionId: 'sub-1',
+        },
+      })
+      queueTableRows(schemaMock.outboxEvent, [
+        { eventType: 'stripe.provision-enterprise', payload },
+      ])
+      queueTableRows(schemaMock.outboxEvent, [])
+      queueTableRows(schemaMock.outboxEvent, [{ status: 'completed' }, { status: 'completed' }])
+      queueTableRows(
+        schemaMock.user,
+        ['workspace-1', 'workspace-2'].map((workspaceId) => ({
+          userId: 'invitee-1',
+          workspaceId,
+          role,
+          permission: null,
+        }))
+      )
+      const checkpointPayload = vi.fn()
+
+      await inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: 'admin',
+          permission: 'admin',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 0,
+          checkpointPayload,
+        }
+      )
+
+      expect(checkpointPayload).toHaveBeenCalledExactlyOnceWith({
+        delivery: {
+          completedAt: expect.any(String),
+          resultId: 'invitee-1',
+          outcome: 'unchanged',
+        },
+      })
+      expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+      expect(mocks.prepareWorkspaceInvitationContext).not.toHaveBeenCalled()
+      expect(mocks.sendInvitationEmail).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    {
+      name: 'a concurrent promotion',
+      role: 'admin',
+      permission: null,
+      requestedRole: 'member',
+      workspaceIds: ['workspace-1'],
+      applied: true,
+    },
+    {
+      name: 'a sufficient explicit grant',
+      role: 'member',
+      permission: 'write',
+      requestedRole: 'member',
+      workspaceIds: ['workspace-1'],
+      applied: true,
+    },
+    {
+      name: 'an insufficient explicit grant',
+      role: 'member',
+      permission: 'read',
+      requestedRole: 'member',
+      workspaceIds: ['workspace-1'],
+      applied: false,
+    },
+    {
+      name: 'a workspace leaving the organization scope',
+      role: null,
+      permission: null,
+      requestedRole: 'member',
+      workspaceIds: ['workspace-1'],
+      applied: false,
+    },
+    {
+      name: 'a workspace admin grant without the requested organization admin role',
+      role: 'member',
+      permission: 'admin',
+      requestedRole: 'admin',
+      workspaceIds: ['workspace-1'],
+      applied: false,
+    },
+    {
+      name: 'inherited access to only one of two requested workspaces',
+      role: 'admin',
+      permission: null,
+      requestedRole: 'member',
+      workspaceIds: ['workspace-1', 'workspace-2'],
+      applied: false,
+    },
+  ] as const)(
+    'checks the final effective access after $name',
+    async ({ role, permission, requestedRole, workspaceIds, applied }) => {
+      const payload = operationPayload({
+        request: { ...operationPayload().request, workspaceIds: [...workspaceIds] },
+        applicationResult: {
+          appliedAt: '2026-08-13T00:00:00.000Z',
+          subscriptionId: 'sub-1',
+        },
+      })
+      queueTableRows(schemaMock.outboxEvent, [
+        { eventType: 'stripe.provision-enterprise', payload },
+      ])
+      queueTableRows(schemaMock.outboxEvent, [])
+      queueTableRows(
+        schemaMock.outboxEvent,
+        workspaceIds.map(() => ({ status: 'completed' }))
+      )
+      queueTableRows(schemaMock.user, [
+        { userId: 'invitee-1', workspaceId: 'workspace-1', role: 'member', permission: null },
+      ])
+      queueTableRows(schemaMock.invitation, [])
+      queueTableRows(schemaMock.user, [{ organizationId: 'org-1' }])
+      queueTableRows(schemaMock.user, [
+        { id: 'owner-1', name: 'Owner', email: 'owner@example.com' },
+      ])
+      queueTableRows(
+        schemaMock.user,
+        role ? [{ userId: 'invitee-1', workspaceId: 'workspace-1', role, permission }] : []
+      )
+      queueTableRows(schemaMock.invitation, [])
+      mocks.createWorkspaceInvitation.mockResolvedValueOnce({
+        id: 'invitee-1',
+        instantAdd: true,
+        outcome: 'unchanged',
+        workspaceIds: [],
+      })
+      const checkpointPayload = vi.fn()
+      const result = inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: requestedRole,
+          permission: 'write',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 0,
+          checkpointPayload,
+        }
+      )
+
+      if (applied) {
+        await expect(result).resolves.toBeUndefined()
+        expect(checkpointPayload).toHaveBeenLastCalledWith({
+          delivery: {
+            completedAt: expect.any(String),
+            resultId: 'invitee-1',
+            outcome: 'unchanged',
+          },
+        })
+      } else {
+        await expect(result).rejects.toThrow(
+          'did not apply the requested organization role and workspace permissions'
+        )
+        expect(checkpointPayload).toHaveBeenCalledExactlyOnceWith({
+          attemptedAt: expect.any(String),
+        })
+      }
+      expect(mocks.createWorkspaceInvitation).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ existingAccessPolicy: 'ensure-at-least' })
+      )
+      expect(mocks.sendInvitationEmail).not.toHaveBeenCalled()
+    }
+  )
+
   it('waits without consuming attempts until every selected workspace move completes', async () => {
     const payload = operationPayload({
       request: {
