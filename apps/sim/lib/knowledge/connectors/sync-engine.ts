@@ -856,10 +856,26 @@ export async function executeSync(
    */
   if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
     logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
+    /**
+     * Written only while the row is still the credential-less runnable row this run read: a
+     * reconnect that landed in between keeps its schedule, and a paused or disabled connector
+     * a stale task reached keeps its status.
+     */
+    const observed = (
+      column: typeof knowledgeConnector.credentialId | typeof knowledgeConnector.encryptedApiKey,
+      value: string | null
+    ) => (value === null ? isNull(column) : eq(column, value))
     await db
       .update(knowledgeConnector)
       .set(buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REMOVED_SYNC_ERROR))
-      .where(eq(knowledgeConnector.id, connectorId))
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          observed(knowledgeConnector.credentialId, connectorBeforeLock.credentialId),
+          observed(knowledgeConnector.encryptedApiKey, connectorBeforeLock.encryptedApiKey),
+          inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES])
+        )
+      )
     return { ...result, skipReason: 'credential_missing' }
   }
 

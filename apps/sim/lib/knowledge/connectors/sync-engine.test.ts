@@ -109,6 +109,12 @@ vi.mock('@/connectors/registry.server', () => ({
       getDocument: mockGetDocument,
       listDocuments: mockListDocuments,
     },
+    keyed: {
+      name: 'Keyed',
+      auth: { mode: 'apiKey' },
+      getDocument: mockGetDocument,
+      listDocuments: mockListDocuments,
+    },
     oauth: {
       name: 'OAuth',
       auth: { mode: 'oauth', provider: 'example' },
@@ -3362,6 +3368,23 @@ describe('executeSync hard-delete reconciliation', () => {
         syncLockLeaseAt: null,
       })
     )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ consecutiveFailures: expect.any(Number) })
+    )
+  })
+
+  it('leaves an API-key connector whose required key is missing unscheduled', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...CONNECTOR, connectorType: 'keyed', credentialId: null, encryptedApiKey: null },
+    ])
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.skipReason).toBe('credential_missing')
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ consecutiveFailures: expect.any(Number) })
     )
