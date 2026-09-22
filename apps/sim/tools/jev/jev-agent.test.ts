@@ -124,4 +124,41 @@ describe('Jev Agent tools', () => {
       maxItems: 10,
     })
   })
+
+  it.each(CASES)(
+    'accepts model-supplied text for unfilled $operation inputs',
+    async ({ operation, args, questions }) => {
+      const tool = await agentTool(operation, { apiKey: 'test-key' })
+      expect(tool.parameters.properties.state.type).toBe('string')
+      if (operation !== 'jev_evaluate') {
+        expect(tool.parameters.properties.instructions.type).toBe('string')
+      }
+      const { toolParams } = prepareToolExecution(
+        tool,
+        { ...args, state: '42', ...(operation !== 'jev_evaluate' && { instructions: 'Question' }) },
+        {},
+        'test-call'
+      )
+      const request = prepareToolRequest(TOOLS[operation], toolParams)
+      expect(JSON.parse(request.body!)).toEqual({
+        state: '42',
+        model: 'jev-1.13.0',
+        questions,
+      })
+    }
+  )
+
+  it('preserves resolved structured state and instructions through the Agent adapter', async () => {
+    const state = { ticket: 'Payment failed', attempts: 3 }
+    const instructions = ['Evaluate urgency', { context: 'A repeated failure needs attention' }]
+    const criteria = ['Low', 'High']
+    const tool = await agentTool('jev_score', { apiKey: 'test-key', state, instructions, criteria })
+    const { toolParams } = prepareToolExecution(tool, {}, {}, 'test-call')
+    const request = prepareToolRequest(jevScoreTool, toolParams)
+    expect(JSON.parse(request.body!)).toEqual({
+      state,
+      model: 'jev-1.13.0',
+      questions: { result: { type: 'score', instructions, criteria } },
+    })
+  })
 })

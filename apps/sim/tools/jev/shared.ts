@@ -82,7 +82,7 @@ export const JEV_COMMON_PARAMS = {
       'Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0.',
   },
   state: {
-    type: 'json',
+    type: 'string',
     required: true,
     visibility: 'user-or-llm',
     description: 'Content to evaluate: a text string, JSON object, or array.',
@@ -90,7 +90,7 @@ export const JEV_COMMON_PARAMS = {
 } as const satisfies ToolConfig['params']
 
 export const JEV_INSTRUCTIONS_PARAM = {
-  type: 'json',
+  type: 'string',
   required: true,
   visibility: 'user-or-llm',
   description: 'The question to evaluate, as text, a JSON object, or an array.',

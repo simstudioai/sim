@@ -28,8 +28,8 @@ Choose an option with Jev and return its probability distribution and confidence
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | TypeSafe API key from https://console.typesafe.ai |
 | `model` | string | No | Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0. |
-| `state` | json | Yes | Content to evaluate: a text string, JSON object, or array. |
-| `instructions` | json | Yes | The question to evaluate, as text, a JSON object, or an array. |
+| `state` | string | Yes | Content to evaluate: a text string, JSON object, or array. |
+| `instructions` | string | Yes | The question to evaluate, as text, a JSON object, or an array. |
 | `criteria` | json | Yes | Map of 1–255 option names to descriptions \(text, object, array, or null\). |
 
 #### Output
@@ -54,8 +54,8 @@ Score content against an ordered rubric with Jev, including probabilities and co
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | TypeSafe API key from https://console.typesafe.ai |
 | `model` | string | No | Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0. |
-| `state` | json | Yes | Content to evaluate: a text string, JSON object, or array. |
-| `instructions` | json | Yes | The question to evaluate, as text, a JSON object, or an array. |
+| `state` | string | Yes | Content to evaluate: a text string, JSON object, or array. |
+| `instructions` | string | Yes | The question to evaluate, as text, a JSON object, or an array. |
 | `criteria` | array | Yes | Ordered array of 2–10 rubric descriptions, from lowest to highest score. |
 
 #### Output
@@ -81,8 +81,8 @@ Evaluate a yes/no question with Jev and return the probability that the answer i
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | TypeSafe API key from https://console.typesafe.ai |
 | `model` | string | No | Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0. |
-| `state` | json | Yes | Content to evaluate: a text string, JSON object, or array. |
-| `instructions` | json | Yes | The question to evaluate, as text, a JSON object, or an array. |
+| `state` | string | Yes | Content to evaluate: a text string, JSON object, or array. |
+| `instructions` | string | Yes | The question to evaluate, as text, a JSON object, or an array. |
 | `criteria` | json | No | Optional object with true and false descriptions defining what yes and no mean. |
 
 #### Output
@@ -105,7 +105,7 @@ Evaluate multiple Choice, Score, and Noul questions against shared state in one 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | TypeSafe API key from https://console.typesafe.ai |
 | `model` | string | No | Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0. |
-| `state` | json | Yes | Content to evaluate: a text string, JSON object, or array. |
+| `state` | string | Yes | Content to evaluate: a text string, JSON object, or array. |
 | `questions` | json | Yes | Map of question IDs to \{type, instructions, criteria\}. Types: choice \(option map\), score \(2–10 ordered levels\), noul \(optional true/false descriptions\). Answers use the same IDs. |
 
 #### Output
