@@ -129,6 +129,7 @@ jobs:
           lib/billing/core/usage-analytics-queries.postgres.test.ts
           lib/billing/core/organization-usage-pagination.postgres.test.ts
           lib/billing/organizations/member-limits.postgres.test.ts
+          lib/workspaces/organization-workspaces.postgres.test.ts
           lib/billing/calculations/usage-reservation.test.ts
 
       - name: Verify access request pagination and impact in PostgreSQL

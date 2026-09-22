@@ -316,12 +316,15 @@ describe('organization workspace helpers', () => {
   })
 
   it.each(['standalone', 'enlisted'] as const)(
-    'detaches under the organization lock in a %s transaction',
+    'detaches with invitation locks before the organization fence and workspace rows in a %s transaction',
     async (mode) => {
+      queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+      queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
       queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
       queueTableRows(schemaMock.workspace, [
         { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
       ])
+      queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
       queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
       const result =
@@ -331,12 +334,25 @@ describe('organization workspace helpers', () => {
 
       expect(result.detachedWorkspaceIds).toEqual(['ws-1'])
       expect(result.billedAccountUserId).toBe('owner-1')
+      expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        {
+          invitationIds: ['invite-pending', 'invite-terminal'],
+          workspaceIds: ['ws-1'],
+        }
+      )
       expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledExactlyOnceWith(
         expect.anything(),
         'org-1'
       )
+      expect(dbChainMockFns.select.mock.invocationCallOrder[0]).toBeLessThan(
+        mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]
+      )
+      expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+        mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]
+      )
       expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
-        dbChainMockFns.select.mock.invocationCallOrder[0]
+        dbChainMockFns.select.mock.invocationCallOrder[2]
       )
       expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
         dbChainMockFns.for.mock.invocationCallOrder[0]
@@ -370,4 +386,93 @@ describe('organization workspace helpers', () => {
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalled()
     }
   )
+
+  it.each(['standalone', 'enlisted'] as const)(
+    'refuses newly attached workspaces before detachment writes in a %s transaction',
+    async (mode) => {
+      queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+      queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+      queueTableRows(schemaMock.workspace, [
+        { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
+        { id: 'ws-2', ownerId: 'creator-2', billedAccountUserId: 'old-owner' },
+      ])
+
+      const result =
+        mode === 'standalone'
+          ? detachOrganizationWorkspaces('org-1')
+          : db.transaction((tx) => detachOrganizationWorkspacesTx(tx, 'org-1'))
+
+      await expect(result).rejects.toMatchObject({
+        code: 'conflict',
+        message: 'Organization workspaces changed during detachment; retry',
+      })
+      expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        {
+          invitationIds: [],
+          workspaceIds: ['ws-1'],
+        }
+      )
+      expect(dbChainMockFns.for).not.toHaveBeenCalled()
+      expect(mockChangeWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['standalone', 'enlisted'] as const)(
+    'refuses newly created organization invitations before detachment writes in a %s transaction',
+    async (mode) => {
+      queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+      queueTableRows(schemaMock.invitation, [{ id: 'invite-1' }])
+      queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+      queueTableRows(schemaMock.workspace, [
+        { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
+      ])
+      queueTableRows(schemaMock.invitation, [{ id: 'invite-1' }, { id: 'invite-2' }])
+
+      const result =
+        mode === 'standalone'
+          ? detachOrganizationWorkspaces('org-1')
+          : db.transaction((tx) => detachOrganizationWorkspacesTx(tx, 'org-1'))
+
+      await expect(result).rejects.toMatchObject({
+        code: 'conflict',
+        message: 'Organization invitations changed during detachment; retry',
+      })
+      expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        {
+          invitationIds: ['invite-1'],
+          workspaceIds: ['ws-1'],
+        }
+      )
+      expect(dbChainMockFns.for).not.toHaveBeenCalled()
+      expect(mockChangeWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('detaches only the locked workspaces that still belong to the organization', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
+    queueTableRows(schemaMock.invitation, [{ id: 'invite-1' }, { id: 'invite-2' }])
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'ws-2', ownerId: 'creator-2', billedAccountUserId: 'old-owner' },
+    ])
+    queueTableRows(schemaMock.invitation, [{ id: 'invite-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-2' }])
+
+    const result = await detachOrganizationWorkspaces('org-1')
+
+    expect(result.detachedWorkspaceIds).toEqual(['ws-2'])
+    expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      invitationIds: ['invite-1', 'invite-2'],
+      workspaceIds: ['ws-1', 'ws-2'],
+    })
+    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
+      expect.objectContaining({ workspaceId: 'ws-2' }),
+    ])
+  })
 })

@@ -10,6 +10,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
   mockDetachOrganizationWorkspacesTx,
@@ -194,6 +195,25 @@ describe('admin organization DELETE', () => {
 
     expect(response.status).toBe(500)
     expect(mockEnqueueResourceCleanup).toHaveBeenCalledTimes(1)
+    expect(recordAudit).not.toHaveBeenCalled()
+    expect(recordAuditBatch).not.toHaveBeenCalled()
+  })
+
+  it('returns a retryable conflict if the workspace lock set changed', async () => {
+    queueOrganization()
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.member, [{ value: 3 }])
+    const message = 'Organization workspaces changed during detachment; retry'
+    mockDetachOrganizationWorkspacesTx.mockRejectedValueOnce(
+      new OrchestrationError('conflict', message)
+    )
+
+    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: { message } })
+    expect(mockEnqueueResourceCleanup).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     expect(recordAudit).not.toHaveBeenCalled()
     expect(recordAuditBatch).not.toHaveBeenCalled()
   })

@@ -57,6 +57,7 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
@@ -338,6 +339,9 @@ export const DELETE = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to delete organization', { error, organizationId })
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        return conflictResponse(error.message)
+      }
       return internalErrorResponse('Failed to delete organization')
     }
   })
