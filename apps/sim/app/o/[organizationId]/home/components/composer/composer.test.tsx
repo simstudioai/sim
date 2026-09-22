@@ -232,7 +232,7 @@ describe('organization voice composer', () => {
     async (isInitialView) => {
       await render(isInitialView)
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
-      expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
+      expect(container.querySelector('[aria-label="Reasoning effort"]')).toBeNull()
       expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
       expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe('Search level')
       expect(mic.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
@@ -405,7 +405,7 @@ it('uploads an agent document with explicit mode while Assistant remains image-o
     })
   )
   expect(container.querySelector('input[type="file"]')?.getAttribute('accept')).toContain('.txt')
-  expect(container.querySelector('button[aria-label="Model and reasoning effort"]')).not.toBeNull()
+  expect(container.querySelector('button[aria-label="Reasoning effort"]')).not.toBeNull()
 })
 
 it('shows a flat custom skill row with its workspace label and sends scoped context', async () => {
@@ -493,7 +493,7 @@ it.each([true, false])(
     expect(mocks.skillQuery).not.toHaveBeenCalled()
     expect(container.querySelector('[aria-label="Skills"]')).toBeNull()
     expect(container.querySelector('[aria-label="Add resources"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Reasoning effort"]')).toBeNull()
     expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
     expect(Boolean(container.querySelector('[aria-label="Conversation mode"]'))).toBe(canChoose)
     expect(container.querySelector('[aria-label="Attach images"]')).toBeNull()
@@ -772,15 +772,44 @@ describe('Search levels', () => {
   })
 })
 
+it('offers only the five Build efforts and changes effort without losing the draft', async () => {
+  useMothershipEffortStore.getState().setEffort('high')
+  await render(true, 'Build draft', 'agent')
+  const picker = container.querySelector<HTMLButtonElement>('[aria-label="Reasoning effort"]')!
+  expect(picker?.textContent).toBe('High')
+  expect(container.textContent).not.toMatch(/GPT-6 Astra|Opus/)
+  await act(async () =>
+    picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+  expect(options.map((item) => item.textContent)).toEqual([
+    'Low',
+    'Medium',
+    'High',
+    'Extra High',
+    'Max',
+  ])
+  expect(options[2].getAttribute('aria-checked')).toBe('true')
+  await act(async () => options[3].click())
+  expect(picker.textContent).toBe('Extra High')
+  expect(useMothershipEffortStore.getState()).toMatchObject({
+    effort: 'xhigh',
+    modelSelection: { model: 'gpt-6-astra' },
+  })
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Ask Sim"]')!.value).toBe(
+    'Build draft'
+  )
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
 it('keeps Build Fast independent of Search levels', async () => {
-  useMothershipEffortStore.getState().setModel('gpt-6-astra')
   useMothershipEffortStore.getState().setFastMode(false)
   await render(true, 'Build', 'agent')
   expect(container.querySelector('[aria-label="Search level"]')).toBeNull()
   const fast = container.querySelector<HTMLButtonElement>('[aria-label="Fast mode"]')!
   await act(async () => fast.click())
   expect(useMothershipEffortStore.getState().modelSelection.fastMode).toBe(true)
-  expect(container.querySelector('[aria-label="Model and reasoning effort"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Reasoning effort"]')).not.toBeNull()
   await act(async () => useMothershipEffortStore.getState().setFastMode(false))
 })
 
