@@ -439,6 +439,59 @@ describe('File Serve API Route', () => {
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
   })
 
+  describe('versioned cache lifetime', () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      subjectUserId: 'test-user-id',
+      workspaceId: 'test-workspace-id',
+      delegationId: 'delegation-1',
+      audience: 'sim:workspace-files',
+      issuedAt: new Date('2026-08-01T00:00:00Z'),
+      expiresAt: new Date('2026-08-01T01:00:00Z'),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+      },
+    }
+
+    async function serveVersionedDoc(dependsOnReferencedFiles: boolean) {
+      mockResolveStoredFileContext.mockResolvedValue('workspace')
+      mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
+      mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
+      mockResolveServableDocBytes.mockResolvedValue({
+        buffer: Buffer.from('compiled'),
+        contentType: 'application/pdf',
+        ...(dependsOnReferencedFiles ? { dependsOnReferencedFiles: true } : {}),
+      })
+
+      const req = new NextRequest(
+        'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf?v=1756684800000'
+      )
+      await GET(req, {
+        params: Promise.resolve({ path: ['workspace', 'test-workspace-id', 'report.pdf'] }),
+      })
+      return mockCreateFileResponse.mock.calls.at(-1)?.[0]
+    }
+
+    it('caches a versioned document immutably when its bytes derive from the stored source alone', async () => {
+      expect(await serveVersionedDoc(false)).toEqual(
+        expect.objectContaining({ cacheControl: 'private, max-age=31536000, immutable' })
+      )
+    })
+
+    it('keeps a versioned document revalidated when it was compiled against referenced files', async () => {
+      /**
+       * The URL carries the file's own `updatedAt`, which does not move when a
+       * REFERENCED file changes — so an immutable lifetime would pin the stale
+       * render in the browser cache until the document itself is edited.
+       */
+      expect(await serveVersionedDoc(true)).toEqual(
+        expect.objectContaining({ cacheControl: 'private, no-cache, must-revalidate' })
+      )
+    })
+  })
+
   it('serves a mothership chat attachment stored under a workspace key', async () => {
     /**
      * The attachment shares the `workspace/…` prefix but is recorded as

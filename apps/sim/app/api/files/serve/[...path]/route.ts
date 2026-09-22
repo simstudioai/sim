@@ -64,8 +64,20 @@ interface ServeOptions {
   raw: boolean
   /** `preview=1` — the caller renders these bytes rather than saving them. */
   preview: boolean
-  /** `v=<updatedAt>` — the URL addresses content-immutable bytes. */
+  /** `v=<updatedAt>` — the caller asserts the URL addresses one fixed content revision. */
   versioned: boolean
+}
+
+interface ServableBytes {
+  buffer: Buffer
+  contentType: string
+  /**
+   * These bytes were resolved against OTHER files' current content — a sim page inlining its
+   * images, or a document compiled against the files it references. The same storage key can
+   * therefore serve different bytes over time, with nothing about this file changing, so the
+   * response must stay revalidated even when the request carries a version.
+   */
+  dependsOnReferencedFiles?: boolean
 }
 
 /**
@@ -95,7 +107,7 @@ async function resolveServableBytes(params: {
   /** The stored record's content type, where the caller has the record. */
   fileType?: string
   signal: AbortSignal | undefined
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<ServableBytes> {
   // `raw` is the stored source, already bounded by the read that produced it, but it
   // goes through the same check so the ceiling holds for everything this returns
   // rather than for every branch someone remembered to cover.
@@ -120,7 +132,7 @@ async function resolveTransformedBytes(params: {
   filePrincipal?: Principal
   fileType?: string
   signal: AbortSignal | undefined
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<ServableBytes> {
   const {
     buffer,
     filename,
@@ -146,7 +158,8 @@ async function resolveTransformedBytes(params: {
         await renderSimPageDocumentWithAssets(text, { workspaceId }),
         'utf8'
       )
-      return { buffer: rendered, contentType: 'text/html' }
+      // Inlines the workspace images the page references, read at their CURRENT content.
+      return { buffer: rendered, contentType: 'text/html', dependsOnReferencedFiles: true }
     }
   }
 
@@ -184,18 +197,29 @@ const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
 const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
 
 /**
- * Cache-Control for a served file. A versioned request (`?v=<updatedAt>`) addresses
- * content-immutable bytes — generated docs are content-addressed and the version
- * bumps on every edit — so the browser may cache it indefinitely; re-opens and
- * focus refetches then resolve from cache with no round trip. Unversioned workspace
- * reads stay revalidated because the same storage key is edited in place.
+ * Cache-Control for a served file.
+ *
+ * A versioned request (`?v=<updatedAt>`) normally addresses content-immutable bytes: a workspace
+ * file's content write stores the new bytes under a NEW storage key, so a given key's stored
+ * source never changes and the browser may cache it indefinitely — re-opens and focus refetches
+ * then resolve from cache with no round trip.
+ *
+ * That promise does NOT hold when the response was resolved against other files' current content
+ * (`dependsOnReferencedFiles`): a document compiled against the files it references, or a sim page
+ * inlining its images, recompiles per request, so the same key serves different bytes once a
+ * referenced file changes — while this file's key and `updatedAt`, and therefore the whole URL,
+ * stay put. Promising immutability there pins a stale render in the browser cache for a year, so
+ * those responses stay revalidated whether or not the request carried a version.
  */
 function resolveServeCacheControl(
   versioned: boolean,
-  context: string | undefined
+  context: string | undefined,
+  dependsOnReferencedFiles: boolean | undefined
 ): string | undefined {
-  if (versioned) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+  if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' || dependsOnReferencedFiles
+    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
+    : undefined
 }
 
 export const GET = withRouteHandler(
@@ -385,7 +409,11 @@ async function handleWorkspaceFile(
     buffer: resolved.buffer,
     contentType: resolved.contentType,
     filename: file.name,
-    cacheControl: resolveServeCacheControl(options.versioned, 'workspace'),
+    cacheControl: resolveServeCacheControl(
+      options.versioned,
+      'workspace',
+      resolved.dependsOnReferencedFiles
+    ),
   })
 }
 
@@ -427,7 +455,11 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+    const {
+      buffer: fileBuffer,
+      contentType,
+      dependsOnReferencedFiles,
+    } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
       storageKey: filename,
@@ -443,7 +475,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context),
+      cacheControl: resolveServeCacheControl(options.versioned, context, dependsOnReferencedFiles),
     })
   } catch (error) {
     logServeFailure('Error reading local file:', error)
@@ -494,7 +526,11 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+    const {
+      buffer: fileBuffer,
+      contentType,
+      dependsOnReferencedFiles,
+    } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
       storageKey: cloudKey,
@@ -515,7 +551,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context),
+      cacheControl: resolveServeCacheControl(options.versioned, context, dependsOnReferencedFiles),
     })
   } catch (error) {
     logServeFailure('Error downloading from cloud storage:', error)

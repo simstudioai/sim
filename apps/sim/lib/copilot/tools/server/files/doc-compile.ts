@@ -147,6 +147,13 @@ export interface CompiledDocResult {
   buffer: Buffer
   contentType: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /**
+   * The artifact was resolved against OTHER files' current content, so these bytes are not a
+   * function of this file's stored source alone: the same storage key compiles to different bytes
+   * once a referenced file changes, with nothing about this file changing. A caller that assigns
+   * the response a cache lifetime must not promise immutability for it.
+   */
+  dependsOnReferencedFiles?: boolean
 }
 
 function referencedImageIdentities(
@@ -912,12 +919,20 @@ export async function resolveServableDocBytes(args: {
         const published = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
           allowPublishedReferencedArtifact: true,
         })
-        if (published) return published
+        if (published) return { ...published, dependsOnReferencedFiles: true }
         throw new Error(
           'Referenced document resolution requires an authorized workspace file principal'
         )
       }
-      return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
+      const compiled = await compileDoc({
+        source,
+        fileName,
+        workspaceId,
+        filePrincipal,
+        ownerKey,
+        signal,
+      })
+      return { ...compiled, dependsOnReferencedFiles: true }
     }
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
       allowLegacyReferencedArtifact: true,

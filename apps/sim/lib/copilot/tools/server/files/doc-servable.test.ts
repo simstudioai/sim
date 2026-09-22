@@ -168,6 +168,7 @@ describe('resolveServableDocBytes', () => {
     expect(result).toEqual({
       buffer: Buffer.from('%PDF-rebuilt'),
       contentType: 'application/pdf',
+      dependsOnReferencedFiles: true,
       contributingFiles: [
         {
           fileId: 'reference-1',
@@ -273,6 +274,7 @@ describe('resolveServableDocBytes', () => {
     ).resolves.toEqual({
       buffer: publishedArtifact,
       contentType: 'application/pdf',
+      dependsOnReferencedFiles: true,
     })
     expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
