@@ -5,12 +5,16 @@ import { redirect } from 'next/navigation'
 import { createSearchParamsCache, createSerializer } from 'nuqs/server'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { getSession } from '@/lib/auth'
-import { WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
+import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
 import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
 import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
-import { accessRequestEntrySearchParams } from '@/ee/access-requests/components/search-params'
+import {
+  accessRequestEntrySearchParams,
+  accessRequestSearchParams,
+} from '@/ee/access-requests/components/search-params'
 
 export const metadata: Metadata = {
   title: 'Access requests',
@@ -23,6 +27,7 @@ interface AccessRequestsPageProps {
 
 const entrySearchParams = createSearchParamsCache(accessRequestEntrySearchParams)
 const serializeEntrySearchParams = createSerializer(accessRequestEntrySearchParams)
+const serializeRequesterSearchParams = createSerializer(accessRequestSearchParams)
 
 /** Session-only entry so access requests remain reachable outside the organization Search rollout. */
 export default async function AccessRequestsPage({ searchParams }: AccessRequestsPageProps) {
@@ -41,10 +46,24 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
     return (
       <EmptyState
         title='Choose an organization'
-        description='Open My access requests from your profile menu in a workspace.'
-        action={<ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>}
+        description='Open My access requests from your profile menu in an organization or workspace.'
+        action={<ChipLink href={APP_ENTRY_PATH}>Back to Sim</ChipLink>}
       />
     )
+  }
+
+  if (params.view !== 'admin') {
+    const context = await getOrganizationSurfaceContext(params.organizationId, session.user.id)
+    if (context?.searchAccess.memberScoped) {
+      redirect(
+        serializeRequesterSearchParams(organizationRoutes(params.organizationId).accessRequests, {
+          view: params.view,
+          search: params.search,
+          page: params.page,
+          requestId: params.requestId,
+        })
+      )
+    }
   }
 
   return (
@@ -54,13 +73,16 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
           <div className='mx-auto flex max-w-3xl flex-col gap-6'>
             <div className='flex items-center justify-between gap-4'>
               <h1 className='text-[var(--text-primary)] text-lg'>Access requests</h1>
-              <ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>
+              <ChipLink href={APP_ENTRY_PATH}>Back to Sim</ChipLink>
             </div>
             <OrganizationAccessRequests organizationId={params.organizationId} standalone />
           </div>
         </main>
       ) : (
-        <MyAccessRequests scope={{ kind: 'organization', organizationId: params.organizationId }} />
+        <MyAccessRequests
+          scope={{ kind: 'organization', organizationId: params.organizationId }}
+          standalone
+        />
       )}
     </Suspense>
   )

@@ -20,13 +20,13 @@ import {
   accessReviewSearchParams,
 } from '@/ee/access-requests/components/search-params'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
+import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import {
   ACCESS_REQUEST_PAGE_SIZE,
   useAccessRequestSettings,
   useOrganizationAccessRequests,
   useUpdateAccessRequestSettings,
-} from '@/ee/access-requests/hooks/access-requests'
-import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
+} from '@/hooks/queries/access-requests'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
@@ -160,7 +160,6 @@ export function OrganizationAccessRequests({
                 }
                 onClick={() => void setParams({ 'request-id': request.id }, { history: 'push' })}
                 clickLabel={`Review ${request.targetLabel} request from ${request.requester.name || request.requester.email}`}
-                navigable
               />
             ))}
           </div>

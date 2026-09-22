@@ -97,6 +97,72 @@ afterEach(async () => {
 })
 
 describe('ViewInvitationsModal', () => {
+  it('keeps multiple workspace invitations and their grants attached to the correct actions', async () => {
+    const first: MyInvitation = {
+      ...invitation,
+      kind: 'workspace',
+      membershipIntent: 'external',
+      grants: [
+        {
+          workspaceId: 'alpha',
+          workspaceName: 'Alpha',
+          workspaceLogoUrl: 'https://example.com/alpha.png',
+          permission: 'admin',
+        },
+      ],
+      joinPreview: {
+        outcome: 'external',
+        organizationName: null,
+        workspaceIdsToMove: [],
+        workspacesToMove: [],
+      },
+    }
+    const second: MyInvitation = {
+      ...first,
+      id: 'invitation-2',
+      grants: [
+        {
+          workspaceId: 'design',
+          workspaceName: 'Design',
+          workspaceLogoUrl: 'https://example.com/design.png',
+          permission: 'read',
+        },
+        { workspaceId: 'engineering', workspaceName: 'Engineering', permission: 'write' },
+      ],
+    }
+    mocks.query.mockReturnValue({ data: [first, second], isPending: false, isError: false })
+    await renderModal()
+    expect(document.body.textContent).not.toContain('Before you join')
+    expect(document.body.textContent).not.toContain('without joining an organization')
+    const firstRow = document.querySelector('section[aria-label="Invitation to Alpha"]')
+    expect(firstRow?.textContent).toContain('admin access')
+    expect(firstRow?.querySelector('ul')).toBeNull()
+    expect(firstRow?.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.com/alpha.png'
+    )
+    const secondRow = Array.from(document.querySelectorAll('section')).find(
+      (row) => row.getAttribute('aria-label') === 'Invitation to Design +1'
+    )
+    expect(secondRow).toBeDefined()
+    const grants = Array.from(secondRow?.querySelectorAll('li') ?? [], (row) => row.textContent)
+    expect(grants).toHaveLength(2)
+    expect(grants[0]).toContain('Designread access')
+    expect(grants[1]).toContain('Engineeringwrite access')
+    expect(secondRow?.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.com/design.png'
+    )
+    const accept = Array.from(secondRow?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Accept'
+    )
+    expect(accept).toBeDefined()
+    await act(async () => accept?.click())
+    expect(mocks.accept).toHaveBeenCalledWith({
+      invitationId: 'invitation-2',
+      disclosedWorkspaceIds: [],
+      disclosedOutcome: 'external',
+    })
+  })
+
   it('discloses the complete migration and sends exactly those workspace IDs on acceptance', async () => {
     await renderModal()
     expect(document.body.textContent).toContain(
@@ -137,7 +203,7 @@ describe('ViewInvitationsModal', () => {
   })
 
   it.each([
-    ['external', 'workspace access without joining an organization'],
+    ['external', null],
     ['already-member', 'Your organization role will stay the same'],
     ['blocked', 'This invitation cannot currently be accepted'],
   ] as const)('discloses %s and preserves its empty-set stale check', async (outcome, message) => {
@@ -148,7 +214,11 @@ describe('ViewInvitationsModal', () => {
       workspaceIdsToMove: [],
     }
     await renderModal()
-    expect(document.body.textContent).toContain(message)
+    if (message) expect(document.body.textContent).toContain(message)
+    else {
+      expect(document.body.textContent).not.toContain('Before you join')
+      expect(document.body.textContent).not.toContain('without joining an organization')
+    }
     expect(document.body.textContent).not.toContain('as an organization admin')
     await act(async () => button('Accept')?.click())
     expect(mocks.accept).toHaveBeenCalledWith({

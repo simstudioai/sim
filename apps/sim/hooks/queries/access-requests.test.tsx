@@ -14,12 +14,12 @@ import {
   listMyAccessRequestsContract,
   resolveAccessRequestContract,
 } from '@/lib/api/contracts/access-requests'
-import { accessRequestKeys } from '@/ee/access-requests/hooks/access-request-keys'
 import {
   useDiscoverAccessRequests,
   useMyAccessRequests,
   useResolveAccessRequest,
-} from '@/ee/access-requests/hooks/access-requests'
+} from '@/hooks/queries/access-requests'
+import { accessRequestKeys } from '@/hooks/queries/utils/access-request-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { workspacePermissionSchema, workspaceSchema } from '@/lib/api/contracts/workspaces'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 
 export { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
@@ -194,6 +194,7 @@ export const invitationDetailsSchema = z.object({
     z.object({
       workspaceId: z.string(),
       workspaceName: z.string().nullable(),
+      workspaceLogoUrl: workspaceSchema.shape.logoUrl,
       permission: workspacePermissionSchema,
     })
   ),

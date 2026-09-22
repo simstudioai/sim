@@ -10,8 +10,8 @@ import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/re
 import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tables-empty-state'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
-import { workspaceFeatureDiscoveryQuery } from '@/ee/access-requests/hooks/access-request-keys'
-import { useDiscoverAccessRequests } from '@/ee/access-requests/hooks/access-requests'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
+import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-request-keys'
 
 /** Safe feature metadata shared by navigation and access-required pages. */
 export function useWorkspaceAccessRequestFeatures() {

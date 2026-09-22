@@ -68,7 +68,7 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
-import { useDiscoverAccessRequests } from '@/ee/access-requests/hooks/access-requests'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,

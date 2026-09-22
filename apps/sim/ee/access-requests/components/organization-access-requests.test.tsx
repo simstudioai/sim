@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   refetch: vi.fn(),
 }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   ACCESS_REQUEST_PAGE_SIZE: 25,
   useAccessRequestSettings: mocks.settings,
   useOrganizationAccessRequests: mocks.requests,

@@ -2,8 +2,14 @@
 import { authMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redirect } = vi.hoisted(() => ({ redirect: vi.fn() }))
+const { redirect, organizationContext } = vi.hoisted(() => ({
+  redirect: vi.fn(),
+  organizationContext: vi.fn(),
+}))
 vi.mock('next/navigation', () => ({ redirect }))
+vi.mock('@/lib/organizations/surface', () => ({
+  getOrganizationSurfaceContext: organizationContext,
+}))
 vi.mock('@/ee/access-requests/components/my-access-requests', () => ({
   MyAccessRequests: () => null,
 }))
@@ -66,5 +72,56 @@ describe('access request sign-in redirect', () => {
     expect(redirect).toHaveBeenCalledWith(
       `/login?callbackUrl=${encodeURIComponent('/access-requests?organizationId=organization')}`
     )
+  })
+
+  it('opens saved requester links in the organization shell with their filters and selection', async () => {
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
+    organizationContext.mockResolvedValue({ searchAccess: { memberScoped: true } })
+    await expect(
+      AccessRequestsPage({
+        searchParams: Promise.resolve({
+          organizationId: 'organization',
+          view: 'catalog',
+          requestId: 'request/a',
+          search: 'Slack & Notion',
+          page: '3',
+          callbackUrl: 'https://example.com/untrusted',
+        }),
+      })
+    ).rejects.toThrow('Redirect')
+    expect(organizationContext).toHaveBeenCalledWith('organization', 'viewer')
+    const destination = new URL(redirect.mock.calls[0][0], 'https://example.com')
+    expect(destination.pathname).toBe('/o/organization/access-requests')
+    expect(Object.fromEntries(destination.searchParams)).toEqual({
+      view: 'catalog',
+      requestId: 'request/a',
+      search: 'Slack & Notion',
+      page: '3',
+    })
+  })
+
+  it.each([null, { searchAccess: { memberScoped: false } }])(
+    'keeps the standalone route when the organization surface is unavailable: %j',
+    async (context) => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
+      organizationContext.mockResolvedValue(context)
+      await AccessRequestsPage({
+        searchParams: Promise.resolve({ organizationId: 'organization' }),
+      })
+      expect(redirect).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps authenticated administrator email links on the review surface', async () => {
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
+    await AccessRequestsPage({
+      searchParams: Promise.resolve({
+        organizationId: 'organization',
+        view: 'admin',
+        requestId: 'request',
+      }),
+    })
+    expect(redirect).not.toHaveBeenCalled()
+    expect(organizationContext).not.toHaveBeenCalled()
   })
 })
