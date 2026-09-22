@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  nativeSearchQueriesSchema,
   workspaceKnowledgeSearchDataSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
@@ -191,6 +192,7 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
     filters: workspaceSearchFiltersSchema.optional(),
     query: z.string().trim().max(2000, 'Query is too long').default(''),
     topK: z.number().int().min(1).max(50).optional().default(20),
+    nativeQueries: nativeSearchQueriesSchema.optional(),
   })
   .superRefine((body, ctx) => {
     const { modifiedAfter, modifiedBefore, startDate, endDate } = body.filters ?? {}

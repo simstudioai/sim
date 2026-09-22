@@ -1,6 +1,9 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
+import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -109,6 +112,48 @@ describe('evidence-linked citations', () => {
     expect(result.blocks).toHaveLength(2)
     expect(result.blocks[1].content).toContain('Actual title')
     expect(result.blocks[1].content).not.toContain('"id"')
+  })
+
+  it('restores padded live citations from the saved message format', () => {
+    const id = 'document:live:eyJzb3VyY2UiOiJnaXRodWIifQ'
+    const persisted = normalizeMessage({
+      id: 'answer',
+      role: 'assistant',
+      content: `Answer <source>{"id":"${id}=="}</source>`,
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'read',
+            name: 'read_document',
+            state: 'success',
+            result: {
+              success: true,
+              output: compactRetrievalCitations('read_document', {
+                success: true,
+                data: {
+                  citationId: id,
+                  citationUrl: 'https://github.com/simstudioai/mothership-releases',
+                  documentName: 'Enterprise guide',
+                },
+              }),
+            },
+          },
+        },
+        { type: 'text', channel: 'final', content: `Answer <source>{"id":"${id}=="}</source>` },
+      ],
+    })
+    const displayed = toDisplayMessage(persisted)
+    expect(collectCitedMessageSources(displayed.contentBlocks ?? [], displayed.content)).toEqual([
+      expect.objectContaining({
+        url: 'https://github.com/simstudioai/mothership-releases',
+        title: 'Enterprise guide',
+      }),
+    ])
+    expect(
+      resolveMessageCitations(blocks(), `<source>{"id":"${id}=="}</source>`, true).fallbackContent
+    ).toBe('')
   })
 
   it('keeps Build web citations', () => {

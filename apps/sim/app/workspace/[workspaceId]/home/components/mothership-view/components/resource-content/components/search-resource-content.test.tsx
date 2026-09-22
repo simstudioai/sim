@@ -6,10 +6,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   viewerId: 'reader',
   request: vi.fn(),
   summarize: vi.fn(),
   divider: vi.fn(),
+}))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: mocks.viewerId } } }),
@@ -44,6 +48,7 @@ let client: QueryClient
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.live = false
   mocks.viewerId = 'reader'
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -91,7 +96,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function render(query: string) {
+async function render(query: string, nativeQueries?: [{ provider: 'github'; query: string }]) {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
@@ -102,6 +107,7 @@ async function render(query: string) {
               scope: { kind: 'organization', organizationId: 'org' },
               filters: { source: 'google_drive' },
               topK: 12,
+              ...(nativeQueries ? { nativeQueries } : {}),
             })}
             onSummarize={mocks.summarize}
           />
@@ -116,14 +122,56 @@ async function render(query: string) {
   })
 }
 describe('shared Search resource content', () => {
-  it('renders live authorized tool data without searching twice and refetches with a fresh viewer cache', async () => {
-    const key = knowledgeKeys.search(
-      resourceScopeKey({ kind: 'organization', organizationId: 'org' }),
-      'release',
-      { source: 'google_drive' },
-      12,
-      'reader'
+  it('uses the streamed live native results without a second provider request', async () => {
+    mocks.live = true
+    const nativeQueries = [{ provider: 'github' as const, query: 'repo:simstudioai/sim release' }]
+    client.setQueryData(
+      [
+        ...knowledgeKeys.search(
+          resourceScopeKey({ kind: 'organization', organizationId: 'org' }),
+          'release',
+          { source: 'google_drive' },
+          12,
+          'reader',
+          nativeQueries
+        ),
+        'live',
+      ],
+      {
+        query: 'release',
+        results: [
+          {
+            documentId: 'live-doc',
+            knowledgeBaseId: '',
+            knowledgeBaseName: '',
+            documentName: 'Streamed native result',
+            sourceUrl: 'https://github.com/simstudioai/sim',
+            connectorType: 'github',
+            sourceModifiedAt: null,
+            author: null,
+            content: 'release',
+            chunkIndex: 0,
+            similarity: 1,
+          },
+        ],
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      }
     )
+    await render('release', nativeQueries)
+    expect(container.textContent).toContain('Streamed native result')
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+  it('renders live authorized tool data without searching twice and refetches with a fresh viewer cache', async () => {
+    const key = [
+      ...knowledgeKeys.search(
+        resourceScopeKey({ kind: 'organization', organizationId: 'org' }),
+        'release',
+        { source: 'google_drive' },
+        12,
+        'reader'
+      ),
+      'indexed',
+    ]
     client.setQueryData(key, {
       query: 'release',
       results: [

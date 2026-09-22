@@ -75,7 +75,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     return
   }
   if (payload.resource.type === 'search') {
-    if (ctx.deps.citedSourcesEnabled) return
     if (payload.op === 'refresh' || payload.op === 'clear_view') return
     const search = payload.resource.search
     if (!search) return
@@ -98,13 +97,17 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     }
     const scopeKey =
       search.scope.kind === 'workspace' ? search.scope.workspaceId : resourceScopeKey(search.scope)
-    const queryKey = knowledgeKeys.search(
-      scopeKey,
-      search.query,
-      search.filters,
-      search.topK,
-      ctx.deps.viewerId
-    )
+    const queryKey = [
+      ...knowledgeKeys.search(
+        scopeKey,
+        search.query,
+        search.filters,
+        search.topK,
+        ctx.deps.viewerId,
+        search.nativeQueries
+      ),
+      ctx.deps.citedSourcesEnabled ? 'live' : 'indexed',
+    ]
     const preview =
       payload.op === 'upsert' &&
       !payload.replay &&

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { z } from 'zod'
 import {
   readDocumentInputSchema,
@@ -35,6 +36,11 @@ import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/app
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
+
+/** Stable opaque citation IDs keep the model from rewriting long live references. */
+function liveCitationId(documentId: string): string {
+  return `live:${sha256Hex(documentId).slice(0, 32)}`
+}
 
 const CITATION_INSTRUCTION =
   'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.' +
@@ -119,6 +125,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
                     sourceUrl: item.sourceUrl,
                     baseUrl: getBaseUrl(),
                   }),
+                  citationId: liveCitationId(item.documentId),
                 })),
               },
             }
@@ -268,6 +275,7 @@ export const readDocumentServerTool: BaseServerTool = {
                   sourceUrl: data.sourceUrl,
                   baseUrl: getBaseUrl(),
                 }),
+                citationId: liveCitationId(data.documentId),
               },
             }
           }

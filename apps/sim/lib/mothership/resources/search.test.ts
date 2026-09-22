@@ -8,6 +8,7 @@ import {
   searchResultFromToolResult,
 } from '@/lib/mothership/resources/search-tool-result'
 import { mergeChatResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const context = {
   userId: 'reader',
@@ -17,6 +18,10 @@ const context = {
   toolCallId: 'call',
   copilotToolExecution: true,
   assistantSearch: { source: 'slack' },
+  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+    userId: 'reader',
+    organizationId: 'org',
+  }),
 }
 const output = {
   success: true,
@@ -43,6 +48,26 @@ describe('Search resource addresses', () => {
     expect(ResourceAddress.parse(resource)).toEqual(resource)
     expect(mothershipResourceSchema.parse(resource)).toEqual(resource)
     expect(sanitizeChatResources([resource])).toEqual([resource])
+  })
+  it('keeps date-only and native search addresses for an exact result-panel refresh', () => {
+    const nativeQueries = [
+      { provider: 'github' as const, query: 'repo:simstudioai/sim deployment' },
+    ]
+    const resource = searchResourceFromToolResult(
+      {
+        query: '',
+        startDate: '2026-09-22T00:00:00Z',
+        nativeQueries,
+      },
+      { success: true, data: { query: '', results: [] } },
+      context
+    )!
+    expect(resource.search).toMatchObject({
+      query: '',
+      filters: { source: 'slack', startDate: '2026-09-22T00:00:00Z' },
+      nativeQueries,
+    })
+    expect(ResourceAddress.parse(resource)).toEqual(resource)
   })
   it.each(['agent', undefined] as const)(
     'does not open a panel for Build mode (%s)',

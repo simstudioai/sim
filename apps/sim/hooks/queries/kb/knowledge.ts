@@ -55,6 +55,7 @@ import {
   type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
 import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -1209,7 +1210,8 @@ export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
   filters?: WorkspaceSearchFilters,
-  topK = 20
+  topK = 20,
+  options?: { nativeQueries?: NativeSearchQuery[]; reuseFreshResult?: boolean }
 ) {
   const { features } = useDeploymentShape()
   const live = features.liveEnterpriseSearch === true
@@ -1227,7 +1229,7 @@ export function useWorkspaceKnowledgeSearch(
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
     queryKey: [
-      ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId),
+      ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId, options?.nativeQueries),
       live ? 'live' : 'indexed',
     ],
     queryFn: ({ signal }) =>
@@ -1237,11 +1239,24 @@ export function useWorkspaceKnowledgeSearch(
           query: trimmed,
           filters,
           topK,
+          ...(live && options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
         },
         signal
       ),
-    enabled: Boolean(scope && userId) && trimmed.length > 0,
-    staleTime: live ? 0 : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    enabled:
+      Boolean(scope && userId) &&
+      Boolean(
+        trimmed ||
+          filters?.startDate ||
+          filters?.endDate ||
+          filters?.modifiedAfter ||
+          filters?.modifiedBefore
+      ),
+    staleTime: live
+      ? options?.reuseFreshResult
+        ? 60_000
+        : 0
+      : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
     placeholderData: (previous, previousQuery) =>
       !live &&

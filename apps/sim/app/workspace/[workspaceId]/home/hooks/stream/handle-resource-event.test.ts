@@ -507,12 +507,15 @@ it('opens an organization Search tab and retains its address without requiring a
   expect(callback).toHaveBeenCalledWith(resource.id)
   handleResourceEvent({ deps } as StreamLoopContext, event)
   const exactQuery = {
-    queryKey: knowledgeKeys.search(
-      resourceScopeKey(resource.search.scope),
-      resource.search.query,
-      resource.search.filters,
-      resource.search.topK
-    ),
+    queryKey: [
+      ...knowledgeKeys.search(
+        resourceScopeKey(resource.search.scope),
+        resource.search.query,
+        resource.search.filters,
+        resource.search.topK
+      ),
+      'indexed',
+    ],
   }
   expect(deps.queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
   expect(deps.queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, exactQuery)
@@ -558,13 +561,16 @@ it('seeds only fresh matching search effects and never seeds replayed or foreign
     ...removeEvent('file', 'unused'),
     payload: { op: 'upsert', resource, searchResult },
   }
-  const key = knowledgeKeys.search(
-    resourceScopeKey(resource.search.scope),
-    'policy',
-    undefined,
-    8,
-    'reader'
-  )
+  const key = [
+    ...knowledgeKeys.search(
+      resourceScopeKey(resource.search.scope),
+      'policy',
+      undefined,
+      8,
+      'reader'
+    ),
+    'indexed',
+  ]
   handleResourceEvent({ deps } as StreamLoopContext, event)
   expect(deps.queryClient.setQueryData).toHaveBeenCalledWith(key, data)
   expect(deps.queryClient.cancelQueries).toHaveBeenCalledWith(
@@ -635,12 +641,21 @@ it('refreshes organization policy and its server layout only within the owning o
   expect(deps.addResource).not.toHaveBeenCalled()
 })
 
-it('ignores intermediate search resources when the live answer owns the cited-sources panel', () => {
+it('shows live search results while the answer is running', () => {
+  const onResourceEvent = vi.fn()
   const deps = makeStreamLoopDeps({
     citedSourcesEnabled: true,
+    workspaceId: undefined,
     organizationId: 'org',
-    onResourceEventRef: { current: vi.fn() },
+    viewerId: 'reader',
+    onResourceEventRef: { current: onResourceEvent },
   })
+  const nativeQueries = [{ provider: 'github' as const, query: 'repo:simstudioai/sim deployment' }]
+  const data = {
+    query: 'deployment',
+    results: [],
+    retrieval: { status: 'complete' as const, timedOutLegs: [] },
+  }
   const event: ResourceEvent = {
     ...removeEvent('file', 'unused'),
     payload: {
@@ -649,13 +664,30 @@ it('ignores intermediate search resources when the live answer owns the cited-so
         type: 'search',
         id: 'search:organization:org',
         title: 'Search results',
-        search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } },
+        search: {
+          query: 'deployment',
+          scope: { kind: 'organization', organizationId: 'org' },
+          nativeQueries,
+        },
       },
+      searchResult: { actorUserId: 'reader', data },
     },
   }
   handleResourceEvent({ deps } as StreamLoopContext, event)
-  expect(deps.addResource).not.toHaveBeenCalled()
-  expect(deps.onResourceEventRef.current).not.toHaveBeenCalled()
-  expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
-  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+  expect(deps.addResource).toHaveBeenCalledWith(event.payload.resource)
+  expect(onResourceEvent).toHaveBeenCalledWith('search:organization:org')
+  expect(deps.queryClient.setQueryData).toHaveBeenCalledWith(
+    [
+      ...knowledgeKeys.search(
+        resourceScopeKey(event.payload.resource.search!.scope),
+        'deployment',
+        undefined,
+        undefined,
+        'reader',
+        nativeQueries
+      ),
+      'live',
+    ],
+    data
+  )
 })

@@ -1,16 +1,17 @@
 import { z } from 'zod'
 import {
+  nativeSearchQueriesSchema,
   searchWorkspaceInputSchema,
   workspaceKnowledgeSearchDataSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const successfulSearch = z.object({
   success: z.literal(true),
-  data: z.object({ query: z.string().trim().min(1).max(2000) }).passthrough(),
+  data: z.object({ query: z.string().trim().max(2000) }).passthrough(),
 })
 
 /** Search mode publishes successful retrievals to its panel; Build keeps them in the conversation. */
@@ -19,7 +20,7 @@ export function searchResourceFromToolResult(
   output: unknown,
   context: ServerToolContext
 ) {
-  if (context.requestMode !== 'assistant' || isLiveEnterpriseSearchEnabled) return undefined
+  if (context.requestMode !== 'assistant') return undefined
   const result = successfulSearch.safeParse(output)
   if (!result.success) return undefined
   const scope = context.organizationId
@@ -28,12 +29,26 @@ export function searchResourceFromToolResult(
       ? { kind: 'workspace' as const, workspaceId: context.workspaceId }
       : undefined
   if (!scope) return undefined
-  const { topK, query: _query, ...requestedFilters } = searchWorkspaceInputSchema.parse(params)
+  const {
+    topK,
+    query: _query,
+    nativeQueries,
+    ...requestedFilters
+  } = searchWorkspaceInputSchema.parse(params)
+  const nativeProjection = nativeQueries
+    ? context.resolvedSecretTraceRegistry &&
+      projectResolvedSecretModelContent(nativeQueries, context.resolvedSecretTraceRegistry)
+    : undefined
+  if (nativeQueries && !nativeProjection?.safe) return undefined
+  const safeNativeQueries = nativeProjection?.safe
+    ? nativeSearchQueriesSchema.parse(nativeProjection.value)
+    : undefined
   return createSearchResource({
     query: result.data.data.query,
     scope,
     filters: intersectWorkspaceSearchFilters(requestedFilters, context.assistantSearch),
     topK,
+    ...(safeNativeQueries ? { nativeQueries: safeNativeQueries } : {}),
   })
 }
 

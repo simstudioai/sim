@@ -100,6 +100,8 @@ type KnowledgeSearchResultsProps = (
   /** A tool-owned search keeps its exact scope instead of inheriting page filters. */
   filters?: WorkspaceSearchFilters
   topK?: number
+  nativeQueries?: SearchResource['nativeQueries']
+  reuseFreshResult?: boolean
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
   onSearchChange?: (search: SearchResource) => void
@@ -112,6 +114,8 @@ export function KnowledgeSearchResults({
   query,
   filters: suppliedFilters,
   topK,
+  nativeQueries,
+  reuseFreshResult,
   onSummarize,
   onSearchChange,
 }: KnowledgeSearchResultsProps) {
@@ -127,6 +131,8 @@ export function KnowledgeSearchResults({
       query={trimmed}
       suppliedFilters={suppliedFilters}
       topK={topK}
+      nativeQueries={nativeQueries}
+      reuseFreshResult={reuseFreshResult}
       onSummarize={onSummarize}
       onSearchChange={onSearchChange}
     />
@@ -136,6 +142,8 @@ export function KnowledgeSearchResults({
 interface SearchResultsProps {
   suppliedFilters?: WorkspaceSearchFilters
   topK?: number
+  nativeQueries?: SearchResource['nativeQueries']
+  reuseFreshResult?: boolean
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
@@ -390,6 +398,8 @@ function LiveSearchResults({
   query,
   suppliedFilters,
   topK,
+  nativeQueries,
+  reuseFreshResult,
   onSummarize,
   onSearchChange,
 }: SearchResultsProps) {
@@ -405,16 +415,24 @@ function LiveSearchResults({
     scope,
     awaitingRange ? '' : query,
     filters,
-    topK ?? 20
+    topK ?? 20,
+    { nativeQueries, reuseFreshResult }
   )
   useEffect(() => {
-    onSearchChange?.({ scope, query, filters, ...(topK ? { topK } : {}) })
+    onSearchChange?.({
+      scope,
+      query,
+      filters,
+      ...(topK ? { topK } : {}),
+      ...(nativeQueries ? { nativeQueries } : {}),
+    })
   }, [
     scope.kind,
     scope.kind === 'organization' ? scope.organizationId : scope.workspaceId,
     query,
     filters,
     topK,
+    nativeQueries,
     onSearchChange,
   ])
   const documents = groupResultsByDocument(data?.results ?? [])

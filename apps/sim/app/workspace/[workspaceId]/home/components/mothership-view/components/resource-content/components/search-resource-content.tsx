@@ -20,6 +20,8 @@ export function SearchResourceContent({ resource, onSummarize }: SearchResourceC
         query={search.query}
         filters={search.filters ?? {}}
         topK={search.topK}
+        nativeQueries={search.nativeQueries}
+        reuseFreshResult
         onSummarize={onSummarize}
       />
     </div>

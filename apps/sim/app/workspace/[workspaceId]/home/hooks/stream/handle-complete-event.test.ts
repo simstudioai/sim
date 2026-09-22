@@ -37,7 +37,7 @@ const blocks: ContentBlock[] = [
       result: { success: true, output: evidence },
     },
   },
-  { type: 'text', content: `Answer <source>{"id":"${citationId}"}</source>` },
+  { type: 'text', content: `Answer <source>{"id":"${citationId}=="}</source>` },
 ]
 function event(
   status: 'complete' | 'error' | 'cancelled' = 'complete'
@@ -65,7 +65,7 @@ function context(contentBlocks = blocks) {
 }
 
 describe('completed answer source panel', () => {
-  it('retains long live citation IDs and includes only cited main-answer evidence', () => {
+  it('accepts padded live citation IDs and includes only cited main-answer evidence', () => {
     const citations = collectCitedMessageSources(
       [...blocks, { type: 'subagent_text', content: '<source>{"id":"unused"}</source>' }],
       ''

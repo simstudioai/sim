@@ -1,5 +1,6 @@
 import type { KnowledgeScope } from '@/lib/api/contracts/knowledge/base'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
 
 /**
  * React Query key factory for knowledge bases.
@@ -39,8 +40,15 @@ export const knowledgeKeys = {
     query: string,
     filters?: WorkspaceSearchFilters,
     topK = 20,
-    userId?: string
-  ) => [...knowledgeKeys.searchQuery(scopeKey, query, userId), filters ?? {}, topK] as const,
+    userId?: string,
+    nativeQueries?: NativeSearchQuery[]
+  ) =>
+    [
+      ...knowledgeKeys.searchQuery(scopeKey, query, userId),
+      filters ?? {},
+      topK,
+      ...(nativeQueries ? [nativeQueries] : []),
+    ] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>

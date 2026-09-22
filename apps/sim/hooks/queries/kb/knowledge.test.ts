@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   requestJson: vi.fn(),
   useMutation: vi.fn(),
   useQuery: vi.fn(),
@@ -14,6 +15,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
+}))
+
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -141,6 +146,9 @@ function captureQuery(build: () => unknown): CapturedQuery {
 }
 
 describe('knowledge query placeholder scope', () => {
+  beforeEach(() => {
+    mocks.live = false
+  })
   it('waits for a nonempty owner before searching', () => {
     const query = captureQuery(() => useWorkspaceKnowledgeSearch('', 'query'))
     expect(query).toMatchObject({ enabled: false })
@@ -239,9 +247,10 @@ describe('knowledge query placeholder scope', () => {
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
     )
-    expect(query.queryKey).toEqual(
-      knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 20, 'reader')
-    )
+    expect(query.queryKey).toEqual([
+      ...knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 20, 'reader'),
+      'indexed',
+    ])
     expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
       knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
     )
@@ -272,6 +281,45 @@ describe('knowledge query placeholder scope', () => {
           query: 'release',
           filters: { documentIds: ['doc-1'] },
           topK: 5,
+        },
+      })
+    )
+  })
+  it('runs a date-only live resource with its original native query', async () => {
+    mocks.live = true
+    mocks.requestJson.mockResolvedValueOnce({ data: { query: '', results: [] } })
+    const nativeQueries = [{ provider: 'google_calendar' as const, query: '' }]
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch(
+        { kind: 'organization', organizationId: 'org-1' },
+        '',
+        { startDate: '2026-09-22T00:00:00Z' },
+        20,
+        { nativeQueries, reuseFreshResult: true }
+      )
+    )
+    expect(query).toMatchObject({ enabled: true, staleTime: 60_000 })
+    expect(query.queryKey).toEqual([
+      ...knowledgeKeys.search(
+        'organization:org-1',
+        '',
+        { startDate: '2026-09-22T00:00:00Z' },
+        20,
+        'reader',
+        nativeQueries
+      ),
+      'live',
+    ])
+    await query.queryFn({ signal: new AbortController().signal })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: {
+          organizationId: 'org-1',
+          query: '',
+          filters: { startDate: '2026-09-22T00:00:00Z' },
+          topK: 20,
+          nativeQueries,
         },
       })
     )

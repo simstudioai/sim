@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import {
+  nativeSearchQueriesSchema,
   workspaceKnowledgeSearchDataSchema,
   workspaceSearchFiltersSchema,
 } from "./sim-assistant-tools.generated";
@@ -26,13 +27,14 @@ export const ResourceType = z.enum([
 
 /** Saved retrieval address; documents are fetched again under the current viewer. */
 export const SearchResource = z.object({
-  query: z.string().trim().min(1).max(2000),
+  query: z.string().trim().max(2000),
   scope: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("organization"), organizationId: z.string().min(1).max(200) }),
     z.object({ kind: z.literal("workspace"), workspaceId: z.uuid() }),
   ]),
   filters: workspaceSearchFiltersSchema.optional(),
   topK: z.number().int().min(1).max(50).optional(),
+  nativeQueries: nativeSearchQueriesSchema.optional(),
 });
 export type SearchResource = z.infer<typeof SearchResource>;
 
