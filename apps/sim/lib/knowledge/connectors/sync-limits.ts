@@ -26,6 +26,13 @@ export const CREDENTIAL_REMOVED_SYNC_ERROR =
   'Credential removed. Reconnect the connector to resume syncing.'
 
 /**
+ * The error a connector carries once the source rejects its credential outright (a revoked or
+ * expired grant, not a passing failure); cleared by reauthorizing that credential.
+ */
+export const CREDENTIAL_REVOKED_SYNC_ERROR =
+  'The source no longer accepts this credential. Reconnect it to resume syncing.'
+
+/**
  * The error a connector carries once {@link MAX_CONSECUTIVE_FAILURES} disables it.
  *
  * Shared by the same two writers as the threshold itself. Reporting a timeout on

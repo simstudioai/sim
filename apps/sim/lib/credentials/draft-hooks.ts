@@ -6,6 +6,7 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
+import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -75,6 +76,7 @@ export async function handleCreateCredentialFromDraft(params: {
       .where(eq(schema.credential.id, existingCredential.id))
 
     await clearOAuthRefreshDeadFlag(accountId)
+    await resumeConnectorsAfterCredentialReconnect(accountId, now)
 
     recordAudit({
       workspaceId: draft.workspaceId,
@@ -209,6 +211,7 @@ export async function handleReconnectCredential(params: {
   )
 
   await clearOAuthRefreshDeadFlag(newAccountId)
+  await resumeConnectorsAfterCredentialReconnect(newAccountId, now)
 
   recordAudit({
     workspaceId,
