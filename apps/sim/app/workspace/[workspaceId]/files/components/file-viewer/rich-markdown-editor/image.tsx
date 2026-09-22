@@ -282,9 +282,11 @@ export function ResizableImageView({ node, selected, editor, getPos }: ReactNode
           type='button'
           variant='ghost'
           size='icon'
+          iconSize={{ base: 'touch', sm: 'roomy' }}
+          iconPadding='sm'
           aria-label='Resize image'
           onPointerDown={startResize}
-          className='absolute right-0 bottom-0 flex size-10 cursor-nwse-resize touch-none items-end justify-end p-1 sm:size-8'
+          className='absolute right-0 bottom-0 cursor-nwse-resize touch-none items-end justify-end'
         >
           <span className='size-3 rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]' />
         </Button>
