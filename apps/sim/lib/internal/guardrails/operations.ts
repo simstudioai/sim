@@ -6,10 +6,10 @@ import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
 import {
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   requireBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
@@ -164,7 +164,7 @@ async function prepareHallucinationContext(
     throw error
   }
 
-  const usage = await checkAttributedUsageLimits(billingAttribution)
+  const usage = await checkExecutionUsageLimits(billingAttribution)
   if (usage.isExceeded) {
     fail(402, usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.')
   }

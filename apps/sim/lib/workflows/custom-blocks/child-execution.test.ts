@@ -10,8 +10,8 @@ const { mockCheckAttributedUsageLimits, mockSubscribe, mockUnsubscribe } = vi.ho
   mockUnsubscribe: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: mockCheckAttributedUsageLimits,
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({

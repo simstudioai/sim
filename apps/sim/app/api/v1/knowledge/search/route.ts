@@ -2,10 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v1KnowledgeSearchContract } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import {
-  checkAttributedUsageLimits,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
@@ -82,7 +82,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * keys resolve their system actor and immutable payer from one workspace read.
      */
     if (billingAttribution) {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
+      const usage = await checkSearchUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return NextResponse.json(
           { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },

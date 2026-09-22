@@ -99,10 +99,23 @@ export function checkIngestionUsageLimits(
  * {@link checkAttributedUsageLimits} for knowledge search. Serves only a cached
  * admission: a refusal is always re-read, so a payer who just raised their limit
  * or upgraded is never held behind a cached block while they wait on a search.
- * Every other interactive caller (uploads, execution admission, the settings
- * surfaces) keeps reading the gate fresh.
+ * Every other interactive caller (uploads, the settings surfaces) keeps reading
+ * the gate fresh.
  */
 export function checkSearchUsageLimits(
+  attribution: BillingAttributionSnapshot
+): Promise<AttributedUsageLimitsResult> {
+  return checkUsageLimitsThroughCache(attribution, false)
+}
+
+/**
+ * {@link checkAttributedUsageLimits} for the execution path, the highest-volume
+ * reader of the gate. Same policy as search: only an admission is served from
+ * cache, so a raised limit applies on the next run. The admission's usage figure
+ * is up to one TTL stale, which widens the execution-slot reservation headroom
+ * by that much and no more.
+ */
+export function checkExecutionUsageLimits(
   attribution: BillingAttributionSnapshot
 ): Promise<AttributedUsageLimitsResult> {
   return checkUsageLimitsThroughCache(attribution, false)
