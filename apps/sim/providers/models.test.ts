@@ -142,6 +142,8 @@ describe('OpenAI provider definition', () => {
 
 describe('direct provider catalog additions', () => {
   it.each([
+    ['gpt-6-sol', 'openai'],
+    ['gpt-6-luna', 'openai'],
     ['chat-latest', 'openai'],
     ['gpt-5.3-codex', 'openai'],
     ['gemini-3.7-flash', 'google'],
