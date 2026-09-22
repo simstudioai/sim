@@ -796,7 +796,20 @@ export async function updateKnowledgeBase(
             )
           )
           .limit(1)
-        const billableBytes = Number(billableStorage?.bytes ?? 0)
+        /** A detaching connector's reservation is already on this workspace's ledger. */
+        const [reservedStorage] = await tx
+          .select({
+            bytes: sql<number>`COALESCE(SUM(${knowledgeConnector.detachReservedBytes}), 0)`,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(knowledgeConnector.detachedAt)
+            )
+          )
+        const billableBytes =
+          Number(billableStorage?.bytes ?? 0) + Number(reservedStorage?.bytes ?? 0)
         transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
           workspaceDeltas: [
             { context: storageMove.sourceContext, deltaBytes: -billableBytes },
@@ -1243,9 +1256,14 @@ export async function restoreKnowledgeBase(
             )
           )
 
+        /** A connector detached before the archive keeps its release fence; only its documents return. */
         await tx
           .update(knowledgeConnector)
-          .set({ archivedAt: null, status: 'active', updatedAt: now })
+          .set({
+            archivedAt: null,
+            status: sql`CASE WHEN ${knowledgeConnector.detachedAt} IS NULL THEN 'active' ELSE ${knowledgeConnector.status} END`,
+            updatedAt: now,
+          })
           .where(
             and(
               eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),

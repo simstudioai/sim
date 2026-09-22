@@ -5971,6 +5971,21 @@ export const knowledgeConnector = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
     deletedAt: timestamp('deleted_at'),
+    /**
+     * Set when the connector is removed but its documents are kept. The connector stops syncing
+     * and leaves every management surface at once, while its documents stay readable; a
+     * background job releases them as standalone entries in bounded pages and then deletes the
+     * row. Releasing a document rewrites every search projection row of it, so the release
+     * cannot run inside the removal request.
+     */
+    detachedAt: timestamp('detached_at'),
+    /**
+     * Storage admitted and charged when the connector was detached but not yet matched by a released
+     * document. Each released page consumes its bytes; whatever remains when the row is deleted, such
+     * as a document deleted before its release, is settled then. Billing recomputations count it
+     * alongside standalone documents, since the workspace ledger already includes it.
+     */
+    detachReservedBytes: bigint('detach_reserved_bytes', { mode: 'number' }).notNull().default(0),
   },
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),

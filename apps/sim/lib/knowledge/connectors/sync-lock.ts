@@ -42,9 +42,17 @@ export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
   return and(holdsSyncLockToken(connectorId, syncLockToken), connectorIsLive())
 }
 
-/** The archived/deleted half of {@link stillHoldsSyncLock}. */
+/**
+ * The archived/deleted/detached half of {@link stillHoldsSyncLock}, and the canonical test for a
+ * connector that can still be synced or managed. A detached connector's documents stay readable,
+ * so document visibility checks `archivedAt` and `deletedAt` alone.
+ */
 export function connectorIsLive() {
-  return and(isNull(knowledgeConnector.archivedAt), isNull(knowledgeConnector.deletedAt))
+  return and(
+    isNull(knowledgeConnector.archivedAt),
+    isNull(knowledgeConnector.deletedAt),
+    isNull(knowledgeConnector.detachedAt)
+  )
 }
 
 /**

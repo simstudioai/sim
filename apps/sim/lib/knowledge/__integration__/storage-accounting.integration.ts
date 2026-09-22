@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import {
   document,
   embedding,
+  embeddingSearch,
   knowledgeBase,
   knowledgeConnector,
   organization,
@@ -14,9 +15,9 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { drainConnectorEvent } from '@/lib/knowledge/__integration__/drain-connector-event'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -24,9 +25,9 @@ import {
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/deletion'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
 import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
-import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   createSingleDocument,
   getKnowledgeDocument,
@@ -104,13 +105,23 @@ function disconnect(ids: Fixture, deleteDocuments = false) {
   })
 }
 
+/** Removes the source keeping its documents, then runs the background release to completion. */
+async function detach(ids: Fixture) {
+  const outcome = await disconnect(ids)
+  if (outcome.success) await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
+  return outcome
+}
+
 afterAll(async () => {
   for (const ids of fixtures) {
     await db
       .delete(outboxEvent)
       .where(
         and(
-          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT),
+          inArray(outboxEvent.eventType, [
+            KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+            KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+          ]),
           sql`${outboxEvent.payload}->>'knowledgeBaseId' = ${ids.knowledgeBaseId}`
         )
       )
@@ -130,7 +141,7 @@ describe('knowledge document storage ledgers', () => {
     const transaction = db.transaction.bind(db)
     /** Interleave real operations at the lock boundary; every query and commit still uses PostgreSQL. */
     const detachBeforeLock: typeof db.transaction = async (callback, config) => {
-      expect(await disconnect(ids)).toMatchObject({ success: true })
+      expect(await detach(ids)).toMatchObject({ success: true })
       expect(await ledger(ids)).toEqual({ workspaceBytes: 37, payerBytes: 37 })
       return transaction(callback, config)
     }
@@ -167,7 +178,19 @@ describe('knowledge document storage ledgers', () => {
       { success: true, documentsKept: 6, documentsDeleted: 0 },
     ])
     expect(outcomes.filter((result) => !result.success)).toHaveLength(1)
+    /** Kept bytes are reserved at removal; the documents stay attached and readable until released. */
     expect(await ledger(ids)).toEqual({ workspaceBytes: 70, payerBytes: 70 })
+    expect(
+      await getKnowledgeDocument(ids.knowledgeBaseId, source[0].id, WORKSPACE_ACCESS_SCOPE)
+    ).not.toBeNull()
+    await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 70, payerBytes: 70 })
+    expect(
+      await db
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    ).toHaveLength(0)
     const retained = await db
       .select({ id: document.id, connectorId: document.connectorId, deletedAt: document.deletedAt })
       .from(document)
@@ -195,6 +218,59 @@ describe('knowledge document storage ledgers', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 29, payerBytes: 29 })
     expect(await hardDeleteDocuments([manual.id], generateId())).toBe(1)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
+  })
+
+  it('settles the reservation of a kept document deleted before its release', async () => {
+    const ids = await seed()
+    const [kept, removed] = [sourceDocument(ids, 37), sourceDocument(ids, 5)]
+    await db.insert(document).values([kept, removed])
+
+    expect(await disconnect(ids)).toMatchObject({ success: true, documentsKept: 2 })
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 42, payerBytes: 42 })
+    expect(await hardDeleteDocuments([removed.id], generateId())).toBe(1)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 42, payerBytes: 42 })
+
+    await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 37, payerBytes: 37 })
+    expect(await hardDeleteDocuments([kept.id], generateId())).toBe(1)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
+  })
+
+  it('releases a document larger than one page without a search row still naming its source', async () => {
+    const ids = await seed()
+    const row = sourceDocument(ids, 5)
+    await db.insert(document).values(row)
+    await db.insert(embedding).values(
+      Array.from({ length: 600 }, (_, chunkIndex) => ({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: row.id,
+        chunkIndex,
+        chunkHash: `hash-${chunkIndex}`,
+        content: 'test chunk',
+        contentLength: 10,
+        tokenCount: 2,
+        startOffset: 0,
+        endOffset: 10,
+        embedding384: Array(384).fill(0.1),
+      }))
+    )
+    const sourceRows = () =>
+      db
+        .select({ count: sql<number>`COUNT(*)::integer` })
+        .from(embeddingSearch)
+        .where(and(eq(embeddingSearch.documentId, row.id), isNotNull(embeddingSearch.connectorId)))
+    expect((await sourceRows())[0].count).toBe(600)
+
+    expect(await detach(ids)).toEqual({ success: true, documentsKept: 1, documentsDeleted: 0 })
+
+    expect((await sourceRows())[0].count).toBe(0)
+    const [released] = await db
+      .select({ connectorId: document.connectorId })
+      .from(document)
+      .where(eq(document.id, row.id))
+    expect(released.connectorId).toBeNull()
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 5, payerBytes: 5 })
   })
 
   it('hides a source immediately and cleans bounded batches without debiting manual storage', async () => {
@@ -240,17 +316,6 @@ describe('knowledge document storage ledgers', () => {
     for (const access of [SYSTEM_ACCESS_SCOPE, WORKSPACE_ACCESS_SCOPE]) {
       expect(await getKnowledgeDocument(ids.knowledgeBaseId, rows[0].id, access)).toBeNull()
     }
-    const [job] = await db
-      .select()
-      .from(outboxEvent)
-      .where(
-        and(
-          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT),
-          sql`${outboxEvent.payload}->>'connectorId' = ${ids.connectorId}`
-        )
-      )
-      .limit(1)
-    expect(job).toBeDefined()
     await expect(
       persistSkippedDocuments(
         ids.knowledgeBaseId,
@@ -274,17 +339,7 @@ describe('knowledge document storage ledgers', () => {
         createContentSyncLease(ids.connectorId, ids.lockId)
       )
     ).rejects.toBeInstanceOf(SyncLockLostException)
-    const handlers = knowledgeDocumentProcessingOutboxHandlers
-    let status = await processOutboxEventById(job.id, handlers)
-    expect(status).toBe('pending')
-    for (let attempt = 0; status === 'pending' && attempt < 5; attempt++) {
-      await db
-        .update(outboxEvent)
-        .set({ availableAt: new Date() })
-        .where(eq(outboxEvent.id, job.id))
-      status = await processOutboxEventById(job.id, handlers)
-    }
-    expect(status).toBe('completed')
+    await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT)
     expect(
       await db
         .select({ id: knowledgeConnector.id })
@@ -398,7 +453,7 @@ describe('knowledge document storage ledgers', () => {
   it('serializes ordinary uploads against source detachment without losing either charge', async () => {
     const ids = await seed()
     await db.insert(document).values([sourceDocument(ids, 37)])
-    const [detached, manual] = await Promise.all([disconnect(ids), manualDocument(ids, 41)])
+    const [detached, manual] = await Promise.all([detach(ids), manualDocument(ids, 41)])
     expect(detached).toMatchObject({ success: true })
     expect(await ledger(ids)).toEqual({ workspaceBytes: 78, payerBytes: 78 })
     const [source] = await db

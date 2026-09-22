@@ -591,6 +591,7 @@ describe('OAuth access-token refresh headroom', () => {
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toBeNull()
     expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_grant')
+    expect(isTerminalRefreshError).toHaveBeenCalledWith('invalid_grant', 'google-drive')
   })
 
   it('uses the stored chain when the rotation write loses to a newer one', async () => {

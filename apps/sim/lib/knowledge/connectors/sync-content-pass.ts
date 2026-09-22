@@ -45,6 +45,7 @@ import {
   resolveReconciliationDeleteCap,
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -139,6 +140,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         provider: input.connector.connectorType,
         listDocuments: input.connectorConfig.listDocuments,
         isListingCursorInvalidError: input.connectorConfig.isListingCursorInvalidError,
+        hasVisibleDocuments: (user) => hasVisibleUserDocuments(input.connectorId, user.email),
         syncIntervalMinutes,
         store: {
           get: (...args) => companyStore().get(...args),

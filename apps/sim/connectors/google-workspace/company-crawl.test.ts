@@ -2,9 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GoogleApiError, readGoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
+  GoogleWorkspaceMailboxNotSetup,
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
   listGoogleWorkspaceDocuments,
+  serviceNotEnabledFailure,
   validateGoogleWorkspaceConfig,
 } from '@/connectors/google-workspace/company-crawl'
 import type { ConnectorConfig, ExternalDocument } from '@/connectors/types'
@@ -483,18 +485,18 @@ describe('Google Workspace per-user central crawl', () => {
     }
   )
 
-  it('skips an explicitly unprovisioned Gmail mailbox before requesting a token', async () => {
+  it('leaves an explicitly unprovisioned Gmail mailbox to the scheduler before requesting a token', async () => {
     directory([USER('alice', undefined, { isMailboxSetup: false }), USER('bob')])
-    const ctx = context()
-    const first = await list(ctx)
-    expect(first.listingFailures?.samples[0]).toEqual({
-      scope: 'alice@corp.com',
+    const ctx: Record<string, unknown> = context()
+    const error = await list(ctx).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(GoogleWorkspaceMailboxNotSetup)
+    expect(serviceNotEnabledFailure(error)).toEqual({
       operation: 'directory.users.get',
       reasons: ['mailboxNotSetup'],
     })
+    expect(ctx.reconciliationUnsafe).toBeUndefined()
     expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-    const second = await list(context(), first.nextCursor)
-    expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
+    expect(listUserDocuments).not.toHaveBeenCalled()
   })
 
   it('does not use Gmail mailbox eligibility for Calendar', async () => {
@@ -502,24 +504,32 @@ describe('Google Workspace per-user central crawl', () => {
     expect((await list(context(), undefined, CONFIG, 'google_calendar')).documents).toHaveLength(1)
   })
 
-  it.each(['forbidden', 'notACalendarUser'])(
-    'isolates explicit Calendar list access failures (%s) without claiming a disabled service',
-    async (reason) => {
+  it.each([{ reasons: ['forbidden'] }, { reasons: ['forbidden', 'notACalendarUser'] }])(
+    'isolates explicit Calendar list access failures ($reasons) without claiming a disabled service',
+    async ({ reasons }) => {
       listUserDocuments.mockRejectedValueOnce(
-        new GoogleApiError('calendar.events.list', 403, [reason])
+        new GoogleApiError('calendar.events.list', 403, reasons)
       )
       const first = await list(context(), undefined, CONFIG, 'google_calendar')
       expect(first.listingFailures?.samples[0]).toEqual({
         scope: 'alice@corp.com',
         operation: 'calendar.events.list',
         status: 403,
-        reasons: [reason],
+        reasons,
       })
       const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
       expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
       expect(second.reconciliationSafe).toBe(false)
     }
   )
+
+  it('leaves a user without the Calendar service to the scheduler instead of recording a failure', async () => {
+    const error = new GoogleApiError('calendar.events.list', 403, ['notACalendarUser'])
+    listUserDocuments.mockRejectedValueOnce(error)
+    const ctx: Record<string, unknown> = context()
+    await expect(list(ctx, undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
+    expect(ctx.reconciliationUnsafe).toBeUndefined()
+  })
 
   it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
     'propagates a Calendar 403 without reason codes: %j',
@@ -626,10 +636,9 @@ describe('Google Workspace per-user central crawl', () => {
   })
 
   it('bounds retained failure samples while counting every unavailable user', async () => {
-    directory(
-      Array.from({ length: 15 }, (_, index) =>
-        USER(`user-${index}`, undefined, { isMailboxSetup: false })
-      )
+    directory(Array.from({ length: 15 }, (_, index) => USER(`user-${index}`)))
+    listUserDocuments.mockRejectedValue(
+      new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
     )
     let cursor: string | undefined
     let final
@@ -643,7 +652,7 @@ describe('Google Workspace per-user central crawl', () => {
       reconciliationSafe: false,
     })
     expect(final?.listingFailures?.samples).toHaveLength(10)
-    expect(listUserDocuments).not.toHaveBeenCalled()
+    expect(listUserDocuments).toHaveBeenCalledTimes(15)
   })
 })
 
