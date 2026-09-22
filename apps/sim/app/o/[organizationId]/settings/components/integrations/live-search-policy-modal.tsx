@@ -14,6 +14,7 @@ import {
   ChipSwitch,
   toast,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -25,6 +26,7 @@ import {
   type LiveSearchPolicy,
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
+import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/search-params'
 import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
@@ -59,7 +61,7 @@ export function LiveSearchPolicyModal({
   const close = () => {
     if (!update.isPending) onClose()
   }
-  const save = () => {
+  const save = (openSetup = needsServiceSetup) => {
     if (update.isPending) return
     try {
       const policy = normalizeLiveSearchPolicy(provider, {
@@ -78,8 +80,13 @@ export function LiveSearchPolicyModal({
         {
           onSuccess: () => {
             onClose()
-            if (needsServiceSetup)
-              router.push(organizationRoutes(organizationId).searchProvider(provider))
+            if (openSetup)
+              router.push(
+                serializeSearchSetup(organizationRoutes(organizationId).searchProvider(provider), {
+                  addConnector: searchSetupParam.parser.parse(provider),
+                  'source-access': null,
+                })
+              )
             else toast.success('Search settings saved')
           },
         }
@@ -161,6 +168,8 @@ export function LiveSearchPolicyModal({
                 sourceId={sourceId}
                 onChange={setSourceId}
                 canManage={integration.approved}
+                onAdd={() => save(true)}
+                disabled={update.isPending}
               />
             ))}
           <ChipModalError>{error || update.error?.message}</ChipModalError>
@@ -173,12 +182,12 @@ export function LiveSearchPolicyModal({
             ? 'Saving…'
             : needsServiceSetup
               ? provider === 'github'
-                ? 'Save and add repositories'
+                ? 'Add repository'
                 : provider === 'gitlab'
-                  ? 'Save and add projects'
-                  : 'Save and add connection'
+                  ? 'Add project'
+                  : 'Add connection'
               : 'Save settings',
-          onClick: save,
+          onClick: () => save(),
           disabled: update.isPending,
         }}
       />
@@ -192,6 +201,8 @@ interface ServiceAccountSourceProps {
   sourceId: string
   onChange: (sourceId: string) => void
   canManage: boolean
+  onAdd: () => void
+  disabled: boolean
 }
 
 function ServiceAccountSource({
@@ -200,6 +211,8 @@ function ServiceAccountSource({
   sourceId,
   onChange,
   canManage,
+  onAdd,
+  disabled,
 }: ServiceAccountSourceProps) {
   const sources = useSearchSources(
     { kind: 'organization', organizationId },
@@ -212,28 +225,36 @@ function ServiceAccountSource({
       label: `${source.sourceDescription || connectorDisplayName(provider)}${source.enabled ? '' : ' · Paused'}`,
       disabled: !source.enabled || source.availability !== 'available',
     }))
+  if (
+    !sourceId &&
+    !sources.isPending &&
+    !sources.isError &&
+    !options.length &&
+    !sources.hasNextPage
+  )
+    return null
   return (
-    <ChipModalField
-      type='custom'
-      title='Service account connection'
-      hint={!sourceId && canManage ? 'Select a connection before search can run.' : undefined}
-    >
+    <ChipModalField type='custom' title='Service account connection'>
       <div className='flex flex-col items-start gap-2'>
-        <ChipSelect
-          aria-label='Service account connection'
-          options={options}
-          value={sourceId}
-          onChange={onChange}
-          placeholder={sources.isPending ? 'Loading connections…' : 'Select a connection'}
-          displayLabel={
-            sourceId && !options.some((option) => option.value === sourceId)
-              ? 'Configured connection'
-              : undefined
-          }
-          disabled={sources.isPending || sources.isError}
-          searchable
-          fullWidth
-        />
+        {(sourceId || options.length > 0 || sources.isPending) && (
+          <ChipSelect
+            aria-label='Service account connection'
+            options={options}
+            value={sourceId}
+            onChange={onChange}
+            placeholder={sources.isPending ? 'Loading connections…' : 'Select a connection'}
+            displayLabel={
+              sourceId && !options.some((option) => option.value === sourceId)
+                ? 'Configured connection'
+                : undefined
+            }
+            disabled={disabled || sources.isPending || sources.isError || !options.length}
+            searchable
+            fullWidth
+            dropdownWidth='trigger'
+            align='start'
+          />
+        )}
         {sources.isError && !sources.isFetchNextPageError && (
           <>
             <ChipModalError>{sources.error?.message}</ChipModalError>
@@ -243,17 +264,18 @@ function ServiceAccountSource({
           </>
         )}
         <SearchSourcePagination {...sources} />
-        {canManage ? (
-          <ChipLink
-            href={
-              sourceId
-                ? organizationRoutes(organizationId).searchSource(sourceId)
-                : organizationRoutes(organizationId).searchProvider(provider)
-            }
-          >
-            {sourceId ? 'Edit connection and resources' : 'Set up service account'}
-          </ChipLink>
-        ) : null}
+        {sourceId && (
+          <div className='flex flex-wrap gap-2'>
+            {canManage && (
+              <ChipLink href={organizationRoutes(organizationId).searchSource(sourceId)}>
+                Edit connection
+              </ChipLink>
+            )}
+            <Chip leftIcon={Plus} disabled={disabled} onClick={onAdd}>
+              Add connection
+            </Chip>
+          </div>
+        )}
       </div>
     </ChipModalField>
   )

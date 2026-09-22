@@ -215,8 +215,8 @@ describe('live search administration', () => {
     await act(async () =>
       (document.querySelector('button[aria-label="Set up GitHub"]') as HTMLButtonElement).click()
     )
-    expect(button('Save and add repositories')).toBeDefined()
-    await act(async () => button('Save and add repositories')!.click())
+    expect(button('Add repository')).toBeDefined()
+    await act(async () => button('Add repository')!.click())
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorType: 'github',
@@ -226,7 +226,9 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith('/o/org/settings/integrations/providers/github')
+    expect(mocks.push).toHaveBeenCalledWith(
+      '/o/org/settings/integrations/providers/github?addConnector=github'
+    )
   })
   it('uses the standard settings empty state before the first source', async () => {
     mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
@@ -313,7 +315,7 @@ describe('live search administration', () => {
       expect.any(Object)
     )
   })
-  it('keeps service-account search fail-closed while setup is unfinished', async () => {
+  it('opens connection setup directly without an empty selector and keeps search fail-closed', async () => {
     await act(async () =>
       root.render(
         <LiveSearchPolicyModal
@@ -325,11 +327,8 @@ describe('live search administration', () => {
     )
     expect(document.querySelector('textarea')).toBeNull()
     await act(async () => button('Service account')!.click())
-    expect(document.body.textContent).toContain('Select a connection before search can run.')
-    expect(
-      document.querySelector('a[href="/o/org/settings/integrations/providers/gmail"]')
-    ).not.toBeNull()
-    await act(async () => button('Save and add connection')!.click())
+    expect(document.querySelector('[aria-label="Service account connection"]')).toBeNull()
+    await act(async () => button('Add connection')!.click())
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
         approved: true,
@@ -338,6 +337,56 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     expect(mocks.save.mock.calls.at(-1)?.[0].policy.sourceId).toBeUndefined()
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
+    expect(mocks.push).toHaveBeenCalledWith(
+      '/o/org/settings/integrations/providers/gmail?addConnector=gmail'
+    )
+  })
+  it('can add another connection without clearing the currently configured source', async () => {
+    mocks.sources.mockReturnValue({
+      data: [
+        {
+          connectorId: 'current-source',
+          sourceDescription: 'Existing service account',
+          accessMode: 'admin',
+          enabled: true,
+          availability: 'available',
+        },
+      ],
+      hasNextPage: false,
+    })
+    await act(async () =>
+      root.render(
+        <LiveSearchPolicyModal
+          organizationId='org'
+          integration={{
+            connectorType: 'gmail',
+            approved: true,
+            policy: {
+              ...defaultLiveSearchPolicy(),
+              accessMode: 'service_account',
+              sourceId: 'current-source',
+            },
+          }}
+          onClose={vi.fn()}
+        />
+      )
+    )
+    expect(document.body.textContent).toContain('Existing service account')
+    expect(button('Save settings')).toBeDefined()
+    await act(async () => button('Add connection')!.click())
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        policy: expect.objectContaining({ sourceId: 'current-source' }),
+      }),
+      expect.any(Object)
+    )
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
+    expect(mocks.push).toHaveBeenCalledWith(
+      '/o/org/settings/integrations/providers/gmail?addConnector=gmail'
+    )
   })
   it('preserves a configured source while its paginated inventory is loading', async () => {
     mocks.sources.mockReturnValue({ isPending: true, hasNextPage: false })
@@ -403,7 +452,7 @@ describe('live search administration', () => {
     await act(async () => button('GitHub App')!.click())
     expect(document.body.textContent).toContain('Manage GitHub repositories')
     expect(document.body.textContent).not.toContain('Service account connection')
-    await act(async () => button('Save and add repositories')!.click())
+    await act(async () => button('Add repository')!.click())
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorType: 'github',
