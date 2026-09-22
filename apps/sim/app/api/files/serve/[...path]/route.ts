@@ -30,6 +30,7 @@ import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/pa
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
+  createConditionalFileResponse,
   createErrorResponse,
   createFileResponse,
   FileNotFoundError,
@@ -66,6 +67,8 @@ interface ServeOptions {
   preview: boolean
   /** `v=<updatedAt>` — the caller asserts the URL addresses one fixed content revision. */
   versioned: boolean
+  /** The request's `If-None-Match`, so a revalidation can be answered 304 instead of re-sending. */
+  ifNoneMatch: string | null
 }
 
 /**
@@ -327,6 +330,7 @@ export const GET = withRouteHandler(
         raw: query.raw === '1',
         preview: query.preview === '1',
         versioned: query.v != null,
+        ifNoneMatch: request.headers.get('if-none-match'),
       }
 
       if (workspacePrincipal) {
@@ -427,12 +431,15 @@ async function handleWorkspaceFile(
     workspaceId,
     size: resolved.buffer.length,
   })
-  return createFileResponse({
-    buffer: resolved.buffer,
-    contentType: resolved.contentType,
-    filename: file.name,
-    cacheControl: resolveServeCacheControl(options.versioned, 'workspace', resolved.cacheability),
-  })
+  return createConditionalFileResponse(
+    {
+      buffer: resolved.buffer,
+      contentType: resolved.contentType,
+      filename: file.name,
+      cacheControl: resolveServeCacheControl(options.versioned, 'workspace', resolved.cacheability),
+    },
+    options.ifNoneMatch
+  )
 }
 
 async function handleLocalFile(
@@ -489,12 +496,15 @@ async function handleLocalFile(
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
-    return createFileResponse({
-      buffer: fileBuffer,
-      contentType,
-      filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
-    })
+    return createConditionalFileResponse(
+      {
+        buffer: fileBuffer,
+        contentType,
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
+      },
+      options.ifNoneMatch
+    )
   } catch (error) {
     logServeFailure('Error reading local file:', error)
     throw error
@@ -565,12 +575,15 @@ async function handleCloudProxy(
       context,
     })
 
-    return createFileResponse({
-      buffer: fileBuffer,
-      contentType,
-      filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
-    })
+    return createConditionalFileResponse(
+      {
+        buffer: fileBuffer,
+        contentType,
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
+      },
+      options.ifNoneMatch
+    )
   } catch (error) {
     logServeFailure('Error downloading from cloud storage:', error)
     throw error

@@ -36,6 +36,7 @@ const {
   mockFindLocalFile,
   mockReadLocalFileWithinLimit,
   mockCreateFileResponse,
+  mockCreateConditionalFileResponse,
   mockCreateErrorResponse,
   FileNotFoundError,
   serveLogger,
@@ -64,6 +65,7 @@ const {
     mockFindLocalFile: vi.fn(),
     mockReadLocalFileWithinLimit: vi.fn(),
     mockCreateFileResponse: vi.fn(),
+    mockCreateConditionalFileResponse: vi.fn(),
     mockCreateErrorResponse: vi.fn(),
     FileNotFoundError: FileNotFoundErrorClass,
   }
@@ -129,6 +131,7 @@ vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
 vi.mock('@/app/api/files/utils', () => ({
   FileNotFoundError,
   createFileResponse: mockCreateFileResponse,
+  createConditionalFileResponse: mockCreateConditionalFileResponse,
   createErrorResponse: mockCreateErrorResponse,
   getContentType: mockGetContentType,
   extractStorageKey: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
@@ -191,6 +194,11 @@ describe('File Serve API Route', () => {
           },
         })
       }
+    )
+    // Delegates so the existing assertions on the response payload — including its
+    // Cache-Control — read the same call list whichever helper the route reached for.
+    mockCreateConditionalFileResponse.mockImplementation((file: unknown) =>
+      mockCreateFileResponse(file)
     )
     mockCreateErrorResponse.mockImplementation((error: Error) => {
       return new Response(JSON.stringify({ error: error.name, message: error.message }), {
