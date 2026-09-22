@@ -96,7 +96,8 @@ vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal', () => ({
   BaseTagsModal: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/knowledge/components', () => ({
+vi.mock('@/app/workspace/[workspaceId]/knowledge/components', async () => ({
+  ...(await import('@/app/workspace/[workspaceId]/knowledge/components/knowledge-filter-heading')),
   CreateBaseModal: () => null,
   EditKnowledgeBaseModal: () => null,
   KnowledgeListContextMenu: () => null,

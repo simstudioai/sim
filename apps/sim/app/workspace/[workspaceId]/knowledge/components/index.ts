@@ -1,3 +1,4 @@
+export { KnowledgeFilterHeading } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-filter-heading'
 export { CreateBaseModal } from './create-base-modal'
 export { DeleteKnowledgeBaseModal } from './delete-knowledge-base-modal'
 export { EditKnowledgeBaseModal } from './edit-knowledge-base-modal'
