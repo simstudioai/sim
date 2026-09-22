@@ -284,7 +284,6 @@ export function CustomToolCodeField({
             }}
             className='w-64'
             style={{
-              position: 'absolute',
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}
@@ -309,7 +308,6 @@ export function CustomToolCodeField({
             }}
             className='w-64'
             style={{
-              position: 'absolute',
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}

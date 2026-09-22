@@ -264,7 +264,7 @@ const MARKDOWN_COMPONENTS = {
   th({ children, style }: ThProps) {
     return (
       <th
-        style={style}
+        style={{ textAlign: style?.textAlign }}
         className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-left font-semibold text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
@@ -274,7 +274,7 @@ const MARKDOWN_COMPONENTS = {
   td({ children, style }: TdProps) {
     return (
       <td
-        style={style}
+        style={{ textAlign: style?.textAlign }}
         className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
         {children}

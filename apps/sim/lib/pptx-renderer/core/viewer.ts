@@ -611,14 +611,14 @@ export class PptxViewer extends EventTarget {
     item.style.cssText = 'width: fit-content; margin: 0 auto 20px;'
 
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = `
-      width: ${displayWidth}px;
-      height: ${displayHeight}px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      overflow: hidden;
-      position: relative;
-      background: var(--white);
-    `
+    Object.assign(wrapper.style, {
+      width: `${displayWidth}px`,
+      height: `${displayHeight}px`,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      overflow: 'hidden',
+      position: 'relative',
+      background: 'var(--white)',
+    })
 
     item.appendChild(wrapper)
 
@@ -860,11 +860,14 @@ export class PptxViewer extends EventTarget {
     this.mountedSlides.add(this.currentSlide)
 
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = `
-      width: ${displayWidth}px; height: ${displayHeight}px;
-      margin: 0 auto; overflow: hidden; position: relative;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    `
+    Object.assign(wrapper.style, {
+      width: `${displayWidth}px`,
+      height: `${displayHeight}px`,
+      margin: '0 auto',
+      overflow: 'hidden',
+      position: 'relative',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    })
 
     try {
       const handle = renderSlideInternal(this.presentation, slide, {
