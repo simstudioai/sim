@@ -1005,6 +1005,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         recommended: true,
       },
       {
+        id: 'claude-opus-5-5',
+        pricing: {
+          input: 4.0,
+          cachedInput: 0.2,
+          output: 20.0,
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'medium',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-22',
+        recommended: true,
+      },
+      {
         id: 'claude-opus-5',
         pricing: {
           input: 5.0,
@@ -1024,7 +1047,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-07-24',
-        recommended: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-8',
