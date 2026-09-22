@@ -160,4 +160,76 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       (await projected()).filter((row) => row.id.endsWith('-unfilled')).map((row) => row.acl)
     ).toEqual([[ALICE, BOB], null, [ALICE, BOB], null])
   })
+  it('writes a changed ACL group larger than one change batch completely', async () => {
+    const ids = Array.from(
+      { length: 60 },
+      (_unused, index) => `bulk-${String(index).padStart(2, '0')}`
+    )
+    await sql`INSERT INTO document ${sql(
+      ids.map((id) => ({ id: `doc-${id}`, external_id: id, connector_id: 'admin', acl: [ALICE] }))
+    )}`
+    await sql`INSERT INTO embedding_search ${sql(
+      ids.map((id) => ({
+        id: `vec-${id}`,
+        document_id: `doc-${id}`,
+        connector_id: 'admin',
+        acl: [ALICE],
+      }))
+    )}`
+
+    await expect(persist(new Map(ids.map((id) => [id, [BOB]])))).resolves.toEqual({
+      updated: ids.length,
+      rejected: 0,
+    })
+
+    const documents = await sql<{ acl: string[] }[]>`
+      SELECT acl FROM document WHERE id LIKE 'doc-bulk-%'`
+    expect(documents).toHaveLength(ids.length)
+    expect(documents.every((row) => row.acl.join() === BOB)).toBe(true)
+    const chunks = await sql<{ acl: string[] }[]>`
+      SELECT acl FROM embedding_search WHERE id LIKE 'vec-bulk-%'`
+    expect(chunks).toHaveLength(ids.length)
+    expect(chunks.every((row) => row.acl.join() === BOB)).toBe(true)
+  })
+
+  it.each([
+    { name: 'verified within this generation', verifiedOffsetMs: 1_000, preserved: true },
+    { name: 'verified before this generation', verifiedOffsetMs: -1_000, preserved: false },
+    { name: 'never verified', verifiedOffsetMs: null, preserved: false },
+  ])(
+    'applies the unresolved-evidence guard to an ACL the source could not answer: $name',
+    async ({ verifiedOffsetMs, preserved }) => {
+      const [clock] = await sql<{ now: string }[]>`
+        SELECT (now() AT TIME ZONE 'UTC')::text AS now`
+      const generationStartedAt = new Date(`${clock.now}Z`)
+      generationStartedAt.setTime(generationStartedAt.getTime() - 60_000)
+      const verifiedAt =
+        verifiedOffsetMs === null
+          ? null
+          : new Date(generationStartedAt.getTime() + verifiedOffsetMs).toISOString()
+      await sql`UPDATE document SET acl_verified_at = ${verifiedAt}::timestamptz AT TIME ZONE 'UTC'
+        WHERE id = 'doc-same'`
+
+      const result = await persistDocumentAcls(
+        'admin',
+        new Map([['file-same', []]]),
+        drizzle(sql, { schema }),
+        {
+          unresolvedExternalIds: new Set(['file-same']),
+          generationStartedAt,
+        }
+      )
+
+      expect(result).toEqual({ updated: preserved ? 0 : 1, rejected: 0 })
+      const [stored] = await sql<{ acl: string[]; verified: boolean }[]>`
+        SELECT acl, acl_verified_at IS NOT NULL AS verified FROM document WHERE id = 'doc-same'`
+      expect(stored).toEqual(
+        preserved ? { acl: [ALICE], verified: true } : { acl: [], verified: false }
+      )
+      const filled = (await projected())
+        .filter((row) => row.id.endsWith('-same-filled'))
+        .map((row) => row.acl)
+      expect(filled).toEqual(preserved ? [[ALICE], [ALICE]] : [[], []])
+    }
+  )
 })
