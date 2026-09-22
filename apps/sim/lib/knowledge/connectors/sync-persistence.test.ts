@@ -364,8 +364,7 @@ describe('persistSourceDocumentFailures', () => {
       priorByExternalId: new Map(),
     })
     const [rows] = dbChainMockFns.values.mock.calls[0] as [Array<{ filename: string }>]
-    expect(rows[0].filename.length).toBeLessThan(600)
-    expect(rows[0].filename.startsWith('xxxx')).toBe(true)
+    expect(rows[0].filename).toBe(`${'x'.repeat(512)}...`)
   })
   it('refuses to commit a failure under a reclaimed lease', async () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
@@ -441,8 +440,7 @@ describe('resolveTagMapping', () => {
       { label: 'y'.repeat(5000) },
       { tagSlotMapping: { label: 'tag1' } }
     )
-    expect(tags?.tag1?.length).toBeLessThan(600)
-    expect(tags?.tag1?.startsWith('yyyy')).toBe(true)
+    expect(tags?.tag1).toBe(`${'y'.repeat(512)}...`)
   })
 
   it('keeps a short mapped tag value intact', () => {
