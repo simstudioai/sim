@@ -31,7 +31,10 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  ChipInput: ({
+    error: _error,
+    ...props
+  }: InputHTMLAttributes<HTMLInputElement> & { error?: boolean }) => <input {...props} />,
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))

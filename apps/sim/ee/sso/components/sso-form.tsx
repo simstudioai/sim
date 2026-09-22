@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, cn, Input, Label } from '@sim/emcn'
+import { Button, ChipInput, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -215,7 +215,7 @@ function SSOFormContent({
             <div className='flex items-center justify-between'>
               <Label htmlFor='email'>Work email</Label>
             </div>
-            <Input
+            <ChipInput
               id='email'
               name='email'
               placeholder='Enter your work email'
@@ -227,9 +227,8 @@ function SSOFormContent({
               onChange={handleEmailChange}
               aria-invalid={hasEmailError || undefined}
               aria-describedby={hasEmailError ? 'sso-email-errors' : undefined}
-              className={cn(
-                hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-              )}
+              className='h-[34px]'
+              error={Boolean(hasEmailError)}
             />
             {hasEmailError && (
               <div

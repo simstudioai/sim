@@ -45,9 +45,9 @@ import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
 import { chipContentIconClass, chipContentLabelClass } from '../chip/chip-chrome'
 import { ChipCopyInput } from '../chip-copy-input/chip-copy-input'
-import { ChipDropdown, type ChipDropdownOption } from '../chip-dropdown/chip-dropdown'
 import { ChipEmailsInput, type ChipEmailsInputProps } from '../chip-emails-input/chip-emails-input'
 import { ChipInput } from '../chip-input/chip-input'
+import { ChipSelect, type ChipSelectOption } from '../chip-select/chip-select'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
@@ -515,10 +515,10 @@ ChipModalPromptBody.displayName = 'ChipModalPromptBody'
 
 /**
  * Option entry for the `dropdown` branch of {@link ChipModalField}. Aliases the
- * canonical {@link ChipDropdownOption} so the modal dropdown stays in lockstep
- * with `ChipDropdown` (gains the optional leading `icon`).
+ * canonical {@link ChipSelectOption} so the modal dropdown stays in lockstep
+ * with `ChipSelect` (gains the optional leading `icon`).
  */
-export type ChipModalDropdownOption = ChipDropdownOption
+export type ChipModalDropdownOption = ChipSelectOption
 
 /**
  * Props shared by every {@link ChipModalField} branch.
@@ -915,7 +915,10 @@ function renderChipModalControl(
       )
     case 'dropdown':
       return (
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          dropdownWidth='trigger'
+          modal={false}
           value={props.value}
           onChange={props.onChange}
           options={props.options}
@@ -1229,7 +1232,7 @@ export type ChipModalFooterAction = ChipModalFooterActionBase &
 /**
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
- * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
+ * (`ChipDatePicker`, `ChipTimePicker`, `ChipSelect`, ...) so the footer
  * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
  * it does for the footer's own Chips, so the control must carry no outer
  * margin. The primary action stays declarative by design; only

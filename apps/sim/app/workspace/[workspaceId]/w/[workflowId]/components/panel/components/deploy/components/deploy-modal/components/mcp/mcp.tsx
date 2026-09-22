@@ -6,11 +6,11 @@ import {
   Chip,
   ChipCombobox,
   ChipInput,
+  ChipTextarea,
   type ComboboxOption,
   cn,
   Label,
   Skeleton,
-  Textarea,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -565,13 +565,13 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Description
         </Label>
-        <Textarea
+        <ChipTextarea
           placeholder={
             workflowDescriptionFallback
               ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
               : 'Describe what this tool does...'
           }
-          className='min-h-[100px] resize-none'
+          className='min-h-[100px]'
           value={toolDescription}
           onChange={(e) => setToolDescription(e.target.value)}
         />

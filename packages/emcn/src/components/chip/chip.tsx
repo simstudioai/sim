@@ -13,6 +13,7 @@ import { cn } from '../../lib/cn'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 import {
   chipActiveSurfaceClass,
+  chipBorderShadowRing,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
@@ -34,7 +35,7 @@ import {
  * The implicit **default** variant is the bare pill — transparent, `--surface-hover` on hover. Omit `variant`
  * to get it (shadcn-style); never write `variant='default'`. Named variants:
  * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-hover` hover) — a borderless surface reserved for
- * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
+ * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
  * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
  * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface),
  * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
@@ -68,9 +69,8 @@ const chipVariants = cva(
         primary: `${chipPrimaryFillTokens} hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]`,
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
-        'border-shadow':
-          'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
-        border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
+        'border-shadow': `${chipBorderShadowRing} bg-[var(--surface-2)] hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]`,
+        border: `${chipBorderShadowRing} ${chipHoverSurfaceClass}`,
         outline:
           'border border-[var(--border)] bg-transparent hover-hover:border-[color-mix(in_srgb,var(--border)_80%,var(--text-secondary))]',
       },

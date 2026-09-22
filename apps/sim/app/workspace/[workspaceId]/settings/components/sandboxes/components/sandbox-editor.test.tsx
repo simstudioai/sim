@@ -33,7 +33,6 @@ const { recordChipSelectProps } = vi.hoisted(() => ({
 
 vi.mock('@sim/emcn', () => ({
   Chip: ({ children }: { children: ReactNode }) => <button type='button'>{children}</button>,
-  ChipDropdown: () => null,
   ChipInput: () => null,
   ChipSelect: (props: MockChipSelectProps) => {
     recordChipSelectProps(props)

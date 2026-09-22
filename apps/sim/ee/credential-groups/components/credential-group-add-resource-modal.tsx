@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -61,19 +60,21 @@ export function CredentialGroupAddResourceModal(props: CredentialGroupAddResourc
         <ChipModalField type='custom' title={label} required submitOnEnter={false}>
           {(aria) =>
             resourceType === 'workspace' ? (
-              <ChipDropdown
-                multiple
+              <ChipSelect
+                placeholder='Select workspaces'
+                modal={false}
+                multiSelect
                 options={options}
-                value={selectedResourceIds}
-                onChange={setSelectedResourceIds}
-                allLabel='Select workspaces'
+                multiSelectValues={selectedResourceIds}
+                onMultiSelectChange={setSelectedResourceIds}
+                allOptionLabel='Select workspaces'
                 showAllOption={false}
                 searchPlaceholder='Search workspaces'
                 searchable
                 aria-label={label}
                 disabled={disabled}
                 fullWidth
-                matchTriggerWidth
+                dropdownWidth='trigger'
                 align='start'
                 {...aria}
               />

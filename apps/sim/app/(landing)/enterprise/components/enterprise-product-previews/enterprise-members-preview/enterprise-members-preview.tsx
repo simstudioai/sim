@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipDropdown, ChipInput } from '@sim/emcn'
+import { ChipInput, ChipSelect } from '@sim/emcn'
 import { Building, Search } from '@sim/emcn/icons'
 import {
   MemberRow,
@@ -64,7 +64,10 @@ export function EnterpriseMembersPreview() {
                 image={null}
                 status=''
                 roleControl={
-                  <ChipDropdown
+                  <ChipSelect
+                    showSelectedCheck
+                    modal={false}
+                    className='w-auto max-w-none'
                     aria-label={`Organization role for ${member.name}: ${ORGANIZATION_ROLES.find((option) => option.value === (organizationRoles[member.email] ?? member.role))?.label ?? 'Owner'}`}
                     value={organizationRoles[member.email] ?? member.role}
                     options={
@@ -76,7 +79,7 @@ export function EnterpriseMembersPreview() {
                       setOrganizationRoles((roles) => ({ ...roles, [member.email]: role }))
                     }
                     disabled={member.role === 'owner'}
-                    matchTriggerWidth={false}
+                    dropdownWidth='content'
                   />
                 }
               />
@@ -95,7 +98,10 @@ export function EnterpriseMembersPreview() {
                 image={null}
                 status=''
                 roleControl={
-                  <ChipDropdown
+                  <ChipSelect
+                    showSelectedCheck
+                    modal={false}
+                    className='w-auto max-w-none'
                     aria-label={`Workspace role for ${member.name}: ${WORKSPACE_ROLES.find((option) => option.value === (workspaceRoles[member.email] ?? (member.role === 'owner' ? 'admin' : 'write')))?.label}`}
                     value={
                       workspaceRoles[member.email] ?? (member.role === 'owner' ? 'admin' : 'write')
@@ -105,7 +111,7 @@ export function EnterpriseMembersPreview() {
                       setWorkspaceRoles((roles) => ({ ...roles, [member.email]: role }))
                     }
                     disabled={member.role === 'owner'}
-                    matchTriggerWidth={false}
+                    dropdownWidth='content'
                   />
                 }
               />

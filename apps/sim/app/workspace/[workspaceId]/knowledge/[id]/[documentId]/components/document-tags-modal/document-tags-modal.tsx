@@ -701,7 +701,7 @@ export function DocumentTagsModal({
                   !kbTagDefinitions.find(
                     (def) => def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
                   ) && (
-                    <Badge variant='amber' size='lg' dot className='max-w-full'>
+                    <Badge variant='amber' size='md' dot className='max-w-full'>
                       Maximum tag definitions reached. You can still use existing tag definitions,
                       but cannot create new ones.
                     </Badge>

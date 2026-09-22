@@ -6,13 +6,13 @@ import {
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipConfirmModal,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
   Label,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -254,7 +254,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                     <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                       <div className='flex flex-col gap-1.5'>
                         <Label className='text-small'>Description</Label>
-                        <Input
+                        <ChipInput
                           value={paramDescriptions[field.name] || ''}
                           onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
                           placeholder={`Enter description for ${field.name}`}

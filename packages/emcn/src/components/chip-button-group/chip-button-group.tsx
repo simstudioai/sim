@@ -8,12 +8,8 @@ import { cn } from '../../lib/cn'
 import { segmentedControlItemVariants, segmentedControlVariants } from '../chip/segmented-control'
 import { scrollFadeAttributes, scrollFadeXClass } from '../scroll-fade/scroll-fade'
 
-/** Shared chip chrome; preserves the compound control's existing gap default. */
-const chipButtonGroupVariants = ({
-  gap = 'sm',
-  ...props
-}: Parameters<typeof segmentedControlVariants>[0] = {}) =>
-  segmentedControlVariants({ gap, ...props })
+/** Shared zero-gap chip chrome for both segmented APIs. */
+const chipButtonGroupVariants = segmentedControlVariants
 
 interface ChipButtonGroupContextValue {
   value: string | undefined
@@ -58,7 +54,6 @@ export interface ChipButtonGroupProps
  */
 function ChipButtonGroup({
   className,
-  gap,
   size = 'default',
   value,
   onValueChange,
@@ -78,7 +73,7 @@ function ChipButtonGroup({
       >
         <div
           ref={groupRef}
-          className={cn(scrollFadeXClass, chipButtonGroupVariants({ gap, size }), className)}
+          className={cn(scrollFadeXClass, chipButtonGroupVariants({ size }), className)}
           {...scrollFadeAttributes(edges)}
           {...props}
         >

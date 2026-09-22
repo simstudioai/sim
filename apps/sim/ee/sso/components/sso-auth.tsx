@@ -1,7 +1,7 @@
 'use client'
 
 import { type KeyboardEvent, useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { ChipInput, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -118,7 +118,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
               <div className='flex items-center justify-between'>
                 <Label htmlFor='email'>Work Email</Label>
               </div>
-              <Input
+              <ChipInput
                 id='email'
                 name='email'
                 required
@@ -130,11 +130,8 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                 value={email}
                 onChange={handleEmailChange}
                 onKeyDown={handleKeyDown}
-                className={cn(
-                  showEmailValidationError &&
-                    emailErrors.length > 0 &&
-                    'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                )}
+                className='h-[34px]'
+                error={showEmailValidationError && emailErrors.length > 0}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
                 <div className='mt-1 space-y-1 text-[var(--text-error)] text-caption'>

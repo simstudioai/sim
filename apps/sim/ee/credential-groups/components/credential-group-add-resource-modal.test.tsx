@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react'
 import { act } from 'react'
+import type { ChipSelectProps } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
@@ -35,44 +36,28 @@ vi.mock('@sim/emcn', () => ({
       </button>
     </div>
   ),
-  ChipDropdown: ({
-    options,
-    value,
-    onChange,
-  }: {
-    options: Array<{ value: string; label: string }>
-    value: string[]
-    onChange: (value: string[]) => void
-  }) => (
+  ChipSelect: (props: ChipSelectProps) => (
     <div>
-      {options.map((option) => (
+      {props.options?.map((option) => (
         <button
           key={option.value}
           type='button'
-          aria-pressed={value.includes(option.value)}
-          onClick={() =>
-            onChange(
-              value.includes(option.value)
-                ? value.filter((id) => id !== option.value)
-                : [...value, option.value]
-            )
+          aria-pressed={
+            props.multiSelect
+              ? props.multiSelectValues?.includes(option.value)
+              : props.value === option.value
           }
+          onClick={() => {
+            if (props.multiSelect) {
+              const values = props.multiSelectValues ?? []
+              props.onMultiSelectChange?.(
+                values.includes(option.value)
+                  ? values.filter((id) => id !== option.value)
+                  : [...values, option.value]
+              )
+            } else props.onChange?.(option.value)
+          }}
         >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
-  ChipSelect: ({
-    options,
-    onChange,
-  }: {
-    options: Array<{ value: string; label: string }>
-    onChange: (value: string) => void
-  }) => (
-    <div>
-      {options.map((option) => (
-        <button key={option.value} type='button' onClick={() => onChange(option.value)}>
           {option.label}
         </button>
       ))}
