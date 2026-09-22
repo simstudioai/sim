@@ -158,6 +158,7 @@ Return ONLY the JSON array.`,
       options: getAgentModelOptions,
       commandSearchable: true,
     },
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'evaluationState',
       title: 'State',
@@ -285,7 +286,6 @@ Return ONLY the JSON array.`,
       },
     },
 
-    ...getProviderCredentialSubBlocks(),
     {
       id: 'tools',
       title: 'Tools',

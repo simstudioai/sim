@@ -31,7 +31,7 @@ describe('Agent evaluation configuration', () => {
       const visible = AgentBlock.subBlocks
         .filter((field) => evaluateSubBlockCondition(field.condition, { model }))
         .map((field) => field.id)
-      expect(visible).toEqual(['model', 'evaluationState', 'evaluationQuestions', 'apiKey'])
+      expect(visible).toEqual(['model', 'apiKey', 'evaluationState', 'evaluationQuestions'])
     }
   )
 
