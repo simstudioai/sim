@@ -4,6 +4,7 @@ import type {
 } from '@sim/auth/principal'
 import type { VerifiedInternalDelegation } from '@/lib/auth/internal'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   type ActiveWorkflowApplicationContext,
   resolveActiveWorkflowApplicationContext,
@@ -25,7 +26,15 @@ export class InvalidInternalDelegationBindingError extends Error {
   }
 }
 
-/** Binds signed executor claims to the workflow's canonical active workspace. */
+const CANONICAL_LOAD_RETRY = { label: 'internal delegation canonical load' } as const
+
+/**
+ * Binds signed executor claims to the workflow's canonical active workspace.
+ *
+ * Every tool call a workflow run delegates (Function, MCP, files, knowledge) binds here first, and
+ * nothing above it retries. The canonical loads are independent reads, so a transient connection
+ * failure such as a reset pooled socket is retried instead of failing the block.
+ */
 export async function bindInternalExecutorDelegation(
   claims: VerifiedInternalDelegation,
   options: BindInternalExecutorDelegationOptions
@@ -43,19 +52,32 @@ export async function bindInternalExecutorDelegation(
   try {
     if (claims.currentWorkflow) {
       if (!claims.executionId) throw new InvalidInternalDelegationBindingError()
-      const executionContext = await resolveActiveWorkflowExecutionApplicationContext({
-        runId: claims.executionId,
-        assertedWorkflowId: claims.workflowId,
-      })
+      const runId = claims.executionId
+      const executionContext = await withDatabaseReadRetry(
+        () =>
+          resolveActiveWorkflowExecutionApplicationContext({
+            runId,
+            assertedWorkflowId: claims.workflowId,
+          }),
+        CANONICAL_LOAD_RETRY
+      )
       context = executionContext
       rootDeploymentVersionId = executionContext.deploymentVersionId
     } else if (claims.executionId) {
-      context = await resolveActiveWorkflowRunApplicationContext({
-        runId: claims.executionId,
-        assertedWorkflowId: claims.workflowId,
-      })
+      const runId = claims.executionId
+      context = await withDatabaseReadRetry(
+        () =>
+          resolveActiveWorkflowRunApplicationContext({
+            runId,
+            assertedWorkflowId: claims.workflowId,
+          }),
+        CANONICAL_LOAD_RETRY
+      )
     } else {
-      context = await resolveActiveWorkflowApplicationContext({ workflowId: claims.workflowId })
+      context = await withDatabaseReadRetry(
+        () => resolveActiveWorkflowApplicationContext({ workflowId: claims.workflowId }),
+        CANONICAL_LOAD_RETRY
+      )
     }
   } catch (error) {
     if (asOrchestrationError(error)?.code === 'not_found') {
@@ -74,18 +96,23 @@ export async function bindInternalExecutorDelegation(
         throw new InvalidInternalDelegationBindingError()
       }
     } else {
+      const currentWorkflow = claims.currentWorkflow
+      const workspaceId = context.workspaceId
       try {
-        const currentContext =
-          claims.currentWorkflow.mode === 'deployment'
-            ? await resolveActiveWorkflowDeploymentVersionApplicationContext({
-                workflowId: claims.currentWorkflow.workflowId,
-                deploymentVersionId: claims.currentWorkflow.deploymentVersionId,
-                assertedWorkspaceId: context.workspaceId,
-              })
-            : await resolveActiveWorkflowApplicationContext({
-                workflowId: claims.currentWorkflow.workflowId,
-                assertedWorkspaceId: context.workspaceId,
-              })
+        const currentContext = await withDatabaseReadRetry(
+          () =>
+            currentWorkflow.mode === 'deployment'
+              ? resolveActiveWorkflowDeploymentVersionApplicationContext({
+                  workflowId: currentWorkflow.workflowId,
+                  deploymentVersionId: currentWorkflow.deploymentVersionId,
+                  assertedWorkspaceId: workspaceId,
+                })
+              : resolveActiveWorkflowApplicationContext({
+                  workflowId: currentWorkflow.workflowId,
+                  assertedWorkspaceId: workspaceId,
+                }),
+          CANONICAL_LOAD_RETRY
+        )
         if (currentContext.workspaceId !== context.workspaceId) {
           throw new InvalidInternalDelegationBindingError()
         }
