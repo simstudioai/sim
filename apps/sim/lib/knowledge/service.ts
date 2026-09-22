@@ -1243,9 +1243,14 @@ export async function restoreKnowledgeBase(
             )
           )
 
+        /** A connector detached before the archive keeps its release fence; only its documents return. */
         await tx
           .update(knowledgeConnector)
-          .set({ archivedAt: null, status: 'active', updatedAt: now })
+          .set({
+            archivedAt: null,
+            status: sql`CASE WHEN ${knowledgeConnector.detachedAt} IS NULL THEN 'active' ELSE ${knowledgeConnector.status} END`,
+            updatedAt: now,
+          })
           .where(
             and(
               eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),

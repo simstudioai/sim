@@ -167,6 +167,11 @@ try {
     cwd: path.join(root, 'packages/db'),
     env: environment,
   })
+  /** Production projections mirror each document's source and ACL by trigger; tests must too. */
+  run('bun', ['./script-migrations/0021_embedding_search_connector.ts'], {
+    cwd: path.join(root, 'packages/db'),
+    env: environment,
+  })
   run(
     'bunx',
     [

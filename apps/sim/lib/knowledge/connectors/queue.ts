@@ -207,13 +207,15 @@ async function describeUnacceptedSync(connectorId: string): Promise<string> {
       status: knowledgeConnector.status,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
+      detachedAt: knowledgeConnector.detachedAt,
     })
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connectorId))
     .limit(1)
 
   if (!row) return 'Connector no longer exists'
-  if (row.archivedAt || row.deletedAt) return 'Connector has been archived or deleted'
+  if (row.archivedAt || row.deletedAt || row.detachedAt)
+    return 'Connector has been archived or deleted'
   if (row.status !== 'syncing' && !isLockableConnectorStatus(row.status)) {
     return `Connector is ${row.status} and cannot start a sync`
   }
@@ -312,6 +314,7 @@ export async function dispatchSync(
       connectorAccessMode: knowledgeConnector.accessMode,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
+      connectorDetachedAt: knowledgeConnector.detachedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
@@ -339,7 +342,7 @@ export async function dispatchSync(
       .where(eq(knowledgeConnector.id, connectorId))
     return { queued: false, reason: 'Knowledge base has been deleted' }
   }
-  if (row.connectorArchivedAt || row.connectorDeletedAt) {
+  if (row.connectorArchivedAt || row.connectorDeletedAt || row.connectorDetachedAt) {
     logger.warn('Skipping sync dispatch: connector is archived or deleted', {
       connectorId,
       requestId,

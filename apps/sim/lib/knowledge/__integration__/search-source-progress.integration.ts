@@ -14,6 +14,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import * as embeddings from '@/lib/embeddings'
+import { drainConnectorEvent } from '@/lib/knowledge/__integration__/drain-connector-event'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -29,6 +30,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentProcessor from '@/lib/knowledge/documents/document-processor'
@@ -630,6 +632,7 @@ describe('intentional skips and genuine failures across document reads', () => {
       input: { ...scope, deleteDocuments: false },
     })
     expect(result).toMatchObject({ documentsDeleted: 0, documentsKept: 6 })
+    await drainConnectorEvent(fixture.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
     const retained = await db
       .select()
       .from(document)

@@ -2626,6 +2626,13 @@
       "when": 1790051159355,
       "tag": "0375_document_connector_live_index",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1790113807660,
+      "tag": "0376_knowledge_connector_detached_at",
+      "breakpoints": true
     }
   ]
 }

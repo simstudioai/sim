@@ -5965,6 +5965,14 @@ export const knowledgeConnector = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
     deletedAt: timestamp('deleted_at'),
+    /**
+     * Set when the connector is removed but its documents are kept. The connector stops syncing
+     * and leaves every management surface at once, while its documents stay readable; a
+     * background job releases them as standalone entries in bounded pages and then deletes the
+     * row. Releasing a document rewrites every search projection row of it, so the release
+     * cannot run inside the removal request.
+     */
+    detachedAt: timestamp('detached_at'),
   },
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),

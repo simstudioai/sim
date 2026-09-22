@@ -19,10 +19,9 @@ import {
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 import {
-  incrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext,
+  checkStorageQuotaForBillingContext,
   resolveStorageBillingContext,
-  type StorageBillingContext,
+  StorageLimitExceededError,
 } from '@/lib/billing/storage'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import {
@@ -46,12 +45,17 @@ import {
 } from '@/lib/knowledge/connectors/access-token'
 import { enqueueConnectorDeletion } from '@/lib/knowledge/connectors/deletion'
 import {
+  enqueueConnectorDetachment,
+  keptDocumentBytes,
+} from '@/lib/knowledge/connectors/detachment'
+import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
 import type { PreparedConnectorPermissions } from '@/lib/knowledge/connectors/permission-config'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import {
   auditActorFields,
@@ -702,8 +706,7 @@ export async function getKnowledgeConnector(
       and(
         eq(knowledgeConnector.id, connectorId),
         eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
+        connectorIsLive()
       )
     )
     .limit(1)
@@ -981,8 +984,7 @@ export async function performUpdateKnowledgeConnector(
     const updateConditions = [
       eq(knowledgeConnector.id, connectorId),
       eq(knowledgeConnector.knowledgeBaseId, kb.id),
-      isNull(knowledgeConnector.archivedAt),
-      isNull(knowledgeConnector.deletedAt),
+      connectorIsLive(),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
     if (credentialChanged) {
@@ -1158,7 +1160,6 @@ export async function performDeleteKnowledgeConnector(
   }
 
   let docCount: number
-  let storageNotification: { context: StorageBillingContext; updatedUsage: number } | undefined
   try {
     const [owner] = await db
       .select({
@@ -1182,10 +1183,15 @@ export async function performDeleteKnowledgeConnector(
         ? await resolveStorageBillingContext(owner.workspaceId)
         : undefined
 
+    /**
+     * Both outcomes only retire the connector and queue durable work; neither touches a document
+     * here. Releasing or deleting documents rewrites every search projection row of them, which
+     * grows with the source and cannot fit a request transaction.
+     */
     docCount = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
       await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
-      /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
+      /** Match source writes and document deletion: parent KB, then connector. */
       const [lockedOwner] = await tx
         .select({
           workspaceId: knowledgeBase.workspaceId,
@@ -1194,7 +1200,7 @@ export async function performDeleteKnowledgeConnector(
         })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, kb.id), isNull(knowledgeBase.deletedAt)))
-        .for(deleteDocuments ? 'share' : 'update')
+        .for('share')
         .limit(1)
       if (
         !lockedOwner ||
@@ -1214,8 +1220,7 @@ export async function performDeleteKnowledgeConnector(
           and(
             eq(knowledgeConnector.id, connectorId),
             eq(knowledgeConnector.knowledgeBaseId, kb.id),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
+            connectorIsLive()
           )
         )
         .for('update')
@@ -1228,113 +1233,68 @@ export async function performDeleteKnowledgeConnector(
         )
       }
 
-      if (deleteDocuments) {
-        const [totals] = await tx
-          .select({ count: sql<number>`COUNT(*)::integer` })
-          .from(document)
-          .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
-        const deletedAt = new Date()
-        await tx
-          .update(knowledgeConnector)
-          .set({
-            deletedAt,
-            updatedAt: deletedAt,
-            status: 'disabled',
-            memberSyncStatus: 'disabled',
-            syncLockToken: null,
-            syncLockLeaseAt: null,
-            memberSyncLockToken: null,
-            memberSyncLockLeaseAt: null,
-            nextSyncAt: null,
-            nextMemberSyncAt: null,
-          })
-          .where(
-            and(
-              eq(knowledgeConnector.id, connectorId),
-              eq(knowledgeConnector.knowledgeBaseId, kb.id)
-            )
-          )
-        await enqueueConnectorDeletion(tx, {
-          knowledgeBaseId: kb.id,
-          connectorId,
-          deletedAt: deletedAt.toISOString(),
-          ...(lockedConnector.credentialGroupId && owner.workspaceId
-            ? {
-                credentialAccess: {
-                  workspaceId: owner.workspaceId,
-                  credentialGroupId: lockedConnector.credentialGroupId,
-                  actorUserId: params.userId,
-                },
-              }
-            : {}),
-        })
-        return totals?.count ?? 0
-      }
-      /** Legacy skipped rows used remote size despite retaining no artifact. */
-      await tx
-        .update(document)
-        .set({ fileSize: 0 })
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.knowledgeBaseId, kb.id),
-            isNull(document.storageKey),
-            eq(document.fileUrl, '')
-          )
-        )
-      /**
-       * Connector bytes are unmetered until detachment. Count retained archived files too;
-       * live tombstones are resurrected below, while archived tombstones remain nonbillable.
-       */
       const [totals] = await tx
         .select({
           count: sql<number>`COUNT(*)::integer`,
-          bytes: sql<string>`COALESCE(SUM(${document.fileSize}::bigint) FILTER (
-              WHERE ${document.archivedAt} IS NULL OR ${document.deletedAt} IS NULL
-            ), 0)::text`,
+          keptBytes: sql<string>`COALESCE(SUM(${keptDocumentBytes()}), 0)::text`,
         })
         .from(document)
         .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
       const count = totals?.count ?? 0
-      const retainedBytes = Number(totals?.bytes ?? 0)
-      if (!Number.isSafeInteger(retainedBytes) || retainedBytes < 0) {
-        throw new Error('Invalid retained connector storage size')
-      }
-      if (retainedBytes > 0) {
-        if (storageContext) {
-          const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-            tx,
-            storageContext,
-            retainedBytes
-          )
-          if (updatedUsage !== undefined)
-            storageNotification = { context: storageContext, updatedUsage }
+      if (storageContext) {
+        const keptBytes = Number(totals?.keptBytes ?? 0)
+        if (!Number.isSafeInteger(keptBytes) || keptBytes < 0) {
+          throw new Error('Invalid retained connector storage size')
+        }
+        /** Admission is decided here, where the user can still choose to delete instead. */
+        const quota = await checkStorageQuotaForBillingContext(storageContext, keptBytes)
+        if (!quota.allowed) {
+          throw new StorageLimitExceededError(quota.error ?? 'Storage limit exceeded')
         }
       }
-      await tx
-        .update(document)
-        .set({ deletedAt: null })
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.knowledgeBaseId, kb.id),
-            isNull(document.archivedAt)
-          )
-        )
 
-      const deletedConnectors = await tx
-        .delete(knowledgeConnector)
+      const retiredAt = new Date()
+      await tx
+        .update(knowledgeConnector)
+        .set({
+          ...(deleteDocuments ? { deletedAt: retiredAt } : { detachedAt: retiredAt }),
+          updatedAt: retiredAt,
+          status: 'disabled',
+          memberSyncStatus: 'disabled',
+          syncLockToken: null,
+          syncLockLeaseAt: null,
+          memberSyncLockToken: null,
+          memberSyncLockLeaseAt: null,
+          nextSyncAt: null,
+          nextMemberSyncAt: null,
+        })
         .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            eq(knowledgeConnector.knowledgeBaseId, kb.id),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
+          and(eq(knowledgeConnector.id, connectorId), eq(knowledgeConnector.knowledgeBaseId, kb.id))
         )
-        .returning({ id: knowledgeConnector.id })
-      if (deletedConnectors.length === 0) {
-        throw new OrchestrationError('not_found', 'Connector not found')
+      const credentialAccess =
+        lockedConnector.credentialGroupId && owner.workspaceId
+          ? {
+              credentialAccess: {
+                workspaceId: owner.workspaceId,
+                credentialGroupId: lockedConnector.credentialGroupId,
+                actorUserId: params.userId,
+              },
+            }
+          : {}
+      if (deleteDocuments) {
+        await enqueueConnectorDeletion(tx, {
+          knowledgeBaseId: kb.id,
+          connectorId,
+          deletedAt: retiredAt.toISOString(),
+          ...credentialAccess,
+        })
+      } else {
+        await enqueueConnectorDetachment(tx, {
+          knowledgeBaseId: kb.id,
+          connectorId,
+          detachedAt: retiredAt.toISOString(),
+          ...credentialAccess,
+        })
       }
       return count
     })
@@ -1347,29 +1307,6 @@ export async function performDeleteKnowledgeConnector(
       return fail('Connection is busy. Try removing it again in a moment.', 'conflict')
     }
     return classifyKnowledgeFailure(error, requestId, `Delete connector ${connectorId}`)
-  }
-
-  if (storageNotification) {
-    await maybeNotifyStorageLimitForBillingContext(
-      storageNotification.context,
-      storageNotification.updatedUsage
-    )
-  }
-
-  if (!deleteDocuments && existing.credentialGroupId && kb.workspaceId) {
-    await revokeKnowledgeConnectorCredentialAccess(
-      {
-        workspaceId: kb.workspaceId,
-        credentialGroupId: existing.credentialGroupId,
-        connectorId,
-      },
-      params.userId
-    ).catch((error) => {
-      logger.error(`[${requestId}] Failed to revoke the deleted connector's credential access`, {
-        connectorId,
-        error,
-      })
-    })
   }
 
   logger.info(

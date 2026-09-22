@@ -165,7 +165,8 @@ export async function detectForkCascadeReferences(params: {
           inArray(knowledgeConnector.knowledgeBaseId, Array.from(knowledgeBaseIds)),
           eq(knowledgeBase.workspaceId, sourceWorkspaceId),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.deletedAt)
+          isNull(knowledgeConnector.deletedAt),
+          isNull(knowledgeConnector.detachedAt)
         )
       )
     for (const connector of connectors) {
