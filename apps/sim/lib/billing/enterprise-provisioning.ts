@@ -2758,13 +2758,15 @@ async function resolveEnterpriseInvitationApplicationState(
       member,
       and(eq(member.userId, user.id), eq(member.organizationId, payload.organizationId))
     )
+    /**
+     * Archived workspaces stay in the join: the selection keeps them on purpose (the move
+     * carries them into the organization so they can be unarchived later), so a recipient
+     * whose access on one is already in place must read as applied, or the sweep would
+     * schedule an invitation the archived workspace cannot accept and never converge.
+     */
     .innerJoin(
       workspace,
-      and(
-        eq(workspace.organizationId, member.organizationId),
-        inArray(workspace.id, workspaceIds),
-        isNull(workspace.archivedAt)
-      )
+      and(eq(workspace.organizationId, member.organizationId), inArray(workspace.id, workspaceIds))
     )
     .leftJoin(
       permissions,
