@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, lt, not, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
@@ -79,11 +79,21 @@ export async function restoreWorkspaceDocumentAcls(
 }
 
 /**
- * Documents whose ACL is rewritten per statement. Documents are grouped by
- * identical ACL first — files under one folder overwhelmingly share theirs — so
- * a crawl of thousands usually resolves to a handful of statements.
+ * Documents whose permission evidence is refreshed per statement. Documents are
+ * grouped by identical ACL first — files under one folder overwhelmingly share
+ * theirs — so a crawl of thousands usually resolves to a handful of statements.
+ * A refresh never assigns `acl`, so it fires no projection fan-out.
  */
 const ACL_WRITE_BATCH_SIZE = 500
+
+/**
+ * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
+ * document trigger that copies it onto every chunk's search projection rows, and
+ * each of those rows is re-inserted into the vector index, so one statement costs
+ * the chunks of every document in it rather than the documents. Kept small so a
+ * page of changed documents cannot outrun the statement timeout.
+ */
+const ACL_CHANGE_BATCH_SIZE = 25
 
 export interface DocumentAclWriteResult {
   /** Documents whose ACL or authoritative evidence timestamp was refreshed. */
@@ -94,8 +104,11 @@ export interface DocumentAclWriteResult {
 
 /**
  * Permission-only changes must not trigger re-embedding. Unchanged ACLs still refresh
- * their evidence timestamp; failed fetches cannot extend it. Malformed or oversized
- * ACLs are stored as unreadable so the previous grant cannot survive failed verification.
+ * their evidence timestamp, without assigning `acl`: every assignment fires the
+ * projection trigger, which rewrites any chunk row whose copy differs, including one
+ * the projection backfill has not filled yet. Failed fetches cannot extend it.
+ * Malformed or oversized ACLs are stored as unreadable so the previous grant cannot
+ * survive failed verification.
  * An unresolved duplicate may retain evidence verified during this durable crawl,
  * without refreshing its timestamp; explicit empty ACLs always revoke access.
  */
@@ -145,26 +158,36 @@ export async function persistDocumentAcls(
 
   let updated = 0
   for (const { acl, requirements, externalIds, unresolved } of byAcl.values()) {
+    const aclVerifiedAt = acl.length > 0 ? sql`statement_timestamp() AT TIME ZONE 'UTC'` : null
+    const evidenceGuard =
+      unresolved && evidence
+        ? or(
+            isNull(document.aclVerifiedAt),
+            lt(document.aclVerifiedAt, evidence.generationStartedAt)
+          )
+        : undefined
+    const stored = sql`(${document.acl} IS NOT DISTINCT FROM ${textArrayLiteral(acl)} AND ${document.aclRequirements} IS NOT DISTINCT FROM ${JSON.stringify(requirements)}::jsonb)`
+    const target = (batch: string[], unchanged: boolean) =>
+      and(
+        eq(document.connectorId, connectorId),
+        inArray(document.externalId, batch),
+        unchanged ? stored : not(stored),
+        evidenceGuard
+      )
+    /** Refreshed first, so a row the change write below has just rewritten is not counted twice. */
     for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
       const rows = await executor
         .update(document)
-        .set({
-          acl,
-          aclRequirements: requirements,
-          aclVerifiedAt: acl.length > 0 ? sql`statement_timestamp() AT TIME ZONE 'UTC'` : null,
-        })
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            inArray(document.externalId, batch),
-            unresolved && evidence
-              ? or(
-                  isNull(document.aclVerifiedAt),
-                  lt(document.aclVerifiedAt, evidence.generationStartedAt)
-                )
-              : undefined
-          )
-        )
+        .set({ aclVerifiedAt })
+        .where(target(batch, true))
+        .returning({ id: document.id })
+      updated += rows.length
+    }
+    for (const batch of chunkArray(externalIds, ACL_CHANGE_BATCH_SIZE)) {
+      const rows = await executor
+        .update(document)
+        .set({ acl, aclRequirements: requirements, aclVerifiedAt })
+        .where(target(batch, false))
         .returning({ id: document.id })
       updated += rows.length
     }

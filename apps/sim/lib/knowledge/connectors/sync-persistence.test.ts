@@ -71,15 +71,34 @@ describe('persistDocumentAcls', () => {
    * corpus every time somebody joined a group.
    */
   it('refreshes only access fields, so no document is re-embedded', async () => {
-    queueUpdatedCounts(1)
+    queueUpdatedCounts(0, 1)
 
     await persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:alice@corp.com'],
       aclRequirements: [],
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
+    })
+  })
+
+  /**
+   * Assigning `acl` fires the projection trigger, which rewrites every chunk row whose copy
+   * differs, so a document whose ACL did not change must only have its evidence refreshed.
+   */
+  it('refreshes the evidence of an unchanged ACL without assigning it', async () => {
+    queueUpdatedCounts(1, 0)
+
+    await expect(
+      persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
+    ).resolves.toEqual({ updated: 1, rejected: 0 })
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
       aclVerifiedAt: expect.objectContaining({
         strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
         values: [],
@@ -105,8 +124,8 @@ describe('persistDocumentAcls', () => {
    * Files under one folder overwhelmingly share an ACL, so grouping is what
    * keeps a crawl of thousands to a handful of statements.
    */
-  it('writes one statement per distinct ACL, not per document', async () => {
-    queueUpdatedCounts(2, 1)
+  it('writes one refresh and one change statement per distinct ACL, not per document', async () => {
+    queueUpdatedCounts(0, 2, 0, 1)
 
     await persistDocumentAcls(
       CONNECTOR,
@@ -117,8 +136,8 @@ describe('persistDocumentAcls', () => {
       ])
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(4)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:alice@corp.com'],
       aclRequirements: [],
       aclVerifiedAt: expect.objectContaining({
@@ -126,7 +145,7 @@ describe('persistDocumentAcls', () => {
         values: [],
       }),
     })
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(4, {
       acl: ['u:bob@corp.com'],
       aclRequirements: [],
       aclVerifiedAt: expect.objectContaining({
@@ -147,8 +166,8 @@ describe('persistDocumentAcls', () => {
       ])
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:alice@corp.com', 'u:bob@corp.com'],
       aclRequirements: [],
       aclVerifiedAt: expect.objectContaining({
@@ -174,7 +193,7 @@ describe('persistDocumentAcls', () => {
     })
 
     it('retains an empty restriction and separately persists different clauses', async () => {
-      queueUpdatedCounts(1, 1)
+      queueUpdatedCounts(0, 1, 0, 1)
       await persistDocumentAcls(
         CONNECTOR,
         new Map([
@@ -182,8 +201,8 @@ describe('persistDocumentAcls', () => {
           ['file-2', { acl: ['u:alice@corp.com'], requirements: [['g:confluence:site:team']] }],
         ])
       )
-      expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+      expect(dbChainMockFns.set).toHaveBeenCalledTimes(4)
+      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
         acl: ['u:alice@corp.com'],
         aclRequirements: [['u:alice@corp.com'], []],
         aclVerifiedAt: expect.objectContaining({
@@ -191,7 +210,7 @@ describe('persistDocumentAcls', () => {
           values: [],
         }),
       })
-      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(4, {
         acl: ['u:alice@corp.com'],
         aclRequirements: [['u:alice@corp.com'], ['g:confluence:site:team']],
         aclVerifiedAt: expect.objectContaining({

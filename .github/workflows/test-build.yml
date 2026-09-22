@@ -297,7 +297,8 @@ jobs:
           bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
           bunx vitest run \
             lib/knowledge/access/predicate.postgres.test.ts \
-            lib/knowledge/connectors/external-directory.postgres.test.ts
+            lib/knowledge/connectors/external-directory.postgres.test.ts \
+            lib/knowledge/connectors/sync-persistence.postgres.test.ts
 
   test-build:
     name: Lint and Test
