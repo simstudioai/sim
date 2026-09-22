@@ -19,6 +19,7 @@ import {
   cn,
   FloatingTooltip,
   isTextClipped,
+  ResourceEmptyState,
   Tooltip,
   useFloatingTooltip,
 } from '@sim/emcn'
@@ -72,7 +73,6 @@ import {
   FloatingOverflowText,
   isResourceListEmpty,
   Resource,
-  ResourceNotFound,
   SearchHighlight,
 } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -1310,7 +1310,7 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <ResourceNotFound
+      <ResourceEmptyState
         icon={DatabaseX}
         title='Knowledge base not found'
         description='This knowledge base may have been deleted or moved'
