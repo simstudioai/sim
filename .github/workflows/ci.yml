@@ -226,13 +226,13 @@ jobs:
             MSHIP_PLAN_MODE_DEFAULT=true
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Build and upload tasks alongside tests and images. The unpromoted version
-  # cannot serve new runs; promote-images waits for it and successful migrations.
+  # Staging/production coordinate task releases with app traffic cutover.
+  # Dev tasks deploy independently in deploy-trigger-dev.yml.
   prepare-trigger:
     name: Prepare Trigger.dev
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
@@ -268,7 +268,6 @@ jobs:
           case "$GITHUB_REF" in
             refs/heads/main) TRIGGER_ENV=prod; TRIGGER_BRANCH='' ;;
             refs/heads/staging) TRIGGER_ENV=staging; TRIGGER_BRANCH='' ;;
-            refs/heads/dev) TRIGGER_ENV=preview; TRIGGER_BRANCH=dev-sim ;;
             *) echo "ERROR: unsupported Trigger release ref: $GITHUB_REF" >&2; exit 1 ;;
           esac
           echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
@@ -429,8 +428,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Promote the sha-tagged ECR images once tests, migrations, and the Trigger
-  # upload pass. Pushing the ECR latest/staging tag is what triggers
+  # Promote the sha-tagged ECR images once their build and migrations pass.
+  # Staging/production also require the Trigger upload; dev never waits for it.
+  # Pushing the ECR latest/staging/dev tag is what triggers
   # CodePipeline, so this seconds-long manifest retag is the deploy gate —
   # the image builds themselves run in parallel with the tests. A single job
   # (not a matrix) so all four sha manifests are verified before any tag
@@ -441,9 +441,9 @@ jobs:
     # Explicit results: see migrate's comment.
     if: >-
       !cancelled() && github.event_name == 'push' &&
-      needs.prepare-trigger.result == 'success' &&
       (
         ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+          needs.prepare-trigger.result == 'success' &&
           needs.migrate.result == 'success' &&
           needs.build-amd64.result == 'success') ||
         (github.ref == 'refs/heads/dev' &&
@@ -549,7 +549,7 @@ jobs:
             fi
           done
 
-  # Promote the parked Trigger.dev version after observing the ECS
+  # Staging/production: promote the parked Trigger.dev version after observing the ECS
   # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
   # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
   # (rejecting a stale execution reusing the digest) and promotes at cutover.
@@ -563,14 +563,13 @@ jobs:
     if: >-
       !cancelled() &&
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
       needs.promote-images.result == 'success' &&
       needs.prepare-trigger.result == 'success' &&
       needs.promote-images.outputs.promoted == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    # Leave setup/promotion headroom above the cutover poll (dev: 20 min;
-    # staging/prod: 70 min, including a deploy queued behind a long bake).
-    timeout-minutes: ${{ github.ref == 'refs/heads/dev' && 40 || 90 }}
+    # Leave setup/promotion headroom above the 70-minute cutover poll.
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -602,14 +601,13 @@ jobs:
         with:
           role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
-          # Match each environment's session budget; both outlast their polls.
-          role-duration-seconds: ${{ github.ref == 'refs/heads/dev' && 2400 || 5400 }}
+          role-duration-seconds: 5400
 
       # An unchanged tag may belong to a failed or still-running earlier deploy.
       # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
         env:
-          OVERALL_TIMEOUT: ${{ github.ref == 'refs/heads/dev' && 1200 || 4200 }}
+          OVERALL_TIMEOUT: 4200
           APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
           DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
           PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/dev' && 'dev' || 'staging' }}-us-east-1-app-deployment
