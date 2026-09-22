@@ -58,6 +58,9 @@ beforeAll(async () => {
     CREATE TABLE document (
       knowledge_base_id text, file_size bigint, connector_id text, deleted_at timestamp
     );
+    CREATE TABLE knowledge_connector (
+      knowledge_base_id text, detached_at timestamp, detach_reserved_bytes bigint NOT NULL DEFAULT 0
+    );
   `)
 })
 
@@ -65,7 +68,7 @@ beforeEach(async () => {
   if (!connection) return
   await connection.unsafe(`
     TRUNCATE member, organization, invitation, user_stats, workspace, permissions,
-      workspace_files, knowledge_base, document;
+      workspace_files, knowledge_base, document, knowledge_connector;
     INSERT INTO member VALUES ('owner-membership', 'org', 'org-owner', 'owner');
     INSERT INTO organization VALUES ('org', 40);
     INSERT INTO invitation VALUES ('invitation', 'org');
