@@ -31,6 +31,7 @@ import {
 import { createOrganizationInvitation } from '@/lib/organizations/application/invitations'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationBatch')
@@ -209,6 +210,43 @@ export const sendInvitationBatch: OperationUseCase<
                 permission: input.permission,
                 membership: input.membership,
                 request,
+                validateLockedWorkspace: isUserCredentialPrincipal(principal)
+                  ? async (tx, workspace) => {
+                      if (workspace.organizationId !== workspaceContext.organizationId) {
+                        throw new WorkspaceInvitationError({
+                          message:
+                            'A selected workspace changed organizations. Review the selection and try again.',
+                          status: 409,
+                        })
+                      }
+                      await authorizeWorkspaceOperation(
+                        principal,
+                        invitationAuthorityOperations.workspace,
+                        {
+                          workspaceId: workspace.id,
+                          workspaceOrganizationId: workspace.organizationId,
+                          allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+                        },
+                        { executor: tx, forUpdate: true }
+                      )
+                      await assertWorkspaceCapability(
+                        principal.userId,
+                        workspace.id,
+                        'invitations.send',
+                        workspace.organizationId,
+                        tx
+                      )
+                      const policy = await getWorkspaceInvitePolicy(workspace, tx)
+                      if (!policy.allowed) {
+                        throw new WorkspaceInvitationError({
+                          message: policy.reason ?? 'Invites are disabled for this workspace.',
+                          status: 403,
+                          upgradeRequired: policy.upgradeRequired,
+                        })
+                      }
+                      return policy
+                    }
+                  : undefined,
               })
             : null
         if (!invitation) throw new Error('Invitation batch has no authorized context')

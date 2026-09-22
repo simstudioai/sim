@@ -20,11 +20,13 @@ const {
   mockGetOrgMemberUsageForCurrentPeriod,
   mockSetOrgMemberUsageLimit,
   mockGetOrganizationSubscription,
+  mockIsOrgMemberUsageLimitTarget,
 } = vi.hoisted(() => ({
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockGetOrgMemberUsageForCurrentPeriod: vi.fn(),
   mockSetOrgMemberUsageLimit: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
+  mockIsOrgMemberUsageLimitTarget: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -32,14 +34,11 @@ vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
 }))
-vi.mock('@/lib/users/queries', () => ({
-  getUserProfile: vi.fn().mockResolvedValue({ id: 'user-2' }),
-}))
-
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
   getOrgMemberUsageForCurrentPeriod: mockGetOrgMemberUsageForCurrentPeriod,
   getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
   setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
+  isOrgMemberUsageLimitTarget: mockIsOrgMemberUsageLimitTarget,
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -74,6 +73,7 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     })
     resetDbChainMock()
     queueTableRows(member, [{ role: 'admin' }])
+    mockIsOrgMemberUsageLimitTarget.mockResolvedValue(true)
     mockGetOrgMemberUsageForCurrentPeriod.mockResolvedValue(1) // $1 -> 200 credits
     mockGetOrgMemberUsageLimit.mockResolvedValue(2) // $2 -> 400 credits
     mockGetOrganizationSubscription.mockResolvedValue(null)
@@ -110,6 +110,16 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
       },
     })
     expect(mockGetOrgMemberUsageForCurrentPeriod).toHaveBeenCalledWith('org-1', 'user-2', null)
+    expect(mockIsOrgMemberUsageLimitTarget).toHaveBeenCalledWith('org-1', 'user-2')
+  })
+
+  it('returns 404 before reading a target outside the organization', async () => {
+    mockIsOrgMemberUsageLimitTarget.mockResolvedValue(false)
+    const res = await GET(getRequest(), context())
+    expect(res.status).toBe(404)
+    expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockGetOrgMemberUsageForCurrentPeriod).not.toHaveBeenCalled()
   })
 
   it('reuses the fetched org subscription for the usage window', async () => {
@@ -157,6 +167,7 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     })
     resetDbChainMock()
     queueTableRows(member, [{ role: 'admin' }])
+    mockIsOrgMemberUsageLimitTarget.mockResolvedValue(true)
     mockSetOrgMemberUsageLimit.mockResolvedValue(undefined)
   })
 
@@ -192,6 +203,17 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     expect(res.status).toBe(200)
     expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith('org-1', 'user-2', null, 'admin-1')
   })
+
+  it.each([400, null])(
+    'rejects cap %s for a target outside the organization',
+    async (creditLimit) => {
+      mockIsOrgMemberUsageLimitTarget.mockResolvedValue(false)
+      const res = await PUT(putRequest({ creditLimit }), context())
+      expect(res.status).toBe(404)
+      expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
+      expect(auditMock.recordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects a negative credit limit with 400', async () => {
     const res = await PUT(putRequest({ creditLimit: -5 }), context())

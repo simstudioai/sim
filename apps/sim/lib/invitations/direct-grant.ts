@@ -36,7 +36,9 @@ import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   type PermissionType,
+  type WorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
+import type { WorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
@@ -89,6 +91,11 @@ export interface GrantWorkspaceAccessDirectlyInput {
   sourceOperationId?: string
   /** Makes the semantic audit recoverable when the caller itself is durable. */
   auditOperationId?: string
+  /** Revalidates application admission and returns the current policy under canonical locks. */
+  validateLockedWorkspace?: (
+    tx: DbOrTx,
+    workspace: WorkspaceWithOwner
+  ) => Promise<WorkspaceInvitePolicy>
 }
 
 async function getPendingWorkspaceInvitationIds(
@@ -204,6 +211,8 @@ export async function grantWorkspaceAccessDirectly(
         ) {
           throw new DirectGrantContextChangedError()
         }
+
+        await input.validateLockedWorkspace?.(tx, workspaceRow)
 
         const [existing] = await tx
           .select({ id: permissions.id, permissionType: permissions.permissionType })

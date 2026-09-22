@@ -9,6 +9,7 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import {
   resolveUsageAnalyticsWindow,
   type UsageWindowPreset,
+  usageWindowBounds,
   usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
@@ -59,11 +60,7 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
   operation: organizationUsageOperations.listEvents,
   organizationId: (input: OrganizationUsageEventsInput) => input.organizationId,
   async execute({ input, context }): Promise<OrganizationUsageEventsResult> {
-    const continuation = input.keyset?.cursorKeys
-      ? readUsageEventCursor(input.keyset.cursorKeys, input.maxWindowDays)
-      : undefined
-    const window =
-      continuation?.window ??
+    const resolveWindow = () =>
       resolveUsageAnalyticsWindow({
         preset: input.preset,
         period: context.period,
@@ -71,6 +68,14 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
         customEnd: input.endDate,
         timezone: input.timezone,
       })
+    const continuation = input.keyset?.cursorKeys
+      ? readUsageEventCursor(
+          input.keyset.cursorKeys,
+          input.maxWindowDays,
+          input.preset === 'custom' ? usageWindowBounds(resolveWindow()) : undefined
+        )
+      : undefined
+    const window = continuation?.window ?? resolveWindow()
     requireBoundedUsageWindow(window, input.maxWindowDays)
     const result = await getBillingEntityUsageLogs(context.billingEntity, {
       // One derivation for both predicates, so this list covers exactly the rows the

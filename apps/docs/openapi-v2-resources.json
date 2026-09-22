@@ -7016,7 +7016,7 @@
       "get": {
         "operationId": "getOrganizationMemberUsageLimit",
         "summary": "Get Organization Member Credit Limit",
-        "description": "Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies a user, including an external workspace collaborator; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies an organization member or external collaborator with workspace access in this organization; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "organization_member_usage_limits.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
@@ -7036,11 +7036,11 @@
             "name": "userId",
             "in": "path",
             "required": true,
-            "description": "User ID from List Organization Members or List Workspace Members, including external workspace collaborators.",
+            "description": "User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "User ID from List Organization Members or List Workspace Members, including external workspace collaborators."
+              "description": "User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it."
             }
           }
         ],
@@ -7092,7 +7092,7 @@
       "patch": {
         "operationId": "updateOrganizationMemberUsageLimit",
         "summary": "Update Organization Member Credit Limit",
-        "description": "Set or clear a person’s credit cap. Hosted only. The userId can identify an external workspace collaborator. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Set or clear a person’s credit cap. Hosted only. The userId must identify an organization member or external collaborator with workspace access in this organization. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "organization_member_usage_limits.update",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
@@ -7112,11 +7112,11 @@
             "name": "userId",
             "in": "path",
             "required": true,
-            "description": "User ID from List Organization Members or List Workspace Members, including external workspace collaborators.",
+            "description": "User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "User ID from List Organization Members or List Workspace Members, including external workspace collaborators."
+              "description": "User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it."
             }
           }
         ],
@@ -18624,7 +18624,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "Group or event identifier; an empty group ID represents unattributed usage."
+                  "description": "Group identifier; an empty ID represents unattributed usage."
                 },
                 "label": {
                   "type": "string",

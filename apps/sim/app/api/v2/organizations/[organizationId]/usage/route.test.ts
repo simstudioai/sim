@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   limit: vi.fn(),
   used: vi.fn(),
   setLimit: vi.fn(),
-  user: vi.fn(),
+  limitTarget: vi.fn(),
   totals: vi.fn(),
   series: vi.fn(),
   breakdown: vi.fn(),
@@ -51,8 +51,8 @@ vi.mock('@/lib/billing/organizations/member-limits', () => ({
   getOrgMemberUsageLimit: mocks.limit,
   getOrgMemberUsageForCurrentPeriod: mocks.used,
   setOrgMemberUsageLimit: mocks.setLimit,
+  isOrgMemberUsageLimitTarget: mocks.limitTarget,
 }))
-vi.mock('@/lib/users/queries', () => ({ getUserProfile: mocks.user }))
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageTotals: mocks.totals,
   readUsageTimeSeries: mocks.series,
@@ -63,6 +63,7 @@ vi.mock('@/lib/billing/core/usage-log', () => ({ getBillingEntityUsageLogs: mock
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
 import {
   GET as getLimit,
   PATCH as setLimit,
@@ -127,7 +128,7 @@ beforeEach(() => {
   })
   mocks.limit.mockResolvedValue(2)
   mocks.used.mockResolvedValue(1)
-  mocks.user.mockResolvedValue({ id: 'external-user' })
+  mocks.limitTarget.mockResolvedValue(true)
   mocks.setLimit.mockResolvedValue(undefined)
   mocks.totals.mockResolvedValue({ cost: 1 })
   mocks.series.mockResolvedValue([])
@@ -150,6 +151,7 @@ describe('organization credit-limit API', () => {
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ data: { creditLimit: 400 } })
       expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', 2, 'actor')
+      expect(mocks.limitTarget).toHaveBeenCalledWith('org', 'external-user')
       expect(recordAudit).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
           actorId: 'actor',
@@ -202,15 +204,30 @@ describe('organization credit-limit API', () => {
     expect(mocks.setLimit).not.toHaveBeenCalled()
   })
 
-  it('returns not found instead of a database fault for a missing target user', async () => {
+  it('refuses reads for a user outside the organization before loading usage', async () => {
     admin()
-    mocks.user.mockResolvedValue(null)
-    expect(
-      (await setLimit(request('members/missing/usage-limit', { creditLimit: 10 }), context)).status
-    ).toBe(404)
-    expect(mocks.setLimit).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
+    mocks.limitTarget.mockResolvedValue(false)
+    const response = await getLimit(request('members/external-user/usage-limit'), context)
+    expect(response.status).toBe(404)
+    expect(mocks.limit).not.toHaveBeenCalled()
+    expect(mocks.used).not.toHaveBeenCalled()
+    expect(mocks.subscription).not.toHaveBeenCalled()
   })
+
+  it.each([10, null])(
+    'refuses cap %s for a user outside the organization without mutation or audit',
+    async (creditLimit) => {
+      admin()
+      mocks.limitTarget.mockResolvedValue(false)
+      const response = await setLimit(
+        request('members/external-user/usage-limit', { creditLimit }),
+        context
+      )
+      expect(response.status).toBe(404)
+      expect(mocks.setLimit).not.toHaveBeenCalled()
+      expect(recordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([{}, { creditLimit: -1 }, { creditLimit: 0.5 }, { creditLimit: 100, unexpected: true }])(
     'rejects malformed cap %j before protected reads',
@@ -218,7 +235,7 @@ describe('organization credit-limit API', () => {
       expect(
         (await setLimit(request('members/external-user/usage-limit', body), context)).status
       ).toBe(400)
-      expect(mocks.user).not.toHaveBeenCalled()
+      expect(mocks.limitTarget).not.toHaveBeenCalled()
       expect(recordAudit).not.toHaveBeenCalled()
     }
   )
@@ -229,7 +246,7 @@ describe('organization credit-limit API', () => {
       (await setLimit(request('members/external-user/usage-limit', { creditLimit: 10 }), context))
         .status
     ).toBe(403)
-    expect(mocks.user).not.toHaveBeenCalled()
+    expect(mocks.limitTarget).not.toHaveBeenCalled()
   })
 })
 
@@ -362,6 +379,112 @@ describe('organization usage API authorization and bounds', () => {
 })
 
 describe('organization usage event cursors', () => {
+  const customQuery =
+    'preset=custom&startDate=2026-03-08&endDate=2026-03-09&timezone=America%2FLos_Angeles&source=sim-chat&limit=1'
+  const eventKeys = ['2026-03-09T12:00:00.000Z', 'event-1']
+
+  async function firstCustomPage() {
+    admin()
+    mocks.logs.mockResolvedValueOnce({
+      logs: [],
+      pagination: { hasMore: true, nextCursorKeys: eventKeys },
+    })
+    const response = await events(request(`usage/events?${customQuery}`), usageContext)
+    expect(response.status).toBe(200)
+    return (await response.json()).nextCursor as string
+  }
+
+  it('preserves the exact custom calendar range across daylight saving on continuation', async () => {
+    const cursor = await firstCustomPage()
+    admin()
+    const response = await events(
+      request(`usage/events?${customQuery}&cursor=${encodeURIComponent(cursor)}`),
+      usageContext
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.logs).toHaveBeenCalledTimes(2)
+    for (const [, options] of mocks.logs.mock.calls) {
+      expect(options).toMatchObject({
+        startDate: new Date('2026-03-08T08:00:00.000Z'),
+        endDate: new Date('2026-03-10T07:00:00.000Z'),
+        endDateExclusive: true,
+      })
+      expect(options.billingPeriod).toBeUndefined()
+    }
+    expect(mocks.logs.mock.calls[1][1].keyset.cursorKeys).toEqual(eventKeys)
+  })
+
+  it.each([
+    ['range', '2026-03-07T08:00:00.000Z', '2026-03-10T07:00:00.000Z'],
+    ['range', '2026-03-08T08:00:00.000Z', '2026-03-11T07:00:00.000Z'],
+    ['period', '2026-03-08T08:00:00.000Z', '2026-03-10T07:00:00.000Z'],
+  ])('rejects tampered custom window %s / %s / %s before ledger reads', async (...windowKeys) => {
+    const cursor = await firstCustomPage()
+    const payload = decodeCursor<Record<string, unknown>>(cursor)
+    expect(payload).not.toBeNull()
+    const tampered = encodeCursor({ ...payload, keys: [...windowKeys, ...eventKeys] })
+    admin()
+    const response = await events(
+      request(`usage/events?${customQuery}&cursor=${encodeURIComponent(tampered)}`),
+      usageContext
+    )
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Usage event cursor does not match the requested custom range; restart pagination',
+      },
+    })
+    expect(mocks.logs).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['startDate', '2026-03-07'],
+    ['endDate', '2026-03-10'],
+    ['timezone', 'UTC'],
+    ['source', 'workflow'],
+    ['sortOrder', 'asc'],
+  ])('rejects a custom cursor reused with changed %s', async (filter, value) => {
+    const cursor = await firstCustomPage()
+    const query = new URLSearchParams(customQuery)
+    query.set(filter, value)
+    query.set('cursor', cursor)
+    const response = await events(request(`usage/events?${query}`), usageContext)
+    expect(response.status).toBe(400)
+    expect(mocks.logs).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the first billing predicate after a subscription period changes', async () => {
+    admin()
+    mocks.logs.mockResolvedValueOnce({
+      logs: [],
+      pagination: { hasMore: true, nextCursorKeys: ['2026-08-15T00:00:00.000Z', 'event-1'] },
+    })
+    const first = await events(request('usage/events?preset=current-period'), usageContext)
+    expect(first.status).toBe(200)
+    const { nextCursor } = await first.json()
+    mocks.subscription.mockResolvedValue({
+      plan: 'enterprise',
+      periodStart: new Date('2026-09-01'),
+      periodEnd: new Date('2026-10-01'),
+    })
+    admin()
+    const second = await events(
+      request(`usage/events?preset=current-period&cursor=${encodeURIComponent(nextCursor)}`),
+      usageContext
+    )
+    expect(second.status).toBe(200)
+    expect(mocks.logs).toHaveBeenCalledTimes(2)
+    for (const [, options] of mocks.logs.mock.calls) {
+      expect(options.billingPeriod).toEqual({
+        start: new Date('2026-08-01'),
+        end: new Date('2026-09-01'),
+      })
+      expect(options.startDate).toBeUndefined()
+      expect(options.endDate).toBeUndefined()
+    }
+  })
+
   it('keeps the first 30d window across clock advances and converts public source names', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-10T12:00:00Z'))

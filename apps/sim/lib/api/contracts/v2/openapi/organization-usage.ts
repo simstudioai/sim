@@ -22,7 +22,7 @@ export const organizationUsageOpenApiRoutes = [
       applicationOperation: memberUsageLimitOperations.read,
       operationId: 'getOrganizationMemberUsageLimit',
       summary: 'Get Organization Member Credit Limit',
-      description: `Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies a user, including an external workspace collaborator; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies an organization member or external collaborator with workspace access in this organization; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: {
@@ -58,7 +58,7 @@ export const organizationUsageOpenApiRoutes = [
       applicationOperation: memberUsageLimitOperations.update,
       operationId: 'updateOrganizationMemberUsageLimit',
       summary: 'Update Organization Member Credit Limit',
-      description: `Set or clear a person’s credit cap. Hosted only. The userId can identify an external workspace collaborator. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Set or clear a person’s credit cap. Hosted only. The userId must identify an organization member or external collaborator with workspace access in this organization. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: {

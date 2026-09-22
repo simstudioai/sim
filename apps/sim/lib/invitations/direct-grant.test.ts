@@ -10,6 +10,7 @@ import {
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
 const {
   mockAcquireInvitationMutationLocks,
@@ -175,6 +176,35 @@ describe('grantWorkspaceAccessDirectly', () => {
       workspaceId: 'ws-1',
       workspaceName: 'Workspace 1',
     })
+  })
+
+  it('rechecks application admission after locks and before any grant or side effect', async () => {
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    await expect(
+      grantWorkspaceAccessDirectly({
+        ...baseInput,
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(validateLockedWorkspace).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ id: 'ws-1', organizationId: 'org-1' })
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockRevokeInvitationWorkspaceGrantTx).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('retries provider-declined notification delivery instead of dropping it', async () => {

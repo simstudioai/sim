@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { member, user as userTable } from '@sim/db/schema'
 import {
   auditMock,
@@ -14,12 +15,15 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type { DbOrTx } from '@/lib/db/types'
+import type { GrantWorkspaceAccessDirectlyInput } from '@/lib/invitations/direct-grant'
 import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
 const {
   MockConflictingPendingInvitationError,
   MockDirectGrantContextChangedError,
+  mockAcquireInvitationMutationLocks,
   mockAcquireOrganizationMutationLock,
   mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
@@ -40,6 +44,7 @@ const {
 } = vi.hoisted(() => ({
   MockConflictingPendingInvitationError: class extends Error {},
   MockDirectGrantContextChangedError: class extends Error {},
+  mockAcquireInvitationMutationLocks: vi.fn(),
   mockAcquireOrganizationMutationLock: vi.fn(),
   mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
@@ -60,6 +65,10 @@ const {
 }))
 
 vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/invitations/locks', () => ({
+  acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+}))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
@@ -180,6 +189,7 @@ describe('createWorkspaceInvitation', () => {
     /** Production default; the billing-disabled case opts out explicitly. */
     setEnvFlags({ isBillingEnabled: true })
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
+    mockAcquireInvitationMutationLocks.mockResolvedValue(undefined)
     mockAcquireOrganizationMutationLock.mockResolvedValue(undefined)
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
     mockGetWorkspaceWithOwner.mockResolvedValue({
@@ -395,6 +405,116 @@ describe('createWorkspaceInvitation', () => {
     expect(mockSendInvitationEmail.mock.invocationCallOrder[0]).toBeLessThan(
       auditMockFns.mockRecordAudit.mock.invocationCallOrder[0]
     )
+  })
+
+  it('runs application admission under the organization lock before creating an invitation', async () => {
+    queueTableRows(userTable, [])
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    const write = vi.fn()
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await db.transaction(async (tx) => {
+          expect(input.validateLockedContext).toBeTypeOf('function')
+          await input.validateLockedContext?.({
+            tx,
+            organizationId: 'org-1',
+            workspaceIds: ['ws-1'],
+          })
+          write()
+        })
+      }
+    )
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'new@example.com',
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(validateLockedWorkspace).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ id: 'ws-1', organizationId: 'org-1' })
+    )
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(write).not.toHaveBeenCalled()
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('forwards locked admission into direct grants for existing organization members', async () => {
+    queueTableRows(userTable, [{ id: 'user-2' }])
+    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'member' })
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    mockGrantWorkspaceAccessDirectly.mockImplementationOnce(
+      async (input: GrantWorkspaceAccessDirectlyInput) => {
+        expect(input.validateLockedWorkspace).toBe(validateLockedWorkspace)
+        await input.validateLockedWorkspace?.(db, makeContext().targets[0].workspaceDetails)
+        throw new Error('unreachable')
+      }
+    )
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'member@example.com',
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('rechecks reconciliation admission after invitation and organization locks before promotion', async () => {
+    queueTableRows(userTable, [{ id: 'user-2' }])
+    queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(member, [{ role: 'member' }])
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      memberId: 'member-2',
+      role: 'member',
+    })
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'member@example.com',
+        membership: 'admin',
+        existingAccessPolicy: 'ensure-at-least',
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      invitationIds: [],
+      workspaceIds: ['ws-1'],
+    })
+    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]
+    )
+    expect(mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('stamps an admin organization role when an org admin picks Admin membership', async () => {
@@ -654,6 +774,57 @@ describe('createWorkspaceInvitation', () => {
       mockValidateSeatAvailability.mock.invocationCallOrder[0]
     )
   })
+
+  it.each([false, true])(
+    'uses live seat policy when preflight requiresSeat was %s',
+    async (preflightRequiresSeat) => {
+      queueTableRows(userTable, [])
+      const context = makeContext()
+      context.targets[0].invitePolicy.requiresSeat = preflightRequiresSeat
+      const validateLockedWorkspace = vi.fn(async () => ({
+        ...context.targets[0].invitePolicy,
+        requiresSeat: !preflightRequiresSeat,
+      }))
+      const write = vi.fn()
+      mockValidateSeatAvailability.mockResolvedValueOnce({
+        canInvite: false,
+        reason: 'No available seats.',
+      })
+      mockCreatePendingInvitation.mockImplementationOnce(
+        async (input: CreatePendingInvitationInput) => {
+          await db.transaction(async (tx) => {
+            await input.validateLockedContext?.({
+              tx,
+              organizationId: 'org-1',
+              workspaceIds: ['ws-1'],
+            })
+            write()
+          })
+          return {
+            invitationId: 'inv-1',
+            token: 'tok-1',
+            grants: [{ workspaceId: 'ws-1', permission: 'read' }],
+          }
+        }
+      )
+      const result = createWorkspaceInvitation({
+        context,
+        email: 'new@example.com',
+        validateLockedWorkspace,
+      })
+      if (preflightRequiresSeat) {
+        await expect(result).resolves.toMatchObject({ id: 'inv-1' })
+        expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
+        expect(write).toHaveBeenCalledTimes(1)
+      } else {
+        await expect(result).rejects.toMatchObject({ message: 'No available seats.', status: 400 })
+        expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1, { executor: db })
+        expect(write).not.toHaveBeenCalled()
+        expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+        expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+      }
+    }
+  )
 
   it('rejects when every selected workspace is already invited', async () => {
     queueWhereResponses([[]])

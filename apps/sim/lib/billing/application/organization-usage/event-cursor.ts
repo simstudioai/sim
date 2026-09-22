@@ -4,7 +4,11 @@ import { type UsageAnalyticsWindow, usageWindowBounds } from '@/lib/billing/core
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** Preserve the first page's ledger predicate across clock and subscription changes. */
-export function readUsageEventCursor(keys: CursorKey[], maxWindowDays?: number) {
+export function readUsageEventCursor(
+  keys: CursorKey[],
+  maxWindowDays?: number,
+  expectedCustomRange?: { start: Date; end: Date }
+) {
   const [kind, start, end, ...cursorKeys] = keys
   if (
     keys.length !== 5 ||
@@ -20,6 +24,17 @@ export function readUsageEventCursor(keys: CursorKey[], maxWindowDays?: number) 
     throw new OrchestrationError(
       'validation',
       'Invalid usage event cursor window; restart pagination'
+    )
+  }
+  if (
+    expectedCustomRange &&
+    (kind !== 'range' ||
+      from.getTime() !== expectedCustomRange.start.getTime() ||
+      to.getTime() !== expectedCustomRange.end.getTime())
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      'Usage event cursor does not match the requested custom range; restart pagination'
     )
   }
   const window: UsageAnalyticsWindow =

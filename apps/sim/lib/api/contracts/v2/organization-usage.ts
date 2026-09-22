@@ -57,7 +57,7 @@ export type V2UpdateOrganizationMemberUsageLimitBody = z.input<
 
 export const v2OrganizationMemberUsageLimitParamsSchema = v2OrganizationMemberParamsSchema.extend({
   userId: v2OrganizationMemberParamsSchema.shape.userId.describe(
-    'User ID from List Organization Members or List Workspace Members, including external workspace collaborators.'
+    'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.'
   ),
 })
 

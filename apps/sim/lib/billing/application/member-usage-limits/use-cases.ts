@@ -7,6 +7,7 @@ import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conver
 import {
   getOrgMemberUsageForCurrentPeriod,
   getOrgMemberUsageLimit,
+  isOrgMemberUsageLimitTarget,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
 import {
@@ -15,7 +16,6 @@ import {
 } from '@/lib/core/application/authorized-organization-use-case'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getUserProfile } from '@/lib/users/queries'
 
 const logger = createLogger('OrganizationMemberUsageLimits')
 
@@ -33,9 +33,18 @@ export function requireHostedMemberUsageLimits() {
   if (!isHosted) throw new OrchestrationError('not_found', 'Not found')
 }
 
+async function requireMemberUsageLimitTarget({
+  input,
+}: OrganizationUseCaseContext<OrganizationMemberUsageLimitInput>) {
+  requireHostedMemberUsageLimits()
+  if (!(await isOrgMemberUsageLimitTarget(input.organizationId, input.userId))) {
+    throw new OrchestrationError('not_found', 'Member not found')
+  }
+}
+
 export const getOrganizationMemberUsageLimit = defineAuthorizedOrganizationUseCase({
   operation: memberUsageLimitOperations.read,
-  authorizeResource: requireHostedMemberUsageLimits,
+  authorizeResource: requireMemberUsageLimitTarget,
   async execute({ input }: OrganizationUseCaseContext<OrganizationMemberUsageLimitInput>) {
     const [limitDollars, subscription] = await Promise.all([
       getOrgMemberUsageLimit(input.organizationId, input.userId),
@@ -56,15 +65,12 @@ export const getOrganizationMemberUsageLimit = defineAuthorizedOrganizationUseCa
 
 export const updateOrganizationMemberUsageLimit = defineAuthorizedOrganizationUseCase({
   operation: memberUsageLimitOperations.update,
-  authorizeResource: requireHostedMemberUsageLimits,
+  authorizeResource: requireMemberUsageLimitTarget,
   async execute({
     input,
     context,
   }: OrganizationUseCaseContext<UpdateOrganizationMemberUsageLimitInput>) {
     const { organizationId, userId, creditLimit } = input
-    if (creditLimit !== null && !(await getUserProfile(userId))) {
-      throw new OrchestrationError('not_found', 'User not found')
-    }
     await setOrgMemberUsageLimit(
       organizationId,
       userId,

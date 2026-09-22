@@ -203,9 +203,7 @@ export const organizationUsageSummaryResponseSchema = z.object({
 export type OrganizationUsageSummary = z.output<typeof organizationUsageSummaryResponseSchema>
 
 export const organizationUsageBreakdownRowSchema = z.object({
-  id: z
-    .string()
-    .describe('Group or event identifier; an empty group ID represents unattributed usage.'),
+  id: z.string().describe('Group identifier; an empty ID represents unattributed usage.'),
   label: z.string().describe('Display label for the usage group.'),
   credits: z.number().describe('Whole credits attributed to this total or group.'),
   events: z.number().int().describe('Number of usage events.'),
@@ -250,9 +248,7 @@ export const organizationUsageBreakdownResponseSchema = z.object({
 export type OrganizationUsageBreakdown = z.output<typeof organizationUsageBreakdownResponseSchema>
 
 export const organizationUsageEventSchema = z.object({
-  id: z
-    .string()
-    .describe('Group or event identifier; an empty group ID represents unattributed usage.'),
+  id: z.string().describe('Unique usage-ledger event identifier.'),
   createdAt: z.string(),
   source: z.string(),
   description: z.string(),

@@ -1354,7 +1354,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetOrganizationMemberUsageLimitContract,
     summary: 'Get Organization Member Credit Limit',
     description:
-      'Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies a user, including an external workspace collaborator; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies an organization member or external collaborator with workspace access in this organization; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/members/[userId]/usage-limit/route').then(
@@ -2643,7 +2643,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateOrganizationMemberUsageLimitContract,
     summary: 'Update Organization Member Credit Limit',
     description:
-      'Set or clear a person’s credit cap. Hosted only. The userId can identify an external workspace collaborator. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Set or clear a person’s credit cap. Hosted only. The userId must identify an organization member or external collaborator with workspace access in this organization. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/members/[userId]/usage-limit/route').then(

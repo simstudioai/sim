@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   canonicalWorkspace: vi.fn(),
   workspaceRole: vi.fn(),
   config: vi.fn(),
+  invitePolicy: vi.fn(),
 }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.canonicalWorkspace,
@@ -26,6 +27,9 @@ vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
 }))
 vi.mock('@/lib/permission-groups/config-scope.server', () => ({
   resolvePermissionGroupConfig: mocks.config,
+}))
+vi.mock('@/lib/workspaces/policy', () => ({
+  getWorkspaceInvitePolicy: mocks.invitePolicy,
 }))
 vi.mock('@/lib/invitations/organization-invitations', () => ({
   prepareOrganizationInvitationContext: mocks.orgContext,
@@ -52,7 +56,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { sendInvitationBatch } from '@/lib/invitations/application/send-invitation-batch'
-import { WorkspaceInvitationError } from '@/lib/invitations/workspace-invitations'
+import {
+  type createWorkspaceInvitation,
+  WorkspaceInvitationError,
+} from '@/lib/invitations/workspace-invitations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const principal = { kind: 'session', userId: 'admin-user', sessionId: 'session' } as const
@@ -68,6 +75,15 @@ const oauth = {
 const canonicalWorkspace = {
   workspaceId: 'workspace',
   workspaceOrganizationId: 'org-target',
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'other-user',
+}
+const lockedWorkspace = {
+  id: 'workspace',
+  name: 'Workspace',
+  ownerId: 'other-user',
+  organizationId: 'org-target',
+  workspaceMode: 'organization' as const,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'other-user',
 }
@@ -99,6 +115,13 @@ beforeEach(() => {
   mocks.canonicalWorkspace.mockResolvedValue(canonicalWorkspace)
   mocks.workspaceRole.mockResolvedValue('admin')
   mocks.config.mockResolvedValue(null)
+  mocks.invitePolicy.mockResolvedValue({
+    allowed: true,
+    requiresSeat: false,
+    reason: null,
+    organizationId: 'org-target',
+    upgradeRequired: false,
+  })
 })
 afterEach(resetDbChainMock)
 
@@ -308,6 +331,116 @@ describe('invitation batch application boundary', () => {
       })
     ).rejects.toThrow('do not belong to this organization')
     expect(mocks.workspaceSend).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [personal, { disableInvitations: true }],
+    [oauth, { disableInvitations: true }],
+    [personal, { disablePersonalApiKeys: true }],
+    [oauth, { disableOAuthAppAccess: true }],
+    [{ ...oauth, clientId: SIM_CLI_CLIENT_ID }, { disableCliAccess: true }],
+  ] as const)(
+    'rechecks $0.kind admission using the locked transaction after allowed preflight',
+    async (principal, restriction) => {
+      const tx = new Proxy(db, {})
+      const write = vi.fn()
+      mocks.workspaceSend.mockImplementationOnce(
+        async (input: Parameters<typeof createWorkspaceInvitation>[0]) => {
+          mocks.config.mockImplementation(async (_user, _workspace, _organization, executor) =>
+            executor === tx ? { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...restriction } : null
+          )
+          expect(input.validateLockedWorkspace).toBeTypeOf('function')
+          await input.validateLockedWorkspace?.(tx, lockedWorkspace)
+          write()
+          return invitation
+        }
+      )
+      const result = await sendInvitationBatch.execute({
+        principal,
+        input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
+      })
+      expect(result).toMatchObject({
+        success: false,
+        successful: [],
+        added: [],
+        invitations: [],
+        failed: [{ email: 'person@example.com', error: expect.any(String) }],
+      })
+      expect(write).not.toHaveBeenCalled()
+      expect(mocks.workspaceRole).toHaveBeenLastCalledWith(
+        'admin-user',
+        'workspace',
+        'org-target',
+        tx,
+        { forUpdate: true }
+      )
+      expect(mocks.config).toHaveBeenLastCalledWith('admin-user', 'workspace', 'org-target', tx)
+    }
+  )
+
+  it.each([
+    [{ ...lockedWorkspace, allowPersonalApiKeys: false }, 'Personal API keys are not allowed'],
+    [{ ...lockedWorkspace, organizationId: 'moved-org' }, 'changed organizations'],
+  ])(
+    'uses the locked workspace policy and original organization scope',
+    async (workspace, error) => {
+      const write = vi.fn()
+      mocks.workspaceSend.mockImplementationOnce(
+        async (input: Parameters<typeof createWorkspaceInvitation>[0]) => {
+          expect(input.validateLockedWorkspace).toBeTypeOf('function')
+          await input.validateLockedWorkspace?.(db, workspace)
+          write()
+          return invitation
+        }
+      )
+      const result = await sendInvitationBatch.execute({
+        principal: personal,
+        input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
+      })
+      expect(result.success).toBe(false)
+      expect(result.failed[0].error).toContain(error)
+      expect(write).not.toHaveBeenCalled()
+    }
+  )
+
+  it('leaves session invitation admission on the existing path', async () => {
+    await sendInvitationBatch.execute({
+      principal,
+      input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
+    })
+    expect(mocks.workspaceSend).toHaveBeenCalledWith(
+      expect.objectContaining({ validateLockedWorkspace: undefined })
+    )
+  })
+
+  it('refuses a plan disabled after preflight using the locked billing context', async () => {
+    const tx = new Proxy(db, {})
+    const write = vi.fn()
+    mocks.invitePolicy.mockResolvedValueOnce({
+      allowed: false,
+      requiresSeat: false,
+      reason: 'Upgrade to invite teammates',
+      organizationId: 'org-target',
+      upgradeRequired: true,
+    })
+    mocks.workspaceSend.mockImplementationOnce(
+      async (input: Parameters<typeof createWorkspaceInvitation>[0]) => {
+        expect(input.validateLockedWorkspace).toBeTypeOf('function')
+        await input.validateLockedWorkspace?.(tx, lockedWorkspace)
+        write()
+        return invitation
+      }
+    )
+    const result = await sendInvitationBatch.execute({
+      principal: personal,
+      input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
+    })
+    expect(result).toMatchObject({
+      success: false,
+      failed: [{ email: 'person@example.com', error: 'Upgrade to invite teammates' }],
+    })
+    expect(mocks.invitePolicy).toHaveBeenCalledExactlyOnceWith(lockedWorkspace, tx)
+    expect(write).not.toHaveBeenCalled()
   })
 
   it('preserves earlier successes and reports later failures without leaking infrastructure details', async () => {

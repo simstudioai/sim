@@ -16441,7 +16441,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: {
       organizationId: 'Organization identifier.',
       userId:
-        'User ID from List Organization Members or List Workspace Members, including external workspace collaborators.',
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
     },
     responseMode: 'json',
     summary: 'Get Organization Member Credit Limit',
@@ -20933,7 +20933,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: {
       organizationId: 'Organization identifier.',
       userId:
-        'User ID from List Organization Members or List Workspace Members, including external workspace collaborators.',
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
     },
     responseMode: 'json',
     summary: 'Update Organization Member Credit Limit',
