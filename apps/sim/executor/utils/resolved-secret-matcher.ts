@@ -1,3 +1,4 @@
+import { compareStrings } from '@sim/utils/string'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
@@ -47,12 +48,6 @@ class ResolvedSecretMatcherError extends Error {
     super(message)
     this.name = 'ResolvedSecretMatcherError'
   }
-}
-
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
 }
 
 function createMatcherFromReplacements(

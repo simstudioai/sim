@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
-import {
-  type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
-} from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
@@ -45,7 +43,7 @@ const GENERIC_USAGE_LIMIT_MESSAGE =
 export async function admitCustomBlockChildExecution(
   attribution: BillingAttributionSnapshot
 ): Promise<void> {
-  const usage = await checkAttributedUsageLimits(attribution)
+  const usage = await checkExecutionUsageLimits(attribution)
   if (!usage.isExceeded) return
 
   // Only the payer-scoped denial describes the shared organization ("Organization

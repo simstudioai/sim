@@ -31,6 +31,10 @@ import {
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
+import { accessRequestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/access-requests'
+import { organizationUsageOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organization-usage'
+import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
+import { permissionGroupOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/permission-groups'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -47,6 +51,8 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { workspaceInvitationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-invitations'
+import { workspacePermissionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-permissions'
 import {
   v2CreateSandboxContract,
   v2DeleteSandboxContract,
@@ -295,6 +301,7 @@ const WORKSPACE_EXAMPLE = {
 } as const
 
 const WORKSPACE_MEMBER_EXAMPLE = {
+  userId: 'user-123',
   email: 'jane@example.com',
   name: 'Jane Smith',
   image: null,
@@ -607,7 +614,7 @@ const declaredRoutes = [
       operationId: 'listWorkspaceMembers',
       summary: 'List Workspace Members',
       description:
-        'List workspace members by email, including explicit grants and inherited organization admin access.',
+        'List workspace members by email, including explicit grants and inherited organization admin access. Each member includes a stable user ID for member administration.',
       errors: RESOURCE_ERRORS,
       success: { description: 'An email-ordered page of effective workspace members.' },
     }),
@@ -2147,6 +2154,12 @@ const declaredRoutes = [
       ),
     }
   ),
+  ...permissionGroupOpenApiRoutes,
+  ...organizationOpenApiRoutes,
+  ...workspacePermissionOpenApiRoutes,
+  ...workspaceInvitationOpenApiRoutes,
+  ...organizationUsageOpenApiRoutes,
+  ...accessRequestOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
@@ -2154,9 +2167,9 @@ const routes = declaredRoutes.map(withRequestBodyErrors)
 export const resourcesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-resources.json',
   info: {
-    title: 'Sim API v2 — Workspace Resources',
+    title: 'Sim API v2 — Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, and the block, tool, and connector-type catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -2170,6 +2183,19 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   },
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
+    {
+      name: 'Access Requests',
+      description:
+        'Request access and review changes to organization permissions and member credit limits.',
+    },
+    {
+      name: 'Organizations',
+      description: 'Discover organizations and manage their members and invitations.',
+    },
+    {
+      name: 'Permission Groups',
+      description: 'Manage organization permission groups, their restrictions, and membership.',
+    },
     {
       name: 'Meta',
       description: 'Discover what the calling API credential can reach.',

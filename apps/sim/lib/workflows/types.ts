@@ -21,6 +21,8 @@ export const USER_FILE_ACCESSIBLE_PROPERTIES = [
    * the block in the remote sandbox, since the isolated VM has no filesystem.
    */
   'path',
+  /** Version number of a workspace file's content; absent for files with no version history. */
+  'version',
 ] as const
 
 export type UserFileAccessibleProperty = (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
@@ -33,6 +35,7 @@ export const USER_FILE_PROPERTY_TYPES: Record<UserFileAccessibleProperty, string
   type: 'string',
   base64: 'string',
   path: 'string',
+  version: 'number',
 } as const
 
 export const START_BLOCK_RESERVED_FIELDS = ['input', 'conversationId', 'files'] as const

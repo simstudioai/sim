@@ -389,6 +389,7 @@ export function ChatDeploy({
               placeholder='Select which block outputs to use'
               disabled={chatSubmitting}
               size='md'
+              variant='chip'
               className='w-full'
               disablePortal
             />

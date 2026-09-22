@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -90,7 +91,7 @@ export const instantlyHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecordLike(body) ? body : {}
+    const payload = toRecord(body)
 
     return {
       input: {
@@ -265,7 +266,7 @@ export const instantlyHandler: WebhookProviderHandler = {
 async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecordLike(body) ? body : null
+    return toRecordOrNull(body)
   } catch {
     return null
   }
@@ -278,16 +279,8 @@ function extractInstantlyError(body: Record<string, unknown> | null): string | n
   return null
 }
 
-function toStringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 function toNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function toBooleanOrNull(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function optionalId(value: unknown): string | undefined {

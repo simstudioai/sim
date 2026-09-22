@@ -44,16 +44,19 @@ export function capabilityDeniedBy(
  *
  * A no-op when no group governs the user, so a personal workspace or a
  * non-enterprise organization is unaffected. Pass `organizationId` when the
- * caller has already loaded the workspace; omitting it costs one lookup, and
- * both forms share the same per-request memo either way.
+ * caller has already loaded the workspace. An explicit executor reads current
+ * policy directly; otherwise both forms share the per-request memo.
  */
 export async function assertWorkspaceCapability(
   userId: string,
   workspaceId: string,
   capability: StaticPermissionGroupCapability,
-  organizationId?: string | null
+  organizationId?: string | null,
+  executor?: DbOrTx
 ): Promise<void> {
-  const config = await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
+  const config = executor
+    ? await resolvePermissionGroupConfig(userId, workspaceId, organizationId, executor)
+    : await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
   if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
 }
 

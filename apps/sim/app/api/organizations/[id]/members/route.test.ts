@@ -56,7 +56,10 @@ describe('GET /api/organizations/[id]/members', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'user-reader' }),
+      session: { id: 'session-reader' },
+    })
     mockGetOrgPermissionConfig.mockResolvedValue(null)
   })
 
@@ -91,7 +94,7 @@ describe('GET /api/organizations/[id]/members', () => {
     const response = await request()
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       error: capabilityRefusal('organization.member_directory'),
     })
   })

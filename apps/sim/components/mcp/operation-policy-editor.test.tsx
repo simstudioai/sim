@@ -1,14 +1,14 @@
 /** @vitest-environment node */
 import type { ComponentProps } from 'react'
-import type { ChipSelect, TagInput } from '@sim/emcn'
+import type { Combobox, TagInput } from '@sim/emcn'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { tagInput, dropdown } = vi.hoisted(() => ({
   tagInput: vi.fn<(props: ComponentProps<typeof TagInput>) => null>(() => null),
-  dropdown: vi.fn<(props: ComponentProps<typeof ChipSelect>) => null>(() => null),
+  dropdown: vi.fn<(props: ComponentProps<typeof Combobox>) => null>(() => null),
 }))
-vi.mock('@sim/emcn', () => ({ TagInput: tagInput, ChipSelect: dropdown }))
+vi.mock('@sim/emcn', () => ({ TagInput: tagInput, Combobox: dropdown }))
 
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 

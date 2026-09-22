@@ -1,7 +1,7 @@
 import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -127,7 +127,7 @@ async function activeDeploymentSharesJotformCallback(
 
 export const jotformHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecordLike(body) ? body : {}
+    const payload = toRecord(body)
 
     /* Jotform posts `rawRequest` as a JSON string inside a multipart body. A form whose
        answers fail to parse is still worth executing on, so a bad string degrades to null

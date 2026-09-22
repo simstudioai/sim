@@ -27,7 +27,7 @@ import {
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
@@ -856,7 +856,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
-        const toolParams = isRecordLike(params) ? params : {}
+        const toolParams = toRecord(params)
         return executeTool(
           scope,
           tool,
@@ -1532,7 +1532,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return { ok: false, error: `Unknown terminal tool: ${String(tool)}` }
         }
-        const call = isRecordLike(params) ? params : {}
+        const call = toRecord(params)
         if (!isTerminalOperation(call.operation)) {
           return { ok: false, error: `Unknown terminal operation: ${String(call.operation)}` }
         }

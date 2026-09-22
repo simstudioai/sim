@@ -12,6 +12,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
+  checkExecutionUsageLimits,
   checkIngestionUsageLimits,
   checkSearchUsageLimits,
   resetUsageGateCache,
@@ -155,6 +156,26 @@ describe('checkSearchUsageLimits', () => {
     mockCheck.mockRejectedValueOnce(new Error('ledger unavailable'))
     await expect(checkSearchUsageLimits(ATTRIBUTION)).rejects.toThrow('ledger unavailable')
     await checkSearchUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('checkExecutionUsageLimits', () => {
+  beforeEach(() => {
+    resetUsageGateCache()
+    mockCheck.mockReset().mockResolvedValue({ isExceeded: false })
+  })
+
+  it('reuses an admission across workspaces of the same payer', async () => {
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    await checkExecutionUsageLimits({ ...ATTRIBUTION, workspaceId: 'ws-2' })
+    expect(mockCheck).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads a refusal', async () => {
+    mockCheck.mockResolvedValue({ isExceeded: true, message: 'over' })
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    await checkExecutionUsageLimits(ATTRIBUTION)
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 })

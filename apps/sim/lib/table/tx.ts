@@ -11,13 +11,22 @@ import type { DbTransaction } from '@/lib/table/planner'
 const TIMEOUT_CAP_MS = 10 * 60_000
 
 /**
- * Sets per-transaction Postgres timeouts via `SET LOCAL`.
+ * Sets per-transaction Postgres timeouts, in ONE round trip.
  *
  * `lock_timeout` is the critical one: without it, a waiter inherits the full
  * `statement_timeout` clock, so one stuck writer can drain the pool.
  *
- * Safe under pgBouncer transaction pooling — `SET LOCAL` is transaction-scoped
- * and cleared at COMMIT/ROLLBACK before the session returns to the pool.
+ * `set_config(name, value, is_local => true)` is exactly `SET LOCAL` — transaction-scoped, dying
+ * with the commit, and reverting the same way on a savepoint rollback — but it is a function
+ * call, so all three fit in one `SELECT`. Three separate `SET LOCAL` statements each cost their
+ * own round trip, and every table write opens a transaction that begins with this call, so that
+ * was two wasted round trips on every insert, update, delete, import and column change. It also
+ * takes the values as bound parameters, which `SET LOCAL` cannot — the reason this is one
+ * statement rather than three semicolon-joined ones, since a bound parameter forces the extended
+ * protocol and that rejects multiple commands per message.
+ *
+ * Safe under pgBouncer transaction pooling — the settings are transaction-scoped and cleared at
+ * COMMIT/ROLLBACK before the session returns to the pool.
  */
 export async function setTableTxTimeouts(
   trx: DbTransaction,
@@ -26,9 +35,12 @@ export async function setTableTxTimeouts(
   const s = opts?.statementMs ?? 10_000
   const l = opts?.lockMs ?? 3_000
   const i = opts?.idleMs ?? 5_000
-  await trx.execute(sql.raw(`SET LOCAL statement_timeout = '${s}ms'`))
-  await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${l}ms'`))
-  await trx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${i}ms'`))
+  await trx.execute(sql`
+    select
+      set_config('statement_timeout', ${`${s}ms`}, true),
+      set_config('lock_timeout', ${`${l}ms`}, true),
+      set_config('idle_in_transaction_session_timeout', ${`${i}ms`}, true)
+  `)
 }
 
 /**

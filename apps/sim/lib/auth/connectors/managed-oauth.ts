@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
@@ -830,7 +830,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         },
         parse: (profile) => {
           const account = asProfileRecord(profile, 'Dropbox')
-          const name = isRecordLike(account.name) ? account.name : {}
+          const name = toRecord(account.name)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(account.account_id, 'Dropbox account id'),
@@ -889,15 +889,15 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
            * `bot.owner.user`. A workspace-owned internal integration reports
            * `{ type: 'workspace' }` and identifies nobody, which cannot be bound to an invitation.
            */
-          const bot = isRecordLike(self.bot) ? self.bot : {}
-          const owner = isRecordLike(bot.owner) ? bot.owner : {}
+          const bot = toRecord(self.bot)
+          const owner = toRecord(bot.owner)
           if (owner.type !== 'user') {
             throw new Error(
               'Notion returned a workspace-owned integration, which identifies no person to bind this invitation to'
             )
           }
           const user = asProfileRecord(owner.user, 'Notion')
-          const person = isRecordLike(user.person) ? user.person : {}
+          const person = toRecord(user.person)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.id, 'Notion user id'),
@@ -1004,7 +1004,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         scopes: {
           from: 'profile',
           read: (profile) => {
-            const metadata = isRecordLike(profile) ? profile : {}
+            const metadata = toRecord(profile)
             if (Array.isArray(metadata.scopes)) {
               return metadata.scopes.filter((scope): scope is string => typeof scope === 'string')
             }
@@ -1135,7 +1135,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         parse: (profile) => {
           const envelope = asProfileRecord(profile, 'Asana')
           const user = asProfileRecord(envelope.data, 'Asana')
-          const photo = isRecordLike(user.photo) ? user.photo : {}
+          const photo = toRecord(user.photo)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.gid, 'Asana user id'),

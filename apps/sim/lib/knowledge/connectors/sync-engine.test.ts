@@ -109,6 +109,18 @@ vi.mock('@/connectors/registry.server', () => ({
       getDocument: mockGetDocument,
       listDocuments: mockListDocuments,
     },
+    keyed: {
+      name: 'Keyed',
+      auth: { mode: 'apiKey' },
+      getDocument: mockGetDocument,
+      listDocuments: mockListDocuments,
+    },
+    oauth: {
+      name: 'OAuth',
+      auth: { mode: 'oauth', provider: 'example' },
+      getDocument: mockGetDocument,
+      listDocuments: mockListDocuments,
+    },
   },
 }))
 
@@ -2246,6 +2258,71 @@ describe('completeSuccessfulSync', () => {
     }
   )
 
+  it('counts the documents before taking the completion locks', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    const countOrder = dbChainMockFns.from.mock.invocationCallOrder[0]
+    const transactionOrder = dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    expect(dbChainMockFns.from.mock.calls[0][0]).toBe(schemaMock.document)
+    expect(countOrder).toBeLessThan(transactionOrder)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', lastSyncDocCount: 4 })
+    )
+  })
+
+  it('keeps the previous document count when the count cannot be read', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    dbChainMockFns.where.mockImplementationOnce(() =>
+      Promise.reject(
+        new DrizzleQueryError(
+          'select private SQL',
+          [],
+          Object.assign(new Error('canceling statement due to statement timeout'), {
+            code: '57014',
+          })
+        )
+      )
+    )
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    const successWrite = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.status === 'active')
+    expect(successWrite).toBeDefined()
+    expect(successWrite).not.toHaveProperty('lastSyncDocCount')
+    expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
+  })
+
+  it('does not tolerate a non-database failure of the document count', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    dbChainMockFns.where.mockImplementationOnce(() => Promise.reject(new TypeError('broken')))
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).rejects.toThrow(
+      'broken'
+    )
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
   it('commits the completed log and connector state in one guarded transaction', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -3268,6 +3345,51 @@ describe('executeSync hard-delete reconciliation', () => {
      * sync, which is a cap that silently loses work rather than deferring it.
      */
     expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+  })
+
+  it('leaves an OAuth connector with no credential unscheduled instead of walking the failure ladder', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...CONNECTOR, connectorType: 'oauth', credentialId: null, encryptedApiKey: null },
+    ])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.skipReason).toBe('credential_missing')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: 'Credential removed. Reconnect the connector to resume syncing.',
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+      })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ consecutiveFailures: expect.any(Number) })
+    )
+  })
+
+  it('leaves an API-key connector whose required key is missing unscheduled', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...CONNECTOR, connectorType: 'keyed', credentialId: null, encryptedApiKey: null },
+    ])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.skipReason).toBe('credential_missing')
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ consecutiveFailures: expect.any(Number) })
+    )
   })
 
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {

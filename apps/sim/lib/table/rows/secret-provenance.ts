@@ -6,6 +6,7 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
@@ -119,12 +120,6 @@ function reportUnvouchedTableRowWrite(
     ...report,
     mode,
   })
-}
-
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
 }
 
 function serializedBytes(value: unknown): number {
@@ -964,8 +959,10 @@ export async function loadTableRowSecretProvenance(
 
 /**
  * Collects only returned row values while their database snapshot is still valid.
- * Readers use one repeatable-read transaction per bounded batch; writers capture
- * after stamping and before releasing row locks. Nothing is reloaded after commit.
+ * A read captures inside one repeatable-read transaction spanning every batch of
+ * its page, so a row and the sidecar captured for it always come from the same
+ * snapshot; writers capture after stamping and before releasing row locks.
+ * Nothing is reloaded after commit.
  */
 export class TableRowProvenanceReader {
   private readonly accumulator: ResolvedSecretTraceProvenanceAccumulator

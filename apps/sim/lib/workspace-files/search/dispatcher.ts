@@ -303,7 +303,16 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   return rows.length
 }
 
-/** Probe each workspace's available slots and lock candidates before the update, skipping busy rows. */
+/**
+ * Probe each workspace's available slots and lock candidates before the update, skipping busy rows.
+ *
+ * The live-file check is a correlated LATERAL with `LIMIT 1` rather than a join. `FOR UPDATE`
+ * forbids parallel plans and the planner estimates the timestamp equi-join at about one row, so
+ * a join becomes a hash join over every file and every pending revision of the workspace before
+ * the top-N sort, which exceeds the statement timeout on a large backlog. A LATERAL with LIMIT
+ * cannot be flattened into that join, so the claim stays an ordered walk of the pending index
+ * that stops after the batch size.
+ */
 async function claimQueuedWorkspaceJobs(
   tx: DbTransaction,
   workspaceIds: readonly string[],
@@ -339,12 +348,15 @@ async function claimQueuedWorkspaceJobs(
         SELECT search_index.workspace_id, search_index.file_id,
           search_index.source_content_updated_at, search_index.updated_at
         FROM workspace_file_search_revision AS search_index
-        INNER JOIN workspace_files AS file
-          ON file.id = search_index.file_id
-          AND file.workspace_id = search_index.workspace_id
-          AND file.context = 'workspace'
-          AND file.deleted_at IS NULL
-          AND file.content_updated_at = search_index.source_content_updated_at
+        CROSS JOIN LATERAL (
+          SELECT 1 FROM workspace_files AS file
+          WHERE file.id = search_index.file_id
+            AND file.workspace_id = search_index.workspace_id
+            AND file.context = 'workspace'
+            AND file.deleted_at IS NULL
+            AND file.content_updated_at = search_index.source_content_updated_at
+          LIMIT 1
+        ) AS live_file
         WHERE search_index.workspace_id = selected.workspace_id
           AND search_index.status = 'pending' AND search_index.dispatched_at IS NULL
         ORDER BY search_index.updated_at, search_index.file_id, search_index.source_content_updated_at

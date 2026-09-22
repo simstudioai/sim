@@ -2,7 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import type {
@@ -152,7 +152,7 @@ export const useResourceListPreferencesStore = create<ResourceListPreferencesSta
         partialize: (state) => ({ preferences: state.preferences }),
         migrate: () => ({ preferences: {} }),
         merge: (persisted, current) => {
-          const persistedState = isRecordLike(persisted) ? persisted : {}
+          const persistedState = toRecord(persisted)
           return {
             ...current,
             preferences: sanitizePreferences(persistedState.preferences),

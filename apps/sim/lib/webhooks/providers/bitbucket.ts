@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
@@ -227,7 +228,7 @@ async function findBitbucketCandidateHook(
   }
 
   const matchedHook = toRecord(matchingHooks[0])
-  const externalId = nullableString(matchedHook.uuid)?.trim()
+  const externalId = toStringOrNull(matchedHook.uuid)?.trim()
   return externalId
     ? {
         kind: 'found',
@@ -312,10 +313,6 @@ async function rollbackAmbiguousBitbucketCandidate(
   )
 }
 
-function nullableString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 function nullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -338,7 +335,7 @@ function commentFields(body: Record<string, unknown>): Record<string, unknown> {
   return {
     comment,
     commentId: nullableNumber(comment?.id),
-    commentContent: nullableString(content.raw),
+    commentContent: toStringOrNull(content.raw),
   }
 }
 
@@ -352,17 +349,17 @@ function pullRequestFields(body: Record<string, unknown>): Record<string, unknow
   return {
     pullRequest,
     pullRequestId: nullableNumber(pullRequest?.id),
-    pullRequestTitle: nullableString(pullRequest?.title),
-    pullRequestState: nullableString(pullRequest?.state),
-    sourceBranch: nullableString(sourceBranch.name),
-    destinationBranch: nullableString(destinationBranch.name),
+    pullRequestTitle: toStringOrNull(pullRequest?.title),
+    pullRequestState: toStringOrNull(pullRequest?.state),
+    sourceBranch: toStringOrNull(sourceBranch.name),
+    destinationBranch: toStringOrNull(destinationBranch.name),
   }
 }
 
 function commitHashFromStatus(commitStatus: Record<string, unknown> | null): string | null {
   const links = toRecord(commitStatus?.links)
   const commit = toRecord(links.commit)
-  const href = nullableString(commit.href)
+  const href = toStringOrNull(commit.href)
   if (!href) return null
 
   try {
@@ -409,10 +406,10 @@ function formatBitbucketInput(
       ...base,
       commitStatus,
       commitHash: commitHashFromStatus(commitStatus),
-      statusKey: nullableString(commitStatus?.key),
-      statusState: nullableString(commitStatus?.state),
-      statusName: nullableString(commitStatus?.name),
-      statusUrl: nullableString(commitStatus?.url),
+      statusKey: toStringOrNull(commitStatus?.key),
+      statusState: toStringOrNull(commitStatus?.state),
+      statusName: toStringOrNull(commitStatus?.name),
+      statusUrl: toStringOrNull(commitStatus?.url),
     }
   }
   if (triggerId && PULL_REQUEST_TRIGGER_IDS.has(triggerId)) {
@@ -479,7 +476,7 @@ export const bitbucketHandler: WebhookProviderHandler = {
     const credentialId = config.credentialId as string | undefined
     const workspaceSlug = readRequiredConfigString(config, 'workspaceSlug', 'workspace')
     const repoSlug = readRequiredConfigString(config, 'repoSlug', 'repository')
-    const webhookId = nullableString(ctx.webhook.id)?.trim()
+    const webhookId = toStringOrNull(ctx.webhook.id)?.trim()
     if (!webhookId) {
       throw new Error('Bitbucket webhook ID is required to manage the repository webhook.')
     }
@@ -513,8 +510,8 @@ export const bitbucketHandler: WebhookProviderHandler = {
         )
       }
       if (existingCandidate.kind === 'found') {
-        const checkpointedExternalId = nullableString(config.externalId)?.trim()
-        const checkpointedSecret = nullableString(config.webhookSecret)?.trim()
+        const checkpointedExternalId = toStringOrNull(config.externalId)?.trim()
+        const checkpointedSecret = toStringOrNull(config.webhookSecret)?.trim()
         const candidateMatchesCheckpoint =
           checkpointedExternalId === existingCandidate.externalId &&
           Boolean(checkpointedSecret) &&
@@ -601,7 +598,7 @@ export const bitbucketHandler: WebhookProviderHandler = {
     }
 
     const created = toRecord(await response.json().catch(() => null))
-    const externalId = nullableString(created.uuid)?.trim() || null
+    const externalId = toStringOrNull(created.uuid)?.trim() || null
     if (!externalId) {
       if (isStableCandidate) {
         await rollbackAmbiguousBitbucketCandidate(

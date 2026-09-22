@@ -1,6 +1,14 @@
 import { env } from '@/lib/core/config/env'
 import { LLM_KEY_POOLS } from '@/lib/core/config/env-capabilities'
 
+/** Whether the platform holds at least one key for a provider, without selecting one. */
+export function hasRotatingApiKey(provider: string): boolean {
+  if (!(provider in LLM_KEY_POOLS)) return false
+  const definition = LLM_KEY_POOLS[provider as keyof typeof LLM_KEY_POOLS]
+  if (definition.keys.some((key) => Boolean(env[key]))) return true
+  return 'fallbackKey' in definition && Boolean(env[definition.fallbackKey])
+}
+
 /**
  * Rotates through available API keys for a provider
  * @param provider - The provider to get a key for (e.g., 'openai')

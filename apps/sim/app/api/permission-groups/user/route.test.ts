@@ -179,13 +179,13 @@ describe('user permission policy shared read', () => {
       readUserPermissionConfig.execute({ principal, input: { workspaceId: 'workspace' } })
     ).rejects.toThrow('unavailable')
   })
-  it('rejects API keys before canonical lookup on the shared server entry point', async () => {
+  it('rejects actorless workspace keys before canonical lookup on the shared server entry point', async () => {
     await expect(
       readUserPermissionConfig.execute({
-        principal: { kind: 'personal_api_key', userId: 'viewer', keyId: 'key' },
+        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
         input: { workspaceId: 'workspace' },
       })
-    ).rejects.toThrow('cannot perform operation')
+    ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
     expect(mocks.context).not.toHaveBeenCalled()
   })
 })

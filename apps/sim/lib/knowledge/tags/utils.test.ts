@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { coerceTagFilterValue, validateTagValue } from '@/lib/knowledge/tags/utils'
+import {
+  coerceTagFilterValue,
+  validateTagValue,
+  validateTagValueLength,
+} from '@/lib/knowledge/tags/utils'
 
 describe('coerceTagFilterValue', () => {
   it('accepts exactly what validateTagValue accepts', () => {
@@ -66,5 +70,14 @@ describe('validateTagValue', () => {
   it('does not constrain text or unknown field types', () => {
     expect(validateTagValue('name', 'anything', 'text')).toBeNull()
     expect(validateTagValue('name', 'anything', 'json')).toBeNull()
+  })
+})
+
+describe('validateTagValueLength', () => {
+  it('accepts a value at the indexed-text limit and names the tag past it', () => {
+    expect(validateTagValueLength('Labels', 'a'.repeat(512))).toBeNull()
+    expect(validateTagValueLength('Labels', 'a'.repeat(513))).toBe(
+      'Tag "Labels" cannot exceed 512 characters'
+    )
   })
 })

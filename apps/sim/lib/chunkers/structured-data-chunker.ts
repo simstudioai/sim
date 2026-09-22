@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { escapeRegExp } from '@sim/utils/string'
 import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
 import {
@@ -252,7 +253,7 @@ export class StructuredDataChunker {
 
     const delimiters = [',', '\t', '|']
     for (const delimiter of delimiters) {
-      const escaped = delimiter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const escaped = escapeRegExp(delimiter)
       const counts = lines.map((line) => (line.match(new RegExp(escaped, 'g')) || []).length)
       const avgCount = counts.reduce((a, b) => a + b, 0) / counts.length
 

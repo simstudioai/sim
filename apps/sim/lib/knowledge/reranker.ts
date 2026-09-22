@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { getRotatingApiKey, hasRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -29,6 +29,20 @@ import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 const logger = createLogger('Reranker')
 
 const RERANK_OPERATION_TIMEOUT_MS = 30_000
+
+/**
+ * Whether a search for this workspace could be reranked at all: a workspace key, or one of the
+ * platform's. A surface that reranks "when configured" asks this before spending a call on it.
+ */
+export async function hasRerankerCredential(
+  workspaceId?: string,
+  userApiKey?: string
+): Promise<boolean> {
+  /** The same policy as the key resolver: a caller's own key counts only off hosted Sim. */
+  if (!isHosted && userApiKey) return true
+  if (env.COHERE_API_KEY || hasRotatingApiKey('cohere')) return true
+  return Boolean(workspaceId && (await getBYOKKey(workspaceId, 'cohere')))
+}
 
 /**
  * Cohere bills per "search unit" = one query with up to 100 documents.

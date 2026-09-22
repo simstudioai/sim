@@ -34,6 +34,21 @@ export function truncate(str: string, sliceLength: number, suffix = '...'): stri
 }
 
 /**
+ * Like {@link truncate}, but never cuts inside a surrogate pair: when the code unit at the cut
+ * would split an astral character, the cut moves one unit earlier. Lengths are still counted in
+ * UTF-16 code units, so the result of a cut is at most `sliceLength + suffix.length` units.
+ *
+ * @example
+ * truncateAtCodePoint('ab😀cd', 3)   // 'ab...' (the cut at 3 would split the emoji)
+ * truncateAtCodePoint('ab😀cd', 4)   // 'ab😀...'
+ */
+export function truncateAtCodePoint(str: string, sliceLength: number, suffix = '...'): string {
+  if (str.length <= sliceLength) return str
+  const splitsPair = sliceLength > 0 && (str.charCodeAt(sliceLength - 1) & 0xfc00) === 0xd800
+  return str.slice(0, splitsPair ? sliceLength - 1 : sliceLength) + suffix
+}
+
+/**
  * Lowercases `value` into the `[a-z0-9-]` charset: every run of other characters
  * becomes one hyphen, and leading and trailing hyphens are dropped.
  *
@@ -336,4 +351,42 @@ function identityStarts(length: number): number[] {
   const starts: number[] = new Array(length + 1)
   for (let index = 0; index <= length; index += 1) starts[index] = index
   return starts
+}
+
+/**
+ * One character class, declared twice: the `/g` copy is stateful under `.test()`
+ * (`lastIndex` advances between calls), so only `.replace` may use it.
+ */
+const REGEX_METACHARACTER = /[.*+?^${}()|[\]\\]/
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g
+
+/**
+ * Escapes every regex metacharacter in `value` so it matches only itself when
+ * interpolated into a `RegExp`.
+ *
+ * @example
+ * new RegExp(escapeRegExp('a.b')) // matches the literal 'a.b', not 'axb'
+ */
+export function escapeRegExp(value: string): string {
+  return value.replace(REGEX_METACHARACTERS, '\\$&')
+}
+
+/** Reports whether `value` carries a character {@link escapeRegExp} would escape. */
+export function hasRegexMetacharacter(value: string): boolean {
+  return REGEX_METACHARACTER.test(value)
+}
+
+/**
+ * Compares two strings by code unit, the ordering `Array.prototype.sort` applies
+ * by default. Deliberately not `localeCompare`: ordering that feeds a hash, a
+ * fingerprint, or a value compared across processes must not vary with the
+ * host's locale.
+ *
+ * @example
+ * ['a', 'Z'].sort(compareStrings) // ['Z', 'a'] — uppercase sorts first
+ */
+export function compareStrings(left: string, right: string): number {
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
 }

@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SmartleadCampaignIdParams,
@@ -58,9 +58,9 @@ export const getCampaignWebhookSummaryTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'webhook summary')
-    const data = isRecordLike(record.data) ? record.data : {}
+    const data = toRecord(record.data)
     const summary = opaqueRows(data.summary)
-    const timeRange = isRecordLike(data.timeRange) ? data.timeRange : {}
+    const timeRange = toRecord(data.timeRange)
 
     return {
       success: true,

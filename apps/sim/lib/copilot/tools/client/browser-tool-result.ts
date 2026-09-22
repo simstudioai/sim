@@ -1,5 +1,5 @@
 import type { BrowserToolName } from '@sim/browser-protocol'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 
 function finiteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -36,7 +36,7 @@ export function sanitizeBrowserToolResultForModel(
       note: 'The screenshot could not be encoded. Use browser_snapshot or browser_read_text instead.',
     }
   }
-  const viewport = isRecordLike(rest.viewport) ? rest.viewport : null
+  const viewport = toRecordOrNull(rest.viewport)
   const screenshotUrl =
     typeof rest.url === 'string' && rest.url
       ? rest.url
@@ -44,7 +44,7 @@ export function sanitizeBrowserToolResultForModel(
         ? viewport.url
         : ''
   const location = screenshotUrl ? ` of ${screenshotUrl}` : ''
-  const clip = isRecordLike(rest.clip) ? rest.clip : null
+  const clip = toRecordOrNull(rest.clip)
   const cropSize = imageDimensions(clip)
   const viewportSize = imageDimensions(viewport)
   const imageSize = imageDimensions(rest.imageSize)

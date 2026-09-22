@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@sim/utils/string'
 import {
   FOLDER_CONFIGS,
   type MentionFolderId,
@@ -22,15 +23,6 @@ export const SKILL_CHIP_TRIGGER = '\u2003'
  */
 export function restoreSkillTriggerText(text: string): string {
   return text.replaceAll(SKILL_CHIP_TRIGGER, '/')
-}
-
-/**
- * Escapes special regex characters in a string
- * @param value - String to escape
- * @returns Escaped string safe for use in RegExp
- */
-export function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -107,7 +99,7 @@ export function computeMentionHighlightRanges(
   if (!tokens.length || !text) return []
 
   const longestFirstTokens = [...new Set(tokens)].sort((a, b) => b.length - a.length)
-  const pattern = new RegExp(`(${longestFirstTokens.map(escapeRegex).join('|')})`, 'g')
+  const pattern = new RegExp(`(${longestFirstTokens.map(escapeRegExp).join('|')})`, 'g')
   const ranges: MentionHighlightRange[] = []
   let match: RegExpExecArray | null
 

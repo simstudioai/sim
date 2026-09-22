@@ -84,6 +84,7 @@ beforeEach(() => {
     return {
       invitationId: 'invite-new',
       token: 'synthetic-token',
+      expiresAt: new Date('2026-09-14T12:00:00Z'),
       created: true,
       grants: [],
       mutationUpdatedAt: revision,
@@ -145,9 +146,7 @@ describe('organization-only invitations', () => {
     expect(mocks.send).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'organization', grants: [], email: 'person@example.com' })
     )
-    expect(auditMock.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'admin-user', resourceId: 'org-target' })
-    )
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
   })
 
   it('refuses an admin whose role changed while sending', async () => {

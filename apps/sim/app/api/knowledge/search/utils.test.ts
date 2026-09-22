@@ -216,7 +216,8 @@ describe('Knowledge Search Utils', () => {
         const statement = (query as { toSQL: () => { sql: string } }).toSQL().sql
         if (statement.includes('AS visible')) return []
         if (statement.includes(') + 0 LIMIT')) return [{ id: 'first' }, { id: 'second' }]
-        if (statement.includes('WITH scored_search_candidates'))
+        /** The page reads the pool slice's identities; the walk's order is kept client-side. */
+        if (statement.includes('AS "connectorId"') && statement.includes('= ANY('))
           return [makeResult('second', 0.2), makeResult('first', 0.1)]
         return [{ id: 'doc-first' }, { id: 'doc-second' }]
       })
@@ -240,7 +241,7 @@ describe('Knowledge Search Utils', () => {
       const exact = dbChainMockFns.execute.mock.calls
         .map(([query]) => (query as { toSQL: () => { sql: string; params: unknown[] } }).toSQL())
         .find((statement) => statement.sql.includes(') + 0 LIMIT'))!
-      expect(exact.params).toContain(400)
+      expect(exact.params).toContain(200)
     })
 
     it('should throw error when no filters provided', async () => {
@@ -874,16 +875,6 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-    })
-  })
-
-  describe('getDocumentMetadataByIds', () => {
-    it('should handle empty input gracefully', async () => {
-      const { getDocumentMetadataByIds } = await import('@/lib/knowledge/search/queries')
-
-      const result = await getDocumentMetadataByIds([])
-
-      expect(result).toEqual({})
     })
   })
 })

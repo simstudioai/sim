@@ -2197,6 +2197,36 @@ describe('locked invitation mutations', () => {
     )
   })
 
+  it.each([undefined, 'workspace-1'])(
+    'DELETE refuses expiry while waiting for authority locks (scope %s)',
+    async (workspaceId) => {
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+      try {
+        queueWhereResponses([
+          ...invitationHydrationRows(),
+          ...invitationHydrationRows(),
+          [{ id: 'member-1', role: 'admin' }],
+        ])
+        dbChainMockFns.for.mockImplementationOnce(() => {
+          clock.mockReturnValue(now + 120_000)
+          return dbChainMock
+        })
+        await expect(
+          revokeInvitationAsAdmin({
+            actorId: 'admin-1',
+            invitationId: 'inv-1',
+            workspaceId,
+          })
+        ).resolves.toEqual({ success: false, kind: 'not-pending' })
+        expect(dbChainMockFns.set).not.toHaveBeenCalled()
+        expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+      } finally {
+        clock.mockRestore()
+      }
+    }
+  )
+
   it('PATCH role update observes an organization-admin demotion before mutating', async () => {
     queueWhereResponses([
       ...invitationHydrationRows(),

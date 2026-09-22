@@ -5,6 +5,7 @@ import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_b
 import { indexSearchDocumentsMigration } from '@sim/db/script-migrations/0017_index_search_documents'
 import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
 import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
+import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -15,7 +16,7 @@ import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown
 import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
 import { backfillCredentialGroupResourcePolicies } from './0010_backfill_credential_group_resource_policies'
 import { remapLegacyKnowledgeConnectorCredentialsMigration } from './0011_remap_legacy_knowledge_connector_credentials'
-import type { ScriptMigration } from './types'
+import { type ScriptMigration, ScriptMigrationDeferred } from './types'
 
 export type { ScriptMigration } from './types'
 
@@ -43,6 +44,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   /** 0358 stops new sub-millisecond revisions; this retires the ones that predate it. */
   repairWorkspaceFileContentRevisionMigration,
   tinKeywordProjectionMigration,
+  /** 0022 supersedes 0021, whose synchronous backfill could not finish inside a deploy. */
+  projectionSourceAclBackfillMigration,
 ]
 
 /**
@@ -54,10 +57,18 @@ export const scriptMigrations: readonly ScriptMigration[] = [
  *
  * Fails fast: a missing required env var or a throwing `up` aborts the run
  * before the name is recorded, so the migration retries on the next upgrade.
+ * A deferred `up` is not recorded either, but lets the later migrations run.
+ *
+ * `migrations` defaults to the registry and exists so a test can apply a
+ * synthetic list: a deferral followed by a later migration is otherwise
+ * uncoverable while the only deferring migration is the last registered entry.
  */
-export async function runScriptMigrations(sql: Sql): Promise<void> {
+export async function runScriptMigrations(
+  sql: Sql,
+  migrations: readonly ScriptMigration[] = scriptMigrations
+): Promise<void> {
   const names = new Set<string>()
-  for (const migration of scriptMigrations) {
+  for (const migration of migrations) {
     if (names.has(migration.name)) {
       throw new Error(`Duplicate script migration name: ${migration.name}`)
     }
@@ -85,7 +96,7 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
   const appliedRows = await sql<{ name: string }[]>`SELECT name FROM script_migrations`
   const applied = new Set(appliedRows.map((row) => row.name))
 
-  const pending = scriptMigrations.filter((migration) => !applied.has(migration.name))
+  const pending = migrations.filter((migration) => !applied.has(migration.name))
   if (pending.length === 0) {
     console.log('No pending script migrations.')
     return
@@ -101,7 +112,13 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     }
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
-    await migration.up(sql)
+    try {
+      await migration.up(sql)
+    } catch (error) {
+      if (!(error instanceof ScriptMigrationDeferred)) throw error
+      console.log(`Script migration ${migration.name} deferred: ${error.message}`)
+      continue
+    }
     await sql.begin(async (tx) => {
       for (const name of [migration.name, ...(migration.supersedes ?? [])]) {
         await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`

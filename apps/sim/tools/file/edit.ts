@@ -21,6 +21,7 @@ interface FileEditParams {
   startAnchor?: string
   endAnchor?: string
   occurrence?: number
+  expectedRevision?: string
   workspaceId?: string
 }
 
@@ -29,6 +30,15 @@ const EDIT_OUTPUTS = {
   name: { type: 'string' as const, description: 'File name' },
   size: { type: 'number' as const, description: 'File size in bytes' },
   lineCount: { type: 'number' as const, description: 'Lines in the file after the edit' },
+  version: {
+    type: 'number' as const,
+    description: 'Version number of the content this edit recorded',
+  },
+  revision: {
+    type: 'string' as const,
+    description:
+      'Opaque token for the content this edit produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since.',
+  },
 }
 
 export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
@@ -134,6 +144,13 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       description:
         'For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1.',
     },
+    expectedRevision: {
+      type: 'string',
+      required: false,
+      visibility: 'llm-only',
+      description:
+        'Refuse the edit unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else\u2019s change.',
+    },
   },
 
   operation: {
@@ -153,6 +170,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       startAnchor: params.startAnchor,
       endAnchor: params.endAnchor,
       occurrence: params.occurrence,
+      expectedRevision: params.expectedRevision,
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {

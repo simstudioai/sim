@@ -28,26 +28,29 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
+  | 'access_plan'
+  | 'live_source_grants'
+  | 'vector.source_exact'
+  | 'vector.source_walk'
   | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
   | 'usage_recording'
   | 'overage_billing'
   | 'tag_definitions'
-  | 'metadata'
-  | 'metadata.authorization'
-  | 'metadata.sql'
   | 'metadata_provenance'
   | 'activity_recording'
   | RetrievalLeg
   | `${RetrievalLeg}.candidates`
-  | `${RetrievalLeg}.authorization`
   | `${RetrievalLeg}.hydration`
   | `${RetrievalLeg}.connection_acquire`
   | `${RetrievalLeg}.sql`
   | 'vector.settings'
   | 'vector.probe'
-  | 'vector.rerank'
+  | 'vector.page'
+  | 'vector.projection_filled'
+  | 'vector.source_indexes'
+  | 'keyword.projection_filled'
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
@@ -81,8 +84,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'exact-candidates' | 'candidate-rerank'
-  vectorCandidateStorage?: 'stored-halfvec'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk' | 'per-source'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
    * removed enough neighbours that the rerank pool is smaller than requested, which lowers recall
@@ -101,6 +103,10 @@ export interface SearchDiagnosticMetadata {
   permittedDocuments?: 'bounded' | 'unbounded'
   /** Documents in a bounded permitted set. */
   permittedDocumentCount?: number
+  vectorSourcesSliced?: number
+  /** The sliced sources held more readable documents than one exact ranking may enumerate. */
+  vectorSlicedSaturated?: boolean
+  vectorSourcesWalked?: number
   /**
    * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
    * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.

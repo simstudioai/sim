@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -146,7 +146,7 @@ export const githubHandler: WebhookProviderHandler = {
     providerConfig,
   }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
-    const obj = isRecordLike(body) ? body : {}
+    const obj = toRecord(body)
 
     if (triggerId && triggerId !== 'github_webhook') {
       const eventType = request.headers.get('x-github-event')

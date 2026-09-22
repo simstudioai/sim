@@ -110,12 +110,18 @@ async function selectSettings() {
 }
 
 describe('OrganizationFooter settings navigation', () => {
-  it('keeps only Settings and Sign out in the organization profile menu', async () => {
+  it('offers personal request history in the organization profile menu', async () => {
     await openProfileMenu()
     expect(
       [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
-    ).toEqual(['Settings', 'Sign out'])
+    ).toEqual(['Settings', 'My access requests', 'Sign out'])
     expect(document.querySelector('[role="separator"]')).toBeNull()
+    const requests = document.querySelector<HTMLAnchorElement>(
+      'a[href="/access-requests?organizationId=org-1"]'
+    )
+    expect(requests).not.toBeNull()
+    await act(async () => requests!.click())
+    expect(mockPush).toHaveBeenCalledWith('/access-requests?organizationId=org-1')
   })
 
   it('navigates immediately when settings are clean', async () => {

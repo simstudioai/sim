@@ -408,6 +408,8 @@ export const userFileSchema = z
     key: z.string().min(1),
     context: z.string().optional(),
     base64: z.string().optional(),
+    /** Workspace file version these bytes came from; absent on files with no version history. */
+    version: versionNumberSchema.optional(),
   })
   .passthrough()
 

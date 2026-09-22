@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import type { OcrRequestPolicy } from '@/lib/knowledge/documents/ocr-request-policy'
 import { buildLargestFittingPdfChunk } from '@/lib/knowledge/documents/pdf-ocr-chunking'
@@ -27,7 +27,17 @@ function policy(overrides: Partial<OcrRequestPolicy> = {}): OcrRequestPolicy {
 }
 
 describe('buildLargestFittingPdfChunk', () => {
+  /**
+   * pdf-lib stamps the modification date into every save and the object streams are deflated,
+   * so two builds of the same pages a second apart can differ by a byte. The byte budgets below
+   * are derived from one build and applied to another; a pinned clock keeps them comparable.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+  })
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 

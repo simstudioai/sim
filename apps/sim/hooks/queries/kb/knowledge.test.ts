@@ -214,9 +214,11 @@ describe('knowledge query placeholder scope', () => {
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
     )
-    expect(query.queryKey).toEqual(
-      knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 'reader')
-    )
+    /** The limit is the key's last part, so the wider search never evicts the first paint. */
+    expect(query.queryKey).toEqual([
+      ...knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 'reader'),
+      20,
+    ])
     expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
       knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
     )

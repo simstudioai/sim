@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
@@ -57,7 +57,7 @@ const normalizeFileParseResult = (value: unknown): FileParseResult => {
     return value
   }
 
-  const record = isRecordLike(value) ? value : {}
+  const record = toRecord(value)
   const file = isUserFile(record.file) ? record.file : undefined
   const metadata = isRecordLike(record.metadata) ? record.metadata : undefined
   const fallback: FileParseResult = {

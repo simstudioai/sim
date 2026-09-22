@@ -1,4 +1,8 @@
 import { defineAuthorizedOrganizationUsageUseCase } from '@/lib/billing/application/organization-usage/authorized-organization-usage-use-case'
+import {
+  requireBoundedUsageWindow,
+  UsageBreakdownTooLargeError,
+} from '@/lib/billing/application/organization-usage/limits'
 import { organizationUsageOperations } from '@/lib/billing/application/organization-usage/operations'
 import {
   buildUsageAnalyticsScope,
@@ -24,6 +28,7 @@ import { getProviderFromModel, PROVIDER_DEFINITIONS } from '@/providers/models'
 
 export interface OrganizationUsageBreakdownInput {
   organizationId: string
+  maxWindowDays?: number
   dimension: UsageBreakdownDimension
   preset: UsageWindowPreset
   startDate?: Date
@@ -33,6 +38,7 @@ export interface OrganizationUsageBreakdownInput {
   /** Narrows to one workspace, for the Workspaces drill-down. */
   workspaceId?: string
   limit: number
+  maxGroupedRows?: number
 }
 
 export interface OrganizationUsageBreakdownRow {
@@ -78,8 +84,12 @@ export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUs
       customEnd: input.endDate,
       timezone: input.timezone,
     })
+    requireBoundedUsageWindow(window, input.maxWindowDays)
     const scope = buildUsageAnalyticsScope(context.billingEntity, window, input.workspaceId)
-    const raw = await readUsageBreakdown(scope, input.dimension)
+    const raw = await readUsageBreakdown(scope, input.dimension, undefined, input.maxGroupedRows)
+    if (input.maxGroupedRows !== undefined && raw.length > input.maxGroupedRows) {
+      throw new UsageBreakdownTooLargeError()
+    }
 
     /**
      * Re-key onto what the panel actually displays before ranking.

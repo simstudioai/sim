@@ -5,7 +5,11 @@ import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
-import { type GetWorkspaceOperationResponse, V2_OPERATIONS } from '../generated/v2-api'
+import {
+  type CreateWorkspaceInvitationsResponse,
+  type GetWorkspaceOperationResponse,
+  V2_OPERATIONS,
+} from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
 import type { OperationSpec } from './types'
@@ -553,6 +557,87 @@ const ADD_WORKSPACE_FILES: OperationSpec = {
  * failed. Both printed their own report of the miss and exited `0`, so
  * `sim … && next-step` ran on the strength of a no-op.
  */
+describe('workspace invitation batch outcomes', () => {
+  const receipt = {
+    id: 'invitation-1',
+    email: 'first@example.com',
+    workspaceIds: ['ws_local'],
+    permission: 'read',
+    membershipIntent: 'internal',
+  } as const
+  const empty: CreateWorkspaceInvitationsResponse['data'] = {
+    success: true,
+    successful: [],
+    added: [],
+    failed: [],
+    invitations: [],
+  }
+
+  function invite() {
+    return executeOperation(
+      'createWorkspaceInvitations',
+      CLI_CONTRACT.createWorkspaceInvitations!,
+      V2_OPERATIONS.createWorkspaceInvitations,
+      [{ emails: ['first@example.com', 'second@example.com'] }, new Command('leaf')]
+    )
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each([false, true])(
+    'prints every result and exits nonzero on a partial=%s failure',
+    async (partial) => {
+      const payload = {
+        ...empty,
+        success: false,
+        successful: partial ? ['first@example.com'] : [],
+        invitations: partial ? [receipt] : [],
+        failed: [{ email: 'second@example.com', error: 'Unable to invite this recipient' }],
+      }
+      request.mockResolvedValue({ data: payload })
+      await expect(invite()).rejects.toThrow(
+        'Invitation batch failed for 1 recipient. Successful results remain committed; inspect failed recipients before retrying.'
+      )
+      expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(payload)
+      expect(request).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(['added', 'updated', 'unchanged'] as const)(
+    'accepts successful direct grants with outcome %s even without a new invitation',
+    async (outcome) => {
+      request.mockResolvedValue({
+        data: {
+          ...empty,
+          invitations: [{ ...receipt, instantAdd: true, outcome }],
+          added: outcome === 'added' ? ['first@example.com'] : [],
+        },
+      })
+      await expect(invite()).resolves.toBeUndefined()
+    }
+  )
+
+  it('accepts successful pending invitations', async () => {
+    request.mockResolvedValue({
+      data: { ...empty, successful: ['first@example.com'], invitations: [receipt] },
+    })
+    await expect(invite()).resolves.toBeUndefined()
+  })
+
+  it('preserves HTTP failures without reporting a successful batch or retrying', async () => {
+    const failure = new SimApiError('Organization access denied', 403)
+    request.mockRejectedValue(failure)
+    await expect(invite()).rejects.toBe(failure)
+    expect(console.log).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('a bulk call that touched nothing', () => {
   function updateChunks(flags: Record<string, unknown>) {
     const host = new Command('leaf')

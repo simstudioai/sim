@@ -535,7 +535,7 @@ describe('discovery and request history', () => {
       input: { scope, limit: 50, offset: 0 },
     })
     expect(history.requests).toHaveLength(1)
-    expect(mocks.list).toHaveBeenCalledWith(db, expect.anything(), 50, 0)
+    expect(mocks.list).toHaveBeenCalledWith(db, expect.anything(), 50, 0, undefined, undefined)
     expect(mocks.list.mock.calls[0]?.[1]).toMatchObject({
       conditions: expect.arrayContaining([
         expect.objectContaining({

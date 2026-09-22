@@ -3,13 +3,13 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   Checkbox,
+  ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipSwitch,
   ChipTag,
   Label,
 } from '@sim/emcn'
@@ -17,7 +17,7 @@ import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import { useQueryState, useQueryStates } from 'nuqs'
+import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -49,11 +49,6 @@ import {
   usePermissionGroups,
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
-import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
-import {
-  accessRequestUrlOptions,
-  accessReviewSearchParams,
-} from '@/ee/access-requests/components/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('AccessControl')
@@ -61,32 +56,14 @@ const logger = createLogger('AccessControl')
 interface AccessControlProps {
   isOrganizationAdmin: boolean
   organizationId: string
+  requestsHref: string
 }
 
-export function AccessControl(props: AccessControlProps) {
-  const [params, setParams] = useQueryStates(accessReviewSearchParams, accessRequestUrlOptions)
-  if (!props.isOrganizationAdmin) return <PermissionGroups {...props} />
-  return (
-    <>
-      <ChipSwitch
-        aria-label='Access Control views'
-        options={[
-          { value: 'groups', label: 'Groups' },
-          { value: 'requests', label: 'Requests' },
-        ]}
-        value={params['access-view']}
-        onChange={(value) => void setParams({ 'access-view': value, 'request-id': null })}
-      />
-      {params['access-view'] === 'requests' ? (
-        <OrganizationAccessRequests organizationId={props.organizationId} />
-      ) : (
-        <PermissionGroups {...props} />
-      )}
-    </>
-  )
-}
-
-function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControlProps) {
+export function AccessControl({
+  isOrganizationAdmin,
+  organizationId,
+  requestsHref,
+}: AccessControlProps) {
   const params = useParams()
   const { features } = useDeploymentShape()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
@@ -306,7 +283,10 @@ function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControl
   return (
     <>
       <SettingsPanel search={listSearch} actions={listActions}>
-        <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
+        <SettingsSection
+          label={`Permission groups (${permissionGroups.length})`}
+          action={<ChipLink href={requestsHref}>Review requests</ChipLink>}
+        >
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
               No permission groups yet. Click "Create group" to get started.

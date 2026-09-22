@@ -6,6 +6,7 @@ import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
   getWorkspaceFileWithCurrentVersion,
+  type VersionedWorkspaceFileRecord,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -31,7 +32,7 @@ export interface ReadWorkspaceFileMetadataResult {
 
 export interface ReadWorkspaceFileMetadataWithVersionResult
   extends ReadWorkspaceFileMetadataResult {
-  file: WorkspaceFileRecord & { currentVersion: number }
+  file: VersionedWorkspaceFileRecord
 }
 
 async function executeReadWorkspaceFileMetadata({

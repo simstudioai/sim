@@ -48,10 +48,13 @@ afterEach(() => {
   act(() => root.unmount())
   vi.unstubAllGlobals()
 })
-async function render(scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' }) {
+async function render(
+  scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' },
+  searchParams = ''
+) {
   await act(async () =>
     root.render(
-      <NuqsTestingAdapter>
+      <NuqsTestingAdapter searchParams={searchParams}>
         <KnowledgeSearchResults scope={scope} query='launch' onSummarize={vi.fn()} />
       </NuqsTestingAdapter>
     )
@@ -146,5 +149,135 @@ describe('source setup navigation', () => {
     await render(scope)
     expect(container.textContent).toContain('No sources are set up yet.')
     expect(container.querySelector('a')?.getAttribute('href')).toBe(href)
+  })
+})
+
+describe('result paging and the custom window', () => {
+  const result = (n: number) => ({
+    documentId: `doc-${n}`,
+    knowledgeBaseId: 'kb',
+    knowledgeBaseName: 'Index',
+    documentName: `Document ${n}`,
+    sourceUrl: null,
+    connectorType: 'slack',
+    sourceModifiedAt: null,
+    author: null,
+    content: 'launch notes',
+    chunkIndex: 0,
+    similarity: 0.5,
+  })
+
+  it('offers more only after a full first page, and asks for the wider search on request', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    const page = (length: number) => ({
+      data: {
+        query: 'launch',
+        results: Array.from({ length }, (_, n) => result(n)),
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    mocks.search.mockReturnValue(page(20))
+    await render()
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(20)
+    const more = () =>
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Show more')
+    expect(more()).toBeDefined()
+    await act(async () => more()!.click())
+    /** The wider search is its own request; the first paint was never widened. */
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(50)
+    expect(more()).toBeUndefined()
+    mocks.search.mockReturnValue(page(7))
+    await render()
+    expect(more()).toBeUndefined()
+  })
+
+  it('starts a refined search over at the first page after the reader asked for more', async () => {
+    mocks.overview.mockReturnValue({
+      data: {
+        providers: [{ connectorType: 'slack', isSyncing: false }],
+        hasSearchableDocuments: true,
+      },
+    })
+    mocks.search.mockReturnValue({
+      data: {
+        query: 'launch',
+        results: Array.from({ length: 20 }, (_, n) => result(n)),
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render()
+    const button = (label: string) =>
+      [...container.querySelectorAll('button')].find((b) => b.textContent === label)!
+    await act(async () => button('Show more').click())
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(50)
+    await act(async () => button('Slack').click())
+    expect(mocks.search.mock.calls.at(-1)![2]).toEqual({ source: 'slack' })
+    expect(mocks.search.mock.calls.at(-1)![3]).toBe(20)
+  })
+
+  it('drops the custom days when another window is chosen', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
+    expect(mocks.search.mock.calls.at(-1)![2]).toHaveProperty('modifiedBefore')
+    const anyTime = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Any time'
+    )!
+    await act(async () => anyTime.click())
+    expect(mocks.search.mock.calls.at(-1)![2]).toEqual({})
+  })
+
+  it('searches nothing while a custom window has no days yet', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render(undefined, '?updated=custom')
+    expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
+    expect(container.textContent).toContain('Choose the days to search.')
+    /** The filters, and the picker among them, are shown so the days can be chosen. */
+    expect(container.textContent).toContain('Updated between')
+    /** One day alone is not a window either; a deep link with only `from` waits for `to`. */
+    await render(undefined, '?updated=custom&from=2026-09-01')
+    expect(mocks.search.mock.calls.at(-1)![1]).toBe('')
+  })
+
+  it('searches a custom window as an inclusive range of days', async () => {
+    mocks.overview.mockReturnValue({ data: { providers: [], hasSearchableDocuments: true } })
+    mocks.search.mockReturnValue({
+      data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+      isPending: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+      refetch: mocks.retry,
+    })
+    await render(undefined, '?updated=custom&from=2026-09-01&to=2026-09-10')
+    const filters = mocks.search.mock.calls.at(-1)![2]
+    /** The days are the reader's own: local midnight to the last millisecond of the local day. */
+    expect(filters.modifiedAfter).toBe(new Date(2026, 8, 1).toISOString())
+    expect(filters.modifiedBefore).toBe(new Date(2026, 8, 11, 0, 0, 0, -1).toISOString())
   })
 })

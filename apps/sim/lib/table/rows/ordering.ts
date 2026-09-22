@@ -172,6 +172,32 @@ export async function nextRowPosition(trx: DbTransaction, tableId: string): Prom
   return maxPos + 1
 }
 
+/**
+ * The append anchors — `max(order_key)` and the next free `position` — in ONE round trip.
+ *
+ * An append needs both, and asking separately is two serial round trips inside the row-order
+ * advisory lock, which every other inserting request is waiting on. Postgres plans each `max()`
+ * as its own InitPlan, so the combined statement still serves each aggregate from its own index
+ * (`(table_id, order_key, id)` and `(table_id, position)`) with an index-only backward scan —
+ * exactly the two plans the separate queries produced, in one statement rather than two.
+ *
+ * Only for the append case. A positional or neighbor-anchored insert resolves its key by walking
+ * to a slot, which is a different query that cannot fold in.
+ */
+export async function appendAnchors(
+  trx: DbTransaction,
+  tableId: string
+): Promise<{ maxOrderKey: string | null; nextPosition: number }> {
+  const [row] = await trx
+    .select({
+      maxKey: sql<string | null>`max(${userTableRows.orderKey})`,
+      maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return { maxOrderKey: row.maxKey ?? null, nextPosition: row.maxPos + 1 }
+}
+
 /** Largest `order_key` for a table, or `null` when empty — the append anchor for new keys. */
 export async function maxOrderKey(executor: DbOrTx, tableId: string): Promise<string | null> {
   const [{ maxKey }] = await executor
@@ -331,15 +357,27 @@ export async function insertOrderedRow(params: {
     await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
 
-    // Resolve the authoritative order key from neighbor ids when given, else from
-    // the requested position.
-    const orderKey =
-      afterRowId || beforeRowId
-        ? await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
-        : await resolveInsertOrderKey(trx, tableId, position)
-
-    // order_key is authoritative — keep a best-effort, no-shift position.
-    const targetPosition = await nextRowPosition(trx, tableId)
+    // Resolve the authoritative order key from neighbor ids when given, else from the requested
+    // position. `order_key` is authoritative — `position` is a best-effort, no-shift companion.
+    //
+    // A plain append needs only the two table maxima, so it reads them together
+    // ({@link appendAnchors}) rather than paying a second round trip under the order lock. The
+    // anchored and positional forms resolve their key by walking to a slot, so they still ask
+    // for the next position separately.
+    const appending = !afterRowId && !beforeRowId && position === undefined
+    let orderKey: string
+    let targetPosition: number
+    if (appending) {
+      const anchors = await appendAnchors(trx, tableId)
+      orderKey = keyBetween(anchors.maxOrderKey, null)
+      targetPosition = anchors.nextPosition
+    } else {
+      orderKey =
+        afterRowId || beforeRowId
+          ? await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
+          : await resolveInsertOrderKey(trx, tableId, position)
+      targetPosition = await nextRowPosition(trx, tableId)
+    }
 
     const rows = await mutateTableRowsWithSecretProvenance(trx, {
       rows: [{ rowId, provenance: secretProvenance }],

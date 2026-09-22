@@ -1,4 +1,4 @@
-import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
+import { isRecordLike, sortObjectKeysDeep, toRecord } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -90,7 +90,7 @@ interface SanitizedCondition {
 }
 
 function toSanitizedCondition(condition: unknown): SanitizedCondition {
-  const record = isRecordLike(condition) ? condition : {}
+  const record = toRecord(condition)
   return {
     id: String(record.id ?? ''),
     title: String(record.title ?? ''),

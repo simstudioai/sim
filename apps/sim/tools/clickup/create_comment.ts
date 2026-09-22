@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import {
   CLICKUP_API_BASE_URL,
   clickupAuthorizationHeader,
@@ -85,7 +85,7 @@ export const clickupCreateCommentTool: ToolConfig<
       return { success: false, output: { error }, error }
     }
 
-    const record = isRecordLike(data) ? data : {}
+    const record = toRecord(data)
     const id = record.id
     const histId = record.hist_id
     const rawDate = record.date

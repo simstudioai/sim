@@ -1,4 +1,4 @@
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
@@ -6,18 +6,21 @@ import {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
+import { requireAllowedWorkspacePrincipal } from '@/lib/core/application/workspace-authorization'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type AccessRequestContext,
   authorizeAccessRequestScope,
 } from '@/ee/access-requests/lib/application/authorization'
-import type { AccessRequestOperation } from '@/ee/access-requests/lib/application/operations'
+import type {
+  AccessRequestOperation,
+  AccessRequestPrincipal,
+} from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 interface AccessRequestPreparationArgs<I> {
-  principal: SessionPrincipal
+  principal: AccessRequestPrincipal
   input: I
   context: AccessRequestContext
 }
@@ -43,10 +46,11 @@ interface UnpreparedAccessRequestUseCase<I, R> extends AccessRequestUseCaseDefin
   execute(args: AccessRequestUseCaseArgs<I> & { prepared: undefined }): Promise<R>
 }
 
-function requireSession(principal: Principal): asserts principal is SessionPrincipal {
-  if (principal.kind !== 'session') {
-    throw new OrchestrationError('forbidden', 'A signed-in user is required')
-  }
+function requireAccessRequestPrincipal(
+  principal: Principal,
+  operation: AccessRequestOperation
+): asserts principal is AccessRequestPrincipal {
+  requireAllowedWorkspacePrincipal(principal, operation)
 }
 
 export function defineAuthorizedAccessRequestUseCase<I, R, P>(
@@ -55,18 +59,18 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P>(
 export function defineAuthorizedAccessRequestUseCase<I, R>(
   definition: UnpreparedAccessRequestUseCase<I, R>
 ): OperationUseCase<AccessRequestOperation, I, R>
-/** Shared session-only funnel; preparation finishes before any transaction acquires locks. */
+/** Shared human-credential funnel; preparation finishes before any transaction acquires locks. */
 export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
   definition: PreparedAccessRequestUseCase<I, R, P> | UnpreparedAccessRequestUseCase<I, R>
 ): OperationUseCase<AccessRequestOperation, I, R> {
   return {
     operation: definition.operation,
     async authorize({ principal, input }) {
-      requireSession(principal)
+      requireAccessRequestPrincipal(principal, definition.operation)
       await authorizeAccessRequestScope(principal, definition.operation, definition.scope(input))
     },
     async execute({ principal, input, request }) {
-      requireSession(principal)
+      requireAccessRequestPrincipal(principal, definition.operation)
       const scope = definition.scope(input)
       const initial = await authorizeAccessRequestScope(principal, definition.operation, scope)
       return runWithOutboundOrganization(initial.organizationId, async () => {

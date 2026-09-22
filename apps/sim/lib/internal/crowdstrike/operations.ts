@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
@@ -7,19 +8,16 @@ import {
   type CrowdStrikeCallResult,
   callCrowdStrike,
   getAccessToken,
-  getBoolean,
   getCloudBaseUrl,
   getCursorPagination,
   getEnvelopeErrors,
   getFalconErrorMessage,
   getFirstRecordResource,
-  getNumber,
   getPagination,
   getRecordArray,
   getRecordResources,
   getResourcesArray,
   getSpotlightPagination,
-  getString,
   getStringArray,
   getStringResources,
 } from '@/lib/internal/crowdstrike/client'
@@ -103,25 +101,25 @@ export function failedWithoutResources(
 
 function normalizeSensor(resource: Record<string, unknown>) {
   return {
-    agentVersion: getString(resource.agent_version),
-    cid: getString(resource.cid),
-    deviceId: getString(resource.device_id),
-    heartbeatTime: getNumber(resource.heartbeat_time),
-    hostname: getString(resource.hostname),
-    idpPolicyId: getString(resource.idp_policy_id),
-    idpPolicyName: getString(resource.idp_policy_name),
-    ipAddress: getString(resource.local_ip),
-    kerberosConfig: getString(resource.kerberos_config),
-    ldapConfig: getString(resource.ldap_config),
-    ldapsConfig: getString(resource.ldaps_config),
-    machineDomain: getString(resource.machine_domain),
-    ntlmConfig: getString(resource.ntlm_config),
-    osVersion: getString(resource.os_version),
-    rdpToDcConfig: getString(resource.rdp_to_dc_config),
-    smbToDcConfig: getString(resource.smb_to_dc_config),
-    status: getString(resource.status),
+    agentVersion: toStringOrNull(resource.agent_version),
+    cid: toStringOrNull(resource.cid),
+    deviceId: toStringOrNull(resource.device_id),
+    heartbeatTime: toNumberOrNull(resource.heartbeat_time),
+    hostname: toStringOrNull(resource.hostname),
+    idpPolicyId: toStringOrNull(resource.idp_policy_id),
+    idpPolicyName: toStringOrNull(resource.idp_policy_name),
+    ipAddress: toStringOrNull(resource.local_ip),
+    kerberosConfig: toStringOrNull(resource.kerberos_config),
+    ldapConfig: toStringOrNull(resource.ldap_config),
+    ldapsConfig: toStringOrNull(resource.ldaps_config),
+    machineDomain: toStringOrNull(resource.machine_domain),
+    ntlmConfig: toStringOrNull(resource.ntlm_config),
+    osVersion: toStringOrNull(resource.os_version),
+    rdpToDcConfig: toStringOrNull(resource.rdp_to_dc_config),
+    smbToDcConfig: toStringOrNull(resource.smb_to_dc_config),
+    status: toStringOrNull(resource.status),
     statusCauses: getStringArray(resource.status_causes),
-    tiEnabled: getString(resource.ti_enabled),
+    tiEnabled: toStringOrNull(resource.ti_enabled),
   }
 }
 
@@ -141,9 +139,9 @@ function normalizeAggregationResult(
 ): CrowdStrikeSensorAggregateResult {
   return {
     buckets: getRecordArray(resource.buckets).map(normalizeAggregationBucket),
-    docCountErrorUpperBound: getNumber(resource.doc_count_error_upper_bound),
-    name: getString(resource.name),
-    sumOtherDocCount: getNumber(resource.sum_other_doc_count),
+    docCountErrorUpperBound: toNumberOrNull(resource.doc_count_error_upper_bound),
+    name: toStringOrNull(resource.name),
+    sumOtherDocCount: toNumberOrNull(resource.sum_other_doc_count),
   }
 }
 
@@ -151,16 +149,16 @@ function normalizeAggregationBucket(
   resource: Record<string, unknown>
 ): CrowdStrikeSensorAggregateBucket {
   return {
-    count: getNumber(resource.count),
-    from: getNumber(resource.from),
-    keyAsString: getString(resource.key_as_string),
+    count: toNumberOrNull(resource.count),
+    from: toNumberOrNull(resource.from),
+    keyAsString: toStringOrNull(resource.key_as_string),
     label: resource.label ?? null,
-    stringFrom: getString(resource.string_from),
-    stringTo: getString(resource.string_to),
+    stringFrom: toStringOrNull(resource.string_from),
+    stringTo: toStringOrNull(resource.string_to),
     subAggregates: getRecordArray(resource.sub_aggregates).map(normalizeAggregationResult),
-    to: getNumber(resource.to),
-    value: getNumber(resource.value),
-    valueAsString: getString(resource.value_as_string),
+    to: toNumberOrNull(resource.to),
+    value: toNumberOrNull(resource.value),
+    valueAsString: toStringOrNull(resource.value_as_string),
   }
 }
 
@@ -327,7 +325,7 @@ function withCommittedIds(
 ): CrowdStrikeCallResult {
   if (committed.length === 0) return result
 
-  const envelope = isRecordLike(result.data) ? result.data : {}
+  const envelope = toRecord(result.data)
   const existing = getRecordArray(envelope.errors)
   const reason = getFalconErrorMessage(result.data, 'CrowdStrike rejected a later batch.')
   const message =
@@ -866,13 +864,13 @@ export async function executeCrowdStrikeOperation(
       return {
         ok: true,
         output: {
-          sessionId: getString(session.session_id),
-          deviceId: getString(session.device_id),
-          platform: getString(session.platform),
-          pwd: getString(session.pwd),
-          offlineQueued: getBoolean(session.offline_queued),
-          existingAidSessions: getNumber(session.existing_aid_sessions),
-          createdAt: getString(session.created_at),
+          sessionId: toStringOrNull(session.session_id),
+          deviceId: toStringOrNull(session.device_id),
+          platform: toStringOrNull(session.platform),
+          pwd: toStringOrNull(session.pwd),
+          offlineQueued: toBooleanOrNull(session.offline_queued),
+          existingAidSessions: toNumberOrNull(session.existing_aid_sessions),
+          createdAt: toStringOrNull(session.created_at),
           errors: getEnvelopeErrors(result.data),
         },
       }
@@ -896,9 +894,9 @@ export async function executeCrowdStrikeOperation(
       return {
         ok: true,
         output: {
-          cloudRequestId: getString(command.cloud_request_id),
-          sessionId: getString(command.session_id),
-          queuedCommandOffline: getBoolean(command.queued_command_offline),
+          cloudRequestId: toStringOrNull(command.cloud_request_id),
+          sessionId: toStringOrNull(command.session_id),
+          queuedCommandOffline: toBooleanOrNull(command.queued_command_offline),
           errors: getEnvelopeErrors(result.data),
         },
       }
@@ -921,13 +919,13 @@ export async function executeCrowdStrikeOperation(
       return {
         ok: true,
         output: {
-          complete: getBoolean(status.complete),
-          stdout: getString(status.stdout),
-          stderr: getString(status.stderr),
-          baseCommand: getString(status.base_command),
-          sessionId: getString(status.session_id),
-          taskId: getString(status.task_id),
-          sequenceId: getNumber(status.sequence_id),
+          complete: toBooleanOrNull(status.complete),
+          stdout: toStringOrNull(status.stdout),
+          stderr: toStringOrNull(status.stderr),
+          baseCommand: toStringOrNull(status.base_command),
+          sessionId: toStringOrNull(status.session_id),
+          taskId: toStringOrNull(status.task_id),
+          sequenceId: toNumberOrNull(status.sequence_id),
           errors: getEnvelopeErrors(result.data),
         },
       }

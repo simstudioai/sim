@@ -22,13 +22,18 @@ vi.mock('@/lib/billing/core/access', () => ({
   isOrganizationBillingBlocked: vi.fn().mockResolvedValue(false),
 }))
 
-import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
+import {
+  forgetKnowledgeAccessAvailability,
+  requireOrganizationSearchAvailable,
+} from '@/lib/knowledge/access/availability'
 import { resolveAppEntryPath } from '@/lib/navigation/resolve-app-entry'
 
 afterAll(resetEnvFlagsMock)
 
 describe('organization rollout during impersonation', () => {
   beforeEach(() => {
+    /** Each case answers the same organization differently; the memo must not carry one across. */
+    forgetKnowledgeAccessAvailability()
     vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: true, isHosted: true })
     mocks.landing.mockImplementation(async (userId: string) =>

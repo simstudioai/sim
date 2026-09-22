@@ -1,3 +1,5 @@
+import { toStringOrNull } from '@sim/utils/coerce'
+import { toRecordOrNull } from '@sim/utils/object'
 import {
   BITBUCKET_PULL_REQUEST_OUTPUT_PROPERTIES,
   type BitbucketGetMergeTaskStatusParams,
@@ -21,16 +23,6 @@ interface BitbucketMergeTaskOutput {
   taskStatus: 'PENDING' | 'SUCCESS'
   selfUrl: string | null
   mergeResult: BitbucketPullRequest | null
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
 }
 
 export const bitbucketGetMergeTaskStatusTool: ToolConfig<
@@ -61,10 +53,10 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await bitbucketJson(response)
     if (data.type === 'error') {
-      const error = record(data.error)
-      const message = stringField(error?.message)?.trim()
+      const error = toRecordOrNull(data.error)
+      const message = toStringOrNull(error?.message)?.trim()
       if (!message) throw new Error('Bitbucket returned a malformed merge task error')
-      const detail = stringField(error?.detail)?.trim()
+      const detail = toStringOrNull(error?.detail)?.trim()
       throw new Error(detail && detail !== message ? `${message}: ${detail}` : message)
     }
 
@@ -73,11 +65,11 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
       throw new Error('Bitbucket merge task status must be PENDING or SUCCESS')
     }
 
-    const links = record(data.links)
-    const self = record(links?.self)
+    const links = toRecordOrNull(data.links)
+    const self = toRecordOrNull(links?.self)
     let mergeResult: BitbucketPullRequest | null = null
     if (taskStatus === 'SUCCESS') {
-      const result = record(data.merge_result)
+      const result = toRecordOrNull(data.merge_result)
       if (!result) throw new Error('Bitbucket successful merge task omitted merge_result')
       mergeResult = normalizeBitbucketPullRequest(result)
     }
@@ -86,7 +78,7 @@ export const bitbucketGetMergeTaskStatusTool: ToolConfig<
       success: true,
       output: {
         taskStatus,
-        selfUrl: stringField(self?.href),
+        selfUrl: toStringOrNull(self?.href),
         mergeResult,
       },
     }

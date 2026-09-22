@@ -5,7 +5,11 @@ import { member, permissions, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ effectiveRole: vi.fn(), config: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  effectiveRole: vi.fn(),
+  config: vi.fn(),
+  workspaceConfig: vi.fn(),
+}))
 vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
   resolveEffectiveWorkspacePermission: mocks.effectiveRole,
@@ -14,7 +18,13 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mocks.config,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => ({
+  resolvePermissionGroupConfig: mocks.workspaceConfig,
+}))
+
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import type { DbOrTx } from '@/lib/db/types'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   authorizeAccessRequestScope,
   loadAccessRequestMembership,
@@ -36,6 +46,7 @@ function queueMembership(orgRole: string | null = 'member', grantId: string | nu
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  mocks.workspaceConfig.mockResolvedValue(null)
   mocks.effectiveRole.mockResolvedValue('read')
   mocks.config.mockRejectedValue(new Error('A capability-exempt session must not load config'))
 })
@@ -232,4 +243,79 @@ describe('access request scope authorization', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(dbChainMockFns.from).toHaveBeenCalledExactlyOnceWith(workspace)
   })
+})
+
+describe('access request credential policy', () => {
+  const key = { kind: 'personal_api_key', userId: 'person', keyId: 'key' } as const
+  const oauth = {
+    kind: 'oauth_access_token',
+    userId: 'person',
+    tokenId: 'token',
+    clientId: SIM_CLI_CLIENT_ID,
+    scopes: ['api:write'],
+    expiresAt: new Date('2099-01-01'),
+  } as const
+
+  it.each([key, oauth])(
+    'admits $kind in a workspace only through the current human grant',
+    async (caller) => {
+      queueTableRows(workspace, [{ ...canonicalWorkspace, allowPersonalApiKeys: true }])
+      queueMembership(null)
+      await expect(
+        authorizeAccessRequestScope(caller, accessRequestOperations.create, workspaceScope)
+      ).resolves.toMatchObject({ membershipId: '[null,"grant"]' })
+      expect(mocks.workspaceConfig).toHaveBeenCalled()
+    }
+  )
+
+  it('preserves the workspace personal-key switch', async () => {
+    queueTableRows(workspace, [canonicalWorkspace])
+    queueMembership()
+    await expect(
+      authorizeAccessRequestScope(key, accessRequestOperations.create, workspaceScope)
+    ).rejects.toMatchObject({ detailCode: 'PERSONAL_API_KEYS_DISABLED' })
+  })
+
+  it.each(['disablePersonalApiKeys', 'disableOAuthAppAccess', 'disableCliAccess'] as const)(
+    'enforces %s even though access requests are capability-exempt',
+    async (restriction) => {
+      queueTableRows(workspace, [{ ...canonicalWorkspace, allowPersonalApiKeys: true }])
+      queueMembership()
+      mocks.workspaceConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        [restriction]: true,
+      })
+      await expect(
+        authorizeAccessRequestScope(oauth, accessRequestOperations.create, workspaceScope)
+      ).rejects.toMatchObject({ code: 'forbidden' })
+    }
+  )
+
+  it.each([key, oauth])(
+    'requires an administrator for organization review with $kind',
+    async (caller) => {
+      queueMembership('member')
+      queueTableRows(member, [{ role: 'member' }])
+      mocks.config.mockResolvedValue(null)
+      await expect(
+        authorizeAccessRequestScope(caller, accessRequestOperations.resolve, organizationScope)
+      ).rejects.toMatchObject({ detailCode: 'ORGANIZATION_ADMIN_REQUIRED' })
+    }
+  )
+
+  it.each([key, oauth])(
+    'reauthorizes current organization credential restrictions for $kind',
+    async (caller) => {
+      queueMembership('admin')
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.config.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disablePersonalApiKeys: true,
+      })
+      await expect(
+        authorizeAccessRequestScope(caller, accessRequestOperations.resolve, organizationScope)
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mocks.config).toHaveBeenCalledWith('org', db)
+    }
+  )
 })

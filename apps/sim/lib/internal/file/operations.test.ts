@@ -112,6 +112,21 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  /** The versioned read is the same row plus the number the metadata surface reports. */
+  getWorkspaceFileWithCurrentVersion: async (...args: unknown[]) => {
+    const file = await mockGetWorkspaceFile(...args)
+    return file ? { ...file, currentVersion: 1 } : file
+  },
+  /** Folder rows are numbered from the same fixtures, keyed by the id the listing returned. */
+  getWorkspaceFileVersionsByKey: async (_workspaceId: string, fileIds: string[]) => {
+    const entries = await Promise.all(
+      fileIds.map(async (id) => {
+        const file = await mockGetWorkspaceFile(_workspaceId, id)
+        return file ? ([id, { key: file.key, currentVersion: 1 }] as const) : null
+      })
+    )
+    return new Map(entries.filter((entry) => entry !== null))
+  },
   loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
   loadActiveWorkspaceFileContext: (...args: unknown[]) =>
     mockLoadActiveWorkspaceFileContext(...args),
@@ -133,6 +148,21 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  /** The versioned read is the same row plus the number the metadata surface reports. */
+  getWorkspaceFileWithCurrentVersion: async (...args: unknown[]) => {
+    const file = await mockGetWorkspaceFile(...args)
+    return file ? { ...file, currentVersion: 1 } : file
+  },
+  /** Folder rows are numbered from the same fixtures, keyed by the id the listing returned. */
+  getWorkspaceFileVersionsByKey: async (_workspaceId: string, fileIds: string[]) => {
+    const entries = await Promise.all(
+      fileIds.map(async (id) => {
+        const file = await mockGetWorkspaceFile(_workspaceId, id)
+        return file ? ([id, { key: file.key, currentVersion: 1 }] as const) : null
+      })
+    )
+    return new Map(entries.filter((entry) => entry !== null))
+  },
   loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
   loadActiveWorkspaceFileContext: (...args: unknown[]) =>
     mockLoadActiveWorkspaceFileContext(...args),

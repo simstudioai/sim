@@ -81,14 +81,14 @@ export const DiffControls = memo(function DiffControls() {
             width: '2px',
             transform: 'skewX(-18.4deg)',
             background:
-              'linear-gradient(to right, var(--border) 50%, color-mix(in srgb, var(--brand-accent) 70%, black) 50%)',
+              'linear-gradient(to right, var(--border) 50%, color-mix(in srgb, var(--brand-accent) 70%, var(--color-black)) 50%)',
           }}
         />
         {/* Accept side */}
         <button
           onClick={handleAccept}
           title='Accept changes (⇧⌘⏎)'
-          className='-ml-2.5 relative flex h-full items-center border border-[rgba(0,0,0,0.15)] bg-[var(--brand-accent)] pr-3 pl-5 text-[var(--text-inverse)] text-small transition-[background-color,border-color,fill,stroke] hover-hover:brightness-110 dark:border-[rgba(255,255,255,0.1)]'
+          className='-ml-2.5 relative flex h-full items-center border border-black/15 bg-[var(--brand-accent)] pr-3 pl-5 text-[var(--text-inverse)] text-small transition-[background-color,border-color,fill,stroke] hover-hover:brightness-110 dark:border-white/10'
           style={{
             clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%)',
             borderRadius: '0 4px 4px 0',

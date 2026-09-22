@@ -1,4 +1,5 @@
-import { toRecordOrNull } from '@sim/utils/object'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the Rocketlane REST API (v1.0). */
@@ -46,22 +47,6 @@ export async function rocketlaneError(response: Response): Promise<string> {
 
 type Raw = Record<string, unknown>
 
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
-}
-
-function asBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 // region Shared object shapes
 
 /** Compact user reference returned inside most Rocketlane resources. */
@@ -76,10 +61,10 @@ export function mapUserSummary(value: unknown): RocketlaneUserSummary | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    userId: asNumber(raw.userId),
-    firstName: asString(raw.firstName),
-    lastName: asString(raw.lastName),
-    emailId: asString(raw.emailId),
+    userId: toNumberOrNull(raw.userId),
+    firstName: toStringOrNull(raw.firstName),
+    lastName: toStringOrNull(raw.lastName),
+    emailId: toStringOrNull(raw.emailId),
   }
 }
 
@@ -101,10 +86,10 @@ export interface RocketlanePagination {
 export function mapPagination(value: unknown): RocketlanePagination {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    pageSize: asNumber(raw.pageSize),
-    hasMore: asBoolean(raw.hasMore),
-    totalRecordCount: asNumber(raw.totalRecordCount),
-    nextPageToken: asString(raw.nextPageToken),
+    pageSize: toNumberOrNull(raw.pageSize),
+    hasMore: toBooleanOrNull(raw.hasMore),
+    totalRecordCount: toNumberOrNull(raw.totalRecordCount),
+    nextPageToken: toStringOrNull(raw.nextPageToken),
   }
 }
 
@@ -239,8 +224,8 @@ function mapTaskProjectRef(value: unknown): RocketlaneTaskProjectRef | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    projectId: asNumber(raw.projectId),
-    projectName: asString(raw.projectName),
+    projectId: toNumberOrNull(raw.projectId),
+    projectName: toStringOrNull(raw.projectName),
   }
 }
 
@@ -248,8 +233,8 @@ function mapTaskPhaseRef(value: unknown): RocketlaneTaskPhaseRef | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    phaseId: asNumber(raw.phaseId),
-    phaseName: asString(raw.phaseName),
+    phaseId: toNumberOrNull(raw.phaseId),
+    phaseName: toStringOrNull(raw.phaseName),
   }
 }
 
@@ -257,8 +242,8 @@ function mapTaskChoice(value: unknown): RocketlaneTaskChoice | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    value: asNumber(raw.value),
-    label: asString(raw.label),
+    value: toNumberOrNull(raw.value),
+    label: toStringOrNull(raw.label),
   }
 }
 
@@ -266,16 +251,16 @@ function mapTaskRole(value: unknown): RocketlaneTaskRole | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    roleId: asNumber(raw.roleId),
-    roleName: asString(raw.roleName),
+    roleId: toNumberOrNull(raw.roleId),
+    roleName: toStringOrNull(raw.roleName),
   }
 }
 
 function mapTaskPlaceholder(value: unknown): RocketlaneTaskPlaceholder {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    placeholderId: asNumber(raw.placeholderId),
-    placeholderName: asString(raw.placeholderName),
+    placeholderId: toNumberOrNull(raw.placeholderId),
+    placeholderName: toStringOrNull(raw.placeholderName),
     role: mapTaskRole(raw.role),
   }
 }
@@ -284,10 +269,10 @@ function mapTaskAssignees(value: unknown): RocketlaneTaskAssignees | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    members: asArray(raw.members)
+    members: toArray(raw.members)
       .map(mapUserSummary)
       .filter((member): member is RocketlaneUserSummary => member !== null),
-    placeholders: asArray(raw.placeholders).map(mapTaskPlaceholder),
+    placeholders: toArray(raw.placeholders).map(mapTaskPlaceholder),
   }
 }
 
@@ -295,7 +280,7 @@ function mapTaskFollowers(value: unknown): RocketlaneTaskFollowers | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    members: asArray(raw.members)
+    members: toArray(raw.members)
       .map(mapUserSummary)
       .filter((member): member is RocketlaneUserSummary => member !== null),
   }
@@ -304,18 +289,18 @@ function mapTaskFollowers(value: unknown): RocketlaneTaskFollowers | null {
 function mapTaskLite(value: unknown): RocketlaneTaskLite {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    taskId: asNumber(raw.taskId),
-    taskName: asString(raw.taskName),
+    taskId: toNumberOrNull(raw.taskId),
+    taskName: toStringOrNull(raw.taskName),
   }
 }
 
 function mapTaskField(value: unknown): RocketlaneTaskField {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    fieldId: asNumber(raw.fieldId),
-    fieldLabel: asString(raw.fieldLabel),
+    fieldId: toNumberOrNull(raw.fieldId),
+    fieldLabel: toStringOrNull(raw.fieldLabel),
     fieldValue: raw.fieldValue ?? null,
-    fieldValueLabel: asString(raw.fieldValueLabel),
+    fieldValueLabel: toStringOrNull(raw.fieldValueLabel),
   }
 }
 
@@ -323,54 +308,54 @@ function mapTaskTimeEntryCategory(value: unknown): RocketlaneTaskTimeEntryCatego
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    categoryId: asNumber(raw.categoryId),
-    categoryName: asString(raw.categoryName),
+    categoryId: toNumberOrNull(raw.categoryId),
+    categoryName: toStringOrNull(raw.categoryName),
   }
 }
 
 function mapTaskBudget(value: unknown): RocketlaneTaskBudget {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    budgetId: asNumber(raw.budgetId),
-    budgetName: asString(raw.budgetName),
+    budgetId: toNumberOrNull(raw.budgetId),
+    budgetName: toStringOrNull(raw.budgetName),
   }
 }
 
 export function mapTask(value: unknown): RocketlaneTask {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    taskId: asNumber(raw.taskId),
-    taskName: asString(raw.taskName),
-    taskDescription: asString(raw.taskDescription),
-    taskPrivateNote: asString(raw.taskPrivateNote),
-    startDate: asString(raw.startDate),
-    dueDate: asString(raw.dueDate),
-    startDateActual: asString(raw.startDateActual),
-    dueDateActual: asString(raw.dueDateActual),
-    archived: asBoolean(raw.archived),
-    effortInMinutes: asNumber(raw.effortInMinutes),
-    progress: asNumber(raw.progress),
-    atRisk: asBoolean(raw.atRisk),
-    type: asString(raw.type),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    taskId: toNumberOrNull(raw.taskId),
+    taskName: toStringOrNull(raw.taskName),
+    taskDescription: toStringOrNull(raw.taskDescription),
+    taskPrivateNote: toStringOrNull(raw.taskPrivateNote),
+    startDate: toStringOrNull(raw.startDate),
+    dueDate: toStringOrNull(raw.dueDate),
+    startDateActual: toStringOrNull(raw.startDateActual),
+    dueDateActual: toStringOrNull(raw.dueDateActual),
+    archived: toBooleanOrNull(raw.archived),
+    effortInMinutes: toNumberOrNull(raw.effortInMinutes),
+    progress: toNumberOrNull(raw.progress),
+    atRisk: toBooleanOrNull(raw.atRisk),
+    type: toStringOrNull(raw.type),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
     project: mapTaskProjectRef(raw.project),
     phase: mapTaskPhaseRef(raw.phase),
     status: mapTaskChoice(raw.status),
     priority: mapTaskChoice(raw.priority),
-    fields: asArray(raw.fields).map(mapTaskField),
+    fields: toArray(raw.fields).map(mapTaskField),
     assignees: mapTaskAssignees(raw.assignees),
     followers: mapTaskFollowers(raw.followers),
-    dependencies: asArray(raw.dependencies).map(mapTaskLite),
+    dependencies: toArray(raw.dependencies).map(mapTaskLite),
     parent: toRecordOrNull(raw.parent) ? mapTaskLite(raw.parent) : null,
-    externalReferenceId: asString(raw.externalReferenceId),
-    billable: asBoolean(raw.billable),
+    externalReferenceId: toStringOrNull(raw.externalReferenceId),
+    billable: toBooleanOrNull(raw.billable),
     timeEntryCategory: mapTaskTimeEntryCategory(raw.timeEntryCategory),
-    financialsBudgets: asArray(raw.financialsBudgets).map(mapTaskBudget),
-    csatEnabled: asBoolean(raw.csatEnabled),
-    private: asBoolean(raw.private),
+    financialsBudgets: toArray(raw.financialsBudgets).map(mapTaskBudget),
+    csatEnabled: toBooleanOrNull(raw.csatEnabled),
+    private: toBooleanOrNull(raw.private),
   }
 }
 
@@ -765,9 +750,9 @@ export function mapProjectCompany(value: unknown): RocketlaneProjectCompany | nu
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    companyId: asNumber(raw.companyId),
-    companyName: asString(raw.companyName),
-    companyUrl: asString(raw.companyUrl),
+    companyId: toNumberOrNull(raw.companyId),
+    companyName: toStringOrNull(raw.companyName),
+    companyUrl: toStringOrNull(raw.companyUrl),
   }
 }
 
@@ -787,8 +772,8 @@ export function mapProjectStatus(value: unknown): RocketlaneProjectStatus | null
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    value: asNumber(raw.value),
-    label: asString(raw.label),
+    value: toNumberOrNull(raw.value),
+    label: toStringOrNull(raw.label),
   }
 }
 
@@ -808,10 +793,10 @@ export interface RocketlaneProjectField {
 export function mapProjectField(value: unknown): RocketlaneProjectField {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    fieldId: asNumber(raw.fieldId),
-    fieldLabel: asString(raw.fieldLabel),
-    fieldValue: asString(raw.fieldValue),
-    fieldValueLabel: asString(raw.fieldValueLabel),
+    fieldId: toNumberOrNull(raw.fieldId),
+    fieldLabel: toStringOrNull(raw.fieldLabel),
+    fieldValue: toStringOrNull(raw.fieldValue),
+    fieldValueLabel: toStringOrNull(raw.fieldValueLabel),
   }
 }
 
@@ -835,8 +820,8 @@ export interface RocketlaneProjectPhase {
 export function mapProjectPhase(value: unknown): RocketlaneProjectPhase {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    phaseId: asNumber(raw.phaseId),
-    phaseName: asString(raw.phaseName),
+    phaseId: toNumberOrNull(raw.phaseId),
+    phaseName: toStringOrNull(raw.phaseName),
   }
 }
 
@@ -856,10 +841,10 @@ export interface RocketlaneProjectSource {
 export function mapProjectSource(value: unknown): RocketlaneProjectSource {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    prefix: asString(raw.prefix),
-    startDate: asString(raw.startDate),
-    templateId: asNumber(raw.templateId),
-    templateName: asString(raw.templateName),
+    prefix: toStringOrNull(raw.prefix),
+    startDate: toStringOrNull(raw.startDate),
+    templateId: toNumberOrNull(raw.templateId),
+    templateName: toStringOrNull(raw.templateName),
   }
 }
 
@@ -888,10 +873,10 @@ export interface RocketlaneProjectTeamMembers {
 export function mapProjectTeamMembers(value: unknown): RocketlaneProjectTeamMembers {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    members: asArray(raw.members)
+    members: toArray(raw.members)
       .map(mapUserSummary)
       .filter((m): m is RocketlaneUserSummary => m !== null),
-    customers: asArray(raw.customers)
+    customers: toArray(raw.customers)
       .map(mapUserSummary)
       .filter((m): m is RocketlaneUserSummary => m !== null),
     customerChampion: mapUserSummary(raw.customerChampion),
@@ -943,17 +928,17 @@ export function mapProjectFinancials(value: unknown): RocketlaneProjectFinancial
   const rateCard = toRecordOrNull(timeAndMaterialContract.rateCard) ?? {}
   const subscriptionContract = toRecordOrNull(raw.subscriptionContract) ?? {}
   return {
-    contractType: asString(raw.contractType),
-    revenueRecognitionType: asString(raw.revenueRecognitionType),
-    fixedFee: asNumber(fixedFeeContract.fixedFee),
-    projectBudget: asNumber(timeAndMaterialContract.projectBudget),
-    rateCardId: asNumber(rateCard.rateCardId),
-    rateCardName: asString(rateCard.rateCardName),
-    subscriptionFrequency: asString(subscriptionContract.subscriptionFrequency),
-    subscriptionStartDate: asString(subscriptionContract.subscriptionStartDate),
-    periodMinutes: asNumber(subscriptionContract.periodMinutes),
-    periodBudget: asNumber(subscriptionContract.periodBudget),
-    noOfPeriods: asNumber(subscriptionContract.noOfPeriods),
+    contractType: toStringOrNull(raw.contractType),
+    revenueRecognitionType: toStringOrNull(raw.revenueRecognitionType),
+    fixedFee: toNumberOrNull(fixedFeeContract.fixedFee),
+    projectBudget: toNumberOrNull(timeAndMaterialContract.projectBudget),
+    rateCardId: toNumberOrNull(rateCard.rateCardId),
+    rateCardName: toStringOrNull(rateCard.rateCardName),
+    subscriptionFrequency: toStringOrNull(subscriptionContract.subscriptionFrequency),
+    subscriptionStartDate: toStringOrNull(subscriptionContract.subscriptionStartDate),
+    periodMinutes: toNumberOrNull(subscriptionContract.periodMinutes),
+    periodBudget: toNumberOrNull(subscriptionContract.periodBudget),
+    noOfPeriods: toNumberOrNull(subscriptionContract.noOfPeriods),
   }
 }
 
@@ -1061,53 +1046,53 @@ export interface RocketlaneProject {
 export function mapProject(value: unknown): RocketlaneProject {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    projectId: asNumber(raw.projectId),
-    projectName: asString(raw.projectName),
-    startDate: asString(raw.startDate),
-    dueDate: asString(raw.dueDate),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    projectId: toNumberOrNull(raw.projectId),
+    projectName: toStringOrNull(raw.projectName),
+    startDate: toStringOrNull(raw.startDate),
+    dueDate: toStringOrNull(raw.dueDate),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     owner: mapUserSummary(raw.owner),
     teamMembers: mapProjectTeamMembers(raw.teamMembers),
     status: mapProjectStatus(raw.status),
-    fields: asArray(raw.fields).map(mapProjectField),
+    fields: toArray(raw.fields).map(mapProjectField),
     customer: mapProjectCompany(raw.customer),
-    partnerCompanies: asArray(raw.partnerCompanies)
+    partnerCompanies: toArray(raw.partnerCompanies)
       .map(mapProjectCompany)
       .filter((c): c is RocketlaneProjectCompany => c !== null),
-    archived: asBoolean(raw.archived),
-    visibility: asString(raw.visibility),
+    archived: toBooleanOrNull(raw.archived),
+    visibility: toStringOrNull(raw.visibility),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
-    currency: asString(raw.currency),
+    currency: toStringOrNull(raw.currency),
     financials: mapProjectFinancials(raw.financials),
-    startDateActual: asString(raw.startDateActual),
-    dueDateActual: asString(raw.dueDateActual),
-    annualizedRecurringRevenue: asNumber(raw.annualizedRecurringRevenue),
-    projectFee: asNumber(raw.projectFee),
-    budgetedHours: asNumber(raw.budgetedHours),
-    percentageBudgetedHoursConsumed: asNumber(raw.percentageBudgetedHoursConsumed),
-    percentageBudgetConsumed: asNumber(raw.percentageBudgetConsumed),
-    trackedHours: asNumber(raw.trackedHours),
-    trackedMinutes: asNumber(raw.trackedMinutes),
-    allocatedHours: asNumber(raw.allocatedHours),
-    allocatedMinutes: asNumber(raw.allocatedMinutes),
-    billableHours: asNumber(raw.billableHours),
-    billableMinutes: asNumber(raw.billableMinutes),
-    nonBillableHours: asNumber(raw.nonBillableHours),
-    nonBillableMinutes: asNumber(raw.nonBillableMinutes),
-    remainingHours: asNumber(raw.remainingHours),
-    remainingMinutes: asNumber(raw.remainingMinutes),
-    progressPercentage: asNumber(raw.progressPercentage),
-    currentPhases: asArray(raw.currentPhases).map(mapProjectPhase),
-    autoAllocation: asBoolean(raw.autoAllocation),
-    sources: asArray(raw.sources).map(mapProjectSource),
-    plannedDurationInDays: asNumber(raw.plannedDurationInDays),
-    inferredProgress: asString(raw.inferredProgress),
-    projectAgeInDays: asNumber(raw.projectAgeInDays),
-    customersInvited: asNumber(raw.customersInvited),
-    customersJoined: asNumber(raw.customersJoined),
-    externalReferenceId: asString(raw.externalReferenceId),
+    startDateActual: toStringOrNull(raw.startDateActual),
+    dueDateActual: toStringOrNull(raw.dueDateActual),
+    annualizedRecurringRevenue: toNumberOrNull(raw.annualizedRecurringRevenue),
+    projectFee: toNumberOrNull(raw.projectFee),
+    budgetedHours: toNumberOrNull(raw.budgetedHours),
+    percentageBudgetedHoursConsumed: toNumberOrNull(raw.percentageBudgetedHoursConsumed),
+    percentageBudgetConsumed: toNumberOrNull(raw.percentageBudgetConsumed),
+    trackedHours: toNumberOrNull(raw.trackedHours),
+    trackedMinutes: toNumberOrNull(raw.trackedMinutes),
+    allocatedHours: toNumberOrNull(raw.allocatedHours),
+    allocatedMinutes: toNumberOrNull(raw.allocatedMinutes),
+    billableHours: toNumberOrNull(raw.billableHours),
+    billableMinutes: toNumberOrNull(raw.billableMinutes),
+    nonBillableHours: toNumberOrNull(raw.nonBillableHours),
+    nonBillableMinutes: toNumberOrNull(raw.nonBillableMinutes),
+    remainingHours: toNumberOrNull(raw.remainingHours),
+    remainingMinutes: toNumberOrNull(raw.remainingMinutes),
+    progressPercentage: toNumberOrNull(raw.progressPercentage),
+    currentPhases: toArray(raw.currentPhases).map(mapProjectPhase),
+    autoAllocation: toBooleanOrNull(raw.autoAllocation),
+    sources: toArray(raw.sources).map(mapProjectSource),
+    plannedDurationInDays: toNumberOrNull(raw.plannedDurationInDays),
+    inferredProgress: toStringOrNull(raw.inferredProgress),
+    projectAgeInDays: toNumberOrNull(raw.projectAgeInDays),
+    customersInvited: toNumberOrNull(raw.customersInvited),
+    customersJoined: toNumberOrNull(raw.customersJoined),
+    externalReferenceId: toStringOrNull(raw.externalReferenceId),
   }
 }
 
@@ -1361,15 +1346,20 @@ export function mapPlaceholder(value: unknown): RocketlanePlaceholder {
   const project = toRecordOrNull(raw.project)
   const role = toRecordOrNull(raw.role)
   return {
-    placeholderId: asNumber(raw.placeholderId),
-    placeholderName: asString(raw.placeholderName),
+    placeholderId: toNumberOrNull(raw.placeholderId),
+    placeholderName: toStringOrNull(raw.placeholderName),
     project: project
-      ? { projectId: asNumber(project.projectId), projectName: asString(project.projectName) }
+      ? {
+          projectId: toNumberOrNull(project.projectId),
+          projectName: toStringOrNull(project.projectName),
+        }
       : null,
-    role: role ? { roleId: asNumber(role.roleId), roleName: asString(role.roleName) } : null,
-    placeholderType: asString(raw.placeholderType),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    role: role
+      ? { roleId: toNumberOrNull(role.roleId), roleName: toStringOrNull(role.roleName) }
+      : null,
+    placeholderType: toStringOrNull(raw.placeholderType),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
   }
 }
 
@@ -1452,24 +1442,24 @@ export function mapPlaceholderMapping(value: unknown): RocketlanePlaceholderMapp
   return {
     placeholder: placeholder
       ? {
-          placeholderId: asNumber(placeholder.placeholderId),
-          placeholderName: asString(placeholder.placeholderName),
+          placeholderId: toNumberOrNull(placeholder.placeholderId),
+          placeholderName: toStringOrNull(placeholder.placeholderName),
         }
       : null,
-    placeholderStatus: asString(raw.placeholderStatus),
+    placeholderStatus: toStringOrNull(raw.placeholderStatus),
     user: user
       ? {
-          userId: asNumber(user.userId),
-          firstName: asString(user.firstName),
-          lastName: asString(user.lastName),
-          emailId: asString(user.emailId),
-          role: asString(user.role),
+          userId: toNumberOrNull(user.userId),
+          firstName: toStringOrNull(user.firstName),
+          lastName: toStringOrNull(user.lastName),
+          emailId: toStringOrNull(user.emailId),
+          role: toStringOrNull(user.role),
         }
       : null,
-    hourlyCostRate: asNumber(raw.hourlyCostRate),
-    costRateCurrency: asString(raw.costRateCurrency),
-    hourlyBillRate: asNumber(raw.hourlyBillRate),
-    billRateCurrency: asString(raw.billRateCurrency),
+    hourlyCostRate: toNumberOrNull(raw.hourlyCostRate),
+    costRateCurrency: toStringOrNull(raw.costRateCurrency),
+    hourlyBillRate: toNumberOrNull(raw.hourlyBillRate),
+    billRateCurrency: toStringOrNull(raw.billRateCurrency),
   }
 }
 
@@ -1733,9 +1723,9 @@ export interface RocketlaneFieldOption {
 export function mapFieldOption(value: unknown): RocketlaneFieldOption {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    optionValue: asNumber(raw.optionValue),
-    optionLabel: asString(raw.optionLabel),
-    optionColor: asString(raw.optionColor),
+    optionValue: toNumberOrNull(raw.optionValue),
+    optionLabel: toStringOrNull(raw.optionLabel),
+    optionColor: toStringOrNull(raw.optionColor),
   }
 }
 
@@ -1774,19 +1764,19 @@ export interface RocketlaneField {
 export function mapField(value: unknown): RocketlaneField {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    fieldId: asNumber(raw.fieldId),
-    fieldLabel: asString(raw.fieldLabel),
-    fieldDescription: asString(raw.fieldDescription),
-    fieldType: asString(raw.fieldType),
-    objectType: asString(raw.objectType),
-    fieldOptions: asArray(raw.fieldOptions).map(mapFieldOption),
-    ratingScale: asString(raw.ratingScale),
+    fieldId: toNumberOrNull(raw.fieldId),
+    fieldLabel: toStringOrNull(raw.fieldLabel),
+    fieldDescription: toStringOrNull(raw.fieldDescription),
+    fieldType: toStringOrNull(raw.fieldType),
+    objectType: toStringOrNull(raw.objectType),
+    fieldOptions: toArray(raw.fieldOptions).map(mapFieldOption),
+    ratingScale: toStringOrNull(raw.ratingScale),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
-    enabled: asBoolean(raw.enabled),
-    private: asBoolean(raw.private),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
+    enabled: toBooleanOrNull(raw.enabled),
+    private: toBooleanOrNull(raw.private),
   }
 }
 
@@ -1971,21 +1961,26 @@ export function mapPhase(value: unknown): RocketlanePhase {
   const project = toRecordOrNull(raw.project)
   const status = toRecordOrNull(raw.status)
   return {
-    phaseId: asNumber(raw.phaseId),
-    phaseName: asString(raw.phaseName),
+    phaseId: toNumberOrNull(raw.phaseId),
+    phaseName: toStringOrNull(raw.phaseName),
     project: project
-      ? { projectId: asNumber(project.projectId), projectName: asString(project.projectName) }
+      ? {
+          projectId: toNumberOrNull(project.projectId),
+          projectName: toStringOrNull(project.projectName),
+        }
       : null,
-    startDate: asString(raw.startDate),
-    dueDate: asString(raw.dueDate),
-    startDateActual: asString(raw.startDateActual),
-    dueDateActual: asString(raw.dueDateActual),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    startDate: toStringOrNull(raw.startDate),
+    dueDate: toStringOrNull(raw.dueDate),
+    startDateActual: toStringOrNull(raw.startDateActual),
+    dueDateActual: toStringOrNull(raw.dueDateActual),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
-    status: status ? { value: asNumber(status.value), label: asString(status.label) } : null,
-    private: asBoolean(raw.private),
+    status: status
+      ? { value: toNumberOrNull(status.value), label: toStringOrNull(status.label) }
+      : null,
+    private: toBooleanOrNull(raw.private),
   }
 }
 
@@ -2200,8 +2195,8 @@ function mapTimeEntryProject(value: unknown): RocketlaneTimeEntryProject | null 
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    projectId: asNumber(raw.projectId),
-    projectName: asString(raw.projectName),
+    projectId: toNumberOrNull(raw.projectId),
+    projectName: toStringOrNull(raw.projectName),
   }
 }
 
@@ -2209,8 +2204,8 @@ function mapTimeEntryTask(value: unknown): RocketlaneTimeEntryTask | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    taskId: asNumber(raw.taskId),
-    taskName: asString(raw.taskName),
+    taskId: toNumberOrNull(raw.taskId),
+    taskName: toStringOrNull(raw.taskName),
   }
 }
 
@@ -2218,8 +2213,8 @@ function mapTimeEntryPhase(value: unknown): RocketlaneTimeEntryPhase | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    phaseId: asNumber(raw.phaseId),
-    phaseName: asString(raw.phaseName),
+    phaseId: toNumberOrNull(raw.phaseId),
+    phaseName: toStringOrNull(raw.phaseName),
   }
 }
 
@@ -2227,8 +2222,8 @@ export function mapTimeEntryCategory(value: unknown): RocketlaneTimeEntryCategor
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    categoryId: asNumber(raw.categoryId),
-    categoryName: asString(raw.categoryName),
+    categoryId: toNumberOrNull(raw.categoryId),
+    categoryName: toStringOrNull(raw.categoryName),
   }
 }
 
@@ -2236,51 +2231,51 @@ function mapTimeEntryRate(value: unknown): RocketlaneTimeEntryRate | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    rate: asNumber(raw.rate),
-    currency: asString(raw.currency),
+    rate: toNumberOrNull(raw.rate),
+    currency: toStringOrNull(raw.currency),
   }
 }
 
 function mapTimeEntryField(value: unknown): RocketlaneTimeEntryField {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    fieldId: asNumber(raw.fieldId),
-    fieldLabel: asString(raw.fieldLabel),
+    fieldId: toNumberOrNull(raw.fieldId),
+    fieldLabel: toStringOrNull(raw.fieldLabel),
     fieldValue: raw.fieldValue ?? null,
-    fieldValueLabel: asString(raw.fieldValueLabel),
+    fieldValueLabel: toStringOrNull(raw.fieldValueLabel),
   }
 }
 
 export function mapTimeEntry(value: unknown): RocketlaneTimeEntry {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    timeEntryId: asNumber(raw.timeEntryId),
-    date: asString(raw.date),
-    minutes: asNumber(raw.minutes),
-    activityName: asString(raw.activityName),
+    timeEntryId: toNumberOrNull(raw.timeEntryId),
+    date: toStringOrNull(raw.date),
+    minutes: toNumberOrNull(raw.minutes),
+    activityName: toStringOrNull(raw.activityName),
     project: mapTimeEntryProject(raw.project),
     task: mapTimeEntryTask(raw.task),
     projectPhase: mapTimeEntryPhase(raw.projectPhase),
-    billable: asBoolean(raw.billable),
+    billable: toBooleanOrNull(raw.billable),
     user: mapUserSummary(raw.user),
-    notes: asString(raw.notes),
+    notes: toStringOrNull(raw.notes),
     category: mapTimeEntryCategory(raw.category),
-    sourceType: asString(raw.sourceType),
-    status: asString(raw.status),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    sourceType: toStringOrNull(raw.sourceType),
+    status: toStringOrNull(raw.status),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
     submittedBy: mapUserSummary(raw.submittedBy),
-    submittedAt: asNumber(raw.submittedAt),
+    submittedAt: toNumberOrNull(raw.submittedAt),
     approvedBy: mapUserSummary(raw.approvedBy),
-    approvedAt: asNumber(raw.approvedAt),
+    approvedAt: toNumberOrNull(raw.approvedAt),
     rejectedBy: mapUserSummary(raw.rejectedBy),
-    rejectedAt: asNumber(raw.rejectedAt),
-    deleted: asBoolean(raw.deleted),
+    rejectedAt: toNumberOrNull(raw.rejectedAt),
+    deleted: toBooleanOrNull(raw.deleted),
     costRate: mapTimeEntryRate(raw.costRate),
     billRate: mapTimeEntryRate(raw.billRate),
-    fields: asArray(raw.fields).map(mapTimeEntryField),
+    fields: toArray(raw.fields).map(mapTimeEntryField),
   }
 }
 
@@ -2623,19 +2618,19 @@ export function mapSpace(value: unknown): RocketlaneSpace {
   const raw = toRecordOrNull(value) ?? {}
   const project = toRecordOrNull(raw.project)
   return {
-    spaceId: asNumber(raw.spaceId),
-    spaceName: asString(raw.spaceName),
+    spaceId: toNumberOrNull(raw.spaceId),
+    spaceName: toStringOrNull(raw.spaceName),
     project: project
       ? {
-          projectId: asNumber(project.projectId),
-          projectName: asString(project.projectName),
+          projectId: toNumberOrNull(project.projectId),
+          projectName: toStringOrNull(project.projectName),
         }
       : null,
-    createdAt: asNumber(raw.createdAt),
+    createdAt: toNumberOrNull(raw.createdAt),
     createdBy: mapUserSummary(raw.createdBy),
-    updatedAt: asNumber(raw.updatedAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     updatedBy: mapUserSummary(raw.updatedBy),
-    private: asBoolean(raw.private),
+    private: toBooleanOrNull(raw.private),
   }
 }
 
@@ -2781,27 +2776,27 @@ export function mapSpaceDocument(value: unknown): RocketlaneSpaceDocument {
   const space = toRecordOrNull(raw.space)
   const source = toRecordOrNull(raw.source)
   return {
-    spaceDocumentId: asNumber(raw.spaceDocumentId),
-    spaceDocumentName: asString(raw.spaceDocumentName),
+    spaceDocumentId: toNumberOrNull(raw.spaceDocumentId),
+    spaceDocumentName: toStringOrNull(raw.spaceDocumentName),
     space: space
       ? {
-          spaceId: asNumber(space.spaceId),
-          spaceName: asString(space.spaceName),
+          spaceId: toNumberOrNull(space.spaceId),
+          spaceName: toStringOrNull(space.spaceName),
         }
       : null,
-    spaceDocumentType: asString(raw.spaceDocumentType),
-    url: asString(raw.url),
+    spaceDocumentType: toStringOrNull(raw.spaceDocumentType),
+    url: toStringOrNull(raw.url),
     source: source
       ? {
-          templateId: asNumber(source.templateId),
-          templateName: asString(source.templateName),
+          templateId: toNumberOrNull(source.templateId),
+          templateName: toStringOrNull(source.templateName),
         }
       : null,
-    createdAt: asNumber(raw.createdAt),
+    createdAt: toNumberOrNull(raw.createdAt),
     createdBy: mapUserSummary(raw.createdBy),
-    updatedAt: asNumber(raw.updatedAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     updatedBy: mapUserSummary(raw.updatedBy),
-    private: asBoolean(raw.private),
+    private: toBooleanOrNull(raw.private),
   }
 }
 
@@ -3006,50 +3001,50 @@ export function mapUser(value: unknown): RocketlaneUser {
   const permission = toRecordOrNull(raw.permission)
   const holidayCalendar = toRecordOrNull(raw.holidayCalendar)
   return {
-    userId: asNumber(raw.userId),
-    email: asString(raw.email),
-    firstName: asString(raw.firstName),
-    lastName: asString(raw.lastName),
-    type: asString(raw.type),
-    status: asString(raw.status),
+    userId: toNumberOrNull(raw.userId),
+    email: toStringOrNull(raw.email),
+    firstName: toStringOrNull(raw.firstName),
+    lastName: toStringOrNull(raw.lastName),
+    type: toStringOrNull(raw.type),
+    status: toStringOrNull(raw.status),
     role: role
       ? {
-          roleId: asNumber(role.roleId),
-          roleName: asString(role.roleName),
+          roleId: toNumberOrNull(role.roleId),
+          roleName: toStringOrNull(role.roleName),
         }
       : null,
     company: company
       ? {
-          companyId: asNumber(company.companyId),
-          companyName: asString(company.companyName),
+          companyId: toNumberOrNull(company.companyId),
+          companyName: toStringOrNull(company.companyName),
         }
       : null,
     permission: permission
       ? {
-          permissionId: asNumber(permission.permissionId),
-          permissionName: asString(permission.permissionName),
+          permissionId: toNumberOrNull(permission.permissionId),
+          permissionName: toStringOrNull(permission.permissionName),
         }
       : null,
-    fields: asArray(raw.fields).map((field) => {
+    fields: toArray(raw.fields).map((field) => {
       const fieldRaw = toRecordOrNull(field) ?? {}
       return {
-        fieldId: asNumber(fieldRaw.fieldId),
-        fieldLabel: asString(fieldRaw.fieldLabel),
-        fieldValue: asString(fieldRaw.fieldValue),
-        fieldValueLabel: asString(fieldRaw.fieldValueLabel),
+        fieldId: toNumberOrNull(fieldRaw.fieldId),
+        fieldLabel: toStringOrNull(fieldRaw.fieldLabel),
+        fieldValue: toStringOrNull(fieldRaw.fieldValue),
+        fieldValueLabel: toStringOrNull(fieldRaw.fieldValueLabel),
       }
     }),
-    capacityInMinutes: asNumber(raw.capacityInMinutes),
+    capacityInMinutes: toNumberOrNull(raw.capacityInMinutes),
     holidayCalendar: holidayCalendar
       ? {
-          calenderId: asNumber(holidayCalendar.calenderId),
-          calenderName: asString(holidayCalendar.calenderName),
+          calenderId: toNumberOrNull(holidayCalendar.calenderId),
+          calenderName: toStringOrNull(holidayCalendar.calenderName),
         }
       : null,
-    profilePictureUrl: asString(raw.profilePictureUrl),
-    createdAt: asNumber(raw.createdAt),
+    profilePictureUrl: toStringOrNull(raw.profilePictureUrl),
+    createdAt: toNumberOrNull(raw.createdAt),
     createdBy: mapUserSummary(raw.createdBy),
-    updatedAt: asNumber(raw.updatedAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     updatedBy: mapUserSummary(raw.updatedBy),
   }
 }
@@ -3330,8 +3325,8 @@ function mapTimeOffNotifyUsers(value: unknown): RocketlaneTimeOffNotifyUsers | n
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    projectOwners: asBoolean(raw.projectOwners),
-    others: asArray(raw.others)
+    projectOwners: toBooleanOrNull(raw.projectOwners),
+    others: toArray(raw.others)
       .map(mapUserSummary)
       .filter((user): user is RocketlaneUserSummary => user !== null),
   }
@@ -3343,15 +3338,15 @@ function mapTimeOffNotifyUsers(value: unknown): RocketlaneTimeOffNotifyUsers | n
 export function mapTimeOff(value: unknown): RocketlaneTimeOff {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    timeOffId: asNumber(raw.timeOffId),
+    timeOffId: toNumberOrNull(raw.timeOffId),
     user: mapUserSummary(raw.user),
-    note: asString(raw.note),
-    startDate: asString(raw.startDate),
-    endDate: asString(raw.endDate),
-    durationInMinutes: asNumber(raw.durationInMinutes),
-    type: asString(raw.type),
+    note: toStringOrNull(raw.note),
+    startDate: toStringOrNull(raw.startDate),
+    endDate: toStringOrNull(raw.endDate),
+    durationInMinutes: toNumberOrNull(raw.durationInMinutes),
+    type: toStringOrNull(raw.type),
     notifyUsers: mapTimeOffNotifyUsers(raw.notifyUsers),
-    createdAt: asNumber(raw.createdAt),
+    createdAt: toNumberOrNull(raw.createdAt),
     createdBy: mapUserSummary(raw.createdBy),
   }
 }
@@ -3522,8 +3517,8 @@ function mapResourceAllocationRole(value: unknown): RocketlaneResourceAllocation
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    roleId: asNumber(raw.roleId),
-    roleName: asString(raw.roleName),
+    roleId: toNumberOrNull(raw.roleId),
+    roleName: toStringOrNull(raw.roleName),
   }
 }
 
@@ -3544,8 +3539,8 @@ function mapResourceAllocationPlaceholder(
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    placeholderId: asNumber(raw.placeholderId),
-    placeholderName: asString(raw.placeholderName),
+    placeholderId: toNumberOrNull(raw.placeholderId),
+    placeholderName: toStringOrNull(raw.placeholderName),
     role: mapResourceAllocationRole(raw.role),
   }
 }
@@ -3556,10 +3551,10 @@ function mapResourceAllocationDuration(
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    daysConsider: asNumber(raw.daysConsider),
-    seconds: asNumber(raw.seconds),
-    minutes: asNumber(raw.minutes),
-    hours: asNumber(raw.hours),
+    daysConsider: toNumberOrNull(raw.daysConsider),
+    seconds: toNumberOrNull(raw.seconds),
+    minutes: toNumberOrNull(raw.minutes),
+    hours: toNumberOrNull(raw.hours),
   }
 }
 
@@ -3567,16 +3562,16 @@ function mapResourceAllocationProject(value: unknown): RocketlaneResourceAllocat
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    projectId: asNumber(raw.projectId),
-    projectName: asString(raw.projectName),
+    projectId: toNumberOrNull(raw.projectId),
+    projectName: toStringOrNull(raw.projectName),
   }
 }
 
 function mapResourceAllocationTask(value: unknown): RocketlaneResourceAllocationTask {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    taskId: asNumber(raw.taskId),
-    taskName: asString(raw.taskName),
+    taskId: toNumberOrNull(raw.taskId),
+    taskName: toStringOrNull(raw.taskName),
   }
 }
 
@@ -3587,20 +3582,20 @@ function mapResourceAllocationTask(value: unknown): RocketlaneResourceAllocation
 export function mapResourceAllocation(value: unknown): RocketlaneResourceAllocation {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    startDate: asString(raw.startDate),
-    endDate: asString(raw.endDate),
-    secondsPerDay: asNumber(raw.secondsPerDay),
-    minutesPerDay: asNumber(raw.minutesPerDay),
-    hoursPerDay: asNumber(raw.hoursPerDay),
+    startDate: toStringOrNull(raw.startDate),
+    endDate: toStringOrNull(raw.endDate),
+    secondsPerDay: toNumberOrNull(raw.secondsPerDay),
+    minutesPerDay: toNumberOrNull(raw.minutesPerDay),
+    hoursPerDay: toNumberOrNull(raw.hoursPerDay),
     duration: mapResourceAllocationDuration(raw.duration),
-    allocationType: asString(raw.allocationType),
-    allocationFor: asString(raw.allocationFor),
+    allocationType: toStringOrNull(raw.allocationType),
+    allocationFor: toStringOrNull(raw.allocationFor),
     project: mapResourceAllocationProject(raw.project),
-    tasks: asArray(raw.tasks).map(mapResourceAllocationTask),
+    tasks: toArray(raw.tasks).map(mapResourceAllocationTask),
     member: mapResourceAllocationMember(raw.member),
     placeholder: mapResourceAllocationPlaceholder(raw.placeholder),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
   }
@@ -3919,39 +3914,39 @@ function mapInvoiceCompany(value: unknown): RocketlaneInvoiceCompany | null {
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    companyId: asNumber(raw.companyId),
-    companyName: asString(raw.companyName),
-    companyUrl: asString(raw.companyUrl),
+    companyId: toNumberOrNull(raw.companyId),
+    companyName: toStringOrNull(raw.companyName),
+    companyUrl: toStringOrNull(raw.companyUrl),
   }
 }
 
 function mapInvoiceProject(value: unknown): RocketlaneInvoiceProject {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    projectId: asNumber(raw.projectId),
-    projectName: asString(raw.projectName),
+    projectId: toNumberOrNull(raw.projectId),
+    projectName: toStringOrNull(raw.projectName),
   }
 }
 
 function mapInvoiceField(value: unknown): RocketlaneInvoiceField {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    fieldId: asNumber(raw.fieldId),
-    fieldLabel: asString(raw.fieldLabel),
+    fieldId: toNumberOrNull(raw.fieldId),
+    fieldLabel: toStringOrNull(raw.fieldLabel),
     fieldValue: raw.fieldValue ?? null,
-    fieldValueLabel: asString(raw.fieldValueLabel),
+    fieldValueLabel: toStringOrNull(raw.fieldValueLabel),
   }
 }
 
 function mapInvoiceAttachment(value: unknown): RocketlaneInvoiceAttachment {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    attachmentId: asNumber(raw.attachmentId),
-    attachmentName: asString(raw.attachmentName),
-    createdAt: asNumber(raw.createdAt),
-    location: asString(raw.location),
-    thumbLocation: asString(raw.thumbLocation),
-    visibility: asBoolean(raw.visibility),
+    attachmentId: toNumberOrNull(raw.attachmentId),
+    attachmentName: toStringOrNull(raw.attachmentName),
+    createdAt: toNumberOrNull(raw.createdAt),
+    location: toStringOrNull(raw.location),
+    thumbLocation: toStringOrNull(raw.thumbLocation),
+    visibility: toBooleanOrNull(raw.visibility),
   }
 }
 
@@ -3961,27 +3956,27 @@ function mapInvoiceAttachment(value: unknown): RocketlaneInvoiceAttachment {
 export function mapInvoice(value: unknown): RocketlaneInvoice {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    invoiceId: asNumber(raw.invoiceId),
-    invoiceNumber: asString(raw.invoiceNumber),
-    dateOfIssue: asString(raw.dateOfIssue),
-    dueDate: asString(raw.dueDate),
-    currency: asString(raw.currency),
-    status: asString(raw.status),
-    amount: asNumber(raw.amount),
-    tax: asNumber(raw.tax),
-    subTotal: asNumber(raw.subTotal),
-    amountOutstanding: asNumber(raw.amountOutstanding),
-    amountPaid: asNumber(raw.amountPaid),
-    amountWrittenOff: asNumber(raw.amountWrittenOff),
-    notes: asString(raw.notes),
-    createdAt: asNumber(raw.createdAt),
-    updatedAt: asNumber(raw.updatedAt),
+    invoiceId: toNumberOrNull(raw.invoiceId),
+    invoiceNumber: toStringOrNull(raw.invoiceNumber),
+    dateOfIssue: toStringOrNull(raw.dateOfIssue),
+    dueDate: toStringOrNull(raw.dueDate),
+    currency: toStringOrNull(raw.currency),
+    status: toStringOrNull(raw.status),
+    amount: toNumberOrNull(raw.amount),
+    tax: toNumberOrNull(raw.tax),
+    subTotal: toNumberOrNull(raw.subTotal),
+    amountOutstanding: toNumberOrNull(raw.amountOutstanding),
+    amountPaid: toNumberOrNull(raw.amountPaid),
+    amountWrittenOff: toNumberOrNull(raw.amountWrittenOff),
+    notes: toStringOrNull(raw.notes),
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
     createdBy: mapUserSummary(raw.createdBy),
     updatedBy: mapUserSummary(raw.updatedBy),
     company: mapInvoiceCompany(raw.company),
-    projects: asArray(raw.projects).map(mapInvoiceProject),
-    fields: asArray(raw.fields).map(mapInvoiceField),
-    attachments: asArray(raw.attachments).map(mapInvoiceAttachment),
+    projects: toArray(raw.projects).map(mapInvoiceProject),
+    fields: toArray(raw.fields).map(mapInvoiceField),
+    attachments: toArray(raw.attachments).map(mapInvoiceAttachment),
   }
 }
 
@@ -3991,12 +3986,12 @@ export function mapInvoice(value: unknown): RocketlaneInvoice {
 export function mapInvoicePayment(value: unknown): RocketlaneInvoicePayment {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    paymentId: asNumber(raw.paymentId),
-    paymentRecordType: asString(raw.paymentRecordType),
-    currency: asString(raw.currency),
-    paymentDate: asString(raw.paymentDate),
-    amount: asNumber(raw.amount),
-    notes: asString(raw.notes),
+    paymentId: toNumberOrNull(raw.paymentId),
+    paymentRecordType: toStringOrNull(raw.paymentRecordType),
+    currency: toStringOrNull(raw.currency),
+    paymentDate: toStringOrNull(raw.paymentDate),
+    amount: toNumberOrNull(raw.amount),
+    notes: toStringOrNull(raw.notes),
   }
 }
 
@@ -4004,21 +3999,21 @@ function mapInvoiceLineItemTaxCode(value: unknown): RocketlaneInvoiceLineItemTax
   const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
-    taxCodeId: asNumber(raw.taxCodeId),
-    taxCodeName: asString(raw.taxCodeName),
-    taxCodeRate: asNumber(raw.taxCodeRate),
-    taxCodeAmount: asNumber(raw.taxCodeAmount),
+    taxCodeId: toNumberOrNull(raw.taxCodeId),
+    taxCodeName: toStringOrNull(raw.taxCodeName),
+    taxCodeRate: toNumberOrNull(raw.taxCodeRate),
+    taxCodeAmount: toNumberOrNull(raw.taxCodeAmount),
   }
 }
 
 function mapInvoiceLineItemTaxComponent(value: unknown): RocketlaneInvoiceLineItemTaxComponent {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    taxComponentId: asNumber(raw.taxComponentId),
-    taxComponentName: asString(raw.taxComponentName),
-    taxComponentRate: asNumber(raw.taxComponentRate),
-    taxComponentAmount: asNumber(raw.taxComponentAmount),
-    taxComponentType: asString(raw.taxComponentType),
+    taxComponentId: toNumberOrNull(raw.taxComponentId),
+    taxComponentName: toStringOrNull(raw.taxComponentName),
+    taxComponentRate: toNumberOrNull(raw.taxComponentRate),
+    taxComponentAmount: toNumberOrNull(raw.taxComponentAmount),
+    taxComponentType: toStringOrNull(raw.taxComponentType),
   }
 }
 
@@ -4028,15 +4023,15 @@ function mapInvoiceLineItemTaxComponent(value: unknown): RocketlaneInvoiceLineIt
 export function mapInvoiceLineItem(value: unknown): RocketlaneInvoiceLineItem {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    invoiceLineItemId: asNumber(raw.invoiceLineItemId),
-    description: asString(raw.description),
-    quantity: asNumber(raw.quantity),
-    unitPrice: asNumber(raw.unitPrice),
-    amount: asNumber(raw.amount),
-    sourceId: asNumber(raw.sourceId),
-    sourceType: asString(raw.sourceType),
+    invoiceLineItemId: toNumberOrNull(raw.invoiceLineItemId),
+    description: toStringOrNull(raw.description),
+    quantity: toNumberOrNull(raw.quantity),
+    unitPrice: toNumberOrNull(raw.unitPrice),
+    amount: toNumberOrNull(raw.amount),
+    sourceId: toNumberOrNull(raw.sourceId),
+    sourceType: toStringOrNull(raw.sourceType),
     taxCode: mapInvoiceLineItemTaxCode(raw.taxCode),
-    taxComponents: asArray(raw.taxComponents).map(mapInvoiceLineItemTaxComponent),
+    taxComponents: toArray(raw.taxComponents).map(mapInvoiceLineItemTaxComponent),
   }
 }
 

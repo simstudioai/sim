@@ -135,7 +135,7 @@ async function editDraft(value: string) {
 function expectVisibleQuery(query: string) {
   expect(searchInput().value).toBe(query)
   expect(container.querySelector('a[data-source-link]')?.textContent).toBe(`${query} launch plan`)
-  expect(mocks.search).toHaveBeenLastCalledWith(scope, query, {})
+  expect(mocks.search).toHaveBeenLastCalledWith(scope, query, {}, 20)
   expect(document.activeElement).toBe(searchInput())
 }
 

@@ -58,6 +58,10 @@ export function OrganizationAccessRequests({
   )
   const settings = useAccessRequestSettings(organizationId)
   const updateSettings = useUpdateAccessRequestSettings(organizationId)
+  const status = params['request-status']
+  const requestLabel =
+    status === 'all' ? 'Requests' : `${ACCESS_REQUEST_STATUS_LABELS[status]} requests`
+  const requestCount = !searchPending && !requests.isError ? requests.data?.total : undefined
 
   const content = (
     <div className='flex flex-col gap-7'>
@@ -73,15 +77,15 @@ export function OrganizationAccessRequests({
         />
       ) : (
         <SettingsResourceRow
-          title='Allow users to request permissions'
+          title='Allow requests'
           description={
             settings.data.allowRequests === false
-              ? 'New requests and approvals are paused.'
-              : 'Includes access and credit limit requests.'
+              ? 'New requests and approvals are paused. You can still view history and decline pending requests.'
+              : 'People can send requests for administrators to review.'
           }
           trailing={
             <ChipSwitch
-              aria-label='Allow users to request permissions'
+              aria-label='Allow requests'
               size='compact'
               options={[
                 { value: 'enabled', label: 'Enabled' },
@@ -99,7 +103,7 @@ export function OrganizationAccessRequests({
         />
       )}
       <SettingsSection
-        label='Requests'
+        label={requestCount === undefined ? requestLabel : `${requestLabel} (${requestCount})`}
         action={
           <ChipSelect
             showSelectedCheck
@@ -142,8 +146,12 @@ export function OrganizationAccessRequests({
             {requests.data.requests.length === 0 && (
               <SettingsEmptyState variant='inline'>
                 {debouncedSearch
-                  ? `No requests found matching "${searchTerm.trim()}"`
-                  : 'No access requests. Requests from your members will appear here.'}
+                  ? `No matching requests for "${debouncedSearch}".`
+                  : status === 'pending'
+                    ? 'No pending requests. Requests that need your review will appear here.'
+                    : status === 'all'
+                      ? 'No requests yet. Requests will appear here once someone sends one.'
+                      : `No ${ACCESS_REQUEST_STATUS_LABELS[status].toLowerCase()} requests.`}
               </SettingsEmptyState>
             )}
             {requests.data.requests.map((request) => (

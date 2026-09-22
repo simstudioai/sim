@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { isRecordLike } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -202,7 +203,7 @@ async function projectText(
 
 function textChunk(text: string, offset: number, args: MemoryRetrievalArguments) {
   const relativeMatch = args.query
-    ? text.slice(offset).search(new RegExp(args.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'iu'))
+    ? text.slice(offset).search(new RegExp(escapeRegExp(args.query), 'iu'))
     : 0
   const match = relativeMatch < 0 ? -1 : offset + relativeMatch
   if (match < 0 || match >= text.length) return undefined

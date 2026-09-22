@@ -434,7 +434,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedVariables(!expandedVariables))
               }
             >
-              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
                 <span className='text-[9px] text-white'>V</span>
               </div>
               <OverflowText
@@ -483,7 +483,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedEnvVars(!expandedEnvVars))
               }
             >
-              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
                 <span className='text-[9px] text-white'>E</span>
               </div>
               <OverflowText

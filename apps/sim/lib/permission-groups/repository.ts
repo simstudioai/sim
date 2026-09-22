@@ -1,0 +1,90 @@
+import { db } from '@sim/db'
+import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
+
+/** A workspace reference (id + display name). */
+export interface WorkspaceRef {
+  id: string
+  name: string
+}
+
+/** Load a permission group only if it belongs to the given organization. */
+export async function loadGroupInOrganization(
+  groupId: string,
+  organizationId: string,
+  executor: DbOrTx = db
+) {
+  const [group] = await executor
+    .select({
+      id: permissionGroup.id,
+      organizationId: permissionGroup.organizationId,
+      name: permissionGroup.name,
+      description: permissionGroup.description,
+      config: permissionGroup.config,
+      createdBy: permissionGroup.createdBy,
+      createdAt: permissionGroup.createdAt,
+      updatedAt: permissionGroup.updatedAt,
+      isDefault: permissionGroup.isDefault,
+      membershipMode: permissionGroup.membershipMode,
+    })
+    .from(permissionGroup)
+    .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))
+    .limit(1)
+
+  return group ?? null
+}
+
+/** The workspaces ({id, name}) a specific-scope group targets. */
+export async function getGroupWorkspaces(
+  groupId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRef[]> {
+  return executor
+    .select({ id: workspace.id, name: workspace.name })
+    .from(permissionGroupWorkspace)
+    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
+    .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
+    .orderBy(asc(workspace.name))
+}
+
+/** Batched map of `groupId -> targeted workspaces` for a list of groups. */
+export async function getWorkspacesForGroups(
+  groupIds: string[]
+): Promise<Map<string, WorkspaceRef[]>> {
+  const byGroup = new Map<string, WorkspaceRef[]>()
+  if (groupIds.length === 0) return byGroup
+
+  const rows = await db
+    .select({
+      groupId: permissionGroupWorkspace.permissionGroupId,
+      id: workspace.id,
+      name: workspace.name,
+    })
+    .from(permissionGroupWorkspace)
+    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
+    .where(inArray(permissionGroupWorkspace.permissionGroupId, groupIds))
+    .orderBy(asc(workspace.name))
+
+  for (const row of rows) {
+    const list = byGroup.get(row.groupId) ?? []
+    list.push({ id: row.id, name: row.name })
+    byGroup.set(row.groupId, list)
+  }
+  return byGroup
+}
+
+/** Returns the subset of `workspaceIds` that do NOT belong to the organization. */
+export async function findWorkspacesNotInOrganization(
+  workspaceIds: string[],
+  organizationId: string,
+  executor: DbOrTx = db
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return []
+  const rows = await executor
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(inArray(workspace.id, workspaceIds), eq(workspace.organizationId, organizationId)))
+  const valid = new Set(rows.map((row) => row.id))
+  return workspaceIds.filter((id) => !valid.has(id))
+}

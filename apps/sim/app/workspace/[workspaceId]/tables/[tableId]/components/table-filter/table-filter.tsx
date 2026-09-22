@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipInput, ChipSelect, cn } from '@sim/emcn'
+import { Button, Chip, ChipInput, ChipSelect, cn } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
@@ -243,20 +243,19 @@ export function TableFilter({
         ))}
 
         <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
-          <Button variant='ghost' size='sm' onClick={handleAdd} className='px-2 text-xs'>
-            <Plus className='mr-1 size-[10px]' />
+          <Chip type='button' onClick={handleAdd} leftIcon={Plus}>
             Add filter
-          </Button>
+          </Chip>
           {!autoApply && (
             <div className='flex items-center gap-1.5'>
               {filter !== null && (
-                <Button variant='ghost' size='sm' onClick={handleClear} className='px-2 text-xs'>
+                <Chip type='button' onClick={handleClear}>
                   Clear filters
-                </Button>
+                </Chip>
               )}
-              <Button variant='default' size='sm' onClick={handleApply} className='text-xs'>
+              <Chip type='button' variant='border-shadow' onClick={handleApply}>
                 Apply filter
-              </Button>
+              </Chip>
             </div>
           )}
         </div>

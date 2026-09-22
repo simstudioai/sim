@@ -1,6 +1,7 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asRecord, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
+import { cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsGetOrgOutlookOperation: InternalToolOperationImplementation<
   CbInsightsOrgParams
@@ -14,9 +15,9 @@ export const executeCbinsightsGetOrgOutlookOperation: InternalToolOperationImple
     params,
     { path: `/v2/organizations/${orgId}/outlook` },
     (data) => ({
-      mosaicScore: asRecord(data.mosaicScore),
-      commercialMaturity: asRecord(data.commercialMaturity),
-      exitProbability: asRecord(data.exitProbability),
+      mosaicScore: toRecordOrNull(data.mosaicScore),
+      commercialMaturity: toRecordOrNull(data.commercialMaturity),
+      exitProbability: toRecordOrNull(data.exitProbability),
     }),
     signal
   )
