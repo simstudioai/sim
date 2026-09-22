@@ -1,4 +1,10 @@
+import { sha256Hex } from '@sim/security/hash'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+
+/** Stable opaque citation IDs keep the model from rewriting long live references. */
+export function liveCitationId(documentId: string): string {
+  return `live:${sha256Hex(documentId).slice(0, 32)}`
+}
 
 /** Accepts navigable provider links without embedding credentials or rewriting their identity. */
 export function isKnowledgeSourceUrl(value: string): boolean {

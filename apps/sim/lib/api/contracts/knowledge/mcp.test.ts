@@ -2,11 +2,45 @@
 import { describe, expect, it } from 'vitest'
 import {
   chatSearchMcpSchema,
+  liveSearchMcpSchema,
   readDocumentMcpSchema,
+  readLiveDocumentMcpSchema,
   searchMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
 
 describe('Search MCP inputs', () => {
+  it('accepts bounded date-only live search and provider continuations', () => {
+    const input = {
+      startDate: '2026-09-21T00:00:00Z',
+      nativeQueries: [{ provider: 'gmail', query: 'label:INBOX', cursor: 'next-page' }],
+    }
+    expect(liveSearchMcpSchema.parse(input)).toMatchObject({ ...input, query: '', topK: 20 })
+    for (const invalid of [
+      {},
+      { query: 'notes', organizationId: 'other-org' },
+      { query: 'notes', knowledgeBaseIds: ['kb-1'] },
+      { query: 'notes', topK: 51 },
+      { startDate: '2026-09-22T00:00:00Z', endDate: '2026-09-21T00:00:00Z' },
+    ])
+      expect(liveSearchMcpSchema.safeParse(invalid).success).toBe(false)
+  })
+
+  it('accepts live document references and character continuation without legacy read options', () => {
+    const documentId = `live:${'a'.repeat(3995)}`
+    expect(
+      readLiveDocumentMcpSchema.parse({ documentId, startChunkIndex: 0, startOffset: 8000 })
+    ).toEqual({ documentId, startChunkIndex: 0, startOffset: 8000, limit: 3 })
+    for (const invalid of [
+      { documentId: `${documentId}a` },
+      { documentId, limit: 9 },
+      { documentId, startOffset: -1 },
+      { documentId, offset: 20 },
+      { url: 'https://example.com/doc' },
+      { documentId, organizationId: 'other-org' },
+    ])
+      expect(readLiveDocumentMcpSchema.safeParse(invalid).success).toBe(false)
+  })
+
   it('keeps workspace and knowledge-base selection outside the organization tools', () => {
     expect(searchMcpSchema.safeParse({ query: 'notes', workspaceId: 'workspace-1' }).success).toBe(
       false

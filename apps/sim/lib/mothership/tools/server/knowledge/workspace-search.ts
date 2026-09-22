@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { sha256Hex } from '@sim/security/hash'
 import { z } from 'zod'
 import {
   readDocumentInputSchema,
@@ -15,7 +14,7 @@ import {
 } from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
-import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
+import { createKnowledgeDocumentCitation, liveCitationId } from '@/lib/knowledge/search/citation'
 import {
   annotateSearchDiagnostics,
   measureSearchStage,
@@ -36,11 +35,6 @@ import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/app
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
-
-/** Stable opaque citation IDs keep the model from rewriting long live references. */
-function liveCitationId(documentId: string): string {
-  return `live:${sha256Hex(documentId).slice(0, 32)}`
-}
 
 const CITATION_INSTRUCTION =
   'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.' +
