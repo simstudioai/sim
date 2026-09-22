@@ -202,13 +202,15 @@ describe('organization Build admission', () => {
       permissionConfig.mockResolvedValue({ disableWorkspaceCreation: denied })
       setEnvFlags({ isBillingEnabled: billing })
       dbChainMockFns.returning.mockResolvedValue([{ id: 'new-chat' }])
-      for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
-        const result = operation.execute({
-          principal: session,
-          input: { organizationId: 'org-1', mode: 'agent' },
-        })
-        if (allowed) await expect(result).resolves.toBeDefined()
-        else await expect(result).rejects.toThrow('Build requires permission')
+      for (const mode of ['agent', 'plan'] as const) {
+        for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
+          const result = operation.execute({
+            principal: session,
+            input: { organizationId: 'org-1', mode },
+          })
+          if (allowed) await expect(result).resolves.toBeDefined()
+          else await expect(result).rejects.toThrow('Build requires permission')
+        }
       }
       if (!allowed) expect(dbChainMockFns.insert).not.toHaveBeenCalled()
       expect(permissionConfig).toHaveBeenCalledWith('org-1')
@@ -226,17 +228,20 @@ describe('organization Build admission', () => {
     })
     expect(permissionConfig).not.toHaveBeenCalled()
   })
-  it('rechecks Build permission for a delegated continuation while allowing Search', async () => {
-    authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'owner' })
-    permissionConfig.mockResolvedValue({ disableWorkspaceCreation: true })
-    dbChainMockFns.limit.mockResolvedValue([{ id: 'private-chat' }])
-    await expect(
-      authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'agent' })
-    ).rejects.toThrow('Build requires permission')
-    await expect(
-      authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'assistant' })
-    ).resolves.toMatchObject({ userId: 'member-1' })
-  })
+  it.each(['agent', 'plan'] as const)(
+    'rechecks %s permission for a delegated continuation while allowing Search',
+    async (mode) => {
+      authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'owner' })
+      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: true })
+      dbChainMockFns.limit.mockResolvedValue([{ id: 'private-chat' }])
+      await expect(
+        authorizeOrganizationChatDelegation.execute({ principal: principal(), mode })
+      ).rejects.toThrow('Build requires permission')
+      await expect(
+        authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'assistant' })
+      ).resolves.toMatchObject({ userId: 'member-1' })
+    }
+  )
 
   it('checks current membership before the Build permission projection', async () => {
     authorize.mockRejectedValueOnce(new Error('Membership revoked'))

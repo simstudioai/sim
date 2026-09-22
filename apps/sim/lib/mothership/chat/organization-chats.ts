@@ -44,7 +44,7 @@ export const organizationChatOperations = {
 } as const
 
 interface OrganizationChatInput {
-  mode?: 'agent' | 'assistant'
+  mode?: 'agent' | 'assistant' | 'plan'
   organizationId: string
 }
 
@@ -66,7 +66,7 @@ export const authorizeOrganizationChat = {
       organizationChatOperations.read,
       input
     )
-    if (input.mode === 'agent') await requireBuildPermission(context)
+    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
     return context
   },
 }
@@ -115,7 +115,7 @@ export const createOrganizationChat = {
       organizationChatOperations.create,
       input
     )
-    if (input.mode === 'agent') await requireBuildPermission(context)
+    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
     const [chat] = await db
       .insert(copilotChats)
       .values({
@@ -206,7 +206,7 @@ export const authorizeOrganizationChatDelegation = {
     mode,
   }: {
     principal: OrganizationDelegatedPrincipal
-    mode?: 'assistant' | 'agent'
+    mode?: 'assistant' | 'agent' | 'plan'
   }) {
     if (principal.serviceId !== 'copilot')
       throw new OrchestrationError('forbidden', 'Invalid conversation delegation')
@@ -231,7 +231,7 @@ export const authorizeOrganizationChatDelegation = {
       )
       .limit(1)
     if (!chat) throw new OrchestrationError('not_found', 'Conversation not found')
-    if (mode === 'agent') await requireBuildPermission(context)
+    if (mode === 'agent' || mode === 'plan') await requireBuildPermission(context)
     return context
   },
 }

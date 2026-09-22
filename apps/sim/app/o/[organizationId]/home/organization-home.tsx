@@ -9,7 +9,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { getDeploymentShape, useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
@@ -90,27 +90,31 @@ function OrganizationHomeContent({
   )
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
+  const planEnabled = useDeploymentShape().features.planMode === true
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
     savedMode ??
     (!canBuild || !mothershipAvailable
       ? 'assistant'
-      : rememberedMode === 'assistant' && searchAccess.memberScoped
-        ? 'assistant'
-        : 'agent')
+      : rememberedMode === 'plan' && planEnabled
+        ? 'plan'
+        : rememberedMode === 'assistant' && searchAccess.memberScoped
+          ? 'assistant'
+          : 'agent')
   const [draft, setDraft] = useState('')
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat({ organizationId: organization.id }, chatId, {
     requestMode,
-    projectsDesktopTabs: requestMode === 'agent',
+    projectsDesktopTabs: requestMode !== 'assistant',
     onResourceEvent: controller.onResourceEvent,
     activeResourceState: controller.activeResourceState,
   })
   const hasChat = Boolean(chatId || chat.messages.length)
-  const canSelectMode = !hasChat && mothershipAvailable && canBuild && searchAccess.memberScoped
+  const canSelectMode =
+    !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
   const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
   const assistantSearchLevel = resolveSearchLevel(
     urlSearchLevel ?? rememberedSearchLevel,
@@ -229,9 +233,9 @@ function OrganizationHomeContent({
     contexts?: ChatContext[],
     assistantSearch?: WorkspaceSearchFilters
   ) => {
-    if (requestMode === 'agent' && !canBuild) return
+    if (requestMode !== 'assistant' && !canBuild) return
     setSelectedMode(requestMode)
-    if (requestMode === 'agent') panel.prepareResourceViewForAgentTurn()
+    if (requestMode !== 'assistant') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
       ...(requestMode === 'assistant' ? { assistantSearchLevel } : {}),
@@ -266,7 +270,7 @@ function OrganizationHomeContent({
   }
 
   const composer =
-    requestMode === 'agent' && !canBuild ? (
+    requestMode !== 'assistant' && !canBuild ? (
       <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
         Build requires permission to create workspaces.{' '}
         {searchAccess.memberScoped && (
@@ -278,6 +282,7 @@ function OrganizationHomeContent({
     ) : (
       <Composer
         requestMode={requestMode}
+        searchEnabled={searchAccess.memberScoped}
         assistantSearchLevel={assistantSearchLevel}
         onAssistantSearchLevelChange={changeAssistantSearchLevel}
         showModeSelector={canSelectMode}
@@ -341,9 +346,9 @@ function OrganizationHomeContent({
           userId={session?.user?.id}
           chatId={chat.resolvedChatId}
           composer={composer}
-          onWorkspaceResourceSelect={requestMode === 'agent' ? selectResource : undefined}
+          onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
           initialScrollBlocked={
-            (requestMode === 'agent' || liveSearch) &&
+            (requestMode !== 'assistant' || liveSearch) &&
             chat.resources.length > 0 &&
             panel.isResourceCollapsed
           }
@@ -355,7 +360,9 @@ function OrganizationHomeContent({
             <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
               {requestMode === 'assistant'
                 ? `Search ${organization.name}`
-                : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
+                : requestMode === 'plan'
+                  ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
+                  : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
             </h1>
             <div className='relative w-full max-w-chat'>
               {composer}
@@ -378,7 +385,7 @@ function OrganizationHomeContent({
   )
   return (
     <ChatResourcePanel
-      allowBuildControls={requestMode === 'agent' && canBuild}
+      allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}
       panel={panel}

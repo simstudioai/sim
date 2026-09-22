@@ -50,7 +50,7 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
     if (
       principal.kind !== 'organization_delegated' ||
       !context.organizationId ||
-      context.mode !== 'agent'
+      (context.mode !== 'agent' && context.mode !== 'plan')
     )
       throw new OrchestrationError(
         'forbidden',

@@ -33,7 +33,9 @@ export const StreamRecoveryConfigSchema = z
   .refine(
     (config) =>
       !config.requestMode ||
-      (config.requestMode === 'assistant') === (config.request.mode === 'assistant'),
+      (!config.request.mode && config.requestMode !== 'assistant') ||
+      (config.requestMode === 'build' ? 'agent' : config.requestMode) ===
+        (config.request.mode ?? 'agent'),
     {
       message: 'Recovery mode must match the admitted request',
     }

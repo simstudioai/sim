@@ -43,7 +43,7 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
     },
   },
   async execute({ context, input }) {
-    if (context.organizationId && context.mode !== 'agent')
+    if (context.organizationId && context.mode !== 'agent' && context.mode !== 'plan')
       throw new OrchestrationError('forbidden', 'Workspace actions require organization agent mode')
     const target = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
     if (

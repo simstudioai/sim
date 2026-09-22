@@ -622,6 +622,7 @@ export function getMothershipUseChatOptions(
     | 'initialActiveResourceId'
     | 'activeResourceState'
     | 'onRequestStarted'
+    | 'requestMode'
   > = {}
 ): UseChatOptions {
   return {

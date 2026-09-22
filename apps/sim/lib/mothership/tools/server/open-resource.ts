@@ -44,7 +44,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
   outputSchema: openResourceOutputSchema,
   async execute(input, context) {
     const trusted = requireTrustedCopilotExecutionContext(context)
-    if (context?.requestMode !== 'agent')
+    if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Resource panels require agent mode')
     if (input.workspaceId && input.workspaceId !== trusted.workspaceId)
       throw new OrchestrationError('not_found', 'Workspace not found in this invocation')

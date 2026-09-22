@@ -56,7 +56,12 @@ export async function authorizeLifecycleContinuation(
     chatId: context.chatId,
     delegationId: context.runId ?? context.messageId ?? context.chatId ?? context.userId,
     purpose: 'continuation',
-    mode: context.requestMode === 'assistant' ? 'assistant' : 'agent',
+    mode:
+      context.requestMode === 'plan'
+        ? 'plan'
+        : context.requestMode === 'assistant'
+          ? 'assistant'
+          : 'agent',
   })
   if (isHosted) {
     if (!context.billingAttribution)

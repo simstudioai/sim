@@ -5,6 +5,7 @@ import { Chip, ChipDropdown, ComposerActionButton, cn, Tooltip, toast } from '@s
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { escapeRegExp } from '@sim/utils/string'
 import { useQueries } from '@tanstack/react-query'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
@@ -40,6 +41,7 @@ const CONVERSATION_MODES = [
 ] as const
 
 interface ComposerProps {
+  searchEnabled?: boolean
   requestMode?: ChatRequestMode
   assistantSearchLevel?: SearchLevel
   onAssistantSearchLevelChange?: (level: SearchLevel) => void
@@ -62,6 +64,7 @@ interface ComposerProps {
  * carries only the controls that are wired for the organization.
  */
 export function Composer({
+  searchEnabled = true,
   requestMode = 'assistant',
   onModeChange,
   assistantSearchLevel = 'adaptive',
@@ -76,6 +79,8 @@ export function Composer({
   restoredContexts,
   onStop,
 }: ComposerProps) {
+  const planEnabled = useDeploymentShape().features.planMode === true
+  const modes = CONVERSATION_MODES.filter((mode) => searchEnabled || mode.value !== 'assistant')
   const imagesOnly = requestMode === 'assistant'
   const [modeSelectorOpen, setModeSelectorOpen] = useState(false)
   const { organization } = useOrganizationContext()
@@ -200,7 +205,7 @@ export function Composer({
                 iconOnly={imagesOnly}
                 leftIcon={imagesOnly ? Search : undefined}
                 aria-label='Conversation mode'
-                options={CONVERSATION_MODES}
+                options={planEnabled ? [...modes, { value: 'plan', label: 'Plan' }] : modes}
                 value={requestMode}
                 disabled={!onModeChange}
                 align='start'
@@ -208,7 +213,13 @@ export function Composer({
                 showSelectedCheck={false}
                 onOpenChange={setModeSelectorOpen}
                 onChange={(mode) => {
-                  if ((mode !== 'assistant' && mode !== 'agent') || mode === requestMode) return
+                  if (
+                    (mode !== 'assistant' &&
+                      mode !== 'agent' &&
+                      !(planEnabled && mode === 'plan')) ||
+                    mode === requestMode
+                  )
+                    return
                   if (
                     mode === 'assistant' &&
                     (editor.getActiveContexts().length > 0 ||

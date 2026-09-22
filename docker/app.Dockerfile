@@ -131,7 +131,9 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
-# Dev images opt into live search; a runtime flag remains the rollback switch.
+# Runtime flags override these image defaults; dev images opt into Plan.
+ARG MSHIP_PLAN_MODE_DEFAULT=false
+ENV MSHIP_PLAN_MODE_DEFAULT=$MSHIP_PLAN_MODE_DEFAULT
 ARG SIM_SEARCH_LIVE_DEFAULT=true
 ENV SIM_SEARCH_LIVE_DEFAULT=$SIM_SEARCH_LIVE_DEFAULT
 

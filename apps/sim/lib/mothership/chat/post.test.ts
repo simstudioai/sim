@@ -12,6 +12,7 @@ import {
   permissionsMockFns,
   resetDbChainMock,
   resetEnvironmentUtilsMock,
+  setEnvFlags,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -238,6 +239,34 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {
+  it.each([false, true])(
+    'admits Plan only when its deployment flag is enabled (%s)',
+    async (enabled) => {
+      setEnvFlags({ isPlanModeEnabled: enabled })
+      try {
+        const response = await handleUnifiedChatPost(
+          new NextRequest('http://localhost/api/mothership/chat', {
+            method: 'POST',
+            body: JSON.stringify({
+              message: 'Understand our triage',
+              organizationId: 'org-1',
+              mode: 'plan',
+            }),
+          })
+        )
+        expect(response.status).toBe(enabled ? 200 : 400)
+        if (enabled)
+          expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+            expect.objectContaining({ mode: 'plan' }),
+            expect.anything()
+          )
+        else expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
+      } finally {
+        setEnvFlags({ isPlanModeEnabled: false })
+      }
+    }
+  )
+
   afterAll(() => {
     resetDbChainMock()
     resetEnvironmentUtilsMock()

@@ -425,9 +425,8 @@ export async function resolveOrCreateChat(params: {
       userId,
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
-      ...(organizationId
-        ? { organizationId, config: { conversationMode: mode ?? 'assistant' } }
-        : {}),
+      ...(organizationId ? { organizationId } : {}),
+      config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
       type: type ?? (organizationId ? 'mothership' : 'copilot'),
       title: title ?? null,
       model,

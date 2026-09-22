@@ -197,7 +197,9 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
-      ...(parsed.requestMode === 'assistant' || parsed.requestMode === 'agent'
+      ...(parsed.requestMode === 'assistant' ||
+      parsed.requestMode === 'agent' ||
+      parsed.requestMode === 'plan'
         ? { requestMode: parsed.requestMode }
         : {}),
       ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),

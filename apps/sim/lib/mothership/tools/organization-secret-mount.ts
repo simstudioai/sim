@@ -16,8 +16,11 @@ export async function materializeOrganizationCodeSecrets(
   context: ToolExecutionContext,
   names: string[]
 ): Promise<MaterializedCopilotCodeSecrets> {
-  if (context.requestMode !== 'agent' || context.secretActorUserId === null) {
-    throw new OrchestrationError('forbidden', 'Generic Secrets require Build mode')
+  if (
+    (context.requestMode !== 'agent' && context.requestMode !== 'plan') ||
+    context.secretActorUserId === null
+  ) {
+    throw new OrchestrationError('forbidden', 'Generic Secrets require Build or Plan mode')
   }
   const organizationContext = {
     ...context,

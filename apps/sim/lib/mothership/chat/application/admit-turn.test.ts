@@ -41,7 +41,7 @@ const chat = {
   workspaceId: null,
   type: 'mothership',
 }
-function input(mode: 'assistant' | 'agent' = 'assistant') {
+function input(mode: 'assistant' | 'agent' | 'plan' = 'assistant') {
   return {
     chatId,
     runId: 'run-1',
@@ -107,12 +107,12 @@ describe('organization turn admission through current private-chat authorization
       expect.anything()
     )
   })
-  it.each(['agent', 'assistant'] as const)(
+  it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',
     async (mode) => {
       queueTableRows(copilotChats, [{ ...chat, mode: mode === 'agent' ? 'assistant' : 'agent' }])
       queueTableRows(member, [{ role: 'owner' }])
-      if (mode === 'agent') queueTableRows(member, [{ role: 'owner' }])
+      if (mode !== 'assistant') queueTableRows(member, [{ role: 'owner' }])
       dbChainMockFns.returning
         .mockResolvedValueOnce([{ model: null }])
         .mockResolvedValueOnce([{ id: 'run-1' }])
@@ -139,16 +139,19 @@ describe('organization turn admission through current private-chat authorization
       )
     }
   )
-  it('denies switching to Build without current workspace-create permission before any mutation', async () => {
-    queueTableRows(copilotChats, [chat])
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(member, [{ role: 'member' }])
-    await expect(admitChatTurn.execute({ principal, input: input('agent') })).rejects.toThrow(
-      'Build requires permission'
-    )
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(mocks.append).not.toHaveBeenCalled()
-  })
+  it.each(['agent', 'plan'] as const)(
+    'denies switching to %s without current workspace-create permission before any mutation',
+    async (mode) => {
+      queueTableRows(copilotChats, [chat])
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(member, [{ role: 'member' }])
+      await expect(admitChatTurn.execute({ principal, input: input(mode) })).rejects.toThrow(
+        'Build requires permission'
+      )
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(mocks.append).not.toHaveBeenCalled()
+    }
+  )
   it('denies switching to Search after its availability is revoked', async () => {
     queueTableRows(copilotChats, [{ ...chat, mode: 'agent' }])
     queueTableRows(member, [{ role: 'owner' }])

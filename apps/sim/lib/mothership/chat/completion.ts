@@ -22,7 +22,7 @@ export function buildOnComplete(params: {
   runController?: { id: string; token: string }
   organizationId?: string
   userId?: string
-  requestMode?: 'assistant' | 'agent'
+  requestMode?: 'assistant' | 'agent' | 'plan'
   /**
    * Root agent span for this request. When present, the final
    * assistant message + invoked tool calls are recorded as
@@ -137,7 +137,7 @@ export function buildOnError(params: {
   runController?: { id: string; token: string }
   organizationId?: string
   userId?: string
-  requestMode?: 'assistant' | 'agent'
+  requestMode?: 'assistant' | 'agent' | 'plan'
 }) {
   const { chatId, userMessageId, requestId, workspaceId, organizationId, userId, runController } =
     params

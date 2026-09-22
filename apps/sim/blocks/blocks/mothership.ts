@@ -19,12 +19,13 @@ interface MothershipResponse extends ToolResponse {
 export const MothershipBlock: BlockConfig<MothershipResponse> = {
   type: 'mothership',
   name: 'Sim Chat',
-  description: 'Run a prompt with integration and MCP tools',
+  description: 'Reason, use tools, and stream a conversational response',
   longDescription:
-    'Run a one-shot prompt with available workspace integration operations, selected MCP tools, and skill context. Tool access is limited to those operations.',
+    'Run a prompt with workspace integration operations, selected MCP tools, and skill context. A stable conversation ID continues the conversation. The content output supports live response streaming, including Slack native agent sessions when selected by a supported custom-bot trigger. Tool access follows the selected operations.',
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
   - Choose Astra or Opus and a reasoning effort. Astra supports Fast mode.
+  - For Slack streaming, select this block’s content output in the trigger’s agent session. Keep interactive button and modal callbacks on their own authorized paths; do not duplicate the streamed reply with another send.
   `,
   category: 'blocks',
   bgColor: '#802FDE',

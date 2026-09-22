@@ -57,7 +57,7 @@ interface CopilotChatCallbackContext {
   chatId?: string
   delegationId: string
   purpose: Exclude<CopilotValidationPurpose, 'new-turn'>
-  mode?: 'assistant' | 'agent'
+  mode?: 'assistant' | 'agent' | 'plan'
 }
 
 /** Reauthorizes the original server-owned scope across a model lifecycle boundary. */

@@ -510,7 +510,9 @@ export class MothershipHandoffStorage {
     return {
       ...(data.message || hasAttachments ? { message: data.message ?? '' } : {}),
       contexts,
-      ...(data.requestMode === 'assistant' || data.requestMode === 'agent'
+      ...(data.requestMode === 'assistant' ||
+      data.requestMode === 'agent' ||
+      data.requestMode === 'plan'
         ? { requestMode: data.requestMode }
         : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),

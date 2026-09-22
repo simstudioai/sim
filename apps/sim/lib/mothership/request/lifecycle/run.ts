@@ -318,14 +318,16 @@ export async function runCopilotLifecycle(
       : payloadMode
   if (
     (options.recovery?.requestMode !== undefined &&
-      (options.recovery.requestMode === 'assistant') !== (payloadMode === 'assistant')) ||
+      (payloadMode !== undefined || options.recovery.requestMode === 'assistant') &&
+      (options.recovery.requestMode === 'build' ? 'agent' : options.recovery.requestMode) !==
+        (payloadMode ?? 'agent')) ||
     (isContinuation && requestPayload.mode !== undefined && requestPayload.mode !== requestMode)
   ) {
     throw new Error('Recovered execution mode does not match its saved request')
   }
   if (
     organizationId &&
-    (workspaceId || workflowId || !['assistant', 'agent'].includes(requestMode ?? ''))
+    (workspaceId || workflowId || !['assistant', 'agent', 'plan'].includes(requestMode ?? ''))
   ) {
     throw new Error(
       'Organization conversations require an explicit mode without workspace or workflow scope'
@@ -1084,7 +1086,7 @@ async function runCheckpointLoop(
       lifecycleWorkspaceId ||
       execContext.workspaceId ||
       execContext.workflowId ||
-      !['assistant', 'agent'].includes(execContext.requestMode ?? '') ||
+      !['assistant', 'agent', 'plan'].includes(execContext.requestMode ?? '') ||
       !execContext.chatId ||
       nonBlankString(payload.workspaceId) ||
       (nonBlankString(payload.organizationId) && payload.organizationId !== lifecycleOrganizationId)

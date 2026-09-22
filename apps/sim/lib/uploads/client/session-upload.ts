@@ -45,7 +45,7 @@ type InternalUploadContext =
       purpose: 'mothership_attachment'
       organizationId: string
       workspaceId?: never
-      requestMode?: 'agent' | 'assistant'
+      requestMode?: 'agent' | 'assistant' | 'plan'
     }
   | {
       purpose: 'execution_attachment'

@@ -957,7 +957,7 @@ interface MessageContentProps {
   fallbackContent: string
   messageId?: string
   imageRequestId?: string
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   isStreaming: boolean
   /**
    * True for the last message in the transcript. The last turn keeps a

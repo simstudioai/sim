@@ -10,10 +10,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, cn, Tooltip, toast } from '@sim/emcn'
+import { Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
@@ -50,6 +51,8 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  requestMode?: 'agent' | 'plan'
+  onModeChange?: (mode: 'agent' | 'plan') => void
   defaultValue?: string
   draftScopeKey?: string
   onSubmit: (
@@ -81,6 +84,8 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    requestMode = 'agent',
+    onModeChange,
     defaultValue = '',
     draftScopeKey,
     onSubmit,
@@ -92,6 +97,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   },
   ref
 ) {
+  const planEnabled = useDeploymentShape().features.planMode === true
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
@@ -579,6 +585,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       <InputToolbar
         leadingControls={
           <>
+            {planEnabled && onModeChange && (
+              <ChipDropdown
+                aria-label='Conversation mode'
+                value={requestMode}
+                options={[
+                  { value: 'agent', label: 'Build' },
+                  { value: 'plan', label: 'Plan' },
+                ]}
+                onChange={(mode) => {
+                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
+                }}
+              />
+            )}
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Chip

@@ -29,7 +29,9 @@ interface HookHarness {
 }
 
 function renderFileAttachmentsHook(
-  owner: { workspaceId: string } | { organizationId: string } = { workspaceId: 'workspace-1' }
+  owner: { workspaceId: string } | { organizationId: string; requestMode?: 'agent' | 'plan' } = {
+    workspaceId: 'workspace-1',
+  }
 ): HookHarness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const root: Root = createRoot(document.createElement('div'))
@@ -121,6 +123,35 @@ describe('useFileAttachments admission', () => {
 
     unmount()
   })
+
+  it.each(['agent', 'plan'] as const)(
+    'accepts organizational documents in %s mode',
+    async (requestMode) => {
+      mockUploadInternalFileSession.mockResolvedValue({
+        path: '/api/files/serve/s3/mothership%2Fspec.pdf?context=mothership',
+        key: 'mothership/spec.pdf',
+      })
+      const { result, unmount } = renderFileAttachmentsHook({
+        organizationId: 'organization-1',
+        requestMode,
+      })
+      const file = new File(['spec'], 'spec.pdf', { type: 'application/pdf' })
+      await act(async () => result().processFiles(asFileList([file])))
+      expect(mockUploadInternalFileSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          purpose: 'mothership_attachment',
+          organizationId: 'organization-1',
+          requestMode,
+          file,
+        })
+      )
+      expect(mockToastError).not.toHaveBeenCalled()
+      expect(result().attachedFiles).toEqual([
+        expect.objectContaining({ name: file.name, uploading: false }),
+      ])
+      unmount()
+    }
+  )
 
   it.each(['unsupported', 'oversized', 'too many'] as const)(
     'rejects %s organization images before allocating previews or sessions',

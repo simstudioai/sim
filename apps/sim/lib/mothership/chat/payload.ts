@@ -412,7 +412,7 @@ export async function buildCopilotRequestPayload(
           : []),
       ]
 
-  if (effectiveMode === 'build' && params.organizationId && chatId) {
+  if ((effectiveMode === 'build' || effectiveMode === 'plan') && params.organizationId && chatId) {
     const { names } = await executeOrganizationSecretUseCase(
       {
         userId,
@@ -420,7 +420,7 @@ export async function buildCopilotRequestPayload(
         chatId,
         toolCallId: userMessageId,
         copilotToolExecution: true,
-        requestMode: 'agent',
+        requestMode: effectiveMode === 'plan' ? 'plan' : 'agent',
       },
       listOrganizationSecretNames,
       {}
@@ -431,7 +431,7 @@ export async function buildCopilotRequestPayload(
         content: JSON.stringify({
           names,
           usage:
-            'Mount only needed names with the secrets argument of run_code or run_function. Read values from environment variables for curl or code. Generic Secrets are available only in Build. In organization chats these names take precedence over same-named workspace secrets.',
+            'Mount only needed names with the secrets argument of run_code or run_function. Read values from environment variables for curl or code. Generic Secrets are available in Build and Plan. In organization chats these names take precedence over same-named workspace secrets.',
         }),
       })
   }
@@ -447,7 +447,7 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
-    mode: isAssistant ? 'assistant' : 'agent',
+    mode: isAssistant ? 'assistant' : mode === 'plan' ? 'plan' : 'agent',
     ...(isAssistant && params.assistantSearchLevel !== undefined
       ? { assistantSearchLevel: params.assistantSearchLevel }
       : {}),

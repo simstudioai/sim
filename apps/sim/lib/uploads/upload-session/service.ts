@@ -226,7 +226,7 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
     | { purpose: 'workspace_logo' | 'mothership_attachment'; workspaceId: string }
     | {
         purpose: 'mothership_attachment'
-        requestMode?: 'agent' | 'assistant'
+        requestMode?: 'agent' | 'assistant' | 'plan'
         organizationId: string
         principal: Principal
         workspaceId?: never
@@ -1382,6 +1382,7 @@ function validateFile(params: CreateUploadSessionParams): void {
     organizationAttachment &&
     (!params.organizationId.trim() ||
       (params.requestMode !== 'agent' &&
+        params.requestMode !== 'plan' &&
         (params.fileSize > ASSISTANT_IMAGE_MAX_BYTES || !isAssistantImageType(params.contentType))))
   ) {
     throw new UploadSessionError(

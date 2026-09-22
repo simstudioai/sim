@@ -726,3 +726,7 @@ const liveEnterpriseSearchSetting =
   typeof window === 'undefined' ? env.SIM_SEARCH_LIVE : getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE')
 export const isLiveEnterpriseSearchEnabled =
   liveEnterpriseSearchSetting === undefined || isTruthy(liveEnterpriseSearchSetting)
+
+/** Private organizational planning, enabled only by this deployment. */
+export const isPlanModeEnabled =
+  typeof window === 'undefined' && (env.MSHIP_PLAN_MODE ?? process.env.NODE_ENV === 'development')

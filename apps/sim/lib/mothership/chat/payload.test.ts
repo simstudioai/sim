@@ -474,8 +474,8 @@ describe('buildCopilotRequestPayload', () => {
     }
   )
 
-  it.each(['agent', 'assistant'] as const)(
-    'only discovers Generic Secrets for Build: %s',
+  it.each(['agent', 'plan', 'assistant'] as const)(
+    'discovers Generic Secrets only for Build and Plan: %s',
     async (mode) => {
       mockSecretNames.mockResolvedValueOnce({ names: ['SERVICE_TOKEN'] })
       const payload = await buildCopilotRequestPayload(
@@ -491,14 +491,14 @@ describe('buildCopilotRequestPayload', () => {
         { selectedModel: '' }
       )
       const context = payload.context?.find((entry) => entry.type === 'generic_secrets')
-      if (mode === 'agent') {
+      if (mode !== 'assistant') {
         expect(mockSecretNames).toHaveBeenCalledOnce()
         expect(mockSecretNames).toHaveBeenCalledWith(
           expect.objectContaining({
             userId: 'actor',
             organizationId: 'org',
             chatId: 'chat',
-            requestMode: 'agent',
+            requestMode: mode,
             copilotToolExecution: true,
           }),
           expect.anything(),

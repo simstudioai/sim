@@ -71,7 +71,7 @@ describe('copilot task wake', () => {
     mockBuildIntegrationToolSchemas.mockResolvedValue([
       { name: 'gmail_search_v2', input_schema: { type: 'object' } },
     ])
-    mockAuthorizeTaskWake.mockResolvedValue(undefined)
+    mockAuthorizeTaskWake.mockResolvedValue('agent')
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
     mockAcquirePendingChatStream.mockResolvedValue(true)
     mockRunHeadlessCopilotLifecycle.mockResolvedValue({
@@ -165,4 +165,13 @@ describe('copilot task wake', () => {
     expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
     expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', WAKE.runId)
   })
+})
+
+it('preserves a Plan conversation when an explicitly requested task completes', async () => {
+  mockAuthorizeTaskWake.mockResolvedValue('plan')
+  await runWakeTurn({ ...WAKE, workspaceId: undefined, organizationId: 'org-plan' })
+  expect(mockRunHeadlessCopilotLifecycle).toHaveBeenLastCalledWith(
+    expect.objectContaining({ mode: 'plan', organizationId: 'org-plan' }),
+    expect.objectContaining({ organizationId: 'org-plan' })
+  )
 })

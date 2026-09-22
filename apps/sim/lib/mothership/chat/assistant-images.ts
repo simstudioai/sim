@@ -80,7 +80,7 @@ export async function prepareOrganizationChatAttachments({
   organizationId: string
   attachments: readonly { key: string }[]
   signal?: AbortSignal
-  mode: 'agent' | 'assistant'
+  mode: 'agent' | 'assistant' | 'plan'
 }): Promise<PreparedAssistantImages> {
   if (mode === 'assistant')
     return prepareAssistantImages({ principal, organizationId, attachments, signal })

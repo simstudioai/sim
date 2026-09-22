@@ -431,7 +431,7 @@ interface ChatContentProps {
   content: string
   messageId?: string
   imageRequestId?: string
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   isStreaming?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]

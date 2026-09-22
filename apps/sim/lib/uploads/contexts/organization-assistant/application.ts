@@ -31,7 +31,7 @@ const MAX_ASSISTANT_IMAGE_PIXELS = 25_000_000
 
 export interface CreateOrganizationAssistantAttachmentInput {
   organizationId: string
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   name: string
   contentType: string
   size: number

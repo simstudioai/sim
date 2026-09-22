@@ -29,6 +29,8 @@ describe('resolveDeploymentShape', () => {
       azureConfigured: true,
       cohereConfigured: false,
       features: {
+        liveEnterpriseSearch: false,
+        planMode: false,
         accessControl: false,
         auditLogs: false,
         customBlocks: false,

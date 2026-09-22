@@ -68,6 +68,8 @@ describe('durable recovery admission contract', () => {
   )
   it.each([
     config(workspaceRequest, 'assistant'),
+    config({ ...workspaceRequest, mode: 'plan' }, 'agent'),
+    config({ ...workspaceRequest, mode: 'agent' }, 'plan'),
     config(organizationRequest, 'agent'),
     config({ ...organizationRequest, workspaceId: workspaceRequest.workspaceId }, 'assistant'),
     config({ ...organizationRequest, mode: undefined }, 'assistant'),
@@ -75,4 +77,11 @@ describe('durable recovery admission contract', () => {
   ])('rejects conflicting durable mode or owner declarations', (input) => {
     expect(StreamRecoveryConfigSchema.safeParse(input).success).toBe(false)
   })
+})
+
+it('preserves the explicit Plan wire mode on recovery', () => {
+  expect(
+    StreamRecoveryConfigSchema.parse(config({ ...workspaceRequest, mode: 'plan' }, 'plan')).request
+      .mode
+  ).toBe('plan')
 })

@@ -44,7 +44,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
     streamId: userMessageId,
   })
   try {
-    await authorizeTaskWake({
+    const mode = await authorizeTaskWake({
       principal: organizationId
         ? createTrustedOrganizationCopilotPrincipal(
             { userId, organizationId, chatId, delegationId: `wake:${runId}` },
@@ -68,14 +68,15 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       message,
       userId,
       protocolVersion: PROTOCOL_VERSION,
-      ...(organizationId ? { organizationId, mode: 'agent' as const } : { workspaceId }),
+      mode,
+      ...(organizationId ? { organizationId } : { workspaceId }),
       chatId,
       messageId: userMessageId,
       origin: 'task',
     }
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
-      ...(organizationId ? { organizationId, mode: 'agent' as const } : { workspaceId }),
+      ...(organizationId ? { organizationId } : { workspaceId }),
       chatId,
       goRoute: '/api/mothership',
       autoExecuteTools: true,
@@ -88,6 +89,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       id: userMessageId,
       content: message,
       origin: 'task',
+      requestMode: mode,
     })
     const assistantMessage = buildPersistedAssistantMessage(result)
     await appendCopilotChatMessages(chatId, [userMessage, assistantMessage], {

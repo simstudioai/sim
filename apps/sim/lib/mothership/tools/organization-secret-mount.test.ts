@@ -39,15 +39,20 @@ beforeEach(() => {
   })
 })
 describe('Generic Secrets code mounts', () => {
-  it('mounts a source secret without requiring a workspace', async () => {
-    expect(await materializeOrganizationCodeSecrets(context, ['TOKEN'])).toEqual(mounted)
-    expect(mocks.organization).toHaveBeenLastCalledWith(
-      expect.objectContaining({ organizationId: 'org', workspaceId: undefined }),
-      mountOrganizationSecrets,
-      { names: ['TOKEN'] }
-    )
-    expect(mocks.workspace).not.toHaveBeenCalled()
-  })
+  it.each(['agent', 'plan'])(
+    'mounts a source secret in %s without requiring a workspace',
+    async (requestMode) => {
+      expect(
+        await materializeOrganizationCodeSecrets({ ...context, requestMode }, ['TOKEN'])
+      ).toEqual(mounted)
+      expect(mocks.organization).toHaveBeenLastCalledWith(
+        expect.objectContaining({ organizationId: 'org', workspaceId: undefined }),
+        mountOrganizationSecrets,
+        { names: ['TOKEN'] }
+      )
+      expect(mocks.workspace).not.toHaveBeenCalled()
+    }
+  )
   it('preserves org scope when code targets a workspace and uses workspace secrets only as fallback', async () => {
     const result = await materializeOrganizationCodeSecrets(
       { ...context, organizationId: undefined, chatOrganizationId: 'org', workspaceId: 'target' },

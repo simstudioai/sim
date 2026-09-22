@@ -29,7 +29,7 @@ export async function executeOrganizationWorkspaceUseCase<
   )
     throw new Error('Unregistered organization workspace operation')
   const trusted = requireTrustedOrganizationCopilotContext(context)
-  if (context?.requestMode !== 'agent')
+  if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
     throw new OrchestrationError(
       'forbidden',
       'Workspace management requires organization agent mode'

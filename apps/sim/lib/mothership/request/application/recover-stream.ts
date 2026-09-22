@@ -128,7 +128,12 @@ export const readChatStream = defineAuthorizedChatUseCase({
         workspaceId,
         organizationId,
         userId,
-        requestMode: intent.mode === 'assistant' ? ('assistant' as const) : ('agent' as const),
+        requestMode:
+          intent.mode === 'plan'
+            ? ('plan' as const)
+            : intent.mode === 'assistant'
+              ? ('assistant' as const)
+              : ('agent' as const),
         notifyWorkspaceStatus: true,
         runController: { id: run.id, token: lease.value },
       }

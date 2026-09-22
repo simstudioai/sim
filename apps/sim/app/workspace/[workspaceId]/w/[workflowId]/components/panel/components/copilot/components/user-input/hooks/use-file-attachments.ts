@@ -100,7 +100,7 @@ interface UseFileAttachmentsProps {
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
   const { userId, workspaceId, organizationId, requestMode, disabled, isLoading } = props
-  const imagesOnly = Boolean(organizationId) && requestMode !== 'agent'
+  const imagesOnly = Boolean(organizationId) && requestMode !== 'agent' && requestMode !== 'plan'
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [dragCounter, setDragCounter] = useState(0)

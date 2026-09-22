@@ -1758,7 +1758,7 @@ function recoverTrailingBareOptions(segments: ContentSegment[]): void {
 
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   /** Stable identity for interaction state owned by this message/tag. */
   interactionId?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
@@ -2060,7 +2060,7 @@ function getCredentialProviderDisplayName(provider: string): string {
  */
 interface CredentialControlProps {
   data: CredentialItemData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   controlId?: string
   embedded?: boolean
   divided?: boolean
@@ -2723,7 +2723,7 @@ const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
 function isCredentialCardItemVisible(
   item: CredentialItemData,
   canEdit: boolean,
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
 ): boolean {
   if (requestMode === 'assistant')
     return (
@@ -2743,7 +2743,7 @@ function isCredentialCardItemVisible(
 export function credentialTagHasVisibleCard(
   data: CredentialTagData,
   canEdit: boolean,
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
 ): boolean {
   return (
     data.length > 0 &&
@@ -2873,7 +2873,7 @@ function CredentialInputCard({
   onContinue,
 }: {
   data: CredentialTagData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   interactionId?: string
   submitted?: CredentialSubmissionPayload
   abandoned?: boolean
@@ -3194,7 +3194,7 @@ function CredentialDisplayContent({
   onContinue,
 }: {
   data: CredentialTagData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   interactionId?: string
   submitted?: CredentialSubmissionPayload
   abandoned?: boolean

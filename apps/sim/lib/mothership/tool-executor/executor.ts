@@ -43,7 +43,7 @@ export async function executeTool(
     if (
       context.workspaceId ||
       context.workflowId ||
-      !['agent', 'assistant'].includes(context.requestMode ?? '')
+      !['agent', 'assistant', 'plan'].includes(context.requestMode ?? '')
     )
       return { success: false, error: 'Invalid organization execution scope' }
     const organizationTools =

@@ -48,7 +48,7 @@ export const updateMothershipChatBodySchema = z
   )
 
 export const createMothershipChatBodySchema = mothershipChatOwnerSchema.and(
-  z.object({ mode: z.enum(['agent', 'assistant']).optional() })
+  z.object({ mode: z.enum(['agent', 'assistant', 'plan']).optional() })
 )
 export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
@@ -262,7 +262,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
 })
 
 export const mothershipChatSchema = z.object({
-  mode: z.enum(['agent', 'assistant']),
+  mode: z.enum(['agent', 'assistant', 'plan']),
   id: z.string(),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
@@ -384,7 +384,7 @@ export const getMothershipChatResponseSchema = z.object({
     .object({
       id: z.string(),
       title: z.string().nullable(),
-      mode: z.enum(['agent', 'assistant']),
+      mode: z.enum(['agent', 'assistant', 'plan']),
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),

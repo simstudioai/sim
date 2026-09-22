@@ -9,6 +9,7 @@ import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
   live: false,
+  plan: false,
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
   resetTranscript: vi.fn(),
@@ -35,6 +36,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({
+    features: { liveEnterpriseSearch: mocks.live, planMode: mocks.plan },
+  }),
   getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/hooks/queries/workspace', () => ({
@@ -87,6 +91,7 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
+  mocks.plan = false
   mocks.live = false
   vi.clearAllMocks()
   mocks.workspaces = [
@@ -851,4 +856,26 @@ it('offers only Auto and Max for live Search, with Auto sending the Fast preset'
   expect(options.map((option) => option.textContent)).toEqual(['Auto', 'Max'])
   await act(async () => options[0].click())
   expect(onChange).toHaveBeenCalledWith('fast')
+})
+
+it.each([false, true])('exposes Plan only when enabled (%s)', async (enabled) => {
+  mocks.plan = enabled
+  const onModeChange = vi.fn()
+  await render(true, 'Understand triage', 'agent', {
+    isSending: false,
+    showModeSelector: true,
+    onModeChange,
+  })
+  const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
+  await act(async () =>
+    mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const plan = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent === 'Plan'
+  )
+  expect(Boolean(plan)).toBe(enabled)
+  if (plan) {
+    await act(async () => plan.click())
+    expect(onModeChange).toHaveBeenCalledExactlyOnceWith('plan')
+  }
 })

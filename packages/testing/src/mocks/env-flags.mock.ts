@@ -32,6 +32,7 @@ export interface EnvFlagsMockState {
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
+  isPlanModeEnabled: boolean
   isLiveEnterpriseSearchEnabled: boolean
   isInboxEnabled: boolean
   isSandboxDeploymentEntitled: boolean
@@ -89,6 +90,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   // True with billing off and no flags set — these carry a legacy default of
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
+  isPlanModeEnabled: false,
   isLiveEnterpriseSearchEnabled: false,
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,

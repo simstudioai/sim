@@ -139,7 +139,7 @@ export const ChatPayloadSchema = z
     /** Every chat has exactly one authoritative workspace or organization owner. */
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),
-    mode: z.enum(["agent", "assistant"]).optional(),
+    mode: z.enum(["agent", "assistant", "plan"]).optional(),
     assistantSearch: AssistantSearch.optional(),
     assistantFast: z.boolean().optional(),
     assistantSearchLevel: AssistantSearchLevel.optional(),
@@ -242,7 +242,7 @@ export interface ChatRequest extends StreamResponseReceipt {
   /** Exactly one owner is required, independently of the selected mode. */
   workspaceId?: string | undefined;
   organizationId?: string | undefined;
-  mode?: "agent" | "assistant" | undefined;
+  mode?: "agent" | "assistant" | "plan" | undefined;
   assistantSearch?: AssistantSearch | undefined;
   assistantFast?: boolean | undefined;
   assistantSearchLevel?: AssistantSearchLevel | undefined;

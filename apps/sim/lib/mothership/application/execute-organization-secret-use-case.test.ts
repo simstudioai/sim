@@ -27,32 +27,35 @@ beforeEach(() => {
   queueTableRows(member, [{ role: 'admin' }])
   queueTableRows(copilotChats, [{ id: 'chat' }])
 })
-describe('Build-only Generic Secrets delegation', () => {
-  it('binds the actor, chat, and organization before entering the registered operation', async () => {
-    await executeOrganizationSecretUseCase(context, useCase, {
-      names: ['TOKEN'],
-      organizationId: 'forged',
-    } as never)
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: expect.objectContaining({
-        subjectUserId: 'actor',
-        organizationId: 'org',
-        audience: 'sim:organization-secrets',
-        resourceScope: { chatId: 'chat' },
-      }),
-      input: { names: ['TOKEN'], organizationId: 'org' },
-    })
-    expect(dbChainMockFns.from).toHaveBeenCalledWith(copilotChats)
-    expect(dbChainMockFns.where).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conditions: expect.arrayContaining([
-          { type: 'eq', left: copilotChats.organizationId, right: 'org' },
-          { type: 'eq', left: copilotChats.userId, right: 'actor' },
-          { type: 'isNull', column: copilotChats.deletedAt },
-        ]),
+describe('Build and Plan Generic Secrets delegation', () => {
+  it.each(['agent', 'plan'])(
+    'binds the actor, chat, and organization for %s before entering the registered operation',
+    async (requestMode) => {
+      await executeOrganizationSecretUseCase({ ...context, requestMode }, useCase, {
+        names: ['TOKEN'],
+        organizationId: 'forged',
+      } as never)
+      expect(mocks.execute).toHaveBeenCalledWith({
+        principal: expect.objectContaining({
+          subjectUserId: 'actor',
+          organizationId: 'org',
+          audience: 'sim:organization-secrets',
+          resourceScope: { chatId: 'chat' },
+        }),
+        input: { names: ['TOKEN'], organizationId: 'org' },
       })
-    )
-  })
+      expect(dbChainMockFns.from).toHaveBeenCalledWith(copilotChats)
+      expect(dbChainMockFns.where).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conditions: expect.arrayContaining([
+            { type: 'eq', left: copilotChats.organizationId, right: 'org' },
+            { type: 'eq', left: copilotChats.userId, right: 'actor' },
+            { type: 'isNull', column: copilotChats.deletedAt },
+          ]),
+        })
+      )
+    }
+  )
   it.each([
     { requestMode: 'assistant' },
     { requestMode: undefined },
@@ -78,13 +81,16 @@ describe('Build-only Generic Secrets delegation', () => {
     ).rejects.toThrow('Conversation not found')
     expect(mocks.execute).not.toHaveBeenCalled()
   })
-  it('rechecks Build permission before mounting', async () => {
-    mocks.config.mockResolvedValue({ disableWorkspaceCreation: true })
-    await expect(
-      executeOrganizationSecretUseCase(context, useCase, { names: ['TOKEN'] })
-    ).rejects.toThrow('Build requires permission')
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
+  it.each(['agent', 'plan'])(
+    'rechecks Build permission before mounting in %s',
+    async (requestMode) => {
+      mocks.config.mockResolvedValue({ disableWorkspaceCreation: true })
+      await expect(
+        executeOrganizationSecretUseCase({ ...context, requestMode }, useCase, { names: ['TOKEN'] })
+      ).rejects.toThrow('Build requires permission')
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
   it('rejects a copied operation even with the same ID', async () => {
     await expect(
       executeOrganizationSecretUseCase(

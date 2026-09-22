@@ -40,7 +40,7 @@ export const useOrganizationChatModeStore = create<OrganizationChatModeState>()(
           persisted.modes !== null
         ) {
           for (const [key, mode] of Object.entries(persisted.modes)) {
-            if (mode === 'agent' || mode === 'assistant') modes[key] = mode
+            if (mode === 'agent' || mode === 'assistant' || mode === 'plan') modes[key] = mode
           }
         }
         if (

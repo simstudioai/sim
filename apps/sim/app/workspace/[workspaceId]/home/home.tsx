@@ -75,6 +75,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
+  const [selectedMode, setSelectedMode] = useState<'agent' | 'plan'>('agent')
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -144,6 +145,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     workspaceId,
     chatId,
     getMothershipUseChatOptions({
+      ...(!chatId ? { requestMode: selectedMode } : {}),
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
@@ -443,6 +445,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                 >
                   <UserInput
                     ref={initialViewUserInputRef}
+                    requestMode={selectedMode}
+                    onModeChange={setSelectedMode}
                     defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}

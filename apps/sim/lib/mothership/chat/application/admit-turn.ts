@@ -63,7 +63,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       request.userId !== userId ||
       request.workspaceId !== workspaceId ||
       request.organizationId !== organizationId ||
-      (input.message.requestMode === 'assistant') !== (request.mode === 'assistant') ||
+      (input.message.requestMode ?? 'agent') !== (request.mode ?? 'agent') ||
       request.chatId !== chatId ||
       request.messageId !== input.message.id ||
       request.message !== input.message.content
@@ -71,10 +71,10 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       throw new OrchestrationError('validation', 'Turn identity does not match its chat')
     }
     if (organizationId) {
-      if (request.mode === 'agent')
+      if (request.mode === 'agent' || request.mode === 'plan')
         await authorizeOrganizationChat.execute({
           principal,
-          input: { organizationId, mode: 'agent' },
+          input: { organizationId, mode: request.mode },
         })
       else await requireOrganizationSearchAvailable(organizationId)
     }
@@ -85,11 +85,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
         .set({
           conversationId: request.messageId,
           updatedAt: new Date(),
-          ...(organizationId
-            ? {
-                config: sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode}::text)`,
-              }
-            : {}),
+          config: sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`,
         })
         .where(
           and(

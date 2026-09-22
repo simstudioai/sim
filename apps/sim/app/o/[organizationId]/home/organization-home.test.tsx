@@ -10,6 +10,7 @@ import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/st
 
 const mocks = vi.hoisted(() => ({
   live: false,
+  plan: false,
   context: vi.fn(),
   session: vi.fn(),
   push: vi.fn(),
@@ -30,6 +31,9 @@ const mocks = vi.hoisted(() => ({
   activeResource: null as string | null,
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({
+    features: { liveEnterpriseSearch: mocks.live, planMode: mocks.plan },
+  }),
   getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
@@ -86,6 +90,7 @@ import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-hom
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  mocks.plan = false
   mocks.live = false
   vi.clearAllMocks()
   mocks.activeResource = null

@@ -9,7 +9,7 @@ import {
   taskOperations,
 } from '@/lib/mothership/tasks/application/operations'
 
-export const prepareTaskWake = defineAuthorizedChatUseCase({
+const wakeDefinition = {
   operation: taskOperations.wake,
   organizationOperation: organizationTaskOperations.wake,
   resolveContext: ({
@@ -24,13 +24,17 @@ export const prepareTaskWake = defineAuthorizedChatUseCase({
         context.workspaceId !== input.workspaceId ||
         context.organizationId !== input.organizationId ||
         context.userId !== input.userId ||
-        (context.organizationId && context.mode !== 'agent')
+        (context.organizationId && context.mode !== 'agent' && context.mode !== 'plan')
       )
         throw new OrchestrationError('not_found', 'Chat not found')
       return context
     })
   },
   authorizationOptions: { delegation: taskDelegationPolicy },
+}
+
+export const prepareTaskWake = defineAuthorizedChatUseCase({
+  ...wakeDefinition,
   async execute({ input }) {
     if (!(await acquirePendingChatStream(input.chatId, input.runId))) {
       throw new OrchestrationError('conflict', 'Another stream holds this chat; retry the wake')
@@ -39,9 +43,13 @@ export const prepareTaskWake = defineAuthorizedChatUseCase({
   },
 })
 
-export async function authorizeTaskWake(
-  input: Parameters<typeof prepareTaskWake.execute>[0]
-): Promise<void> {
-  if (!prepareTaskWake.authorize) throw new Error('Task wake requires an authorization phase')
-  await prepareTaskWake.authorize(input)
+const readWakeMode = defineAuthorizedChatUseCase({
+  ...wakeDefinition,
+  async execute({ context }) {
+    return context.mode
+  },
+})
+
+export async function authorizeTaskWake(input: Parameters<typeof prepareTaskWake.execute>[0]) {
+  return readWakeMode.execute(input)
 }

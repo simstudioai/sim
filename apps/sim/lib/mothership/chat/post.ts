@@ -21,6 +21,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { isPlanModeEnabled } from '@/lib/core/config/env-flags'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -728,7 +729,7 @@ async function resolveBranch(params: {
       requestedWorkspaceId ||
       providedWorkflowId ||
       workflowName ||
-      (mode !== 'assistant' && mode !== 'agent')
+      (mode !== 'assistant' && mode !== 'agent' && mode !== 'plan')
     ) {
       return createBadRequestResponse(
         'Organization conversations require agent or Assistant mode without a workspace or workflow'
@@ -981,6 +982,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
+    if (body.mode === 'plan' && !isPlanModeEnabled)
+      return createBadRequestResponse('Plan mode is disabled')
     if (
       body.mode === 'assistant' &&
       (body.workflowId ||
@@ -1109,7 +1112,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 sessionId: session.session.id,
               },
               organizationId: branch.organizationId,
-              mode: body.mode === 'assistant' ? 'assistant' : 'agent',
+              mode:
+                body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
               attachments: body.fileAttachments,
               signal: req.signal,
             })
@@ -1142,7 +1146,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           () =>
             resolveOrCreateChat({
               chatId: body.chatId,
-              mode: body.mode === 'assistant' ? 'assistant' : 'agent',
+              mode:
+                body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
               userId: authenticatedUserId,
               ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
               workspaceId: branch.workspaceId,
@@ -1440,7 +1445,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               content: body.message,
               fileAttachments,
               contexts: normalizedContexts,
-              requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
+              requestMode:
+                body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
             },
             recovery: {
               kind: 'interactive_stream',
@@ -1497,7 +1503,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyChatStatus: branch.notifyChatStatus,
             organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
             userId: authenticatedUserId,
-            requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
+            requestMode:
+              body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
             otelRoot,
           }),
           onError: buildOnError({
@@ -1509,7 +1516,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyChatStatus: branch.notifyChatStatus,
             organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
             userId: authenticatedUserId,
-            requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
+            requestMode:
+              body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
           }),
         },
       })

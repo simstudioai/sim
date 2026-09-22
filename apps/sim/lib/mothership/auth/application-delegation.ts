@@ -234,7 +234,9 @@ export function requireTrustedOrganizationCopilotContext(
   if (
     !context ||
     !context.copilotToolExecution ||
-    (context.requestMode !== 'assistant' && context.requestMode !== 'agent') ||
+    (context.requestMode !== 'assistant' &&
+      context.requestMode !== 'agent' &&
+      context.requestMode !== 'plan') ||
     context.workspaceId ||
     context.workflowId
   ) {

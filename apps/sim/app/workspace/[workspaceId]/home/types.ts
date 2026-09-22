@@ -193,7 +193,7 @@ export interface ChatMessageContext {
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
   /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
   origin?: 'task'

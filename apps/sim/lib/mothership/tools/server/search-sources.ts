@@ -32,7 +32,7 @@ export const organizationSearchSourcesServerTool: BaseServerTool<
   inputSchema: organizationSearchSourcesInputSchema,
   outputSchema: organizationSearchSourcesOutputSchema,
   async execute(args, context) {
-    if (context?.requestMode !== 'agent')
+    if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Search source controls require Mothership')
     const trusted = requireTrustedOrganizationCopilotContext(context)
     const principal = createTrustedOrganizationCopilotPrincipal(

@@ -263,7 +263,7 @@ describe('runCopilotLifecycle', () => {
     }
   )
 
-  it.each(['agent', 'assistant'] as const)(
+  it.each(['agent', 'assistant', 'plan'] as const)(
     'carries workspace %s mode to the resource receiver without relaxing target scope',
     async (mode) => {
       let captured: ExecutionContext | undefined
@@ -293,7 +293,7 @@ describe('runCopilotLifecycle', () => {
           }
         )
       ).rejects.toThrow(
-        mode === 'agent'
+        mode !== 'assistant'
           ? 'Workspace not found in this invocation'
           : 'Resource panels require agent mode'
       )

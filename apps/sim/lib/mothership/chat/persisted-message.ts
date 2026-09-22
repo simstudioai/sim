@@ -85,7 +85,7 @@ function copyTextSelection(
 export interface PersistedMessage {
   id: string
   role: 'user' | 'assistant'
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
   timestamp: string
   /** "task": a background-task notification opened this turn, not the user (rendered as a system chip). */
@@ -300,7 +300,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
 export function buildPersistedAssistantMessage(
   result: OrchestratorResult,
   requestId?: string,
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
 ): PersistedMessage {
   const message: PersistedMessage = {
     id: generateId(),
@@ -397,7 +397,7 @@ export function withStoppedContentBlock(message: PersistedMessage): PersistedMes
 }
 
 export interface UserMessageParams {
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   id: string
   content: string
   fileAttachments?: PersistedFileAttachment[]
@@ -734,7 +734,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
     timestamp: (raw.timestamp as string) ?? new Date().toISOString(),
   }
 
-  if (raw.requestMode === 'assistant' || raw.requestMode === 'agent')
+  if (raw.requestMode === 'assistant' || raw.requestMode === 'agent' || raw.requestMode === 'plan')
     msg.requestMode = raw.requestMode
 
   if (raw.requestId && typeof raw.requestId === 'string') {

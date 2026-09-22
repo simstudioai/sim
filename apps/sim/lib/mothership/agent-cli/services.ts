@@ -23,7 +23,7 @@ export async function executeAgentCliService(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   context.signal?.throwIfAborted()
-  if (context.requestMode !== 'agent')
+  if (context.requestMode !== 'agent' && context.requestMode !== 'plan')
     throw new OrchestrationError('forbidden', 'CLI services require agent mode')
   const organizationId = context.chatOrganizationId ?? context.organizationId
   let target = {
