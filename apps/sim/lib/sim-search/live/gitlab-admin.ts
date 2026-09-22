@@ -46,7 +46,6 @@ async function sources(owner: ResourceOwner, connectorId?: string) {
         eq(knowledgeBase.isSearchIndex, true),
         eq(knowledgeConnector.connectorType, 'gitlab'),
         eq(knowledgeConnector.accessMode, 'admin'),
-        eq(knowledgeConnector.accessRewritePending, false),
         inArray(knowledgeConnector.status, ['active', 'pending', 'syncing', 'error']),
         isNull(knowledgeBase.deletedAt),
         isNull(knowledgeConnector.deletedAt),
@@ -300,13 +299,7 @@ export async function createAdminGitLabSession(input: {
               selected.map(request),
               'Searched administrator-configured GitLab sources with source ACLs.'
             )
-      return {
-        ...page,
-        documents: page.documents.map((document) => ({
-          ...document,
-          ...(document.kind === 'code' && config.ref ? { revision: string(config.ref) } : {}),
-        })),
-      }
+      return page
     },
     async read(reference: Reference) {
       if (!(await verify(reference)))

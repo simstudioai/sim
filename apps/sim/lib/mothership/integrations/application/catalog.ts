@@ -166,16 +166,15 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     delegation: { audience: INTEGRATION_CATALOG_AUDIENCE, isWithinScope: () => true },
   },
   async execute({ input, context }) {
-    const assistant = context.mode === 'assistant'
-    if (input.mcpExecution && (assistant || context.organizationId))
+    if (context.mode === 'assistant')
+      throw new OrchestrationError(
+        'forbidden',
+        'Search Assistant uses scoped search and document reads for connected sources.'
+      )
+    if (input.mcpExecution && context.organizationId)
       throw new OrchestrationError('forbidden', 'Executor catalogs require workspace agent scope')
     let workspaceId = context.workspaceId
     if (context.organizationId && input.workspaceId) {
-      if (assistant)
-        throw new OrchestrationError(
-          'forbidden',
-          'Assistant integration discovery cannot target a workspace'
-        )
       workspaceId = (await resolveInvocationWorkspace(context, input.workspaceId)).workspaceId
     }
     const mcpOnly = input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:')
@@ -185,7 +184,6 @@ const catalogUseCase = defineAuthorizedChatUseCase({
           context.userId,
           {
             schemaSurface: 'copilot',
-            personalAccountsOnly: assistant,
             organizationId: context.organizationId,
           },
           workspaceId
@@ -193,7 +191,7 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     const includeMcp =
       (!input.toolId || input.toolId.startsWith('mcp-')) &&
       (!input.service || input.service.startsWith('mcp:'))
-    if (!assistant && includeMcp && (input.mcpServerIds.length || input.mcpToolIds?.length)) {
+    if (includeMcp && (input.mcpServerIds.length || input.mcpToolIds?.length)) {
       if (!workspaceId) {
         if (input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:'))
           throw new OrchestrationError(

@@ -168,6 +168,7 @@ describe('Search source summaries', () => {
           connectorType: 'google_drive',
           sourceDescription: '1 folder selected',
           accessMode: 'admin',
+          isGitHubInstallation: false,
           availability: 'available',
           enabled: true,
           isSyncing: false,

@@ -4,15 +4,11 @@ import { toError } from '@sim/utils/errors'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import {
-  ASSISTANT_TOOLS,
-  assertAssistantIntegrationCall,
-} from '@/lib/mothership/assistant/tool-policy'
+import { ASSISTANT_TOOLS } from '@/lib/mothership/assistant/tool-policy'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
-import { getToolMetadata } from '@/tools/metadata'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
@@ -69,24 +65,14 @@ export async function executeTool(
       return executeBoundTool(toolId, params, context)
     }
     if (context.requestMode === 'assistant') {
-      if (context.targetWorkspaceId)
-        return { success: false, error: 'Organization Assistant does not take a workspace target' }
-      try {
-        const metadata = getToolMetadata(toolId)
-        assertAssistantIntegrationCall(metadata, params)
-        if (metadata?.personalToken) throw new Error('This account type is unavailable in Search.')
-      } catch (error) {
-        return { success: false, error: toError(error).message }
+      return {
+        success: false,
+        error: 'Search Assistant uses scoped search and document reads for connected sources.',
       }
-      return executeBoundTool(toolId, params, context)
     }
     if (toolId === 'sim_cli') return executeBoundTool(toolId, params, context)
     if (['run_code', 'run_function'].includes(toolId) && !context.targetWorkspaceId)
-      return executeBoundTool(toolId, params, {
-        ...context,
-        secretActorUserId: null,
-        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
-      })
+      return executeBoundTool(toolId, params, context)
   }
   if (context.organizationId || context.targetWorkspaceId) {
     try {
@@ -144,10 +130,9 @@ async function executeBoundTool(
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {
-    try {
-      assertAssistantIntegrationCall(getToolMetadata(toolId), params)
-    } catch (error) {
-      return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: 'Search Assistant uses scoped search and document reads for connected sources.',
     }
   }
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never

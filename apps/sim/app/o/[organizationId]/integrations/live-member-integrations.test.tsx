@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   inventory: vi.fn(),
   policies: vi.fn(),
+  secrets: vi.fn(),
+  saveSecrets: vi.fn(),
   connect: vi.fn(),
   reconnect: vi.fn(),
   refetch: vi.fn(),
@@ -14,6 +16,11 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useOrganizationAccounts: mocks.inventory,
   useConnectOrganizationAccount: () => ({ mutate: mocks.connect }),
   useReconnectPersonalOrganizationAccount: () => ({ mutate: mocks.reconnect }),
+}))
+vi.mock('@/hooks/queries/organization-secrets', () => ({
+  useOrganizationSecretSource: mocks.secrets,
+  useConfigureOrganizationSecretSource: () => ({ mutate: mocks.saveSecrets }),
+  useRemoveOrganizationSecretSource: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/queries/search-integrations', () => ({ useSearchIntegrations: mocks.policies }))
 vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({
@@ -25,6 +32,7 @@ vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-show
   IntegrationTile: () => null,
 }))
 
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
 
 let root: Root
@@ -50,6 +58,7 @@ const inventory = (overrides = {}) => ({
 })
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.secrets.mockReturnValue({ data: { source: null } })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.inventory.mockReturnValue({ data: inventory(), refetch: mocks.refetch })
   mocks.policies.mockReturnValue({
@@ -73,6 +82,28 @@ const render = async (search = '') => {
 const button = (label: string) =>
   [...container.querySelectorAll('button')].find((button) => button.textContent === label)
 describe('live member connection states', () => {
+  it.each(['organization', 'member'] as const)(
+    'shows Generic Secrets in %s mode without OAuth sources',
+    async (mode) => {
+      mocks.policies.mockReturnValue({ data: [] })
+      mocks.inventory.mockReturnValue({ data: inventory({ credentialGroup: null }) })
+      mocks.secrets.mockReturnValue({ data: { source: { id: 'source', mode } } })
+      await render()
+      expect(container.textContent).toContain('Generic Secrets')
+      if (mode === 'member')
+        expect(container.querySelector('a')?.getAttribute('href')).toBe(
+          '/o/org/integrations/secrets'
+        )
+      else {
+        expect(container.textContent).toContain('Organization managed')
+        expect(container.querySelector('a')).toBeNull()
+      }
+      expect(button('Configure')).toBeUndefined()
+      expect(button('Connect')).toBeUndefined()
+      await render('unrelated')
+      expect(container.textContent).not.toContain('Generic Secrets')
+    }
+  )
   it('keeps GitLab organization-managed with no personal token or connect action', async () => {
     mocks.policies.mockReturnValue({ data: [{ connectorType: 'gitlab', approved: true }] })
     await render()
@@ -145,7 +176,7 @@ describe('live member connection states', () => {
   })
   it('distinguishes filtered empty, loading, and failed states', async () => {
     await render('nothing')
-    expect(container.textContent).toContain('No integrations match')
+    expect(container.textContent).toContain('No matching integrations')
     mocks.inventory.mockReturnValue({})
     await render()
     expect(container.textContent).toContain('Loading your connections')
@@ -155,5 +186,47 @@ describe('live member connection states', () => {
     })
     await render()
     expect(container.textContent).toContain('Network unavailable')
+  })
+  it('shows no empty-state copy when the organization has no sources', async () => {
+    mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
+    await render()
+    expect(container.textContent).toBe('')
+  })
+  it('sends admins to Credential Groups when member sign-in is not configured', async () => {
+    mocks.inventory.mockReturnValue({ data: inventory({ credentialGroup: null, canManage: true }) })
+    await render()
+    expect(container.querySelector('a')?.getAttribute('href')).toBe(
+      '/o/org/settings/connected-accounts'
+    )
+  })
+  it('explains service-account scope without hiding member connection controls', async () => {
+    mocks.policies.mockReturnValue({
+      data: [
+        {
+          connectorType: 'github',
+          approved: true,
+          policy: {
+            ...defaultLiveSearchPolicy(),
+            accessMode: 'service_account',
+            sourceId: 'source',
+          },
+        },
+      ],
+    })
+    mocks.inventory.mockReturnValue({
+      data: inventory({
+        viewerAccounts: [
+          {
+            credentialId: 'own',
+            providerId: 'github-repositories',
+            displayName: 'reader',
+            status: 'active',
+          },
+        ],
+      }),
+    })
+    await render()
+    expect(container.textContent).toContain('Selected resources you can access')
+    expect(button('Add account')).toBeDefined()
   })
 })

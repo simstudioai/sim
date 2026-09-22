@@ -10,7 +10,9 @@ import {
   type MockCondition,
   queueTableRows,
   resetDbChainMock as resetDatabaseMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
@@ -28,6 +30,8 @@ import {
   stuckDocumentSweepAgeAnchor,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument } from '@/connectors/types'
+
+beforeEach(resetEnvFlagsMock)
 
 function resetDbChainMock() {
   resetDatabaseMock()
@@ -428,6 +432,28 @@ describe('connector content replacement processing state', () => {
       path: `/api/files/serve/${encodeURIComponent(customKey)}`,
     }))
     mockProcessDocumentsWithQueue.mockResolvedValue({ requested: 1, accepted: 1, failed: 0 })
+  })
+
+  it('refuses a queued live Search source before locking or indexing content', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ isSearchIndex: true }])
+    const result = await executeSync('connector-1', {
+      dispatchToken: 'queued-before-switch',
+      billingAttribution: {
+        actorUserId: 'user',
+        workspaceId: 'ws-1',
+        organizationId: null,
+        billedAccountUserId: 'user',
+        billingEntity: { type: 'user', id: 'user' },
+        billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2026-10-01T00:00:00.000Z' },
+        payerSubscription: null,
+      },
+    })
+    expect(result.skipReason).toBe('connector_not_syncable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
   })
 
   it('resets a near-dead-letter prior version when authoritative content changes', async () => {

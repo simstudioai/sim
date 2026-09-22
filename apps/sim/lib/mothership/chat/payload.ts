@@ -16,6 +16,7 @@ import {
 } from '@/lib/integrations/tool-projection'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
+import { executeOrganizationSecretUseCase } from '@/lib/mothership/application/execute-organization-secret-use-case'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import {
   isAssistantIntegrationParameter,
@@ -34,6 +35,7 @@ import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { providerIdsForService } from '@/lib/oauth/utils'
+import { listOrganizationSecretNames } from '@/lib/organization-secrets/application/use-cases'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
@@ -410,6 +412,30 @@ export async function buildCopilotRequestPayload(
           : []),
       ]
 
+  if (effectiveMode === 'build' && params.organizationId && chatId) {
+    const { names } = await executeOrganizationSecretUseCase(
+      {
+        userId,
+        organizationId: params.organizationId,
+        chatId,
+        toolCallId: userMessageId,
+        copilotToolExecution: true,
+        requestMode: 'agent',
+      },
+      listOrganizationSecretNames,
+      {}
+    )
+    if (names.length)
+      allContexts.push({
+        type: 'generic_secrets',
+        content: JSON.stringify({
+          names,
+          usage:
+            'Mount only needed names with the secrets argument of run_code or run_function. Read values from environment variables for curl or code. Generic Secrets are available only in Build. In organization chats these names take precedence over same-named workspace secrets.',
+        }),
+      })
+  }
+
   /** Assistant sends its trusted mode and prepared context; Build may include authorized workspace inventory. */
   const inventory =
     !isAssistant && params.principal && params.workspaceId
@@ -437,9 +463,9 @@ export async function buildCopilotRequestPayload(
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    integrationCatalog: {
-      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
-    },
+    ...(!isAssistant && {
+      integrationCatalog: { mcpServerIds: [...new Set(params.mcpServerIds ?? [])] },
+    }),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),

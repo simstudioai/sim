@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   adminRead: vi.fn(),
   adminVerify: vi.fn(),
   json: vi.fn(),
+  service: vi.fn(),
+}))
+vi.mock('@/lib/sim-search/live/service-session', () => ({
+  createLiveServiceSession: mocks.service,
 }))
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
@@ -68,8 +72,8 @@ import {
   searchLiveKnowledge,
 } from '@/lib/sim-search/live/application'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
-import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 's' } as const
@@ -95,6 +99,7 @@ describe('authorized live retrieval', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.enabled = true
+    mocks.service.mockResolvedValue(undefined)
     mocks.context.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
@@ -255,6 +260,72 @@ describe('authorized live retrieval', () => {
       id: 'doc',
     })
   })
+  it('checks the service source before returning member-visible candidates', async () => {
+    const verify = vi.fn().mockResolvedValue(false)
+    mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(verify).toHaveBeenCalledWith(document)
+    expect(mocks.search).toHaveBeenCalledOnce()
+  })
+  it('checks service resource restrictions with the source credential rather than the member token', async () => {
+    const verify = vi.fn(async () => true)
+    mocks.service.mockResolvedValue({
+      policy: { ...defaultLiveSearchPolicy(), fileTypes: ['text/plain'] },
+      verify,
+      partial: false,
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toHaveLength(1)
+    expect(verify).toHaveBeenCalledExactlyOnceWith(document)
+    expect(mocks.json).not.toHaveBeenCalled()
+  })
+  it('fails closed when the selected service credential cannot be resolved', async () => {
+    mocks.service.mockRejectedValue(new NativeSearchError('unavailable', 'Source revoked'))
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(result.live?.accounts[0]?.status).toBe('unavailable')
+    expect(mocks.search).not.toHaveBeenCalled()
+  })
+  it('returns no candidates when the requested dates do not overlap the service source', async () => {
+    const verify = vi.fn(async () => true)
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      verify,
+      partial: false,
+      scopeSearch: () => null,
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(result.live?.accounts[0]?.status).toBe('ok')
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(verify).not.toHaveBeenCalled()
+  })
+  it('rechecks service scope after reading content and suppresses a revoked document', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy(),
+      verify: vi.fn(async () => true),
+      partial: false,
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy(),
+      verify: vi.fn(async () => false),
+      partial: false,
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+    expect(mocks.read).toHaveBeenCalledOnce()
+  })
   it('rejects nonmembers before account discovery or provider calls', async () => {
     mocks.permission.mockResolvedValue(null)
     await expect(searchLiveKnowledge.execute({ principal, input })).rejects.toThrow(
@@ -335,11 +406,21 @@ describe('authorized live retrieval', () => {
   })
   it('rejects a document moved out of scope while its content was being read', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })
-    vi.mocked(livePolicyFor).mockReturnValueOnce({
+    const policy = {
       ...defaultLiveSearchPolicy(),
-      mode: 'selected',
+      mode: 'selected' as const,
       included: ['root'],
-    })
+    }
+    mocks.service.mockImplementation(async () => ({
+      policy,
+      verify: createPolicyVerifier(
+        'google_drive',
+        policy,
+        { json: mocks.json, text: vi.fn() },
+        'https://www.googleapis.com'
+      ),
+      partial: false,
+    }))
     let reads = 0
     mocks.json.mockImplementation(async (path) => {
       if (path.endsWith('/doc')) return { id: 'doc', parents: [++reads === 1 ? 'root' : 'private'] }

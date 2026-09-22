@@ -2,10 +2,22 @@ import { z } from 'zod'
 
 const resourceList = z.array(z.string().trim().min(1).max(500)).max(100)
 
+export const LIVE_SEARCH_SERVICE_PROVIDERS: readonly string[] = [
+  'google_drive',
+  'gmail',
+  'google_calendar',
+  'confluence',
+  'coda',
+  'github',
+  'gitlab',
+]
+
 /** Resource restrictions are trusted server configuration, independent of model queries. */
 export const liveSearchPolicySchema = z
   .object({
     version: z.literal(1),
+    accessMode: z.enum(['member', 'service_account']).optional(),
+    sourceId: z.string().trim().min(1).max(100).optional(),
     mode: z.enum(['all', 'selected']),
     included: resourceList,
     excluded: resourceList,
@@ -30,15 +42,16 @@ export const liveSearchPolicySchema = z
   })
 export type LiveSearchPolicy = z.output<typeof liveSearchPolicySchema>
 
-export function defaultLiveSearchPolicy(): LiveSearchPolicy {
+export function defaultLiveSearchPolicy(provider?: string): LiveSearchPolicy {
   return {
     version: 1,
+    accessMode: provider === 'gitlab' ? 'service_account' : 'member',
     mode: 'all',
     included: [],
     excluded: [],
     sites: [],
     includeSubfolders: true,
-    includeDirectMessages: false,
+    includeDirectMessages: true,
     includeArchived: true,
     includeAttendees: true,
     excludePromotions: false,

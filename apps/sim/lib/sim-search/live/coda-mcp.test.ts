@@ -64,6 +64,7 @@ describe('Coda MCP content search', () => {
     )
     expect(call).toHaveBeenCalledWith('search', {
       query: 'release next week',
+      types: ['page', 'tableRow'],
       docUri: 'coda://docs/doc',
       cursor: 'previous',
       limit: 10,
@@ -73,6 +74,28 @@ describe('Coda MCP content search', () => {
       partial: true,
       documents: [{ id: 'coda://docs/doc/pages/page', kind: 'mcp', content: 'Release next week' }],
     })
+  })
+  it('uses the documented empty-query recency listing and reports local date filtering', async () => {
+    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
+      results: [{ uri: 'coda://docs/doc', title: 'Recent document', updatedAt: '2026-09-20' }],
+    })
+    const page = await searchCodaMcp(
+      { call },
+      { ...input, query: ' ', filters: { modifiedAfter: '2026-09-01T00:00:00Z' } }
+    )
+    expect(call).toHaveBeenCalledWith('search', { query: '', limit: 10 })
+    expect(page).toMatchObject({ partial: true, documents: [{ id: 'coda://docs/doc' }] })
+    expect(page.message).toContain('Date filters apply to returned timestamps in Sim')
+  })
+  it('rejects page-scoped document filters before calling the provider', async () => {
+    const call = vi.fn<CodaMcpClient['call']>()
+    await expect(
+      searchCodaMcp(
+        { call },
+        { ...input, native: { provider: 'coda', query: 'term', project: 'coda://docs/d/pages/p' } }
+      )
+    ).rejects.toThrow('requires a document URI')
+    expect(call).not.toHaveBeenCalled()
   })
   it('does not claim complete coverage for an unrecognized result shape', async () => {
     const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({ unexpected: [] })

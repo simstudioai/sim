@@ -401,6 +401,21 @@ export const schemaMock = {
     createdAt: 'workspaceEnvironment.createdAt',
     updatedAt: 'workspaceEnvironment.updatedAt',
   },
+  organizationSecretSource: {
+    id: 'organizationSecretSource.id',
+    organizationId: 'organizationSecretSource.organizationId',
+    mode: 'organizationSecretSource.mode',
+    createdAt: 'organizationSecretSource.createdAt',
+    updatedAt: 'organizationSecretSource.updatedAt',
+  },
+  organizationSecret: {
+    id: 'organizationSecret.id',
+    sourceId: 'organizationSecret.sourceId',
+    ownerUserId: 'organizationSecret.ownerUserId',
+    name: 'organizationSecret.name',
+    encryptedValue: 'organizationSecret.encryptedValue',
+    updatedAt: 'organizationSecret.updatedAt',
+  },
   workspaceSandbox: {
     id: 'workspaceSandbox.id',
     workspaceId: 'workspaceSandbox.workspaceId',

@@ -44,8 +44,7 @@ interface OrganizationProviderDetailProps {
 export function OrganizationProviderDetail({ connectorType }: OrganizationProviderDetailProps) {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const router = useRouter()
-  const liveGitLab =
-    useDeploymentShape().features.liveEnterpriseSearch && connectorType === 'gitlab'
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
@@ -77,7 +76,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const provider = overview.data?.providers.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const back = {
-    text: liveGitLab ? 'Search integrations' : 'Sources',
+    text: 'Sources',
     icon: ArrowLeft,
     onSelect: () =>
       router.push(organizationRoutes(organization.id).settingsSection('integrations')),
@@ -104,8 +103,12 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
       approved && unavailable
         ? 'Unavailable in this deployment'
         : provider
-          ? liveGitLab
-            ? 'Search current project content with your configured source permissions.'
+          ? liveSearch
+            ? connectorType === 'gitlab'
+              ? 'Projects and permissions'
+              : connectorType === 'github'
+                ? 'GitHub App repositories'
+                : 'Service account connections'
             : organizationSearchStatusLabel(provider)
           : undefined,
     docsLink: meta.searchDocsUrl,
@@ -145,13 +148,20 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     approval.mutate({ organizationId: organization.id, connectorType, approved: true })
   const actions: SettingsAction[] = approved
     ? [
-        ...(access.admin || access.members
+        ...(needsSlackSetup ||
+        access.admin ||
+        (connectorType === 'github' && access.members) ||
+        (!liveSearch && access.members)
           ? [
               {
                 text: needsSlackSetup
                   ? 'Set up Slack app'
-                  : getSearchConnectionLabels(connectorType, access.admin ? 'admin' : 'members')
-                      .add,
+                  : liveSearch && connectorType === 'github'
+                    ? 'Add repository'
+                    : liveSearch && connectorType !== 'gitlab'
+                      ? 'Add service account'
+                      : getSearchConnectionLabels(connectorType, access.admin ? 'admin' : 'members')
+                          .add,
                 icon: Plus,
                 variant: 'primary' as const,
                 disabled:
@@ -161,22 +171,28 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               },
             ]
           : []),
-        {
-          text: 'Deactivate',
-          disabled: approval.isPending,
-          onSelect: () => {
-            approval.reset()
-            setDeactivating(true)
-          },
-        },
+        ...(!liveSearch
+          ? [
+              {
+                text: 'Deactivate',
+                disabled: approval.isPending,
+                onSelect: () => {
+                  approval.reset()
+                  setDeactivating(true)
+                },
+              },
+            ]
+          : []),
       ]
     : [
         {
-          text: provider ? 'Activate' : 'Add integration',
+          text: liveSearch ? 'View sources' : provider ? 'Activate' : 'Add integration',
           variant: 'primary',
           disabled: pending || (!access.admin && !access.members),
           tooltip: unavailable ? 'This integration is unavailable in this deployment.' : undefined,
-          onSelect: activate,
+          onSelect: liveSearch
+            ? () => router.push(organizationRoutes(organization.id).settingsSection('integrations'))
+            : activate,
         },
       ]
   actions.push(...removalActions)
@@ -236,57 +252,74 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
         <SettingsEmptyState variant='inline'>Loading connections…</SettingsEmptyState>
       ) : (
         <div className={RESOURCE_LIST_STACK}>
-          {sources.data?.map((source) => (
-            <SettingsResourceRow
-              key={source.connectorId}
-              title={source.sourceDescription || meta.name}
-              description={
-                liveGitLab
-                  ? `${!approved ? 'Disabled' : !source.enabled ? 'Paused' : 'Live search'} · Organization managed`
-                  : [
-                      connectorType === 'github'
-                        ? null
-                        : source.accessMode === 'members'
-                          ? 'Member accounts'
-                          : meta.auth.mode === 'oauth' &&
-                              meta.auth.adminCredentialType === 'service_account'
-                            ? 'Service account'
-                            : 'Admin or service account',
-                      !approved
-                        ? 'Deactivated'
-                        : !source.enabled
-                          ? 'Paused'
-                          : source.hasSyncError
-                            ? source.isSyncing
-                              ? 'Indexing · Previous sync failed'
-                              : 'Sync failed'
-                            : source.viewerFailedDocumentCount > 0
-                              ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
-                              : source.isSyncing
-                                ? 'Indexing'
-                                : source.lastSyncAt
-                                  ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                                  : 'Waiting for the first sync',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-              }
-              href={organizationRoutes(organization.id).searchSource(source.connectorId)}
-              clickLabel={`Open ${source.sourceDescription || meta.name}`}
-              navigable
-            />
-          ))}
-          {!sources.data?.length && !sources.hasNextPage && (
-            <SettingsEmptyState variant='inline'>
-              {sourceSearch
-                ? 'No matching connections'
-                : unavailable
-                  ? `${meta.name} must be configured for this deployment before you can add a connection.`
-                  : !approved
-                    ? 'Activate this integration to add a connection.'
-                    : labels.empty}
-            </SettingsEmptyState>
-          )}
+          {sources.data
+            ?.filter(
+              (source) =>
+                !liveSearch ||
+                source.accessMode === 'admin' ||
+                (connectorType === 'github' && source.isGitHubInstallation)
+            )
+            .map((source) => (
+              <SettingsResourceRow
+                key={source.connectorId}
+                title={source.sourceDescription || meta.name}
+                description={
+                  liveSearch
+                    ? !approved
+                      ? 'Unavailable'
+                      : !source.enabled
+                        ? 'Paused'
+                        : undefined
+                    : [
+                        connectorType === 'github'
+                          ? null
+                          : source.accessMode === 'members'
+                            ? 'Member accounts'
+                            : meta.auth.mode === 'oauth' &&
+                                meta.auth.adminCredentialType === 'service_account'
+                              ? 'Service account'
+                              : 'Admin or service account',
+                        !approved
+                          ? 'Deactivated'
+                          : !source.enabled
+                            ? 'Paused'
+                            : source.hasSyncError
+                              ? source.isSyncing
+                                ? 'Indexing · Previous sync failed'
+                                : 'Sync failed'
+                              : source.viewerFailedDocumentCount > 0
+                                ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
+                                : source.isSyncing
+                                  ? 'Indexing'
+                                  : source.lastSyncAt
+                                    ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
+                                    : 'Waiting for the first sync',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                }
+                href={organizationRoutes(organization.id).searchSource(source.connectorId)}
+                clickLabel={`Open ${source.sourceDescription || meta.name}`}
+                navigable
+              />
+            ))}
+          {!sources.data?.some(
+            (source) =>
+              !liveSearch ||
+              source.accessMode === 'admin' ||
+              (connectorType === 'github' && source.isGitHubInstallation)
+          ) &&
+            !sources.hasNextPage && (
+              <SettingsEmptyState variant='inline'>
+                {sourceSearch
+                  ? 'No matching connections'
+                  : unavailable
+                    ? `${meta.name} must be configured for this deployment before you can add a connection.`
+                    : !approved
+                      ? 'Activate this integration to add a connection.'
+                      : labels.empty}
+              </SettingsEmptyState>
+            )}
           <SearchSourcePagination {...sources} />
         </div>
       )}

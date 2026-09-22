@@ -760,6 +760,51 @@ export const environment = pgTable('environment', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+/** Generic Secrets source configuration, independent of indexed/searchable connectors. */
+export const organizationSecretSource = pgTable(
+  'organization_secret_source',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    mode: text('mode').$type<'organization' | 'member'>().notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organization_secret_source_org_unique').on(table.organizationId),
+    check(
+      'organization_secret_source_mode_check',
+      sql`${table.mode} IN ('organization', 'member')`
+    ),
+  ]
+)
+
+/** Ciphertext only; a null owner denotes the organization's shared environment. */
+export const organizationSecret = pgTable(
+  'organization_secret',
+  {
+    id: text('id').primaryKey(),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => organizationSecretSource.id, { onDelete: 'cascade' }),
+    ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    encryptedValue: text('encrypted_value').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organization_secret_shared_unique')
+      .on(table.sourceId, table.name)
+      .where(sql`${table.ownerUserId} IS NULL`),
+    uniqueIndex('organization_secret_member_unique')
+      .on(table.sourceId, table.ownerUserId, table.name)
+      .where(sql`${table.ownerUserId} IS NOT NULL`),
+    index('organization_secret_owner_idx').on(table.ownerUserId),
+  ]
+)
+
 export const workspaceEnvironment = pgTable(
   'workspace_environment',
   {

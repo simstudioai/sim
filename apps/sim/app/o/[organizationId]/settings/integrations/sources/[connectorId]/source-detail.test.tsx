@@ -206,12 +206,28 @@ describe('organization source detail navigation', () => {
     expect(document.body.textContent).not.toContain('Sync now')
     expect(document.body.textContent).toContain('Pause search')
   })
-  it('routes old indexed-provider detail links back to live integration settings', async () => {
+  it('edits service-account resources directly without indexed-document views', async () => {
     mocks.live = true
     await render()
-    expect(container.textContent).toContain('Manage search integrations')
+    expect(container.textContent).toContain('Source configuration')
+    expect(container.textContent).not.toContain('Sync history')
     expect(mocks.documents).not.toHaveBeenCalled()
-    expect(mocks.form).not.toHaveBeenCalled()
+    expect(mocks.form).toHaveBeenCalled()
+  })
+  it('opens a live GitHub App repository source for editing', async () => {
+    mocks.live = true
+    mocks.detail.mockReturnValue({
+      data: {
+        ...connector,
+        connectorType: 'github',
+        accessMode: 'members',
+        sourceConfig: { repository: 'acme/project', githubRepositoryId: '123' },
+      },
+    })
+    await render()
+    expect(container.textContent).toContain('Source configuration')
+    expect(container.textContent).not.toContain('Member accounts')
+    expect(mocks.form).toHaveBeenCalled()
   })
   it('passes live sync status to the form without replacing its settings baseline', async () => {
     await render('?view=settings')

@@ -2,9 +2,11 @@
 
 import { Chip, ChipLink, toast } from '@sim/emcn'
 import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { connectorDisplayName, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
+import { GenericSecretSourceRow } from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   SettingsEmptyState,
@@ -16,6 +18,7 @@ import {
   useOrganizationAccounts,
   useReconnectPersonalOrganizationAccount,
 } from '@/hooks/queries/organization-accounts'
+import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
 const SOURCES: Record<string, string> = {
@@ -41,26 +44,28 @@ interface LiveMemberIntegrationsProps {
 export function LiveMemberIntegrations({ organizationId, search }: LiveMemberIntegrationsProps) {
   const inventory = useOrganizationAccounts(organizationId)
   const policies = useSearchIntegrations(organizationId)
+  const secrets = useOrganizationSecretSource(organizationId)
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const navigate = (result: OrganizationAccountConnectionResponse) =>
     window.location.assign(result.authorizationUrl ?? result.invitationLink)
   const onError = (error: Error) => toast.error(error.message)
-  const error = inventory.error ?? policies.error
+  const error = inventory.error ?? policies.error ?? secrets.error
   if (error)
     return (
       <SettingsQueryErrorState
         error={error}
         fallback='Could not load your connections'
-        isRetrying={inventory.isFetching || policies.isFetching}
+        isRetrying={inventory.isFetching || policies.isFetching || secrets.isFetching}
         onRetry={() => {
           void inventory.refetch()
           void policies.refetch()
+          void secrets.refetch()
         }}
         variant='inline'
       />
     )
-  if (!inventory.data || !policies.data)
+  if (!inventory.data || !policies.data || !secrets.data)
     return <SettingsEmptyState variant='inline'>Loading your connections…</SettingsEmptyState>
   const data = inventory.data
   const approvals = new Map(policies.data.map((policy) => [policy.connectorType, policy]))
@@ -90,12 +95,14 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
       .includes(query)
   )
   const pending = connect.isPending || reconnect.isPending
+  const secretSource = secrets.data.source
+  const showSecrets = secretSource && 'generic secrets'.includes(query)
+  if (available.length === 0 && !secretSource) return null
   return (
     <div className='flex flex-col gap-3'>
-      <p className='px-4 py-2 text-[var(--text-muted)] text-small'>
-        Connect your apps to search current documents, messages, and code. Your organization sets
-        the search scope.
-      </p>
+      {showSecrets && (
+        <GenericSecretSourceRow organizationId={organizationId} source={secretSource} />
+      )}
       {visible.map(([provider, meta]) => {
         const approval = approvals.get(provider)
         const approved = approval?.approved === true
@@ -107,7 +114,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
               iconVariant='custom'
               icon={<IntegrationTile blockType={provider} icon={meta.icon} />}
               title={name}
-              description='Your organization manages this connection. Results follow your GitLab source permissions.'
+              description='Access follows project permissions'
               trailing={
                 <span className='text-[var(--text-muted)] text-small'>Organization managed</span>
               }
@@ -134,9 +141,9 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           approved &&
           (!option || option.configurationStatus === 'ready')
         const scope =
-          approval?.policy?.mode === 'selected'
-            ? `${approval.policy.included.length} selected sources`
-            : 'Your accessible content'
+          approval?.policy?.accessMode === 'service_account'
+            ? 'Selected resources you can access'
+            : 'All accessible content'
         const state = !approved
           ? 'Disabled by your organization'
           : group && group.status !== 'active'
@@ -145,8 +152,18 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
               ? 'An admin needs to finish connection setup'
               : accounts.length
                 ? scope
-                : `Connect your ${name} account`
-        const description = `${accounts.map((account) => `${account.displayName}${account.status === 'needs_reauth' ? ' · Reconnect needed' : ''}`).join(', ')}${accounts.length ? ' · ' : ''}${state}`
+                : undefined
+        const description = [
+          accounts
+            .map(
+              (account) =>
+                `${account.displayName}${account.status === 'needs_reauth' ? ' · Reconnect needed' : ''}`
+            )
+            .join(', '),
+          state,
+        ]
+          .filter(Boolean)
+          .join(' · ')
         return (
           <SettingsResourceRow
             key={provider}
@@ -201,7 +218,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                   </Chip>
                 ) : data.canManage && approved ? (
                   <ChipLink
-                    href={`/o/${organizationId}/settings/integrations?live-tab=connections`}
+                    href={organizationRoutes(organizationId).settingsSection('connected-accounts')}
                   >
                     Finish setup
                   </ChipLink>
@@ -211,19 +228,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           />
         )
       })}
-      {!visible.length && (
-        <SettingsEmptyState variant='inline'>
-          {query
-            ? 'No integrations match your search.'
-            : 'Your organization hasn’t enabled any search integrations yet.'}
-        </SettingsEmptyState>
-      )}
-      {data.canManage && (
-        <div className='px-4'>
-          <ChipLink href={`/o/${organizationId}/settings/integrations`}>
-            Manage search integrations
-          </ChipLink>
-        </div>
+      {!visible.length && !showSecrets && query && (
+        <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>
       )}
     </div>
   )

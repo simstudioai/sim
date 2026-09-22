@@ -40,6 +40,7 @@ import {
   persistExternalGroupMembership,
   refreshMirroredDirectory,
 } from '@/lib/knowledge/connectors/external-group-sync'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import {
@@ -831,6 +832,7 @@ export async function executeSync(
 
   const kbRows = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
@@ -872,6 +874,9 @@ export async function executeSync(
       .where(eq(knowledgeConnector.id, connectorId))
     return { ...result, skipReason: 'knowledge_base_deleted' }
   }
+
+  if (!requiresConnectorIndexing(kbRows[0].isSearchIndex))
+    return { ...result, skipReason: 'connector_not_syncable' }
 
   const userId = kbRows[0].userId
   // Resolved once per sync and threaded into add/updateDocument so every synced

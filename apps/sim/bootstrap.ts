@@ -6,8 +6,8 @@
 import { loadRuntimeSecrets } from '@sim/runtime-secrets'
 
 await loadRuntimeSecrets()
-// The dev build supplies the default; explicit runtime configuration wins.
-process.env.SIM_SEARCH_LIVE ??= process.env.SIM_SEARCH_LIVE_DEFAULT ?? 'false'
+// Explicit runtime configuration wins over the federated-search default.
+process.env.SIM_SEARCH_LIVE ??= process.env.SIM_SEARCH_LIVE_DEFAULT ?? 'true'
 process.env.NEXT_PUBLIC_SIM_SEARCH_LIVE = process.env.SIM_SEARCH_LIVE
 // `server.js` is the Next standalone build artifact, a sibling of this file in
 // the image; it does not exist at type-check time, so the specifier is held in a

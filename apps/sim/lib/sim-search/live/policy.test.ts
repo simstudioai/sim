@@ -134,7 +134,7 @@ describe('organization search scope enforcement', () => {
     expect(
       await createPolicyVerifier(
         'slack',
-        defaultLiveSearchPolicy(),
+        { ...defaultLiveSearchPolicy(), includeDirectMessages: false },
         api,
         ''
       )({ id: '1.2', container: 'D123' })
@@ -223,11 +223,17 @@ describe('organization search scope enforcement', () => {
     }
   )
   it('checks Coda page and row document IDs, including converted URLs', async () => {
-    const mcp = { call: vi.fn(async () => ({ uri: 'coda://docs/allowed/pages/page' })) }
+    const mcp = { call: vi.fn(async () => ({ docUri: 'coda://docs/allowed' })) }
     const verify = createPolicyVerifier('coda', selected(['allowed']), null, '', mcp)
     expect(await verify({ id: 'coda://docs/allowed/tables/table/rows/row' })).toBe(true)
     expect(await verify({ id: 'coda://docs/other/pages/page' })).toBe(false)
     expect(await verify({ id: 'https://coda.io/d/doc' })).toBe(true)
+    expect(mcp.call).toHaveBeenCalledWith('url_convert', {
+      action: 'decode',
+      url: 'https://coda.io/d/doc',
+      scope: 'document',
+    })
+    expect(await verify({ id: 'https://coda.io:444/d/doc' })).toBe(false)
     expect(await verify({ id: 'https://evil.test/d/doc' })).toBe(false)
   })
 })

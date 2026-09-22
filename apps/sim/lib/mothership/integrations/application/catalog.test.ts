@@ -202,38 +202,29 @@ describe('integration catalog projection', () => {
   })
 })
 describe('catalog authorization', () => {
-  it.each(['assistant', 'agent'] as const)(
-    'resolves provider aliases after the existing %s authorization and catalog projection',
-    async (mode) => {
-      queueChat(mode)
-      const result = await readIntegrationCatalog.execute({
-        principal: principal(),
-        input: { ...input, mode, service: 'google-email', query: 'email' },
-      })
-      expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
-      expect(mocks.build).toHaveBeenCalledWith(
-        'actor',
-        {
-          schemaSurface: 'copilot',
-          personalAccountsOnly: mode === 'assistant',
-          organizationId: 'org-1',
-        },
-        undefined
-      )
-    }
-  )
-
-  it('preserves assistant personal-account and organization-approval projection and excludes MCP', async () => {
-    queueChat()
-    await readIntegrationCatalog.execute({
+  it('preserves integration discovery for agent conversations', async () => {
+    queueChat('agent')
+    const result = await readIntegrationCatalog.execute({
       principal: principal(),
-      input: { ...input, mcpServerIds: ['mcp-abc'] },
+      input: { ...input, mode: 'agent', service: 'google-email', query: 'email' },
     })
+    expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
     expect(mocks.build).toHaveBeenCalledWith(
       'actor',
-      { schemaSurface: 'copilot', personalAccountsOnly: true, organizationId: 'org-1' },
+      { schemaSurface: 'copilot', organizationId: 'org-1' },
       undefined
     )
+  })
+
+  it('rejects Search Assistant discovery before building native or MCP catalogs', async () => {
+    queueChat()
+    await expect(
+      readIntegrationCatalog.execute({
+        principal: principal(),
+        input: { ...input, mcpServerIds: ['mcp-abc'] },
+      })
+    ).rejects.toThrow('Search Assistant uses scoped search and document reads')
+    expect(mocks.build).not.toHaveBeenCalled()
     expect(mocks.mcp).not.toHaveBeenCalled()
   })
   it.each(['user', 'organization', 'expired', 'audience', 'mode', 'membership'] as const)(

@@ -43,7 +43,13 @@ import {
   searchNativeProvider,
 } from '@/lib/sim-search/live/providers'
 import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
-import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
+import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
+import type {
+  LiveAccount,
+  NativeDocument,
+  NativePage,
+  NativeSearchInput,
+} from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -252,7 +258,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 query.provider === account.provider &&
                 (!query.accountId || query.accountId === account.id)
             )
-            const policy = livePolicyFor(policies, account.provider)
+            let policy = livePolicyFor(policies, account.provider)
             const admin =
               'adminSource' in resolved && client
                 ? await createAdminGitLabSession({
@@ -267,14 +273,26 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             const mcp = client
               ? undefined
               : await createCodaMcpClient(input, userId, account.id, signal)
-            const verify = createPolicyVerifier(
-              account.provider,
+            const service = await createLiveServiceSession({
+              owner: input,
+              userId,
+              provider: account.provider,
               policy,
-              client,
-              'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
-              mcp
-            )
-            const searchInput = {
+              member: client,
+              mcp,
+              signal,
+            })
+            if (service) policy = service.policy
+            const verify =
+              service?.verify ??
+              createPolicyVerifier(
+                account.provider,
+                policy,
+                client,
+                'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
+                mcp
+              )
+            const searchInput: NativeSearchInput = {
               filters: input.filters,
               policy,
               query: input.query,
@@ -282,13 +300,19 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               limit: input.topK,
               scopes: resolved.account.scopes,
             }
-            const page = admin
-              ? await admin.search(searchInput)
-              : await searchWithinPolicy(account.provider, client, searchInput, (scoped) =>
-                  client
-                    ? searchNativeProvider(account.provider, client, scoped)
-                    : searchCodaMcp(mcp!, scoped)
-                )
+            const scopedInput = service?.scopeSearch
+              ? service.scopeSearch(searchInput)
+              : searchInput
+            const page: NativePage =
+              scopedInput === null
+                ? { documents: [] }
+                : admin
+                  ? await admin.search(scopedInput)
+                  : await searchWithinPolicy(account.provider, client, scopedInput, (scoped) =>
+                      client
+                        ? searchNativeProvider(account.provider, client, scoped)
+                        : searchCodaMcp(mcp!, scoped)
+                    )
             const permitted: NativeDocument[] = []
             let unverified = false
             for (const document of page.documents) {
@@ -329,6 +353,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                         !Number.isFinite(Date.parse(sourceDate(document, account.provider) ?? ''))
                     )) ||
                   unverified ||
+                  service?.partial ||
                   page.partial ||
                   page.nextCursor ||
                   matching.length < rows.length
@@ -337,6 +362,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 message:
                   [
                     page.message,
+                    service?.partial
+                      ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
+                      : undefined,
                     (input.filters?.startDate || input.filters?.endDate) &&
                     rows.some(
                       ({ document }) =>
@@ -482,7 +510,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
             accessToken: resolved.accessToken,
             signal,
           })
-    const policy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
+    let policy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
     const admin =
       'adminSource' in resolved && client
         ? await createAdminGitLabSession({
@@ -497,13 +525,25 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     const mcp = client
       ? undefined
       : await createCodaMcpClient(input, userId, reference.account, signal)
-    const verify = createPolicyVerifier(
-      reference.provider,
+    const service = await createLiveServiceSession({
+      owner: input,
+      userId,
+      provider: reference.provider,
       policy,
-      client,
-      'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
-      mcp
-    )
+      member: client,
+      mcp,
+      signal,
+    })
+    if (service) policy = service.policy
+    const verify =
+      service?.verify ??
+      createPolicyVerifier(
+        reference.provider,
+        policy,
+        client,
+        'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+        mcp
+      )
     if (!(await verify(reference)) || (admin && !(await admin.verify(reference))))
       throw new OrchestrationError(
         'not_found',
@@ -514,15 +554,26 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       : client
         ? await readNativeProvider(reference.provider, client, reference, policy, input.filters)
         : await readCodaMcp(mcp!, reference.id)
-    if (
-      !(await createPolicyVerifier(
+    const currentPolicy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
+    const currentService = await createLiveServiceSession({
+      owner: input,
+      userId,
+      provider: reference.provider,
+      policy: currentPolicy,
+      member: client,
+      mcp,
+      signal,
+    })
+    const verifyCurrent =
+      currentService?.verify ??
+      createPolicyVerifier(
         reference.provider,
-        policy,
+        currentPolicy,
         client,
         'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
         mcp
-      )(document))
-    )
+      )
+    if (!(await verifyCurrent(document)))
       throw new OrchestrationError(
         'not_found',
         'Document is outside your organization’s search scope'

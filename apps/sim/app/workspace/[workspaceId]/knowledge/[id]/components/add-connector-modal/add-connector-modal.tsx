@@ -33,7 +33,7 @@ import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
-import { liveGitLabSearchMeta } from '@/lib/sim-search/live/gitlab-settings'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   ConnectServiceAccountModal,
@@ -181,12 +181,13 @@ export function AddConnectorModal({
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
-  const connectorConfig = liveGitLabSearchMeta(
-    selectedType ? (CONNECTOR_META_REGISTRY[selectedType] ?? null) : null,
-    Boolean(liveSearch)
-  )
   const canSetUpGitHubInstallation =
     canAdmin && isSearchIndex && selectedType === 'github' && scope.kind === 'organization'
+  const connectorConfig = liveSearchSourceMeta(
+    selectedType ? (CONNECTOR_META_REGISTRY[selectedType] ?? null) : null,
+    Boolean(liveSearch),
+    { githubInstallation: canSetUpGitHubInstallation }
+  )
   const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined
   const setupGuideActions = docsUrl
     ? [
@@ -400,21 +401,7 @@ export function AddConnectorModal({
       ? {
           scope,
           accessMode: access.accessMode,
-          connectorConfig: canSetUpGitHubInstallation
-            ? {
-                ...connectorConfig,
-                configFields: connectorConfig.configFields.map((field) =>
-                  field.id === 'repository'
-                    ? {
-                        ...field,
-                        type: 'selector',
-                        selectorKey: 'github.installationRepositories',
-                        placeholder: 'Select a repository',
-                      }
-                    : field
-                ),
-              }
-            : connectorConfig,
+          connectorConfig,
           sourceConfig,
           selectionLabels,
           credentialId: canSetUpGitHubInstallation
@@ -995,7 +982,9 @@ export function AddConnectorModal({
                     ? scope.kind === 'organization'
                       ? (searchLabels?.add ?? 'Add connection')
                       : 'Create & Invite'
-                    : 'Connect & Sync',
+                    : liveSearch
+                      ? 'Save connection'
+                      : 'Connect & Sync',
                 onClick: handleSubmit,
                 disabled: !canSubmit || isCreating || githubSetup.pending,
               }}

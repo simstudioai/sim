@@ -10,6 +10,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
@@ -166,6 +167,14 @@ export const organizationChatDelegationOperations = {
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
     delegationAudience: 'sim:knowledge',
+    delegatedServices: ['copilot'],
+  }),
+  secrets: defineOrganizationOperation({
+    id: 'organization.chats.secrets',
+    minimumRole: 'member',
+    principalKinds: ['organization_delegated'],
+    capability: 'copilot.use',
+    delegationAudience: ORGANIZATION_SECRETS_AUDIENCE,
     delegatedServices: ['copilot'],
   }),
   billing: defineOrganizationOperation({

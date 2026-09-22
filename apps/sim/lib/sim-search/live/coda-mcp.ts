@@ -3,6 +3,7 @@ import { validateToolArguments } from '@/lib/mcp/application/execute-tool'
 import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolResult } from '@/lib/mcp/types'
+import { hasDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { loadOwnCodaMcpRuntime } from '@/lib/sim-search/live/mcp-accounts'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
@@ -119,14 +120,16 @@ export async function searchCodaMcp(
   client: CodaMcpClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
-  if (!(input.native?.query ?? input.query).trim())
+  const query = nativeText(input)
+  if (input.native?.project && !/^coda:\/\/docs\/[\w-]+$/.test(input.native.project))
     throw new NativeSearchError(
       'unavailable',
-      'Coda MCP requires text search terms; date-only listing is unavailable.'
+      'Coda search requires a document URI such as coda://docs/ID.'
     )
   const result = object(
     await client.call('search', {
-      query: input.native?.query ?? input.query,
+      query,
+      ...(query ? { types: ['page', 'tableRow'] } : {}),
       limit: Math.min(input.limit, 10),
       ...(input.native?.project ? { docUri: requireCodaUri(input.native.project) } : {}),
       ...(input.native?.cursor ? { cursor: input.native.cursor } : {}),
@@ -139,7 +142,7 @@ export async function searchCodaMcp(
       'Coda search returned an unsupported result format; no complete coverage can be claimed.'
     )
   const documents: NativeDocument[] = []
-  for (const row of array(rows)) {
+  for (const row of array(rows).slice(0, Math.min(input.limit, 10))) {
     const url = codaUrl(row.url ?? row.webUrl)
     const uri = string(row.uri ?? row.id)
     const id = uri.startsWith('coda://') ? requireCodaUri(uri) : url
@@ -159,9 +162,14 @@ export async function searchCodaMcp(
   return {
     documents,
     nextCursor,
-    partial: documents.length < rows.length || Boolean(nextCursor),
+    partial: documents.length < rows.length || Boolean(nextCursor) || hasDateBounds(input.filters),
     message:
-      'Coda content search includes pages and table rows. Narrow the query or target a document for more results.',
+      (query
+        ? 'Coda content search includes pages and table rows. Narrow the query or target a document for more results.'
+        : 'Coda lists documents by recency. Continue with the returned cursor for more documents.') +
+      (hasDateBounds(input.filters)
+        ? ' Date filters apply to returned timestamps in Sim; Coda does not accept date bounds for search.'
+        : ''),
   }
 }
 

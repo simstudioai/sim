@@ -20,7 +20,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
-import { liveGitLabSearchMeta } from '@/lib/sim-search/live/gitlab-settings'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import {
   ConnectServiceAccountModal,
@@ -160,7 +160,9 @@ export function ConnectorSettingsFields({
   onWorkspaceCredentialChange,
 }: ConnectorSettingsFieldsProps) {
   const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
-  const connectorConfig = liveGitLabSearchMeta(originalConfig, Boolean(liveSearch))
+  const connectorConfig = liveSearchSourceMeta(originalConfig, Boolean(liveSearch), {
+    githubInstallation: usesGitHubInstallation && scope.kind === 'organization',
+  })
   const providerId =
     connectorConfig?.auth.mode === 'oauth'
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
@@ -210,9 +212,11 @@ export function ConnectorSettingsFields({
   })
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
-  const selectorCredentialId = syncsPerMember
-    ? browseCredentialId
-    : (workspaceCredentialId ?? credentialId)
+  const selectorCredentialId = isGitHubInstallationSource
+    ? contentCredentialId
+    : syncsPerMember
+      ? browseCredentialId
+      : (workspaceCredentialId ?? credentialId)
   const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
   const installations = rawCredentials.filter(
     (credential) => credential.provider === GITHUB_INSTALLATION_PROVIDER_ID

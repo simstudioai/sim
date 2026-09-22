@@ -15,6 +15,7 @@ const {
   mockIsOAuthServiceDeploymentAvailable,
   mockTrackChatUpload,
   mockSearchApprovals,
+  mockSecretNames,
 } = vi.hoisted(() => ({
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockGetHighestPrioritySubscription: vi.fn(),
@@ -23,9 +24,13 @@ const {
   mockIsOAuthServiceDeploymentAvailable: vi.fn((_providerId: string) => true),
   mockTrackChatUpload: vi.fn(),
   mockSearchApprovals: vi.fn(async () => new Map<string, boolean>()),
+  mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
 }))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
+vi.mock('@/lib/mothership/application/execute-organization-secret-use-case', () => ({
+  executeOrganizationSecretUseCase: mockSecretNames,
+}))
 vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
   buildWorkspaceInventory: vi.fn(async () => ({
     workflows: [],
@@ -419,6 +424,7 @@ describe('buildCopilotRequestPayload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
+    mockSecretNames.mockResolvedValue({ names: [] })
   })
 
   it.each(['workspace', 'organization'] as const)(
@@ -465,6 +471,47 @@ describe('buildCopilotRequestPayload', () => {
         expect(payload).not.toHaveProperty(key)
       expect(payload.clientCapabilities).toEqual([])
       if (owner === 'organization') expect(payload).not.toHaveProperty('integrationTools')
+    }
+  )
+
+  it.each(['agent', 'assistant'] as const)(
+    'only discovers Generic Secrets for Build: %s',
+    async (mode) => {
+      mockSecretNames.mockResolvedValueOnce({ names: ['SERVICE_TOKEN'] })
+      const payload = await buildCopilotRequestPayload(
+        {
+          message: 'Use the service',
+          userId: 'actor',
+          userMessageId: 'message',
+          chatId: 'chat',
+          organizationId: 'org',
+          mode,
+          model: '',
+        },
+        { selectedModel: '' }
+      )
+      const context = payload.context?.find((entry) => entry.type === 'generic_secrets')
+      if (mode === 'agent') {
+        expect(mockSecretNames).toHaveBeenCalledOnce()
+        expect(mockSecretNames).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: 'actor',
+            organizationId: 'org',
+            chatId: 'chat',
+            requestMode: 'agent',
+            copilotToolExecution: true,
+          }),
+          expect.anything(),
+          {}
+        )
+        expect(JSON.parse(context!.content)).toEqual({
+          names: ['SERVICE_TOKEN'],
+          usage: expect.stringContaining('environment variables'),
+        })
+      } else {
+        expect(mockSecretNames).not.toHaveBeenCalled()
+        expect(context).toBeUndefined()
+      }
     }
   )
 
@@ -734,12 +781,13 @@ describe('Assistant payload', () => {
       { selectedModel: '' }
     )
     expect(payload.organizationId).toBe('org-1')
+    expect(payload).not.toHaveProperty('integrationCatalog')
     expect(payload).not.toHaveProperty('workspaceId')
     expect(payload).not.toHaveProperty('desktopCapabilities')
     expect(payload).not.toHaveProperty('integrationTools')
   })
 
-  it('keeps the shared search scope and only personally authenticated integrations', async () => {
+  it('keeps the shared search scope without an integration gateway catalog', async () => {
     clearIntegrationToolSchemaCacheForTests()
     const payload = await buildCopilotRequestPayload(
       {
@@ -768,7 +816,7 @@ describe('Assistant payload', () => {
       expect(payload).not.toHaveProperty(field)
     }
     expect(payload).not.toHaveProperty('integrationTools')
-    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
+    expect(payload).not.toHaveProperty('integrationCatalog')
   })
 })
 

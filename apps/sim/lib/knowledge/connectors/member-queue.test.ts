@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -70,10 +77,23 @@ const CONNECTOR_ROW = {
 describe('member sync queue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     mockIsTriggerAvailable.mockReturnValue(true)
     mockResolveRegion.mockResolvedValue('us')
     mockExecuteMemberSync.mockResolvedValue({})
+  })
+
+  it('does not dispatch a live Search source to member indexing', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, isSearchIndex: true }])
+    expect(await dispatchMemberSync('c-1', { billingAttribution: BILLING })).toEqual({
+      queued: false,
+      reason: 'This source is searched live and does not require indexing.',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteMemberSync).not.toHaveBeenCalled()
   })
 
   describe('assertMemberSyncPayload', () => {

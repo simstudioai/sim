@@ -5,7 +5,6 @@
 import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { getToolMetadata } from '@/tools/metadata'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   getToolEntry: vi.fn(),
@@ -96,47 +95,55 @@ describe('copilot tool executor fallback', () => {
     }
   )
 
-  it('passes personal integration calls with trusted org authority and no workspace resolution', async () => {
-    const metadata = {
-      id: 'gmail_send',
-      params: {},
-      oauth: { required: true, provider: 'google-email' },
-    }
-    vi.mocked(getToolMetadata).mockReturnValueOnce(metadata).mockReturnValueOnce(metadata)
+  it.each([
+    ['organization', 'search_integration_tools'],
+    ['organization', 'call_integration_tool'],
+    ['organization', 'gmail_send'],
+    ['workspace', 'search_integration_tools'],
+    ['workspace', 'call_integration_tool'],
+    ['workspace', 'gmail_send'],
+  ])('rejects %s Search Assistant integration calls to %s', async (scope, toolId) => {
     isKnownTool.mockReturnValue(false)
     isClientExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true })
+    const handler = vi.fn()
+    registerHandler(toolId, handler)
     const result = await executeTool(
-      'gmail_send',
-      { credentialId: 'own' },
+      toolId,
+      { credentialId: 'own', toolId: 'gmail_send', arguments: { credentialId: 'own' } },
       {
         userId: 'person',
-        workflowId: '',
-        organizationId: 'org',
+        ...(scope === 'organization' ? { organizationId: 'org' } : { workspaceId: 'workspace' }),
         requestMode: 'assistant',
         copilotToolExecution: true,
         chatId: 'chat',
         toolCallId: 'call',
       }
     )
-    expect(result).toEqual({ success: true })
+    expect(result).toEqual({
+      success: false,
+      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+    })
+    expect(handler).not.toHaveBeenCalled()
+    expect(executeAppTool).not.toHaveBeenCalled()
+    expect(targets.resolve).not.toHaveBeenCalled()
+  })
+
+  it('preserves connected-service execution for workspace agent conversations', async () => {
+    isKnownTool.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true })
+    expect(
+      await executeTool(
+        'gmail_send',
+        { credentialId: 'own' },
+        { userId: 'person', workspaceId: 'workspace', requestMode: 'agent' }
+      )
+    ).toEqual({ success: true })
     expect(executeAppTool).toHaveBeenCalledWith(
       'gmail_send',
-      expect.objectContaining({
-        _context: expect.objectContaining({
-          organizationId: 'org',
-          workspaceId: undefined,
-          envReferenceMode: 'off',
-        }),
-      }),
-      expect.objectContaining({
-        operationContext: expect.objectContaining({
-          organizationId: 'org',
-          workspaceId: undefined,
-        }),
-      })
+      expect.objectContaining({ credential: 'own' }),
+      expect.any(Object)
     )
-    expect(targets.resolve).not.toHaveBeenCalled()
   })
 
   it.each(['run_function', 'run_code', 'read', 'mcp_remote_tool'])(
@@ -739,7 +746,7 @@ describe('organization direct tool targets', () => {
     expect(targets.environment).not.toHaveBeenCalled()
     expect(handler).not.toHaveBeenCalled()
   })
-  it('keeps no-target organization code explicitly secret-free', async () => {
+  it('routes organization code with its trusted scope for Generic Secrets', async () => {
     getToolEntry.mockReturnValue(undefined)
     const handler = vi.fn().mockResolvedValue({ success: true })
     registerHandler('run_code', handler)
@@ -758,8 +765,8 @@ describe('organization direct tool targets', () => {
       { code: 'print(1)' },
       expect.objectContaining({
         organizationId: 'org',
-        secretActorUserId: null,
-        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+        requestMode: 'agent',
+        userId: 'actor',
       })
     )
     expect(targets.environment).not.toHaveBeenCalled()

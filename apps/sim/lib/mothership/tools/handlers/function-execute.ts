@@ -34,6 +34,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@/lib/mothership/tool-executor/types'
+import { materializeOrganizationCodeSecrets } from '@/lib/mothership/tools/organization-secret-mount'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import {
   CopilotCodeSecretAccessError,
@@ -554,16 +555,19 @@ export async function executeFunctionExecute(
       if (!secretActorUserId) {
         throw new CopilotCodeSecretAccessError('Secret access is unavailable for this Copilot run')
       }
-      if (!context.workspaceId) {
+      if (context.organizationId || context.chatOrganizationId) {
+        mounted = await materializeOrganizationCodeSecrets(context, requestedNames)
+      } else if (!context.workspaceId) {
         throw new CopilotCodeSecretAccessError(
           'A workspace is required to mount secrets into Copilot code'
         )
+      } else {
+        mounted = await materializeCopilotCodeSecrets({
+          actorUserId: secretActorUserId,
+          workspaceId: context.workspaceId,
+          requestedNames,
+        })
       }
-      mounted = await materializeCopilotCodeSecrets({
-        actorUserId: secretActorUserId,
-        workspaceId: context.workspaceId,
-        requestedNames,
-      })
     }
     mountedRegistry = new ResolvedSecretTraceRegistry(mounted.catalogEntries, {
       userId: secretActorUserId ?? context.userId,

@@ -25,11 +25,12 @@ export async function searchCoda(
 ): Promise<NativePage> {
   const data = object(
     await client.json('/apis/v1/docs', {
-      query: {
-        ...(nativeText(input) ? { query: nativeText(input) } : {}),
-        limit: String(input.limit),
-        ...(input.native?.cursor ? { pageToken: input.native.cursor } : {}),
-      },
+      query: input.native?.cursor
+        ? { pageToken: input.native.cursor }
+        : {
+            ...(nativeText(input) ? { query: nativeText(input) } : {}),
+            limit: String(input.limit),
+          },
     })
   )
   return {
@@ -51,7 +52,7 @@ export async function readCoda(client: NativeClient, id: string): Promise<Native
   for (const page of array(pages.items).slice(0, 20)) {
     const content = object(
       await client.json(`/apis/v1/docs/${segment(id)}/pages/${segment(string(page.id))}/content`, {
-        query: { limit: '500' },
+        query: { limit: '500', contentFormat: 'plainText' },
       })
     )
     sections.push(

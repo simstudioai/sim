@@ -14,7 +14,13 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), audit: vi.fn(), config: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  context: vi.fn(),
+  audit: vi.fn(),
+  config: vi.fn(),
+  source: vi.fn(),
+}))
+vi.mock('@/lib/sim-search/live/service-sources', () => ({ loadLiveServiceSource: mocks.source }))
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeOwnerContext: mocks.context,
 }))
@@ -33,6 +39,7 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   SEARCH_SOURCE_TYPES: [
     ['gmail', { name: 'Gmail' }],
     ['google_drive', { name: 'Google Drive' }],
+    ['github', { name: 'GitHub' }],
   ],
 }))
 
@@ -40,6 +47,7 @@ import {
   approveSearchIntegration,
   listSearchIntegrations,
 } from '@/lib/knowledge/application/search-integrations'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 const principal = { kind: 'session', sessionId: 'session', userId: 'actor' } as const
@@ -50,6 +58,7 @@ beforeEach(() => {
   resetDbChainMock()
   resetEnvFlagsMock()
   mocks.config.mockResolvedValue(null)
+  mocks.source.mockResolvedValue({ id: 'source' })
   mocks.context.mockResolvedValue({ organizationId: input.organizationId })
 })
 
@@ -129,6 +138,7 @@ describe('organization Search approval', () => {
     ).resolves.toEqual([
       { connectorType: 'gmail', approved: false },
       { connectorType: 'google_drive', approved: true },
+      { connectorType: 'github', approved: false },
     ])
   })
 })
@@ -208,6 +218,53 @@ it('enforces the organization Knowledge capability for delegated admins', async 
 })
 
 describe('live organization search policies', () => {
+  it('clears source settings when switching to member accounts', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    const result = await approveSearchIntegration.execute({
+      principal,
+      input: {
+        ...input,
+        policy: {
+          ...defaultLiveSearchPolicy(),
+          sourceId: 'previous-source',
+          mode: 'selected',
+          included: ['INBOX'],
+          excluded: ['Personal'],
+        },
+      },
+    })
+    expect(result.policy).toEqual(defaultLiveSearchPolicy())
+    expect(mocks.source).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { error: new NativeSearchError('unavailable', 'Source is unavailable'), code: 'validation' },
+    { error: new Error('Database unavailable'), code: undefined },
+  ])(
+    'rejects unavailable sources before writing without masking infrastructure errors',
+    async ({ error, code }) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.source.mockRejectedValueOnce(error)
+      const attempt = approveSearchIntegration.execute({
+        principal,
+        input: {
+          ...input,
+          policy: {
+            ...defaultLiveSearchPolicy(),
+            accessMode: 'service_account',
+            sourceId: 'source',
+          },
+        },
+      })
+      if (code) await expect(attempt).rejects.toMatchObject({ code, message: error.message })
+      else await expect(attempt).rejects.toBe(error)
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects policy writes when the rollout flag is off', async () => {
     queueTableRows(member, [{ role: 'owner' }])
     await expect(
@@ -219,7 +276,7 @@ describe('live organization search policies', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-  it('saves a normalized scope and its approval in one transaction', async () => {
+  it('saves a validated service source and its approval in one transaction', async () => {
     setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     const result = await approveSearchIntegration.execute({
@@ -229,16 +286,58 @@ describe('live organization search policies', () => {
         connectorType: 'google_drive',
         policy: {
           ...defaultLiveSearchPolicy(),
+          accessMode: 'service_account',
+          sourceId: 'source',
           mode: 'selected',
           included: ['https://drive.google.com/drive/folders/team', 'team'],
         },
       },
     })
-    expect(result.policy?.included).toEqual(['team'])
+    expect(result.policy).toMatchObject({
+      accessMode: 'service_account',
+      sourceId: 'source',
+      included: [],
+    })
+    expect(mocks.source).toHaveBeenCalledWith(
+      { organizationId: 'organization' },
+      'google_drive',
+      'source',
+      { requireApproved: false }
+    )
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(dbChainMockFns.update).toHaveBeenCalledWith(organization)
     expect(dbChainMockFns.insert).toHaveBeenCalledWith(organizationSearchIntegration)
     expect(result.changed).toBe(true)
+  })
+  it('allows GitHub App mode without a single source ID', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    const result = await approveSearchIntegration.execute({
+      principal,
+      input: {
+        ...input,
+        connectorType: 'github',
+        policy: { ...defaultLiveSearchPolicy(), accessMode: 'service_account' },
+      },
+    })
+    expect(result.policy).toMatchObject({ accessMode: 'service_account' })
+    expect(result.policy?.sourceId).toBeUndefined()
+    expect(mocks.source).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
+  it('saves an unfinished service-account source without exposing member-mode search', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    const result = await approveSearchIntegration.execute({
+      principal,
+      input: {
+        ...input,
+        policy: { ...defaultLiveSearchPolicy(), accessMode: 'service_account' },
+      },
+    })
+    expect(result.policy).toMatchObject({ accessMode: 'service_account' })
+    expect(result.policy?.sourceId).toBeUndefined()
+    expect(mocks.source).not.toHaveBeenCalled()
   })
   it('rejects invalid scope data before any protected write', async () => {
     setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
@@ -280,7 +379,7 @@ describe('live organization search policies', () => {
     })
     expect(rows.find((row) => row.connectorType === 'gmail')).toMatchObject({
       approved: true,
-      policy: { excluded: ['Personal'] },
+      policy: { accessMode: 'member', excluded: [] },
     })
   })
 })

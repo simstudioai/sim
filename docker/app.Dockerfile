@@ -132,7 +132,7 @@ FROM base AS runner
 WORKDIR /app
 
 # Dev images opt into live search; a runtime flag remains the rollback switch.
-ARG SIM_SEARCH_LIVE_DEFAULT=false
+ARG SIM_SEARCH_LIVE_DEFAULT=true
 ENV SIM_SEARCH_LIVE_DEFAULT=$SIM_SEARCH_LIVE_DEFAULT
 
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage

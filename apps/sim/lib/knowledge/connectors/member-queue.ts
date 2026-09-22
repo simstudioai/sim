@@ -16,6 +16,7 @@ import {
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -273,6 +274,7 @@ export async function dispatchMemberSync(
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
+      isSearchIndex: knowledgeBase.isSearchIndex,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -283,6 +285,8 @@ export async function dispatchMemberSync(
     logger.warn('Skipping member sync dispatch: connector not found', { connectorId, requestId })
     return { queued: false, reason: 'Connector no longer exists' }
   }
+  if (!requiresConnectorIndexing(row.isSearchIndex))
+    return { queued: false, reason: 'This source is searched live and does not require indexing.' }
   if (row.kbDeletedAt) {
     logger.warn('Skipping member sync dispatch: knowledge base is deleted', {
       connectorId,

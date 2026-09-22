@@ -923,7 +923,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
     return {
       id,
       label: 'Sources',
-      description: 'Set up the sources your organization searches.',
+      description: '',
       icon: Integration,
       group,
     }

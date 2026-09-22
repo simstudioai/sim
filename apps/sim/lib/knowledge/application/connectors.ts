@@ -252,6 +252,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   return {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
+    isSearchIndex: context.knowledgeBase.isSearchIndex,
     workspaceId: context.workspaceId ?? null,
     organizationId: context.organizationId ?? null,
   }

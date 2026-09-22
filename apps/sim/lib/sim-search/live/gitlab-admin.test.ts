@@ -182,6 +182,18 @@ describe('administrator-managed live GitLab authorization', () => {
       expect.any(AbortSignal)
     )
   })
+  it('keeps the provider revision as evidence instead of relabeling it with the allowed branch', async () => {
+    const current = await session({ ...source.config, ...{ ref: 'main' }, contentTypes: 'repo' })
+    mocks.search.mockResolvedValue({ documents: [{ ...file, revision: 'other-branch' }] })
+    const result = await current.search({ query: 'secret', limit: 10, scopes: [] })
+    expect(result.documents[0]?.revision).toBe('other-branch')
+    expect(await current.verify(result.documents[0]!)).toBe(false)
+    const scopedClient = mocks.search.mock.calls[0]![0]
+    await scopedClient.json('/api/v4/projects/42/search', { query: { scope: 'blobs' } })
+    expect(client.json).toHaveBeenLastCalledWith('/api/v4/projects/42/search', {
+      query: { scope: 'blobs', ref: 'main' },
+    })
+  })
   it('preserves the narrower legacy default content selection', () => {
     expect(gitLabSourceKinds({})).toEqual(['wiki', 'issues'])
     expect(gitLabSourceKinds({ contentTypes: 'unknown' })).toEqual([])

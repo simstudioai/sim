@@ -1,6 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
+import { toRecord } from '@sim/utils/object'
 import { and, desc, eq, exists, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 import {
   listSearchSourcesContract,
@@ -258,6 +259,10 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           connectorType: row.connectorType,
           sourceDescription: meta ? describeSearchSource(meta, row.sourceConfig) : '',
           accessMode: row.accessMode,
+          isGitHubInstallation:
+            row.connectorType === 'github' &&
+            row.accessMode === 'members' &&
+            typeof toRecord(row.sourceConfig).githubRepositoryId === 'string',
           availability: available ? ('available' as const) : ('unavailable' as const),
           enabled,
           ...(approvals ? { approved: approvals.get(row.connectorType) ?? true } : {}),

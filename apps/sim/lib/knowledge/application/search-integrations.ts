@@ -9,11 +9,15 @@ import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contex
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import {
+  defaultLiveSearchPolicy,
+  LIVE_SEARCH_SERVICE_PROVIDERS,
   type LiveSearchPolicy,
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
+import { loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 
 interface SearchIntegrationInput {
   organizationId: string
@@ -60,8 +64,36 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
     if (input.policy) {
       try {
         policy = normalizeLiveSearchPolicy(input.connectorType, input.policy)
+        if (input.connectorType === 'gitlab') {
+          if (policy.accessMode === 'member') throw new Error('GitLab requires a service account')
+          policy = { ...defaultLiveSearchPolicy('gitlab'), accessMode: 'service_account' }
+        } else if (policy.accessMode === 'service_account') {
+          if (!LIVE_SEARCH_SERVICE_PROVIDERS.includes(input.connectorType))
+            throw new Error('Select a supported service account source')
+          policy = {
+            ...defaultLiveSearchPolicy(),
+            accessMode: 'service_account',
+            ...(input.connectorType !== 'github' ? { sourceId: policy.sourceId } : {}),
+          }
+        } else {
+          policy = defaultLiveSearchPolicy()
+        }
       } catch {
         throw new OrchestrationError('validation', 'Check the search scope and resource IDs.')
+      }
+      if (policy.accessMode === 'service_account' && policy.sourceId) {
+        try {
+          await loadLiveServiceSource(
+            { organizationId: context.organizationId },
+            input.connectorType,
+            policy.sourceId,
+            { requireApproved: false }
+          )
+        } catch (error) {
+          if (error instanceof NativeSearchError)
+            throw new OrchestrationError('validation', error.message)
+          throw error
+        }
       }
     }
     const saveApproval = (connection: Pick<typeof db, 'insert'>) =>

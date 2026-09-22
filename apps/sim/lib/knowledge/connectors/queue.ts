@@ -16,6 +16,7 @@ import {
   CONTENT_ENGINE_ACCESS_MODES,
   isContentEngineAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
@@ -312,6 +313,7 @@ export async function dispatchSync(
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
+      isSearchIndex: knowledgeBase.isSearchIndex,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -323,6 +325,8 @@ export async function dispatchSync(
     logger.warn('Skipping sync dispatch: connector not found', { connectorId, requestId })
     return { queued: false, reason: 'Connector no longer exists' }
   }
+  if (!requiresConnectorIndexing(row.isSearchIndex))
+    return { queued: false, reason: 'This source is searched live and does not require indexing.' }
   if (row.kbDeletedAt) {
     logger.warn('Skipping sync dispatch: knowledge base is deleted', {
       connectorId,

@@ -977,12 +977,22 @@ describe('grouped member integrations', () => {
 describe('live integrations backend selection', () => {
   it('connects through existing OAuth enrollment without loading indexed sources', async () => {
     mocks.live = true
+    mocks.integrations.mockReturnValue({
+      data: [{ connectorType: 'google_drive', approved: true }],
+    })
     mocks.organizationAccounts.mockReturnValue({
       data: {
         credentialGroup: {
           status: 'active',
+          mcpServers: [],
           options: [
-            { id: 'drive', provider: 'google-drive', label: 'Google Drive', status: 'active' },
+            {
+              id: 'drive',
+              provider: 'google-drive',
+              label: 'Google Drive',
+              status: 'active',
+              configurationStatus: 'ready',
+            },
           ],
         },
         viewerAccounts: [],
@@ -990,7 +1000,6 @@ describe('live integrations backend selection', () => {
       isError: false,
     })
     await render('', <OrganizationIntegrations />)
-    expect(container.textContent).toContain('no indexing setup is needed')
     await act(async () => buttons('Connect')[0].click())
     expect(mocks.connectOrganizationAccount).toHaveBeenCalledWith(
       { organizationId: scope.organizationId, optionId: 'drive' },
@@ -998,20 +1007,31 @@ describe('live integrations backend selection', () => {
     )
     expect(mocks.sources).not.toHaveBeenCalled()
     expect(mocks.overview).not.toHaveBeenCalled()
-    expect(mocks.integrations).not.toHaveBeenCalled()
+    expect(mocks.integrations).toHaveBeenCalledWith(scope.organizationId)
     expect(mocks.connectSearchSource).not.toHaveBeenCalled()
   })
   it('offers reconnect for an existing personal grant', async () => {
     mocks.live = true
+    mocks.integrations.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
     mocks.organizationAccounts.mockReturnValue({
       data: {
         credentialGroup: {
           status: 'active',
-          options: [{ id: 'slack', provider: 'slack', label: 'Slack', status: 'active' }],
+          mcpServers: [],
+          options: [
+            {
+              id: 'slack',
+              provider: 'slack',
+              label: 'Slack',
+              status: 'active',
+              configurationStatus: 'ready',
+            },
+          ],
         },
         viewerAccounts: [
           {
             credentialId: 'my-slack',
+            providerId: 'slack',
             optionId: 'slack',
             displayName: 'My Slack',
             status: 'needs_reauth',
@@ -1023,6 +1043,6 @@ describe('live integrations backend selection', () => {
     await render('', <OrganizationIntegrations />)
     await act(async () => buttons('Reconnect')[0].click())
     expect(mocks.reconnectOrganizationAccount).toHaveBeenCalledWith('my-slack', expect.any(Object))
-    expect(container.textContent).toContain('reconnect needed')
+    expect(container.textContent).toContain('Reconnect needed')
   })
 })

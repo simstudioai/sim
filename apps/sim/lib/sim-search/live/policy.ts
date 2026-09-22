@@ -1,10 +1,14 @@
 import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { CodaMcpClient } from '@/lib/sim-search/live/coda-mcp'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
-import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { type LiveSearchPolicy, requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
 
 type Reference = Pick<NativeDocument, 'id' | 'container' | 'kind'>
+type PolicyVerifier = (
+  document: Reference,
+  providerMetadata?: Record<string, unknown>
+) => Promise<boolean>
 
 export function permitsResources(policy: LiveSearchPolicy, resources: readonly string[]) {
   if (resources.some((id) => policy.excluded.includes(id))) return false
@@ -24,14 +28,18 @@ export function permitsPath(policy: LiveSearchPolicy, path: string) {
   )
 }
 
-/** One request-local metadata cache; neither tokens nor permissions survive the request. */
+/**
+ * One request-local metadata cache; neither tokens nor permissions survive the request.
+ * Optional document metadata must come from a current read using this verifier's client.
+ */
 export function createPolicyVerifier(
   provider: LiveSearchProvider,
   policy: LiveSearchPolicy,
   client: NativeClient | null,
   origin: string,
   mcp?: CodaMcpClient
-) {
+): PolicyVerifier {
+  if (!requiresScopedRetrieval(provider, policy)) return async () => true
   const calls = new Map<string, Promise<unknown>>()
   const json = (path: string, query?: Record<string, string>) => {
     if (!client)
@@ -68,7 +76,7 @@ export function createPolicyVerifier(
     if (!policy.includeArchived && channel.is_archived === true) return false
     return true
   }
-  return async (document: Reference): Promise<boolean> => {
+  return async (document, providerMetadata): Promise<boolean> => {
     if (provider === 'google_drive') {
       if (!restricted && !policy.fileTypes.length) return true
       const metadata = async (id: string) =>
@@ -78,7 +86,7 @@ export function createPolicyVerifier(
             supportsAllDrives: 'true',
           })
         )
-      const row = await metadata(document.id)
+      const row = providerMetadata ?? (await metadata(document.id))
       if (row.id !== document.id || row.trashed === true) return false
       if (policy.fileTypes.length && !policy.fileTypes.includes(string(row.mimeType))) return false
       if (!restricted) return true
@@ -110,12 +118,14 @@ export function createPolicyVerifier(
     }
     if (provider === 'gmail') {
       if (!restricted && !policy.excludePromotions && !policy.excludeSocial) return true
-      const row = object(
-        await json(`/gmail/v1/users/me/messages/${segment(document.id)}`, {
-          format: 'metadata',
-          fields: 'id,labelIds',
-        })
-      )
+      const row =
+        providerMetadata ??
+        object(
+          await json(`/gmail/v1/users/me/messages/${segment(document.id)}`, {
+            format: 'metadata',
+            fields: 'id,labelIds',
+          })
+        )
       if (row.id !== document.id || !Array.isArray(row.labelIds)) return false
       const ids = row.labelIds.map(string)
       if (policy.excludePromotions && ids.includes('CATEGORY_PROMOTIONS')) return false
@@ -208,12 +218,15 @@ export function createPolicyVerifier(
       if (id.startsWith('https://') && mcp) {
         const url = new URL(id)
         if (
-          !['coda.io', 'docs.superhuman.com'].includes(url.hostname) ||
+          !['https://coda.io', 'https://docs.superhuman.com'].includes(url.origin) ||
           url.username ||
           url.password
         )
           return false
-        id = string(object(await mcp.call('url_convert', { action: 'decode', url: id })).uri)
+        const decoded = object(
+          await mcp.call('url_convert', { action: 'decode', url: id, scope: 'document' })
+        )
+        id = string(decoded.docUri ?? decoded.uri)
       }
       const docId = mcp ? id.match(/^coda:\/\/docs\/([\w-]+)(?:\/|$)/)?.[1] : id
       return Boolean(docId) && permitsResources(policy, [docId!])

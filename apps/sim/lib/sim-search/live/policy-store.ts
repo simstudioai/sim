@@ -29,7 +29,8 @@ export async function loadLiveSearchPolicies(owner: ResourceOwner) {
 
 /** Invalid saved policies fail closed instead of falling back to unrestricted search. */
 export function livePolicyFor(policies: Record<string, unknown>, provider: string) {
-  return policies[provider] === undefined
-    ? defaultLiveSearchPolicy()
-    : liveSearchPolicySchema.parse(policies[provider])
+  if (policies[provider] === undefined) return defaultLiveSearchPolicy(provider)
+  const policy = liveSearchPolicySchema.parse(policies[provider])
+  if (provider === 'gitlab') return { ...policy, accessMode: 'service_account' as const }
+  return policy.accessMode === 'service_account' ? policy : defaultLiveSearchPolicy(provider)
 }

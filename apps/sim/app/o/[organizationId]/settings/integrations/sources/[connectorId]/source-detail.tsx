@@ -127,13 +127,18 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
         <SettingsEmptyState variant='inline'>Loading connection…</SettingsEmptyState>
       </SettingsPanel>
     )
-  if (liveSearch && detail.data.connectorType !== 'gitlab')
+  if (
+    liveSearch &&
+    detail.data.accessMode === 'members' &&
+    !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)
+  )
     return (
-      <SettingsPanel back={back} title='Search integration'>
+      <SettingsPanel back={back} title='Member accounts'>
         <SettingsEmptyState variant='inline'>
-          Live search uses connected accounts and organization search scopes.
+          Members search all content their connected accounts can access. Manage this integration’s
+          account mode in Sources.
         </SettingsEmptyState>
-        <ChipLink href={backHref}>Manage search integrations</ChipLink>
+        <ChipLink href={backHref}>Manage sources</ChipLink>
       </SettingsPanel>
     )
   return (
@@ -378,8 +383,7 @@ function SourcePanel({
   children,
   ...panel
 }: SourcePanelProps) {
-  const liveSearch =
-    useDeploymentShape().features.liveEnterpriseSearch && connector.connectorType === 'gitlab'
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const lifecycle = useConnectorActions({
     connector,
     knowledgeBaseId: connector.knowledgeBaseId,
@@ -458,8 +462,7 @@ function SourceSettingsForm({
   onSaved,
   onDiscard,
 }: SourceSettingsFormProps) {
-  const liveSearch =
-    useDeploymentShape().features.liveEnterpriseSearch && connector.connectorType === 'gitlab'
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const form = useConnectorSettingsForm({
     connector: baseline,
     syncing: isConnectorSyncingOrPending(connector),
@@ -496,10 +499,10 @@ function SourceSettingsForm({
           }}
         />
       )}
-      {liveSearch && (
+      {liveSearch && connector.connectorType === 'gitlab' && (
         <SettingsResourceRow
           title='Organization-managed GitLab'
-          description='Administrator tokens verify current GitLab permissions. Non-admin tokens use the user and project permissions files below. Members do not connect personal GitLab accounts.'
+          description='Admin tokens check current permissions. Other tokens use the CSV mappings below.'
         />
       )}
       <div className='-mx-2 flex flex-col gap-4'>
