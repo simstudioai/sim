@@ -13,9 +13,15 @@ const untouched = { begin: vi.fn() } as unknown as Sql
 
 type PageRow = { scanned: number; filled: number; last_id: string | null }
 
+/** The message the database pairs with each cancellation SQLSTATE. */
+const CANCELLATION_MESSAGES: Record<string, string> = {
+  '55P03': 'canceling statement due to lock timeout',
+  '57014': 'canceling statement due to statement timeout',
+}
+
 /** A driver error carrying a SQLSTATE, the shape `postgres` throws. */
-function postgresError(code: string): Error {
-  return Object.assign(new Error(`canceling statement (SQLSTATE ${code})`), { code })
+function postgresError(code: string, message = CANCELLATION_MESSAGES[code] ?? 'failed'): Error {
+  return Object.assign(new Error(`${message} (SQLSTATE ${code})`), { code })
 }
 
 /**
@@ -93,6 +99,27 @@ describe('backfillProjectionSourceAcl', () => {
       'SQLSTATE 42P01'
     )
     expect(cursors).toEqual([''])
+  })
+
+  it('propagates an explicit cancellation, which shares the statement timeout SQLSTATE', async () => {
+    const { session, cursors } = sessionOf([
+      postgresError('57014', 'canceling statement due to user request'),
+    ])
+    await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).rejects.toThrow(
+      'user request'
+    )
+    expect(cursors).toEqual([''])
+  })
+
+  it('does not start another page when the budget ran out during the retry pause', async () => {
+    const { session, cursors } = sessionOf([
+      { scanned: 1, filled: 1, last_id: 'id-1' },
+      postgresError('57014'),
+    ])
+    await expect(
+      backfillNow(session, 'embedding_search', { pauseMs: 0, budgetMs: 1000 })
+    ).resolves.toMatchObject({ afterId: 'id-1', done: false })
+    expect(cursors).toEqual(['', 'id-1'])
   })
 
   it('leaves a page still failing at the budget to the continuation, from the last committed page', async () => {
