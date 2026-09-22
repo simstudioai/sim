@@ -63,6 +63,7 @@ import {
 import {
   assertSyncLeaseHeldInTx,
   buildSyncLockAcquisition,
+  buildSyncUnscheduledUpdate,
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
@@ -352,6 +353,22 @@ export function isContentPassIncomplete(
   )
 }
 
+/** Live documents the connector owns: what the connector list shows as its document count. */
+async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+  return row?.count ?? 0
+}
+
 /**
  * Atomically publishes the completed log and connector terminal state.
  *
@@ -394,9 +411,11 @@ export async function completeSuccessfulSync(
   const completionNotice =
     [directoryNotice, listingNotice, contentNotice].filter(Boolean).join('\n') || null
   /**
-   * A display snapshot, taken before the completion transaction so a slow count neither holds
-   * the connector lock nor turns a sync whose documents already landed into a failure. When it
-   * cannot be read the previous count stands.
+   * Read before the completion transaction so a slow count neither holds the connector lock
+   * nor turns a sync whose documents already landed into a failure. It is also the previous
+   * owned count the next pass's mass-deletion guard starts from, so a tally of this run's
+   * adds and deletes would drift; when it cannot be read the previous count stands, which the
+   * guard already treats as a floor.
    */
   const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
     logger.warn('Could not count connector documents; keeping the previous count', {
@@ -569,14 +588,7 @@ async function releaseSyncLockOnDeletedConnector(
 ): Promise<void> {
   await db
     .update(knowledgeConnector)
-    .set({
-      status: 'error',
-      nextSyncAt: null,
-      lastSyncError: 'Connector deleted during sync',
-      syncLockToken: null,
-      syncLockLeaseAt: null,
-      updatedAt: new Date(),
-    })
+    .set(buildSyncUnscheduledUpdate(new Date(), 'Connector deleted during sync'))
     .where(holdsSyncLockToken(connectorId, syncLogId))
 }
 
@@ -684,13 +696,8 @@ export function buildSyncCapacityUpdate(
   errorMessage: string
 ) {
   return {
-    status: 'error' as const,
-    lastSyncError: errorMessage,
-    nextSyncAt: null,
+    ...buildSyncUnscheduledUpdate(now, errorMessage),
     consecutiveFailures: previousFailures ?? 0,
-    syncLockToken: null,
-    syncLockLeaseAt: null,
-    updatedAt: now,
   }
 }
 
@@ -703,21 +710,6 @@ export function buildSyncCapacityUpdate(
  * `consecutiveFailures` still resets: a held pass is a healthy sync that declined
  * to delete, not a failure, and marking it broken would stop it syncing at all.
  */
-/** Live documents the connector owns: what the connector list shows as its document count. */
-async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-  return row?.count ?? 0
-}
 
 export function buildSyncSuccessUpdate(
   now: Date,
@@ -850,21 +842,13 @@ export async function executeSync(
   /**
    * A connector with no token source cannot succeed, and each attempt would only walk the
    * failure ladder and, at its end, disable a connector that merely needs reconnecting. Left
-   * unscheduled with the reconnect error instead; the same terminal transition as a deleted
-   * knowledge base, so a live run's own terminal write cannot revive the schedule.
+   * unscheduled with the reconnect error instead, the same transition as a deleted knowledge base.
    */
   if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
     logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        nextSyncAt: null,
-        lastSyncError: CREDENTIAL_REMOVED_SYNC_ERROR,
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
+      .set(buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REMOVED_SYNC_ERROR))
       .where(eq(knowledgeConnector.id, connectorId))
     return { ...result, skipReason: 'credential_missing' }
   }
@@ -890,25 +874,7 @@ export async function executeSync(
     )
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        nextSyncAt: null,
-        lastSyncError: 'Knowledge base deleted',
-        /**
-         * Clears the lock alongside the status.
-         *
-         * This write runs BEFORE the lock is taken, but it is unconditional on
-         * status, so it can land on a row a previous run left `syncing` — a run
-         * that may still be alive. Flipping status without releasing the token
-         * left a row that was neither locked nor reclaimable: the reaper only
-         * looks at `syncing` rows, and the old run's terminal write could still
-         * match its own token and resurrect a state for a knowledge base that no
-         * longer exists. Releasing both makes the transition terminal.
-         */
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
+      .set(buildSyncUnscheduledUpdate(new Date(), 'Knowledge base deleted'))
       .where(eq(knowledgeConnector.id, connectorId))
     return { ...result, skipReason: 'knowledge_base_deleted' }
   }

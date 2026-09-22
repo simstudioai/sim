@@ -330,12 +330,18 @@ export async function runConnectorContentPass(input: ContentPassInput) {
   const reconciliation = checkpoint.complete
     ? await reconcileCompletedListing(input, checkpoint, withLease)
     : { finished: false, notice: null }
+  /** Unverified permissions and an incomplete listing are independent holds; an admin needs to see both, one per line. */
+  const holdNotice =
+    [
+      checkpoint.permissionFailures ? SOURCE_PERMISSION_ERROR : null,
+      reconciliation.notice ?? (checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null),
+    ]
+      .filter(Boolean)
+      .join('\n') || null
   return {
     checkpoint,
     complete: checkpoint.complete && reconciliation.finished,
-    holdNotice: checkpoint.permissionFailures
-      ? SOURCE_PERMISSION_ERROR
-      : (reconciliation.notice ?? (checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null)),
+    holdNotice,
     hydratedCount,
   }
 }

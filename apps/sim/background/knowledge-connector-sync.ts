@@ -27,17 +27,6 @@ export function classifyConnectorSyncResult(result: SyncResult): ConnectorSyncTa
   return 'completed'
 }
 
-function formatConnectorSyncFailure(
-  connectorId: string,
-  result: SyncResult,
-  outcome: Extract<ConnectorSyncTaskOutcome, 'partial' | 'failed'>
-): string {
-  if (outcome === 'failed') {
-    return `Connector sync failed for ${connectorId}: ${result.error}`
-  }
-  return `Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`
-}
-
 export async function executeConnectorSyncJob(payload: unknown) {
   const {
     connectorId,
@@ -60,9 +49,10 @@ export async function executeConnectorSyncJob(payload: unknown) {
       dispatchToken,
     })
 
+    const outcome = classifyConnectorSyncResult(result)
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,
-      outcome: classifyConnectorSyncResult(result),
+      outcome,
       deferred: result.deferred,
       added: result.docsAdded,
       updated: result.docsUpdated,
@@ -75,7 +65,6 @@ export async function executeConnectorSyncJob(payload: unknown) {
       processingDispatchFailed: result.processingDispatch.failed,
     })
 
-    const outcome = classifyConnectorSyncResult(result)
     if (outcome === 'failed') {
       /**
        * `executeSync` has already persisted its terminal state, and retrying this
@@ -85,10 +74,12 @@ export async function executeConnectorSyncJob(payload: unknown) {
        * connector pass replays them, its dispatch failures stay eligible for the
        * stuck-document sweep, and the outcome rides on the return value.
        */
-      throw new AbortTaskRunError(formatConnectorSyncFailure(connectorId, result, 'failed'))
+      throw new AbortTaskRunError(`Connector sync failed for ${connectorId}: ${result.error}`)
     }
-    if (outcome === 'partial') {
-      logger.warn(`[${requestId}] ${formatConnectorSyncFailure(connectorId, result, 'partial')}`)
+    if (outcome === 'partial' && (result.docsFailed > 0 || result.processingDispatch.failed > 0)) {
+      logger.warn(
+        `[${requestId}] Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`
+      )
     }
 
     return {

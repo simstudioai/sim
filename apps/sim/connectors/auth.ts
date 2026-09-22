@@ -34,9 +34,11 @@ export function connectorHasAuthSource(
   auth: ConnectorAuthConfig,
   connector: { credentialId: string | null; encryptedApiKey: string | null }
 ): boolean {
-  if (auth.mode === 'apiKey') return true
-  if (connector.credentialId) return true
-  return Boolean(getConnectorApiKeyConfig(auth) && connector.encryptedApiKey)
+  return (
+    auth.mode === 'apiKey' ||
+    Boolean(connector.credentialId) ||
+    Boolean(getConnectorApiKeyConfig(auth) && connector.encryptedApiKey)
+  )
 }
 
 /** Workspace token input supported by a connector, independent of its member OAuth method. */

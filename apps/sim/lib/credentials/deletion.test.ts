@@ -204,22 +204,29 @@ describe('clearCredentialRefs', () => {
     const updates = capturedQueries.filter((query) =>
       query.sql.startsWith('update "knowledge_connector"')
     )
-    expect(updates).toHaveLength(1)
+    expect(updates).toHaveLength(2)
     const statement = normalizeSql(updates[0].sql)
     expect(statement).toContain('"credential_id" = $')
+    expect(statement).toContain('"last_sync_error" = $')
     expect(statement).toContain('"next_sync_at" = $')
     expect(statement).toContain('"sync_lock_token" = $')
     expect(statement).toContain('"sync_lock_lease_at" = $')
     expect(statement).toContain(
       `CASE WHEN "knowledge_connector"."status" IN ('paused', 'disabled')`
     )
+    expect(statement).toContain('"access_mode" in ($')
     expect(updates[0].params).toEqual(
       expect.arrayContaining([
-        null,
         'Credential removed. Reconnect the connector to resume syncing.',
         'credential-target',
+        'workspace',
+        'admin',
       ])
     )
+    const rest = normalizeSql(updates[1].sql)
+    expect(rest).toContain('"credential_id" = $')
+    expect(rest).not.toContain('"last_sync_error"')
+    expect(updates[1].params).toEqual(expect.arrayContaining([null, 'credential-target']))
   })
 
   it('propagates database failures', async () => {
