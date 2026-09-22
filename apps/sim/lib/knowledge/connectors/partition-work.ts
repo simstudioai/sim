@@ -11,6 +11,8 @@ export interface ConnectorPartitionWorkItem<Context> {
   cursor?: string
   attempts: number
   hasFailure: boolean
+  /** This kind's retained failure, whose `since` carries a standing condition's first observation. */
+  failure?: ListingFailure
   permissionStartedAt?: Date
 }
 

@@ -2,9 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GoogleApiError, readGoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
+  GoogleWorkspaceMailboxNotSetup,
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
   listGoogleWorkspaceDocuments,
+  serviceNotEnabledFailure,
   validateGoogleWorkspaceConfig,
 } from '@/connectors/google-workspace/company-crawl'
 import type { ConnectorConfig, ExternalDocument } from '@/connectors/types'
@@ -483,18 +485,18 @@ describe('Google Workspace per-user central crawl', () => {
     }
   )
 
-  it('skips an explicitly unprovisioned Gmail mailbox without a token or a listing failure', async () => {
+  it('leaves an explicitly unprovisioned Gmail mailbox to the scheduler before requesting a token', async () => {
     directory([USER('alice', undefined, { isMailboxSetup: false }), USER('bob')])
     const ctx: Record<string, unknown> = context()
-    const first = await list(ctx)
-    expect(first).toMatchObject({ documents: [], hasMore: true })
-    expect(first.listingFailures).toBeUndefined()
-    expect(first.reconciliationSafe).toBeUndefined()
+    const error = await list(ctx).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(GoogleWorkspaceMailboxNotSetup)
+    expect(serviceNotEnabledFailure(error)).toEqual({
+      operation: 'directory.users.get',
+      reasons: ['mailboxNotSetup'],
+    })
     expect(ctx.reconciliationUnsafe).toBeUndefined()
     expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-    const second = await list(context(), first.nextCursor)
-    expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
-    expect(second.listingFailures).toBeUndefined()
+    expect(listUserDocuments).not.toHaveBeenCalled()
   })
 
   it('does not use Gmail mailbox eligibility for Calendar', async () => {
