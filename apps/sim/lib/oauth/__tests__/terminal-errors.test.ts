@@ -58,7 +58,7 @@ describe('isTerminalRefreshError', () => {
     expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(true)
   })
 
-  it.each([undefined, 'microsoft', 'salesforce', 'google-email'])(
+  it.each([undefined, 'microsoft', 'salesforce', 'google-email', 'constructor', '__proto__'])(
     'does not treat unauthorized_client as terminal for %s',
     (providerId) => {
       expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(false)

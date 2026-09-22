@@ -23,10 +23,10 @@ const TERMINAL_ERRORS = new Set<string>([
  * registration, and treating it as terminal would send every credential of the provider to
  * reauthorization over one configuration fault.
  */
-const PROVIDER_TERMINAL_ERRORS: Readonly<Record<string, ReadonlySet<string>>> = {
-  confluence: new Set(['unauthorized_client']),
-  jira: new Set(['unauthorized_client']),
-}
+const PROVIDER_TERMINAL_ERRORS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ['confluence', new Set(['unauthorized_client'])],
+  ['jira', new Set(['unauthorized_client'])],
+])
 
 const DEAD_CACHE_TTL_SEC = 60 * 60
 
@@ -40,7 +40,7 @@ export function isTerminalRefreshError(
 ): boolean {
   if (!code) return false
   if (TERMINAL_ERRORS.has(code)) return true
-  return providerId !== undefined && (PROVIDER_TERMINAL_ERRORS[providerId]?.has(code) ?? false)
+  return providerId !== undefined && (PROVIDER_TERMINAL_ERRORS.get(providerId)?.has(code) ?? false)
 }
 
 export async function markCredentialDead(accountId: string, code: string): Promise<void> {
