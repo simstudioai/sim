@@ -10,7 +10,7 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { permissionSatisfies } from '@sim/platform-authz/workspace'
+import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
@@ -179,6 +179,13 @@ export async function grantWorkspaceAccessDirectly(
             and(eq(member.userId, input.actorId), eq(member.organizationId, input.organizationId))
           )
           .for('update')
+        await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(eq(member.userId, input.userId), eq(member.organizationId, input.organizationId))
+          )
+          .for('update')
 
         const workspaceRow = await getWorkspaceWithOwner(input.workspaceId, {
           executor: tx,
@@ -228,7 +235,9 @@ export async function grantWorkspaceAccessDirectly(
           .limit(1)
 
         let outcome: DirectGrantOutcome
-        if (existing) {
+        if (isOrgAdminRole(inviteeMembership.role)) {
+          outcome = { outcome: 'unchanged', permission: 'admin' }
+        } else if (existing) {
           const existingPermission = existing.permissionType as PermissionType
           if (
             input.existingPermissionPolicy === 'ensure-at-least' &&

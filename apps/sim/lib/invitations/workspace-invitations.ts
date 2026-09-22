@@ -140,17 +140,15 @@ async function ensureExistingMemberOrganizationRole({
   request?: OrchestrationRequestContext
   validateLockedWorkspace?: GrantWorkspaceAccessDirectlyInput['validateLockedWorkspace']
 }): Promise<{ role: string; updated: boolean }> {
-  if (requestedRole !== 'admin' || isOrgAdminRole(currentRole)) {
+  if (requestedRole !== 'admin' && !isOrgAdminRole(currentRole)) {
     return { role: currentRole, updated: false }
   }
 
-  const updated = await db.transaction(async (tx) => {
-    if (validateLockedWorkspace) {
-      await acquireInvitationMutationLocks(tx, {
-        invitationIds: [],
-        workspaceIds: context.targets.map((target) => target.workspaceId),
-      })
-    }
+  const result = await db.transaction(async (tx) => {
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [],
+      workspaceIds: context.targets.map((target) => target.workspaceId),
+    })
     await acquireOrganizationUserMutationLocks(tx, {
       userId,
       organizationIds: [organizationId],
@@ -173,36 +171,60 @@ async function ensureExistingMemberOrganizationRole({
       )
       .for('update')
       .limit(1)
-    if (!actorMembership || !isOrgAdminRole(actorMembership.role) || !targetMembership) {
+    const needsPromotion = requestedRole === 'admin' && !isOrgAdminRole(targetMembership?.role)
+    if (!targetMembership || (needsPromotion && !isOrgAdminRole(actorMembership?.role))) {
       throw new WorkspaceInvitationError({
         message: 'Organization membership changed. Refresh and try again.',
         status: 409,
         email,
       })
     }
-    if (isOrgAdminRole(targetMembership.role)) return false
-    if (validateLockedWorkspace) {
-      for (const workspaceId of context.targets.map((target) => target.workspaceId).sort()) {
-        const workspaceDetails = await getWorkspaceWithOwner(workspaceId, {
-          executor: tx,
-          forUpdate: true,
+    for (const workspaceId of context.targets.map((target) => target.workspaceId).sort()) {
+      const workspaceDetails = await getWorkspaceWithOwner(workspaceId, {
+        executor: tx,
+        forUpdate: true,
+      })
+      if (!workspaceDetails || workspaceDetails.organizationId !== organizationId) {
+        throw new WorkspaceInvitationError({
+          message:
+            'A selected workspace changed organizations. Review the selection and try again.',
+          status: 409,
+          email,
         })
-        if (!workspaceDetails || workspaceDetails.organizationId !== organizationId) {
-          throw new WorkspaceInvitationError({
-            message:
-              'A selected workspace changed organizations. Review the selection and try again.',
-            status: 409,
-            email,
-          })
-        }
-        await validateLockedWorkspace(tx, workspaceDetails)
       }
+      await tx
+        .select({ id: permissions.id })
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workspaceId),
+            eq(permissions.userId, context.inviterId)
+          )
+        )
+        .for('update')
+      if (
+        (await getEffectiveWorkspacePermission(context.inviterId, workspaceDetails, tx)) !== 'admin'
+      ) {
+        throw new WorkspaceInvitationError({
+          message: 'Your workspace permissions changed. Review the selection and try again.',
+          status: 409,
+          email,
+        })
+      }
+      await validateLockedWorkspace?.(tx, workspaceDetails)
     }
-    await tx.update(member).set({ role: 'admin' }).where(eq(member.id, memberId))
-    return true
+    if (needsPromotion) {
+      await tx.update(member).set({ role: 'admin' }).where(eq(member.id, memberId))
+    }
+    return {
+      role: needsPromotion ? 'admin' : targetMembership.role,
+      updated: needsPromotion,
+      previousRole: targetMembership.role,
+    }
   })
 
-  if (updated) {
+  if (result.updated) {
     recordAudit({
       actorId: context.auditActor ? context.auditActor.id : context.inviterId,
       actorName: context.auditActor ? context.auditActor.name : context.inviterName,
@@ -216,13 +238,13 @@ async function ensureExistingMemberOrganizationRole({
         ...context.auditActor?.metadata,
         targetUserId: userId,
         memberId,
-        previousRole: currentRole,
+        previousRole: result.previousRole,
         newRole: 'admin',
       },
       request,
     })
   }
-  return { role: 'admin', updated }
+  return { role: result.role, updated: result.updated }
 }
 
 /**
@@ -642,6 +664,7 @@ export async function createWorkspaceInvitation({
      */
     if (organizationId && existingMembership?.organizationId === organizationId) {
       let outcome: DirectGrantOutcome['outcome'] = organizationRoleUpdated ? 'updated' : 'unchanged'
+      const grantedWorkspaceIds: string[] = []
       for (const target of pendingTargets) {
         let directGrant: DirectGrantOutcome
         try {
@@ -673,6 +696,7 @@ export async function createWorkspaceInvitation({
           }
           throw error
         }
+        if (directGrant.outcome !== 'unchanged') grantedWorkspaceIds.push(target.workspaceId)
         if (directGrant.outcome === 'added') outcome = 'added'
         else if (directGrant.outcome === 'updated' && outcome === 'unchanged') outcome = 'updated'
       }
@@ -680,7 +704,7 @@ export async function createWorkspaceInvitation({
       return {
         id: existingUser.id,
         email: normalizedEmail,
-        workspaceIds: pendingTargets.map((target) => target.workspaceId),
+        workspaceIds: grantedWorkspaceIds,
         permission: invitationPermission,
         membershipIntent: 'internal',
         instantAdd: true,
