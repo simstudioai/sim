@@ -27,9 +27,14 @@ export function htmlRuntimeShell(appOrigin: string): string {
       return new Promise((resolve, reject) => {
         const requestId = ++sequence;
         const timeout = setTimeout(() => { pending.delete(requestId); reject(new Error('Workflow request timed out; read its status before retrying')); }, 600000);
-        pending.set(requestId, { resolve, reject, timeout });
+        const notify = input !== null && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 0;
+        pending.set(requestId, { resolve, reject, timeout, workflowId, notify });
         port.postMessage({ type: 'sim:workflow:request', requestId, method, workflowId, input });
       });
+    }
+    function publish(workflowId, result) {
+      for (const callback of subscribers.get(workflowId) ?? []) callback(result);
+      window.dispatchEvent(new CustomEvent('sim:workflow-result', { detail: { workflowId, result } }));
     }
     port.onmessage = ({ data }) => {
       if (data?.type === 'sim:workflow:response') {
@@ -37,10 +42,13 @@ export function htmlRuntimeShell(appOrigin: string): string {
         if (!waiting) return;
         pending.delete(data.requestId);
         clearTimeout(waiting.timeout);
-        data.error ? waiting.reject(new Error(data.error)) : waiting.resolve(data.result);
+        if (data.error) waiting.reject(new Error(data.error));
+        else {
+          waiting.resolve(data.result);
+          if (waiting.notify) publish(waiting.workflowId, data.result);
+        }
       } else if (data?.type === 'sim:workflow:changed') {
-        for (const callback of subscribers.get(data.workflowId) ?? []) callback(data.result);
-        window.dispatchEvent(new CustomEvent('sim:workflow-result', { detail: { workflowId: data.workflowId, result: data.result } }));
+        publish(data.workflowId, data.result);
       }
     };
     Object.defineProperty(window, 'sim', { value: Object.freeze({ workflows: Object.freeze({

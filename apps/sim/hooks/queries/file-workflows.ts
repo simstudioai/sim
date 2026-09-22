@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type FileWorkflowSnapshot,
@@ -75,14 +75,14 @@ export function useFileWorkflowResults(target: FileWorkflowTarget, workflowIds: 
       return values
     },
     staleTime: FILE_WORKFLOW_STALE_TIME,
-    refetchInterval: 10_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     enabled: workflowIds.length > 0,
     retry: false,
   })
 }
 
 export function useFileWorkflowRequest(target: FileWorkflowTarget) {
-  const client = useQueryClient()
   return useMutation({
     mutationFn: ({
       method,
@@ -93,7 +93,6 @@ export function useFileWorkflowRequest(target: FileWorkflowTarget) {
       workflowId: string
       input?: FileWorkflowInputValues
     }) => accessWorkflow(target, workflowId, method, input),
-    onSettled: () => client.invalidateQueries({ queryKey: fileWorkflowKeys.lists() }),
   })
 }
 

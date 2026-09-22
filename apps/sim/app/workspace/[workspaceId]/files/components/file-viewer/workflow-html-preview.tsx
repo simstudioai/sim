@@ -95,9 +95,10 @@ function WorkflowHtmlFrame({
   const workflowIdKey = JSON.stringify(workflowIds)
   const [bridgeError, setBridgeError] = useState<string | null>(null)
   const failed = Boolean(results.error || runtime.error || bridgeError)
+  const awaitingResults = workflowIds.length > 0 && !results.data
 
   useEffect(() => {
-    if (!frameUrl || failed) return
+    if (!frameUrl || failed || awaitingResults) return
     let active = true
     let initialized = false
     let pending = 0
@@ -184,7 +185,7 @@ function WorkflowHtmlFrame({
       port.current?.close()
       port.current = null
     }
-  }, [frameUrl, html, request, workflowIdKey, failed])
+  }, [frameUrl, html, request, workflowIdKey, failed, awaitingResults])
 
   useEffect(() => {
     for (const entry of results.data ?? [])
@@ -210,7 +211,8 @@ function WorkflowHtmlFrame({
         {runtime.error.message}
       </div>
     )
-  if (!frameUrl) return <div className='p-4 text-[var(--text-muted)]'>Loading document…</div>
+  if (!frameUrl || awaitingResults)
+    return <div className='p-4 text-[var(--text-muted)]'>Loading document…</div>
   return (
     <iframe
       ref={frame}
