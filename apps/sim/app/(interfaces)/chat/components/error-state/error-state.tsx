@@ -19,7 +19,7 @@ export function ChatErrorState({ error }: ChatErrorStateProps) {
           onClick={() => router.push(APP_ENTRY_PATH)}
           fullWidth
           type='button'
-          className='text-center'
+          align='center'
         >
           Open Sim
         </Chip>
