@@ -1,4 +1,5 @@
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 function definePermissionGroupOperation<const Id extends string>(
   id: Id,
@@ -54,4 +55,18 @@ export const permissionGroupOperations = {
    * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
    */
   listWorkspaces: definePermissionGroupOperation('permission_groups.workspaces.list', 'api:read'),
+} as const
+
+export const permissionGroupWorkspaceOperations = {
+  /**
+   * permission-group-exempt: Members must be able to read their own restrictions.
+   */
+  readUserConfig: defineWorkspaceOperation({
+    id: 'permission_groups.read_user_config',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    oauthScope: 'api:read',
+    capability: 'none',
+  }),
 } as const

@@ -6,6 +6,21 @@
  * `bun run generate:mcp-operations`; CI fails when this file is stale.
  */
 
+import {
+  v2CancelOrganizationAccessRequestContract,
+  v2CancelWorkspaceAccessRequestContract,
+  v2CreateOrganizationAccessRequestContract,
+  v2CreateWorkspaceAccessRequestContract,
+  v2DiscoverOrganizationAccessRequestsContract,
+  v2DiscoverWorkspaceAccessRequestsContract,
+  v2GetOrganizationAccessRequestSettingsContract,
+  v2ListMyOrganizationAccessRequestsContract,
+  v2ListMyWorkspaceAccessRequestsContract,
+  v2ListOrganizationAccessRequestsContract,
+  v2PreviewOrganizationAccessRequestContract,
+  v2ResolveOrganizationAccessRequestContract,
+  v2UpdateOrganizationAccessRequestSettingsContract,
+} from '@/lib/api/contracts/v2/access-requests'
 import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import {
   v2GetBillingStatusContract,
@@ -136,10 +151,18 @@ import {
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
 import {
+  v2GetOrganizationMemberUsageLimitContract,
+  v2GetOrganizationUsageBreakdownContract,
+  v2GetOrganizationUsageSummaryContract,
+  v2ListOrganizationUsageEventsContract,
+  v2UpdateOrganizationMemberUsageLimitContract,
+} from '@/lib/api/contracts/v2/organization-usage'
+import {
   v2CreateOrganizationInvitationContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
   v2ListOrganizationInvitationsContract,
+  v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
@@ -300,10 +323,12 @@ import {
   v2UpdateWorkspaceForkExclusionsContract,
   v2UpdateWorkspaceForkMappingsContract,
 } from '@/lib/api/contracts/v2/workspace-fork'
+import { v2CreateWorkspaceInvitationsContract } from '@/lib/api/contracts/v2/workspace-invitations'
 import {
   v2GetWorkspaceOperationContract,
   v2ListWorkspaceOperationsContract,
 } from '@/lib/api/contracts/v2/workspace-operations'
+import { v2GetWorkspacePermissionConfigContract } from '@/lib/api/contracts/v2/workspace-permissions'
 import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
@@ -459,6 +484,17 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/rows/bulk-update/route').then((route) => route.POST),
   },
+  cancelOrganizationAccessRequest: {
+    contract: v2CancelOrganizationAccessRequestContract,
+    summary: 'Cancel Organization Access Request',
+    description:
+      'Cancel the acting user’s pending request in this scope, including an organization-wide member credit-limit request. Already resolved requests are returned unchanged. Cancellation remains available while requests are disabled. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel/route'
+      ).then((route) => route.POST),
+  },
   cancelTableDispatch: {
     contract: v2CancelTableDispatchContract,
     summary: 'Cancel Run Dispatch',
@@ -501,6 +537,17 @@ export const V2_MCP_OPERATIONS = {
       'Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/cancel/route').then(
+        (route) => route.POST
+      ),
+  },
+  cancelWorkspaceAccessRequest: {
+    contract: v2CancelWorkspaceAccessRequestContract,
+    summary: 'Cancel Workspace Access Request',
+    description:
+      'Cancel the acting user’s pending request in this scope, including an organization-wide member credit-limit request. Already resolved requests are returned unchanged. Cancellation remains available while requests are disabled. Requires access to the workspace; external collaborators use their workspace grant. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel/route').then(
         (route) => route.POST
       ),
   },
@@ -649,6 +696,17 @@ export const V2_MCP_OPERATIONS = {
       'Register an external MCP server without connecting to it. A duplicate URL returns `409`; use Update MCP Server to change the existing registration. The server remains disconnected until List MCP Server Tools succeeds.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/mcp-servers/route').then((route) => route.POST),
   },
+  createOrganizationAccessRequest: {
+    contract: v2CreateOrganizationAccessRequestContract,
+    summary: 'Create Organization Access Request',
+    description:
+      'Request access for the acting user using a target from discovery. Returns an existing matching pending request when applicable; the result may be closed if access is already available. Permission approvals change the governing group for all affected members. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/route').then(
+        (route) => route.POST
+      ),
+  },
   createOrganizationInvitation: {
     contract: v2CreateOrganizationInvitationContract,
     summary: 'Create Organization Invitation',
@@ -775,6 +833,26 @@ export const V2_MCP_OPERATIONS = {
       'Create an MCP server that exposes deployed workflows as tools. Every supplied workflow must already be deployed. With `isPublic: true`, anyone with the server URL can execute its workflows without a Sim API key. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/workflow-mcp-servers/route').then((route) => route.POST),
+  },
+  createWorkspaceAccessRequest: {
+    contract: v2CreateWorkspaceAccessRequestContract,
+    summary: 'Create Workspace Access Request',
+    description:
+      'Request access for the acting user using a target from discovery. Returns an existing matching pending request when applicable; the result may be closed if access is already available. Permission approvals change the governing group for all affected members. Requires access to the workspace; external collaborators use their workspace grant. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/access-requests/route').then(
+        (route) => route.POST
+      ),
+  },
+  createWorkspaceInvitations: {
+    contract: v2CreateWorkspaceInvitationsContract,
+    summary: 'Create Workspace Invitations',
+    description:
+      'Invite people to a workspace or grant access immediately to existing organization members. Requires workspace administrator access and current invitation eligibility; organization administrator invitations also require organization administrator access. Recipients are processed independently: inspect failed even after HTTP 200, and inspect invitation status before retrying a delivery failure. Existing access is preserved. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/invitations/route').then((route) => route.POST),
   },
   deleteCredential: {
     contract: v2DeleteCredentialContract,
@@ -1032,6 +1110,28 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.POST
       ),
   },
+  discoverOrganizationAccessRequests: {
+    contract: v2DiscoverOrganizationAccessRequestsContract,
+    summary: 'Discover Organization Access Requests',
+    description:
+      'Discover the acting user’s access to features, integrations, models, tools, authentication methods, and member credit limits. Returns an empty list while requests are disabled. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/discovery/route').then(
+        (route) => route.GET
+      ),
+  },
+  discoverWorkspaceAccessRequests: {
+    contract: v2DiscoverWorkspaceAccessRequestsContract,
+    summary: 'Discover Workspace Access Requests',
+    description:
+      'Discover the acting user’s access to features, integrations, models, tools, authentication methods, and member credit limits. Returns an empty list while requests are disabled. Requires access to the workspace; external collaborators use their workspace grant. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/access-requests/discovery/route').then(
+        (route) => route.GET
+      ),
+  },
   duplicateWorkflow: {
     contract: v2DuplicateWorkflowContract,
     summary: 'Duplicate Workflow',
@@ -1228,14 +1328,58 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/route').then((route) => route.GET),
   },
+  getOrganizationAccessRequestSettings: {
+    contract: v2GetOrganizationAccessRequestSettingsContract,
+    summary: 'Get Organization Access Request Settings',
+    description:
+      'Get whether the organization allows new access requests and approvals. This preference does not enable features unavailable in the deployment or subscription. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/settings/route').then(
+        (route) => route.GET
+      ),
+  },
   getOrganizationInvitation: {
     contract: v2GetOrganizationInvitationContract,
     summary: 'Get Organization Invitation',
     description:
-      'Get an invitation owned by the organization. Requires organization administrator access. The response excludes the acceptance token. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'Get an invitation owned by the organization. Requires organization administrator access. Use List Organization Invitation Workspaces to inspect its workspace grants. The response excludes the acceptance token. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/route').then(
+        (route) => route.GET
+      ),
+  },
+  getOrganizationMemberUsageLimit: {
+    contract: v2GetOrganizationMemberUsageLimitContract,
+    summary: 'Get Organization Member Credit Limit',
+    description:
+      'Read a person’s credit cap and credits consumed in the organization billing period. Hosted only. The userId identifies a user, including an external workspace collaborator; it is not a membership record ID. Null means no per-person cap, while organization limits still apply. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/members/[userId]/usage-limit/route').then(
+        (route) => route.GET
+      ),
+  },
+  getOrganizationUsageBreakdown: {
+    contract: v2GetOrganizationUsageBreakdownContract,
+    summary: 'Get Organization Usage Breakdown',
+    description:
+      'Read ranked organization usage by member, workspace, workflow, model, BYOK provider, or source. Requires organization administrator access and Usage Monitoring. Omitted usage is summarized in other. BYOK ranks tokens; other dimensions rank cost. More than 10,000 underlying groups returns 413; narrow the window or workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/usage/breakdown/route').then(
+        (route) => route.GET
+      ),
+  },
+  getOrganizationUsageSummary: {
+    contract: v2GetOrganizationUsageSummaryContract,
+    summary: 'Get Organization Usage Summary',
+    description:
+      'Read pooled credits, a usage series, and an exact previous-period comparison when available. Requires organization administrator access and Usage Monitoring (Enterprise on hosted; enabled on self-hosted). Defaults to 30 days. Custom dates include both dates in the selected timezone and cannot exceed 92 days. Billing windows exceeding 366 days are rejected. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/usage/summary/route').then(
         (route) => route.GET
       ),
   },
@@ -1444,6 +1588,17 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  getWorkspacePermissionConfig: {
+    contract: v2GetWorkspacePermissionConfigContract,
+    summary: 'Get Workspace Permission Config',
+    description:
+      "Get the acting user's governing permission group and configuration for a workspace they can access. This describes permission-group restrictions, not the user's workspace role. Group and config are null when no group governs the caller; entitled indicates whether organization permission governance is active. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route').then(
+        (route) => route.GET
+      ),
+  },
   grantSkillEditor: {
     contract: v2GrantSkillEditorContract,
     summary: 'Grant Skill Editor',
@@ -1635,6 +1790,39 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/mcp-servers/[mcpServerId]/tools/route').then((route) => route.GET),
   },
+  listMyOrganizationAccessRequests: {
+    contract: v2ListMyOrganizationAccessRequestsContract,
+    summary: 'List My Organization Access Requests',
+    description:
+      'List the acting user’s organization-level requests and member credit-limit requests, including resolved history. For workspace-scoped requests, use List My Workspace Access Requests. History remains available while requests are disabled. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/mine/route').then(
+        (route) => route.GET
+      ),
+  },
+  listMyWorkspaceAccessRequests: {
+    contract: v2ListMyWorkspaceAccessRequestsContract,
+    summary: 'List My Workspace Access Requests',
+    description:
+      'List only the acting user’s requests in this workspace, including resolved history and organization-wide member credit-limit requests. History remains available while requests are disabled. Requires access to the workspace; external collaborators use their workspace grant. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/access-requests/route').then(
+        (route) => route.GET
+      ),
+  },
+  listOrganizationAccessRequests: {
+    contract: v2ListOrganizationAccessRequestsContract,
+    summary: 'List Organization Access Requests',
+    description:
+      'List requests across the organization for administrator review. Includes requests from organization members and external workspace collaborators; history remains available while requests are disabled. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/route').then(
+        (route) => route.GET
+      ),
+  },
   listOrganizationInvitations: {
     contract: v2ListOrganizationInvitationsContract,
     summary: 'List Organization Invitations',
@@ -1645,6 +1833,17 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/organizations/[organizationId]/invitations/route').then(
         (route) => route.GET
       ),
+  },
+  listOrganizationInvitationWorkspaces: {
+    contract: v2ListOrganizationInvitationWorkspacesContract,
+    summary: 'List Organization Invitation Workspaces',
+    description:
+      "List workspace grants attached to an invitation of any status. Includes archived workspaces still owned by the organization; workspaces moved to another organization are omitted. Requires organization administrator access. These grants describe the invitation, not the invitee's current access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces/route'
+      ).then((route) => route.GET),
   },
   listOrganizationMembers: {
     contract: v2ListOrganizationMembersContract,
@@ -1664,6 +1863,17 @@ export const V2_MCP_OPERATIONS = {
       'List organizations the acting user belongs to. Organizations that disallow the calling credential are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/organizations/route').then((route) => route.GET),
+  },
+  listOrganizationUsageEvents: {
+    contract: v2ListOrganizationUsageEventsContract,
+    summary: 'List Organization Usage Events',
+    description:
+      'Page through usage events, including zero-cost reporting. Requires organization administrator access and Usage Monitoring. Defaults to 30 days. Cursors retain the initial reporting window; keep filters and sort unchanged while paging. The sim-chat source covers both chat surfaces. Per-event rounding can produce credits=0 with hasCost=true. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/usage/events/route').then(
+        (route) => route.GET
+      ),
   },
   listOrganizationWorkspaces: {
     contract: v2ListOrganizationWorkspacesContract,
@@ -1858,7 +2068,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListWorkspaceMembersContract,
     summary: 'List Workspace Members',
     description:
-      'List workspace members by email, including explicit grants and inherited organization admin access.\n\nOAuth scope: `api:read`.',
+      'List workspace members by email, including explicit grants and inherited organization admin access. Each member includes a stable user ID for member administration.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/members/route').then((route) => route.GET),
   },
@@ -1897,6 +2107,17 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Move up to 100 workflows into one folder. Moves succeed or fail independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/move/route').then((route) => route.POST),
+  },
+  previewOrganizationAccessRequest: {
+    contract: v2PreviewOrganizationAccessRequestContract,
+    summary: 'Preview Organization Access Request',
+    description:
+      'Preview the current permission changes, affected group and audience, or member credit cap. Review canApply, changes, impact, and fingerprint before resolving. Permission changes affect the entire governing group, not only the requester. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview/route'
+      ).then((route) => route.GET),
   },
   previewWorkflowImport: {
     contract: v2PreviewWorkflowImportContract,
@@ -2075,6 +2296,17 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import(
         '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend/route'
+      ).then((route) => route.POST),
+  },
+  resolveOrganizationAccessRequest: {
+    contract: v2ResolveOrganizationAccessRequestContract,
+    summary: 'Resolve Organization Access Request',
+    description:
+      'Apply a reviewed request or decline it with a reason. Applying requires the preview fingerprint; changed policy or membership returns a conflict. Credit requests also require a higher newLimitCredits. Already resolved requests are returned unchanged. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve/route'
       ).then((route) => route.POST),
   },
   restoreFile: {
@@ -2385,6 +2617,17 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/mcp-servers/[mcpServerId]/route').then((route) => route.PATCH),
   },
+  updateOrganizationAccessRequestSettings: {
+    contract: v2UpdateOrganizationAccessRequestSettingsContract,
+    summary: 'Update Organization Access Request Settings',
+    description:
+      'Allow or pause new access requests and approvals. Pausing preserves history, cancellation, and decline, and does not revoke previously granted access. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/settings/route').then(
+        (route) => route.PATCH
+      ),
+  },
   updateOrganizationMember: {
     contract: v2UpdateOrganizationMemberContract,
     summary: 'Update Organization Member',
@@ -2393,6 +2636,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/members/[userId]/route').then(
+        (route) => route.PATCH
+      ),
+  },
+  updateOrganizationMemberUsageLimit: {
+    contract: v2UpdateOrganizationMemberUsageLimitContract,
+    summary: 'Update Organization Member Credit Limit',
+    description:
+      'Set or clear a person’s credit cap. Hosted only. The userId can identify an external workspace collaborator. The cap is a nonnegative whole number of credits, not dollars: 0 prevents further credit-consuming usage; null removes the per-person cap. Organization limits continue to apply. Retrying the same value is safe. Requires organization administrator access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/members/[userId]/usage-limit/route').then(
         (route) => route.PATCH
       ),
   },

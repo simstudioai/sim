@@ -2998,6 +2998,223 @@ sim meta status
 
 ## sim organizations
 
+### sim organizations access-requests cancel
+
+Cancel Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests cancel <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests create
+
+Create Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. |
+
+</CommandTable>
+
+### sim organizations access-requests discover
+
+Discover Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations access-requests settings get
+
+Get Organization Access Request Settings (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests settings get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests settings update
+
+Update Organization Access Request Settings (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests settings update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--allow-requests <true\|false>` | Yes | Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+### sim organizations access-requests mine
+
+List My Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations access-requests list
+
+List Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--search <value>` | No | Case-insensitive substring match against the target label or requester name or email. |
+
+</CommandTable>
+
+### sim organizations access-requests preview
+
+Preview Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests preview <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests resolve
+
+Resolve Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests resolve <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--action <value>` | Yes | apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits. Accepted values: `apply`, `decline`. |
+| `--expected-fingerprint <value>` | No | Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply. |
+| `--new-limit-credits <value>` | No | Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply. |
+| `--reason <value>` | No | Required explanation for declining this request. Available when action is decline. Required when action is decline. |
+
+</CommandTable>
+
 ### sim organizations invitations create
 
 Create Organization Invitation (OAuth login or personal API key required)
@@ -3064,6 +3281,39 @@ sim organizations invitations list [options]
 | `--search <value>` | No | Case-insensitive substring match against the invitee email. |
 | `--status <value>` | No | Filter by current invitation status. Omit to include all statuses. Accepted values: `pending`, `accepted`, `rejected`, `cancelled`, `expired`. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `email`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations invitations workspaces
+
+List Organization Invitation Workspaces (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations workspaces <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
@@ -3145,6 +3395,63 @@ sim organizations get <organizationId>
 
 </CommandTable>
 
+### sim organizations members usage-limit get
+
+Get Organization Member Credit Limit (OAuth login or personal API key required)
+
+```bash
+sim organizations members usage-limit get <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User ID from List Organization Members or List Workspace Members, including external workspace collaborators. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations members usage-limit update
+
+Update Organization Member Credit Limit (OAuth login or personal API key required)
+
+```bash
+sim organizations members usage-limit update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User ID from List Organization Members or List Workspace Members, including external workspace collaborators. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--credit-limit <number\|null>` | Yes | Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply. |
+
+</CommandTable>
+
 ### sim organizations members list
 
 List Organization Members (OAuth login or personal API key required)
@@ -3222,6 +3529,79 @@ sim organizations members update <userId> [options]
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--role <value>` | Yes | New organization role. Ownership transfers use a separate operation. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+### sim organizations usage breakdown
+
+Get Organization Usage Breakdown (OAuth login or personal API key required)
+
+```bash
+sim organizations usage breakdown [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--dimension <value>` | Yes | Usage grouping dimension. Accepted values: `member`, `workspace`, `workflow`, `model`, `byok`, `source`. |
+| `--limit <value>` | No | Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50. |
+
+</CommandTable>
+
+### sim organizations usage summary
+
+Get Organization Usage Summary (OAuth login or personal API key required)
+
+```bash
+sim organizations usage summary [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+
+</CommandTable>
+
+### sim organizations usage events
+
+List Organization Usage Events (OAuth login or personal API key required)
+
+```bash
+sim organizations usage events [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--source <value>` | No | Restrict events to one product surface. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 
 </CommandTable>
 
@@ -6714,6 +7094,109 @@ sim workflows mkdir <path>
 
 Also spelled `sim workspace`.
 
+### sim workspaces access-requests cancel
+
+Cancel Workspace Access Request (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests cancel <requestId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+### sim workspaces access-requests create
+
+Create Workspace Access Request (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. |
+
+</CommandTable>
+
+### sim workspaces access-requests discover
+
+Discover Workspace Access Requests (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workspaces access-requests mine
+
+List My Workspace Access Requests (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workspaces invitations create
+
+Create Workspace Invitations (OAuth login or personal API key required)
+
+```bash
+sim workspaces invitations create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Accepted values: `admin`, `write`, `read`. |
+| `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Accepted values: `member`, `admin`, `external`. |
+
+</CommandTable>
+
 ### sim workspaces fork
 
 Fork Workspace (OAuth login or personal API key required)
@@ -6869,6 +7352,14 @@ sim workspaces operations wait <operationId> [options]
 | `--wait-timeout <seconds>` | No | Maximum total wait (default 3600; 0 waits indefinitely). |
 
 </CommandTable>
+
+### sim workspaces permission-config
+
+Get Workspace Permission Config (OAuth login or personal API key required)
+
+```bash
+sim workspaces permission-config
+```
 
 ### sim workspaces children
 

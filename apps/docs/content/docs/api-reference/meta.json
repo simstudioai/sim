@@ -19,6 +19,7 @@
     "(generated)/workspaces",
     "(generated)/organizations",
     "(generated)/permission-groups",
+    "(generated)/access-requests",
     "(generated)/workspace-sync",
     "(generated)/mcp-servers",
     "(generated)/skills",

@@ -1,24 +1,26 @@
 /**
  * @vitest-environment node
  */
+
+import { member } from '@sim/db/schema'
 import {
   auditMock,
   authMockFns,
   createMockRequest,
   createSession,
+  queueTableRows,
+  resetDbChainMock,
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockIsOrganizationOwnerOrAdmin,
   mockGetOrgMemberUsageLimit,
   mockGetOrgMemberUsageForCurrentPeriod,
   mockSetOrgMemberUsageLimit,
   mockGetOrganizationSubscription,
 } = vi.hoisted(() => ({
-  mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockGetOrgMemberUsageForCurrentPeriod: vi.fn(),
   mockSetOrgMemberUsageLimit: vi.fn(),
@@ -27,8 +29,11 @@ const {
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/users/queries', () => ({
+  getUserProfile: vi.fn().mockResolvedValue({ id: 'user-2' }),
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
@@ -63,8 +68,12 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockGetSession.mockResolvedValue(createSession({ userId: 'admin-1' }))
-    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'admin-1' }),
+      session: { id: 'session-1' },
+    })
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'admin' }])
     mockGetOrgMemberUsageForCurrentPeriod.mockResolvedValue(1) // $1 -> 200 credits
     mockGetOrgMemberUsageLimit.mockResolvedValue(2) // $2 -> 400 credits
     mockGetOrganizationSubscription.mockResolvedValue(null)
@@ -83,7 +92,8 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   })
 
   it('returns 403 for non-admin callers', async () => {
-    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'member' }])
     const res = await GET(getRequest(), context())
     expect(res.status).toBe(403)
   })
@@ -141,8 +151,12 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockGetSession.mockResolvedValue(createSession({ userId: 'admin-1' }))
-    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'admin-1' }),
+      session: { id: 'session-1' },
+    })
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'admin' }])
     mockSetOrgMemberUsageLimit.mockResolvedValue(undefined)
   })
 
@@ -154,7 +168,8 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   })
 
   it('returns 403 for non-admin callers', async () => {
-    mockIsOrganizationOwnerOrAdmin.mockResolvedValue(false)
+    resetDbChainMock()
+    queueTableRows(member, [{ role: 'member' }])
     const res = await PUT(putRequest({ creditLimit: 400 }), context())
     expect(res.status).toBe(403)
     expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()

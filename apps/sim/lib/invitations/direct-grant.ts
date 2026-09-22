@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   foldedEmail,
@@ -73,7 +74,12 @@ export interface GrantWorkspaceAccessDirectlyInput {
   actorName: string
   actorEmail?: string | null
   /** Audit attribution may differ from the authorized product actor for admin tooling. */
-  auditActor?: { id: string | null; name: string; email: string | null }
+  auditActor?: {
+    id: string | null
+    name: string
+    email: string | null
+    metadata?: { actor: PrincipalActor; operation: string }
+  }
   request?: OrchestrationRequestContext
   /** Send the lightweight "you've been added" email. Defaults to true. */
   notify?: boolean
@@ -354,6 +360,7 @@ export async function grantWorkspaceAccessDirectly(
         ? `Changed ${normalizedEmail} from ${result.previousPermission} to ${result.permission}`
         : `Added existing organization member ${normalizedEmail} as ${input.permission}`,
     metadata: {
+      ...input.auditActor?.metadata,
       targetEmail: normalizedEmail,
       targetRole: input.permission,
       organizationId: input.organizationId,

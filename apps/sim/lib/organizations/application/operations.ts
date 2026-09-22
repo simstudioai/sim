@@ -81,6 +81,16 @@ export const organizationOperations = {
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
     oauthScope: 'api:read',
   }),
+  /**
+   * permission-group-exempt: administrators can inspect existing invitation grants when invitations are disabled.
+   */
+  listInvitationWorkspaces: defineOrganizationOperation({
+    id: 'organizations.invitations.workspaces.list',
+    minimumRole: 'admin',
+    capability: 'none',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    oauthScope: 'api:read',
+  }),
   createInvitation: defineOrganizationOperation({
     id: 'organizations.invitations.create',
     minimumRole: 'admin',

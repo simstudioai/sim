@@ -41,6 +41,10 @@ export const FORBIDDEN_DETAIL_CODES = [
   'ORGANIZATION_PLAN_REQUIRED',
   /** Audit logging is switched off for this deployment. */
   'AUDIT_LOGS_DISABLED',
+  /** The organization or deployment has paused access requests. */
+  'ACCESS_REQUESTS_DISABLED',
+  /** Access requests need an organization-owned workspace. */
+  'ACCESS_REQUEST_ORGANIZATION_REQUIRED',
   /** The caller holds workspace write but is not an editor of this skill. */
   'SKILL_EDITOR_ACCESS_REQUIRED',
   /** The caller holds workspace write but is not an admin of this secret. */

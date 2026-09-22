@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal, toPrincipalActor } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -8,7 +9,16 @@ import {
   ForbiddenOperationError,
   type OperationUseCase,
 } from '@/lib/core/application'
-import { invitationOperations } from '@/lib/invitations/application/operations'
+import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
+import {
+  authorizeWorkspaceOperation,
+  requireAllowedWorkspacePrincipal,
+} from '@/lib/core/application/workspace-authorization'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  invitationAuthorityOperations,
+  invitationOperations,
+} from '@/lib/invitations/application/operations'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { prepareOrganizationInvitationContext } from '@/lib/invitations/organization-invitations'
 import {
@@ -19,6 +29,8 @@ import {
   type WorkspaceInvitationResult,
 } from '@/lib/invitations/workspace-invitations'
 import { createOrganizationInvitation } from '@/lib/organizations/application/invitations'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationBatch')
@@ -52,6 +64,7 @@ export const sendInvitationBatch: OperationUseCase<
 > = {
   operation: invitationOperations.sendBatch,
   async execute({ principal, input, request }) {
+    requireAllowedWorkspacePrincipal(principal, invitationAuthorityOperations.workspace)
     assertOperationPrincipal(principal, invitationOperations.sendBatch)
     if (
       input.emails.length === 0 ||
@@ -67,6 +80,36 @@ export const sendInvitationBatch: OperationUseCase<
         status: 400,
       })
     }
+    const authorizeCredential = async () => {
+      if (!isUserCredentialPrincipal(principal)) return
+      if (organizationOnly && input.organizationId) {
+        await authorizeOrganizationOperation(
+          principal,
+          invitationAuthorityOperations.organization,
+          {
+            organizationId: input.organizationId,
+          },
+          { executor: db }
+        )
+      }
+      for (const workspaceId of new Set(input.workspaceIds)) {
+        const context = await resolveActiveWorkspaceApplicationContext(workspaceId)
+        await authorizeWorkspaceOperation(
+          principal,
+          invitationAuthorityOperations.workspace,
+          context,
+          { executor: db }
+        )
+        await assertWorkspaceCapability(
+          principal.userId,
+          workspaceId,
+          'invitations.send',
+          context.workspaceOrganizationId,
+          db
+        )
+      }
+    }
+    await authorizeCredential()
     const [inviter] = await db
       .select({ name: user.name, email: user.email })
       .from(user)
@@ -78,6 +121,19 @@ export const sendInvitationBatch: OperationUseCase<
       inviterId: principal.userId,
       inviterName: inviter.name || inviter.email || 'A user',
       inviterEmail: inviter.email,
+      ...(isUserCredentialPrincipal(principal)
+        ? {
+            auditActor: {
+              id: principal.userId,
+              name: inviter.name || inviter.email || 'A user',
+              email: inviter.email,
+              metadata: {
+                actor: toPrincipalActor(principal),
+                operation: invitationOperations.sendBatch.id,
+              },
+            },
+          }
+        : {}),
     }
     const organizationContext =
       organizationOnly && input.organizationId
@@ -88,7 +144,24 @@ export const sendInvitationBatch: OperationUseCase<
         : null
     const workspaceContext = organizationOnly
       ? null
-      : await prepareWorkspaceInvitationContext({ ...identity, workspaceIds: input.workspaceIds })
+      : await prepareWorkspaceInvitationContext({
+          ...identity,
+          workspaceIds: input.workspaceIds,
+        }).catch((error: unknown) => {
+          if (isUserCredentialPrincipal(principal) && error instanceof WorkspaceInvitationError) {
+            if (error.status === 403) {
+              throw new ForbiddenOperationError(
+                error.upgradeRequired
+                  ? 'ORGANIZATION_PLAN_REQUIRED'
+                  : 'INSUFFICIENT_WORKSPACE_ROLE',
+                error.message
+              )
+            }
+            if (error.status === 404)
+              throw new OrchestrationError('not_found', 'Workspace not found')
+          }
+          throw error
+        })
     if (
       workspaceContext &&
       input.organizationId &&
@@ -118,6 +191,7 @@ export const sendInvitationBatch: OperationUseCase<
       }
       seenEmails.add(normalizedEmail)
       try {
+        await authorizeCredential()
         const invitation = organizationContext
           ? await createOrganizationInvitation.execute({
               principal,
@@ -155,13 +229,20 @@ export const sendInvitationBatch: OperationUseCase<
               error instanceof WorkspaceInvitationError
                 ? (error.email ?? normalizedEmail)
                 : normalizedEmail,
-            error: error.message,
+            error:
+              isUserCredentialPrincipal(principal) &&
+              error instanceof WorkspaceInvitationError &&
+              error.status >= 500
+                ? 'Unable to confirm invitation delivery. Check workspace members and invitations before retrying.'
+                : error.message,
           })
         } else {
           logger.error('Invitation batch item failed', { email: normalizedEmail, error })
           result.failed.push({
             email: normalizedEmail,
-            error: 'Failed to create invitation. Please try again.',
+            error: isUserCredentialPrincipal(principal)
+              ? 'Unable to confirm the invitation outcome. Check workspace members and invitations before retrying.'
+              : 'Failed to create invitation. Please try again.',
           })
         }
       }

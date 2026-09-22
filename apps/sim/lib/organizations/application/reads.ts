@@ -17,6 +17,7 @@ import {
 } from '@/lib/organizations/member-queries'
 import {
   listOrganizationInvitationRecords,
+  listOrganizationInvitationWorkspaceRecords,
   listOrganizationRecordsForUser,
   listOrganizationWorkspaceRecords,
   type OrganizationInvitationSortBy,
@@ -161,4 +162,20 @@ export const getOrganizationInvitation = defineAuthorizedOrganizationUseCase({
   operation: organizationOperations.readInvitation,
   execute: ({ input }: { input: OrganizationInvitationInput }) =>
     requireOrganizationInvitationRecord(input.organizationId, input.invitationId),
+})
+
+export const listOrganizationInvitationWorkspaces = defineAuthorizedOrganizationUseCase({
+  operation: organizationOperations.listInvitationWorkspaces,
+  async execute({
+    input,
+  }: {
+    input: OrganizationInvitationInput & OrganizationListOptions<OrganizationWorkspaceSortBy>
+  }) {
+    await requireOrganizationInvitationRecord(input.organizationId, input.invitationId)
+    return listOrganizationInvitationWorkspaceRecords(
+      input.organizationId,
+      input.invitationId,
+      input
+    )
+  },
 })

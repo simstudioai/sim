@@ -252,6 +252,25 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
   })
 
+  it('retains public credential identity on the existing direct-grant audit', async () => {
+    const metadata = {
+      actor: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      operation: 'invitations.send_batch',
+    } as const
+    await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      auditActor: { id: 'user-1', name: 'Owner', email: 'owner@example.com', metadata },
+    })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        action: 'member.added',
+        metadata: expect.objectContaining(metadata),
+      })
+    )
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+
   it('does not upgrade an existing lower permission (invites never modify access)', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'read' }])
 

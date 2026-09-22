@@ -30,7 +30,9 @@ export const USAGE_BREAKDOWN_DIMENSIONS = [
   'byok',
   'source',
 ] as const
-export const usageBreakdownDimensionSchema = z.enum(USAGE_BREAKDOWN_DIMENSIONS)
+export const usageBreakdownDimensionSchema = z
+  .enum(USAGE_BREAKDOWN_DIMENSIONS)
+  .describe('Usage grouping dimension.')
 export type UsageBreakdownDimension = z.output<typeof usageBreakdownDimensionSchema>
 
 /**
@@ -104,7 +106,8 @@ const organizationUsageWindowQuerySchema = z.object({
     .string()
     .min(1, 'timezone cannot be empty')
     .refine(isValidTimezone, 'Expected an IANA timezone such as America/Los_Angeles')
-    .default('UTC'),
+    .default('UTC')
+    .describe('IANA timezone for calendar boundaries; defaults to UTC.'),
 })
 
 /**
@@ -115,7 +118,9 @@ const organizationUsageWindowQuerySchema = z.object({
  * surface could express alone is one the two could disagree about.
  */
 const usageWorkspaceScopeShape = {
-  workspaceId: workspaceIdSchema.optional(),
+  workspaceId: workspaceIdSchema
+    .optional()
+    .describe('Restrict usage to one workspace owned by the organization.'),
 } as const
 
 export const organizationUsageSummaryQuerySchema =
@@ -162,65 +167,97 @@ export type OrganizationUsageExportQuery = z.input<typeof organizationUsageExpor
 
 /** Only the headline figure — see `readUsageTotals` for why nothing else lives here. */
 const usageTotalsSchema = z.object({
-  credits: z.number(),
+  credits: z.number().describe('Whole credits attributed to this total or group.'),
 })
 
 const usageSeriesPointSchema = z.object({
-  timestamp: z.string(),
-  credits: z.number(),
-  events: z.number().int(),
+  timestamp: z
+    .string()
+    .describe(
+      'Start of this calendar bucket as a local wall-clock timestamp in the requested timezone.'
+    ),
+  credits: z.number().describe('Whole credits attributed to this total or group.'),
+  events: z.number().int().describe('Number of usage events.'),
 })
 
 export const organizationUsageSummaryResponseSchema = z.object({
-  window: z.object({
-    start: z.string(),
-    end: z.string(),
-    source: z.enum(['reporting', 'stripe', 'default', 'range']),
-  }),
-  bucket: z.enum(['day', 'week', 'month']),
-  totals: usageTotalsSchema,
+  window: z
+    .object({
+      start: z.string().describe('Inclusive reporting-window start as an ISO 8601 UTC timestamp.'),
+      end: z.string().describe('Exclusive reporting-window end as an ISO 8601 UTC timestamp.'),
+      source: z
+        .enum(['reporting', 'stripe', 'default', 'range'])
+        .describe('How the reporting window was resolved.'),
+    })
+    .describe('Resolved reporting window.'),
+  bucket: z.enum(['day', 'week', 'month']).describe('Calendar granularity of the usage series.'),
+  totals: usageTotalsSchema.describe('Total usage for the selected window.'),
   /** `null` when the prior window is not exactly derivable — no delta beats a wrong one. */
-  previousTotals: usageTotalsSchema.nullable(),
-  series: z.array(usageSeriesPointSchema),
+  previousTotals: usageTotalsSchema
+    .nullable()
+    .describe('Exact previous-period total, or null when no exact comparison is available.'),
+  series: z
+    .array(usageSeriesPointSchema)
+    .describe('Chronological usage buckets, including buckets with no usage.'),
 })
 export type OrganizationUsageSummary = z.output<typeof organizationUsageSummaryResponseSchema>
 
 export const organizationUsageBreakdownRowSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  credits: z.number(),
-  events: z.number().int(),
+  id: z
+    .string()
+    .describe('Group or event identifier; an empty group ID represents unattributed usage.'),
+  label: z.string().describe('Display label for the usage group.'),
+  credits: z.number().describe('Whole credits attributed to this total or group.'),
+  events: z.number().int().describe('Number of usage events.'),
   /** 0..1 of the window total, not of the visible rows. */
-  share: z.number().min(0).max(1),
+  share: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Fraction of total cost, or total tokens for BYOK, between zero and one.'),
   /** Model dimensions only — resolved server-side so the client needs no model registry. */
-  providerId: z.string().optional(),
+  providerId: z.string().optional().describe('Model provider identifier, when applicable.'),
   /** Model dimensions only; BYOK rows carry no cost, so this is their only usage figure. */
-  tokens: z.number().int().optional(),
+  tokens: z.number().int().optional().describe('Input and output tokens for model or BYOK groups.'),
 })
 export type OrganizationUsageBreakdownRow = z.output<typeof organizationUsageBreakdownRowSchema>
 
 export const organizationUsageBreakdownResponseSchema = z.object({
   dimension: usageBreakdownDimensionSchema,
-  rows: z.array(organizationUsageBreakdownRowSchema),
+  rows: z
+    .array(organizationUsageBreakdownRowSchema)
+    .describe('Top usage groups ordered by cost, or tokens for BYOK.'),
   /** The truncated tail, so the visible rows plus this reconcile to `totalCredits`. */
-  other: z.object({
-    credits: z.number(),
-    events: z.number().int(),
-    rowCount: z.number().int(),
-    /** Tokens for the omitted rows, so the token-denominated BYOK tab still adds up. */
-    tokens: z.number().int().nonnegative(),
-  }),
-  totalCredits: z.number(),
+  other: z
+    .object({
+      credits: z.number().describe('Whole credits attributed to this total or group.'),
+      events: z.number().int().describe('Number of usage events.'),
+      rowCount: z.number().int().describe('Number of groups omitted from rows.'),
+      /** Tokens for the omitted rows, so the token-denominated BYOK tab still adds up. */
+      tokens: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe('Input and output tokens attributed to omitted groups.'),
+    })
+    .describe('Combined usage for groups omitted by the limit.'),
+  totalCredits: z
+    .number()
+    .describe(
+      'Whole credits represented by this breakdown; workflow includes only workflow-attributed usage.'
+    ),
 })
 export type OrganizationUsageBreakdown = z.output<typeof organizationUsageBreakdownResponseSchema>
 
 export const organizationUsageEventSchema = z.object({
-  id: z.string(),
+  id: z
+    .string()
+    .describe('Group or event identifier; an empty group ID represents unattributed usage.'),
   createdAt: z.string(),
   source: z.string(),
   description: z.string(),
   workflowName: z.string().nullable(),
-  credits: z.number(),
+  credits: z.number().describe('Whole credits attributed to this total or group.'),
   hasCost: z.boolean(),
 })
 export type OrganizationUsageEvent = z.output<typeof organizationUsageEventSchema>

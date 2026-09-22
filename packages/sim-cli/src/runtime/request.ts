@@ -10,6 +10,8 @@ import type { OperationSpec } from './types'
 export interface FieldSpec {
   kind: 'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'array' | 'object' | 'unknown'
   required?: boolean
+  /** Numeric fields can represent JSON null without changing literal string flags. */
+  nullable?: true
   values?: readonly string[]
   default?: unknown
   /** The field's `.describe()` from the route contract, used as `--help` text. */
@@ -415,8 +417,11 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   }
 
   if (NUMERIC_KINDS.has(field.kind)) {
+    if (field.nullable && (raw === null || (typeof raw === 'string' && raw.trim() === 'null')))
+      return null
     const value = Number(raw)
     if (Number.isNaN(value)) throw new SimApiError(`--${flagName} must be a number`, 0)
+    if (!Number.isFinite(value)) throw new SimApiError(`--${flagName} must be a finite number`, 0)
     /**
      * An `integer` field said so in the contract, and every other constraint on
      * one is already refused here by hand. Leaving integrality to the server
@@ -508,15 +513,7 @@ export function buildRequest(
   workspaceId: string | null
 ): BuiltRequest {
   const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
-  const spec = V2_OPERATIONS[operation] as {
-    method: string
-    path: string
-    pathParams: readonly string[]
-    query?: Record<string, FieldSpec>
-    body?: Record<string, FieldSpec>
-    headers?: Record<string, FieldSpec>
-    opaqueBody?: boolean
-  }
+  const spec: OperationSpec = V2_OPERATIONS[operation]
 
   let path = spec.path
   let positionalIndex = 0
@@ -557,9 +554,37 @@ export function buildRequest(
    * gets that message instead of the generic refusal below.
    */
   const paginatedLimit = cursorSlot(spec) !== null
+  let bodyFields = spec.body
+  if (spec.bodyDiscriminator) {
+    const { field, variants } = spec.bodyDiscriminator
+    const flagName = flagNameFor(operation, field)
+    const descriptor = spec.body?.[field]
+    if (!descriptor) throw new Error(`Missing body discriminator field: ${field}`)
+    const flag = flagSpecFor(operation, field)
+    const value = coerce(
+      flags[camel(flagName)] ?? flag.requestDefault ?? descriptor.default,
+      descriptor,
+      flag,
+      flagName
+    )
+    if (value === undefined) throw new SimApiError(`--${flagName} is required`, 0)
+    if (typeof value !== 'string' || !Object.hasOwn(variants, value))
+      throw new SimApiError(`--${flagName} must be one of: ${Object.keys(variants).join(', ')}`, 0)
+    bodyFields = variants[value]
+    for (const candidate of Object.keys(spec.body ?? {})) {
+      const candidateFlag = flagNameFor(operation, candidate)
+      if (!Object.hasOwn(bodyFields, candidate) && flags[camel(candidateFlag)] !== undefined)
+        throw new SimApiError(
+          `--${candidateFlag} is not available when --${flagName} is ${value}`,
+          0
+        )
+    }
+  }
 
   for (const slot of ['query', 'body', 'headers'] as const) {
-    for (const [field, descriptor] of Object.entries(spec[slot] ?? {})) {
+    for (const [field, descriptor] of Object.entries(
+      (slot === 'body' ? bodyFields : spec[slot]) ?? {}
+    )) {
       const flag = flagSpecFor(operation, field)
       if (flag.omit) continue
 

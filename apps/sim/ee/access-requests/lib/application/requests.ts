@@ -5,7 +5,9 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { and, count, eq, gte, isNull, or } from 'drizzle-orm'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
@@ -49,6 +51,7 @@ import {
 } from '@/ee/access-requests/lib/targets'
 import type {
   AccessRequestDiscovery,
+  AccessRequestPaging,
   AccessRequestRecord,
   AccessRequestSettings,
   AccessRequestStatus,
@@ -58,8 +61,8 @@ import type {
 
 function requireOrganization(organizationId: string | null): string {
   if (!organizationId)
-    throw new OrchestrationError(
-      'forbidden',
+    throw new ForbiddenOperationError(
+      'ACCESS_REQUEST_ORGANIZATION_REQUIRED',
       'Access requests require an organization-owned workspace'
     )
   return organizationId
@@ -199,6 +202,18 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
         pendingRequestId: pendingByTarget.get(getAccessRequestTargetKey(target)) ?? null,
       })
     }
+    if (input.sortOrder) {
+      const direction = input.sortOrder === 'asc' ? 1 : -1
+      entries.sort(
+        (left, right) =>
+          direction *
+          (compareStrings(left.label, right.label) ||
+            compareStrings(
+              getAccessRequestTargetKey(left.target),
+              getAccessRequestTargetKey(right.target)
+            ))
+      )
+    }
     const page = entries.slice(offset, offset + (input.limit ?? 50))
     return {
       enabled: true,
@@ -230,8 +245,8 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
   }): Promise<MutationResult & { closedRequest?: AccessRequestRecord }> {
     const organizationId = requireOrganization(context.organizationId)
     if (!(await isAccessRequestEnabled(organizationId, executor)))
-      throw new OrchestrationError(
-        'forbidden',
+      throw new ForbiddenOperationError(
+        'ACCESS_REQUESTS_DISABLED',
         'Access requests are turned off for this organization'
       )
     await acquirePermissionGroupOrgLock(executor, organizationId, {
@@ -432,6 +447,8 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
 })
 
 interface ListMineInput {
+  paging?: AccessRequestPaging
+  status?: AccessRequestStatus
   requestId?: string
   scope: AccessRequestScope
   limit: number
@@ -448,13 +465,16 @@ export const listMyAccessRequests = defineAuthorizedAccessRequestUseCase({
         eq(permissionAccessRequest.organizationId, context.organizationId),
         eq(permissionAccessRequest.requesterId, principal.userId),
         input.requestId ? eq(permissionAccessRequest.id, input.requestId) : undefined,
+        input.status ? eq(permissionAccessRequest.status, input.status) : undefined,
         or(
           eq(permissionAccessRequest.scopeKey, accessRequestScopeKey(input.scope)),
           eq(permissionAccessRequest.scopeKey, memberLimitScopeKey(context.organizationId))
         )
       )!,
       input.limit,
-      input.offset
+      input.offset,
+      undefined,
+      input.paging
     )
   },
 })
@@ -514,6 +534,7 @@ interface OrganizationInput {
   organizationId: string
 }
 interface OrganizationListInput extends OrganizationInput {
+  paging?: AccessRequestPaging
   limit: number
   offset: number
   status?: AccessRequestStatus
@@ -536,7 +557,8 @@ export const listOrganizationAccessRequests = defineAuthorizedAccessRequestUseCa
       )!,
       input.limit,
       input.offset,
-      input.search
+      input.search,
+      input.paging
     ),
 })
 

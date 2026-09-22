@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserPermissionConfig, mockResolveVerifiedContext } = vi.hoisted(() => ({
@@ -61,5 +63,35 @@ describe('resolvePermissionGroupConfig scope memo', () => {
     await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')
 
     expect(mockResolveVerifiedContext).toHaveBeenCalledTimes(2)
+  })
+
+  it('bypasses the scope memo for explicit executors without replacing the cached request result', async () => {
+    const updated = { ...CONFIG, disablePersonalApiKeys: true }
+    await withPermissionGroupScope(async () => {
+      expect(await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')).toEqual(CONFIG)
+      mockResolveVerifiedContext.mockResolvedValue({ config: updated })
+      expect(await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1', db)).toEqual(
+        updated
+      )
+      expect(mockResolveVerifiedContext).toHaveBeenLastCalledWith(
+        'user-1',
+        'workspace-1',
+        'org-1',
+        db
+      )
+      expect(await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')).toEqual(CONFIG)
+      mockResolveVerifiedContext.mockResolvedValue({ config: null })
+      expect(await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1', db)).toBeNull()
+    })
+    expect(mockResolveVerifiedContext).toHaveBeenCalledTimes(3)
+  })
+
+  it('forwards an explicit executor when the organization must be loaded', async () => {
+    await withPermissionGroupScope(async () => {
+      await resolvePermissionGroupConfig('user-1', 'workspace-1', undefined)
+      mockGetUserPermissionConfig.mockResolvedValue(null)
+      expect(await resolvePermissionGroupConfig('user-1', 'workspace-1', undefined, db)).toBeNull()
+    })
+    expect(mockGetUserPermissionConfig).toHaveBeenLastCalledWith('user-1', 'workspace-1', db)
   })
 })

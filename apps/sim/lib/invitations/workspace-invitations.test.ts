@@ -4,6 +4,7 @@
 import { member, user as userTable } from '@sim/db/schema'
 import {
   auditMock,
+  auditMockFns,
   createMockRequest,
   dbChainMock,
   dbChainMockFns,
@@ -363,6 +364,36 @@ describe('createWorkspaceInvitation', () => {
     expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
     expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workspace', membershipIntent: 'internal' })
+    )
+  })
+
+  it('records OAuth actor metadata once after successful invitation delivery', async () => {
+    queueWhereResponses([[]])
+    const metadata = {
+      actor: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        tokenId: 'token-1',
+        clientId: 'client-1',
+      },
+      operation: 'invitations.send_batch',
+    } as const
+    await createWorkspaceInvitation({
+      context: {
+        ...makeContext(),
+        auditActor: { id: 'user-1', name: 'Owner', email: 'owner@example.com', metadata },
+      },
+      email: 'new@example.com',
+    })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        action: 'member.invited',
+        metadata: expect.objectContaining(metadata),
+      })
+    )
+    expect(mockSendInvitationEmail.mock.invocationCallOrder[0]).toBeLessThan(
+      auditMockFns.mockRecordAudit.mock.invocationCallOrder[0]
     )
   })
 

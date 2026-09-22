@@ -9,6 +9,109 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Cancel workspace access request
+
+```bash
+sim workspaces access-requests cancel <requestId>
+```
+
+Cancel Workspace Access Request (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+## Create workspace access request
+
+```bash
+sim workspaces access-requests create [options]
+```
+
+Create Workspace Access Request (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. |
+
+</CommandTable>
+
+## Discover workspace access requests
+
+```bash
+sim workspaces access-requests discover [options]
+```
+
+Discover Workspace Access Requests (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+## List my workspace access requests
+
+```bash
+sim workspaces access-requests mine [options]
+```
+
+List My Workspace Access Requests (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+## Create workspace invitations
+
+```bash
+sim workspaces invitations create [options]
+```
+
+Create Workspace Invitations (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Accepted values: `admin`, `write`, `read`. |
+| `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Accepted values: `member`, `admin`, `external`. |
+
+</CommandTable>
+
 ## Fork workspace
 
 ```bash
@@ -156,6 +259,14 @@ sim workspaces operations wait <operationId> [options]
 | `--wait-timeout <seconds>` | No | Maximum total wait (default 3600; 0 waits indefinitely). |
 
 </CommandTable>
+
+## Get workspace permission config
+
+```bash
+sim workspaces permission-config
+```
+
+Get Workspace Permission Config (OAuth login or personal API key required)
 
 ## List workspace fork children
 

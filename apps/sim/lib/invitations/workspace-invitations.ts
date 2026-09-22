@@ -24,6 +24,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   DirectGrantContextChangedError,
   type DirectGrantOutcome,
+  type GrantWorkspaceAccessDirectlyInput,
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
 import {
@@ -76,8 +77,8 @@ export interface WorkspaceInvitationContext {
   targets: WorkspaceInvitationTarget[]
   /** The organization all targets belong to, or null for a personal workspace. */
   organizationId: string | null
-  /** The platform admin to attribute audit entries to; inviter still authorizes product access. */
-  auditActor?: { id: string | null; name: string; email: string | null }
+  /** Audit attribution is separate from the inviter used to authorize product access. */
+  auditActor?: GrantWorkspaceAccessDirectlyInput['auditActor']
 }
 
 export interface WorkspaceInvitationResult {
@@ -185,7 +186,13 @@ async function ensureExistingMemberOrganizationRole({
       resourceId: organizationId,
       resourceName: email,
       description: `Promoted ${email} to organization admin during invitation reconciliation`,
-      metadata: { targetUserId: userId, memberId, previousRole: currentRole, newRole: 'admin' },
+      metadata: {
+        ...context.auditActor?.metadata,
+        targetUserId: userId,
+        memberId,
+        previousRole: currentRole,
+        newRole: 'admin',
+      },
       request,
     })
   }
@@ -208,7 +215,7 @@ export async function prepareWorkspaceInvitationContext({
   inviterId: string
   inviterName: string
   inviterEmail?: string | null
-  auditActor?: { id: string | null; name: string; email: string | null }
+  auditActor?: WorkspaceInvitationContext['auditActor']
 }): Promise<WorkspaceInvitationContext> {
   const uniqueWorkspaceIds = [...new Set(workspaceIds)]
   if (uniqueWorkspaceIds.length === 0) {
@@ -850,6 +857,7 @@ export async function createWorkspaceInvitation({
       resourceName: normalizedEmail,
       description: `Invited ${normalizedEmail} as ${invitationPermission}`,
       metadata: {
+        ...context.auditActor?.metadata,
         targetEmail: normalizedEmail,
         targetRole: invitationPermission,
         membershipIntent,

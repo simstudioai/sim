@@ -6,7 +6,8 @@ export const invitationOperations = {
   sendBatch: defineOperation({
     id: 'invitations.send_batch',
     capability: 'invitations.send',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    oauthScope: 'api:write',
   }),
   resend: defineOperation({
     id: 'invitations.resend',
@@ -38,13 +39,14 @@ export const invitationAuthorityOperations = {
     oauthScope: 'api:write',
   }),
   /**
-   * permission-group-exempt: this session-only branch checks authority; resend separately checks every admission scope.
+   * permission-group-exempt: this branch checks authority and credential policy; sending separately checks every admission scope.
    */
   workspace: defineWorkspaceOperation({
     id: 'invitations.workspace.authorize',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    oauthScope: 'api:write',
   }),
 } as const
