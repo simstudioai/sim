@@ -50,6 +50,8 @@ const avatarStatusVariants = cva(
   }
 )
 
+const AvatarSizeContext = React.createContext<VariantProps<typeof avatarVariants>['size']>('md')
+
 type AvatarStatus = 'online' | 'offline' | 'busy' | 'away'
 
 interface AvatarProps
@@ -93,22 +95,24 @@ interface AvatarProps
  */
 const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, AvatarProps>(
   ({ className, size, status, children, ...props }, ref) => (
-    <div className='relative inline-flex'>
-      <AvatarPrimitive.Root
-        ref={ref}
-        className={cn(avatarVariants({ size }), className)}
-        {...props}
-      >
-        {children}
-      </AvatarPrimitive.Root>
-      {status && (
-        <span
-          data-slot='avatar-status'
-          className={cn(avatarStatusVariants({ status, size }))}
-          aria-label={`Status: ${status}`}
-        />
-      )}
-    </div>
+    <AvatarSizeContext.Provider value={size ?? 'md'}>
+      <div className='relative inline-flex'>
+        <AvatarPrimitive.Root
+          ref={ref}
+          className={cn(avatarVariants({ size }), className)}
+          {...props}
+        >
+          {children}
+        </AvatarPrimitive.Root>
+        {status && (
+          <span
+            data-slot='avatar-status'
+            className={cn(avatarStatusVariants({ status, size }))}
+            aria-label={`Status: ${status}`}
+          />
+        )}
+      </div>
+    </AvatarSizeContext.Provider>
   )
 )
 Avatar.displayName = 'Avatar'
@@ -133,6 +137,7 @@ AvatarImage.displayName = 'AvatarImage'
 
 /**
  * Fallback component for Avatar. Displays initials or icon when image is unavailable.
+ * The xs size uses 8px initials; other sizes retain text-xs.
  *
  * Carries the package's only hardcoded `font-medium`, and deliberately: one or
  * two capitals at `text-xs` on a filled disc are a glyph, not running text, and
@@ -142,16 +147,20 @@ AvatarImage.displayName = 'AvatarImage'
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Fallback
-    ref={ref}
-    className={cn(
-      'flex h-full w-full items-center justify-center rounded-full border border-[var(--border-1)] bg-[var(--surface-4)] font-medium text-[var(--text-secondary)] text-xs',
-      className
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const size = React.useContext(AvatarSizeContext)
+  return (
+    <AvatarPrimitive.Fallback
+      ref={ref}
+      className={cn(
+        'flex h-full w-full items-center justify-center rounded-full border border-[var(--border-1)] bg-[var(--surface-4)] font-medium text-[var(--text-secondary)] text-xs',
+        size === 'xs' && 'text-[8px]',
+        className
+      )}
+      {...props}
+    />
+  )
+})
 AvatarFallback.displayName = 'AvatarFallback'
 
 export { Avatar, AvatarImage, AvatarFallback, avatarVariants, avatarStatusVariants }
