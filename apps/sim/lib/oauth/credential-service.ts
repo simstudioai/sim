@@ -899,15 +899,23 @@ function refreshCoordinationScope(
   return slackTeamId ? `slack:${slackTeamId}` : accountId
 }
 
+/** A terminal refresh rejection recorded for a credential's account. */
+export interface CredentialTerminalRefreshError {
+  errorCode: string
+  /** The account's provider, which decides what some codes mean (see `isCredentialRevocationError`). */
+  providerId: string
+}
+
 /**
  * The terminal error the refresh path last recorded for a credential's account, if any. A
- * refresh that the provider rejected outright (a revoked or expired grant) flags the account
- * for an hour so nothing retries it; a caller that finds no token can read the flag to tell
- * that outcome, which only reauthorizing resolves, from a passing failure worth retrying.
+ * refresh that the provider rejected outright (a revoked grant, or a misconfigured app
+ * registration) flags the account for an hour so nothing retries it; a caller that finds no
+ * token can read the flag to tell that outcome from a passing failure worth retrying, and
+ * classify it with `isCredentialRevocationError` to tell whether only reauthorizing resolves it.
  */
 export async function getCredentialTerminalRefreshError(
   credentialId: string
-): Promise<string | null> {
+): Promise<CredentialTerminalRefreshError | null> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved || resolved.credentialType === 'service_account' || !resolved.accountId) return null
   const [row] = await db
@@ -916,11 +924,12 @@ export async function getCredentialTerminalRefreshError(
     .where(eq(account.id, resolved.accountId))
     .limit(1)
   if (!row) return null
-  return getRecentTerminalError(
+  const errorCode = await getRecentTerminalError(
     getOAuthRefreshCoordinationIdentity(
       refreshCoordinationScope(resolved.accountId, row.providerId, row.providerAccountId)
     )
   )
+  return errorCode ? { errorCode, providerId: row.providerId } : null
 }
 
 interface StoredChain {
