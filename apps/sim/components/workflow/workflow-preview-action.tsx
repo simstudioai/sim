@@ -1,29 +1,28 @@
 'use client'
 
 import { type ComponentProps, forwardRef } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { OverlayActionButton, Tooltip } from '@sim/emcn'
 
 interface WorkflowPreviewActionProps
   extends Omit<
-    ComponentProps<typeof Button>,
-    'variant' | 'size' | 'iconSize' | 'iconPadding' | 'type' | 'className'
+    ComponentProps<typeof OverlayActionButton>,
+    'size' | 'type' | 'className' | 'shape'
   > {
   'aria-label': string
 }
 
-/** Solid corner action shared by embedded workflow previews. */
+/** Overlay corner action shared by embedded workflow previews. */
 export const WorkflowPreviewAction = forwardRef<HTMLButtonElement, WorkflowPreviewActionProps>(
   ({ 'aria-label': label, ...props }, ref) => (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
+        <OverlayActionButton
           {...props}
           ref={ref}
           type='button'
           aria-label={label}
-          variant='ghost'
-          iconSize='compact-fixed'
-          className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
+          size='md'
+          className='absolute right-[6px] bottom-1.5 z-10'
         />
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>{label}</Tooltip.Content>
