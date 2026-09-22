@@ -28,6 +28,7 @@ export function createKnowledgeAclFixtureIds() {
     organizationId: generateId(),
     knowledgeBaseId: generateId(),
     connectorId: generateId(),
+    credentialId: generateId(),
     lockId: generateId(),
     groups,
     groupIds: groups.map(() => generateId()),
@@ -46,8 +47,17 @@ export async function seedKnowledgeAclFixture(
   ) {
     throw new Error('Knowledge fixture seeding requires a local disposable test database')
   }
-  const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups, groupIds } =
-    ids
+  const {
+    aliceId,
+    bobId,
+    workspaceId,
+    knowledgeBaseId,
+    connectorId,
+    credentialId,
+    lockId,
+    groups,
+    groupIds,
+  } = ids
   const now = new Date()
   const connectorType = options.connectorType ?? 'confluence'
   const providerId = connectorType === 'google_drive' ? 'google-drive' : 'confluence'
@@ -111,6 +121,15 @@ export async function seedKnowledgeAclFixture(
     displayName: 'Fixture',
     fieldType: 'text',
   })
+  /** A service-account row needs no OAuth account; the token resolver is mocked in these suites. */
+  await db.insert(credential).values({
+    id: credentialId,
+    workspaceId,
+    type: 'service_account',
+    displayName: 'Fixture connector credential',
+    createdBy: aliceId,
+    providerId,
+  })
   await db.insert(knowledgeConnector).values({
     id: connectorId,
     knowledgeBaseId,
@@ -119,6 +138,7 @@ export async function seedKnowledgeAclFixture(
     accessMode: 'admin',
     status: 'syncing',
     syncLockToken: lockId,
+    credentialId,
   })
   await db.insert(knowledgeExternalGroup).values(
     groups.map((name, index) => ({

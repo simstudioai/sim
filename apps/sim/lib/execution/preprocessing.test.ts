@@ -46,9 +46,11 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: vi.fn((value) => value),
-  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
   resolveBillingAttribution: mockResolveBillingAttribution,
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: mockCheckAttributedUsageLimits,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: vi.fn(),

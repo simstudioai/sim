@@ -525,6 +525,33 @@ describe('content pass checkpoint intent', () => {
     expect(pass.checkpoint.permissionFailures).toBe(true)
   })
 
+  it('reports an incomplete listing alongside unverified permissions', async () => {
+    sourceBody = { value: '<p>Current content</p>' }
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: 'a'.repeat(64),
+        generationId: 'prior',
+        startedAt: new Date(0),
+      }),
+      listingFailures: {
+        count: 1,
+        samples: [
+          {
+            scope: 'unavailable@example.com',
+            operation: 'gmail.threads.list',
+            status: 400,
+            reasons: ['failedPrecondition'],
+          },
+        ],
+      },
+    }
+    mocks.onPage.mockResolvedValue({ permissionsIncomplete: true })
+    const { pass } = await runPass({ checkpoint, access: 'admin' })
+    const lines = pass.holdNotice?.split('\n') ?? []
+    expect(lines).toContain(SOURCE_PERMISSION_ERROR)
+    expect(lines.some((line) => line.includes('unlisted documents were kept'))).toBe(true)
+  })
+
   it('clears permission failure evidence for a newly verified crawl', async () => {
     mocks.onPage.mockResolvedValue({ permissionsIncomplete: false })
     const { pass } = await runPass({ access: 'admin' })

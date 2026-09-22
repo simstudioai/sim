@@ -70,6 +70,25 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
 export const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
 
 /**
+ * A terminal, unscheduled error. The lock is released alongside the status because
+ * this write can land on a row a previous run left `syncing` — a run that may still
+ * be alive. Flipping status without releasing the token left a row that was neither
+ * locked nor reclaimable: the reaper only looks at `syncing` rows, and the old run's
+ * terminal write could still match its own token and resurrect the schedule.
+ * Releasing both makes the transition terminal.
+ */
+export function buildSyncUnscheduledUpdate(now: Date, errorMessage: string) {
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: null,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }
+}
+
+/**
  * The statuses a run may take the lock from.
  *
  * An allowlist rather than `ne(status, 'syncing')`, because the queue outlives

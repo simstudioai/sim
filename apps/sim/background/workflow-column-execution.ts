@@ -10,9 +10,9 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
@@ -575,7 +575,7 @@ async function runWorkflowAndWriteTerminal(
          * Gate the exact workspace payer and member cap before hosted-key cost.
          * A denial clears the cell pre-stamp and surfaces the upgrade state.
          */
-        const usage = await checkAttributedUsageLimits(enrichmentBillingAttribution)
+        const usage = await checkExecutionUsageLimits(enrichmentBillingAttribution)
         if (usage.isExceeded) {
           logger.warn(
             `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
