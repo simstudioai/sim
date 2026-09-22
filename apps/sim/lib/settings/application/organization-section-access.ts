@@ -31,11 +31,9 @@ export async function authorizeOrganizationSettingsSection({
     return isKnowledgeMemberAccessAvailable({ organizationId })
 
   const deployment = getDeploymentShape()
-  const needsEnterprisePlan = deployment.hosted && section !== 'members' && section !== 'billing'
-  /**
-   * Access Control's availability follows the permission regime rather than the plan gate, and no
-   * other section reads it — so each section pays for exactly one of the two lookups.
-   */
+  const needsEnterprisePlan =
+    deployment.hosted && section !== 'members' && section !== 'billing' && section !== 'requests'
+  /** Access Control follows the permission regime rather than the plan gate. */
   const readsRegime = needsEnterprisePlan && section === 'access-control'
   const [hasEnterprisePlan, governanceActive] = await Promise.all([
     needsEnterprisePlan && !readsRegime

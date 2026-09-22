@@ -63,6 +63,7 @@ const ENTERPRISE_GATED_SECTION_LABELS: Record<OrganizationSettingsSection, strin
   billing: null,
   usage: 'organization usage monitoring',
   'access-control': 'permission groups',
+  requests: null,
   'audit-logs': 'audit logs',
   sso: 'SSO settings and domains',
   security: 'session policies, organization session revocation, and outbound IP settings',

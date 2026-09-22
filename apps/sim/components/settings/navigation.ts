@@ -10,6 +10,7 @@ import {
   Integration,
   Key,
   KeySquare,
+  ListChecks,
   Lock,
   LogIn,
   Palette,
@@ -52,6 +53,7 @@ export type OrganizationSettingsSection =
   | 'billing'
   | 'usage'
   | 'access-control'
+  | 'requests'
   | 'audit-logs'
   | 'sso'
   | 'security'
@@ -97,6 +99,7 @@ export type UnifiedSettingsSection =
   | 'terminal'
   | 'secrets'
   | 'access-control'
+  | 'requests'
   | 'custom-blocks'
   | 'audit-logs'
   | 'apikeys'
@@ -379,6 +382,17 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'account',
       order: 4,
       requiresDesktopSurface: 'terminal',
+    },
+  },
+  {
+    label: 'Requests',
+    icon: ListChecks,
+    unified: {
+      id: 'requests',
+      description: 'Review requests across your organization.',
+      group: 'organization',
+      order: 3,
+      organizationSection: 'requests',
     },
   },
   {
@@ -886,6 +900,7 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     usage: 'organization',
     whitelabeling: 'organization',
     'recently-deleted': 'organization',
+    requests: 'organization',
     'audit-logs': 'governance',
     'access-control': 'governance',
     sso: 'governance',
@@ -1058,7 +1073,12 @@ export function isOrganizationSettingsSectionAvailable(
   section: OrganizationSettingsSection,
   features: OrganizationSettingsFeatures
 ): boolean {
-  if (section === 'members' || section === 'search-mcp' || section === 'recently-deleted')
+  if (
+    section === 'members' ||
+    section === 'search-mcp' ||
+    section === 'recently-deleted' ||
+    section === 'requests'
+  )
     return true
   if (section === 'billing') return features.billingEnabled
   /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */

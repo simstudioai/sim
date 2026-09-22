@@ -41,7 +41,7 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
     return (
       <EmptyState
         title='Choose an organization'
-        description='Open My access requests from your workspace menu.'
+        description='Open My access requests from your profile menu in a workspace.'
         action={<ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>}
       />
     )
