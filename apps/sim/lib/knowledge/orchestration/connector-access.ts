@@ -24,6 +24,7 @@ import {
 } from '@/lib/knowledge/connectors/member-access'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type ConnectorMembersBinding,
   type ConnectorWithoutSecret,
@@ -140,8 +141,7 @@ async function acquireSwitchLease(
         inArray(knowledgeConnector.memberSyncStatus, ['idle', 'error', 'disabled']),
         isNull(knowledgeConnector.syncLockToken),
         isNull(knowledgeConnector.memberSyncLockToken),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
+        connectorIsLive()
       )
     )
     .returning()
