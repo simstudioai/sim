@@ -72,7 +72,7 @@ describe('MicButton', () => {
     const waveform = container.querySelector('svg[viewBox="0 0 18 18"]')
     const bars = waveform?.querySelectorAll('line')
 
-    expect(button?.className).toContain('size-[28px]')
+    expect(button?.classList.contains('size-7')).toBe(true)
     expect(button?.className).toContain('overflow-hidden')
     expect(button?.className).toContain('rounded-full')
     expect(waveform?.classList.contains('size-[18px]')).toBe(true)
