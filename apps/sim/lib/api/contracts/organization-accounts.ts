@@ -47,6 +47,17 @@ export const getOrganizationAccountsContract = defineRouteContract({
       availableProviders: z.array(credentialGroupProviderSchema),
       canManage: z.boolean(),
       indexingAvailable: z.boolean(),
+      viewerMcpAccounts: z
+        .array(
+          z.object({
+            credentialId: z.string().min(1).max(128),
+            displayName: z.string().max(512),
+            mcpServerId: z.string().min(1).max(128),
+            status: z.enum(['active', 'needs_reauth']),
+          })
+        )
+        .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+        .optional(),
       viewerAccounts: z
         .array(
           z.object({
@@ -89,9 +100,13 @@ export type OrganizationAccountConnectionResponse = z.output<
   typeof organizationAccountConnectionResponseSchema
 >
 
-export const startOrganizationAccountConnectionBodySchema = z
-  .object({ optionId: z.string().min(1, 'Account option is required').max(128) })
-  .strict()
+export const startOrganizationAccountConnectionBodySchema = z.union([
+  z.object({ optionId: z.string().min(1).max(128) }).strict(),
+  z.object({ mcpServerId: z.string().min(1).max(128) }).strict(),
+])
+export type StartOrganizationAccountConnectionBody = z.input<
+  typeof startOrganizationAccountConnectionBodySchema
+>
 
 export const startOrganizationAccountConnectionContract = defineRouteContract({
   method: 'POST',

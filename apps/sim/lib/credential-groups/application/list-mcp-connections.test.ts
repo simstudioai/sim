@@ -186,7 +186,7 @@ describe('listCredentialGroupMcpConnections', () => {
       email: 'person@example.com',
       mcpServerId: 'mcp-server-1',
       connectorId: undefined,
-      allowedConnectorIds: ['fireflies', 'granola', 'databricks'],
+      allowedConnectorIds: ['fireflies', 'granola', 'databricks', 'coda'],
     })
     expect(result).toEqual({
       mcpConnections: [

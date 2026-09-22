@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   visibility: vi.fn(),
   resolve: vi.fn(),
   managed: vi.fn(),
+  mcp: vi.fn(),
 }))
+vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listCodaMcpSearchAccounts: mocks.mcp }))
 vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: mocks.personal }))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
   getPersonalTokenCredentials: mocks.tokens,
@@ -45,6 +47,7 @@ describe('live account discovery boundaries', () => {
     mocks.personal.mockResolvedValue([account])
     mocks.tokens.mockResolvedValue([])
     mocks.managed.mockResolvedValue([])
+    mocks.mcp.mockResolvedValue([])
     mocks.context.mockResolvedValue({ workspaceId: 'workspace', workspaceOrganizationId: 'org' })
     mocks.visibility.mockImplementation(async (_context, rows) => rows)
   })

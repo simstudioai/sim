@@ -20,6 +20,7 @@ import {
 import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { createNativeClient, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
+import { listCodaMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
 const PROVIDERS: Readonly<Record<string, LiveSearchProvider>> = {
@@ -152,7 +153,8 @@ export async function listLiveAccounts(
   const visible = workspaceContext
     ? await filterWorkspaceAccountCredentials(workspaceContext, candidates)
     : candidates
-  if (visible.length === 0) return []
+  const mcp = denied.has('coda') ? [] : await listCodaMcpSearchAccounts(owner, userId)
+  if (visible.length === 0) return mcp
   // Metadata is fetched in one batch; a fresh binding check still precedes token resolution.
   const rows = await db
     .select({
@@ -170,23 +172,29 @@ export async function listLiveAccounts(
       )
     )
   const byId = new Map(rows.map((row) => [row.id, row]))
-  return visible.flatMap((candidate) => {
-    const row = byId.get(candidate.id)
-    return row && !row.revokedAt
-      ? [
-          {
-            ...candidate,
-            scopes: row.grantedScopes ?? row.scope?.split(/[ ,]+/).filter(Boolean) ?? [],
-          },
-        ]
-      : []
-  })
+  return [
+    ...mcp,
+    ...visible
+      .filter((candidate) => candidate.provider !== 'coda' || mcp.length === 0)
+      .flatMap((candidate) => {
+        const row = byId.get(candidate.id)
+        return row && !row.revokedAt
+          ? [
+              {
+                ...candidate,
+                scopes: row.grantedScopes ?? row.scope?.split(/[ ,]+/).filter(Boolean) ?? [],
+              },
+            ]
+          : []
+      }),
+  ]
 }
 
 export async function resolveLiveAccount(owner: ResourceOwner, userId: string, accountId: string) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
     throw new NativeSearchError('reconnect', 'This personal account is no longer available.')
+  if (current.type === 'managed_mcp') return { account: current, accessToken: '', mcp: true }
   const scope = resourceScopeFromOwner(owner)
   if (current.type === 'managed_oauth') {
     const token = await resolveManagedOAuthToken({

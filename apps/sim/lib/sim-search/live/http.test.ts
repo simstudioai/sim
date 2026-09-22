@@ -64,6 +64,23 @@ describe('native search network boundary', () => {
       client.json('/api/assistant.search.context', { body: { query: 'launch' } })
     ).rejects.toMatchObject({ status: 'rate_limited', retryAfterSeconds: 45 })
   })
+  it('keeps self-hosted GitLab calls on the verified instance including its port', async () => {
+    const client = createNativeClient({
+      origin: 'https://gitlab.example.com:8443',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await client.json('/api/v4/projects/team%2Frepo/search', {
+      query: { scope: 'blobs', search: 'launch' },
+    })
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      'https://gitlab.example.com:8443/api/v4/projects/team%2Frepo/search?scope=blobs&search=launch',
+      expect.objectContaining({
+        maxRedirects: 0,
+        headers: expect.objectContaining({ Authorization: 'Bearer private' }),
+      })
+    )
+  })
   it('does not issue any request after cancellation', async () => {
     const controller = new AbortController()
     controller.abort()

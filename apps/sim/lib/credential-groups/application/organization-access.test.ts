@@ -184,6 +184,7 @@ describe('organization workspace sharing administration', () => {
       optionId: 'option-1',
       status: 'needs_reauth',
     }
+    queueTableRows(schemaMock.credential, [])
     queueTableRows(schemaMock.credential, [account])
     const result = await getOrganizationAccountsSettings.execute({
       principal,
@@ -222,6 +223,36 @@ describe('organization workspace sharing administration', () => {
       userId: 'admin-user',
       credentialGroupId: 'group-1',
     })
+  })
+
+  it('starts only an enabled MCP provider belonging to the canonical organization group', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'active',
+      options: [],
+      mcpServers: [{ id: 'coda-server', enabled: true }],
+    })
+    mocks.invite.mockResolvedValue({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
+    expect(
+      await startOrganizationAccountConnection.execute({
+        principal,
+        input: { organizationId: 'org-1', mcpServerId: 'coda-server' },
+      })
+    ).toMatchObject({
+      authorizationUrl:
+        'https://sim.test/api/credential-groups/enroll/fixture-token/mcp/coda-server',
+    })
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    await expect(
+      startOrganizationAccountConnection.execute({
+        principal,
+        input: { organizationId: 'org-1', mcpServerId: 'another-server' },
+      })
+    ).rejects.toThrow('no longer available')
+    expect(mocks.invite).toHaveBeenCalledTimes(1)
   })
 
   it('does not issue a direct authorization link when enrollment access was revoked', async () => {

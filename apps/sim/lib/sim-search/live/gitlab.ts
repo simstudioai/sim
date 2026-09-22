@@ -14,7 +14,7 @@ function document(row: Record<string, unknown>, kind: string): NativeDocument {
     kind,
     ...(kind === 'code' && string(row.ref) ? { revision: string(row.ref) } : {}),
     title: string(row.title) || string(row.filename) || string(row.path),
-    url: string(row.web_url),
+    url: string(row.web_url) || string(row.file_url),
     content: string(row.description) || string(row.data) || string(row.title),
     modifiedAt: string(row.updated_at),
     author: string(object(row.author).name),
@@ -25,19 +25,55 @@ export async function searchGitLab(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
-  if (!input.native)
-    return collectNativePages(
-      ['issues', 'code'].map((kind) =>
+  if (!input.native?.project) {
+    const projects = array(
+      await client.json('/api/v4/projects', {
+        query: {
+          membership: 'true',
+          simple: 'true',
+          per_page: '7',
+          order_by: 'last_activity_at',
+          sort: 'desc',
+        },
+      })
+    )
+    const selected = projects.slice(0, 6)
+    const pages: Promise<NativePage>[] = []
+    for (const project of selected) {
+      pages.push(
         searchGitLab(client, {
           ...input,
           native: {
             provider: 'gitlab',
             query: input.query,
-            kind: kind === 'code' ? 'code' : 'issues',
+            ...input.native,
+            project: string(project.id),
           },
         })
+      )
+    }
+    const result = await collectNativePages(
+      pages,
+      'Searched your GitLab projects. Use a project ID or path to narrow the search and paginate.'
+    )
+    return {
+      ...result,
+      partial: result.partial || projects.length > 6,
+      message:
+        projects.length > 6
+          ? `${result.message} Only six recently active projects were searched. Target a project for broader coverage.`
+          : result.message,
+    }
+  }
+  if (!input.native.kind)
+    return collectNativePages(
+      ['issues', 'code', 'merge_requests'].map((kind) =>
+        searchGitLab(client, {
+          ...input,
+          native: { ...input.native!, kind: kind as 'issues' | 'code' | 'merge_requests' },
+        })
       ),
-      'GitLab searches issues and code. Use nativeQueries.kind to narrow or paginate either collection.'
+      'Searched GitLab issues, merge requests, and code.'
     )
   const kind = input.native?.kind ?? 'issues'
   const scopes: Record<string, string> = {
@@ -55,8 +91,9 @@ export async function searchGitLab(
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,4}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitLab page.')
-  const data = array(
-    await client.json(
+  let response: unknown
+  try {
+    response = await client.json(
       input.native?.project
         ? `/api/v4/projects/${segment(input.native.project)}/search`
         : '/api/v4/search',
@@ -69,7 +106,18 @@ export async function searchGitLab(
         },
       }
     )
-  )
+  } catch (error) {
+    if (error instanceof NativeSearchError)
+      throw new NativeSearchError(
+        error.status,
+        `GitLab ${kind} search: ${error.message}`,
+        error.retryAfterSeconds
+      )
+    throw error
+  }
+  if (!Array.isArray(response))
+    throw new NativeSearchError('unavailable', 'GitLab returned an invalid search response.')
+  const data = array(response)
   const documents = data.map((row) => document(row, kind))
   const projects = new Map<string, string>()
   for (const item of documents) {

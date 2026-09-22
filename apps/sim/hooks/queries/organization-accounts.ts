@@ -1,4 +1,5 @@
-'use client'
+import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
+;('use client')
 
 import {
   isServer,
@@ -195,10 +196,13 @@ export function useUpdateOrganizationAccounts() {
 
 export function useConnectOrganizationAccount() {
   return useMutation({
-    mutationFn: ({ organizationId, optionId }: { organizationId: string; optionId: string }) =>
+    mutationFn: ({
+      organizationId,
+      ...body
+    }: { organizationId: string } & StartOrganizationAccountConnectionBody) =>
       requestJson(startOrganizationAccountConnectionContract, {
         params: { id: organizationId },
-        body: { optionId },
+        body,
       }),
   })
 }

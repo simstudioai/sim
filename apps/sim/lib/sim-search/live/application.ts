@@ -24,6 +24,7 @@ import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contex
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/accounts'
+import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
 import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
 import {
   NATIVE_SEARCH_GUIDANCE,
@@ -201,22 +202,31 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           try {
             signal.throwIfAborted()
             const resolved = await resolveLiveAccount(input, userId, account.id)
-            const client = createNativeClient({
-              origin: resolved.origin ?? PROVIDER_ORIGINS[account.provider],
-              accessToken: resolved.accessToken,
-              signal,
-            })
+            const client =
+              resolved.account.type === 'managed_mcp'
+                ? null
+                : createNativeClient({
+                    origin: resolved.origin ?? PROVIDER_ORIGINS[account.provider],
+                    accessToken: resolved.accessToken,
+                    signal,
+                  })
             const native = queries?.find(
               (query) =>
                 query.provider === account.provider &&
                 (!query.accountId || query.accountId === account.id)
             )
-            const page = await searchNativeProvider(account.provider, client, {
+            const searchInput = {
               query: input.query,
               native,
               limit: input.topK,
               scopes: resolved.account.scopes,
-            })
+            }
+            const page = client
+              ? await searchNativeProvider(account.provider, client, searchInput)
+              : await searchCodaMcp(
+                  await createCodaMcpClient(input, userId, account.id, signal),
+                  searchInput
+                )
             const rows = page.documents
               .filter((document) => document.id)
               .map((document, index) => ({
@@ -357,12 +367,20 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     const signal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000)
-    const client = createNativeClient({
-      origin: resolved.origin ?? PROVIDER_ORIGINS[reference.provider],
-      accessToken: resolved.accessToken,
-      signal,
-    })
-    const document = await readNativeProvider(reference.provider, client, reference)
+    const client =
+      resolved.account.type === 'managed_mcp'
+        ? null
+        : createNativeClient({
+            origin: resolved.origin ?? PROVIDER_ORIGINS[reference.provider],
+            accessToken: resolved.accessToken,
+            signal,
+          })
+    const document = client
+      ? await readNativeProvider(reference.provider, client, reference)
+      : await readCodaMcp(
+          await createCodaMcpClient(input, userId, reference.account, signal),
+          reference.id
+        )
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     const content = safeContent(document.content, input.resultSecretRegistry)

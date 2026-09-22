@@ -3,6 +3,7 @@ import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   loadManagedMcpRuntimeCredential,
+  type ManagedMcpRuntimeCredential,
   saveManagedMcpRuntimeTokens,
 } from '@/lib/credentials/managed-mcp'
 import { getOrCreateOauthRow, loadPreregisteredClient } from '@/lib/mcp/oauth'
@@ -25,6 +26,12 @@ export async function loadManagedMcpAuthProvider(
       current.credentialType
     )
   }
+  return createManagedMcpAuthProvider(current)
+}
+
+export async function createManagedMcpAuthProvider(
+  current: Omit<ManagedMcpRuntimeCredential, 'workspaceId'>
+): Promise<OAuthClientProvider> {
   const clientRow = await getOrCreateOauthRow({
     mcpServerId: current.mcpServerId,
     ...resourceScopeFields(current.scope),

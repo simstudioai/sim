@@ -23,7 +23,10 @@ function githubDocument(row: Record<string, unknown>, kind: string): NativeDocum
           : string(row.number),
     container,
     kind,
-    title: string(row.title) || string(row.name) || string(row.full_name),
+    title:
+      kind === 'code'
+        ? `${container} · ${string(row.path)}`
+        : `${container} · ${string(row.title) || string(row.name) || string(row.full_name)}`,
     url: string(row.html_url),
     content:
       string(row.body) ||
@@ -41,19 +44,81 @@ export async function searchGitHub(
   client: NativeClient,
   input: NativeSearchInput
 ): Promise<NativePage> {
-  if (!input.native)
+  const query = input.native?.query ?? input.query
+  if (!/(?:^|\s)(?:repo|org|user):[^\s]+/i.test(query)) {
+    const repositories = array(
+      await client.json('/user/repos', {
+        query: {
+          affiliation: 'owner,collaborator,organization_member',
+          per_page: '100',
+          sort: 'pushed',
+        },
+      })
+    )
+    const names = repositories
+      .map((row) => string(row.full_name))
+      .filter((name) => /^[\w.-]+\/[\w.-]+$/.test(name))
+    if (!names.length)
+      return {
+        documents: [],
+        message: 'No repositories are accessible through this GitHub connection.',
+      }
+    const batches: string[][] = []
+    for (let offset = 0; offset < names.length; offset += 25)
+      batches.push(names.slice(offset, offset + 25))
+    const pages: Promise<NativePage>[] = []
+    for (const names of batches) {
+      pages.push(
+        searchGitHub(client, {
+          ...input,
+          native: {
+            provider: 'github',
+            ...input.native,
+            query: `${query} ${names.map((name) => `repo:${name}`).join(' ')}`,
+          },
+        })
+      )
+    }
+    const result = await collectNativePages(
+      pages,
+      'Searched repositories you own, collaborate on, or access through organization membership. Use a repo: qualifier to narrow results.'
+    )
+    return {
+      ...result,
+      partial: result.partial || repositories.length === 100,
+      message:
+        repositories.length === 100
+          ? `${result.message} Only the 100 most recently pushed repositories were searched; target a repository for broader coverage.`
+          : result.message,
+    }
+  }
+  if (!input.native?.kind)
     return collectNativePages(
       ['issues', 'code'].map((kind) =>
         searchGitHub(client, {
           ...input,
           native: {
             provider: 'github',
-            query: input.query,
+            ...input.native,
+            query,
             kind: kind === 'code' ? 'code' : 'issues',
           },
         })
       ),
-      'GitHub searches issues and code. Use nativeQueries.kind to narrow or paginate either collection.'
+      'Searched GitHub issues, pull requests, and code.'
+    )
+  if (
+    input.native.kind === 'issues' &&
+    !/(?:^|\s)(?:is|type):(?:issue|pr|pull-request)(?:\s|$)/i.test(query)
+  )
+    return collectNativePages(
+      ['issue', 'pull-request'].map((kind) =>
+        searchGitHub(client, {
+          ...input,
+          native: { ...input.native!, query: `${query} is:${kind}` },
+        })
+      ),
+      'Searched issues and pull requests separately.'
     )
   const kind = input.native?.kind ?? 'issues'
   if (!['issues', 'code', 'repositories'].includes(kind))
@@ -64,11 +129,21 @@ export async function searchGitHub(
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,3}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitHub page.')
-  const data = object(
-    await client.json(`/search/${kind}`, {
+  let response: unknown
+  try {
+    response = await client.json(`/search/${kind}`, {
       query: { q: input.native?.query ?? input.query, per_page: String(input.limit), page },
     })
-  )
+  } catch (error) {
+    if (error instanceof NativeSearchError)
+      throw new NativeSearchError(
+        error.status,
+        `GitHub ${kind} search: ${error.message}`,
+        error.retryAfterSeconds
+      )
+    throw error
+  }
+  const data = object(response)
   const total = Number(data.total_count)
   const nextCursor =
     Number(page) * input.limit < Math.min(total, 1000) ? String(Number(page) + 1) : undefined

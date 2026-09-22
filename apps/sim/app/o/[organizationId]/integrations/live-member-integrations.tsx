@@ -117,11 +117,74 @@ export function LiveMemberIntegrations({
           />
         )
       })}
-      {options.length === 0 && (
-        <p className='px-4 text-small'>
-          An organization admin needs to enable account providers in Credential Groups.
-        </p>
-      )}
+      {(data.credentialGroup?.status === 'active' ? data.credentialGroup.mcpServers : [])
+        .filter(
+          (server) =>
+            server.enabled &&
+            server.managedConnectorId === 'coda' &&
+            `Coda ${server.name}`.toLowerCase().includes(search.toLowerCase())
+        )
+        .map((server) => {
+          const accounts = (data.viewerMcpAccounts ?? []).filter(
+            (account) => account.mcpServerId === server.id
+          )
+          return (
+            <SettingsResourceRow
+              key={server.id}
+              title='Coda'
+              description={
+                accounts.length
+                  ? accounts
+                      .map(
+                        (account) =>
+                          `${account.displayName}${account.status === 'needs_reauth' ? ' (reconnect needed)' : ''}`
+                      )
+                      .join(', ')
+                  : 'Connect your Coda account to search page contents and table rows.'
+              }
+              trailing={
+                <div className='flex items-center gap-2'>
+                  <DisconnectAccountMenu
+                    organizationId={organizationId}
+                    integrationName='Coda'
+                    accounts={accounts}
+                  />
+                  {accounts.map((account) => (
+                    <Chip
+                      key={account.credentialId}
+                      disabled={reconnect.isPending}
+                      onClick={() =>
+                        reconnect.mutate(account.credentialId, { onSuccess: navigate, onError })
+                      }
+                    >
+                      Reconnect
+                    </Chip>
+                  ))}
+                  <Chip
+                    variant='primary'
+                    disabled={connect.isPending}
+                    onClick={() =>
+                      connect.mutate(
+                        { organizationId, mcpServerId: server.id },
+                        { onSuccess: navigate, onError }
+                      )
+                    }
+                  >
+                    {accounts.length ? 'Add account' : 'Connect'}
+                  </Chip>
+                </div>
+              }
+            />
+          )
+        })}
+      {options.length === 0 &&
+        !data.credentialGroup?.mcpServers.some(
+          (server) => server.managedConnectorId === 'coda'
+        ) && (
+          <p className='px-4 text-small'>
+            An organization admin needs to enable account providers in Credential Groups.
+          </p>
+        )}
       {data.canManage && (
         <div className='px-4'>
           <ChipLink href={`/o/${organizationId}/settings/connected-accounts`}>

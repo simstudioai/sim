@@ -22,6 +22,7 @@ export async function collectNativePages(
     partial: failures.length > 0 || pages.some((page) => page.partial || page.nextCursor),
     message: [
       guidance,
+      ...pages.filter((page) => page.partial && page.message).map((page) => page.message),
       ...failures.map((error) =>
         error instanceof NativeSearchError ? error.message : 'One collection could not be searched.'
       ),

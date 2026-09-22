@@ -8,7 +8,7 @@ export interface LiveAccount {
   provider: LiveSearchProvider
   providerId: string
   displayName: string
-  type: 'oauth' | 'managed_oauth' | 'personal_token' | 'service_account'
+  type: 'oauth' | 'managed_oauth' | 'personal_token' | 'service_account' | 'managed_mcp'
   scopes: string[]
 }
 

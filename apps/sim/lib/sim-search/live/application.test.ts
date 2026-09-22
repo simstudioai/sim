@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
 }))
+vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
+  createCodaMcpClient: vi.fn(),
+  searchCodaMcp: vi.fn(),
+  readCodaMcp: vi.fn(),
+}))
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isLiveEnterpriseSearchEnabled() {
     return mocks.enabled

@@ -81,8 +81,8 @@ export function createNativeClient(input: {
         )
       throw new NativeSearchError(
         'unavailable',
-        response.status === 400
-          ? 'The provider rejected this query. Check its native query syntax.'
+        response.status === 400 || response.status === 422
+          ? `The provider rejected this query (${response.status}). Check its native query syntax and supported search scope.`
           : `Provider request failed (${response.status}).`
       )
     }

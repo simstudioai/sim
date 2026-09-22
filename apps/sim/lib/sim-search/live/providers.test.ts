@@ -207,16 +207,53 @@ describe('native search endpoints', () => {
   it('retains GitHub issues when code search fails', async () => {
     const api = client()
     api.json
+      .mockResolvedValueOnce([{ full_name: 'org/repo' }])
       .mockResolvedValueOnce({
         items: [
           { number: 1, title: 'Issue', repository_url: 'https://api.github.com/repos/org/repo' },
         ],
       })
+      .mockResolvedValueOnce({ items: [] })
       .mockRejectedValueOnce(new Error('code rate limit'))
     expect(await searchGitHub(api, input)).toMatchObject({
       partial: true,
       documents: [{ id: '1' }],
     })
+  })
+  it('scopes ordinary GitHub code and issue searches to affiliated repositories and separates PRs', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? [{ full_name: 'my-org/repo' }] : { items: [], total_count: 0 }
+    )
+    await searchGitHub(api, input)
+    const searches = api.json.mock.calls.filter(([path]) => path.startsWith('/search/'))
+    expect(searches).toHaveLength(3)
+    expect(searches.every(([, options]) => options?.query?.q?.includes('repo:my-org/repo'))).toBe(
+      true
+    )
+    expect(
+      searches.filter(([path]) => path === '/search/issues').map(([, options]) => options?.query?.q)
+    ).toEqual(['launch repo:my-org/repo is:issue', 'launch repo:my-org/repo is:pull-request'])
+    expect(searches.some(([path]) => path === '/search/code')).toBe(true)
+  })
+  it('never falls back to public GitHub when the connection has no repositories', async () => {
+    const api = client()
+    api.json.mockResolvedValue([])
+    expect((await searchGitHub(api, input)).documents).toEqual([])
+    expect(api.json).toHaveBeenCalledTimes(1)
+  })
+  it('uses member-project search on GitLab without a global code-search backend', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) => (path === '/api/v4/projects' ? [{ id: 42 }] : []))
+    await searchGitLab(api, input)
+    expect(api.json).toHaveBeenCalledWith(
+      '/api/v4/projects',
+      expect.objectContaining({ query: expect.objectContaining({ membership: 'true' }) })
+    )
+    expect(
+      api.json.mock.calls.filter(([path]) => path === '/api/v4/projects/42/search')
+    ).toHaveLength(3)
+    expect(api.json.mock.calls.some(([path]) => path === '/api/v4/search')).toBe(false)
   })
   it('binds GitLab code references and links to the searched revision', async () => {
     const api = client()
@@ -227,7 +264,7 @@ describe('native search endpoints', () => {
       .mockResolvedValueOnce({ web_url: 'https://gitlab.com/org/repo' })
     const result = await searchGitLab(api, {
       ...input,
-      native: { provider: 'gitlab', query: 'Evidence', kind: 'code' },
+      native: { provider: 'gitlab', query: 'Evidence', kind: 'code', project: '4' },
     })
     expect(result.documents[0]).toMatchObject({
       revision: 'release',
