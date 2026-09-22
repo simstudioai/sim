@@ -1,7 +1,6 @@
 'use client'
 
 import type { ComponentProps } from 'react'
-import { ListChecks } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -17,21 +16,13 @@ export function OrganizationFooter(props: OrganizationFooterProps) {
   const { organization } = useOrganizationContext()
   const router = useRouter()
   const accountSettingsHref = organizationRoutes(organization.id).settingsSection('general')
-  const accessRequestsHref = organizationRoutes(organization.id).accessRequests
 
   return (
     <SidebarFooter
       {...props}
       accountSettingsHref={accountSettingsHref}
       onOpenAccountSettings={() => router.push(accountSettingsHref)}
-      navigationLinks={[
-        {
-          label: 'My access requests',
-          icon: ListChecks,
-          href: accessRequestsHref,
-          onNavigate: () => router.push(accessRequestsHref),
-        },
-      ]}
+      navigationLinks={[]}
     />
   )
 }

@@ -29,7 +29,7 @@ describe('organization settings navigation', () => {
   it('exposes MCP setup and the read-only roster to an ordinary organization member', () => {
     expect(
       organizationSettingsNavigation(false, enterprise, available).map(({ id }) => id)
-    ).toEqual(['members', 'recently-deleted', 'search-mcp'])
+    ).toEqual(['members', 'recently-deleted', 'requests', 'search-mcp'])
   })
 
   it('uses Sources for administration when Search is available', () => {
@@ -138,7 +138,7 @@ describe('organization settings navigation', () => {
   it('hosts the account General section ahead of the organization sections', () => {
     expect(
       organizationSurfaceSettingsNavigation(false, enterprise, available).map(({ id }) => id)
-    ).toEqual(['general', 'members', 'recently-deleted', 'search-mcp'])
+    ).toEqual(['general', 'members', 'recently-deleted', 'requests', 'search-mcp'])
     expect(ORGANIZATION_SETTINGS_GROUPS.map(({ key }) => key)).toEqual([
       'account',
       'organization',

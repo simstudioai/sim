@@ -37,6 +37,13 @@ export const accessRequestSearchParams = {
   page: accessRequestPageParser,
 } as const
 
+/** An omitted view preserves the review landing page for administrators. */
+export const accessRequestSettingsSearchParams = {
+  ...accessRequestSearchParams,
+  view: parseAsStringLiteral(['requests', 'catalog', 'review'] as const),
+  'request-id': accessRequestIdParser,
+} as const
+
 export const accessReviewSearchParams = {
   'access-view': parseAsStringLiteral(['groups', 'requests'] as const).withDefault('groups'),
   'request-id': accessRequestIdParser,
@@ -57,7 +64,10 @@ export const accessRequestUrlOptions = { history: 'replace', clearOnDefault: tru
 export const accessRequestEntrySearchParams = {
   ...accessRequestSearchParams,
   organizationId: accessRequestIdParser,
-  view: parseAsStringLiteral(['requests', 'catalog', 'admin'] as const).withDefault('requests'),
+  view: parseAsStringLiteral(['requests', 'catalog', 'review', 'admin'] as const).withDefault(
+    'requests'
+  ),
+  'request-id': accessReviewSearchParams['request-id'],
   'request-page': accessReviewSearchParams['request-page'],
   'request-search': accessReviewSearchParams['request-search'],
   'request-status': accessReviewSearchParams['request-status'],

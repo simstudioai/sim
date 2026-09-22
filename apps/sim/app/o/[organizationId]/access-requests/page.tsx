@@ -1,21 +1,21 @@
-import { Suspense } from 'react'
-import type { Metadata } from 'next'
-import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
-import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
+import { redirect } from 'next/navigation'
+import {
+  getAccessRequestsSettingsHref,
+  getLegacyAccessRequestsSettingsQuery,
+} from '@/ee/access-requests/lib/navigation'
 
-export const metadata: Metadata = { title: 'My access requests' }
-
-interface OrganizationAccessRequestsPageProps {
+interface AccessRequestsPageProps {
   params: Promise<{ organizationId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function OrganizationAccessRequestsPage({
+export default async function AccessRequestsPage({
   params,
-}: OrganizationAccessRequestsPageProps) {
-  const { organizationId } = await params
-  return (
-    <Suspense fallback={<AccessRequestsLoading />}>
-      <MyAccessRequests scope={{ kind: 'organization', organizationId }} />
-    </Suspense>
+  searchParams,
+}: AccessRequestsPageProps) {
+  const [{ organizationId }, query] = await Promise.all([params, searchParams])
+  redirect(
+    getAccessRequestsSettingsHref({ kind: 'organization', organizationId }) +
+      getLegacyAccessRequestsSettingsQuery(query)
   )
 }

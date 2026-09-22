@@ -36,7 +36,6 @@ export function organizationRoutes(organizationId: string) {
     home: `${root}/home`,
     search: `${root}/search`,
     integrations: `${root}/integrations`,
-    accessRequests: `${root}/access-requests`,
     skills: `${root}/skills`,
     settings: `${root}/settings`,
     searchProvider: (connectorType: string) =>
