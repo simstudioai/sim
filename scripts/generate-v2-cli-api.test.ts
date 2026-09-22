@@ -3,17 +3,124 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { CLI_MANAGED_HEADERS, loadSummaries, renderSlotMap } from './generate-v2-cli-api'
+import {
+  CLI_MANAGED_HEADERS,
+  loadSummaries,
+  render,
+  renderBodyDiscriminator,
+  renderSlotMap,
+} from './generate-v2-cli-api'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
+describe('discriminated object request bodies', () => {
+  const schema = z.discriminatedUnion('action', [
+    z
+      .object({
+        action: z.literal('apply'),
+        expectedFingerprint: z.string().describe('Fingerprint from preview.'),
+        newLimitCredits: z.number().int().optional(),
+      })
+      .strict(),
+    z.object({ action: z.literal('decline'), reason: z.string() }).strict(),
+  ])
+
+  it('exposes every branch field while requiring only the discriminator before selection', () => {
+    const map = renderSlotMap(schema, '  ')
+    expect(map).toContain(
+      '"action": { kind: \'enum\', required: true, values: ["apply", "decline"]'
+    )
+    expect(map).toContain(
+      '"expectedFingerprint": { kind: \'string\', describe: "Fingerprint from preview. Available when action is apply. Required when action is apply." }'
+    )
+    expect(map).toContain('"newLimitCredits": { kind: \'integer\'')
+    expect(map).toContain(
+      '"reason": { kind: \'string\', describe: "Available when action is decline. Required when action is decline." }'
+    )
+    expect(map?.match(/required: true/g)).toHaveLength(1)
+  })
+
+  it('emits branch requirements and does not require an opaque JSON body', () => {
+    const metadata = renderBodyDiscriminator(schema, '  ')
+    expect(metadata).toContain('field: "action"')
+    expect(metadata).toContain('"expectedFingerprint": { kind: \'string\', required: true')
+    expect(metadata).toContain('"reason": { kind: \'string\', required: true')
+    const source = render(
+      [
+        {
+          name: 'resolveRequest',
+          exportName: 'v2ResolveRequestContract',
+          domain: 'requests',
+          contract: {
+            method: 'POST',
+            path: '/api/v2/requests/[requestId]/resolve',
+            body: schema,
+            response: { mode: 'json', schema: z.object({ data: z.object({ id: z.string() }) }) },
+          },
+        },
+      ],
+      new Map()
+    )
+    expect(source).toContain('bodyDiscriminator:')
+    expect(source).not.toContain('opaqueBody: true')
+  })
+
+  it('unites shared enum choices without losing branch-specific validation', () => {
+    const body = z.discriminatedUnion('action', [
+      z.object({ action: z.literal('first'), mode: z.enum(['a', 'b']).default('a') }),
+      z.object({ action: z.literal('second'), mode: z.enum(['b', 'c']).default('c') }),
+    ])
+    expect(renderSlotMap(body, '  ')).toContain('values: ["a", "b", "c"]')
+    expect(renderSlotMap(body, '  ')).not.toContain('default:')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('values: ["b", "c"]')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('default: "a"')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('default: "c"')
+  })
+
+  it('resolves named branches and fields while preserving discriminator descriptions', () => {
+    const fingerprint = z.string().meta({ id: 'Fingerprint' })
+    const body = z.discriminatedUnion('action', [
+      z
+        .object({ action: z.literal('apply').describe('Apply the change.'), fingerprint })
+        .meta({ id: 'ApplyDecision' }),
+      z
+        .object({
+          action: z.literal('decline').describe('Decline the request.'),
+          reason: z.string(),
+        })
+        .meta({ id: 'DeclineDecision' }),
+    ])
+    const map = renderSlotMap(body, '  ')
+    expect(map).toContain('"fingerprint": { kind: \'string\'')
+    expect(map).toContain('describe: "apply: Apply the change. decline: Decline the request."')
+    expect(renderBodyDiscriminator(body, '  ')).toContain(
+      '"fingerprint": { kind: \'string\', required: true'
+    )
+  })
+
+  it('preserves opaque single-row and batch unions and their shared workspace field', () => {
+    const body = z.union([
+      z.object({ workspaceId: z.string(), data: z.record(z.string(), z.unknown()) }),
+      z.object({ workspaceId: z.string(), rows: z.array(z.record(z.string(), z.unknown())) }),
+    ])
+    expect(renderBodyDiscriminator(body, '  ')).toBeNull()
+    expect(renderSlotMap(body, '  ')).toBe(
+      '{\n    "workspaceId": { kind: \'string\', required: true },\n  }'
+    )
+  })
+
+  it('keeps incompatible flag shapes on the existing opaque body path', () => {
+    const body = z.discriminatedUnion('action', [
+      z.object({ action: z.literal('first'), value: z.string() }),
+      z.object({ action: z.literal('second'), value: z.object({ id: z.string() }) }),
+    ])
+    expect(renderBodyDiscriminator(body, '  ')).toBeNull()
+  })
+})
+
 describe('a field the contract types as nullable', () => {
   /**
-   * The operation table describes what the CLI can build a flag from, and a flag
-   * that sends JSON `null` is not one of them: `--no-<flag>` already means "send
-   * this boolean as false" on 37 flags, and `--description ''` is how a string
-   * is emptied. Emitting the nullability invited a second meaning for one
-   * spelling, so it is no longer carried.
+   * String flags preserve their literal value; numeric flags have an unambiguous null spelling.
    */
   it('describes it no differently from any other string', () => {
     const map = renderSlotMap(
@@ -23,6 +130,15 @@ describe('a field the contract types as nullable', () => {
     expect(map).toContain("kind: 'string'")
     expect(map).not.toContain('nullable')
   })
+
+  it.each([z.number(), z.number().int()])(
+    'carries numeric nullability through the descriptor',
+    (value) => {
+      const map = renderSlotMap(z.object({ creditLimit: value.nullable() }), '  ')
+      expect(map).toContain('nullable: true, required: true')
+      expect(map).toContain(`kind: '${value.isInt ? 'integer' : 'number'}'`)
+    }
+  )
 })
 
 describe('request headers reaching the CLI as flags', () => {

@@ -178,6 +178,37 @@ describe('queryPublicWorkspaceMembers', () => {
     ])
   })
 
+  it('retains canonical user IDs for inherited administrators without explicit grants', async () => {
+    queueTableRows(schemaMock.workspace, [{ ownerId: 'owner', organizationId: 'org-1' }])
+    queueTableRows(schemaMock.permissions, [])
+    queueTableRows(schemaMock.member, [
+      {
+        userId: 'inherited-user',
+        email: 'admin@example.com',
+        name: 'Admin',
+        image: null,
+        joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const page = await queryPublicWorkspaceMembers('workspace-1', { limit: 10 })
+
+    expect(page?.members).toEqual([
+      {
+        userId: 'inherited-user',
+        email: 'admin@example.com',
+        name: 'Admin',
+        image: null,
+        role: 'admin',
+        isExternal: false,
+        joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    expect(dbChainMockFns.select).toHaveBeenLastCalledWith(
+      expect.objectContaining({ userId: schemaMock.user.id })
+    )
+  })
+
   it('returns null when the workspace is not active', async () => {
     queueTableRows(schemaMock.workspace, [])
 

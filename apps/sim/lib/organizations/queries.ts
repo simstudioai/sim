@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import {
   type InvitationStatus,
   invitation,
+  invitationWorkspaceGrant,
   member,
   organization,
   user,
@@ -228,4 +229,40 @@ export async function requireOrganizationInvitationRecord(
     .limit(1)
   if (!row) throw new OrchestrationError('not_found', 'Invitation not found')
   return row
+}
+
+/** Includes retained archived grants without exposing workspaces moved to another organization. */
+export async function listOrganizationInvitationWorkspaceRecords(
+  organizationId: string,
+  invitationId: string,
+  options: OrganizationListOptions<OrganizationWorkspaceSortBy>
+) {
+  type InvitationWorkspaceRow = { id: string; name: string }
+  const idKey = textKey<InvitationWorkspaceRow>(workspace.id, (row) => row.id)
+  const keys =
+    options.sortBy === 'id'
+      ? [idKey]
+      : [textKey<InvitationWorkspaceRow>(workspace.name, (row) => row.name), idKey]
+  const rows = await db
+    .select({
+      id: workspace.id,
+      name: workspace.name,
+      permission: invitationWorkspaceGrant.permission,
+      archivedAt: workspace.archivedAt,
+    })
+    .from(invitationWorkspaceGrant)
+    .innerJoin(invitation, eq(invitation.id, invitationWorkspaceGrant.invitationId))
+    .innerJoin(workspace, eq(workspace.id, invitationWorkspaceGrant.workspaceId))
+    .where(
+      and(
+        eq(invitation.organizationId, organizationId),
+        eq(invitationWorkspaceGrant.invitationId, invitationId),
+        eq(workspace.organizationId, organizationId),
+        searchFilter(workspace.name, options.search),
+        resumeKeyset(keys, options.cursorKeys, options.sortOrder)
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), options.sortOrder))
+    .limit(options.limit + 1)
+  return keysetPage(keys, rows, options.limit)
 }

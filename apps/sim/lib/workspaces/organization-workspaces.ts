@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissions, workspace } from '@sim/db/schema'
+import { invitation, member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
@@ -11,6 +11,7 @@ import {
   reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
 import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
@@ -426,6 +427,32 @@ export async function detachOrganizationWorkspacesTx(
   tx: DbOrTx,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
+  const organizationWorkspacesWhere = and(
+    eq(workspace.organizationId, organizationId),
+    eq(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION)
+  )
+  const workspaceSnapshot = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(organizationWorkspacesWhere)
+  const organizationInvitationsWhere = eq(invitation.organizationId, organizationId)
+  const invitationSnapshot = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(organizationInvitationsWhere)
+  const lockedWorkspaceIds = new Set(workspaceSnapshot.map(({ id }) => id))
+  const lockedInvitationIds = new Set(invitationSnapshot.map(({ id }) => id))
+
+  /**
+   * Acceptance locks invitations before workspaces; enlisted organization deletion
+   * also cascades invitation rows. Resend checks organization policy even for
+   * terminal invitations, so their locks also precede the organization fence.
+   */
+  await acquireInvitationMutationLocks(tx, {
+    invitationIds: [...lockedInvitationIds],
+    workspaceIds: [...lockedWorkspaceIds],
+  })
+  await acquireOrganizationMutationLock(tx, organizationId)
   const organizationOwnerId = await getOrganizationOwnerId(organizationId, tx)
   if (!organizationOwnerId) {
     logger.warn(
@@ -441,12 +468,24 @@ export async function detachOrganizationWorkspacesTx(
       billedAccountUserId: workspace.billedAccountUserId,
     })
     .from(workspace)
-    .where(
-      and(
-        eq(workspace.organizationId, organizationId),
-        eq(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION)
-      )
+    .where(organizationWorkspacesWhere)
+
+  if (organizationWorkspaces.some(({ id }) => !lockedWorkspaceIds.has(id))) {
+    throw new OrchestrationError(
+      'conflict',
+      'Organization workspaces changed during detachment; retry'
     )
+  }
+  const organizationInvitations = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(organizationInvitationsWhere)
+  if (organizationInvitations.some(({ id }) => !lockedInvitationIds.has(id))) {
+    throw new OrchestrationError(
+      'conflict',
+      'Organization invitations changed during detachment; retry'
+    )
+  }
 
   const detachedWorkspaceIds = await (async () => {
     const now = new Date()

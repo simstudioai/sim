@@ -1,45 +1,34 @@
 import type { Principal } from '@sim/auth/principal'
-import type { ApplicationOperation } from '@/lib/core/application'
-import { assertOperationCapability } from '@/lib/core/application'
+import {
+  defineOrganizationOperation,
+  type OrganizationOperation,
+} from '@/lib/core/application/organization-operation'
 
-/**
- * Session only.
- *
- * An organization's pooled ledger discloses every member's model spend, which is why
- * `workspace-billing-authority` treats organization membership alone as insufficient
- * for it. There is no API-key consumer of this surface today, and adding one should
- * be a deliberate decision rather than something inherited from a default.
- */
-export type OrganizationUsagePrincipal = Extract<Principal, { kind: 'session' }>
+export type OrganizationUsagePrincipal = Extract<
+  Principal,
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
+>
 
-export interface OrganizationUsageOperation<Id extends string = string>
-  extends ApplicationOperation<Id> {
+export interface OrganizationUsageOperation extends OrganizationOperation {
   readonly authority: 'organization_billing_admin'
   readonly organizationRoles: readonly ['admin', 'owner']
   readonly workspaceApiKey: 'deny'
-  readonly principalKinds: readonly ['session']
-}
-
-function defineOrganizationUsageOperation<const Id extends string>(
-  operation: OrganizationUsageOperation<Id>
-): OrganizationUsageOperation<Id> {
-  if ((operation.principalKinds as readonly string[]).some((kind) => kind !== 'session')) {
-    throw new Error(
-      `Organization usage operation ${operation.id} may only be performed by a session`
-    )
-  }
-  assertOperationCapability(operation)
-  Object.freeze(operation.organizationRoles)
-  Object.freeze(operation.principalKinds)
-  return Object.freeze(operation)
+  readonly principalKinds: readonly OrganizationUsagePrincipal['kind'][]
 }
 
 const BASE = {
   authority: 'organization_billing_admin',
   organizationRoles: ['admin', 'owner'],
+  minimumRole: 'admin',
   workspaceApiKey: 'deny',
   principalKinds: ['session'],
-} as const satisfies Omit<OrganizationUsageOperation, 'id' | 'capability'>
+} as const
+
+const PUBLIC_READ = {
+  ...BASE,
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+  oauthScope: 'api:read',
+} as const
 
 /**
  * Every one takes `capability: 'none'`, written out at each call site rather than
@@ -48,38 +37,50 @@ const BASE = {
  * nothing outside the type system ever sees.
  */
 export const organizationUsageOperations = {
-  // permission-group-exempt: aggregate organization activity is governed by organization admin authority, not a workspace permission group
-  readActivitySummary: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: aggregate organization activity is governed by organization admin authority, not a workspace permission group
+   */
+  readActivitySummary: defineOrganizationOperation({
     id: 'organization_usage.activity.summary.read',
     capability: 'none',
     ...BASE,
   }),
-  // permission-group-exempt: organization activity breakdowns require the same organization admin authority as the summary
-  readActivityBreakdown: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: organization activity breakdowns require the same organization admin authority as the summary
+   */
+  readActivityBreakdown: defineOrganizationOperation({
     id: 'organization_usage.activity.breakdown.read',
     capability: 'none',
     ...BASE,
   }),
-  // permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
-  readSummary: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
+   */
+  readSummary: defineOrganizationOperation({
     id: 'organization_usage.summary.read',
     capability: 'none',
-    ...BASE,
+    ...PUBLIC_READ,
   }),
-  // permission-group-exempt: the same pooled ledger, broken down; organization billing-admin authority governs it
-  readBreakdown: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: the same pooled ledger, broken down; organization billing-admin authority governs it
+   */
+  readBreakdown: defineOrganizationOperation({
     id: 'organization_usage.breakdown.read',
     capability: 'none',
-    ...BASE,
+    ...PUBLIC_READ,
   }),
-  // permission-group-exempt: organization billing events, governed by organization billing-admin authority rather than a workspace group
-  listEvents: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: organization billing events, governed by organization billing-admin authority rather than a workspace group
+   */
+  listEvents: defineOrganizationOperation({
     id: 'organization_usage.events.list',
     capability: 'none',
-    ...BASE,
+    ...PUBLIC_READ,
   }),
-  // permission-group-exempt: exports the same organization billing events; logs.export names workflow run logs, not the billing ledger
-  exportEvents: defineOrganizationUsageOperation({
+  /**
+   * permission-group-exempt: exports the same organization billing events; logs.export names workflow run logs, not the billing ledger
+   */
+  exportEvents: defineOrganizationOperation({
     id: 'organization_usage.events.export',
     capability: 'none',
     ...BASE,

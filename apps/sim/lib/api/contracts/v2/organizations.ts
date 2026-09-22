@@ -14,6 +14,7 @@ import {
   v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
+import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
 export const v2OrganizationParamsSchema = z
   .object({
@@ -77,6 +78,25 @@ export const v2OrganizationWorkspaceSchema = z
   })
 export type V2OrganizationWorkspace = z.output<typeof v2OrganizationWorkspaceSchema>
 
+export const v2OrganizationInvitationWorkspaceSchema = v2OrganizationWorkspaceSchema
+  .extend({
+    permission: workspacePermissionSchema.describe(
+      'Workspace permission offered by the invitation.'
+    ),
+    archivedAt: v2TimestampSchema
+      .nullable()
+      .describe('When the workspace was archived, or null while active.'),
+  })
+  .meta({
+    id: 'V2OrganizationInvitationWorkspace',
+    title: 'Organization invitation workspace',
+    description:
+      'A workspace grant attached to an invitation, separate from organization membership.',
+  })
+export type V2OrganizationInvitationWorkspace = z.output<
+  typeof v2OrganizationInvitationWorkspaceSchema
+>
+
 export const v2OrganizationInvitationSchema = z
   .object({
     id: z.string().describe('Invitation identifier.'),
@@ -131,6 +151,11 @@ export const v2ListOrganizationWorkspacesQuerySchema = z
   .strict()
 export type V2ListOrganizationWorkspacesQuery = z.output<
   typeof v2ListOrganizationWorkspacesQuerySchema
+>
+export const v2ListOrganizationInvitationWorkspacesQuerySchema =
+  v2ListOrganizationWorkspacesQuerySchema
+export type V2ListOrganizationInvitationWorkspacesQuery = z.output<
+  typeof v2ListOrganizationInvitationWorkspacesQuerySchema
 >
 export const v2ListOrganizationInvitationsQuerySchema = z
   .object({
@@ -254,6 +279,13 @@ export const v2GetOrganizationInvitationContract = defineRouteContract({
   params: v2OrganizationInvitationParamsSchema,
   query: noInputSchema,
   response: { mode: 'json', schema: v2DataResponse(v2OrganizationInvitationSchema) },
+})
+export const v2ListOrganizationInvitationWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
+  params: v2OrganizationInvitationParamsSchema,
+  query: v2ListOrganizationInvitationWorkspacesQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2OrganizationInvitationWorkspaceSchema) },
 })
 export const v2RevokeOrganizationInvitationContract = defineRouteContract({
   method: 'DELETE',

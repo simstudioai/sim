@@ -17,6 +17,7 @@ import type { OperationDeclarableCapability } from '@/lib/core/application/opera
 import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
@@ -37,7 +38,7 @@ export interface OrganizationMembershipContext extends OrganizationAuthorization
 }
 
 export interface OrganizationAuthorizationOptions {
-  executor?: Pick<typeof db, 'select'>
+  executor?: DbOrTx
   forUpdate?: boolean
 }
 
@@ -86,7 +87,9 @@ async function requireOrganizationSubjectMembership(
   const config =
     capability === 'none' && !userCredential
       ? null
-      : await getUserPermissionConfigForOrganization(organizationId)
+      : options.executor
+        ? await getUserPermissionConfigForOrganization(organizationId, options.executor)
+        : await getUserPermissionConfigForOrganization(organizationId)
   if (userCredential && capabilityDeniedBy('personal_api_key.use', config))
     refuseCapability('personal_api_key.use')
   if (userCredential?.kind === 'oauth_access_token') {

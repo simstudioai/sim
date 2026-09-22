@@ -127,6 +127,127 @@ describe('commands parsed through commander', () => {
     profileState.workspaceId = 'ws_local'
   })
 
+  describe('organization access-request decisions', () => {
+    it('sends apply flags through the generated operation without opaque JSON', async () => {
+      profileState.workspaceId = null
+      const [path, options] = await run(
+        [
+          'organizations',
+          'access-requests',
+          'resolve',
+          'request-1',
+          '--organization',
+          'org-1',
+          '--action',
+          'apply',
+          '--expected-fingerprint',
+          'preview',
+          '--new-limit-credits',
+          '100',
+        ],
+        { data: { id: 'request-1' } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/access-requests/request-1/resolve')
+      expect(options.body).toEqual({
+        action: 'apply',
+        expectedFingerprint: 'preview',
+        newLimitCredits: 100,
+      })
+    })
+
+    it('sends decline without requiring apply fields', async () => {
+      const [, options] = await run(
+        [
+          'organizations',
+          'access-requests',
+          'resolve',
+          'request-1',
+          '--organization',
+          'org-1',
+          '--action',
+          'decline',
+          '--reason',
+          'Not needed',
+        ],
+        { data: { id: 'request-1' } }
+      )
+      expect(options.body).toEqual({ action: 'decline', reason: 'Not needed' })
+    })
+
+    it('rejects flags from another decision branch before calling the API', async () => {
+      await expect(
+        run([
+          'organizations',
+          'access-requests',
+          'resolve',
+          'request-1',
+          '--organization',
+          'org-1',
+          '--action',
+          'decline',
+          '--reason',
+          'Not needed',
+          '--expected-fingerprint',
+          'preview',
+        ])
+      ).rejects.toThrow('--expected-fingerprint is not available when --action is decline')
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('organization member credit caps', () => {
+    it.each([
+      ['100', 100],
+      ['0', 0],
+      ['null', null],
+    ] as const)('sends --credit-limit %s without changing its meaning', async (value, expected) => {
+      profileState.workspaceId = null
+      const [path, options] = await run(
+        [
+          'organizations',
+          'members',
+          'usage-limit',
+          'update',
+          'user-1',
+          '--organization',
+          'org-1',
+          '--credit-limit',
+          value,
+        ],
+        { data: { creditLimit: expected } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/members/user-1/usage-limit')
+      expect(options.body).toEqual({ creditLimit: expected })
+    })
+
+    it.each(['many', '1.5', 'Infinity', ''])(
+      'rejects an invalid credit cap %s before sending',
+      async (value) => {
+        await expect(
+          run([
+            'organizations',
+            'members',
+            'usage-limit',
+            'update',
+            'user-1',
+            '--organization',
+            'org-1',
+            '--credit-limit',
+            value,
+          ])
+        ).rejects.toThrow(/--credit-limit/)
+        expect(mockRequest).not.toHaveBeenCalled()
+      }
+    )
+
+    it('explains the numeric null spelling accurately in generated help', () => {
+      const help = commandAt('organizations', 'members', 'usage-limit', 'update').helpInformation()
+      expect(help).toContain('--credit-limit <number|null>')
+      expect(help).toMatch(/Send null to clear\s+the cap/)
+      expect(help).not.toContain('sends the word')
+    })
+  })
+
   describe('permission groups', () => {
     it('lists organization groups without a workspace', async () => {
       profileState.workspaceId = null
