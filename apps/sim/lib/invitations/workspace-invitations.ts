@@ -577,10 +577,10 @@ export async function createWorkspaceInvitation({
   let existingOrganizationRole = existingMembership?.role
   let organizationRoleUpdated = false
   if (
-    existingAccessPolicy === 'ensure-at-least' &&
     existingUser &&
     organizationId &&
-    existingMembership?.organizationId === organizationId
+    existingMembership?.organizationId === organizationId &&
+    (existingAccessPolicy === 'ensure-at-least' || isOrgAdminRole(existingMembership.role))
   ) {
     const ensuredRole = await ensureExistingMemberOrganizationRole({
       context,
@@ -588,7 +588,8 @@ export async function createWorkspaceInvitation({
       memberId: existingMembership.memberId,
       userId: existingUser.id,
       currentRole: existingMembership.role,
-      requestedRole: membership === 'admin' ? 'admin' : 'member',
+      requestedRole:
+        existingAccessPolicy === 'ensure-at-least' && membership === 'admin' ? 'admin' : 'member',
       email: normalizedEmail,
       request,
       validateLockedWorkspace,

@@ -267,11 +267,14 @@ describe('createWorkspaceInvitation', () => {
   it.each(['admin', 'owner'] as const)(
     'rejects inviting an organization %s who already inherits workspace access',
     async (role) => {
-      queueWhereResponses([
-        [{ id: 'user-2', email: 'member@example.com' }],
-        [{ workspaceId: 'ws-1', permission: 'read' }],
-      ])
-      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
+      queueTableRows(userTable, [{ id: 'user-2', email: 'member@example.com' }])
+      queueTableRows(member, [{ role: 'owner' }])
+      queueTableRows(member, [{ role }])
+      mockGetUserOrganization.mockResolvedValueOnce({
+        organizationId: 'org-1',
+        memberId: 'member-2',
+        role,
+      })
 
       await expect(
         createWorkspaceInvitation({
@@ -286,6 +289,41 @@ describe('createWorkspaceInvitation', () => {
       expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
       expect(mockSendInvitationEmail).not.toHaveBeenCalled()
       expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['member', 'admin'] as const)(
+    'preserves current membership after a concurrent demotion in ordinary %s invitations',
+    async (membership) => {
+      queueTableRows(userTable, [{ id: 'user-2' }])
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(member, [{ role: 'member' }])
+      mockGetUserOrganization.mockResolvedValueOnce({
+        organizationId: 'org-1',
+        memberId: 'member-2',
+        role: 'admin',
+      })
+
+      const result = await createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'member@example.com',
+        permission: 'write',
+        membership,
+        request,
+      })
+
+      expect(result).toMatchObject({ outcome: 'added', workspaceIds: ['ws-1'] })
+      expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+        mockGrantWorkspaceAccessDirectly.mock.invocationCallOrder[0]
+      )
+      expect(mockGrantWorkspaceAccessDirectly).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ userId: 'user-2', existingPermissionPolicy: 'preserve' })
+      )
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
     }
   )
 
