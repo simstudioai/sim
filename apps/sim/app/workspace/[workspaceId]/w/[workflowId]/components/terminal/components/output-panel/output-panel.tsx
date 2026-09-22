@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
+  Chip,
   Code,
   cn,
   Input,
@@ -308,29 +309,13 @@ export const OutputPanel = React.memo(function OutputPanel({
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
-            <Button
-              variant='ghost'
-              className={cn(
-                'text-small',
-                !showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
-              )}
-              onClick={handleOutputButtonClick}
-              aria-label='Show output'
-            >
+            <Chip active={!showInput} onClick={handleOutputButtonClick} aria-label='Show output'>
               Output
-            </Button>
+            </Chip>
             {hasInputData && (
-              <Button
-                variant='ghost'
-                className={cn(
-                  'text-small',
-                  showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
-                )}
-                onClick={handleInputButtonClick}
-                aria-label='Show input'
-              >
+              <Chip active={showInput} onClick={handleInputButtonClick} aria-label='Show input'>
                 Input
-              </Button>
+              </Chip>
             )}
           </div>
           <div className='flex shrink-0 items-center gap-2'>
