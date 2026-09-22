@@ -4,6 +4,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('OAuthTerminalErrors')
 
+/**
+ * Refresh error codes that no retry can recover from: the credential stays dead until
+ * its owner reconnects. `unauthorized_client` is how Atlassian rejects a revoked or
+ * rotated-out refresh token, and under RFC 6749 section 5.2 it otherwise means the
+ * client may not use the refresh grant, which is equally persistent.
+ */
 const TERMINAL_ERRORS = new Set<string>([
   'invalid_refresh_token',
   'bad_refresh_token',
@@ -14,6 +20,7 @@ const TERMINAL_ERRORS = new Set<string>([
   'invalid_client',
   'bad_redirect_uri',
   'token_revoked',
+  'unauthorized_client',
 ])
 
 const DEAD_CACHE_TTL_SEC = 60 * 60
