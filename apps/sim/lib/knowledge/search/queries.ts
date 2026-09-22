@@ -115,7 +115,13 @@ const PROJECTION_FILLED_TTL_MS = 60_000
 
 /**
  * Whether the ranking projection still holds rows the backfill has not filled. Read off the
- * unfilled-rows index in microseconds and remembered briefly: the answer only ever changes once.
+ * unfilled-rows index in milliseconds and remembered briefly: the answer only ever changes once.
+ *
+ * The read asks for the last unfilled row by id, not whether one exists: an `EXISTS` drops its
+ * order and limit, and while most rows are unfilled the planner expects a sequential scan to
+ * meet one at once, then walks the whole projection when the unfilled rows sit past the filled
+ * ones. Ordered by id and capped at one row, the read can only be the partial index, whose
+ * last entry is the row the fill reaches last.
  */
 const projectionFilled = new LRUCache<
   ProjectionSourceAclTable,
@@ -134,7 +140,10 @@ const projectionFilled = new LRUCache<
     try {
       const [row] = await runSearchQuery(context.budget, context.stage, (executor) =>
         executor.execute<{ unfilled: boolean }>(sql`
-        SELECT EXISTS (SELECT 1 FROM ${table} WHERE ${table.acl} IS NULL) AS unfilled`)
+        SELECT (
+          SELECT ${table.id} FROM ${table} WHERE ${table.acl} IS NULL
+          ORDER BY ${table.id} DESC LIMIT 1
+        ) IS NOT NULL AS unfilled`)
       )
       return !row?.unfilled
     } catch {
