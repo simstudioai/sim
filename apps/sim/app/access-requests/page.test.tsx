@@ -18,6 +18,7 @@ vi.mock('@/ee/access-requests/components/organization-access-requests', () => ({
 }))
 
 import AccessRequestsPage from '@/app/access-requests/page'
+import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
 
 describe('access request sign-in redirect', () => {
   beforeEach(() => {
@@ -123,5 +124,21 @@ describe('access request sign-in redirect', () => {
     })
     expect(redirect).not.toHaveBeenCalled()
     expect(organizationContext).not.toHaveBeenCalled()
+  })
+
+  it('renders the standalone requester when the optional organization navigation lookup fails', async () => {
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
+    organizationContext.mockRejectedValue(new Error('Organization context unavailable'))
+
+    const page = await AccessRequestsPage({
+      searchParams: Promise.resolve({ organizationId: 'organization', requestId: 'request' }),
+    })
+
+    expect(redirect).not.toHaveBeenCalled()
+    expect(page.props.children.type).toBe(MyAccessRequests)
+    expect(page.props.children.props).toEqual({
+      scope: { kind: 'organization', organizationId: 'organization' },
+      standalone: true,
+    })
   })
 })

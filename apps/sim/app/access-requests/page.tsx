@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { ChipLink } from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSearchParamsCache, createSerializer } from 'nuqs/server'
@@ -28,6 +29,7 @@ interface AccessRequestsPageProps {
 const entrySearchParams = createSearchParamsCache(accessRequestEntrySearchParams)
 const serializeEntrySearchParams = createSerializer(accessRequestEntrySearchParams)
 const serializeRequesterSearchParams = createSerializer(accessRequestSearchParams)
+const logger = createLogger('AccessRequestsPage')
 
 /** Session-only entry so access requests remain reachable outside the organization Search rollout. */
 export default async function AccessRequestsPage({ searchParams }: AccessRequestsPageProps) {
@@ -53,7 +55,13 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
   }
 
   if (params.view !== 'admin') {
-    const context = await getOrganizationSurfaceContext(params.organizationId, session.user.id)
+    const context = await getOrganizationSurfaceContext(
+      params.organizationId,
+      session.user.id
+    ).catch((error) => {
+      logger.warn('Unable to resolve organization navigation for access requests', { error })
+      return null
+    })
     if (context?.searchAccess.memberScoped) {
       redirect(
         serializeRequesterSearchParams(organizationRoutes(params.organizationId).accessRequests, {
