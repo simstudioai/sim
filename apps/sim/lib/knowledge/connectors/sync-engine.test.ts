@@ -3353,6 +3353,7 @@ describe('executeSync hard-delete reconciliation', () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { ...CONNECTOR, connectorType: 'oauth', credentialId: null, encryptedApiKey: null },
     ])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
 
     const result = await executeSync('c-1', {
       billingAttribution: { workspaceId: 'ws-1' } as never,
@@ -3379,6 +3380,7 @@ describe('executeSync hard-delete reconciliation', () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { ...CONNECTOR, connectorType: 'keyed', credentialId: null, encryptedApiKey: null },
     ])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
 
     const result = await executeSync('c-1', {
       billingAttribution: { workspaceId: 'ws-1' } as never,

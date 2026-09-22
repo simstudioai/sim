@@ -849,45 +849,6 @@ export async function executeSync(
     throw new Error(`Unknown connector type: ${connectorBeforeLock.connectorType}`)
   }
 
-  /**
-   * A connector with no token source cannot succeed, and each attempt would only walk the
-   * failure ladder and, at its end, disable a connector that merely needs reconnecting. Left
-   * unscheduled with the reconnect error instead, the same transition as a deleted knowledge base.
-   */
-  if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
-    logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
-    /**
-     * Written only while the row is still the credential-less row this run read: a reconnect
-     * that landed in between keeps its schedule, and a paused or disabled connector a stale task
-     * reached keeps its status. A row this dispatch marked `pending` is released with it, the
-     * same token match the lock acquisition below applies.
-     */
-    const observed = (
-      column: typeof knowledgeConnector.credentialId | typeof knowledgeConnector.encryptedApiKey,
-      value: string | null
-    ) => (value === null ? isNull(column) : eq(column, value))
-    await db
-      .update(knowledgeConnector)
-      .set(buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REMOVED_SYNC_ERROR))
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          observed(knowledgeConnector.credentialId, connectorBeforeLock.credentialId),
-          observed(knowledgeConnector.encryptedApiKey, connectorBeforeLock.encryptedApiKey),
-          or(
-            inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES]),
-            options.dispatchToken
-              ? and(
-                  eq(knowledgeConnector.status, 'pending'),
-                  eq(knowledgeConnector.syncLockToken, options.dispatchToken)
-                )
-              : undefined
-          )
-        )
-      )
-    return { ...result, skipReason: 'credential_missing' }
-  }
-
   const kbRows = await db
     .select({
       userId: knowledgeBase.userId,
@@ -928,6 +889,45 @@ export async function executeSync(
     )
   }
   assertBillingAttributionOwner(billingAttribution, kbOwner)
+
+  /**
+   * A connector with no token source cannot succeed, and each attempt would only walk the
+   * failure ladder and, at its end, disable a connector that merely needs reconnecting. Left
+   * unscheduled with the reconnect error instead, the same transition as a deleted knowledge base.
+   */
+  if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
+    logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
+    /**
+     * Written only while the row is still the credential-less row this run read: a reconnect
+     * that landed in between keeps its schedule, and a paused or disabled connector a stale task
+     * reached keeps its status. A row this dispatch marked `pending` is released with it, the
+     * same token match the lock acquisition below applies.
+     */
+    const observed = (
+      column: typeof knowledgeConnector.credentialId | typeof knowledgeConnector.encryptedApiKey,
+      value: string | null
+    ) => (value === null ? isNull(column) : eq(column, value))
+    await db
+      .update(knowledgeConnector)
+      .set(buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REMOVED_SYNC_ERROR))
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          observed(knowledgeConnector.credentialId, connectorBeforeLock.credentialId),
+          observed(knowledgeConnector.encryptedApiKey, connectorBeforeLock.encryptedApiKey),
+          or(
+            inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES]),
+            options.dispatchToken
+              ? and(
+                  eq(knowledgeConnector.status, 'pending'),
+                  eq(knowledgeConnector.syncLockToken, options.dispatchToken)
+                )
+              : undefined
+          )
+        )
+      )
+    return { ...result, skipReason: 'credential_missing' }
+  }
   return withResourceOutboundScope(kbOwner, async (): Promise<SyncResult> => {
     /**
      * Identifies this run for the terminal writes. Generated before the CAS and
