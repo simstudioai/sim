@@ -264,6 +264,144 @@ describe('createWorkspaceInvitation', () => {
     expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
+  it.each(['admin', 'owner'] as const)(
+    'rejects inviting an organization %s who already inherits workspace access',
+    async (role) => {
+      queueWhereResponses([
+        [{ id: 'user-2', email: 'member@example.com' }],
+        [{ workspaceId: 'ws-1', permission: 'read' }],
+      ])
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
+
+      await expect(
+        createWorkspaceInvitation({
+          context: makeContext(['ws-1', 'ws-2']),
+          email: 'member@example.com',
+          permission: 'write',
+          request,
+        })
+      ).rejects.toThrow('already has access to every selected workspace')
+
+      expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+      expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+      expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['admin', 'owner'] as const)(
+    'leaves inherited access unchanged when ensuring access for an organization %s',
+    async (role) => {
+      queueWhereResponses([[{ id: 'user-2', email: 'member@example.com' }], []])
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
+
+      const result = await createWorkspaceInvitation({
+        context: makeContext(['ws-1', 'ws-2']),
+        email: 'member@example.com',
+        permission: 'admin',
+        membership: 'admin',
+        existingAccessPolicy: 'ensure-at-least',
+        request,
+      })
+
+      expect(result).toMatchObject({
+        workspaceIds: [],
+        instantAdd: true,
+        outcome: 'unchanged',
+        membershipIntent: 'internal',
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+      expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+      expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports a promotion as updated without granting redundant workspace permissions', async () => {
+    queueTableRows(userTable, [{ id: 'user-2' }])
+    queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(member, [{ role: 'member' }])
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      memberId: 'member-2',
+      role: 'member',
+    })
+
+    const result = await createWorkspaceInvitation({
+      context: makeContext(['ws-1', 'ws-2']),
+      email: 'member@example.com',
+      permission: 'write',
+      membership: 'admin',
+      existingAccessPolicy: 'ensure-at-least',
+      request,
+    })
+
+    expect(result).toMatchObject({
+      workspaceIds: [],
+      instantAdd: true,
+      outcome: 'updated',
+      membershipIntent: 'internal',
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledExactlyOnceWith(member)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ role: 'admin' })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ action: 'org_member.role_changed' })
+    )
+    expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+  })
+
+  it.each(['admin', 'owner'] as const)(
+    'does not inherit workspace access from a different organization %s role',
+    async (role) => {
+      queueWhereResponses([[{ id: 'user-3', email: 'ext@example.com' }], []])
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role })
+
+      const result = await createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'ext@example.com',
+        permission: 'read',
+        request,
+      })
+
+      expect(result.membershipIntent).toBe('external')
+      expect(result.workspaceIds).toEqual(['ws-1'])
+      expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+      expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          membershipIntent: 'external',
+          grants: [{ workspaceId: 'ws-1', permission: 'read' }],
+        })
+      )
+    }
+  )
+
+  it('does not treat a foreign organization admin role as a stronger explicit workspace grant', async () => {
+    queueWhereResponses([
+      [{ id: 'user-3', email: 'ext@example.com' }],
+      [{ workspaceId: 'ws-1', permission: 'read' }],
+    ])
+    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'admin' })
+
+    await createWorkspaceInvitation({
+      context: makeContext(),
+      email: 'ext@example.com',
+      permission: 'write',
+      existingAccessPolicy: 'ensure-at-least',
+      request,
+    })
+
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membershipIntent: 'external',
+        grants: [{ workspaceId: 'ws-1', permission: 'write' }],
+      })
+    )
+    expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+  })
+
   it('creates an external pending invitation when the user belongs to a different org', async () => {
     queueWhereResponses([[{ id: 'user-3', email: 'ext@example.com' }], []])
     mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })

@@ -577,6 +577,10 @@ export async function createWorkspaceInvitation({
 
   let pendingTargets = context.targets
   if (existingUser) {
+    const inheritsWorkspaceAdmin =
+      organizationId !== null &&
+      existingMembership?.organizationId === organizationId &&
+      isOrgAdminRole(existingOrganizationRole)
     const accessibleRows = await db
       .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
       .from(permissions)
@@ -588,14 +592,15 @@ export async function createWorkspaceInvitation({
         )
       )
     const accessibleWorkspaceIds = new Set(
-      accessibleRows
-        .filter(
-          (row) =>
-            existingAccessPolicy === 'preserve' ||
-            isOrgAdminRole(existingOrganizationRole) ||
-            permissionSatisfies(row.permission, invitationPermission)
-        )
-        .map((row) => row.workspaceId)
+      inheritsWorkspaceAdmin
+        ? allWorkspaceIds
+        : accessibleRows
+            .filter(
+              (row) =>
+                existingAccessPolicy === 'preserve' ||
+                permissionSatisfies(row.permission, invitationPermission)
+            )
+            .map((row) => row.workspaceId)
     )
 
     /**

@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  organizationIdSchema,
+  withMissingFieldMessage,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
 import {
@@ -147,14 +151,20 @@ export const resolveAccessRequestBodySchema = z.discriminatedUnion('action', [
   z
     .object({
       action: z.literal('apply'),
-      expectedFingerprint: fingerprintSchema,
+      expectedFingerprint: withMissingFieldMessage(
+        fingerprintSchema,
+        'expectedFingerprint is required; preview the request before applying it'
+      ),
       newLimitCredits: usageLimitSchema.optional(),
     })
     .strict(),
   z
     .object({
       action: z.literal('decline'),
-      reason: reasonSchema.min(1, 'Explain why this request was declined'),
+      reason: withMissingFieldMessage(
+        reasonSchema.min(1, 'Explain why this request was declined'),
+        'reason is required when declining a request'
+      ),
     })
     .strict(),
 ])
