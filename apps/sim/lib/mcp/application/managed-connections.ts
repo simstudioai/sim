@@ -3,17 +3,21 @@ import { credential, credentialGroup, credentialGroupEnrollment, mcpServers } fr
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
-import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
-import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
+import {
+  organizationAccountAccessPolicyCodec,
+  organizationAccountPolicyAllowsWorkspace,
+} from '@/lib/credential-groups/application/workspace-access-policy'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import {
   getManagedMcpConnector,
   MANAGED_MCP_CONNECTOR_IDS,
 } from '@/lib/credential-groups/managed-mcp-connectors'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import type { McpToolSchema } from '@/lib/mcp/types'
+import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 const MAX_MANAGED_MCP_CONNECTIONS = 500
 const MAX_MANAGED_MCP_CATALOG_BYTES = 5 * 1024 * 1024
@@ -52,13 +56,18 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
       organizationId,
     })
     if (!group) return { servers: [], tools: [] }
-    const policy = await requireOrganizationAccountsWorkspaceAccess({
-      ...context,
+    if (!(await isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }))) {
+      return { servers: [], tools: [] }
+    }
+    const policy = await requireResourcePolicy({
       organizationId,
-      credentialGroupId: group.credentialGroupId,
+      resourceType: 'credential_group',
+      resourceId: group.credentialGroupId,
+      codec: organizationAccountAccessPolicyCodec,
     })
+    /** Catalogs omit unavailable credentials; execution still requires explicit workspace access. */
     const allowedConnectorIds = MANAGED_MCP_CONNECTOR_IDS.filter((id) =>
-      organizationAccountPolicyAllowsWorkspace(policy, context.workspaceId, `mcp:${id}`)
+      organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId, `mcp:${id}`)
     )
     if (!allowedConnectorIds.length) return { servers: [], tools: [] }
     const managedCatalogScope = () =>
