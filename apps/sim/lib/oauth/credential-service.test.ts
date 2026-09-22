@@ -87,6 +87,7 @@ import {
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
+import { isTerminalRefreshError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
@@ -424,6 +425,7 @@ describe('OAuth access-token refresh headroom', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.mocked(isTerminalRefreshError).mockReturnValue(false)
     vi.mocked(isInstagramProvider).mockReturnValue(false)
     vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(false)
     vi.mocked(isMicrosoftProvider).mockReturnValue(false)
@@ -546,6 +548,47 @@ describe('OAuth access-token refresh headroom', () => {
     const guard = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
     expect(guard).toContain('account.refreshToken')
     expect(guard).toContain('original-refresh-token')
+  })
+
+  it('returns no token when the rotation write finds the account gone', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(account, [])
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toBeNull()
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      'Rotation write found no account; the credential is gone',
+      expect.anything()
+    )
+  })
+
+  it('does not flag a credential dead when a terminal failure follows a newer rotation', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    vi.mocked(isTerminalRefreshError).mockReturnValue(true)
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    queueTableRows(account, [
+      {
+        ...createOAuthAccount(3_600_000),
+        accessToken: 'winner-token',
+        refreshToken: 'winner-refresh-token',
+      },
+    ])
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toEqual({ accessToken: 'winner-token' })
+    expect(markCredentialDead).not.toHaveBeenCalled()
+  })
+
+  it('flags a credential dead on a terminal failure when its chain did not move', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    vi.mocked(isTerminalRefreshError).mockReturnValue(true)
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    queueTableRows(account, [createOAuthAccount()])
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toBeNull()
+    expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_grant')
   })
 
   it('uses the stored chain when the rotation write loses to a newer one', async () => {

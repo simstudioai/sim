@@ -886,6 +886,37 @@ const REFRESH_LOCK_HEADROOM_MS = 15_000
 const REFRESH_LOCK_TTL_SEC = Math.ceil((TOKEN_REFRESH_TIMEOUT_MS + REFRESH_LOCK_HEADROOM_MS) / 1000)
 const REFRESH_FOLLOWER_MAX_WAIT_MS = REFRESH_LOCK_TTL_SEC * 1000
 
+interface StoredChain {
+  accessToken: string | null
+  accessTokenExpiresAt: Date | null
+  refreshToken: string | null
+}
+
+/** The chain an account row holds now, or nothing when the account is gone. */
+async function readStoredChain(accountId: string): Promise<StoredChain | undefined> {
+  const [stored] = await db
+    .select({
+      accessToken: account.accessToken,
+      accessTokenExpiresAt: account.accessTokenExpiresAt,
+      refreshToken: account.refreshToken,
+    })
+    .from(account)
+    .where(eq(account.id, accountId))
+    .limit(1)
+  return stored
+}
+
+/**
+ * The stored access token when it can still serve a request, as a follower would take it: a
+ * chain another writer just rotated carries one, and a token that has already expired is no
+ * answer at all.
+ */
+function usableStoredToken(stored: StoredChain, providerId: string): string | null {
+  return stored.accessToken && !isOAuthAccessTokenExpiring(stored.accessTokenExpiresAt, providerId)
+    ? stored.accessToken
+    : null
+}
+
 async function performCoalescedRefresh({
   accountId,
   providerId,
@@ -979,18 +1010,25 @@ async function performCoalescedRefresh({
               message: result.message,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
-              // A refresh that lost a race with a concurrent connect fails with
-              // a revoked/rotated-out token even though the installation just
-              // got a live chain — dead-flagging then would take down a healthy
-              // credential for an hour.
+              // A refresh that lost a race with a concurrent connect or a newer
+              // rotation fails with a revoked/rotated-out token even though the
+              // account just got a live chain — dead-flagging then would take
+              // down a healthy credential for an hour.
               if (
                 slackChainVersion &&
                 (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
               ) {
                 logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
-              } else {
-                await markCredentialDead(scopeKey, result.errorCode)
+                return null
               }
+              if (!slackTeamId) {
+                const stored = await readStoredChain(accountId)
+                if (stored && stored.refreshToken !== refreshToken) {
+                  logger.info('Skipping dead flag: chain moved during refresh', logContext)
+                  return usableStoredToken(stored, providerId)
+                }
+              }
+              await markCredentialDead(scopeKey, result.errorCode)
             }
             return null
           }
@@ -1041,16 +1079,16 @@ async function performCoalescedRefresh({
               .where(and(eq(account.id, accountId), eq(account.refreshToken, refreshToken)))
               .returning({ id: account.id })
             if (rotated.length === 0) {
+              const stored = await readStoredChain(accountId)
+              if (!stored) {
+                logger.warn('Rotation write found no account; the credential is gone', logContext)
+                return null
+              }
               logger.warn(
                 'Rotation write lost to a newer chain; using the stored token',
                 logContext
               )
-              const [stored] = await db
-                .select({ accessToken: account.accessToken })
-                .from(account)
-                .where(eq(account.id, accountId))
-                .limit(1)
-              return stored?.accessToken ?? result.accessToken
+              return usableStoredToken(stored, providerId)
             }
           }
 
