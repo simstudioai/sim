@@ -34,6 +34,32 @@ function responsesUsage(partial: Partial<ResponsesUsageTokens>): ResponsesUsageT
 }
 
 describe('OpenAI usage aggregation', () => {
+  it.each([
+    ['gpt-6-sol', 272_000, 0.414, 0.1],
+    ['gpt-6-sol', 272_001, 0.828004, 0.15],
+    ['gpt-6-luna', 272_000, 0.0207, 0.005],
+    ['gpt-6-luna', 272_001, 0.0414002, 0.0075],
+  ] as const)(
+    'bills %s at %i prompt tokens using the full prompt to price cache reads, writes, and output',
+    (model, promptTokens, inputCost, outputCost) => {
+      const usage = createOpenAIUsageAccumulator()
+      addOpenAIUsage(
+        usage,
+        responsesUsage({
+          promptTokens,
+          cachedTokens: 100_000,
+          cacheWriteTokens: 100_000,
+          completionTokens: 10_000,
+        })
+      )
+
+      const cost = buildOpenAIUsageCost(model, usage)
+      expect(cost.input).toBeCloseTo(inputCost, 10)
+      expect(cost.output).toBeCloseTo(outputCost, 10)
+      expect(cost.total).toBeCloseTo(inputCost + outputCost, 10)
+    }
+  )
+
   it('matches plain list pricing when nothing was cached', () => {
     const usage = createOpenAIUsageAccumulator()
     addOpenAIUsage(usage, responsesUsage({ promptTokens: 12_345, completionTokens: 6_789 }))

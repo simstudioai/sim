@@ -357,6 +357,63 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         featured: true,
         recommended: true,
       },
+      {
+        id: 'gpt-6-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.4,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+      },
+      {
+        id: 'gpt-6-luna',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.5,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 0.2,
+              cachedInput: 0.02,
+              output: 0.75,
+            },
+          ],
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+        speedOptimized: true,
+      },
       // GPT-4.1 family
       {
         id: 'gpt-4.1',
