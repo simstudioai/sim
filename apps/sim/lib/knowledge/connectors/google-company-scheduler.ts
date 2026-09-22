@@ -6,7 +6,10 @@ import type {
 import { googleDriveCompanyCursorAdapter } from '@/connectors/google-drive/company-crawl'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
-import { googleWorkspaceCompanyCursorAdapter } from '@/connectors/google-workspace/company-crawl'
+import {
+  googleWorkspaceCompanyCursorAdapter,
+  isGoogleWorkspaceServiceNotEnabled,
+} from '@/connectors/google-workspace/company-crawl'
 import type {
   GoogleCompanyCursorAdapter,
   GoogleCompanyUserWork,
@@ -183,8 +186,12 @@ export function createGoogleCompanyScheduler(input: {
           nextCursor: nextCursor({ ...state, directoryCursor: undefined }, {}),
         }
       }
+      /** A user without a mailbox is out of scope like an inactive one until a later refresh sees it. */
       const users = page.users.filter(
-        (user) => user.active && (!selected.length || selected.includes(user.email))
+        (user) =>
+          user.active &&
+          (input.provider !== 'gmail' || user.isMailboxSetup !== false) &&
+          (!selected.length || selected.includes(user.email))
       )
       return {
         documents: [],
@@ -296,6 +303,29 @@ export function createGoogleCompanyScheduler(input: {
           : {}),
       }
     }
+    /** A user without the service completes cleanly and is re-probed no sooner than the Directory refresh. */
+    const skipped = (): ExternalDocumentList => ({
+      documents: [],
+      currentCursor,
+      hasMore: true,
+      nextCursor: nextCursor(next, {
+        update: {
+          partitionKey: work.partitionKey,
+          kind: work.kind,
+          cursor: null,
+          completed: true,
+          attempts: 0,
+          failure: null,
+          retryAt: new Date(
+            now().getTime() +
+              (work.kind === 'permissions'
+                ? GOOGLE_COMPANY_PERMISSION_REFRESH_MS
+                : Math.max(DIRECTORY_REFRESH_MS, input.syncIntervalMinutes * 60_000))
+          ),
+          ...(work.kind === 'permissions' ? { permissionStartedAt: null } : {}),
+        },
+      }),
+    })
     let page: ExternalDocumentList
     try {
       page = await input.listDocuments(
@@ -312,6 +342,7 @@ export function createGoogleCompanyScheduler(input: {
           false,
           true
         )
+      if (isGoogleWorkspaceServiceNotEnabled(error)) return skipped()
       const failure = deferredUserFailure(error, work.context)
       if (!failure) throw error
       return failed(failure, true)

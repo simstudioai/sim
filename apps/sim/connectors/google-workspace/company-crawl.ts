@@ -161,7 +161,22 @@ function ownerDocument(document: ExternalDocument, access: DelegatedUser): Exter
   return { ...document, acl: [`u:${access.user.email}`] }
 }
 
-/** Isolates narrow user-list failures; delegation, known scope errors and quota errors still fail. */
+/**
+ * Calendar answers an account without the Calendar service with exactly this reason. That is a
+ * standing property of the account, not a listing failure, so the user scheduler skips it.
+ */
+export function isGoogleWorkspaceServiceNotEnabled(error: unknown): boolean {
+  return (
+    error instanceof GoogleApiError &&
+    error.reasonsComplete &&
+    error.status === 403 &&
+    error.diagnostic?.operation === 'calendar.events.list' &&
+    error.diagnostic.reasons.length === 1 &&
+    error.diagnostic.reasons[0] === 'notACalendarUser'
+  )
+}
+
+/** Isolates narrow user-list failures; a missing Calendar service propagates for the scheduler to skip. */
 function userListingFailure(
   error: unknown,
   provider: GoogleWorkspaceProvider
@@ -169,7 +184,8 @@ function userListingFailure(
   if (!(error instanceof GoogleApiError) || !error.diagnostic || !error.reasonsComplete) return null
   const reasons = error.diagnostic.reasons
   const isolated =
-    provider === 'gmail'
+    !isGoogleWorkspaceServiceNotEnabled(error) &&
+    (provider === 'gmail'
       ? error.diagnostic.operation === 'gmail.threads.list' &&
         error.status === 400 &&
         reasons.length > 0 &&
@@ -177,7 +193,7 @@ function userListingFailure(
       : error.diagnostic.operation === 'calendar.events.list' &&
         error.status === 403 &&
         reasons.length > 0 &&
-        reasons.every((reason) => reason === 'forbidden' || reason === 'notACalendarUser')
+        reasons.every((reason) => reason === 'forbidden' || reason === 'notACalendarUser'))
   return isolated
     ? { operation: error.diagnostic.operation, status: error.status, reasons: [...reasons] }
     : null
@@ -317,9 +333,8 @@ export async function listGoogleWorkspaceDocuments(
     })
     return emptyPage(advance())
   }
-  if (provider === 'gmail' && user.isMailboxSetup === false) {
-    return failedUser({ operation: 'directory.users.get', reasons: ['mailboxNotSetup'] })
-  }
+  /** Directory refresh stops scheduling users without a mailbox; a partition queued earlier just completes. */
+  if (provider === 'gmail' && user.isMailboxSetup === false) return emptyPage(advance())
   const access: PageAccess = {
     provider,
     user,
