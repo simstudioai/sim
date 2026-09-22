@@ -115,6 +115,15 @@ describe('handleReconnectCredential', () => {
     expect(mocks.clearDeadFlag).toHaveBeenCalledWith(
       getOAuthRefreshCoordinationIdentity('account-new')
     )
+    /** Connectors the rejected credential had unscheduled are due again. */
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'active',
+        lastSyncError: null,
+        consecutiveFailures: 0,
+        nextSyncAt: new Date('2026-08-14T18:00:00.000Z'),
+      })
+    )
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         resourceId: 'credential-1',

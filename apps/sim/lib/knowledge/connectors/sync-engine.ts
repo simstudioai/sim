@@ -57,6 +57,7 @@ import {
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_SYNC_MAX_DURATION_SECONDS,
   CREDENTIAL_REMOVED_SYNC_ERROR,
+  CREDENTIAL_REVOKED_SYNC_ERROR,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -88,6 +89,7 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { ensureSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
+import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
 import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -744,8 +746,25 @@ export function buildSyncSuccessUpdate(
 }
 
 /**
+ * A credential the source rejected outright: the refresh path recorded a terminal error for
+ * it, so no retry can produce a token until the credential is reauthorized.
+ */
+export class ConnectorCredentialRevokedError extends Error {
+  constructor(
+    readonly credentialId: string,
+    readonly errorCode: string
+  ) {
+    super(`Credential ${credentialId} was rejected by the source (${errorCode})`)
+    this.name = 'ConnectorCredentialRevokedError'
+  }
+}
+
+/**
  * Resolves the token a connector syncs with, failing loudly where the shared
  * resolver reports "no token" — a sync has no reconnect prompt to fall back to.
+ * A credential the source has rejected outright fails as
+ * {@link ConnectorCredentialRevokedError}, so the run can unschedule the
+ * connector instead of walking the failure ladder toward a retry that cannot help.
  */
 async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
@@ -770,6 +789,13 @@ async function resolveAccessToken(
       userId,
       authMode: connectorConfig.auth.mode,
     })
+    const terminalError =
+      connectorConfig.auth.mode === 'oauth' && connector.credentialId
+        ? await getCredentialTerminalRefreshError(connector.credentialId)
+        : null
+    if (terminalError && connector.credentialId) {
+      throw new ConnectorCredentialRevokedError(connector.credentialId, terminalError)
+    }
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 
@@ -1425,6 +1451,46 @@ export async function executeSync(
           result.error = 'Could not persist the connector retry after provider deferral'
           return result
         }
+      }
+
+      if (error instanceof ConnectorCredentialRevokedError) {
+        /**
+         * Retrying cannot help until the credential is reauthorized, so the
+         * connector leaves its schedule with a reconnect prompt instead of
+         * climbing the failure ladder toward the same rejection. Reauthorizing
+         * the credential puts it back on schedule. The run itself is a skip:
+         * nothing about the source failed, and a sync that cannot start is not
+         * an incident to page on.
+         */
+        logger.warn('Sync unscheduled: the source rejected the connector credential', {
+          connectorId,
+          credentialId: error.credentialId,
+          errorCode: error.errorCode,
+        })
+        try {
+          await completeSyncLog(syncLogId, 'failed', result, {
+            errorMessage: CREDENTIAL_REVOKED_SYNC_ERROR,
+          })
+          const landed = await writeTerminalConnectorState(
+            connectorId,
+            syncLogId,
+            buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REVOKED_SYNC_ERROR)
+          )
+          if (!landed) {
+            logger.warn(
+              'Unschedule discarded — connector was reclaimed while this run was executing',
+              { connectorId, syncLogId }
+            )
+          }
+        } catch (recoveryError) {
+          logger.error('Failed to unschedule the connector', {
+            connectorId,
+            error:
+              getConnectorFailureDiagnostic(recoveryError)?.message ??
+              toError(recoveryError).message,
+          })
+        }
+        return { ...result, skipReason: 'credential_revoked' }
       }
 
       const diagnostic = getConnectorFailureDiagnostic(error)

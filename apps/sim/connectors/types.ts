@@ -266,6 +266,7 @@ export const SYNC_SKIP_REASONS = [
   'sync_superseded',
   'connector_deleted_during_sync',
   'credential_missing',
+  'credential_revoked',
 ] as const
 
 export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]

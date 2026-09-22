@@ -77,6 +77,7 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
 }))
 
 import {
+  getCredentialTerminalRefreshError,
   getOAuthToken,
   getServiceAccountToken,
   refreshTokenIfNeeded,
@@ -86,6 +87,7 @@ import {
 } from '@/lib/oauth/credential-service'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { isTerminalRefreshError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -913,5 +915,46 @@ describe('Google service-account token minting', () => {
       errorDescription: 'Token exchange failed: 400',
     })
     expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain('xxxx')
+  })
+})
+
+describe('getCredentialTerminalRefreshError', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.getRecentTerminalError.mockResolvedValue(null)
+  })
+
+  it('reads the flag on the account the credential resolves to', async () => {
+    queueTableRows(credential, [
+      { id: RAW_CREDENTIAL_ID, type: 'oauth', accountId: RAW_ACCOUNT_ID },
+    ])
+    queueTableRows(account, [{ providerId: 'confluence', providerAccountId: 'provider-subject' }])
+    mocks.getRecentTerminalError.mockResolvedValueOnce('invalid_grant')
+    await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toBe(
+      'invalid_grant'
+    )
+    expect(mocks.getRecentTerminalError).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity(RAW_ACCOUNT_ID)
+    )
+  })
+
+  it('reads a Slack credential on its installation, the scope its refresh is flagged under', async () => {
+    queueTableRows(credential, [
+      { id: RAW_CREDENTIAL_ID, type: 'oauth', accountId: RAW_ACCOUNT_ID },
+    ])
+    queueTableRows(account, [{ providerId: 'slack', providerAccountId: 'TEXAMPLE-usr_U1' }])
+    await getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)
+    expect(mocks.getRecentTerminalError).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity('slack:TEXAMPLE')
+    )
+  })
+
+  it('reports nothing for a service account, which never refreshes a chain', async () => {
+    queueTableRows(credential, [
+      { id: RAW_CREDENTIAL_ID, type: 'service_account', accountId: null },
+    ])
+    await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toBeNull()
+    expect(mocks.getRecentTerminalError).not.toHaveBeenCalled()
   })
 })

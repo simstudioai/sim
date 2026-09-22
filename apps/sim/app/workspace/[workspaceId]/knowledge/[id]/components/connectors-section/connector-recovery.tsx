@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
-import { CREDENTIAL_REMOVED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  CREDENTIAL_REMOVED_SYNC_ERROR,
+  CREDENTIAL_REVOKED_SYNC_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -82,7 +85,10 @@ export function ConnectorRecovery({
   const docsUrl = isSearchIndex ? connectorDef?.searchDocsUrl : undefined
   const credentialRemoved =
     connector.lastSyncError === CREDENTIAL_REMOVED_SYNC_ERROR && !connector.credentialId
-  const pausedTitle = credentialRemoved
+  const credentialRevoked =
+    connector.lastSyncError === CREDENTIAL_REVOKED_SYNC_ERROR && Boolean(connector.credentialId)
+  const reconnectRequired = credentialRemoved || credentialRevoked
+  const pausedTitle = reconnectRequired
     ? 'Reconnect to resume syncing'
     : 'Sync paused after repeated failures'
 
@@ -97,7 +103,7 @@ export function ConnectorRecovery({
           }
         />
       )}
-      {connector.status === 'disabled' || credentialRemoved ? (
+      {connector.status === 'disabled' || reconnectRequired ? (
         <SettingsResourceRow
           title={
             !canEdit
