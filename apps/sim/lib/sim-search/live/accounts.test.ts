@@ -10,6 +10,16 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   managed: vi.fn(),
   mcp: vi.fn(),
+  admin: vi.fn(),
+  resolveAdmin: vi.fn(),
+  approvals: vi.fn(),
+}))
+vi.mock('@/lib/knowledge/search/integration-policy', () => ({
+  listOrganizationSearchApprovals: mocks.approvals,
+}))
+vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({
+  listAdminGitLabAccounts: mocks.admin,
+  resolveAdminGitLabAccount: mocks.resolveAdmin,
 }))
 vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listCodaMcpSearchAccounts: mocks.mcp }))
 vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: mocks.personal }))
@@ -34,6 +44,7 @@ import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/acco
 const owner = { workspaceId: 'workspace' }
 const account = { id: 'mine', providerId: 'google-drive', displayName: 'My Drive', type: 'oauth' }
 function metadata(revokedAt: Date | null = null) {
+  mocks.approvals.mockResolvedValue(new Map([['google_drive', true]]))
   queueTableRows(schemaMock.credential, []) // Coda discovery
   queueTableRows(schemaMock.credential, [
     { id: 'mine', scope: 'drive.readonly', grantedScopes: null, revokedAt },
@@ -48,8 +59,37 @@ describe('live account discovery boundaries', () => {
     mocks.tokens.mockResolvedValue([])
     mocks.managed.mockResolvedValue([])
     mocks.mcp.mockResolvedValue([])
+    mocks.admin.mockResolvedValue([])
+    mocks.approvals.mockResolvedValue(new Map())
     mocks.context.mockResolvedValue({ workspaceId: 'workspace', workspaceOrganizationId: 'org' })
     mocks.visibility.mockImplementation(async (_context, rows) => rows)
+  })
+  it('uses only administrator-managed GitLab sources, never personal GitLab tokens', async () => {
+    mocks.approvals.mockResolvedValue(new Map([['gitlab', true]]))
+    mocks.tokens.mockResolvedValue([
+      {
+        id: 'personal-gitlab',
+        providerId: 'gitlab',
+        displayName: 'personal',
+        type: 'personal_token',
+      },
+    ])
+    mocks.admin.mockResolvedValue([
+      {
+        id: 'gitlab-source:source',
+        provider: 'gitlab',
+        type: 'admin_source',
+        displayName: 'GitLab',
+      },
+    ])
+    expect(await listLiveAccounts(owner, 'reader')).toMatchObject([
+      { id: 'gitlab-source:source', type: 'admin_source' },
+    ])
+  })
+  it('does not discover or decrypt admin-managed sources when GitLab is disabled', async () => {
+    await listLiveAccounts(owner, 'reader')
+    expect(mocks.admin).not.toHaveBeenCalled()
+    expect(mocks.resolveAdmin).not.toHaveBeenCalled()
   })
   it('discovers the current person and applies the workspace credential policy', async () => {
     metadata()
@@ -63,9 +103,7 @@ describe('live account discovery boundaries', () => {
     )
   })
   it('honors an organization provider denial even in workspace search', async () => {
-    queueTableRows(schemaMock.organizationSearchIntegration, [
-      { provider: 'google_drive', approved: false },
-    ])
+    mocks.approvals.mockResolvedValue(new Map([['google_drive', false]]))
     expect(await listLiveAccounts(owner, 'reader')).toEqual([])
     expect(mocks.visibility).toHaveBeenCalledWith(expect.anything(), [])
   })

@@ -18,6 +18,7 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
@@ -32,6 +33,7 @@ import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
+import { liveGitLabSearchMeta } from '@/lib/sim-search/live/gitlab-settings'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   ConnectServiceAccountModal,
@@ -178,7 +180,11 @@ export function AddConnectorModal({
   )
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const connectorConfig = liveGitLabSearchMeta(
+    selectedType ? (CONNECTOR_META_REGISTRY[selectedType] ?? null) : null,
+    Boolean(liveSearch)
+  )
   const canSetUpGitHubInstallation =
     canAdmin && isSearchIndex && selectedType === 'github' && scope.kind === 'organization'
   const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined

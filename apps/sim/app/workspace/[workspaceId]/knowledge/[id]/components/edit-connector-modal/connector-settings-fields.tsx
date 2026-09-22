@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import {
@@ -19,6 +20,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { liveGitLabSearchMeta } from '@/lib/sim-search/live/gitlab-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import {
   ConnectServiceAccountModal,
@@ -120,7 +122,7 @@ export function ConnectorSettingsFields({
   availability,
   isSearchIndex,
   usesGitHubInstallation = false,
-  connectorConfig,
+  connectorConfig: originalConfig,
   sourceConfig,
   selectionLabels,
   credentialId,
@@ -157,6 +159,8 @@ export function ConnectorSettingsFields({
   onContentCredentialChange,
   onWorkspaceCredentialChange,
 }: ConnectorSettingsFieldsProps) {
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const connectorConfig = liveGitLabSearchMeta(originalConfig, Boolean(liveSearch))
   const providerId =
     connectorConfig?.auth.mode === 'oauth'
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)

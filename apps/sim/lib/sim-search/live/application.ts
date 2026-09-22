@@ -25,13 +25,17 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
+import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
+import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import {
   NATIVE_SEARCH_GUIDANCE,
   PROVIDER_ORIGINS,
   readNativeProvider,
   searchNativeProvider,
 } from '@/lib/sim-search/live/providers'
+import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -175,6 +179,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
       : AbortSignal.timeout(20_000)
+    const policies = await loadLiveSearchPolicies(input)
     const allAccounts = await listLiveAccounts(input, userId)
     const eligible = allAccounts.filter(
       (account) =>
@@ -206,7 +211,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               resolved.account.type === 'managed_mcp'
                 ? null
                 : createNativeClient({
-                    origin: resolved.origin ?? PROVIDER_ORIGINS[account.provider],
+                    origin:
+                      'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
                     accessToken: resolved.accessToken,
                     signal,
                   })
@@ -215,19 +221,54 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 query.provider === account.provider &&
                 (!query.accountId || query.accountId === account.id)
             )
+            const policy = livePolicyFor(policies, account.provider)
+            const admin =
+              'adminSource' in resolved && client
+                ? await createAdminGitLabSession({
+                    owner: input,
+                    userId,
+                    source: resolved.adminSource,
+                    token: resolved.accessToken,
+                    client,
+                    signal,
+                  })
+                : undefined
+            const mcp = client
+              ? undefined
+              : await createCodaMcpClient(input, userId, account.id, signal)
+            const verify = createPolicyVerifier(
+              account.provider,
+              policy,
+              client,
+              'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
+              mcp
+            )
             const searchInput = {
+              policy,
               query: input.query,
               native,
               limit: input.topK,
               scopes: resolved.account.scopes,
             }
-            const page = client
-              ? await searchNativeProvider(account.provider, client, searchInput)
-              : await searchCodaMcp(
-                  await createCodaMcpClient(input, userId, account.id, signal),
-                  searchInput
+            const page = admin
+              ? await admin.search(searchInput)
+              : await searchWithinPolicy(account.provider, client, searchInput, (scoped) =>
+                  client
+                    ? searchNativeProvider(account.provider, client, scoped)
+                    : searchCodaMcp(mcp!, scoped)
                 )
-            const rows = page.documents
+            const permitted: NativeDocument[] = []
+            let unverified = false
+            for (const document of page.documents) {
+              try {
+                if ((await verify(document)) && (!admin || (await admin.verify(document))))
+                  permitted.push(document)
+              } catch (error) {
+                if (error instanceof NativeSearchError && error.status === 'reconnect') throw error
+                unverified = true
+              }
+            }
+            const rows = permitted
               .filter((document) => document.id)
               .map((document, index) => ({
                 document,
@@ -249,7 +290,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               status: {
                 ...status,
                 status:
-                  page.partial || page.nextCursor || matching.length < rows.length
+                  unverified || page.partial || page.nextCursor || matching.length < rows.length
                     ? ('partial' as const)
                     : ('ok' as const),
                 message: page.message,
@@ -301,8 +342,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           provider: query.provider,
           displayName: query.provider,
           status: 'reconnect',
-          message:
-            'No personal account with this provider is connected and approved in this scope.',
+          message: 'No connection with this provider is configured and approved in this scope.',
         })
     }
     const seen = new Set<string>()
@@ -371,16 +411,55 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       resolved.account.type === 'managed_mcp'
         ? null
         : createNativeClient({
-            origin: resolved.origin ?? PROVIDER_ORIGINS[reference.provider],
+            origin: 'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
             accessToken: resolved.accessToken,
             signal,
           })
-    const document = client
-      ? await readNativeProvider(reference.provider, client, reference)
-      : await readCodaMcp(
-          await createCodaMcpClient(input, userId, reference.account, signal),
-          reference.id
-        )
+    const policy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
+    const admin =
+      'adminSource' in resolved && client
+        ? await createAdminGitLabSession({
+            owner: input,
+            userId,
+            source: resolved.adminSource,
+            token: resolved.accessToken,
+            client,
+            signal,
+          })
+        : undefined
+    const mcp = client
+      ? undefined
+      : await createCodaMcpClient(input, userId, reference.account, signal)
+    const verify = createPolicyVerifier(
+      reference.provider,
+      policy,
+      client,
+      'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+      mcp
+    )
+    if (!(await verify(reference)) || (admin && !(await admin.verify(reference))))
+      throw new OrchestrationError(
+        'not_found',
+        'Document is outside your organization’s search scope'
+      )
+    const document = admin
+      ? await admin.read(reference)
+      : client
+        ? await readNativeProvider(reference.provider, client, reference, policy)
+        : await readCodaMcp(mcp!, reference.id)
+    if (
+      !(await createPolicyVerifier(
+        reference.provider,
+        policy,
+        client,
+        'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+        mcp
+      )(document))
+    )
+      throw new OrchestrationError(
+        'not_found',
+        'Document is outside your organization’s search scope'
+      )
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     const content = safeContent(document.content, input.resultSecretRegistry)

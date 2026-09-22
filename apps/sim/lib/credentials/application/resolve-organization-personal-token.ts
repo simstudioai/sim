@@ -18,6 +18,8 @@ import { providerIdsForService } from '@/lib/oauth/utils'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { listLiveAccounts } from '@/lib/sim-search/live/accounts'
+import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 
 /** Search's organization delegation can use only the member's currently available personal grant. */
 export const organizationPersonalCredentialOperation = defineOrganizationOperation({
@@ -117,6 +119,14 @@ export const resolveOrganizationPersonalToken = {
         'forbidden',
         'Assistant can only use your own connected account for this integration.'
       )
+    if (isLiveEnterpriseSearchEnabled) {
+      const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
+      if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
+        throw new OrchestrationError(
+          'forbidden',
+          'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
+        )
+    }
     const token = await resolveManagedOAuthToken({
       ...input,
       expectedProviderId: binding.providerId,

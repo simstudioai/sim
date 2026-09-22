@@ -9,6 +9,14 @@ import type {
 
 function document(row: Record<string, unknown>, kind: string): NativeDocument {
   return {
+    accessMetadata: {
+      confidential: row.confidential,
+      authorId: object(row.author).id,
+      assigneeIds: array(row.assignees).map((person) => person.id),
+      state: row.state,
+      labels: row.labels,
+      milestone: row.milestone,
+    },
     id: kind === 'code' || kind === 'wiki' ? string(row.path) : string(row.iid),
     container: string(row.project_id),
     kind,

@@ -334,8 +334,9 @@ describe('live backend selection', () => {
       isError: false,
     })
     await render()
-    expect(container.textContent).toContain('Reconnect Slack for RTS.')
-    expect(container.textContent).toContain('Coverage is incomplete')
+    expect(container.textContent).toContain('Slack needs to reconnect.')
+    expect(container.textContent).not.toContain('RTS')
+    expect(container.textContent).not.toContain('Coverage is incomplete')
     expect(mocks.index).not.toHaveBeenCalled()
   })
 })

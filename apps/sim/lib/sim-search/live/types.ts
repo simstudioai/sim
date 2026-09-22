@@ -2,17 +2,26 @@ import type {
   LiveSearchProvider,
   NativeSearchQuery,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 export interface LiveAccount {
   id: string
   provider: LiveSearchProvider
   providerId: string
   displayName: string
-  type: 'oauth' | 'managed_oauth' | 'personal_token' | 'service_account' | 'managed_mcp'
+  type:
+    | 'oauth'
+    | 'managed_oauth'
+    | 'personal_token'
+    | 'service_account'
+    | 'managed_mcp'
+    | 'admin_source'
   scopes: string[]
 }
 
 export interface NativeDocument {
+  /** Server-only GitLab permission evidence from the same response as the content. */
+  accessMetadata?: Record<string, unknown>
   id: string
   container?: string
   kind?: string
@@ -44,6 +53,7 @@ export interface NativeClient {
 }
 
 export interface NativeSearchInput {
+  policy?: LiveSearchPolicy
   query: string
   native?: NativeSearchQuery
   limit: number

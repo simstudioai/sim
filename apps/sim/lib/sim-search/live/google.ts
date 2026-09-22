@@ -1,4 +1,5 @@
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
+import { permitsResources } from '@/lib/sim-search/live/policy'
 import type {
   NativeClient,
   NativeDocument,
@@ -38,6 +39,9 @@ export async function searchDrive(
         fields: `nextPageToken,incompleteSearch,files(${DRIVE_FIELDS})`,
         pageSize: String(input.limit),
         spaces: 'drive',
+        ...(input.native?.project?.startsWith('drive:')
+          ? { corpora: 'drive', driveId: input.native.project.slice(6) }
+          : {}),
         supportsAllDrives: 'true',
         includeItemsFromAllDrives: 'true',
         ...(input.native?.cursor ? { pageToken: input.native.cursor } : {}),
@@ -180,7 +184,11 @@ export async function readGmail(client: NativeClient, id: string): Promise<Nativ
   return { ...document, content: mailText(data.payload) || document.content }
 }
 
-function eventDocument(row: Record<string, unknown>, calendarId: string): NativeDocument {
+function eventDocument(
+  row: Record<string, unknown>,
+  calendarId: string,
+  includeAttendees = true
+): NativeDocument {
   return {
     id: string(row.id),
     container: calendarId,
@@ -192,7 +200,9 @@ function eventDocument(row: Record<string, unknown>, calendarId: string): Native
       string(row.location),
       `Start: ${string(object(row.start).dateTime) || string(object(row.start).date)}`,
       `End: ${string(object(row.end).dateTime) || string(object(row.end).date)}`,
-      ...array(row.attendees).map((a) => string(a.email)),
+      ...(includeAttendees
+        ? array(row.attendees).map((a) => string(a.email))
+        : [`Attendees: ${array(row.attendees).length}`]),
     ]
       .filter(Boolean)
       .join('\n'),
@@ -211,7 +221,16 @@ export async function searchCalendar(
     : object(
         await client.json('/calendar/v3/users/me/calendarList', { query: { maxResults: '20' } })
       )
-  const rows = array(calendars.items).slice(0, 20)
+  const rows = array(calendars.items)
+    .filter(
+      (row) =>
+        !input.policy ||
+        permitsResources(input.policy, [
+          string(row.id),
+          ...(row.primary === true ? ['primary'] : []),
+        ])
+    )
+    .slice(0, 20)
   const documents: NativeDocument[] = []
   let partial = Boolean(calendars.nextPageToken)
   let nextCursor: string | undefined
@@ -246,7 +265,7 @@ export async function searchCalendar(
       documents.push(
         ...array(data.items)
           .filter((event) => event.status !== 'cancelled')
-          .map((event) => eventDocument(event, calendarId))
+          .map((event) => eventDocument(event, calendarId, input.policy?.includeAttendees))
       )
       partial ||= Boolean(data.nextPageToken)
       if (input.native?.project) nextCursor = string(data.nextPageToken) || undefined
@@ -269,11 +288,12 @@ export async function searchCalendar(
 export async function readCalendar(
   client: NativeClient,
   id: string,
-  calendarId?: string
+  calendarId?: string,
+  includeAttendees = true
 ): Promise<NativeDocument> {
   if (!calendarId) throw new NativeSearchError('unavailable', 'Missing calendar reference.')
   const row = object(
     await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events/${segment(id)}`)
   )
-  return eventDocument(row, calendarId)
+  return eventDocument(row, calendarId, includeAttendees)
 }

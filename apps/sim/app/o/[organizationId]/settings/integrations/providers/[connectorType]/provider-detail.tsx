@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
@@ -43,6 +44,8 @@ interface OrganizationProviderDetailProps {
 export function OrganizationProviderDetail({ connectorType }: OrganizationProviderDetailProps) {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const router = useRouter()
+  const liveGitLab =
+    useDeploymentShape().features.liveEnterpriseSearch && connectorType === 'gitlab'
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
@@ -74,7 +77,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   const provider = overview.data?.providers.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const back = {
-    text: 'Sources',
+    text: liveGitLab ? 'Search integrations' : 'Sources',
     icon: ArrowLeft,
     onSelect: () =>
       router.push(organizationRoutes(organization.id).settingsSection('integrations')),
@@ -101,7 +104,9 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
       approved && unavailable
         ? 'Unavailable in this deployment'
         : provider
-          ? organizationSearchStatusLabel(provider)
+          ? liveGitLab
+            ? 'Search current project content with your configured source permissions.'
+            : organizationSearchStatusLabel(provider)
           : undefined,
     docsLink: meta.searchDocsUrl,
     search: searchField,
@@ -235,33 +240,37 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
             <SettingsResourceRow
               key={source.connectorId}
               title={source.sourceDescription || meta.name}
-              description={[
-                connectorType === 'github'
-                  ? null
-                  : source.accessMode === 'members'
-                    ? 'Member accounts'
-                    : meta.auth.mode === 'oauth' &&
-                        meta.auth.adminCredentialType === 'service_account'
-                      ? 'Service account'
-                      : 'Admin or service account',
-                !approved
-                  ? 'Deactivated'
-                  : !source.enabled
-                    ? 'Paused'
-                    : source.hasSyncError
-                      ? source.isSyncing
-                        ? 'Indexing · Previous sync failed'
-                        : 'Sync failed'
-                      : source.viewerFailedDocumentCount > 0
-                        ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
-                        : source.isSyncing
-                          ? 'Indexing'
-                          : source.lastSyncAt
-                            ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                            : 'Waiting for the first sync',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+              description={
+                liveGitLab
+                  ? `${!approved ? 'Disabled' : !source.enabled ? 'Paused' : 'Live search'} · Organization managed`
+                  : [
+                      connectorType === 'github'
+                        ? null
+                        : source.accessMode === 'members'
+                          ? 'Member accounts'
+                          : meta.auth.mode === 'oauth' &&
+                              meta.auth.adminCredentialType === 'service_account'
+                            ? 'Service account'
+                            : 'Admin or service account',
+                      !approved
+                        ? 'Deactivated'
+                        : !source.enabled
+                          ? 'Paused'
+                          : source.hasSyncError
+                            ? source.isSyncing
+                              ? 'Indexing · Previous sync failed'
+                              : 'Sync failed'
+                            : source.viewerFailedDocumentCount > 0
+                              ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
+                              : source.isSyncing
+                                ? 'Indexing'
+                                : source.lastSyncAt
+                                  ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
+                                  : 'Waiting for the first sync',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+              }
               href={organizationRoutes(organization.id).searchSource(source.connectorId)}
               clickLabel={`Open ${source.sourceDescription || meta.name}`}
               navigable

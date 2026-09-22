@@ -15,7 +15,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
-import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  MANAGED_MCP_CONNECTORS,
+  type ManagedMcpConnectorId,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import {
   type CredentialGroupProvider,
@@ -50,12 +53,16 @@ interface OrganizationAccountProvidersProps {
   organizationId: string
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
   availableProviders: CredentialGroupProvider[]
+  availableMcpConnectors?: readonly ManagedMcpConnectorId[]
+  visibleProviders?: readonly CredentialGroupProvider[]
 }
 
 export function OrganizationAccountProviders({
   organizationId,
   group,
   availableProviders,
+  availableMcpConnectors,
+  visibleProviders,
 }: OrganizationAccountProvidersProps) {
   const [searchTerm, setSearchParam] = useQueryState(credentialGroupProviderSearchParam.key, {
     ...credentialGroupProviderSearchParam.parser,
@@ -140,18 +147,24 @@ export function OrganizationAccountProviders({
     }
   }
   const rows = [
-    ...group.options.map((option) => {
-      const service = getCredentialGroupProviderService(option.provider)
-      return {
-        id: option.id,
-        name: service.name,
-        icon: service.icon,
-        configure: option.provider === 'slack' ? () => setSlackOpen(true) : undefined,
-        choice: { kind: 'oauth', provider: option.provider } as const,
-      }
-    }),
+    ...group.options
+      .filter((option) => !visibleProviders || visibleProviders.includes(option.provider))
+      .map((option) => {
+        const service = getCredentialGroupProviderService(option.provider)
+        return {
+          id: option.id,
+          name: service.name,
+          icon: service.icon,
+          configure: option.provider === 'slack' ? () => setSlackOpen(true) : undefined,
+          choice: { kind: 'oauth', provider: option.provider } as const,
+        }
+      }),
     ...group.mcpServers
-      .filter((server) => server.managedConnectorId !== 'databricks' || server.enabled)
+      .filter(
+        (server) =>
+          (!availableMcpConnectors || availableMcpConnectors.includes(server.managedConnectorId)) &&
+          (server.managedConnectorId !== 'databricks' || server.enabled)
+      )
       .map((server) => ({
         id: server.id,
         name: MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
@@ -250,6 +263,7 @@ export function OrganizationAccountProviders({
         <OrganizationAccountProviderCatalog
           group={group}
           availableProviders={availableProviders}
+          availableMcpConnectors={availableMcpConnectors}
           pending={pending}
           error={error ? getErrorMessage(error) : undefined}
           onClose={() => setCatalogOpen(false)}

@@ -1,6 +1,17 @@
 /** @vitest-environment node */
-import { knowledgeConnector, member, organizationSearchIntegration } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  knowledgeConnector,
+  member,
+  organization,
+  organizationSearchIntegration,
+} from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ context: vi.fn(), audit: vi.fn(), config: vi.fn() }))
@@ -29,6 +40,7 @@ import {
   approveSearchIntegration,
   listSearchIntegrations,
 } from '@/lib/knowledge/application/search-integrations'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 const principal = { kind: 'session', sessionId: 'session', userId: 'actor' } as const
 const input = { organizationId: 'organization', connectorType: 'gmail', approved: true }
@@ -36,6 +48,7 @@ const input = { organizationId: 'organization', connectorType: 'gmail', approved
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  resetEnvFlagsMock()
   mocks.config.mockResolvedValue(null)
   mocks.context.mockResolvedValue({ organizationId: input.organizationId })
 })
@@ -192,4 +205,82 @@ it('enforces the organization Knowledge capability for delegated admins', async 
   ).rejects.toThrow()
   expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   expect(mocks.audit).not.toHaveBeenCalled()
+})
+
+describe('live organization search policies', () => {
+  it('rejects policy writes when the rollout flag is off', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    await expect(
+      approveSearchIntegration.execute({
+        principal,
+        input: { ...input, policy: defaultLiveSearchPolicy() },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+  it('saves a normalized scope and its approval in one transaction', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    const result = await approveSearchIntegration.execute({
+      principal,
+      input: {
+        ...input,
+        connectorType: 'google_drive',
+        policy: {
+          ...defaultLiveSearchPolicy(),
+          mode: 'selected',
+          included: ['https://drive.google.com/drive/folders/team', 'team'],
+        },
+      },
+    })
+    expect(result.policy?.included).toEqual(['team'])
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(organization)
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(organizationSearchIntegration)
+    expect(result.changed).toBe(true)
+  })
+  it('rejects invalid scope data before any protected write', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    await expect(
+      approveSearchIntegration.execute({
+        principal,
+        input: { ...input, policy: { ...defaultLiveSearchPolicy(), mode: 'selected' } },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+  it('prevents members from changing live search scopes', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      approveSearchIntegration.execute({
+        principal,
+        input: { ...input, policy: defaultLiveSearchPolicy() },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+  it('reads saved policies alongside inherited approval without requiring an index', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: true }])
+    queueTableRows(organization, [
+      {
+        metadata: {
+          liveSearchPolicies: { gmail: { ...defaultLiveSearchPolicy(), excluded: ['Personal'] } },
+        },
+      },
+    ])
+    const rows = await listSearchIntegrations.execute({
+      principal,
+      input: { organizationId: 'organization' },
+    })
+    expect(rows.find((row) => row.connectorType === 'gmail')).toMatchObject({
+      approved: true,
+      policy: { excluded: ['Personal'] },
+    })
+  })
 })

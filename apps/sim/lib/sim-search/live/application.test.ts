@@ -10,6 +10,20 @@ const mocks = vi.hoisted(() => ({
   resolveAccount: vi.fn(),
   search: vi.fn(),
   read: vi.fn(),
+  admin: vi.fn(),
+  adminSearch: vi.fn(),
+  adminRead: vi.fn(),
+  adminVerify: vi.fn(),
+  json: vi.fn(),
+}))
+vi.mock('@/lib/sim-search/live/http', async (original) => ({
+  ...(await original<typeof import('@/lib/sim-search/live/http')>()),
+  createNativeClient: () => ({ json: mocks.json, text: vi.fn() }),
+}))
+vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession: mocks.admin }))
+vi.mock('@/lib/sim-search/live/policy-store', () => ({
+  loadLiveSearchPolicies: vi.fn(async () => ({})),
+  livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   createCodaMcpClient: vi.fn(),
@@ -36,6 +50,7 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   PROVIDER_ORIGINS: {
     google_drive: 'https://www.googleapis.com',
     gmail: 'https://gmail.googleapis.com',
+    gitlab: 'https://gitlab.com',
   },
   NATIVE_SEARCH_GUIDANCE: 'Live coverage',
   searchNativeProvider: mocks.search,
@@ -53,6 +68,8 @@ import {
   searchLiveKnowledge,
 } from '@/lib/sim-search/live/application'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 's' } as const
@@ -89,6 +106,78 @@ describe('authorized live retrieval', () => {
     mocks.resolveAccount.mockResolvedValue({ account, accessToken: 'secret' })
     mocks.search.mockResolvedValue({ documents: [document] })
     mocks.read.mockResolvedValue(document)
+    mocks.admin.mockResolvedValue({
+      search: mocks.adminSearch,
+      read: mocks.adminRead,
+      verify: mocks.adminVerify,
+    })
+    mocks.adminSearch.mockResolvedValue({
+      documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
+    })
+    mocks.adminVerify.mockResolvedValue(true)
+  })
+  it('filters admin-token GitLab results through the reader ACL before projection', async () => {
+    const gitlab = {
+      ...account,
+      id: 'gitlab-source:source',
+      provider: 'gitlab',
+      type: 'admin_source',
+    }
+    mocks.accounts.mockResolvedValue([gitlab])
+    mocks.resolveAccount.mockResolvedValue({
+      account: gitlab,
+      accessToken: 'admin-secret',
+      origin: 'https://gitlab.company.com',
+      adminSource: { id: 'source', config: { project: '42' } },
+    })
+    mocks.adminVerify.mockResolvedValue(false)
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(mocks.admin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'reader',
+        source: { id: 'source', config: { project: '42' } },
+      })
+    )
+    mocks.adminVerify.mockResolvedValue(true)
+    const allowed = await searchLiveKnowledge.execute({ principal, input })
+    expect(allowed.results).toHaveLength(1)
+    mocks.adminVerify.mockResolvedValue(false)
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: allowed.results[0].documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside')
+    expect(mocks.read).not.toHaveBeenCalled()
+    expect(mocks.adminRead).not.toHaveBeenCalled()
+  })
+  it('does not fall back to unrestricted GitLab search when permission discovery fails', async () => {
+    const gitlab = {
+      ...account,
+      id: 'gitlab-source:source',
+      provider: 'gitlab',
+      type: 'admin_source',
+    }
+    mocks.accounts.mockResolvedValue([gitlab])
+    mocks.resolveAccount.mockResolvedValue({
+      account: gitlab,
+      accessToken: 'admin-secret',
+      origin: 'https://gitlab.company.com',
+      adminSource: { id: 'source', config: {} },
+    })
+    mocks.admin.mockRejectedValue(new Error('Incomplete directory'))
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(result.live?.accounts[0].status).toBe('unavailable')
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(mocks.adminSearch).not.toHaveBeenCalled()
   })
   it('searches current personal grants without loading any knowledge base', async () => {
     const result = await searchLiveKnowledge.execute({ principal, input })
@@ -179,6 +268,32 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toThrow('Document not found')
     expect(mocks.resolveAccount).not.toHaveBeenCalled()
+  })
+  it('rejects a document moved out of scope while its content was being read', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    vi.mocked(livePolicyFor).mockReturnValueOnce({
+      ...defaultLiveSearchPolicy(),
+      mode: 'selected',
+      included: ['root'],
+    })
+    let reads = 0
+    mocks.json.mockImplementation(async (path) => {
+      if (path.endsWith('/doc')) return { id: 'doc', parents: [++reads === 1 ? 'root' : 'private'] }
+      return { id: path.endsWith('/root') ? 'root' : 'private', parents: [] }
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+    expect(mocks.read).toHaveBeenCalledOnce()
+    expect(reads).toBe(2)
   })
   it('cannot widen date or selected-document filters', () => {
     expect(matchesLiveFilters(document, 'a', 'google_drive', { documentIds: ['b'] })).toBe(false)

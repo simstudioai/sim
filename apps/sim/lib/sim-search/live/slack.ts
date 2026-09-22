@@ -39,13 +39,18 @@ export async function searchSlack(
     ['mpim', 'search:read.mpim'],
     ['im', 'search:read.im'],
   ]
-    .filter(([, scope]) => input.scopes.includes(scope))
+    .filter(
+      ([type, scope]) =>
+        input.scopes.includes(scope) &&
+        (input.policy?.includeDirectMessages !== false || !['im', 'mpim'].includes(type))
+    )
     .map(([type]) => type)
   const data = slackResult(
     await client.json('/api/assistant.search.context', {
       body: {
         query: input.native?.query ?? input.query,
         channel_types: channels,
+        include_archived_channels: input.policy?.includeArchived ?? true,
         content_types: input.scopes.includes('search:read.files')
           ? ['messages', 'files']
           : ['messages'],

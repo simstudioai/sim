@@ -144,6 +144,7 @@ describe('native search endpoints', () => {
       body: {
         query: 'launch',
         channel_types: ['public_channel', 'im'],
+        include_archived_channels: true,
         content_types: ['messages'],
         include_context_messages: true,
         limit: 20,

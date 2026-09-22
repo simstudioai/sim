@@ -486,7 +486,9 @@ function LiveSearchResults({
       )}
       {!isPending && !isError && data?.live && accounts.length === 0 && (
         <div className='flex items-center gap-2 px-2 py-2'>
-          <p className='text-caption'>Connect your personal accounts to search them live.</p>
+          <p className='text-caption'>
+            Connect an enabled app, or ask an admin to configure search.
+          </p>
           <ChipLink
             href={
               scope.kind === 'organization'
@@ -498,19 +500,37 @@ function LiveSearchResults({
           </ChipLink>
         </div>
       )}
-      {accounts
-        .filter((account) => account.status !== 'ok')
-        .map((account) => (
-          <p
-            key={`${account.provider}:${account.accountId}`}
-            role='status'
-            className='px-2 py-1 text-[var(--text-muted)] text-caption'
+      {accounts.some((account) => account.status === 'reconnect') && (
+        <div role='status' className='flex items-center gap-2 px-2 py-2 text-caption'>
+          <span>
+            {[
+              ...new Set(
+                accounts
+                  .filter((account) => account.status === 'reconnect')
+                  .map((account) => connectorDisplayName(account.provider))
+              ),
+            ].join(', ')}{' '}
+            needs to reconnect.
+          </span>
+          <ChipLink
+            href={
+              scope.kind === 'organization'
+                ? `/o/${scope.organizationId}/integrations`
+                : `/workspace/${scope.workspaceId}/integrations`
+            }
           >
-            {connectorDisplayName(account.provider)} · {account.displayName}:{' '}
-            {account.message ?? 'More results are available; narrow the query.'}
-          </p>
-        ))}
-      {data?.retrieval.status === 'partial' && (
+            Manage connections
+          </ChipLink>
+        </div>
+      )}
+      {accounts.some((account) =>
+        ['unavailable', 'timeout', 'rate_limited'].includes(account.status)
+      ) && (
+        <p role='status' className='px-2 py-1 text-[var(--text-muted)] text-caption'>
+          Some apps couldn’t be searched. Showing available results.
+        </p>
+      )}
+      {!data?.live && data?.retrieval.status === 'partial' && (
         <p className='px-2 py-1 text-[var(--text-muted)] text-caption'>
           Coverage is incomplete. Narrow the query or ask Assistant to refine it.
         </p>

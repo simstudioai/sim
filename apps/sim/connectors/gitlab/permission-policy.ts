@@ -105,7 +105,8 @@ export async function discoverGitLabPermissionPolicy(
   token: string,
   sourceConfig: Record<string, unknown>,
   project: unknown,
-  validating = false
+  validating = false,
+  signal?: AbortSignal
 ): Promise<GitLabSourcePolicy> {
   const base = `https://${normalizeGitLabHost(sourceConfig.host)}/api/v4`
   let retainedBytes = 0
@@ -114,9 +115,14 @@ export async function discoverGitLabPermissionPolicy(
       `${base}${path}`,
       {
         profile: 'configuredEndpoint',
+        signal,
         headers: { 'PRIVATE-TOKEN': token, Accept: 'application/json' },
       },
-      { ...(validating ? VALIDATE_RETRY_OPTIONS : {}), maxResponseBytes: MAX_POLICY_RESPONSE_BYTES }
+      {
+        ...(validating ? VALIDATE_RETRY_OPTIONS : {}),
+        maxResponseBytes: MAX_POLICY_RESPONSE_BYTES,
+        signal,
+      }
     )
     if (!response.ok) {
       unsupported(

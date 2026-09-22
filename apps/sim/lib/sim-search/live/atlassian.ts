@@ -16,6 +16,32 @@ import type {
 export const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
+/** Place trusted scope before ORDER BY while respecting quoted JQL/CQL values. */
+export function scopeAtlassianQuery(query: string, scope?: string): string {
+  if (!scope) return query
+  let quote = ''
+  for (let i = 0; i < query.length; i++) {
+    const char = query[i]
+    if (char === '\\') {
+      i++
+      continue
+    }
+    if (quote) {
+      if (char === quote) quote = ''
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if ((i === 0 || /\s/.test(query[i - 1]!)) && /^order\s+by\b/i.test(query.slice(i))) {
+      const filter = query.slice(0, i).trim()
+      return `${filter ? `(${filter}) AND ` : ''}${scope} ${query.slice(i)}`
+    }
+  }
+  return query.trim() ? `(${query}) AND ${scope}` : scope
+}
+
 function issue(row: Record<string, unknown>, cloudId: string, site: string): NativeDocument {
   const fields = object(row.fields)
   return {
@@ -61,7 +87,11 @@ export async function searchAtlassian(
   provider: 'jira' | 'confluence',
   input: NativeSearchInput
 ): Promise<NativePage> {
-  const allSites = await sites(client)
+  const allSites = (await sites(client)).filter(
+    (site) =>
+      !input.policy?.sites.length ||
+      input.policy.sites.includes(new URL(string(site.url)).host.toLowerCase())
+  )
   const selected = input.native?.project
     ? allSites.filter((site) => string(site.id) === input.native?.project)
     : allSites.slice(0, 4)
@@ -76,11 +106,18 @@ export async function searchAtlassian(
   for (const site of selected) {
     const cloudId = string(site.id)
     const origin = string(site.url).replace(/\/$/, '')
+    const scope =
+      input.policy?.mode === 'selected'
+        ? `(${input.policy.included.map((id) => `${provider === 'jira' ? 'project' : 'space'} = ${JSON.stringify(id)}`).join(' OR ')})`
+        : undefined
     if (provider === 'jira') {
       const data = object(
         await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
           body: {
-            jql: input.native?.query ?? `text ~ ${escapeSearchPhrase(input.query)}`,
+            jql: scopeAtlassianQuery(
+              input.native?.query ?? `text ~ ${escapeSearchPhrase(input.query)}`,
+              scope
+            ),
             maxResults: input.limit,
             fields: ['summary', 'description', 'updated', 'creator', 'status'],
             ...(input.native?.cursor && selected.length === 1
@@ -96,7 +133,10 @@ export async function searchAtlassian(
       const data = object(
         await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
           query: {
-            cql: input.native?.query ?? `type = page AND text ~ ${escapeSearchPhrase(input.query)}`,
+            cql: scopeAtlassianQuery(
+              input.native?.query ?? `type = page AND text ~ ${escapeSearchPhrase(input.query)}`,
+              scope
+            ),
             limit: String(input.limit),
             expand: 'content.version',
             ...(input.native?.cursor && selected.length === 1

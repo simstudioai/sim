@@ -13,6 +13,11 @@ const mocks = vi.hoisted(() => ({
   projection: vi.fn(),
   audit: vi.fn(),
   liveAccounts: vi.fn(),
+  policies: vi.fn(),
+}))
+vi.mock('@/lib/sim-search/live/policy-store', async (original) => ({
+  ...(await original<typeof import('@/lib/sim-search/live/policy-store')>()),
+  loadLiveSearchPolicies: mocks.policies,
 }))
 vi.mock('@/lib/sim-search/live/accounts', () => ({ listLiveAccounts: mocks.liveAccounts }))
 vi.mock('@/lib/core/application', () => ({ recordProjectedUseCaseAuditEntries: mocks.audit }))
@@ -52,6 +57,7 @@ import {
   prepareOrganizationPersonalConnection,
   resolveOrganizationPersonalToken,
 } from '@/lib/credentials/application/resolve-organization-personal-token'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -87,6 +93,7 @@ describe('organization personal token authorization', () => {
     vi.resetAllMocks()
     resetEnvFlagsMock()
     mocks.liveAccounts.mockResolvedValue([])
+    mocks.policies.mockResolvedValue({})
     mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'person', role: 'member' })
     mocks.binding.mockResolvedValue(liveBinding)
     mocks.projection.mockReturnValue({ tools: [{ toolId: 'drive_list' }] })
@@ -109,6 +116,19 @@ describe('organization personal token authorization', () => {
     ).resolves.toHaveProperty('accessToken', 'secret')
     expect(mocks.inventory).not.toHaveBeenCalled()
     expect(mocks.liveAccounts).toHaveBeenCalledWith({ organizationId: 'org' }, 'person')
+  })
+  it('does not let direct integration tools bypass current organization scope restrictions', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mocks.liveAccounts.mockResolvedValue([
+      { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
+    ])
+    mocks.policies.mockResolvedValue({
+      drive: { ...defaultLiveSearchPolicy(), mode: 'selected', included: ['folder'] },
+    })
+    await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
+      'Use search_workspace'
+    )
+    expect(mocks.token).not.toHaveBeenCalled()
   })
   it.each(['admin_source', 'service_account', 'personal_token', 'managed_mcp'])(
     'never substitutes a %s for a personal OAuth account',

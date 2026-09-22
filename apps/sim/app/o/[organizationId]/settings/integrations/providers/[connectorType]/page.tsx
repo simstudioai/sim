@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
@@ -47,6 +48,8 @@ export default async function OrganizationProviderPage({
     }))
   )
     notFound()
+  if (isLiveEnterpriseSearchEnabled && connectorType !== 'gitlab')
+    redirect(organizationRoutes(organizationId).settingsSection('integrations'))
   const query = await searchParams
   const activeSetup =
     typeof query.addConnector === 'string'

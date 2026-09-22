@@ -32,7 +32,11 @@ export function OrganizationIntegrations({
   return (
     <OrganizationPage
       title='Integrations'
-      description='Connect your accounts for Sim Search'
+      description={
+        features.liveEnterpriseSearch
+          ? 'Search documents, messages, and code from your connected apps'
+          : 'Connect your accounts for Sim Search'
+      }
       searchMode='expanded'
       searchPlaceholder='Search integrations'
       action={
