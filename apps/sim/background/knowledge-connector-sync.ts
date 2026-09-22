@@ -76,17 +76,19 @@ export async function executeConnectorSyncJob(payload: unknown) {
     })
 
     const outcome = classifyConnectorSyncResult(result)
-    if (outcome === 'failed' || result.docsFailed > 0 || result.processingDispatch.failed > 0) {
+    if (outcome === 'failed') {
       /**
-       * `executeSync` has already persisted its terminal state. Source failures
-       * preserve the previous incremental watermark so the next connector pass
-       * replays them; dispatch failures remain eligible for the stuck-document
-       * sweep. Retrying this whole task immediately would duplicate a large
-       * fan-out, so fail visibly without retrying the completed transaction.
+       * `executeSync` has already persisted its terminal state, and retrying this
+       * whole task would duplicate a large fan-out, so fail visibly without
+       * retrying the completed transaction. A partial sync is not a failed run:
+       * its source failures keep the previous incremental watermark so the next
+       * connector pass replays them, its dispatch failures stay eligible for the
+       * stuck-document sweep, and the outcome rides on the return value.
        */
-      throw new AbortTaskRunError(
-        formatConnectorSyncFailure(connectorId, result, outcome === 'failed' ? 'failed' : 'partial')
-      )
+      throw new AbortTaskRunError(formatConnectorSyncFailure(connectorId, result, 'failed'))
+    }
+    if (outcome === 'partial') {
+      logger.warn(`[${requestId}] ${formatConnectorSyncFailure(connectorId, result, 'partial')}`)
     }
 
     return {
