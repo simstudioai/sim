@@ -49,6 +49,8 @@ describe('isTerminalRefreshError', () => {
     'invalid_client_id',
     'invalid_client',
     'bad_redirect_uri',
+    'token_revoked',
+    'unauthorized_client',
   ])('returns true for %s', (code) => {
     expect(isTerminalRefreshError(code)).toBe(true)
   })
