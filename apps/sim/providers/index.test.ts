@@ -2078,3 +2078,56 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().reasoningEffort).toBeUndefined()
   })
 })
+
+describe('native evaluation provider boundary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteRequest.mockResolvedValue({
+      content: '{"passed":true}',
+      model: 'jev-1.13.0',
+      answers: { passed: true },
+      tokens: { input: 100, output: 10, total: 110 },
+    })
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'resolved-typesafe-key', isBYOK: false })
+  })
+
+  it.each([
+    ['typesafe', { model: 'jev-1.13.0', messages: [{ role: 'user', content: 'Chat' }] }],
+    ['openai', { model: 'gpt-4o', evaluation: { state: 'Test', questions: {} } }],
+  ] satisfies Array<[string, ProviderRequest]>)(
+    'rejects a mismatched %s request modality',
+    async (provider, request) => {
+      await expect(executeProviderRequest(provider, request)).rejects.toThrow(
+        'same evaluation or chat modality'
+      )
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it('resolves BYOK credentials and keeps evaluation answers without charging Sim credits', async () => {
+    const evaluation = {
+      state: 'Task complete',
+      questions: { passed: { type: 'noul', instructions: 'Passed?' } },
+    }
+    const result = await executeProviderRequest('typesafe', {
+      model: 'jev-1.13.0',
+      apiKey: 'test-key',
+      workspaceId: 'test-workspace',
+      evaluation,
+    })
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith(
+      'typesafe',
+      'jev-1.13.0',
+      'test-workspace',
+      'test-key'
+    )
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'resolved-typesafe-key', evaluation })
+    )
+    expect(result).toMatchObject({
+      answers: { passed: true },
+      tokens: { total: 110 },
+      cost: { input: 0, output: 0, total: 0 },
+    })
+  })
+})

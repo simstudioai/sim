@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-22",
+  "updatedAt": "2026-09-19",
   "integrations": [
     {
       "type": "onepassword",
@@ -12558,41 +12558,6 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "messaging"]
-    },
-    {
-      "type": "jev",
-      "slug": "jev",
-      "name": "Jev",
-      "description": "Make structured decisions with TypeSafe AI",
-      "longDescription": "Use TypeSafe AI’s Jev to classify content, score it against a rubric, or evaluate yes/no questions. Add Jev to an Agent’s tools to make decisions during a conversation, or use the Jev block for an explicit workflow step. Evaluate multiple questions against shared state in one request and route results using probabilities and confidence. Requires your own TypeSafe API key.",
-      "bgColor": "#F386A1",
-      "iconName": "TypeSafeIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/jev",
-      "operations": [
-        {
-          "name": "Choice",
-          "description": "Choose an option with Jev and return its probability distribution and confidence."
-        },
-        {
-          "name": "Score",
-          "description": "Score content against an ordered rubric with Jev, including probabilities and confidence."
-        },
-        {
-          "name": "Yes/No (Noul)",
-          "description": "Evaluate a yes/no question with Jev and return the probability that the answer is yes."
-        },
-        {
-          "name": "Evaluate Questions",
-          "description": "Evaluate multiple Choice, Score, and Noul questions against shared state in one Jev request."
-        }
-      ],
-      "operationCount": 4,
-      "triggers": [],
-      "triggerCount": 0,
-      "authType": "api-key",
-      "category": "tools",
-      "integrationType": "ai",
-      "tags": ["automation"]
     },
     {
       "type": "jina",

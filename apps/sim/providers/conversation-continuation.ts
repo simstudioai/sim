@@ -140,6 +140,7 @@ export async function restoreConversationNativeMessages(
     isChatCompletionsEndpoint(request?.azureEndpoint || env.AZURE_OPENAI_ENDPOINT || '')
       ? 'chat-completions'
       : providerHistoryProtocols[providerId]
+  if (!protocol) throw new Error('Evaluation providers do not support conversation history')
   const restored: Message[] = []
   for (const group of groupConversationMessages(messages)) {
     const first = group[0]

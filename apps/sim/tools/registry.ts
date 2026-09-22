@@ -2536,7 +2536,6 @@ import {
   intercomUpdateContactV2Tool,
   intercomUpdateTicketV2Tool,
 } from '@/tools/intercom'
-import { jevChoiceTool, jevEvaluateTool, jevNoulTool, jevScoreTool } from '@/tools/jev'
 import { jinaReadUrlTool, jinaSearchTool } from '@/tools/jina'
 import {
   jiraAddAttachmentTool,
@@ -6587,10 +6586,6 @@ export const tools: Record<string, ExecutableToolConfig> = {
   instantly_pause_campaign: instantlyPauseCampaignTool,
   instantly_reply_to_email: instantlyReplyToEmailTool,
   instantly_update_lead_interest_status: instantlyUpdateLeadInterestStatusTool,
-  jev_choice: jevChoiceTool,
-  jev_evaluate: jevEvaluateTool,
-  jev_noul: jevNoulTool,
-  jev_score: jevScoreTool,
   jina_read_url: jinaReadUrlTool,
   jina_search: jinaSearchTool,
   ketch_get_consent: ketchGetConsentTool,

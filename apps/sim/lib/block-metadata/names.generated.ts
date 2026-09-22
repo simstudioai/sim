@@ -136,7 +136,6 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   instagram: 'Instagram',
   instantly: 'Instantly',
   intercom_v2: 'Intercom',
-  jev: 'Jev',
   jina: 'Jina',
   jira: 'Jira',
   jira_service_management: 'Jira Service Management',

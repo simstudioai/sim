@@ -28,6 +28,7 @@ import {
   OpenRouterIcon,
   SakanaIcon,
   TogetherIcon,
+  TypeSafeIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -83,6 +84,8 @@ export interface ModelCapabilities {
      */
     streamed?: ThinkingStreamVisibility
   }
+  /** Uses native state and questions instead of a conversational prompt. */
+  evaluation?: boolean
   deepResearch?: boolean
   /** Whether this model supports conversation memory. Defaults to true if omitted. */
   memory?: boolean
@@ -167,6 +170,34 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  typesafe: {
+    id: 'typesafe',
+    name: 'TypeSafe',
+    description: 'Jev evaluation models for classification, scoring, and agent decisions',
+    icon: TypeSafeIcon,
+    color: '#F386A1',
+    models: [
+      {
+        id: 'jev-1.13.0',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+      {
+        id: 'jev-latest',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+      {
+        id: 'jev-preview',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+    ],
+    defaultModel: 'jev-1.13.0',
+  },
   fireworks: {
     id: 'fireworks',
     name: 'Fireworks',
@@ -5823,6 +5854,17 @@ export function getThinkingStreamVisibility(modelId: string): ThinkingStreamVisi
     }
   }
   return null
+}
+
+/** Models that consume native evaluation inputs in the Agent block. */
+export function getEvaluationModels(): string[] {
+  return Object.values(PROVIDER_DEFINITIONS).flatMap((provider) =>
+    provider.models.filter((model) => model.capabilities.evaluation).map((model) => model.id)
+  )
+}
+
+export function isEvaluationModel(modelId: string): boolean {
+  return getModelCapabilities(modelId)?.evaluation === true
 }
 
 /**

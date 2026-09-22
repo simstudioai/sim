@@ -1,0 +1,220 @@
+/** @vitest-environment node */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getHostedModels, getModelCapabilities, getProviderIcon } from '@/providers/models'
+import type { ProviderRequest } from '@/providers/types'
+import { typesafeProvider } from '@/providers/typesafe'
+import { buildJevBody, parseJevResponse } from '@/providers/typesafe/schema'
+import type { JevEvaluationResult, JevQuestion } from '@/providers/typesafe/types'
+import { getProviderFromModel, shouldBillModelUsage } from '@/providers/utils'
+
+const QUESTIONS: Record<string, JevQuestion> = {
+  department: {
+    type: 'choice',
+    instructions: 'Which team?',
+    criteria: { billing: null, technical: 'Bugs' },
+  },
+  frustration: {
+    type: 'score',
+    instructions: 'How frustrated?',
+    criteria: ['Calm', 'Frustrated', 'Angry'],
+  },
+  urgent: { type: 'noul', instructions: 'Is this urgent?' },
+}
+const RESULT: JevEvaluationResult = {
+  model: 'jev-1.13.0',
+  answers: {
+    department: {
+      type: 'choice',
+      choice: 'billing',
+      probabilities: { billing: 0.88, technical: 0.12 },
+      confidence: 0.81,
+    },
+    frustration: {
+      type: 'score',
+      score: 1.05,
+      legend: { '0': 'Calm', '1': 'Frustrated', '2': 'Angry' },
+      probabilities: { '0': 0, '1': 0.95, '2': 0.05 },
+      confidence: 0.92,
+    },
+    urgent: { type: 'noul', noul: 0.95 },
+  },
+  usage: { input_tokens: 318, output_tokens: 34 },
+}
+const REQUEST: ProviderRequest = {
+  model: 'jev-1.13.0',
+  apiKey: 'test-key',
+  evaluation: { state: 'My payouts have been failing for three days.', questions: QUESTIONS },
+}
+const fetchMock = vi.fn<typeof fetch>()
+
+describe('TypeSafe provider', () => {
+  beforeEach(() => {
+    fetchMock.mockReset().mockResolvedValue(Response.json(RESULT))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['jev-1.13.0', 'jev-latest', 'jev-preview'])(
+    'routes %s through native BYOK evaluation',
+    async (model) => {
+      expect(getProviderFromModel(model)).toBe('typesafe')
+      expect(getHostedModels()).not.toContain(model)
+      expect(shouldBillModelUsage(model)).toBe(false)
+      expect(getModelCapabilities(model)).toMatchObject({ evaluation: true, memory: false })
+      expect(getProviderIcon(model)).toBeDefined()
+      const result = await typesafeProvider.executeRequest({ ...REQUEST, model })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.typesafe.ai/v1/systemone',
+        expect.objectContaining({
+          method: 'POST',
+          redirect: 'error',
+          headers: { Authorization: 'Bearer test-key', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, state: REQUEST.evaluation?.state, questions: QUESTIONS }),
+        })
+      )
+      expect(result).toMatchObject({
+        content: JSON.stringify(RESULT.answers),
+        answers: RESULT.answers,
+        model: RESULT.model,
+        tokens: { input: 318, output: 34, total: 352 },
+        timing: { iterations: 1, toolsTime: 0 },
+      })
+    }
+  )
+
+  it.each(['42', 'false', 'null', { text: 'Refund required' }, ['first', { second: true }]])(
+    'preserves native state %j',
+    async (state) => {
+      await typesafeProvider.executeRequest({
+        ...REQUEST,
+        evaluation: { state, questions: JSON.stringify(QUESTIONS) },
+      })
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).state).toEqual(state)
+    }
+  )
+
+  it('delivers complete structured answers to streaming consumers', async () => {
+    const result = await typesafeProvider.executeRequest({ ...REQUEST, stream: true })
+    if (!('execution' in result)) throw new Error('Expected streaming execution')
+    expect(result.execution.output).toMatchObject({
+      answers: RESULT.answers,
+      content: JSON.stringify(RESULT.answers),
+      tokens: { total: 352 },
+    })
+    const reader = result.stream.getReader()
+    const events: unknown[] = []
+    for (;;) {
+      const next = await reader.read()
+      if (next.done) break
+      events.push(next.value)
+    }
+    expect(JSON.stringify(events)).toContain('billing')
+  })
+
+  it.each([
+    { apiKey: undefined },
+    { evaluation: undefined },
+    { messages: [{ role: 'user', content: 'Chat' }] },
+    { responseFormat: { name: 'response', schema: {} } },
+  ] satisfies Partial<ProviderRequest>[])(
+    'rejects incomplete or conversational requests before sending them',
+    async (override) => {
+      await expect(typesafeProvider.executeRequest({ ...REQUEST, ...override })).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not echo upstream error bodies or credentials', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ error: 'private provider context test-key' }, { status: 401 })
+    )
+    await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow(
+      'TypeSafe evaluation failed (HTTP 401)'
+    )
+  })
+
+  it('honors cancellation before network access', async () => {
+    await expect(
+      typesafeProvider.executeRequest({ ...REQUEST, abortSignal: AbortSignal.abort() })
+    ).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards cancellation to the request and bounds response allocation', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementation(async (_url, init) => {
+      controller.abort()
+      expect(init?.signal?.aborted).toBe(true)
+      throw controller.signal.reason
+    })
+    await expect(
+      typesafeProvider.executeRequest({ ...REQUEST, abortSignal: controller.signal })
+    ).rejects.toThrow()
+    fetchMock.mockResolvedValue(
+      new Response('{}', { headers: { 'content-length': String(11 * 1024 * 1024) } })
+    )
+    await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow('exceeds maximum size')
+  })
+})
+
+describe('Jev native schema', () => {
+  it.each([
+    {},
+    { bad: { type: 'chat', instructions: 'Hello' } },
+    { bad: { type: 'choice', instructions: 'Pick', criteria: {} } },
+    {
+      bad: {
+        type: 'choice',
+        instructions: 'Pick',
+        criteria: Object.fromEntries(Array.from({ length: 256 }, (_, i) => [String(i), null])),
+      },
+    },
+    { bad: { type: 'score', instructions: 'Rate', criteria: ['One'] } },
+    { bad: { type: 'score', instructions: 'Rate', criteria: Array(11).fill('Level') } },
+    { bad: { type: 'noul', instructions: 'Test', criteria: { yes: 'Wrong key' } } },
+  ])('rejects invalid question shape %j', (questions) => {
+    expect(() => buildJevBody({ model: REQUEST.model, state: 'Test' }, questions)).toThrow(
+      'Invalid Jev questions'
+    )
+  })
+
+  it.each([null, true, 42])('rejects invalid state %j', (state) => {
+    expect(() => buildJevBody({ model: REQUEST.model, state }, QUESTIONS)).toThrow('Jev state')
+  })
+
+  it('accepts structured instructions and all question types together', () => {
+    expect(
+      buildJevBody(
+        { model: REQUEST.model, state: { content: 'Test' } },
+        {
+          ...QUESTIONS,
+          urgent: {
+            type: 'noul',
+            instructions: ['Is this urgent?'],
+            criteria: { true: { deadline: 'today' }, false: 'No deadline' },
+          },
+        }
+      ).questions.urgent.instructions
+    ).toEqual(['Is this urgent?'])
+  })
+
+  it('rejects malformed question JSON', () => {
+    expect(() => buildJevBody({ model: REQUEST.model, state: 'Test' }, '{')).toThrow('valid JSON')
+  })
+
+  it.each([
+    {},
+    { ...RESULT.answers, unexpected: { type: 'noul', noul: 0.1 } },
+    { ...RESULT.answers, department: { type: 'noul', noul: 0.1 } },
+  ])('rejects mismatched answer IDs or types', (answers) => {
+    expect(() => parseJevResponse({ ...RESULT, answers }, QUESTIONS)).toThrow('do not match')
+  })
+
+  it.each([
+    { ...RESULT, usage: { input_tokens: -1, output_tokens: 0 } },
+    { ...RESULT, answers: { urgent: { type: 'noul', noul: 1.1 } } },
+    { model: 'jev-1.13.0', choices: [] },
+  ])('rejects invalid provider responses', (value) => {
+    expect(() => parseJevResponse(value, QUESTIONS)).toThrow('invalid Jev evaluation response')
+  })
+})

@@ -160,6 +160,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   sakana: buildProviderMetadata('sakana'),
+  typesafe: buildProviderMetadata('typesafe'),
   nvidia: buildProviderMetadata('nvidia'),
   meta: buildProviderMetadata('meta'),
   zai: buildProviderMetadata('zai'),

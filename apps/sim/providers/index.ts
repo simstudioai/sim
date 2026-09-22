@@ -35,7 +35,7 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
-import { isKnownModelId } from '@/providers/models'
+import { isEvaluationModel, isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
@@ -249,6 +249,10 @@ export async function executeProviderRequest(
 
   if (!provider.executeRequest) {
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
+  }
+
+  if (isEvaluationModel(request.model) !== Boolean(request.evaluation)) {
+    throw new Error('The selected model and request must use the same evaluation or chat modality')
   }
 
   let resolvedRequest = sanitizeRequest(request)

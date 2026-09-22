@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import type { JevBaseParams, JevContent, JevEvaluateResponse, JevQuestion } from '@/tools/jev/types'
-import type { ToolConfig } from '@/tools/types'
+import type { JevContent, JevEvaluationResult, JevQuestion } from '@/providers/typesafe/types'
 
 const contentSchema: z.ZodType<JevContent> = z.union([
   z.string(),
@@ -40,7 +39,7 @@ const questionsSchema = z
 
 const probabilitySchema = z.number().min(0).max(1)
 const probabilitiesSchema = z.record(z.string(), probabilitySchema)
-const responseSchema: z.ZodType<JevEvaluateResponse['output']> = z.object({
+const responseSchema: z.ZodType<JevEvaluationResult> = z.object({
   model: z.string(),
   answers: z.record(
     z.string(),
@@ -67,45 +66,6 @@ const responseSchema: z.ZodType<JevEvaluateResponse['output']> = z.object({
   }),
 })
 
-export const JEV_COMMON_PARAMS = {
-  apiKey: {
-    type: 'string',
-    required: true,
-    visibility: 'user-only',
-    description: 'TypeSafe API key from https://console.typesafe.ai',
-  },
-  model: {
-    type: 'string',
-    required: false,
-    visibility: 'user-or-llm',
-    description:
-      'Model ID or alias: jev-1.13.0, jev-latest, or jev-preview. Defaults to jev-1.13.0.',
-  },
-  state: {
-    type: 'string',
-    required: true,
-    visibility: 'user-or-llm',
-    description: 'Content to evaluate: a text string, JSON object, or array.',
-  },
-} as const satisfies ToolConfig['params']
-
-export const JEV_INSTRUCTIONS_PARAM = {
-  type: 'string',
-  required: true,
-  visibility: 'user-or-llm',
-  description: 'The question to evaluate, as text, a JSON object, or an array.',
-} as const
-
-export const JEV_REQUEST = {
-  url: 'https://api.typesafe.ai/v1/systemone',
-  method: 'POST',
-  headers: (params: JevBaseParams) => ({
-    Authorization: `Bearer ${params.apiKey}`,
-    'Content-Type': 'application/json',
-  }),
-  retry: { enabled: true, maxRetries: 3, retryIdempotentOnly: false },
-} satisfies ToolConfig<JevBaseParams>['request']
-
 export function parseJevJson(value: unknown, field: string): unknown {
   if (typeof value !== 'string') return value
   try {
@@ -125,19 +85,33 @@ export function parseJevQuestions(questions: unknown) {
   return parsedQuestions.data
 }
 
-export function buildJevBody(params: JevBaseParams, questions: unknown) {
+export function buildJevBody(params: { model: string; state: unknown }, questions: unknown) {
   const parsedQuestions = parseJevQuestions(questions)
   const state = contentSchema.safeParse(params.state)
   if (!state.success) throw new Error('Jev state must be text, a JSON object, or an array')
   return {
-    model: params.model?.trim() || 'jev-1.13.0',
+    model: params.model,
     state: state.data,
     questions: parsedQuestions,
   }
 }
 
-export async function parseJevResponse(response: Response) {
-  const result = responseSchema.safeParse(await response.json())
+export function parseJevResponse(
+  value: unknown,
+  questions: Record<string, JevQuestion>
+): JevEvaluationResult {
+  const result = responseSchema.safeParse(value)
   if (!result.success) throw new Error('TypeSafe returned an invalid Jev evaluation response')
+  const { answers } = result.data
+  if (
+    Object.keys(answers).length !== Object.keys(questions).length ||
+    Object.entries(questions).some(
+      ([id, question]) => !Object.hasOwn(answers, id) || answers[id].type !== question.type
+    )
+  ) {
+    throw new Error(
+      'TypeSafe returned Jev answers that do not match the requested question IDs and types'
+    )
+  }
   return result.data
 }
