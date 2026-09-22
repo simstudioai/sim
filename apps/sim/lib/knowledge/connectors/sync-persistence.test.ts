@@ -29,7 +29,9 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
 }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
-    fixture: { mapTags: (metadata: Record<string, unknown>) => ({ label: metadata.label }) },
+    fixture: {
+      mapTags: (metadata: Record<string, unknown>) => ({ label: metadata.label, owner: metadata.owner }),
+    },
   },
 }))
 
@@ -434,21 +436,22 @@ describe('organization source cache persistence', () => {
 })
 
 describe('resolveTagMapping', () => {
-  it('bounds a mapped tag value that would exceed its index row limit', () => {
+  it('bounds a mapped tag value that would exceed its index row limit and keeps a short one intact', () => {
     const tags = resolveTagMapping(
       'fixture',
-      { label: 'y'.repeat(5000) },
-      { tagSlotMapping: { label: 'tag1' } }
+      { label: 'y'.repeat(5000), owner: 'Purchasing' },
+      { tagSlotMapping: { label: 'tag1', owner: 'tag2' } }
     )
     expect(tags?.tag1).toBe(`${'y'.repeat(512)}...`)
+    expect(tags?.tag2).toBe('Purchasing')
   })
 
-  it('keeps a short mapped tag value intact', () => {
+  it('cuts by code point so a bounded value never ends in half a surrogate pair', () => {
     const tags = resolveTagMapping(
       'fixture',
-      { label: 'Purchasing' },
+      { label: '\u{1F600}'.repeat(600) },
       { tagSlotMapping: { label: 'tag1' } }
     )
-    expect(tags?.tag1).toBe('Purchasing')
+    expect(tags?.tag1).toBe(`${'\u{1F600}'.repeat(512)}...`)
   })
 })

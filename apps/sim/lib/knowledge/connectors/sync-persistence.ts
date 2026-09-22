@@ -3,7 +3,6 @@ import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { truncate } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
@@ -27,6 +26,7 @@ import {
 } from '@/lib/knowledge/documents/storage-upload'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
@@ -175,16 +175,15 @@ export async function persistDocumentAcls(
 const MAX_SAFE_TITLE_LENGTH = 200
 
 /**
- * A document's filename and text tags sit under btree indexes, and Postgres refuses an index
- * row past about 2.7 KB. A source title or tag value beyond that fails the row and, with it,
- * every sync that lists the document again. 512 characters keeps a four-byte-per-character
- * value inside the ceiling.
+ * Source titles and mapped tag values are untrusted machine input with no caller to refuse them,
+ * so they are cut to {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH} by code point, never inside a
+ * surrogate pair.
  */
-const MAX_INDEXED_TEXT_LENGTH = 512
-
-/** Bounds a source-supplied value that lands in an indexed text column. */
 function boundIndexedText(value: string): string {
-  return truncate(value, MAX_INDEXED_TEXT_LENGTH)
+  if (value.length <= MAX_DOCUMENT_INDEXED_TEXT_LENGTH) return value
+  const points = Array.from(value)
+  if (points.length <= MAX_DOCUMENT_INDEXED_TEXT_LENGTH) return value
+  return `${points.slice(0, MAX_DOCUMENT_INDEXED_TEXT_LENGTH).join('')}...`
 }
 
 function sanitizeStorageTitle(title: string): string {
@@ -265,7 +264,7 @@ export function resolveTagMapping(
   for (const [semanticKey, slot] of Object.entries(mapping)) {
     const value = semanticTags[semanticKey]
     ;(result as Record<string, unknown>)[slot] =
-      typeof value === 'string' ? boundIndexedText(value) : value != null ? value : null
+      typeof value === 'string' ? boundIndexedText(value) : (value ?? null)
   }
   return result
 }

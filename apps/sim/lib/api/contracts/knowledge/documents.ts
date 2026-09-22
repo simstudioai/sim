@@ -15,7 +15,11 @@ import {
 import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
-import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
+import {
+  getFieldTypeForSlot,
+  MAX_DOCUMENT_INDEXED_TEXT_LENGTH,
+  MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
+} from '@/lib/knowledge/constants'
 import { DOCUMENT_PROCESSING_STATUSES } from '@/lib/knowledge/documents/types'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
@@ -115,18 +119,26 @@ export function parseDocumentTagFiltersParam(
   return z.array(documentTagFilterSchema).parse(JSON.parse(value))
 }
 
+/** A text tag value that fits its index row; see {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH}. */
+const documentTagValueSchema = z
+  .string()
+  .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Tag values cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`)
+
 export const createDocumentBodySchema = z.object({
-  filename: z.string().min(1, 'Filename is required'),
+  filename: z
+    .string()
+    .min(1, 'Filename is required')
+    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`),
   fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
+  tag1: documentTagValueSchema.optional(),
+  tag2: documentTagValueSchema.optional(),
+  tag3: documentTagValueSchema.optional(),
+  tag4: documentTagValueSchema.optional(),
+  tag5: documentTagValueSchema.optional(),
+  tag6: documentTagValueSchema.optional(),
+  tag7: documentTagValueSchema.optional(),
   documentTagsData: z.string().optional(),
 })
 
@@ -165,7 +177,10 @@ export type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySc
 
 export const upsertDocumentBodySchema = z.object({
   documentId: z.string().optional(),
-  filename: z.string().min(1, 'Filename is required'),
+  filename: z
+    .string()
+    .min(1, 'Filename is required')
+    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`),
   fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
@@ -196,7 +211,10 @@ export const bulkCreateDocumentsResponseSchema = z.object({
 })
 
 export const updateDocumentBodySchema = z.object({
-  filename: z.string().min(1, 'Filename is required').optional(),
+  filename: z
+    .string()
+    .min(1, 'Filename is required')
+    .max(MAX_DOCUMENT_INDEXED_TEXT_LENGTH, `Filename cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`).optional(),
   enabled: z.boolean().optional(),
   chunkCount: z.number().min(0).optional(),
   tokenCount: z.number().min(0).optional(),
@@ -205,13 +223,13 @@ export const updateDocumentBodySchema = z.object({
   processingError: z.string().optional(),
   markFailedDueToTimeout: z.boolean().optional(),
   retryProcessing: z.boolean().optional(),
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
+  tag1: documentTagValueSchema.optional(),
+  tag2: documentTagValueSchema.optional(),
+  tag3: documentTagValueSchema.optional(),
+  tag4: documentTagValueSchema.optional(),
+  tag5: documentTagValueSchema.optional(),
+  tag6: documentTagValueSchema.optional(),
+  tag7: documentTagValueSchema.optional(),
   number1: z.string().optional(),
   number2: z.string().optional(),
   number3: z.string().optional(),
