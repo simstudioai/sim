@@ -23,33 +23,44 @@ afterEach(() => {
 })
 
 describe('CollapsibleCard', () => {
-  it('toggles controlled content by click, Enter and Space and forwards root attributes', () => {
-    function Example() {
-      const [collapsed, setCollapsed] = useState(true)
-      return (
-        <CollapsibleCard
-          title='Condition'
-          data-filter-id='condition-1'
-          collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((value) => !value)}
-        >
-          <input aria-label='Value' defaultValue='Example' />
-        </CollapsibleCard>
+  it.each([false, true])(
+    'toggles controlled content and links its body (animated: %s)',
+    (animated) => {
+      function Example() {
+        const [collapsed, setCollapsed] = useState(true)
+        return (
+          <CollapsibleCard
+            title='Condition'
+            animated={animated}
+            contentProps={{ id: 'condition-fields' }}
+            data-filter-id='condition-1'
+            collapsed={collapsed}
+            onToggleCollapse={() => setCollapsed((value) => !value)}
+          >
+            <input aria-label='Value' defaultValue='Example' />
+          </CollapsibleCard>
+        )
+      }
+      mount(<Example />)
+      const card = container!.querySelector('[data-filter-id="condition-1"]')!
+      const trigger = card.querySelector<HTMLElement>('[role="button"]')!
+      expect(trigger.getAttribute('aria-expanded')).toBe('false')
+      expect(trigger.getAttribute('aria-controls')).toBe('condition-fields')
+      expect(card.querySelector('input')).toBeNull()
+      act(() => trigger.click())
+      expect(trigger.getAttribute('aria-expanded')).toBe('true')
+      expect(card.querySelector('#condition-fields input')?.getAttribute('aria-label')).toBe(
+        'Value'
       )
+      expect(card.querySelector('input')?.value).toBe('Example')
+      act(() =>
+        trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      )
+      expect(card.querySelector('input')).toBeNull()
+      act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true })))
+      expect(card.querySelector('input')).not.toBeNull()
     }
-    mount(<Example />)
-    const card = container!.querySelector('[data-filter-id="condition-1"]')!
-    const trigger = card.querySelector<HTMLElement>('[role="button"]')!
-    expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(card.querySelector('input')).toBeNull()
-    act(() => trigger.click())
-    expect(trigger.getAttribute('aria-expanded')).toBe('true')
-    expect(card.querySelector('input')?.value).toBe('Example')
-    act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
-    expect(card.querySelector('input')).toBeNull()
-    act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true })))
-    expect(card.querySelector('input')).not.toBeNull()
-  })
+  )
 
   it('keeps enabled and disabled actions outside the collapse target', () => {
     const toggle = vi.fn()

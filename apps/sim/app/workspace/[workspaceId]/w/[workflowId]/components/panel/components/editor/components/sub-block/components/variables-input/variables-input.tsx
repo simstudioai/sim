@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
   cn,
-  handleKeyboardActivation,
   Input,
   Label,
+  OverflowText,
   Textarea,
   Tooltip,
 } from '@sim/emcn'
@@ -382,39 +383,32 @@ export function VariablesInput({
             })
 
             return (
-              <div
+              <CollapsibleCard
                 key={assignment.id}
                 data-assignment-id={assignment.id}
-                className={cn(
-                  'rounded-sm border border-[var(--border-1)]',
-                  collapsed ? 'overflow-hidden' : 'overflow-visible'
-                )}
-              >
-                <div
-                  role='button'
-                  tabIndex={0}
-                  className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-                  onClick={() => toggleCollapse(assignment.id)}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return
-                    handleKeyboardActivation(event, () => toggleCollapse(assignment.id))
-                  }}
-                >
-                  <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='block truncate text-[var(--text-tertiary)] text-sm'>
+                title={
+                  <span className='flex min-w-0 items-center gap-2'>
+                    <OverflowText
+                      label={assignment.variableName || `Variable ${index + 1}`}
+                      focusTarget='nearest-interactive'
+                    >
                       {assignment.variableName
                         ? formatDisplayText(assignment.variableName, {
                             workflowSearchHighlight: variableLabelHighlight,
                           })
                         : `Variable ${index + 1}`}
-                    </span>
+                    </OverflowText>
                     {assignment.variableName && (
                       <Badge variant='type' size='sm'>
                         {assignment.type}
                       </Badge>
                     )}
-                  </div>
-                  <div className='flex items-center gap-2 pl-2'>
+                  </span>
+                }
+                collapsed={collapsed}
+                onToggleCollapse={() => toggleCollapse(assignment.id)}
+                actions={
+                  <>
                     <Button
                       variant='ghost'
                       onClick={(e) => {
@@ -439,252 +433,244 @@ export function VariablesInput({
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Variable</span>
                     </Button>
-                  </div>
+                  </>
+                }
+              >
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-small'>Variable</Label>
+                  <Combobox
+                    options={availableVars.map((v) => ({ label: v.name, value: v.id }))}
+                    value={assignment.variableId || ''}
+                    onChange={(value) => handleVariableSelect(assignment.id, value)}
+                    placeholder='Select a variable...'
+                    disabled={isReadOnly}
+                    overlayContent={
+                      variableLabelHighlight ? (
+                        <span className='truncate text-[var(--text-primary)]'>
+                          {formatDisplayText(variableLabel, {
+                            workflowSearchHighlight: variableLabelHighlight,
+                          })}
+                        </span>
+                      ) : undefined
+                    }
+                  />
                 </div>
 
-                {!collapsed && (
-                  <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                    <div className='flex flex-col gap-1.5'>
-                      <Label className='text-small'>Variable</Label>
-                      <Combobox
-                        options={availableVars.map((v) => ({ label: v.name, value: v.id }))}
-                        value={assignment.variableId || ''}
-                        onChange={(value) => handleVariableSelect(assignment.id, value)}
-                        placeholder='Select a variable...'
-                        disabled={isReadOnly}
-                        overlayContent={
-                          variableLabelHighlight ? (
-                            <span className='truncate text-[var(--text-primary)]'>
-                              {formatDisplayText(variableLabel, {
-                                workflowSearchHighlight: variableLabelHighlight,
-                              })}
-                            </span>
-                          ) : undefined
-                        }
-                      />
-                    </div>
-
-                    <div className='flex flex-col gap-1.5'>
-                      <div className='flex items-center justify-between'>
-                        <Label className='text-small'>Value</Label>
-                        {assignment.type === 'boolean' && (
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <button
-                                type='button'
-                                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                                onClick={() =>
-                                  setManualBooleanModes((prev) => ({
-                                    ...prev,
-                                    [assignment.id]: !isManualBoolean,
-                                  }))
-                                }
-                                disabled={isReadOnly}
-                                aria-label={
-                                  isManualBoolean ? 'Switch to selector' : 'Switch to manual value'
-                                }
-                              >
-                                <ArrowLeftRight
-                                  className={cn(
-                                    'h-[12px]! w-[12px]!',
-                                    isManualBoolean
-                                      ? 'text-[var(--text-primary)]'
-                                      : 'text-[var(--text-secondary)]'
-                                  )}
-                                />
-                              </button>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>
-                              <p>
-                                {isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}
-                              </p>
-                            </Tooltip.Content>
-                          </Tooltip.Root>
-                        )}
-                      </div>
-                      {assignment.type === 'boolean' && !isManualBoolean ? (
-                        <Combobox
-                          options={BOOLEAN_OPTIONS}
-                          value={assignment.value ?? ''}
-                          onChange={(v) =>
-                            !isReadOnly && updateAssignment(assignment.id, { value: v })
-                          }
-                          placeholder='Select value'
-                          disabled={isReadOnly}
-                          overlayContent={
-                            booleanLabelHighlight ? (
-                              <span className='truncate text-[var(--text-primary)]'>
-                                {formatDisplayText(assignment.value ?? '', {
-                                  workflowSearchHighlight: booleanLabelHighlight,
-                                })}
-                              </span>
-                            ) : undefined
-                          }
-                        />
-                      ) : assignment.type === 'object' || assignment.type === 'array' ? (
-                        <div className='relative'>
-                          <Textarea
-                            ref={(el) => {
-                              if (el) valueInputRefs.current[assignment.id] = el
-                            }}
-                            value={assignment.value || ''}
-                            onChange={(e) =>
-                              handleValueInputChange(
-                                assignment.id,
-                                e.target.value,
-                                e.target.selectionStart ?? undefined
-                              )
-                            }
-                            onKeyDown={handleKeyDown}
-                            onFocus={() => {
-                              if (!isReadOnly && !assignment.value?.trim()) {
-                                setActiveFieldId(assignment.id)
-                                setCursorPosition(0)
-                                setShowTags(true)
-                              }
-                            }}
-                            onScroll={(e) => {
-                              const overlay = overlayRefs.current[assignment.id]
-                              if (overlay) {
-                                overlay.scrollTop = e.currentTarget.scrollTop
-                                overlay.scrollLeft = e.currentTarget.scrollLeft
-                              }
-                            }}
-                            placeholder={
-                              assignment.type === 'object'
-                                ? '{\n  "key": "value"\n}'
-                                : '[\n  1, 2, 3\n]'
+                <div className='flex flex-col gap-1.5'>
+                  <div className='flex items-center justify-between'>
+                    <Label className='text-small'>Value</Label>
+                    {assignment.type === 'boolean' && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type='button'
+                            className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                            onClick={() =>
+                              setManualBooleanModes((prev) => ({
+                                ...prev,
+                                [assignment.id]: !isManualBoolean,
+                              }))
                             }
                             disabled={isReadOnly}
-                            className={cn(
-                              'min-h-[120px] font-mono text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
-                              dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
-                            )}
-                            style={{
-                              wordBreak: 'break-word',
-                              whiteSpace: 'pre-wrap',
-                            }}
-                            onDrop={(e) => handleDrop(e, assignment.id)}
-                            onDragOver={(e) => handleDragOver(e, assignment.id)}
-                            onDragLeave={(e) => handleDragLeave(e, assignment.id)}
-                          />
-                          <div
-                            ref={(el) => {
-                              if (el) overlayRefs.current[assignment.id] = el
-                            }}
-                            className={cn(
-                              'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm',
-                              !isReadOnly && 'pointer-events-none'
-                            )}
-                            style={{ scrollbarWidth: 'none' }}
+                            aria-label={
+                              isManualBoolean ? 'Switch to selector' : 'Switch to manual value'
+                            }
                           >
-                            <div className='w-full whitespace-pre-wrap break-words'>
-                              {formatDisplayText(assignment.value || '', {
-                                accessiblePrefixes,
-                                highlightAll: !accessiblePrefixes,
-                                workflowSearchHighlight: valueSearchHighlight,
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className='relative'>
-                          <Input
-                            ref={(el) => {
-                              if (el) valueInputRefs.current[assignment.id] = el
-                            }}
-                            name='value'
-                            value={assignment.value || ''}
-                            onChange={(e) =>
-                              handleValueInputChange(
-                                assignment.id,
-                                e.target.value,
-                                e.target.selectionStart ?? undefined
-                              )
-                            }
-                            onKeyDown={handleKeyDown}
-                            onFocus={() => {
-                              if (!isReadOnly && !assignment.value?.trim()) {
-                                setActiveFieldId(assignment.id)
-                                setCursorPosition(0)
-                                setShowTags(true)
-                              }
-                            }}
-                            onScroll={(e) =>
-                              syncOverlayScroll(assignment.id, e.currentTarget.scrollLeft)
-                            }
-                            onPaste={() =>
-                              setTimeout(() => {
-                                const input = valueInputRefs.current[assignment.id]
-                                if (input)
-                                  syncOverlayScroll(
-                                    assignment.id,
-                                    (input as HTMLInputElement).scrollLeft
-                                  )
-                              }, 0)
-                            }
-                            placeholder={`${assignment.type} value`}
-                            disabled={isReadOnly}
-                            autoComplete='off'
-                            className={cn(
-                              'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit]',
-                              dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
-                            )}
-                            onDrop={(e) => handleDrop(e, assignment.id)}
-                            onDragOver={(e) => handleDragOver(e, assignment.id)}
-                            onDragLeave={(e) => handleDragLeave(e, assignment.id)}
-                          />
-                          <div
-                            ref={(el) => {
-                              if (el) overlayRefs.current[assignment.id] = el
-                            }}
-                            className={cn(
-                              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
-                              !isReadOnly && 'pointer-events-none'
-                            )}
-                            style={{ scrollbarWidth: 'none' }}
-                          >
-                            <div
-                              className='w-full whitespace-pre'
-                              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-                            >
-                              {formatDisplayText(
-                                assignment.value || '',
-                                accessiblePrefixes
-                                  ? {
-                                      accessiblePrefixes,
-                                      workflowSearchHighlight: valueSearchHighlight,
-                                    }
-                                  : {
-                                      highlightAll: true,
-                                      workflowSearchHighlight: valueSearchHighlight,
-                                    }
+                            <ArrowLeftRight
+                              className={cn(
+                                'h-[12px]! w-[12px]!',
+                                isManualBoolean
+                                  ? 'text-[var(--text-primary)]'
+                                  : 'text-[var(--text-secondary)]'
                               )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {showTags && activeFieldId === assignment.id && (
-                        <TagDropdown
-                          visible={showTags}
-                          onSelect={handleTagSelect}
-                          blockId={blockId}
-                          activeSourceBlockId={activeSourceBlockId}
-                          inputValue={assignment.value || ''}
-                          cursorPosition={cursorPosition}
-                          onClose={() => setShowTags(false)}
-                          inputRef={
-                            {
-                              current: valueInputRefs.current[assignment.id] || null,
-                            } as React.RefObject<HTMLTextAreaElement | HTMLInputElement>
-                          }
-                        />
-                      )}
-                    </div>
+                            />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          <p>{isManualBoolean ? 'Switch to selector' : 'Switch to manual value'}</p>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
                   </div>
-                )}
-              </div>
+                  {assignment.type === 'boolean' && !isManualBoolean ? (
+                    <Combobox
+                      options={BOOLEAN_OPTIONS}
+                      value={assignment.value ?? ''}
+                      onChange={(v) => !isReadOnly && updateAssignment(assignment.id, { value: v })}
+                      placeholder='Select value'
+                      disabled={isReadOnly}
+                      overlayContent={
+                        booleanLabelHighlight ? (
+                          <span className='truncate text-[var(--text-primary)]'>
+                            {formatDisplayText(assignment.value ?? '', {
+                              workflowSearchHighlight: booleanLabelHighlight,
+                            })}
+                          </span>
+                        ) : undefined
+                      }
+                    />
+                  ) : assignment.type === 'object' || assignment.type === 'array' ? (
+                    <div className='relative'>
+                      <Textarea
+                        ref={(el) => {
+                          if (el) valueInputRefs.current[assignment.id] = el
+                        }}
+                        value={assignment.value || ''}
+                        onChange={(e) =>
+                          handleValueInputChange(
+                            assignment.id,
+                            e.target.value,
+                            e.target.selectionStart ?? undefined
+                          )
+                        }
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => {
+                          if (!isReadOnly && !assignment.value?.trim()) {
+                            setActiveFieldId(assignment.id)
+                            setCursorPosition(0)
+                            setShowTags(true)
+                          }
+                        }}
+                        onScroll={(e) => {
+                          const overlay = overlayRefs.current[assignment.id]
+                          if (overlay) {
+                            overlay.scrollTop = e.currentTarget.scrollTop
+                            overlay.scrollLeft = e.currentTarget.scrollLeft
+                          }
+                        }}
+                        placeholder={
+                          assignment.type === 'object'
+                            ? '{\n  "key": "value"\n}'
+                            : '[\n  1, 2, 3\n]'
+                        }
+                        disabled={isReadOnly}
+                        className={cn(
+                          'min-h-[120px] font-mono text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
+                          dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
+                        )}
+                        style={{
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                        onDrop={(e) => handleDrop(e, assignment.id)}
+                        onDragOver={(e) => handleDragOver(e, assignment.id)}
+                        onDragLeave={(e) => handleDragLeave(e, assignment.id)}
+                      />
+                      <div
+                        ref={(el) => {
+                          if (el) overlayRefs.current[assignment.id] = el
+                        }}
+                        className={cn(
+                          'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm',
+                          !isReadOnly && 'pointer-events-none'
+                        )}
+                        style={{ scrollbarWidth: 'none' }}
+                      >
+                        <div className='w-full whitespace-pre-wrap break-words'>
+                          {formatDisplayText(assignment.value || '', {
+                            accessiblePrefixes,
+                            highlightAll: !accessiblePrefixes,
+                            workflowSearchHighlight: valueSearchHighlight,
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className='relative'>
+                      <Input
+                        ref={(el) => {
+                          if (el) valueInputRefs.current[assignment.id] = el
+                        }}
+                        name='value'
+                        value={assignment.value || ''}
+                        onChange={(e) =>
+                          handleValueInputChange(
+                            assignment.id,
+                            e.target.value,
+                            e.target.selectionStart ?? undefined
+                          )
+                        }
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => {
+                          if (!isReadOnly && !assignment.value?.trim()) {
+                            setActiveFieldId(assignment.id)
+                            setCursorPosition(0)
+                            setShowTags(true)
+                          }
+                        }}
+                        onScroll={(e) =>
+                          syncOverlayScroll(assignment.id, e.currentTarget.scrollLeft)
+                        }
+                        onPaste={() =>
+                          setTimeout(() => {
+                            const input = valueInputRefs.current[assignment.id]
+                            if (input)
+                              syncOverlayScroll(
+                                assignment.id,
+                                (input as HTMLInputElement).scrollLeft
+                              )
+                          }, 0)
+                        }
+                        placeholder={`${assignment.type} value`}
+                        disabled={isReadOnly}
+                        autoComplete='off'
+                        className={cn(
+                          'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit]',
+                          dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
+                        )}
+                        onDrop={(e) => handleDrop(e, assignment.id)}
+                        onDragOver={(e) => handleDragOver(e, assignment.id)}
+                        onDragLeave={(e) => handleDragLeave(e, assignment.id)}
+                      />
+                      <div
+                        ref={(el) => {
+                          if (el) overlayRefs.current[assignment.id] = el
+                        }}
+                        className={cn(
+                          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+                          !isReadOnly && 'pointer-events-none'
+                        )}
+                        style={{ scrollbarWidth: 'none' }}
+                      >
+                        <div
+                          className='w-full whitespace-pre'
+                          style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+                        >
+                          {formatDisplayText(
+                            assignment.value || '',
+                            accessiblePrefixes
+                              ? {
+                                  accessiblePrefixes,
+                                  workflowSearchHighlight: valueSearchHighlight,
+                                }
+                              : {
+                                  highlightAll: true,
+                                  workflowSearchHighlight: valueSearchHighlight,
+                                }
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {showTags && activeFieldId === assignment.id && (
+                    <TagDropdown
+                      visible={showTags}
+                      onSelect={handleTagSelect}
+                      blockId={blockId}
+                      activeSourceBlockId={activeSourceBlockId}
+                      inputValue={assignment.value || ''}
+                      cursorPosition={cursorPosition}
+                      onClose={() => setShowTags(false)}
+                      inputRef={
+                        {
+                          current: valueInputRefs.current[assignment.id] || null,
+                        } as React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+                      }
+                    />
+                  )}
+                </div>
+              </CollapsibleCard>
             )
           })}
         </div>

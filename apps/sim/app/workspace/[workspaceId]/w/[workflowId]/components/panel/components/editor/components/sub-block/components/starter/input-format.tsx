@@ -3,18 +3,17 @@ import {
   Badge,
   Button,
   Code,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
   calculateGutterWidth,
   cn,
-  Expandable,
-  ExpandableContent,
   getCodeEditorProps,
-  handleKeyboardActivation,
   highlight,
   Input,
   Label,
   languages,
+  OverflowText,
   Tooltip,
 } from '@sim/emcn'
 import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
@@ -389,52 +388,6 @@ export function FieldFormat({
   }
 
   /**
-   * Renders the field header with name, type badge, and action buttons
-   */
-  const renderFieldHeader = (field: Field, index: number) => (
-    <div
-      role='group'
-      aria-label={`${title} ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[3px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(field.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(field.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {field.name || `${title} ${index + 1}`}
-        </span>
-        {field.name && showType && (
-          <Badge variant='type' size='sm'>
-            {field.type}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add {title}</span>
-        </Button>
-        <Button
-          variant='ghost-destructive'
-          onClick={() => removeField(field.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0 hover-hover:opacity-90'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Field</span>
-        </Button>
-      </div>
-    </div>
-  )
-
-  /**
    * Renders the value input field based on the field type
    */
   const renderValueInput = (field: Field) => {
@@ -670,113 +623,145 @@ export function FieldFormat({
   return (
     <div className='space-y-2'>
       {fields.map((field, index) => (
-        <div
+        <CollapsibleCard
           key={field.id}
           data-field-id={field.id}
-          className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+          role='group'
+          aria-label={`${title} ${index + 1}`}
+          className='overflow-hidden'
+          title={
+            <span className='flex min-w-0 items-center gap-2'>
+              <OverflowText
+                label={field.name || `${title} ${index + 1}`}
+                focusTarget='nearest-interactive'
+              />
+              {field.name && showType && (
+                <Badge variant='type' size='sm'>
+                  {field.type}
+                </Badge>
+              )}
+            </span>
+          }
+          collapsed={!!field.collapsed}
+          onToggleCollapse={() => toggleCollapse(field.id)}
+          animated
+          actions={
+            <>
+              <Button
+                variant='ghost'
+                onClick={addField}
+                disabled={isReadOnly}
+                className='h-auto p-0'
+              >
+                <Plus className='size-[14px]' />
+                <span className='sr-only'>Add {title}</span>
+              </Button>
+              <Button
+                variant='ghost-destructive'
+                onClick={() => removeField(field.id)}
+                disabled={isReadOnly}
+                className='h-auto p-0 hover-hover:opacity-90'
+              >
+                <Trash className='size-[14px]' />
+                <span className='sr-only'>Delete Field</span>
+              </Button>
+            </>
+          }
         >
-          {renderFieldHeader(field, index)}
+          <div className='flex flex-col gap-1.5'>
+            {renderFieldLabel('Name')}
+            <div className='relative'>{renderNameInput(field)}</div>
+          </div>
 
-          <Expandable expanded={!field.collapsed}>
-            <ExpandableContent>
-              <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                <div className='flex flex-col gap-1.5'>
-                  {renderFieldLabel('Name')}
-                  <div className='relative'>{renderNameInput(field)}</div>
-                </div>
+          {showType && (
+            <div className='flex flex-col gap-1.5'>
+              {renderFieldLabel('Type')}
+              <Combobox
+                options={TYPE_OPTIONS}
+                value={field.type}
+                onChange={(value) => updateField(field.id, 'type', value)}
+                disabled={isReadOnly}
+              />
+            </div>
+          )}
 
-                {showType && (
-                  <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Type')}
-                    <Combobox
-                      options={TYPE_OPTIONS}
-                      value={field.type}
-                      onChange={(value) => updateField(field.id, 'type', value)}
-                      disabled={isReadOnly}
-                    />
-                  </div>
-                )}
-
-                {showDescription && (
-                  <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Description')}
-                    <div className='relative'>
-                      <Input
-                        ref={(el) => {
-                          if (el) descriptionInputRefs.current[field.id] = el
-                        }}
-                        value={field.description ?? ''}
-                        onChange={(e) => updateField(field.id, 'description', e.target.value)}
-                        onScroll={(e) =>
-                          syncDescriptionOverlayScroll(field.id, e.currentTarget.scrollLeft)
-                        }
-                        onPaste={() =>
-                          setTimeout(() => {
-                            const input = descriptionInputRefs.current[field.id]
-                            input && syncDescriptionOverlayScroll(field.id, input.scrollLeft)
-                          }, 0)
-                        }
-                        placeholder={descriptionPlaceholder}
-                        disabled={isReadOnly}
-                        autoComplete='off'
-                        className='allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
-                      />
-                      <div
-                        ref={(el) => {
-                          if (el) descriptionOverlayRefs.current[field.id] = el
-                        }}
-                        style={{ scrollbarWidth: 'none' }}
-                        className={cn(
-                          'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
-                          isReadOnly && 'opacity-50'
-                        )}
-                      >
-                        <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-                          {formatDisplayText(
-                            field.description ?? '',
-                            accessiblePrefixes
-                              ? {
-                                  accessiblePrefixes,
-                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                                    activeSearchTarget,
-                                    blockId,
-                                    subBlockId,
-                                    valuePath: [index, 'description'],
-                                  }),
-                                }
-                              : {
-                                  highlightAll: true,
-                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                                    activeSearchTarget,
-                                    blockId,
-                                    subBlockId,
-                                    valuePath: [index, 'description'],
-                                  }),
-                                }
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {showValue && (
-                  <div className='flex flex-col gap-1.5'>
-                    {isFileFieldType(field.type) ? (
-                      <div className='flex items-center justify-between'>
-                        {renderFieldLabel('Value')}
-                        {renderFileModeToggle(field)}
-                      </div>
-                    ) : (
-                      renderFieldLabel('Value')
+          {showDescription && (
+            <div className='flex flex-col gap-1.5'>
+              {renderFieldLabel('Description')}
+              <div className='relative'>
+                <Input
+                  ref={(el) => {
+                    if (el) descriptionInputRefs.current[field.id] = el
+                  }}
+                  value={field.description ?? ''}
+                  onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                  onScroll={(e) =>
+                    syncDescriptionOverlayScroll(field.id, e.currentTarget.scrollLeft)
+                  }
+                  onPaste={() =>
+                    setTimeout(() => {
+                      const input = descriptionInputRefs.current[field.id]
+                      input && syncDescriptionOverlayScroll(field.id, input.scrollLeft)
+                    }, 0)
+                  }
+                  placeholder={descriptionPlaceholder}
+                  disabled={isReadOnly}
+                  autoComplete='off'
+                  className='allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
+                />
+                <div
+                  ref={(el) => {
+                    if (el) descriptionOverlayRefs.current[field.id] = el
+                  }}
+                  style={{ scrollbarWidth: 'none' }}
+                  className={cn(
+                    'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+                    isReadOnly && 'opacity-50'
+                  )}
+                >
+                  <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+                    {formatDisplayText(
+                      field.description ?? '',
+                      accessiblePrefixes
+                        ? {
+                            accessiblePrefixes,
+                            workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                              activeSearchTarget,
+                              blockId,
+                              subBlockId,
+                              valuePath: [index, 'description'],
+                            }),
+                          }
+                        : {
+                            highlightAll: true,
+                            workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                              activeSearchTarget,
+                              blockId,
+                              subBlockId,
+                              valuePath: [index, 'description'],
+                            }),
+                          }
                     )}
-                    <div className='relative'>{renderValueInput(field)}</div>
-                  </div>
-                )}
+                  </span>
+                </div>
               </div>
-            </ExpandableContent>
-          </Expandable>
-        </div>
+            </div>
+          )}
+
+          {showValue && (
+            <div className='flex flex-col gap-1.5'>
+              {isFileFieldType(field.type) ? (
+                <div className='flex items-center justify-between'>
+                  {renderFieldLabel('Value')}
+                  {renderFileModeToggle(field)}
+                </div>
+              ) : (
+                renderFieldLabel('Value')
+              )}
+              <div className='relative'>{renderValueInput(field)}</div>
+            </div>
+          )}
+        </CollapsibleCard>
       ))}
     </div>
   )

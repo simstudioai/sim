@@ -3,6 +3,7 @@
 import type * as React from 'react'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
+import { Expandable, ExpandableContent } from '../expandable/expandable'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
 export interface CollapsibleCardProps
@@ -15,6 +16,10 @@ export interface CollapsibleCardProps
   actions?: React.ReactNode
   collapsed: boolean
   onToggleCollapse: () => void
+  /** Animate expansion using the shared Expandable height transition. */
+  animated?: boolean
+  /** Native body attributes and layout, including an ID linked from the trigger. */
+  contentProps?: React.HTMLAttributes<HTMLDivElement>
   /** Body content, shown when expanded. */
   children: React.ReactNode
 }
@@ -36,10 +41,23 @@ export function CollapsibleCard({
   actions,
   collapsed,
   onToggleCollapse,
+  animated = false,
+  contentProps,
   children,
   className,
   ...props
 }: CollapsibleCardProps) {
+  const content = (
+    <div
+      {...contentProps}
+      className={cn(
+        'flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5',
+        contentProps?.className
+      )}
+    >
+      {children}
+    </div>
+  )
   return (
     <div
       {...props}
@@ -54,6 +72,7 @@ export function CollapsibleCard({
           role='button'
           tabIndex={0}
           aria-expanded={!collapsed}
+          aria-controls={contentProps?.id}
           className={cn(
             'flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2.5 py-[5px]',
             actions && 'pr-2'
@@ -89,10 +108,12 @@ export function CollapsibleCard({
           </div>
         )}
       </div>
-      {!collapsed && (
-        <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-          {children}
-        </div>
+      {animated ? (
+        <Expandable expanded={!collapsed}>
+          <ExpandableContent>{content}</ExpandableContent>
+        </Expandable>
+      ) : (
+        !collapsed && content
       )}
     </div>
   )
