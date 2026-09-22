@@ -488,6 +488,17 @@ describe('File Serve API Route', () => {
       )
     })
 
+    it('spends no validator on an immutable response, which is never revalidated', async () => {
+      await serveVersionedDoc(false)
+      expect(mockCreateConditionalFileResponse).not.toHaveBeenCalled()
+      expect(mockCreateFileResponse).toHaveBeenCalled()
+    })
+
+    it('attaches a validator to a revalidated response so the next check can be answered 304', async () => {
+      await serveVersionedDoc(true)
+      expect(mockCreateConditionalFileResponse).toHaveBeenCalled()
+    })
+
     it('keeps a versioned document revalidated when it was compiled against referenced files', async () => {
       /**
        * The URL carries the file's own `updatedAt`, which does not move when a

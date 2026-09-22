@@ -34,6 +34,7 @@ import {
   createErrorResponse,
   createFileResponse,
   FileNotFoundError,
+  type FileResponse,
   findLocalFile,
   getContentType,
   readLocalFileWithinLimit,
@@ -71,25 +72,19 @@ interface ServeOptions {
   ifNoneMatch: string | null
 }
 
-/**
- * Whether a resolved response is a function of the stored object alone.
- *
- * `stored-bytes` may be cached for the life of the storage key: a content write stores the new
- * bytes under a NEW key, so a given key's response never changes. `derived-from-referenced-files`
- * may not — a sim page inlining its images, or a document compiled against the files it
- * references, is re-resolved per request and changes when a referenced file changes, while this
- * file's own key and `updatedAt` stay put.
- *
- * Declared rather than inferred, and REQUIRED, so a branch added to the resolver cannot inherit
- * the cacheable default by saying nothing — the same reason the transfer ceiling is asserted where
- * the branches converge rather than inside each one.
- */
-type ServableCacheability = 'stored-bytes' | 'derived-from-referenced-files'
-
 interface ServableBytes {
   buffer: Buffer
   contentType: string
-  cacheability: ServableCacheability
+  /**
+   * These bytes were resolved against OTHER files' current content — a page inlining its images,
+   * or a document compiled against the files it references — so the same storage key can serve
+   * different bytes over time while this file's own key and `updatedAt` stay put.
+   *
+   * Required, so a branch added to the resolver cannot inherit the cacheable answer by saying
+   * nothing — the same reason the transfer ceiling is asserted where the branches converge rather
+   * than inside each one.
+   */
+  dependsOnReferencedFiles: boolean
 }
 
 /**
@@ -127,7 +122,7 @@ async function resolveServableBytes(params: {
     ? {
         buffer: params.buffer,
         contentType: getContentType(params.filename),
-        cacheability: 'stored-bytes',
+        dependsOnReferencedFiles: false,
       }
     : await resolveTransformedBytes(params)
   assertKnownSizeWithinLimit(
@@ -178,7 +173,7 @@ async function resolveTransformedBytes(params: {
       return {
         buffer: rendered,
         contentType: 'text/html',
-        cacheability: 'derived-from-referenced-files',
+        dependsOnReferencedFiles: true,
       }
     }
   }
@@ -188,7 +183,7 @@ async function resolveTransformedBytes(params: {
     // concept, so it never reaches the doc branch.
     const image = await resolveServableImageBytes(buffer, storageKey)
     // Transcoded from THIS file's stored bytes, so it lives and dies with the storage key.
-    if (image) return { ...image, cacheability: 'stored-bytes' }
+    if (image) return { ...image, dependsOnReferencedFiles: false }
   }
 
   const doc = await resolveServableDocBytes({
@@ -202,7 +197,7 @@ async function resolveTransformedBytes(params: {
   return {
     buffer: doc.buffer,
     contentType: doc.contentType,
-    cacheability: doc.dependsOnReferencedFiles ? 'derived-from-referenced-files' : 'stored-bytes',
+    dependsOnReferencedFiles: doc.dependsOnReferencedFiles,
   }
 }
 
@@ -240,11 +235,24 @@ const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
 function resolveServeCacheControl(
   versioned: boolean,
   context: string | undefined,
-  cacheability: ServableCacheability
+  dependsOnReferencedFiles: boolean
 ): string | undefined {
-  const derived = cacheability === 'derived-from-referenced-files'
-  if (versioned && !derived) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' || derived ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+  if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' || dependsOnReferencedFiles
+    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
+    : undefined
+}
+
+/**
+ * Sends a resolved file, attaching a validator only where the client may actually revalidate.
+ *
+ * An immutable response is never revalidated, so digesting its buffer — a pass over up to the
+ * whole transfer ceiling — would cost the compute and never collect a single 304.
+ */
+function serveResolvedFile(file: FileResponse, ifNoneMatch: string | null): NextResponse {
+  return file.cacheControl === IMMUTABLE_CACHE_CONTROL
+    ? createFileResponse(file)
+    : createConditionalFileResponse(file, ifNoneMatch)
 }
 
 export const GET = withRouteHandler(
@@ -431,12 +439,16 @@ async function handleWorkspaceFile(
     workspaceId,
     size: resolved.buffer.length,
   })
-  return createConditionalFileResponse(
+  return serveResolvedFile(
     {
       buffer: resolved.buffer,
       contentType: resolved.contentType,
       filename: file.name,
-      cacheControl: resolveServeCacheControl(options.versioned, 'workspace', resolved.cacheability),
+      cacheControl: resolveServeCacheControl(
+        options.versioned,
+        'workspace',
+        resolved.dependsOnReferencedFiles
+      ),
     },
     options.ifNoneMatch
   )
@@ -483,7 +495,7 @@ async function handleLocalFile(
     const {
       buffer: fileBuffer,
       contentType,
-      cacheability,
+      dependsOnReferencedFiles,
     } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
@@ -496,12 +508,16 @@ async function handleLocalFile(
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
-    return createConditionalFileResponse(
+    return serveResolvedFile(
       {
         buffer: fileBuffer,
         contentType,
         filename: displayName,
-        cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
+        cacheControl: resolveServeCacheControl(
+          options.versioned,
+          context,
+          dependsOnReferencedFiles
+        ),
       },
       options.ifNoneMatch
     )
@@ -557,7 +573,7 @@ async function handleCloudProxy(
     const {
       buffer: fileBuffer,
       contentType,
-      cacheability,
+      dependsOnReferencedFiles,
     } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
@@ -575,12 +591,16 @@ async function handleCloudProxy(
       context,
     })
 
-    return createConditionalFileResponse(
+    return serveResolvedFile(
       {
         buffer: fileBuffer,
         contentType,
         filename: displayName,
-        cacheControl: resolveServeCacheControl(options.versioned, context, cacheability),
+        cacheControl: resolveServeCacheControl(
+          options.versioned,
+          context,
+          dependsOnReferencedFiles
+        ),
       },
       options.ifNoneMatch
     )
