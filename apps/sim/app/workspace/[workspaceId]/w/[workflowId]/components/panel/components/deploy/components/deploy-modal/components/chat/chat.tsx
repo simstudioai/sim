@@ -7,7 +7,7 @@ import {
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
-  ChipTextarea,
+  ChipModalField,
   cn,
   Input,
   Label,
@@ -335,12 +335,7 @@ export function ChatDeploy({
 
   return (
     <>
-      <form
-        id='chat-deploy-form'
-        ref={formRef}
-        onSubmit={handleSubmit}
-        className='-mx-1 space-y-4 px-1'
-      >
+      <form id='chat-deploy-form' ref={formRef} onSubmit={handleSubmit} className='space-y-4'>
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
             <TriangleAlert className='size-4 shrink-0' />
@@ -358,27 +353,21 @@ export function ChatDeploy({
             isEditingExisting={!!existingChat}
           />
 
-          <div>
-            <Label
-              htmlFor='title'
-              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-            >
-              Title
-            </Label>
-            <ChipInput
-              id='title'
-              placeholder='Customer Support Assistant'
-              value={formData.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              required
-              disabled={chatSubmitting}
-            />
-            {errors.title && (
-              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.title}</p>
+          <ChipModalField type='custom' title='Title' htmlFor='title' error={errors.title}>
+            {(aria) => (
+              <ChipInput
+                id='title'
+                placeholder='Customer Support Assistant'
+                value={formData.title}
+                onChange={(e) => updateField('title', e.target.value)}
+                required
+                disabled={chatSubmitting}
+                {...aria}
+              />
             )}
-          </div>
+          </ChipModalField>
 
-          <div>
+          <div className='px-2'>
             <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
               Output
             </Label>
@@ -400,7 +389,7 @@ export function ChatDeploy({
             )}
           </div>
 
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex items-center justify-between gap-3 px-2'>
             <div className='min-w-0'>
               <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
                 Include thinking
@@ -414,7 +403,7 @@ export function ChatDeploy({
             />
           </div>
 
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex items-center justify-between gap-3 px-2'>
             <div className='min-w-0'>
               <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
                 Include tool calls
@@ -443,26 +432,17 @@ export function ChatDeploy({
             hasExistingPassword={existingPassword}
             error={errors.password || errors.emails}
           />
-          <div>
-            <Label
-              htmlFor='welcomeMessage'
-              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-            >
-              Welcome message
-            </Label>
-            <ChipTextarea
-              id='welcomeMessage'
-              placeholder='Enter a welcome message for your chat'
-              value={formData.welcomeMessage}
-              onChange={(e) => updateField('welcomeMessage', e.target.value)}
-              rows={3}
-              disabled={chatSubmitting}
-              className='min-h-[80px]'
-            />
-            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-              This message will be displayed when users first open the chat
-            </p>
-          </div>
+          <ChipModalField
+            type='textarea'
+            title='Welcome message'
+            placeholder='Enter a welcome message for your chat'
+            value={formData.welcomeMessage}
+            onChange={(value) => updateField('welcomeMessage', value)}
+            rows={3}
+            disabled={chatSubmitting}
+            minHeight={80}
+            hint='This message will be displayed when users first open the chat'
+          />
 
           <button
             type='button'
@@ -516,7 +496,7 @@ export function ChatDeploy({
 
 function LoadingSkeleton() {
   return (
-    <div className='-mx-1 space-y-4 px-1'>
+    <div className='space-y-4 px-2'>
       <div className='space-y-3'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[26px]' />
@@ -586,7 +566,7 @@ function IdentifierInput({
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (
-    <div>
+    <div className='px-2'>
       <Label
         htmlFor='chat-url'
         className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
@@ -729,7 +709,7 @@ function AuthSelector({
   }, [authOptions, authType, onAuthTypeChange])
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 px-2'>
       <div>
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Access control

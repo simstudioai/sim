@@ -645,6 +645,44 @@ describe('ChipModal default actions', () => {
     expect(onPrimary).not.toHaveBeenCalled()
   })
 
+  it('associates a custom field label and error without replacing native validation', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Custom form field'>
+        <ChipModalHeader onClose={() => {}}>Custom form field</ChipModalHeader>
+        <ChipModalBody>
+          <form onSubmit={(event) => event.preventDefault()}>
+            <ChipModalField
+              type='custom'
+              title='Title'
+              htmlFor='custom-title'
+              error='Enter a title'
+            >
+              {(aria) => (
+                <ChipInput id='custom-title' value='' onChange={() => {}} required {...aria} />
+              )}
+            </ChipModalField>
+          </form>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Save', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('#custom-title')
+    if (!input) throw new Error('Custom form field did not render')
+    expect(input.labels?.[0]?.textContent).toBe('Title')
+    expect(input.validity.valueMissing).toBe(true)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(input.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Enter a title'
+    )
+    expect(pressEnter(input).defaultPrevented).toBe(false)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
   it('yields Enter to multiline, tag-like and autocomplete controls', () => {
     const onPrimary = vi.fn()
     mount(
