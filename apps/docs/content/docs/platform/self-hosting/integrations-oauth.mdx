@@ -117,7 +117,7 @@ The same variables also power "Sign in with Microsoft".
 
 ### GitHub Search
 
-Self-hosted GitHub Search uses a GitHub App for account connections and organization installation indexing. Register your own App and configure the server variables below. Sim Cloud users use the [GitHub Search setup flow](/search/github#add-a-repository) directly.
+Self-hosted GitHub Search uses a GitHub App for personal account connections and optional organization repository boundaries. Register your own App and configure the server variables below. Sim Cloud users use the [GitHub Search setup flow](/search/github#add-a-repository) directly.
 
 <Steps>
 <Step>
@@ -150,14 +150,14 @@ Authorization starts from Sim so the callback can finish the pending connection.
 
 For an existing deployment, deploy the application with the setup callback before changing the App registration. Use a separate GitHub App for each deployment origin, such as staging and production, so installation approval returns to the instance that started it. Keep the existing user authorization callback above unchanged.
 
-The connector polls GitHub's API and does not need a webhook.
+Live Search queries GitHub's API on demand and does not need a webhook. Ordinary knowledge-base connectors and explicitly restored legacy Search use their separate polling path.
 
 </Step>
 <Step>
 
 #### Set read permissions
 
-Expand **Permissions → Repository permissions**. Set **Contents → Access: Read-only**; leave the mandatory **Metadata** permission at **Read-only**.
+Expand **Permissions → Repository permissions**. Set **Contents**, **Issues**, and **Pull requests** to **Read-only**; leave mandatory **Metadata** at **Read-only**. Contents supports code reads; Issues and Pull requests allow the connected member’s App user token to search and read private issues and pull requests.
 
 <Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
 
@@ -170,11 +170,13 @@ Expand **Organization permissions** and set **Members → Access: Read-only**. S
 | Permission area | Permission | Access |
 |---|---|---|
 | Repository | Contents | Read-only |
+| Repository | Issues | Read-only |
+| Repository | Pull requests | Read-only |
 | Organization | Members | Read-only |
 | Repository | Metadata | Read-only |
 | Account | Email addresses | Read-only |
 
-Leave every other permission at **No access**. Sim does not need issue, pull-request, administration, or write permissions. GitHub's [registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) explains these settings.
+Leave other permissions at **No access**. Search does not need administration or write permissions. Existing installations must approve the additional issue and pull-request read permissions; members may need to reconnect. The service-side installation token remains narrowed to repository contents/metadata to verify source coverage; content search uses the member’s App user token. GitHub's [registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) explains these settings.
 
 GitHub App user tokens use these permissions rather than OAuth scopes. An empty `scope` value in the token response is expected; see GitHub's [user token reference](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
 
@@ -203,7 +205,7 @@ The private key must include its PEM header, footer, and contents. Sim accepts a
 
 Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
-If you run Search indexing on Trigger.dev, configure the same five variables in its matching environment. The app server and indexing worker both need the App credentials; updating the app's secret store alone does not update a separately configured worker.
+The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, or Search has explicitly reverted to `SIM_SEARCH_LIVE=false`, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
 
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 
@@ -211,12 +213,12 @@ Keep **Expire user authorization tokens** enabled so Sim receives the refresh to
 
 Complete the installation through [the GitHub Search source setup](/search/github#add-a-repository).
 
-If you replace a deployment's GitHub App, an organization admin selects **Settings → Sources → More → Refresh connection settings**. When Search is disabled, use **Connected accounts → Providers → Update configurations** in organization settings. This applies the deployment's current App configuration to all existing providers while preserving their option IDs. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
+If you replace a deployment's GitHub App, an organization admin selects **Settings → Credential Groups → Providers → Update configurations**. This applies the deployment's current App configuration to all existing providers while preserving their option IDs. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
 
 </Step>
 </Steps>
 
-If GitHub rejects `redirect_uri`, compare the App's registered callback with `NEXT_PUBLIC_APP_URL` followed by `/api/auth/oauth2/callback/github-repositories`. Keep wildcard matching disabled. If installation indexing is unavailable, confirm all five `GITHUB_APP_*` variables belong to the same App and include a complete RSA private key.
+If GitHub rejects `redirect_uri`, compare the App's registered callback with `NEXT_PUBLIC_APP_URL` followed by `/api/auth/oauth2/callback/github-repositories`. Keep wildcard matching disabled. If App installation setup is unavailable, confirm all five `GITHUB_APP_*` variables belong to the same App and include a complete RSA private key.
 
 GitHub workflow blocks and knowledge-base token connections continue to use personal access tokens.
 

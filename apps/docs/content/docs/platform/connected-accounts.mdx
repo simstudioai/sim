@@ -1,11 +1,11 @@
 ---
-title: Connected accounts
+title: Credential Groups
 description: Collect accounts in one organization credential group and control which workspaces can use them.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-**Connected accounts** collects people's accounts in one shared pool for your organization, also called a **credential group**. An organization admin chooses the providers, invites people to connect, and allows specific workspaces to use the pool. Workflows in those workspaces can find an account by email through the [Credential block](/workflows/blocks/credential).
+**Credential Groups** collects people's accounts in one shared pool for your organization, also called a **credential group**. An organization admin chooses the providers, invites people to connect, and allows specific workspaces to use the pool. Workflows in those workspaces can find an account by email through the [Credential block](/workflows/blocks/credential).
 
 Each organization has at most one pool. Creating it does not give any workspace access; the workspace allowlist starts empty.
 
@@ -15,11 +15,11 @@ Connected accounts must be enabled for your organization. Sim Cloud also require
 
 For self-hosted deployments using environment-based feature flags, set `CREDENTIAL_GROUPS=true`. Availability is organization-scoped; personal workspaces cannot use an organization pool.
 
-The setup instructions below describe **Settings → Connected accounts**, shown when Knowledge Member Access is disabled. When `KNOWLEDGE_MEMBER_ACCESS=true` and connected accounts is available, organization settings shows the Search **Integrations** page instead. Only the selected page is available, including through direct links. Switching pages does not remove existing connections or workspace access.
+Manage the pool under **Settings → Credential Groups**. It remains available independently of Search. Search administrators use **Settings → Sources**, while members connect personal Search accounts under **Integrations** in the main sidebar. These surfaces can share grants without sharing their purpose or resource settings.
 
 ## Set up connected accounts
 
-Open your organization’s **Settings → Connected accounts**. Select **Set up connected accounts** if this is your first time.
+Open your organization’s **Settings → Credential Groups**. Select **Set up connected accounts** if this is your first time.
 
 The page has three tabs:
 
@@ -44,11 +44,11 @@ For Databricks, **Add** validates and saves the configuration before the provide
 
 When editing Databricks, leaving the client secret blank preserves the saved secret. Changing the MCP URL or OAuth client requires people to reconnect.
 
-Adding a provider makes account connections available without enabling indexing. Search source setup is managed on **Settings → Integrations** when Search is enabled. Connected accounts has no indexing controls or status indicators. Managed MCP providers currently support live tool calls only.
+Adding a provider makes account connections available; it does not add a Search source or start document indexing. Search source setup is managed under **Settings → Sources**. Live Search queries providers on demand. Credential Groups has no indexing controls or status indicators. Managed MCP providers support live tool calls.
 
 ### 2. Invite people
 
-For Search-enabled organizations, open **Settings → Integrations → People**. Otherwise, use **Settings → Connected accounts → People**. Set up a provider for personal account connections before inviting people; approving a Search integration alone is not enough.
+Open **Settings → Credential Groups → People**. Set up the provider before inviting people; a Search source does not replace required OAuth or managed MCP configuration.
 
 1. Select **Request connections**.
 2. Enter their email addresses and select **Send requests**.
@@ -63,7 +63,7 @@ Use the invitation email in workflow lookups. For example, if you invite `alex@e
 
 On first use, the invitation email must match the signed-in user's verified Sim email. Sim then binds the invitation to that user's account. Another person cannot take it over by opening the link, and a later email change does not transfer it to a different Sim user. The invitation email remains the workflow lookup key.
 
-OAuth account providers also verify that the provider email matches the invitation email. Managed MCP connections are associated with the verified Sim user who completes authorization; they do not independently verify the MCP provider's account email. Keep using the invitation email when looking up those connections.
+The verified Sim user who starts authorization must complete it. A provider account can use a different email from the invitation; the saved contribution belongs to the bound Sim user. Managed MCP connections likewise use that Sim user’s authorization. Keep using the invitation email for workflow lookups. Search separately checks current provider identity and any source-specific requirements.
 
 In **People**, open a person's actions menu and select **Resend** when they need another invitation. **Revoke** stops the organization from using that person's contributions. The person cannot undo an administrator's revocation by reconnecting on their own.
 

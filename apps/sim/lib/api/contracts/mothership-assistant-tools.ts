@@ -1,16 +1,7 @@
 import { z } from 'zod'
+import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 
-export const liveSearchProviderSchema = z.enum([
-  'google_drive',
-  'gmail',
-  'google_calendar',
-  'slack',
-  'jira',
-  'confluence',
-  'github',
-  'gitlab',
-  'coda',
-])
+export const liveSearchProviderSchema = z.enum(LIVE_SEARCH_PROVIDER_IDS)
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */

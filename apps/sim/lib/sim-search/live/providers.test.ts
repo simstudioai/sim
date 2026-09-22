@@ -172,6 +172,28 @@ describe('native search endpoints', () => {
     expect(result.content).toContain('Thread continues')
     expect(api.json).toHaveBeenCalledTimes(2)
   })
+  it('applies Slack modifiers and date bounds without requiring term clauses', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ ok: true, results: { messages: [] } })
+    await searchSlack(api, {
+      ...input,
+      scopes: ['search:read.public'],
+      native: { provider: 'slack', query: 'launch', modifiers: 'in:<#C123>' },
+      filters: {
+        startDate: '2026-09-22T07:00:00.500Z',
+        endDate: '2026-09-23T07:00:00.500Z',
+        sortBy: 'newest',
+      },
+    })
+    expect(api.json.mock.calls[0]?.[1]?.body).toMatchObject({
+      query: 'launch in:<#C123>',
+      after: Math.floor(Date.parse('2026-09-22T07:00:00.500Z') / 1000) - 1,
+      before: Math.ceil(Date.parse('2026-09-23T07:00:00.500Z') / 1000),
+      sort: 'timestamp',
+      sort_dir: 'desc',
+    })
+    expect(api.json.mock.calls[0]?.[1]?.body).not.toHaveProperty('term_clauses')
+  })
   it('includes granted Slack files and surrounding message text', async () => {
     const api = client()
     api.json.mockResolvedValue({
@@ -331,6 +353,9 @@ describe('native search endpoints', () => {
       })
     const result = await searchAtlassian(api, 'confluence', input)
     expect(api.json.mock.calls[1][0]).toBe('/ex/confluence/site/wiki/rest/api/search')
+    expect(api.json.mock.calls[1][1]?.query?.cql).toBe(
+      'type IN (page, blogpost) AND text ~ "launch"'
+    )
     expect(result.nextCursor).toBe('abc')
   })
   it('reports GitHub incomplete results and the 1,000-result ceiling', async () => {

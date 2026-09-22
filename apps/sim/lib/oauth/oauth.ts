@@ -1647,7 +1647,8 @@ function getProviderAuthConfig(
         tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
         clientId,
         clientSecret,
-        useBasicAuth: true,
+        useBasicAuth: false,
+        useJsonBody: true,
         supportsRefreshTokenRotation: true,
       }
     }
@@ -1661,7 +1662,8 @@ function getProviderAuthConfig(
         tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
         clientId,
         clientSecret,
-        useBasicAuth: true,
+        useBasicAuth: false,
+        useJsonBody: true,
         supportsRefreshTokenRotation: true,
       }
     }

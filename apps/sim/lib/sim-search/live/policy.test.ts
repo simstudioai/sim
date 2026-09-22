@@ -34,6 +34,12 @@ describe('organization search scope enforcement', () => {
     expect(
       normalizeLiveSearchPolicy('github', selected(['https://github.com/Company/Repo'])).included
     ).toEqual(['company/repo'])
+    expect(
+      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/pages/page'])).included
+    ).toEqual(['allowed'])
+    expect(() =>
+      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/../other']))
+    ).toThrow()
     expect(() =>
       normalizeLiveSearchPolicy('google_drive', selected(['https://attacker.test/folders/FOLDER']))
     ).toThrow()
@@ -226,6 +232,7 @@ describe('organization search scope enforcement', () => {
     const mcp = { call: vi.fn(async () => ({ docUri: 'coda://docs/allowed' })) }
     const verify = createPolicyVerifier('coda', selected(['allowed']), null, '', mcp)
     expect(await verify({ id: 'coda://docs/allowed/tables/table/rows/row' })).toBe(true)
+    expect(await verify({ id: 'superhuman://docs/allowed/pages/section-page#Title' })).toBe(true)
     expect(await verify({ id: 'coda://docs/other/pages/page' })).toBe(false)
     expect(await verify({ id: 'https://coda.io/d/doc' })).toBe(true)
     expect(mcp.call).toHaveBeenCalledWith('url_convert', {

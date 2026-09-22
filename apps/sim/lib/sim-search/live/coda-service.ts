@@ -1,4 +1,5 @@
 import type { CodaMcpClient } from '@/lib/sim-search/live/coda-mcp'
+import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
 import { codaAdminDocSchema, codaDocSchema, codaIdSchema } from '@/connectors/coda/client'
@@ -28,8 +29,9 @@ async function documentId(reference: Reference, mcp?: CodaMcpClient): Promise<st
     id = string(decoded.docUri ?? decoded.uri)
   }
   if (mcp || reference.kind === 'mcp') {
-    if (id.length > 1000 || !/^coda:\/\/docs\/[\w-]+(?:\/[\w-]+)*$/.test(id)) return null
-    id = id.slice('coda://docs/'.length).split('/')[0]!
+    const parsed = parseCodaResourceUri(id)
+    if (!parsed) return null
+    id = parsed.docId
   }
   return codaIdSchema.safeParse(id).success ? id : null
 }

@@ -1,4 +1,5 @@
 import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
+import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { escapeDriveLiteral } from '@/lib/sim-search/live/google'
 import { array, object, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
@@ -136,9 +137,15 @@ export async function searchWithinPolicy(
     return { ...result, partial: result.partial || targets.length > 6 }
   }
   if (provider === 'gitlab' || provider === 'google_calendar' || provider === 'coda') {
-    const canonical = (id: string) => (provider === 'coda' ? `coda://docs/${id}` : id)
+    const canonical = (id: string) => (provider === 'coda' ? `superhuman://docs/${id}` : id)
+    const requested =
+      provider === 'coda' && input.native?.project
+        ? parseCodaResourceUri(input.native.project)?.docId
+        : input.native?.project
     const targets = input.native?.project
-      ? included.filter((id) => canonical(id) === input.native?.project)
+      ? included.filter((id) =>
+          provider === 'coda' ? id === requested : canonical(id) === requested
+        )
       : included
     if (!targets.length) return { documents: [] }
     if (targets.length === 1)

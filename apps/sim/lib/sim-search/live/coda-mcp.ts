@@ -1,12 +1,17 @@
+import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
 import { validateToolArguments } from '@/lib/mcp/application/execute-tool'
 import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolResult } from '@/lib/mcp/types'
+import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { hasDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { loadOwnCodaMcpRuntime } from '@/lib/sim-search/live/mcp-accounts'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
+
+const logger = createLogger('CodaMcpSearch')
 
 const READ_TOOLS = [
   'search',
@@ -76,28 +81,41 @@ export async function createCodaMcpClient(
 
 /** Servers may return structuredContent or JSON text blocks. Unknown formats fail visibly. */
 export function codaMcpPayload(result: McpToolResult): unknown {
-  if (result.isError)
+  if (result.isError) {
+    const exceededQuota = result.content?.some(
+      (block) => block.type === 'text' && /weekly limit of \d+ MCP requests/i.test(block.text ?? '')
+    )
     throw new NativeSearchError(
       'unavailable',
-      'Coda could not complete this read. Check the query and your access.'
+      exceededQuota
+        ? 'Coda MCP request limit reached. Try again when it resets.'
+        : 'Coda could not complete this read. Check the query and your access.'
     )
-  if (result.structuredContent !== undefined) return result.structuredContent
+  }
+  if (result.structuredContent !== undefined) return unwrapCodaMcpResult(result.structuredContent)
   const text = (result.content ?? [])
     .filter((block) => block.type === 'text')
     .map((block) => block.text ?? '')
     .join('\n')
   try {
-    return JSON.parse(text)
+    return unwrapCodaMcpResult(JSON.parse(text))
   } catch {
     if (text) return { text }
     throw new NativeSearchError('unavailable', 'Coda returned no readable content.')
   }
 }
 
+function unwrapCodaMcpResult(value: unknown): unknown {
+  return isRecordLike(value) && typeof value.toolName === 'string' && 'result' in value
+    ? value.result
+    : value
+}
+
 function requireCodaUri(uri: string): string {
-  if (!/^coda:\/\/docs\/[\w-]+(?:\/[\w-]+)*$/.test(uri) || uri.length > 1000)
+  const parsed = parseCodaResourceUri(uri)
+  if (!parsed)
     throw new NativeSearchError('unavailable', 'Coda returned an unsupported resource URI.')
-  return uri
+  return parsed.uri
 }
 function codaUrl(value: unknown): string {
   try {
@@ -121,10 +139,10 @@ export async function searchCodaMcp(
   input: NativeSearchInput
 ): Promise<NativePage> {
   const query = nativeText(input)
-  if (input.native?.project && !/^coda:\/\/docs\/[\w-]+$/.test(input.native.project))
+  if (input.native?.project && !/^(?:coda|superhuman):\/\/docs\/[\w-]+$/.test(input.native.project))
     throw new NativeSearchError(
       'unavailable',
-      'Coda search requires a document URI such as coda://docs/ID.'
+      'Coda search requires a document URI such as superhuman://docs/ID.'
     )
   const result = object(
     await client.call('search', {
@@ -136,25 +154,35 @@ export async function searchCodaMcp(
     })
   )
   const rows = result.results ?? result.items
-  if (!Array.isArray(rows))
+  if (!Array.isArray(rows)) {
+    logger.warn('Unsupported Coda search response shape', {
+      keys: Object.keys(result),
+      dataKeys: Object.keys(object(result.data)),
+      resultKeys: Object.keys(object(result.result)),
+    })
     throw new NativeSearchError(
       'unavailable',
       'Coda search returned an unsupported result format; no complete coverage can be claimed.'
     )
+  }
   const documents: NativeDocument[] = []
   for (const row of array(rows).slice(0, Math.min(input.limit, 10))) {
     const url = codaUrl(row.url ?? row.webUrl)
-    const uri = string(row.uri ?? row.id)
-    const id = uri.startsWith('coda://') ? requireCodaUri(uri) : url
+    const docUri = parseCodaResourceUri(string(row.docUri))?.uri
+    const resource = string(row.uri ?? row.pageUri ?? row.rowUri ?? row.id)
+    const uri =
+      parseCodaResourceUri(resource)?.uri ??
+      (docUri && resource ? parseCodaResourceUri(`${docUri}/${resource}`)?.uri : docUri)
+    const id = uri ?? url
     if (!id) continue
     documents.push({
       id,
       kind: 'mcp',
-      title: string(row.title ?? row.name) || 'Coda result',
+      title: string(row.title ?? row.name ?? row.pageName ?? row.docTitle) || 'Coda result',
       url,
       content:
-        string(row.snippet ?? row.excerpt ?? row.content ?? row.text) ||
-        string(row.title ?? row.name),
+        string(row.snippet ?? row.excerpt ?? row.content ?? row.text ?? row.pageContent) ||
+        string(row.title ?? row.name ?? row.pageName ?? row.docTitle),
       modifiedAt: string(row.updatedAt ?? row.modifiedAt),
     })
   }
@@ -162,7 +190,11 @@ export async function searchCodaMcp(
   return {
     documents,
     nextCursor,
-    partial: documents.length < rows.length || Boolean(nextCursor) || hasDateBounds(input.filters),
+    partial:
+      documents.length < rows.length ||
+      Boolean(nextCursor) ||
+      result.hasMore === true ||
+      hasDateBounds(input.filters),
     message:
       (query
         ? 'Coda content search includes pages and table rows. Narrow the query or target a document for more results.'
@@ -177,7 +209,7 @@ export async function readCodaMcp(client: CodaMcpClient, id: string): Promise<Na
   let uri = id
   let url = codaUrl(id)
   if (url) uri = string(object(await client.call('url_convert', { action: 'decode', url })).uri)
-  requireCodaUri(uri)
+  uri = requireCodaUri(uri)
   if (!url)
     url = codaUrl(object(await client.call('url_convert', { action: 'encode', uri })).webUrl)
   let content: unknown
@@ -194,7 +226,7 @@ export async function readCodaMcp(client: CodaMcpClient, id: string): Promise<Na
       data: content,
       coverage: 'First 100 rows only. Search more specifically to retrieve matching rows.',
     }
-  } else if (/^coda:\/\/docs\/[\w-]+$/.test(uri)) {
+  } else if (/^(?:coda|superhuman):\/\/docs\/[\w-]+$/.test(uri)) {
     content = await client.call('document_outline', {
       uri,
       pageLimit: 50,

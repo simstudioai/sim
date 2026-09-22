@@ -1,16 +1,15 @@
 import { z } from 'zod'
+import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
+import {
+  LIVE_SEARCH_PROVIDER_IDS,
+  supportsLiveSearchMode,
+} from '@/lib/sim-search/live/provider-catalog'
 
 const resourceList = z.array(z.string().trim().min(1).max(500)).max(100)
 
-export const LIVE_SEARCH_SERVICE_PROVIDERS: readonly string[] = [
-  'google_drive',
-  'gmail',
-  'google_calendar',
-  'confluence',
-  'coda',
-  'github',
-  'gitlab',
-]
+export const LIVE_SEARCH_SERVICE_PROVIDERS: readonly string[] = LIVE_SEARCH_PROVIDER_IDS.filter(
+  (provider) => supportsLiveSearchMode(provider, 'service_account')
+)
 
 /** Resource restrictions are trusted server configuration, independent of model queries. */
 export const liveSearchPolicySchema = z
@@ -107,15 +106,22 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
   },
   coda: {
     label: 'Documents',
-    hint: 'Use document IDs or coda://docs/ID references.',
-    example: 'coda://docs/AbCdEf123',
+    hint: 'Use document IDs or superhuman://docs/ID references.',
+    example: 'superhuman://docs/AbCdEf123',
   },
 }
 
 /** Canonicalize pasted references without allowing them to select a request destination. */
 export function normalizePolicyResource(provider: string, value: string): string {
   const trimmed = value.trim()
-  if (provider === 'coda') return trimmed.replace(/^coda:\/\/docs\//, '').split('/')[0]!
+  if (provider === 'coda') {
+    if (trimmed.includes('://')) {
+      const resource = parseCodaResourceUri(trimmed)
+      if (!resource) throw new Error('Use a Coda document ID or document URI.')
+      return resource.docId
+    }
+    return trimmed
+  }
   if (!trimmed.startsWith('https://'))
     return provider === 'github' ? trimmed.toLowerCase() : trimmed
   const url = new URL(trimmed)

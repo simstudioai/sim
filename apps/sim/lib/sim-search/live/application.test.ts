@@ -51,11 +51,6 @@ vi.mock('@/lib/sim-search/live/accounts', () => ({
   resolveLiveAccount: mocks.resolveAccount,
 }))
 vi.mock('@/lib/sim-search/live/providers', () => ({
-  PROVIDER_ORIGINS: {
-    google_drive: 'https://www.googleapis.com',
-    gmail: 'https://gmail.googleapis.com',
-    gitlab: 'https://gitlab.com',
-  },
   NATIVE_SEARCH_GUIDANCE: 'Live coverage',
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,

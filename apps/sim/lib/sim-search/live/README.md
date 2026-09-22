@@ -1,6 +1,6 @@
 # Federated Search access and connector behavior
 
-This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. With live search enabled, Search sources do not create content-indexing jobs; existing queued Search jobs stop before provider crawling or embedding. Directory and CSV permission maintenance remain available.
+This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Live Search is enabled by default; only an explicit `SIM_SEARCH_LIVE=false` selects the legacy indexed backend. Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
 
 ## Admin and member surfaces
 
@@ -8,7 +8,7 @@ This describes the live enterprise-search path. Credential Groups and ordinary k
 - **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. Old member resource filters are ignored and cleared when settings are saved.
 - **Service account** selects an admin-managed source. Its connection owns the resource settings; Sources does not duplicate them. GitHub uses one GitHub App source per repository instead of a single selected source. A member still connects their own account, except for GitLab. Search returns the intersection of the member's provider permissions and the source's current resource boundary.
 - GitLab is always service-account mode. Slack and Jira currently support member mode only.
-- Disabling an integration prevents subsequent account resolution, searches, and reads. Paused, archived, deleted, wrong-organization, wrong-provider, and unapproved service sources cannot authorize search.
+- Removing a source integration prevents subsequent account resolution, searches, and reads. Paused, archived, deleted, wrong-organization, wrong-provider, and unapproved service sources cannot authorize search.
 
 The Search assistant exposes the dedicated search/read tools. It cannot discover or execute integration tools through `search_integration_tools`, `call_integration_tool`, or direct provider-tool names. The broader assistant outside Search retains its integration tools.
 
@@ -54,7 +54,7 @@ Each event must exist under the source's delegated token, be in an allowed calen
 
 ### Slack
 
-Member mode only. Search uses the connected user's Slack real-time search grant and source search syntax. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity.
+Member mode only. Search uses the connected user's Slack real-time search grant and provider search syntax. Date bounds are sent as numeric provider timestamps; date ordering selects keyword retrieval and timestamp sort, because Slack semantic retrieval uses relevance ordering. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity.
 
 ### GitHub
 
@@ -68,7 +68,7 @@ Member mode only. Search resolves the connected user's accessible Atlassian site
 
 ### Confluence
 
-Member mode searches accessible sites through the member's OAuth grant. Service mode additionally verifies the source credential's cloud/site identity and selected spaces, current content status, content type, and labels. The member's search results must also be readable by the source credential.
+Member mode searches pages and blog posts across accessible sites through the member's OAuth grant. Service mode additionally verifies the source credential's cloud/site identity and selected spaces, current content status, content type, and labels. The member's search results must also be readable by the source credential.
 
 The provider query incorporates the configured content type, so a blog-post source does not accidentally use the page-only default. Selected source labels use OR semantics, matching staging. Spaces must be explicitly configured, with `*` representing all spaces; missing required configuration fails closed. Source checks run again for document reads.
 
@@ -76,7 +76,7 @@ The provider query incorporates the configured content type, so a blog-post sour
 
 The preferred member connection is personal Coda MCP OAuth. Sim discovers the configured server's advertised schemas and proxies only its fixed read-tool allowlist: `search`, `url_convert`, `content_read`, `document_outline`, and `table_rows_read`. It validates arguments and reloads the member's current managed grant before execution. The model cannot choose a server URL or invoke writes through this adapter.
 
-MCP search covers page and table-row content, permits empty-query recency listing, and uses document URIs for scoped searches. Results are bounded to the advertised search limit. Official Coda web URLs are converted to document URIs before source checks. A legacy personal REST token can still search document titles, with correctly forwarded pagination; it does not provide MCP's full-content search.
+MCP search covers page and table-row content, permits empty-query recency listing, and uses document URIs for scoped searches. The current Superhuman Docs server returns a `toolName`/`result` envelope and `superhuman://docs/` resources, sometimes with page paths relative to `docUri`; the adapter unwraps and resolves those while retaining older `coda://docs/` references. Results are bounded to the advertised search limit. Official Coda web URLs are converted to document URIs before source checks. A legacy personal REST token can still search document titles, with correctly forwarded pagination; it does not provide MCP's full-content search.
 
 In service mode, the source's selected document IDs restrict MCP retrieval. Every candidate's parent document must also be currently visible to the source token. With an Enterprise organization ID, the Admin API must return that exact document in the configured organization; deleted documents and revoked key access are rejected. Personal MCP still enforces the member's permission to read the actual content. [Official MCP tool catalog](https://coda.io/resources/mcp/tools-and-endpoints).
 
@@ -84,9 +84,66 @@ In service mode, the source's selected document IDs restrict MCP retrieval. Ever
 
 Service mode only, with no member GitLab connection. Each configured source fixes the instance, project, token, and permission strategy. Members search the configured project through that token, but each result must separately match their verified organization identity and source ACLs.
 
-With an admin token, the existing staging directory/ACL implementation loads current GitLab group/project membership and document restrictions. With a non-admin token, the existing connector-local CSV mappings define member grants. CSV project/host identity must still match the token's current project, and confidential issues are excluded in CSV mode.
+With an admin token, shared permission primitives load current GitLab identities, group/project membership, and document restrictions within the request. They do not persist a background directory snapshot or trust stored external-group memberships. Complete permission reads are bounded and fail closed on timeout or incomplete pages. With a non-admin token, the current connector-local CSV mappings directly define member grants; legacy indexed ACL rewrite markers do not block those live grants. CSV project/host identity must still match the token's current project, and confidential issues are excluded in CSV mode.
 
 Content types, code branch/tag, path prefix, file extensions, and issue state/labels/milestone are checked. Code search is sent with the configured ref; returned revision evidence must match instead of being rewritten to the configured value. Reads recheck ACLs using fresh content metadata. CSV correctness and updates remain the administrator's responsibility. [GitLab Search API](https://docs.gitlab.com/api/search/).
+
+## Adding a live Search connector
+
+A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. There are currently nine live providers, while the broader KB registry contains additional providers that are not advertised for Search.
+
+### Registration and ownership
+
+Paths below are relative to `apps/sim`.
+
+| Concern | Canonical location | What to add |
+| --- | --- | --- |
+| Name, logo, auth metadata, config fields | `connectors/<provider>/meta.ts`, registered in `connectors/registry.ts` | Reuse the existing icon from `components/icons`; keep metadata browser-safe. Set `search: true` only when live behavior is implemented and tested. |
+| Supported provider ID, default origin, credential aliases, account modes | `lib/sim-search/live/provider-catalog.ts` | One `LIVE_SEARCH_PROVIDER_CATALOG` entry. The MCP/tool enum, credential matching, and mode availability derive from it. |
+| Search endpoint and response conversion | `lib/sim-search/live/<provider>.ts` | Implement the provider's documented query, bounded pagination, source dates, snippets, URLs, and status behavior through `NativeClient`. |
+| Document-read endpoint | The same provider module | Read the exact returned reference and return `NativeDocument`. Support every kind the search adapter can emit. |
+| Runtime registration | `lib/sim-search/live/providers.ts` | Register both `search` and `read` in `LIVE_SEARCH_PROVIDERS`. Its exhaustive type requires both for every catalog entry. |
+| OAuth or managed credentials | Existing `lib/oauth`, `lib/credential-groups`, and credential application operations | Register actual scopes and refresh behavior; resolve the acting user's grant server-side. A catalog alias does not configure OAuth itself. |
+| Service-mode resource fields | `lib/sim-search/live/source-settings.ts` | Expose only fields that live verification actually enforces. Branding and original field definitions stay in ConnectorMeta. |
+| Service source loading and validation | `service-sources.ts`, `source-policy.ts`, `service-session.ts`, provider verifier | Bind current org/provider/source identity; independently verify member results against current source access and settings. Do not advertise service mode without this. |
+| Resource pickers | `lib/selectors/manifest.ts` and a shared server attachment | Use existing selectors and canonical manual-input pairs. Keep provider calls and credentials out of client code. |
+| Authorized orchestration | `lib/sim-search/live/application.ts` | Reuse `searchLiveKnowledge`/`readLiveDocument`; do not add provider-specific API routes or separate MCP authorization. |
+| User guide | `apps/docs/content/docs/search/<provider>.mdx` (repository-relative) | Describe setup, actual modes, query/read coverage, filtering, and provider limitations without ingestion copy. |
+
+The provider catalog holds a trusted origin, not an arbitrary URL supplied by a model. Actual endpoint paths and query translation belong in the provider module. `http.ts` supplies bounded responses, a per-client request budget, timeout/cancellation, configured-endpoint validation, and no credential-bearing redirects. Use its origin-bound path API; do not return tokens to UI or model tools.
+
+Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Coda MCP is a deliberate adapter exception: its current managed server/grant is resolved by `mcp-accounts.ts` and `coda-mcp.ts`, which discover tool schemas and permit only the fixed read tools. Neither exception lets a search query choose a credential destination.
+
+### Provider endpoint map
+
+| Provider | Search | Read | Service boundary |
+| --- | --- | --- | --- |
+| Drive | `GET /drive/v3/files` with Drive `q` | File metadata, Docs/Slides exports, Sheets values, or supported text media | Delegated Drive file visibility and configured folders/types |
+| Gmail | `GET /gmail/v1/users/me/messages` with Gmail operators | That exact message with `format=full` | Same-mailbox delegation, labels, date range, category and custom-query checks |
+| Calendar | CalendarList then `/calendars/{id}/events` | `/calendars/{id}/events/{eventId}` | Same-user delegation, selected calendars, event window/query |
+| Slack | `POST /api/assistant.search.context` | `conversations.replies` or `files.info` preview | Member only; Slack enforces the connected user's grant |
+| Jira | `POST /ex/jira/{cloudId}/rest/api/3/search/jql` | `/rest/api/3/issue/{key}` under that cloud site | Member only |
+| Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | `/wiki/rest/api/content/{id}` | Same site, spaces, current type/status/labels, source readability |
+| GitHub | `/search/issues`, `/search/code`, `/search/repositories` | Issue, repository, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
+| GitLab | Configured `/api/v4/projects/{project}/search`, or supported date listing | Project issue/MR/wiki/file endpoint | Current request-local admin ACL evidence or saved CSV grants, plus content filters |
+| Coda | Personal MCP `search`; REST `/apis/v1/docs` title-search compatibility | MCP read allowlist; REST compatibility document/page reads | Selected parent doc and current source-token visibility; optional Enterprise org membership |
+
+GitHub members use App user tokens. The deployment App needs read permissions for Contents, Issues, and Pull requests for full supported search/read coverage, plus Metadata, organization Members, and user Email addresses for existing setup/identity checks. Installation tokens used to prove repository coverage stay narrowed to contents/metadata; do not use them to replace the member's content grant.
+
+### Shared invariants
+
+- Keep provider parsing isolated from authorization. The application operation owns current membership, policy loading, active account resolution, scoped references, and result projection.
+- Member mode has no saved resource filters. A user's native query may narrow scope, but cannot widen a service-source boundary.
+- Verify a candidate before returning its title, snippet, or citation. Re-resolve grants/settings and verify again when reading. Unsupported policy or incomplete permission evidence must fail closed.
+- Bind document references and continuations to the current provider/account/scope. Preserve provenance registration and the response projection used by web Search, Assistant, Slack, and Search MCP. Never create a parallel unfiltered adapter for one surface.
+- Report bounded or partial retrieval explicitly. A provider cursor must remain tied to the same query and account; do not infer complete coverage from an empty page.
+- Do not schedule Search content, embedding, or directory/ACL work in live mode. Reuse `requiresConnectorIndexing`/`connectorIndexingCondition` at dispatch and worker entry so old queued jobs are guarded too.
+
+### Verification before advertising a provider
+
+Run the catalog registration test, provider tests, shared application tests, and service-mode tests when applicable. Tests must exercise allowed and denied readers, wrong org/account references, source/filter changes between search and read, revocation, native-query bypass attempts, continuation, unsupported date metadata, rate limits, cancellation, and response limits. Check both flag states so ordinary KB indexing and explicit legacy Search remain supported.
+
+For end-to-end verification, use authorized fixture accounts on localhost: add the source, exercise the real picker, connect a member, search and read a known fixture, change the boundary/access, and verify denial on both search and reread. Capture screenshots without tokens or private document content. Record unavailable credentials, provider app eligibility, licenses, or network restrictions as unverified cases; mocked API tests do not establish real-provider compatibility. Include GitLab admin and CSV paths on a reachable self-managed instance and Coda MCP tool discovery when those modes are shipped.
 
 ## Coverage and operational limits
 

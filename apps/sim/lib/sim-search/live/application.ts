@@ -36,9 +36,9 @@ import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
+import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import {
   NATIVE_SEARCH_GUIDANCE,
-  PROVIDER_ORIGINS,
   readNativeProvider,
   searchNativeProvider,
 } from '@/lib/sim-search/live/providers'
@@ -249,7 +249,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 ? null
                 : createNativeClient({
                     origin:
-                      'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
+                      'origin' in resolved
+                        ? resolved.origin
+                        : LIVE_SEARCH_PROVIDER_CATALOG[account.provider].origin,
                     accessToken: resolved.accessToken,
                     signal,
                   })
@@ -289,7 +291,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 account.provider,
                 policy,
                 client,
-                'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[account.provider],
+                'origin' in resolved
+                  ? resolved.origin
+                  : LIVE_SEARCH_PROVIDER_CATALOG[account.provider].origin,
                 mcp
               )
             const searchInput: NativeSearchInput = {
@@ -506,7 +510,10 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       resolved.account.type === 'managed_mcp'
         ? null
         : createNativeClient({
-            origin: 'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+            origin:
+              'origin' in resolved
+                ? resolved.origin
+                : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
             accessToken: resolved.accessToken,
             signal,
           })
@@ -541,7 +548,9 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         reference.provider,
         policy,
         client,
-        'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+        'origin' in resolved
+          ? resolved.origin
+          : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
         mcp
       )
     if (!(await verify(reference)) || (admin && !(await admin.verify(reference))))
@@ -570,7 +579,9 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         reference.provider,
         currentPolicy,
         client,
-        'origin' in resolved ? resolved.origin : PROVIDER_ORIGINS[reference.provider],
+        'origin' in resolved
+          ? resolved.origin
+          : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
         mcp
       )
     if (!(await verifyCurrent(document)))

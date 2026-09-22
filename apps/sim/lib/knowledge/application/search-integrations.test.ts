@@ -19,6 +19,14 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   config: vi.fn(),
   source: vi.fn(),
+  memberSetup: vi.fn(),
+  available: vi.fn(),
+}))
+vi.mock('@/lib/credential-groups/service', () => ({
+  addOrganizationAccountProvider: mocks.memberSetup,
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.available,
 }))
 vi.mock('@/lib/sim-search/live/service-sources', () => ({ loadLiveServiceSource: mocks.source }))
 vi.mock('@/lib/knowledge/application/contexts', () => ({
@@ -31,8 +39,11 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   isOrgAdminRole: (role: string) => ['owner', 'admin'].includes(role),
 }))
 vi.mock('@sim/audit', () => ({
-  AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
+  AuditAction: {
+    ORGANIZATION_UPDATED: 'organization.updated',
+    CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
+  },
+  AuditResourceType: { ORGANIZATION: 'organization', CREDENTIAL_GROUP: 'credential_group' },
   recordAudit: mocks.audit,
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
@@ -40,9 +51,19 @@ vi.mock('@/lib/sim-search/connectors', () => ({
     ['gmail', { name: 'Gmail' }],
     ['google_drive', { name: 'Google Drive' }],
     ['github', { name: 'GitHub' }],
+    ['jira', { name: 'Jira' }],
   ],
+  searchMemberAccountProvider: (type: string) =>
+    type === 'google_drive'
+      ? 'google-drive'
+      : ['gmail', 'jira', 'github'].includes(type)
+        ? type === 'github'
+          ? 'github-repositories'
+          : type
+        : null,
 }))
 
+import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import {
   approveSearchIntegration,
   listSearchIntegrations,
@@ -59,6 +80,8 @@ beforeEach(() => {
   resetEnvFlagsMock()
   mocks.config.mockResolvedValue(null)
   mocks.source.mockResolvedValue({ id: 'source' })
+  mocks.memberSetup.mockResolvedValue({ groupId: 'group', changed: false })
+  mocks.available.mockResolvedValue(true)
   mocks.context.mockResolvedValue({ organizationId: input.organizationId })
 })
 
@@ -139,6 +162,7 @@ describe('organization Search approval', () => {
       { connectorType: 'gmail', approved: false },
       { connectorType: 'google_drive', approved: true },
       { connectorType: 'github', approved: false },
+      { connectorType: 'jira', approved: false },
     ])
   })
 })
@@ -218,6 +242,84 @@ it('enforces the organization Knowledge capability for delegated admins', async 
 })
 
 describe('live organization search policies', () => {
+  it.each([principal, delegatedPrincipal])(
+    'repairs an already approved member source through the same atomic admin action',
+    async (actor) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.memberSetup.mockResolvedValueOnce({ groupId: 'group', changed: true })
+      const result = await approveSearchIntegration.execute({
+        principal: actor,
+        input: { ...input, connectorType: 'jira', policy: defaultLiveSearchPolicy() },
+      })
+      expect(result).toMatchObject({ approved: true, changed: true })
+      expect(mocks.memberSetup).toHaveBeenCalledWith(
+        'organization',
+        'actor',
+        { provider: 'jira', label: 'Jira' },
+        expect.any(Object)
+      )
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(mocks.audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'credential_group.updated',
+          actorId: 'actor',
+          resourceId: 'group',
+        })
+      )
+    }
+  )
+
+  it.each([principal, delegatedPrincipal])(
+    'requires integrations capability before provisioning sign-in for an authorized admin',
+    async (actor) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.config.mockResolvedValue({ hideIntegrationsTab: true })
+      await expect(
+        approveSearchIntegration.execute({
+          principal: actor,
+          input: { ...input, connectorType: 'jira' },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mocks.memberSetup).not.toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not approve a source when member sign-in setup fails', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    mocks.memberSetup.mockRejectedValueOnce(new Error('Provider configuration is unavailable'))
+    await expect(approveSearchIntegration.execute({ principal, input })).rejects.toThrow(
+      'Provider configuration is unavailable'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('explains missing OAuth app setup instead of approving a source with an unusable connection', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    mocks.memberSetup.mockRejectedValueOnce(
+      new CredentialGroupProviderConfigurationError('Managed Jira authorization is not configured')
+    )
+    await expect(
+      approveSearchIntegration.execute({ principal, input: { ...input, connectorType: 'jira' } })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Managed Jira authorization is not configured',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('does not provision sign-in while removing a source', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    await approveSearchIntegration.execute({ principal, input: { ...input, approved: false } })
+    expect(mocks.memberSetup).not.toHaveBeenCalled()
+  })
   it('clears source settings when switching to member accounts', async () => {
     setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])

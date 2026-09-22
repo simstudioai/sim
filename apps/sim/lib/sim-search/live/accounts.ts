@@ -1,10 +1,7 @@
 import { db } from '@sim/db'
 import { account, credential, user } from '@sim/db/schema'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
-import {
-  type LiveSearchProvider,
-  liveSearchProviderSchema,
-} from '@/lib/api/contracts/mothership-assistant-tools'
+import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   type ResourceOwner,
   resourceScopeFields,
@@ -24,23 +21,11 @@ import {
 } from '@/lib/sim-search/live/gitlab-admin'
 import { createNativeClient, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { listCodaMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
+import {
+  liveSearchProviderForCredential,
+  supportsLiveSearchMode,
+} from '@/lib/sim-search/live/provider-catalog'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
-
-const PROVIDERS: Readonly<Record<string, LiveSearchProvider>> = {
-  'google-drive': 'google_drive',
-  'google-docs': 'google_drive',
-  'google-sheets': 'google_drive',
-  'google-slides': 'google_drive',
-  'google-email': 'gmail',
-  gmail: 'gmail',
-  'google-calendar': 'google_calendar',
-  slack: 'slack',
-  jira: 'jira',
-  confluence: 'confluence',
-  'github-repositories': 'github',
-  gitlab: 'gitlab',
-  'coda-service-account': 'coda',
-}
 
 /** Personal provider accounts and ACL-gated administrator-managed GitLab sources. */
 export async function listLiveAccounts(
@@ -111,8 +96,8 @@ export async function listLiveAccounts(
       )
   ).map((row) => ({ ...row, providerId: 'coda-service-account', type: 'service_account' as const }))
   const candidates = [...oauth, ...coda].flatMap((row) => {
-    const provider = PROVIDERS[row.providerId]
-    return provider && provider !== 'gitlab' && !denied.has(provider)
+    const provider = liveSearchProviderForCredential(row.providerId)
+    return provider && supportsLiveSearchMode(provider, 'member') && !denied.has(provider)
       ? [
           {
             id: row.id,

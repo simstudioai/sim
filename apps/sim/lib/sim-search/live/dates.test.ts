@@ -185,7 +185,7 @@ describe('generic live search dates', () => {
     )
     expect(matchesSourceDates(result.documents[0]!, 'gmail', filters)).toBe(true)
   })
-  it('uses Slack date modifiers and preserves the matched reply when its root is older', async () => {
+  it('uses Slack timestamp bounds and preserves the matched reply when its root is older', async () => {
     const api = client()
     api.json.mockResolvedValueOnce({
       ok: true,
@@ -204,6 +204,10 @@ describe('generic live search dates', () => {
     expect(api.json).toHaveBeenCalledTimes(1)
     expect(api.json.mock.calls[0]?.[1].body).toMatchObject({
       modifiers: 'after:2026-09-21 before:2026-09-24',
+      after: Date.parse(filters.startDate) / 1000 - 1,
+      before: Date.parse(filters.endDate) / 1000,
+      sort: 'timestamp',
+      sort_dir: 'asc',
       disable_semantic_search: true,
     })
     expect(result.documents[0]).toMatchObject({

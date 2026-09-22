@@ -4,10 +4,15 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipLink, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { getConnectorAccessAvailability, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
+import {
+  getConnectorAccessAvailability,
+  SEARCH_SOURCE_TYPES,
+  searchMemberAccountProvider,
+} from '@/lib/sim-search/connectors'
 import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SCOPE_FIELDS,
@@ -22,6 +27,8 @@ import {
   GenericSecretSourceRow,
 } from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { LiveSearchPolicyModal } from '@/app/o/[organizationId]/settings/components/integrations/live-search-policy-modal'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
@@ -33,6 +40,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import {
   useSearchIntegrations,
@@ -44,6 +52,7 @@ export function LiveSearchSettings() {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const policies = useSearchIntegrations(organization.id)
   const secrets = useOrganizationSecretSource(organization.id)
+  const accounts = useOrganizationAccounts(viewer.isAdmin ? organization.id : undefined)
   const update = useUpdateSearchIntegration()
   const availability = usePermissionConfig()
   const router = useRouter()
@@ -52,6 +61,10 @@ export function LiveSearchSettings() {
   const [removing, setRemoving] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [addingSecrets, setAddingSecrets] = useState(false)
+  const [, setConnectedAccounts] = useQueryState(
+    connectedAccountsParam.key,
+    connectedAccountsParam.parser
+  )
   if (!viewer.isAdmin) return null
 
   const added =
@@ -135,6 +148,16 @@ export function LiveSearchSettings() {
               )!
               const serviceAccount =
                 type === 'gitlab' || integration.policy?.accessMode === 'service_account'
+              const memberProvider = searchMemberAccountProvider(type)
+              const needsMemberSetup =
+                memberProvider &&
+                accounts.data &&
+                !accounts.data.credentialGroup?.options.some(
+                  (option) =>
+                    option.provider === memberProvider &&
+                    option.status === 'active' &&
+                    option.configurationStatus === 'ready'
+                )
               const scope = serviceAccount
                 ? type === 'gitlab'
                   ? 'Projects and permissions'
@@ -163,9 +186,28 @@ export function LiveSearchSettings() {
                         </ChipLink>
                       )}
                       {type === 'slack' && (
-                        <ChipLink href={`${routes.searchProvider(type)}?connectedAccounts=slack`}>
-                          Slack app
-                        </ChipLink>
+                        <Chip onClick={() => void setConnectedAccounts('slack')}>Slack app</Chip>
+                      )}
+                      {needsMemberSetup && (
+                        <Chip
+                          disabled={update.isPending}
+                          onClick={() =>
+                            update.mutate(
+                              {
+                                organizationId: organization.id,
+                                connectorType: type,
+                                approved: true,
+                                policy: integration.policy ?? defaultLiveSearchPolicy(type),
+                              },
+                              {
+                                onSuccess: () => toast.success('Source settings saved'),
+                                onError: (error) => toast.error(error.message),
+                              }
+                            )
+                          }
+                        >
+                          Set up accounts
+                        </Chip>
                       )}
                       {LIVE_SEARCH_SERVICE_PROVIDERS.includes(type) && type !== 'gitlab' && (
                         <Chip onClick={() => setEditing(integration)}>Configure</Chip>
@@ -200,6 +242,7 @@ export function LiveSearchSettings() {
           onClose={() => setEditing(null)}
         />
       )}
+      <OrganizationSlackAccountSetup />
       {addingSecrets && (
         <GenericSecretSourceModal
           organizationId={organization.id}
@@ -270,8 +313,7 @@ export function LiveSearchSettings() {
                   onSuccess: () => {
                     setAdding(false)
                     if (type === 'gitlab') router.push(routes.searchProvider(type))
-                    if (type === 'slack')
-                      router.push(`${routes.searchProvider(type)}?connectedAccounts=slack`)
+                    if (type === 'slack') void setConnectedAccounts('slack')
                   },
                   onError: (error) => toast.error(error.message),
                 }

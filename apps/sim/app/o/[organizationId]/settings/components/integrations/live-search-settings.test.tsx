@@ -13,6 +13,14 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   push: vi.fn(),
   refetch: vi.fn(),
+  accounts: vi.fn(),
+  updateUrl: vi.fn(),
+}))
+vi.mock('@/hooks/queries/organization-accounts', () => ({
+  useOrganizationAccounts: mocks.accounts,
+}))
+vi.mock('@/app/o/[organizationId]/settings/components/integrations/slack-account-setup', () => ({
+  OrganizationSlackAccountSetup: () => null,
 }))
 vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
@@ -64,6 +72,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.secrets.mockReturnValue({ data: { source: null } })
+  mocks.accounts.mockReturnValue({ data: { credentialGroup: null } })
   mocks.admin = true
   mocks.sources.mockReturnValue({ data: [], hasNextPage: false })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -83,7 +92,7 @@ afterEach(() => {
 async function render(params = '') {
   await act(async () =>
     root.render(
-      <NuqsTestingAdapter hasMemory searchParams={params}>
+      <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.updateUrl}>
         <SettingsHeaderProvider>
           <SettingsHeaderShell>
             <LiveSearchSettings />
@@ -186,8 +195,13 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     await act(async () => mocks.save.mock.calls[0][1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith(
-      '/o/org/settings/integrations/providers/slack?connectedAccounts=slack'
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () =>
+      vi.waitFor(() =>
+        expect(mocks.updateUrl.mock.calls.at(-1)?.[0].searchParams.get('connectedAccounts')).toBe(
+          'slack'
+        )
+      )
     )
   })
   it('routes GitLab directly to project setup after adding it', async () => {
@@ -206,6 +220,49 @@ describe('live search administration', () => {
     )
     await act(async () => mocks.save.mock.calls[0][1].onSuccess())
     expect(mocks.push).toHaveBeenCalledWith('/o/org/settings/integrations/providers/gitlab')
+  })
+  it('repairs an already approved Jira source without another account-mode modal', async () => {
+    mocks.policies.mockReturnValue({
+      data: [{ connectorType: 'jira', approved: true, policy: defaultLiveSearchPolicy() }],
+    })
+    await render()
+    await act(async () => button('Set up accounts')!.click())
+    expect(mocks.save).toHaveBeenCalledWith(
+      {
+        organizationId: 'org',
+        connectorType: 'jira',
+        approved: true,
+        policy: defaultLiveSearchPolicy(),
+      },
+      expect.any(Object)
+    )
+    expect(document.body.textContent).not.toContain('Account mode')
+  })
+  it('does not show setup once Jira member sign-in is configured', async () => {
+    mocks.policies.mockReturnValue({ data: [{ connectorType: 'jira', approved: true }] })
+    mocks.accounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          options: [{ provider: 'jira', status: 'active', configurationStatus: 'ready' }],
+        },
+      },
+    })
+    await render()
+    expect(button('Set up accounts')).toBeUndefined()
+  })
+  it('opens Slack setup in Sources instead of its redirected service-account page', async () => {
+    mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
+    await render()
+    await act(async () => button('Slack app')!.click())
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(container.querySelector('a[href*="providers/slack"]')).toBeNull()
+    await act(async () =>
+      vi.waitFor(() =>
+        expect(mocks.updateUrl.mock.calls.at(-1)?.[0].searchParams.get('connectedAccounts')).toBe(
+          'slack'
+        )
+      )
+    )
   })
   it('starts GitHub with the repository-by-repository App mode', async () => {
     mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })

@@ -15,12 +15,16 @@ const mocks = vi.hoisted(() => ({
   csv: vi.fn(),
   search: vi.fn(),
   read: vi.fn(),
+  grant: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/access/scope', () => ({
   createUserKnowledgeAccessProvider: () => ({ get: mocks.access }),
 }))
 vi.mock('@/connectors/gitlab/permission-config/repository', () => ({
   seedGitLabCsvContext: mocks.seed,
+}))
+vi.mock('@/lib/knowledge/connectors/permission-store', () => ({
+  hasConnectorPermissionGrant: mocks.grant,
 }))
 vi.mock('@/connectors/gitlab/permissions', () => ({
   openGitLabDirectory: mocks.directory,
@@ -202,6 +206,7 @@ describe('administrator-managed live GitLab authorization', () => {
 
 describe('non-admin token and CSV permissions', () => {
   beforeEach(() => {
+    mocks.grant.mockResolvedValue(true)
     mocks.seed.mockImplementation(async (_id, context) =>
       setGitLabCsvContext(context, {
         connectorId: 'source-a',
@@ -227,7 +232,15 @@ describe('non-admin token and CSV permissions', () => {
     expect(mocks.directory).not.toHaveBeenCalled()
     expect(mocks.csv).toHaveBeenCalledWith('admin-token', source.config, expect.any(AbortSignal))
   })
+  it('uses current CSV grants while a legacy indexed ACL rewrite remains pending', async () => {
+    mocks.access.mockResolvedValue({ kind: 'user', userId: 'reader', tokens: [own] })
+
+    expect(await (await session()).verify(file)).toBe(true)
+
+    expect(mocks.grant).toHaveBeenCalledExactlyOnceWith('source-a', 'project', own)
+  })
   it('does not accept a grant from another configured source', async () => {
+    mocks.grant.mockResolvedValue(false)
     mocks.access.mockResolvedValue({
       kind: 'user',
       userId: 'reader',
@@ -247,6 +260,7 @@ describe('non-admin token and CSV permissions', () => {
   it('observes CSV revocation on the next operation', async () => {
     expect(await (await session()).verify(file)).toBe(true)
     mocks.access.mockResolvedValue({ kind: 'user', userId: 'reader', tokens: [own] })
+    mocks.grant.mockResolvedValue(false)
     await expect(session()).rejects.toThrow('not available')
   })
 })

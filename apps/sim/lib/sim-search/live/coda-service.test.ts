@@ -17,6 +17,9 @@ describe('Coda service document boundary', () => {
     expect(await verify({ ...reference, id: 'coda://docs/allowed/tables/table/rows/row' })).toBe(
       true
     )
+    expect(
+      await verify({ ...reference, id: 'superhuman://docs/allowed/pages/section-page#Title' })
+    ).toBe(true)
     expect(client.json).toHaveBeenCalledExactlyOnceWith('/apis/v1/docs/allowed')
   })
   it('intersects explicit service document selections before loading source metadata', async () => {

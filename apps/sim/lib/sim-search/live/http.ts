@@ -77,7 +77,9 @@ export function createNativeClient(input: {
       if (response.status === 401 || response.status === 403)
         throw new NativeSearchError(
           'reconnect',
-          'The provider denied access. Reconnect your account with search and read permissions.'
+          url.hostname === 'api.github.com'
+            ? 'GitHub denied access. Reconnect your account and check that the GitHub App has access to this repository, with read permissions for Contents, Issues, and Pull requests.'
+            : 'The provider denied access. Reconnect your account with search and read permissions.'
         )
       throw new NativeSearchError(
         'unavailable',

@@ -19,7 +19,7 @@ import {
 } from '@/lib/sim-search/live/http'
 import { permitsResources } from '@/lib/sim-search/live/policy'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
-import { PROVIDER_ORIGINS } from '@/lib/sim-search/live/providers'
+import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { loadLiveGitHubSources, loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 import { liveSourcePolicy } from '@/lib/sim-search/live/source-policy'
 import type { NativeClient, NativeDocument, NativeSearchInput } from '@/lib/sim-search/live/types'
@@ -90,7 +90,7 @@ export async function createLiveServiceSession(input: {
     }
   }
   const client = createNativeClient({
-    origin: PROVIDER_ORIGINS[provider],
+    origin: LIVE_SEARCH_PROVIDER_CATALOG[provider].origin,
     accessToken: token.accessToken,
     signal,
   })

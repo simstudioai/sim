@@ -1,5 +1,6 @@
 import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { CodaMcpClient } from '@/lib/sim-search/live/coda-mcp'
+import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { type LiveSearchPolicy, requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import type { NativeClient, NativeDocument } from '@/lib/sim-search/live/types'
@@ -228,7 +229,7 @@ export function createPolicyVerifier(
         )
         id = string(decoded.docUri ?? decoded.uri)
       }
-      const docId = mcp ? id.match(/^coda:\/\/docs\/([\w-]+)(?:\/|$)/)?.[1] : id
+      const docId = mcp ? parseCodaResourceUri(id)?.docId : id
       return Boolean(docId) && permitsResources(policy, [docId!])
     }
     return false

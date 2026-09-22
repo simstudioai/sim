@@ -66,6 +66,33 @@ describe('scoped native query composition', () => {
     ).toEqual({ documents: [] })
     expect(search).not.toHaveBeenCalled()
   })
+  it('uses current Coda document URIs while accepting legacy document targets', async () => {
+    const search = vi.fn(async () => ({ documents: [] }))
+    await searchWithinPolicy(
+      'coda',
+      null,
+      {
+        ...input(['allowed']),
+        native: { provider: 'coda', project: 'coda://docs/allowed' },
+      },
+      search
+    )
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        native: expect.objectContaining({ project: 'superhuman://docs/allowed' }),
+      })
+    )
+    search.mockClear()
+    expect(
+      await searchWithinPolicy(
+        'coda',
+        null,
+        { ...input(['allowed']), native: { provider: 'coda', project: 'superhuman://docs/other' } },
+        search
+      )
+    ).toEqual({ documents: [] })
+    expect(search).not.toHaveBeenCalled()
+  })
   it('places scope ahead of ordering and ignores order keywords inside quoted values', () => {
     expect(
       scopeAtlassianQuery(

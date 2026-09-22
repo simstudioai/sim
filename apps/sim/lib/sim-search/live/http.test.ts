@@ -81,6 +81,20 @@ describe('native search network boundary', () => {
       })
     )
   })
+  it('identifies App permissions when GitHub denies a member search or read', async () => {
+    mocks.fetch.mockResolvedValue(new Response('private diagnostics', { status: 403 }))
+    const client = createNativeClient({
+      origin: 'https://api.github.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await expect(
+      client.json('/search/issues', { query: { q: 'repo:team/project launch' } })
+    ).rejects.toMatchObject({
+      status: 'reconnect',
+      message: expect.stringContaining('read permissions for Contents, Issues, and Pull requests'),
+    })
+  })
   it('does not issue any request after cancellation', async () => {
     const controller = new AbortController()
     controller.abort()

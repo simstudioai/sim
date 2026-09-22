@@ -157,7 +157,7 @@ export async function searchAtlassian(
           query: {
             cql: scopeAtlassianQuery(
               input.native?.query ||
-                `type = page${text ? ` AND text ~ ${escapeSearchPhrase(text)}` : ''}`,
+                `type IN (page, blogpost)${text ? ` AND text ~ ${escapeSearchPhrase(text)}` : ''}`,
               scope,
               order
             ),

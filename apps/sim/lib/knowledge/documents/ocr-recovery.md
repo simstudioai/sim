@@ -1,6 +1,6 @@
 # OCR capacity and indexing recovery
 
-Regular KBs and Sim Search use the same connector content pass, document processor, embeddings, and processing continuations. Authorization and source visibility remain specific to each access mode.
+Regular knowledge bases and legacy indexed Sim Search (`SIM_SEARCH_LIVE=false`) use the connector content pass, document processor, embeddings, and processing continuations described here. Live Search, the default, calls provider APIs and does not run this OCR/indexing recovery path. Authorization and source visibility remain specific to each access mode.
 
 ## Operating budgets
 

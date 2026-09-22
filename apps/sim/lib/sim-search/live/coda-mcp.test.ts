@@ -31,12 +31,26 @@ describe('Coda MCP content search', () => {
   beforeEach(() => vi.clearAllMocks())
   it('accepts structured and JSON text output, and rejects tool failures', () => {
     expect(codaMcpPayload({ structuredContent: { results: [] } })).toEqual({ results: [] })
+    expect(
+      codaMcpPayload({ structuredContent: { toolName: 'search', result: { results: [] } } })
+    ).toEqual({ results: [] })
     expect(codaMcpPayload({ content: [{ type: 'text', text: '{"results":[]}' }] })).toEqual({
       results: [],
     })
+    expect(
+      codaMcpPayload({
+        content: [{ type: 'text', text: '{"toolName":"search","result":{"results":[]}}' }],
+      })
+    ).toEqual({ results: [] })
     expect(() =>
       codaMcpPayload({ isError: true, content: [{ type: 'text', text: 'secret' }] })
     ).toThrow('Coda could not complete')
+    expect(() =>
+      codaMcpPayload({
+        isError: true,
+        content: [{ type: 'text', text: "You've reached your weekly limit of 30 MCP requests." }],
+      })
+    ).toThrow('Coda MCP request limit reached')
   })
   it('passes content queries and document filters, preserving the opaque cursor', async () => {
     const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
@@ -73,6 +87,31 @@ describe('Coda MCP content search', () => {
       nextCursor: 'next',
       partial: true,
       documents: [{ id: 'coda://docs/doc/pages/page', kind: 'mcp', content: 'Release next week' }],
+    })
+  })
+  it('maps the current Superhuman Docs page result shape', async () => {
+    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
+      results: [
+        {
+          docUri: 'superhuman://docs/doc',
+          pageUri: 'pages/section-page#Readable%20title',
+          pageName: 'Federated search fixture',
+          docTitle: 'Sim Search QA',
+          pageContent: 'SimSearchCodaFixtureBeta',
+          url: 'https://docs.superhuman.com/d/doc/page',
+        },
+      ],
+      hasMore: false,
+    })
+    expect(await searchCodaMcp({ call }, input)).toMatchObject({
+      documents: [
+        {
+          id: 'superhuman://docs/doc/pages/section-page',
+          title: 'Federated search fixture',
+          content: 'SimSearchCodaFixtureBeta',
+        },
+      ],
+      partial: false,
     })
   })
   it('uses the documented empty-query recency listing and reports local date filtering', async () => {
@@ -114,6 +153,11 @@ describe('Coda MCP content search', () => {
       })
     )
     expect(page.content).toContain('Evidence')
+    await readCodaMcp({ call }, 'superhuman://docs/doc/pages/section-page#Readable%20title')
+    expect(call).toHaveBeenLastCalledWith(
+      'content_read',
+      expect.objectContaining({ uri: 'superhuman://docs/doc/pages/section-page' })
+    )
     await readCodaMcp({ call }, 'coda://docs/doc/tables/table/rows/row')
     expect(call).toHaveBeenLastCalledWith('table_rows_read', {
       uri: 'coda://docs/doc/tables/table',

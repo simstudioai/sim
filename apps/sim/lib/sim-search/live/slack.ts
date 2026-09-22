@@ -66,7 +66,9 @@ export async function searchSlack(
   const data = slackResult(
     await client.json('/api/assistant.search.context', {
       body: {
-        query: nativeText(input) || dateModifiers,
+        query: [nativeText(input) || dateModifiers, input.native?.modifiers]
+          .filter(Boolean)
+          .join(' '),
         channel_types: channels,
         include_archived_channels: input.policy?.includeArchived ?? true,
         content_types: input.scopes.includes('search:read.files')
@@ -74,6 +76,14 @@ export async function searchSlack(
           : ['messages'],
         include_context_messages: true,
         limit: Math.min(input.limit, 20),
+        ...(dates.start ? { after: Math.floor(Date.parse(dates.start) / 1000) - 1 } : {}),
+        ...(dates.end ? { before: Math.ceil(Date.parse(dates.end) / 1000) } : {}),
+        ...(input.filters?.sortBy && input.filters.sortBy !== 'relevance'
+          ? {
+              sort: 'timestamp',
+              sort_dir: input.filters.sortBy === 'oldest' ? 'asc' : 'desc',
+            }
+          : {}),
         ...(input.native?.cursor ? { cursor: input.native.cursor } : {}),
         ...(input.native?.termClauses ? { term_clauses: input.native.termClauses } : {}),
         ...(modifiers ? { modifiers } : {}),
@@ -136,7 +146,7 @@ export async function searchSlack(
   return {
     documents,
     nextCursor: string(object(data.response_metadata).next_cursor) || undefined,
-    message: `Slack RTS searches ${channels.join(', ')} with your user token. Semantic matching depends on your Slack plan. Message timestamps are posting dates; edits may not be reflected in date filtering.`,
+    message: `Slack RTS searches ${channels.join(', ')} with your user token. Semantic matching depends on your Slack plan; date ordering uses keyword retrieval. Message timestamps are posting dates; edits may not be reflected in date filtering.`,
   }
 }
 

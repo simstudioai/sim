@@ -6,6 +6,7 @@ import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
+import { hasConnectorPermissionGrant } from '@/lib/knowledge/connectors/permission-store'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
@@ -135,7 +136,8 @@ export async function createAdminGitLabSession(input: {
   let project: string
   let projectPath: string
   if (csv) {
-    if (!access.tokens.includes(gitLabCsvGroupToken(source.id)))
+    /** Indexed ACL rewrites do not govern current CSV grants for provider-backed reads. */
+    if (!(await hasConnectorPermissionGrant(source.id, 'project', own)))
       throw new NativeSearchError(
         'unavailable',
         'This GitLab source is not available to your account.'
