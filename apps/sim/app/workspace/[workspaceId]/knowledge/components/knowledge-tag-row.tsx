@@ -45,7 +45,7 @@ export function KnowledgeTagRow({
           aria-label={removeLabel}
           variant='ghost-destructive-muted'
           onClick={onRemove}
-          className='size-4 p-0'
+          size='icon'
         >
           <Trash className='size-3' />
         </Button>
