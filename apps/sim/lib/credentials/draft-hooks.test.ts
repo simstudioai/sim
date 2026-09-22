@@ -103,6 +103,7 @@ describe('handleReconnectCredential', () => {
       { id: 'credential-1', accountId: null, displayName: 'Renamed Gmail' },
     ])
     queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.account, [{ providerId: 'gmail', accountId: 'subject-new' }])
 
     await handleReconnectCredential({
       draft: { credentialId: 'credential-1' },

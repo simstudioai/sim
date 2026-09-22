@@ -125,7 +125,7 @@ export async function completeOrganizationCredentialDraft(input: {
     }
   })
   await clearOAuthRefreshDeadFlag(input.accountId)
-  if (result.reconnected) await resumeConnectorsAfterCredentialReconnect(result.credentialId, now)
+  if (result.reconnected) await resumeConnectorsAfterCredentialReconnect(input.accountId, now)
   recordAudit({
     actorId: input.userId,
     action: result.reconnected

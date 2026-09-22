@@ -1458,39 +1458,54 @@ export async function executeSync(
          * Retrying cannot help until the credential is reauthorized, so the
          * connector leaves its schedule with a reconnect prompt instead of
          * climbing the failure ladder toward the same rejection. Reauthorizing
-         * the credential puts it back on schedule. The run itself is a skip:
-         * nothing about the source failed, and a sync that cannot start is not
-         * an incident to page on.
+         * the credential puts it back on schedule, and a reauthorization that
+         * landed while this run was failing has already cleared the rejection:
+         * that run takes the ordinary ladder below, so its next attempt uses the
+         * repaired chain rather than leaving a repaired connector unscheduled.
+         * The unscheduled run itself is a skip: nothing about the source failed,
+         * and a sync that cannot start is not an incident to page on. A run that
+         * cannot record the unschedule is a failure, so the runner reports it
+         * instead of leaving the connector locked behind a benign outcome.
          */
-        logger.warn('Sync unscheduled: the source rejected the connector credential', {
+        const stillRejected = await getCredentialTerminalRefreshError(error.credentialId)
+        if (stillRejected) {
+          logger.warn('Sync unscheduled: the source rejected the connector credential', {
+            connectorId,
+            credentialId: error.credentialId,
+            errorCode: error.errorCode,
+          })
+          try {
+            await completeSyncLog(syncLogId, 'failed', result, {
+              errorMessage: CREDENTIAL_REVOKED_SYNC_ERROR,
+            })
+            const landed = await writeTerminalConnectorState(
+              connectorId,
+              syncLogId,
+              buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REVOKED_SYNC_ERROR)
+            )
+            if (!landed) {
+              logger.warn(
+                'Unschedule discarded — connector was reclaimed while this run was executing',
+                { connectorId, syncLogId }
+              )
+            }
+            return { ...result, skipReason: 'credential_revoked' }
+          } catch (recoveryError) {
+            const recoveryMessage =
+              getConnectorFailureDiagnostic(recoveryError)?.message ??
+              toError(recoveryError).message
+            logger.error('Failed to unschedule the connector', {
+              connectorId,
+              error: recoveryMessage,
+            })
+            result.error = recoveryMessage
+            return result
+          }
+        }
+        logger.info('Credential reauthorized during the run; the retry uses the repaired chain', {
           connectorId,
           credentialId: error.credentialId,
-          errorCode: error.errorCode,
         })
-        try {
-          await completeSyncLog(syncLogId, 'failed', result, {
-            errorMessage: CREDENTIAL_REVOKED_SYNC_ERROR,
-          })
-          const landed = await writeTerminalConnectorState(
-            connectorId,
-            syncLogId,
-            buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REVOKED_SYNC_ERROR)
-          )
-          if (!landed) {
-            logger.warn(
-              'Unschedule discarded — connector was reclaimed while this run was executing',
-              { connectorId, syncLogId }
-            )
-          }
-        } catch (recoveryError) {
-          logger.error('Failed to unschedule the connector', {
-            connectorId,
-            error:
-              getConnectorFailureDiagnostic(recoveryError)?.message ??
-              toError(recoveryError).message,
-          })
-        }
-        return { ...result, skipReason: 'credential_revoked' }
       }
 
       const diagnostic = getConnectorFailureDiagnostic(error)

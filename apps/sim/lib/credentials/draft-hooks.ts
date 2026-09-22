@@ -76,7 +76,7 @@ export async function handleCreateCredentialFromDraft(params: {
       .where(eq(schema.credential.id, existingCredential.id))
 
     await clearOAuthRefreshDeadFlag(accountId)
-    await resumeConnectorsAfterCredentialReconnect(existingCredential.id, now)
+    await resumeConnectorsAfterCredentialReconnect(accountId, now)
 
     recordAudit({
       workspaceId: draft.workspaceId,
@@ -211,7 +211,7 @@ export async function handleReconnectCredential(params: {
   )
 
   await clearOAuthRefreshDeadFlag(newAccountId)
-  await resumeConnectorsAfterCredentialReconnect(draft.credentialId, now)
+  await resumeConnectorsAfterCredentialReconnect(newAccountId, now)
 
   recordAudit({
     workspaceId,

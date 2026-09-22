@@ -3041,9 +3041,10 @@ describe('executeSync heartbeats during the listing phase', () => {
 
   it('unschedules a connector whose credential the source rejected instead of retrying it', async () => {
     const restore = primeOAuthRunUpToToken()
-    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError.mockResolvedValueOnce(
-      'invalid_grant'
-    )
+    /** Rejected at token resolution and still rejected when the run records its outcome. */
+    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
+      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce('invalid_grant')
     try {
       const result = await executeSync('c-1', {
         billingAttribution: { workspaceId: 'ws-1' } as never,
@@ -3065,6 +3066,52 @@ describe('executeSync heartbeats during the listing phase', () => {
       expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
         expect.objectContaining({ consecutiveFailures: expect.any(Number) })
       )
+    } finally {
+      restore()
+    }
+  })
+
+  it('takes the failure ladder when the credential was reauthorized while the run was failing', async () => {
+    const restore = primeOAuthRunUpToToken()
+    /** Rejected at token resolution, repaired by the time the run records its outcome. */
+    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
+      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce(null)
+    try {
+      const result = await executeSync('c-1', {
+        billingAttribution: { workspaceId: 'ws-1' } as never,
+      })
+      expect(result.skipReason).toBeUndefined()
+      expect(result.error).toContain('rejected by the source')
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error', consecutiveFailures: 1 })
+      )
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ lastSyncError: CREDENTIAL_REVOKED_SYNC_ERROR })
+      )
+    } finally {
+      restore()
+    }
+  })
+
+  it('reports a run that could not record the unschedule as failed, not skipped', async () => {
+    const restore = primeOAuthRunUpToToken()
+    /** Rejected at token resolution and still rejected when the run records its outcome. */
+    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
+      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce('invalid_grant')
+    /** The terminal write fails after the lock CAS consumed the first result. */
+    dbChainMockFns.returning.mockReset()
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...CONNECTOR, connectorType: 'oauth', credentialId: 'cred-1', accessMode: 'workspace' },
+    ])
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection reset'))
+    try {
+      const result = await executeSync('c-1', {
+        billingAttribution: { workspaceId: 'ws-1' } as never,
+      })
+      expect(result.skipReason).toBeUndefined()
+      expect(result.error).toContain('connection reset')
     } finally {
       restore()
     }
