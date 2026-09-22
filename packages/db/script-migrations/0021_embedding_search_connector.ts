@@ -23,13 +23,14 @@ export const PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS = 250
 export const PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS = 60_000
 
 /**
- * How many times in a row one page may time out before the run fails. With the pauses below a page
- * waits out a few minutes of index maintenance before giving up.
+ * How many times in a row one page may time out before the run fails. Index maintenance was
+ * observed holding the page for several minutes; with the pauses below a page waits roughly
+ * twelve minutes, so the budget covers one such pass.
  */
-export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 6
+export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 12
 
-/** Pause before a page is retried: 10 s, doubling to 30 s, with jitter. */
-const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 30_000 } as const
+/** Pause before a page is retried: 10 s, doubling to 60 s, with jitter. */
+const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
 
 /**
  * The two ways the database cancels a page: `lock_timeout` (55P03) while the page's index write
