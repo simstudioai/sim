@@ -148,14 +148,17 @@ export async function runProjectionSourceAclBackfill(
 /**
  * Whether no projection still holds a row the fill could give its source and ACL: a row without
  * them whose document exists. A row whose document is gone is not the fill's to finish and never
- * counts as left. Each read is one index probe while any such row remains.
+ * counts as left. Each read is one probe of the unfilled-rows index while any such row remains:
+ * ordered by id and capped at one row so the planner cannot take a sequential scan, which an
+ * `EXISTS` would leave open by dropping the order and the limit.
  */
 async function projectionsFilled(sql: postgres.Sql): Promise<boolean> {
   for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
     const [row] = await sql.unsafe<Array<{ unfilled: boolean }>>(
-      `SELECT EXISTS (
-        SELECT 1 FROM ${projection} s JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL
-      ) AS unfilled`
+      `SELECT (
+        SELECT s.id FROM ${projection} s JOIN document d ON d.id = s.document_id WHERE s.acl IS NULL
+        ORDER BY s.id DESC LIMIT 1
+      ) IS NOT NULL AS unfilled`
     )
     if (row?.unfilled) return false
   }
