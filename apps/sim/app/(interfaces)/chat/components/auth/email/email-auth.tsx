@@ -229,7 +229,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                   </p>
                 </div>
 
-                <div className='text-center font-light text-sm'>
+                <div className='text-center font-normal text-sm'>
                   <button
                     onClick={() => {
                       setShowOtpVerification(false)
