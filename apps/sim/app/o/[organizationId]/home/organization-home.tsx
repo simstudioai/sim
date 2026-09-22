@@ -54,7 +54,7 @@ const subscribeToClient = () => () => {}
 const clientSnapshot = () => true
 const serverSnapshot = () => false
 
-/** Home chooses the next turn harness while keeping the current conversation intact. */
+/** Home chooses the conversation mode before its first message. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
@@ -108,6 +108,7 @@ function OrganizationHomeContent({
     activeResourceState: controller.activeResourceState,
   })
   const hasChat = Boolean(chatId || chat.messages.length)
+  const canSelectMode = !hasChat && mothershipAvailable && canBuild && searchAccess.memberScoped
   const assistantSearchLevel = urlSearchLevel ?? rememberedSearchLevel
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
@@ -229,7 +230,7 @@ function OrganizationHomeContent({
     })
   }
   const changeMode = (mode: ChatRequestMode) => {
-    if (!canBuild || !searchAccess.memberScoped || mode === requestMode) return
+    if (!canSelectMode || mode === requestMode) return
     setSelectedMode(mode)
     void setSearchParams({ searchLevel: null })
     if (userId) rememberMode(userId, organization.id, mode)
@@ -270,8 +271,8 @@ function OrganizationHomeContent({
         requestMode={requestMode}
         assistantSearchLevel={assistantSearchLevel}
         onAssistantSearchLevelChange={changeAssistantSearchLevel}
-        showModeSelector={mothershipAvailable && canBuild && searchAccess.memberScoped}
-        onModeChange={changeMode}
+        showModeSelector={canSelectMode}
+        onModeChange={canSelectMode ? changeMode : undefined}
         value={draft}
         restoredContexts={restoredContexts}
         files={files}

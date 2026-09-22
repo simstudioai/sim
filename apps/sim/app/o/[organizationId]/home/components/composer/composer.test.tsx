@@ -608,28 +608,35 @@ it('shows Build with a chevron in the shared chip and text-only modes in its men
   ).toBe('Preserved draft')
 })
 
-it('allows changing the next message mode while a response is streaming', async () => {
-  const onModeChange = vi.fn()
-  await render(false, 'Next question', 'agent', {
-    isSending: true,
-    showModeSelector: true,
-    onModeChange,
-  })
-  const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
-  expect(mode.disabled).toBe(false)
-  await act(async () =>
-    mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-  )
-  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-    (item) => item.textContent === 'Search'
-  )!
-  await act(async () => search.click())
-  expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
-  expect(
-    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
-  ).toBe('Next question')
-  expect(mocks.submit).not.toHaveBeenCalled()
-})
+it.each(['agent', 'assistant'] as const)(
+  'shows the compact %s controls without a mode selector after sending',
+  async (requestMode) => {
+    await render(false, 'Next question', requestMode, {
+      isSending: true,
+      showModeSelector: false,
+    })
+    expect(container.querySelector('[aria-label="Conversation mode"]')).toBeNull()
+    expect(container.textContent).not.toContain('Build')
+    if (requestMode === 'agent') {
+      const plus = container.querySelector('[aria-label="Add resources"]')!
+      expect(plus.previousElementSibling).toBeNull()
+      expect(
+        [...plus.parentElement!.querySelectorAll('button')].map((button) =>
+          button.getAttribute('aria-label')
+        )
+      ).toEqual(['Add resources', 'Attach file', 'Skills'])
+    } else {
+      const input = container.querySelector('[aria-label="Ask Sim"]')!
+      const leading = input.closest('.grid')!.firstElementChild!
+      expect(leading.querySelectorAll('svg')).toHaveLength(1)
+      expect(leading.querySelector('button')).toBeNull()
+    }
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Ask Sim"]')!.value).toBe(
+      'Next question'
+    )
+    expect(mocks.submit).not.toHaveBeenCalled()
+  }
+)
 
 it('opens resources, attaches files, and inserts skills while streaming', async () => {
   await render(false, 'Next question', 'agent', { isSending: true })

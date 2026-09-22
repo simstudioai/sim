@@ -603,27 +603,49 @@ it('passes explicitly selected skill workspace contexts through the ordinary Bui
   })
 })
 
-describe('same-chat mode selection', () => {
-  it('preserves an existing chat and draft and applies the selected harness to its next turn', async () => {
+describe('conversation mode selection', () => {
+  it.each(['agent', 'assistant'] as const)(
+    'keeps an existing %s chat in its saved mode without a mode control',
+    async (mode) => {
+      mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+      await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode={mode} />))
+      await act(async () => composerProps().onChange('Keep this draft'))
+      expect(composerProps().showModeSelector).toBe(false)
+      expect(composerProps().onModeChange).toBeUndefined()
+      expect(composerProps().requestMode).toBe(mode)
+      expect(composerProps().value).toBe('Keep this draft')
+      expect(mocks.push).not.toHaveBeenCalled()
+      expect(mocks.send).not.toHaveBeenCalled()
+      await act(async () => composerProps().onSubmit('Keep this draft'))
+      expect(mocks.send).toHaveBeenLastCalledWith(
+        'Keep this draft',
+        undefined,
+        undefined,
+        expect.objectContaining({ requestMode: mode })
+      )
+    }
+  )
+
+  it('offers both modes before sending and removes mode selection with the first message', async () => {
     mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
-    await act(async () => composerProps().onChange('Keep this draft'))
+    await act(async () => renderHome(<OrganizationHome />))
+    expect(composerProps().showModeSelector).toBe(true)
     await act(async () => composerProps().onModeChange?.('assistant'))
-    expect(composerProps().value).toBe('Keep this draft')
     expect(composerProps().requestMode).toBe('assistant')
-    expect(mocks.push).not.toHaveBeenCalled()
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.chat).toHaveBeenLastCalledWith(
-      { organizationId: 'organization-a' },
-      'chat-a',
-      expect.objectContaining({ requestMode: 'assistant' })
-    )
-    await act(async () => composerProps().onSubmit('Keep this draft'))
-    expect(mocks.send).toHaveBeenLastCalledWith('Keep this draft', undefined, undefined, {
-      requestMode: 'assistant',
-      assistantSearchLevel: 'adaptive',
+    await act(async () => composerProps().onModeChange?.('agent'))
+    expect(composerProps().requestMode).toBe('agent')
+    mocks.send.mockImplementationOnce(() => {
+      mocks.chat.mockReturnValue({
+        ...mocks.chat(),
+        messages: [{ id: 'user-1', role: 'user', content: 'First message' }],
+        isSending: true,
+      })
     })
-    expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
+    await act(async () => composerProps().onSubmit('First message'))
+    expect(composerProps().isInitialView).toBe(false)
+    expect(composerProps().showModeSelector).toBe(false)
+    expect(composerProps().onModeChange).toBeUndefined()
+    expect(composerProps().requestMode).toBe('agent')
   })
   it('uses only this user and organization preference for new chats without changing saved chats', async () => {
     const store = useOrganizationChatModeStore.getState()
@@ -639,18 +661,18 @@ describe('same-chat mode selection', () => {
     expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
   })
   it.each(['isSending', 'isReconnecting', 'messageQueue'] as const)(
-    'changes the next message mode while %s is active without sending or navigating',
+    'keeps mode selection unavailable while %s is active in a conversation',
     async (field) => {
       mocks.chat.mockReturnValue({
         ...mocks.chat(),
+        messages: [{ id: 'user-1', role: 'user', content: 'First message' }],
         [field]: field === 'messageQueue' ? [{ id: 'queued' }] : true,
       })
+      mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
       await act(async () => renderHome(<OrganizationHome />))
-      await act(async () => composerProps().onModeChange?.('assistant'))
-      expect(composerProps().requestMode).toBe('assistant')
-      expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe(
-        'assistant'
-      )
+      expect(composerProps().showModeSelector).toBe(false)
+      expect(composerProps().onModeChange).toBeUndefined()
+      expect(composerProps().requestMode).toBe('agent')
       expect(mocks.send).not.toHaveBeenCalled()
       expect(mocks.push).not.toHaveBeenCalled()
     }
@@ -700,21 +722,21 @@ describe('same-chat mode selection', () => {
   )
 })
 
-it('does not seed results for a Build turn just because Search is selected next', async () => {
+it('does not seed Search results for an existing Build conversation', async () => {
   mocks.chat.mockReturnValue({
     ...mocks.chat(),
     messages: [{ id: 'user-1', role: 'user', content: 'Build a table', requestMode: 'agent' }],
   })
   mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
   await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
-  await act(async () => composerProps().onModeChange?.('assistant'))
+  expect(composerProps().onModeChange).toBeUndefined()
   expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
     expect.not.objectContaining({ searchRequest: expect.anything() }),
     undefined
   )
 })
 
-it('does not start a new panel search when the next turn is switched to Build', async () => {
+it('does not start a new panel search when an existing Search conversation loads', async () => {
   mocks.chat.mockReturnValue({
     ...mocks.chat(),
     messages: [
@@ -723,7 +745,7 @@ it('does not start a new panel search when the next turn is switched to Build', 
   })
   mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
   await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
-  await act(async () => composerProps().onModeChange?.('agent'))
+  expect(composerProps().onModeChange).toBeUndefined()
   expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
     expect.not.objectContaining({ searchRequest: expect.anything() }),
     undefined
