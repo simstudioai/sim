@@ -274,6 +274,9 @@ describe('organization Assistant from Slack', () => {
       })
     )
     expect(m.run.mock.calls[0][1]).not.toHaveProperty('workspaceId')
+    expect(new URL(m.streamOptions.mock.calls[0][0].integrationsUrl).pathname).toBe(
+      '/o/org1/integrations'
+    )
     expect(m.persist).toHaveBeenCalledWith('chat1', 'member1', 'turn1', 'release notes')
     expect(m.finalize).toHaveBeenCalledWith(
       expect.objectContaining({ chatId: 'chat1', userId: 'member1', userMessageId: 'turn1' })

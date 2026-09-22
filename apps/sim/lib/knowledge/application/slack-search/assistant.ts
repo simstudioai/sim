@@ -9,6 +9,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getSlackSearchSender } from '@/lib/internal/slack/search-client'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { authorizeSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/authorization'
@@ -49,6 +50,7 @@ import {
   unregisterActiveStream,
 } from '@/lib/mothership/request/session/abort'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
 import { deliverSlackSearchConnections } from '@/lib/slack-search/connections'
 import {
@@ -208,6 +210,10 @@ export async function runSlackSearchAssistant(
       channel: job.message.channelId,
       threadTs: slackSearchThreadTimestamp(job.message),
       slackUserId: job.message.userId,
+      integrationsUrl: new URL(
+        organizationRoutes(installation.organizationId).integrations,
+        getBaseUrl()
+      ).href,
       controller,
       registry: environmentContext.resolvedSecretTraceRegistry,
       beforeDelivery: checkAccess,
