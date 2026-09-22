@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+/** @vitest-environment node */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputs,
@@ -12,12 +13,15 @@ import { Serializer } from '@/serializer'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/blocks', async () => {
-  const { AgentBlock } = await import('@/blocks/blocks/agent')
-  return { getBlock: () => AgentBlock }
-})
+const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
+
+vi.mock('@/blocks', () => ({ getBlock: mockGetBlock }))
 
 describe('Agent evaluation configuration', () => {
+  beforeEach(() => {
+    mockGetBlock.mockReturnValue(AgentBlock)
+  })
+
   it.each(['jev-1.13.0', 'jev-latest', 'jev-preview'])(
     'shows native fields and credentials for %s',
     (model) => {
