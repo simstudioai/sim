@@ -83,6 +83,7 @@ export function useOrganizationSecrets(
 export function useSaveOrganizationSecrets(organizationId: string) {
   const queryClient = useQueryClient()
   return useMutation({
+    gcTime: 0,
     mutationFn: (body: SaveOrganizationSecretsBody) =>
       requestJson(saveOrganizationSecretsContract, { params: { id: organizationId }, body }),
     onSuccess: (_data, body) =>

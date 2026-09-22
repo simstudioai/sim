@@ -58,6 +58,49 @@ beforeEach(() => {
 })
 
 describe('Generic Secrets authorization', () => {
+  it.each(['admin', 'owner'])(
+    'lets a current %s save shared keys but rejects a later membership revocation',
+    async (role) => {
+      const input = {
+        organizationId: 'org',
+        sourceId: 'source',
+        mode: 'organization',
+        upsert: { TOKEN: 'new-secret' },
+        remove: [],
+      } as const
+      queueTableRows(member, [{ role }])
+      await saveOrganizationSecrets.execute({ principal, input: { ...input, remove: [] } })
+      expect(mocks.save).toHaveBeenCalledWith(
+        { organizationId: 'org', userId: 'actor', role },
+        { id: 'source', mode: 'organization' },
+        { upsert: { TOKEN: 'new-secret' }, remove: [] }
+      )
+      queueTableRows(member, [])
+      await expect(
+        saveOrganizationSecrets.execute({ principal, input: { ...input, remove: [] } })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mocks.save).toHaveBeenCalledOnce()
+      expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain('new-secret')
+    }
+  )
+
+  it('rechecks the secrets capability when a member submits a key', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    mocks.config.mockResolvedValue({ hideSecretsTab: true })
+    await expect(
+      saveOrganizationSecrets.execute({
+        principal,
+        input: {
+          organizationId: 'org',
+          sourceId: 'source',
+          mode: 'member',
+          upsert: { TOKEN: 'new-secret' },
+          remove: [],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.save).not.toHaveBeenCalled()
+  })
   it.each(['admin', 'owner'])('lets an %s configure the source', async (role) => {
     queueTableRows(member, [{ role }])
     mocks.configure.mockResolvedValue({ id: 'source', mode: 'organization' })

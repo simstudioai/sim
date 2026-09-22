@@ -43,6 +43,17 @@ function renderedText(segments: ContentSegment[]): string {
 }
 
 describe('parseCredentialTagBody', () => {
+  it('accepts organization secret inputs without model-supplied values or workspace targets', () => {
+    const item = { type: 'secret_input', name: 'TOKEN', scope: 'organization' } as const
+    expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
+    expect(parseCredentialTagBody(JSON.stringify({ ...item, workspaceId: 'workspace' }))).toBeNull()
+    expect(parseCredentialTagBody(JSON.stringify({ ...item, value: 'secret' }))).toBeNull()
+    for (const name of ['API-KEY', ' KEY', '1KEY', 'x'.repeat(1025)])
+      expect(parseCredentialTagBody(JSON.stringify({ ...item, name }))).toBeNull()
+    expect(credentialTagHasVisibleCard([item], false, 'agent')).toBe(true)
+    expect(credentialTagHasVisibleCard([item], false, 'plan')).toBe(true)
+    expect(credentialTagHasVisibleCard([item], true, 'assistant')).toBe(false)
+  })
   it('retains an explicit workspace target and rejects malformed targets', () => {
     const item = { type: 'secret_input', name: 'TOKEN', workspaceId: 'workspace-a' }
     expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])

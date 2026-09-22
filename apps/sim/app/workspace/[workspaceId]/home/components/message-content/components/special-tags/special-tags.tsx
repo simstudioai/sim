@@ -37,6 +37,7 @@ import {
 } from '@/lib/knowledge/search/connection-target'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -57,6 +58,10 @@ import {
   CredentialWorkspaceHost,
   useCredentialWorkspaceId,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import {
+  OrganizationSecretInputHost,
+  useOrganizationSecretInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/organization-secret-input'
 import {
   resolveOAuthChipTarget,
   useOAuthChipConnection,
@@ -147,7 +152,7 @@ export const CREDENTIAL_TAG_TYPES = [
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
 
-export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
+export const SECRET_INPUT_SCOPES = ['personal', 'workspace', 'organization'] as const
 
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
@@ -163,7 +168,7 @@ export interface CredentialItemData {
    * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
-  /** Where a secret_input value is persisted. Defaults to "workspace". */
+  /** Defaults to workspace; organization uses the current org's Generic Secrets source. */
   scope?: SecretInputScope
   /**
    * What the secret is for (secret_input, workspace scope only), written by the
@@ -533,6 +538,12 @@ function isCredentialItemData(value: unknown): value is CredentialItemData {
     ) {
       return false
     }
+    if (value.scope === 'organization')
+      return (
+        value.workspaceId === undefined &&
+        value.value === undefined &&
+        organizationSecretNameSchema.safeParse(value.name).success
+      )
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
   // folder_access, browser_takeover and terminal_handoff are value-less action
@@ -2065,6 +2076,7 @@ interface CredentialControlProps {
   embedded?: boolean
   divided?: boolean
   secretValue?: string
+  disabled?: boolean
   onSecretValueChange?: (value: string) => void
   onSaved?: () => void
   onConnected?: () => void
@@ -2084,7 +2096,7 @@ function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
   const describedByName = useMemo(() => {
     const entries = new Map<string, string>()
     for (const item of items) {
-      if (item.type !== 'secret_input' || item.scope === 'personal') continue
+      if (item.type !== 'secret_input' || (item.scope && item.scope !== 'workspace')) continue
       const name = item.name?.trim()
       const description = item.description?.trim()
       if (name && description) entries.set(name, description)
@@ -2130,7 +2142,8 @@ function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
 function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
   const workspaceId = useCredentialWorkspaceId()
   const secretName = (data.name ?? '').trim()
-  const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
+  const scope = data.scope ?? 'workspace'
+  const organizationSecretInput = useOrganizationSecretInput()
 
   const [value, setValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
@@ -2138,16 +2151,18 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
 
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const personalQuery = usePersonalEnvironment()
+  const personalQuery = usePersonalEnvironment({ enabled: scope === 'personal' })
   const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
   const attachDescriptions = useWorkspaceSecretDescriptions(useMemo(() => [data], [data]))
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
-  const canManage = scope === 'personal' || canEdit
+  const canManage =
+    scope === 'organization' ? Boolean(organizationSecretInput) : scope === 'personal' || canEdit
 
-  const isSaving = upsertWorkspace.isPending || savePersonal.isPending
+  const isSaving =
+    upsertWorkspace.isPending || savePersonal.isPending || organizationSecretInput?.isSaving
   // Personal saves replace the whole map, so block until existing vars are loaded.
   const personalReady = scope !== 'personal' || personalEnv !== undefined
   const canSave =
@@ -2156,7 +2171,10 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
   const handleSave = async () => {
     if (!canSave) return
     try {
-      if (scope === 'personal') {
+      if (scope === 'organization') {
+        if (!organizationSecretInput) return
+        await organizationSecretInput.save({ [secretName]: value })
+      } else if (scope === 'personal') {
         // The personal POST replaces the whole map, so re-read the latest vars
         // right before merging — a stale snapshot would drop keys saved elsewhere.
         const { data: latest } = await personalQuery.refetch()
@@ -2189,6 +2207,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
       divided={divided}
       type='text'
       value={isFocused ? value : '•'.repeat(value.length)}
+      disabled={isSaving}
       placeholder={`Paste ${secretName}`}
       autoComplete='off'
       aria-label={secretName}
@@ -2236,6 +2255,7 @@ interface CredentialSecretInputRowProps {
   name: string
   value: string
   divided?: boolean
+  disabled?: boolean
   onChange: (value: string) => void
 }
 
@@ -2244,6 +2264,7 @@ function CredentialSecretInputRow({
   name,
   value,
   divided = false,
+  disabled = false,
   onChange,
 }: CredentialSecretInputRowProps) {
   const [isFocused, setIsFocused] = useState(false)
@@ -2251,6 +2272,7 @@ function CredentialSecretInputRow({
   return (
     <InteractionCardInputRow
       divided={divided}
+      disabled={disabled}
       type='text'
       value={isFocused ? value : '•'.repeat(value.length)}
       placeholder={`Paste ${name}`}
@@ -2732,7 +2754,8 @@ function isCredentialCardItemVisible(
       (item.provider?.trim().toLowerCase() !== 'gitlab' || canEdit)
     )
   if (item.type === 'sim_key') return false
-  if (item.type === 'secret_input') return item.scope === 'personal' || canEdit
+  if (item.type === 'secret_input')
+    return item.scope === 'personal' || item.scope === 'organization' || canEdit
   if (item.type === 'link') {
     return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
   }
@@ -2759,6 +2782,7 @@ function CredentialItemDisplay({
   embedded = false,
   divided = false,
   secretValue,
+  disabled,
   onSecretValueChange,
   onSaved,
   onConnected,
@@ -2782,6 +2806,7 @@ function CredentialItemDisplay({
           name={secretName}
           value={secretValue ?? ''}
           divided={divided}
+          disabled={disabled}
           onChange={onSecretValueChange}
         />
       )
@@ -2885,7 +2910,12 @@ function CredentialInputCard({
   const { canEdit } = useUserPermissionsContext()
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const personalQuery = usePersonalEnvironment({ enabled: requestMode !== 'assistant' })
+  const organizationSecretInput = useOrganizationSecretInput()
+  const personalQuery = usePersonalEnvironment({
+    enabled:
+      requestMode !== 'assistant' &&
+      data.some((item) => item.type === 'secret_input' && item.scope === 'personal'),
+  })
   const attachDescriptions = useWorkspaceSecretDescriptions(requestMode === 'assistant' ? [] : data)
   const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
   const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
@@ -3004,11 +3034,25 @@ function CredentialInputCard({
       />
     )),
     ...secretRows.map(({ item, dataIndex, secretIndex }, index) => {
+      if (secretIndex !== undefined && savedSecretRows.has(secretIndex))
+        return (
+          <div
+            key={`saved-${dataIndex}`}
+            className={cn(
+              INTERACTION_CARD_ROW_CLASSES,
+              (integrationRows.length > 0 || index > 0) && 'border-t'
+            )}
+          >
+            <span className='flex-1 text-sm'>{item.name}</span>
+            <span className='text-[var(--text-muted)] text-sm'>Added</span>
+          </div>
+        )
       return (
         <CredentialItemDisplay
           key={`${item.type}-${item.name ?? dataIndex}-${dataIndex}`}
           data={item}
           embedded
+          disabled={isSubmitting}
           divided={integrationRows.length > 0 || index > 0}
           secretValue={
             item.type === 'secret_input' ? (secretDrafts[secretIndex ?? -1] ?? '') : undefined
@@ -3032,47 +3076,80 @@ function CredentialInputCard({
 
     const workspaceVariables: Record<string, string> = {}
     const personalVariables: Record<string, string> = {}
-    const enteredSecretIndexes: number[] = []
+    const organizationVariables: Record<string, string> = {}
 
     for (const { item, secretIndex } of secretRows) {
       if (secretIndex === undefined) continue
       const name = item.name?.trim()
       const value = secretDrafts[secretIndex] ?? ''
       if (!name || value.trim().length === 0) continue
-      const target = item.scope === 'personal' ? personalVariables : workspaceVariables
+      const target =
+        item.scope === 'organization'
+          ? organizationVariables
+          : item.scope === 'personal'
+            ? personalVariables
+            : workspaceVariables
       target[name] = value
-      enteredSecretIndexes.push(secretIndex)
     }
-
-    try {
-      const saves: Promise<unknown>[] = []
-      if (Object.keys(workspaceVariables).length > 0) {
-        saves.push(upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables }))
-      }
-      if (Object.keys(personalVariables).length > 0) {
-        saves.push(
-          (async () => {
-            const { data: latest } = await personalQuery.refetch()
-            const merged: Record<string, string> = {}
-            for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
-              merged[key] = entry.value
-            }
-            Object.assign(merged, personalVariables)
-            await savePersonal.mutateAsync({ variables: merged })
-          })()
-        )
-      }
-      await Promise.all(saves)
-    } catch {
-      toast.error(`Couldn't save secrets. Please try again.`)
-      return false
-    }
-
-    await attachDescriptions(Object.keys(workspaceVariables))
 
     const nextSavedSecretRows = new Set(savedSecretRows)
-    for (const index of enteredSecretIndexes) nextSavedSecretRows.add(index)
+    const saveGroup = async (
+      scope: SecretInputScope,
+      variables: Record<string, string>,
+      save: () => Promise<unknown>
+    ) => {
+      await save()
+      for (const { item, secretIndex } of secretRows) {
+        if (
+          secretIndex !== undefined &&
+          (item.scope ?? 'workspace') === scope &&
+          Object.hasOwn(variables, item.name?.trim() ?? '')
+        )
+          nextSavedSecretRows.add(secretIndex)
+      }
+      if (scope === 'workspace') await attachDescriptions(Object.keys(variables))
+    }
+
+    const saves: Promise<unknown>[] = []
+    if (Object.keys(organizationVariables).length > 0) {
+      if (!organizationSecretInput) return false
+      saves.push(
+        saveGroup('organization', organizationVariables, () =>
+          organizationSecretInput.save(organizationVariables)
+        )
+      )
+    }
+    if (Object.keys(workspaceVariables).length > 0) {
+      saves.push(
+        saveGroup('workspace', workspaceVariables, () =>
+          upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables })
+        )
+      )
+    }
+    if (Object.keys(personalVariables).length > 0) {
+      saves.push(
+        saveGroup('personal', personalVariables, async () => {
+          const { data: latest } = await personalQuery.refetch()
+          const merged: Record<string, string> = {}
+          for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
+            merged[key] = entry.value
+          }
+          Object.assign(merged, personalVariables)
+          await savePersonal.mutateAsync({ variables: merged })
+        })
+      )
+    }
+    const results = await Promise.allSettled(saves)
     setSavedSecretRows(nextSavedSecretRows)
+    setSecretDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([index]) => !nextSavedSecretRows.has(Number(index)))
+      )
+    )
+    if (results.some((result) => result.status === 'rejected')) {
+      toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
+      return false
+    }
 
     onContinue(
       formatCredentialSubmissionMessage(data, {
@@ -3149,12 +3226,24 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     workspaceId?: string
   }>()
   if (props.requestMode === 'assistant') return <CredentialDisplayContent {...props} />
+  const organizationSecrets = props.data.filter(
+    (item) => item.type === 'secret_input' && item.scope === 'organization'
+  )
+  if (
+    organizationSecrets.length > 0 &&
+    (!organizationId || organizationSecrets.some((item) => item.workspaceId))
+  )
+    return (
+      <p role='status'>
+        Organization Generic Secrets require an organization conversation and no workspace target.
+      </p>
+    )
   const targeted = props.data.filter(
     (item) =>
       item.type === 'link' ||
       item.type === 'service_account' ||
       item.type === 'sim_key' ||
-      (item.type === 'secret_input' && item.scope !== 'personal')
+      (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
   )
   const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
   const target = targets.values().next().value
@@ -3175,14 +3264,22 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     (!organizationId && target && target !== workspaceId)
   if (invalid)
     return <p role='status'>This credential request needs one explicit workspace target.</p>
+  const content =
+    organizationSecrets.length > 0 && !props.submitted && !props.abandoned ? (
+      <OrganizationSecretInputHost organizationId={organizationId ?? ''}>
+        <CredentialDisplayContent {...props} />
+      </OrganizationSecretInputHost>
+    ) : (
+      <CredentialDisplayContent {...props} />
+    )
   if (organizationId && target) {
     return (
       <CredentialWorkspaceHost key={target} workspaceId={target} organizationId={organizationId}>
-        <CredentialDisplayContent {...props} />
+        {content}
       </CredentialWorkspaceHost>
     )
   }
-  return <CredentialDisplayContent {...props} />
+  return content
 }
 
 function CredentialDisplayContent({

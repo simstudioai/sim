@@ -3,8 +3,9 @@
  * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
 import { act, type ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/workspace-usage', () => ({
   useWorkspaceUsageGate: () => ({ isSuccess: false, data: undefined }),
@@ -106,6 +107,7 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 }))
 
 import { toast } from '@sim/emcn'
+import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import {
   createOAuthChatAttempt,
   setOAuthChatAttemptStatus,
@@ -115,6 +117,7 @@ import {
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
 
 /**
  * Minimal dependency-free render harness (the repo has no `@testing-library/react`). Mounts the
@@ -158,6 +161,292 @@ describe('CredentialDisplay link tag', () => {
       refetch: mockRefetchWorkspaceCredentials,
     })
     mockIsBrowserAgentAvailable.mockReturnValue(false)
+  })
+
+  describe('organization Generic Secrets', () => {
+    const secret: CredentialItemData = {
+      type: 'secret_input',
+      name: 'SERVICE_API_KEY',
+      scope: 'organization',
+    }
+    let queryClient: QueryClient
+    let root: Root
+    let container: HTMLDivElement
+    let onContinue: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      mockParams.mockReturnValue({ organizationId: 'org' } as never)
+      mockOrganizationContext.mockReturnValue({
+        organization: { id: 'org', name: 'Example' },
+        viewer: { isAdmin: true },
+      } as never)
+      mockUseUserPermissionsContext.mockReturnValue({ canEdit: false })
+      queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      })
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      onContinue = vi.fn()
+      vi.spyOn(toast, 'error').mockImplementation(() => 'toast-id')
+      vi.spyOn(toast, 'success').mockImplementation(() => 'toast-id')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }))
+      )
+    })
+
+    afterEach(() => {
+      act(() => root.unmount())
+      queryClient.clear()
+      container.remove()
+    })
+
+    function render(
+      data: CredentialItemData[] = [secret],
+      mode: 'agent' | 'assistant' | 'plan' = 'plan'
+    ) {
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <SpecialTags
+              segment={{ type: 'credential', data }}
+              requestMode={mode}
+              onOptionSelect={onContinue}
+            />
+          </QueryClientProvider>
+        )
+      )
+    }
+
+    function setSource(source: GenericSecretSource | null) {
+      queryClient.setQueryData(organizationSecretKeys.source('org'), { source })
+    }
+
+    function enter(name = 'SERVICE_API_KEY', value = 'typed-only-into-form') {
+      const input = container.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`)!
+      expect(input).not.toBeNull()
+      act(() => input.focus())
+      act(() => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(
+          input,
+          value
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+
+    async function submit() {
+      await act(async () => {
+        Array.from(container.querySelectorAll('button'))
+          .find((button) => button.textContent === 'Submit')
+          ?.click()
+      })
+    }
+
+    it.each(['organization', 'member'] as const)(
+      'saves %s source values through the existing authenticated PATCH without reading values',
+      async (mode) => {
+        setSource({ id: 'source', mode })
+        mockOrganizationContext.mockReturnValue({
+          organization: { id: 'org', name: 'Example' },
+          viewer: { isAdmin: mode === 'organization' },
+        } as never)
+        render([{ ...secret, description: 'Only for this organization' }])
+        expect(container.textContent).toContain(
+          mode === 'organization' ? 'shared with Example' : 'private to you in this organization'
+        )
+        enter()
+        await submit()
+        expect(fetch).toHaveBeenCalledExactlyOnceWith(
+          '/api/organizations/org/secret-source/secrets',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({
+              upsert: { SERVICE_API_KEY: 'typed-only-into-form' },
+              remove: [],
+              sourceId: 'source',
+              mode,
+            }),
+          })
+        )
+        expect(mockCredentialHost).not.toHaveBeenCalled()
+        expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+        expect(mockSavePersonalEnvironment).not.toHaveBeenCalled()
+        expect(mockUpdateWorkspaceCredential).not.toHaveBeenCalled()
+        expect(onContinue).toHaveBeenCalledWith(
+          'Credential setup submitted — {"integrations":[],"secrets":[{"name":"SERVICE_API_KEY","status":"saved"}]}'
+        )
+        expect(container.querySelector('input')).toBeNull()
+        expect(container.textContent).not.toContain('typed-only-into-form')
+      }
+    )
+
+    it('loads only source metadata before showing an input', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ source: { id: 'source', mode: 'organization' } }), {
+          status: 200,
+        })
+      )
+      render()
+      expect(container.textContent).toContain('Loading Generic Secrets')
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: organizationSecretKeys.source('org') })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(fetch).toHaveBeenCalledExactlyOnceWith(
+        '/api/organizations/org/secret-source',
+        expect.objectContaining({ method: 'GET', signal: expect.any(AbortSignal) })
+      )
+      expect(container.querySelector('input')).not.toBeNull()
+    })
+
+    it.each(['member', 'missing'] as const)(
+      'blocks shared setup for %s access without falling back to workspace secrets',
+      (access) => {
+        setSource(access === 'missing' ? null : { id: 'source', mode: 'organization' })
+        mockOrganizationContext.mockReturnValue({
+          organization: { id: 'org', name: 'Example' },
+          viewer: { isAdmin: false },
+        } as never)
+        render()
+        expect(container.textContent).toContain('Ask an organization admin')
+        expect(container.querySelector('input')).toBeNull()
+        expect(fetch).not.toHaveBeenCalled()
+        expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+      }
+    )
+
+    it('links an admin to source setup rather than creating or configuring it', () => {
+      setSource(null)
+      render()
+      expect(container.querySelector('a')?.getAttribute('href')).toBe(
+        '/o/org/settings/integrations'
+      )
+      expect(container.querySelector('input')).toBeNull()
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('never renders organization inputs in Search mode or a workspace conversation', () => {
+      setSource({ id: 'source', mode: 'organization' })
+      render([secret], 'assistant')
+      expect(container.querySelector('input')).toBeNull()
+      mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
+      render()
+      expect(container.textContent).toContain('require an organization conversation')
+      expect(container.querySelector('input')).toBeNull()
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('clears typed values if the configured source changes while the card is open', async () => {
+      setSource({ id: 'source', mode: 'member' })
+      render()
+      enter()
+      await act(async () => {
+        setSource({ id: 'replacement-source', mode: 'organization' })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(container.textContent).toContain('shared with Example')
+      expect(container.querySelector('input')?.value).toBe('')
+      await submit()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(onContinue.mock.calls[0][0]).toContain('"status":"skipped"')
+    })
+
+    it.each([403, 409])(
+      'does not claim success or fall back after a %s refusal',
+      async (status) => {
+        setSource({ id: 'source', mode: 'member' })
+        vi.mocked(fetch).mockResolvedValueOnce(
+          new Response(JSON.stringify({ error: 'Access or configuration changed' }), { status })
+        )
+        if (status === 409)
+          vi.mocked(fetch).mockResolvedValueOnce(
+            new Response(JSON.stringify({ source: { id: 'new-source', mode: 'organization' } }), {
+              status: 200,
+            })
+          )
+        render()
+        enter()
+        await submit()
+        expect(onContinue).not.toHaveBeenCalled()
+        expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+        expect(mockSavePersonalEnvironment).not.toHaveBeenCalled()
+        const patches = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')
+        expect(patches).toHaveLength(1)
+        expect(JSON.parse(String(patches[0][1]?.body))).toMatchObject({
+          sourceId: 'source',
+          mode: 'member',
+        })
+        if (status === 409) expect(container.querySelector('input')?.value).toBe('')
+      }
+    )
+
+    it('saves an organization input in a card containing standalone actions', async () => {
+      setSource({ id: 'source', mode: 'organization' })
+      render([secret, { type: 'browser_takeover', name: 'Finish sign-in' }])
+      enter()
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('button[aria-label="Save"]')?.click()
+      )
+      expect(fetch).toHaveBeenCalledOnce()
+      expect(container.querySelector('input')).toBeNull()
+      expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+    })
+
+    it('keeps mixed organization and workspace saves in their explicit stores', async () => {
+      setSource({ id: 'source', mode: 'organization' })
+      mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+      render([
+        secret,
+        {
+          type: 'secret_input',
+          name: 'WORKSPACE_KEY',
+          scope: 'workspace',
+          workspaceId: 'target-workspace',
+        },
+      ])
+      enter()
+      enter('WORKSPACE_KEY', 'workspace-only')
+      await submit()
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).upsert).toEqual({
+        SERVICE_API_KEY: 'typed-only-into-form',
+      })
+      expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledWith({
+        workspaceId: 'target-workspace',
+        variables: { WORKSPACE_KEY: 'workspace-only' },
+      })
+      expect(onContinue.mock.calls[0][0]).not.toContain('typed-only-into-form')
+      expect(onContinue.mock.calls[0][0]).not.toContain('workspace-only')
+    })
+
+    it('clears successful drafts and retries only failed stores in a mixed card', async () => {
+      setSource({ id: 'source', mode: 'organization' })
+      mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+      mockUpsertWorkspaceEnvironment.mockRejectedValueOnce(new Error('Workspace save failed'))
+      render([
+        secret,
+        {
+          type: 'secret_input',
+          name: 'WORKSPACE_KEY',
+          scope: 'workspace',
+          workspaceId: 'target-workspace',
+        },
+      ])
+      enter()
+      enter('WORKSPACE_KEY', 'workspace-only')
+      await submit()
+      expect(onContinue).not.toHaveBeenCalled()
+      expect(container.querySelector('input[aria-label="SERVICE_API_KEY"]')).toBeNull()
+      expect(container.querySelector('input[aria-label="WORKSPACE_KEY"]')).not.toBeNull()
+      expect(container.textContent).toContain('Added')
+      await submit()
+      expect(fetch).toHaveBeenCalledOnce()
+      expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledTimes(2)
+      expect(onContinue).toHaveBeenCalledWith(
+        'Credential setup submitted — {"integrations":[],"secrets":[{"name":"SERVICE_API_KEY","status":"saved"},{"name":"WORKSPACE_KEY","status":"saved"}]}'
+      )
+    })
   })
 
   it('saves an organization credential into its explicit authorized workspace', async () => {
