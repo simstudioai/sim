@@ -3,7 +3,6 @@ import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { DbOrTx } from '@/lib/db/types'
-import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import {
   type ConnectorAccessMode,
   effectiveConnectorSyncIntervalMinutes,
@@ -46,6 +45,7 @@ import {
   resolveReconciliationDeleteCap,
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -347,28 +347,6 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     holdNotice,
     hydratedCount,
   }
-}
-
-/**
- * Whether readers can still see any of this connector's documents granted to one user. The user
- * token is read through `doc_acl_gin_idx` alone behind an `OFFSET 0` fence, so the probe is bounded
- * by that user's grants instead of walking the connector's documents.
- */
-async function hasVisibleUserDocuments(connectorId: string, email: string): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT 1 FROM (
-      SELECT ${document.connectorId}, ${document.userExcluded}, ${document.archivedAt}, ${document.aclVerifiedAt}
-      FROM ${document}
-      WHERE ${document.deletedAt} IS NULL AND ${document.acl} && ARRAY[${`u:${email}`}]::text[]
-      OFFSET 0
-    ) AS ${document}
-    WHERE ${document.connectorId} = ${connectorId}
-      AND ${document.userExcluded} = false
-      AND ${document.archivedAt} IS NULL
-      AND ${document.aclVerifiedAt} > statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')
-    LIMIT 1
-  `)
-  return rows.length > 0
 }
 
 /** Reconciles absence only after EOF, with bounded queries and the existing deletion guards. */

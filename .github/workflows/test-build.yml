@@ -271,6 +271,7 @@ jobs:
           lib/knowledge/__integration__/connector-deferral.integration.ts
           lib/knowledge/__integration__/stored-document-recovery.integration.ts
           lib/knowledge/__integration__/connector-partition-work.integration.ts
+          lib/knowledge/__integration__/user-document-visibility.integration.ts
           lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/member-scope-renewal.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
