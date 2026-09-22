@@ -43,10 +43,10 @@ export function ErrorShell({ title, description, icon, children }: ErrorShellPro
           </div>
         </div>
         <div className='flex flex-col items-center gap-2'>
-          <h2 className='text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+          <h2 className='text-balance font-season text-2xl text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-title'>
             {title}
           </h2>
-          <p className='max-w-[340px] text-[14px] text-[var(--text-tertiary)] leading-[1.55]'>
+          <p className='max-w-[340px] text-[var(--text-tertiary)] text-sm leading-[1.55]'>
             {description}
           </p>
         </div>

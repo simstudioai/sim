@@ -192,7 +192,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex w-full max-w-[960px] flex-col gap-7 pt-6 pb-3'>
           <div className='flex flex-col items-center gap-4'>
-            <h1 className='text-balance text-center font-season text-[30px] text-[var(--text-primary)]'>
+            <h1 className='text-balance text-center font-season text-[var(--text-primary)] text-title'>
               {header}
             </h1>
             {state.showUpgradePlans && (

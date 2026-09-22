@@ -96,7 +96,7 @@ export function CliAuthView() {
       <div className='space-y-4'>
         <div className='flex items-center justify-center rounded-[10px] border border-[var(--border-1)] py-5'>
           {/* `pl` offsets the trailing letter-space `tracking` adds after the last glyph, which would otherwise pull the code left of optical center. */}
-          <code className='pl-[0.2em] font-mono text-[28px] text-[var(--text-primary)] leading-none tracking-[0.2em]'>
+          <code className='pl-[0.2em] font-mono text-[var(--text-primary)] text-title leading-none tracking-[0.2em]'>
             {request.pairing}
           </code>
         </div>

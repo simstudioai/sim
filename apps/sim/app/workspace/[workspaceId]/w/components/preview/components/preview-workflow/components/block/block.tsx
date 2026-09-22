@@ -518,7 +518,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <OverflowText
             label={humanizeBlockName(canvasPresentation.title)}
-            className={!enabled ? 'text-[17px] text-[var(--text-muted)]' : 'text-[17px]'}
+            className={!enabled ? 'text-[var(--text-muted)] text-md' : 'text-md'}
           />
         </div>
         {!isNoteBlock && (

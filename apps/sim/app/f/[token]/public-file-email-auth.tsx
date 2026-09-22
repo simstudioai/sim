@@ -188,7 +188,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           </p>
         </div>
 
-        <div className='text-center font-light text-sm'>
+        <div className='text-center font-normal text-sm'>
           <button
             onClick={() => {
               setSent(false)

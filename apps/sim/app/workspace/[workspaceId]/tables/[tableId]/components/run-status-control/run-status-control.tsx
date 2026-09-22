@@ -38,12 +38,7 @@ export const RunStatusControl = memo(function RunStatusControl({
           </>
         )}
       </div>
-      <Button
-        variant='subtle'
-        className='py-1 text-caption'
-        onClick={onStopAll}
-        disabled={isStopping}
-      >
+      <Button variant='subtle' className='py-1' onClick={onStopAll} disabled={isStopping}>
         <Square className='mr-1.5 size-[14px]' />
         {isStopping ? 'Stopping…' : 'Stop all'}
       </Button>

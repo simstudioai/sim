@@ -64,7 +64,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant='subtle' className='py-1 text-caption'>
+        <Button variant='subtle' className='py-1'>
           {/* Aggregate state, mirroring the row iconography: spinner while anything runs, then
               alert if any job failed, else a check. */}
           {anyRunning ? (

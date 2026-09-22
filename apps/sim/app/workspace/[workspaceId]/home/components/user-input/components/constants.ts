@@ -64,7 +64,7 @@ export interface PlusMenuHandle {
  */
 const FIELD_MIRROR_CLASSES = cn(
   'm-0 box-border min-h-[24px] w-full [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1 font-body text-[14px] leading-[24px] tracking-[-0.015em]'
+  'px-1 py-1 font-body text-sm leading-[24px] tracking-[-0.015em]'
 )
 
 /**

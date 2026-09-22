@@ -100,7 +100,7 @@ export function Composer({
           placeholder={placeholder}
           aria-label='Ask Sim'
           rows={1}
-          className='field-sizing-content m-0 box-border min-h-[24px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[14px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] outline-hidden [overflow-wrap:anywhere] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='field-sizing-content m-0 box-border min-h-[24px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--text-primary)] text-sm leading-[24px] tracking-[-0.015em] outline-hidden [overflow-wrap:anywhere] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
         />
       </div>
 

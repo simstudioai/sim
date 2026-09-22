@@ -237,7 +237,7 @@ function SSOFormContent({
 
       {emailEnabled && (
         <>
-          <div className='relative my-6 font-light'>
+          <div className='relative my-6 font-normal'>
             <div className='absolute inset-0 flex items-center'>
               <div className='w-full border-[var(--border)] border-t' />
             </div>
@@ -259,7 +259,7 @@ function SSOFormContent({
       )}
 
       {emailEnabled && !registrationDisabled && (
-        <div className='pt-6 text-center font-light text-base'>
+        <div className='pt-6 text-center font-normal text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}

@@ -141,8 +141,8 @@ describe('document-table chrome is shared with markdown tables', () => {
     const { th, td } = mountTable('document-table')
 
     expect(getComputedStyle(td).getPropertyValue('padding-left')).toBe('0.75rem')
-    expect(getComputedStyle(td).getPropertyValue('font-size')).toBe('14px')
-    expect(getComputedStyle(th).getPropertyValue('font-weight')).toBe('600')
+    expect(getComputedStyle(td).getPropertyValue('font-size')).toBe('var(--text-sm)')
+    expect(getComputedStyle(th).getPropertyValue('font-weight')).toBe('var(--font-weight-semibold)')
   })
 
   it('one rule draws the cell border for both roots', () => {

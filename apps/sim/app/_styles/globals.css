@@ -71,6 +71,7 @@
     "Noto Color Emoji";
 
   --font-season: var(--font-season);
+  --font-inter: var(--font-inter);
   --font-body:
     ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial,
     sans-serif, Segoe UI Emoji, Segoe UI Symbol;
@@ -90,6 +91,10 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
   --text-micro: 10px;
   /**
    * `xs` is the one size here that also exists in Tailwind's own scale, so it
@@ -101,8 +106,18 @@
   --text-xs--line-height: 1.5;
   --text-caption: 12px;
   --text-small: 13px;
+  /** Adopt the imported scale without changing its rem units or default leading. */
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
   --text-base: 15px;
   --text-md: 16px;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: calc(2 / 1.5);
+  --text-title: 28px;
+  --text-title-lg: 32px;
+  --text-display: 40px;
 
   /**
    * Hairline scale key. Overriding `spacing` rather than `width`/`height` keeps
