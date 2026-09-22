@@ -36,7 +36,7 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
-import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { refreshOAuthToken, TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import {
@@ -872,18 +872,50 @@ function isOAuthAccessTokenExpiring(
 }
 
 /**
- * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
- * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
- * a follower of one refresh, so the TTL covers the provider call plus generous
- * headroom for the surrounding DB reads and the fan-out write, and followers
- * poll for the lock's full lifetime so a slow-but-successful refresh is still
- * observed rather than reported as a failure. These budgets are latency knobs,
- * not correctness guarantees — chain integrity under lock expiry or unlocked
- * concurrent writers is enforced by the version-guarded fan-out
- * (`ifChainUnchangedSince` in lib/oauth/slack.ts).
+ * Lock budgets sized past the provider call: the lease covers
+ * {@link TOKEN_REFRESH_TIMEOUT_MS} plus headroom for the account read before it and
+ * the rotated write after it, so a leader still talking to a slow provider keeps its
+ * lease instead of letting a second leader start a competing rotation; and followers
+ * poll for the lease's full lifetime, so a slow-but-successful refresh is observed
+ * rather than reported as a failure. Both are latency knobs, not correctness
+ * guarantees: a lease is only ever a lease, and chain integrity under lock expiry or
+ * an unlocked writer is enforced at the write, which rotates a chain only from the
+ * refresh token it started from (`ifChainUnchangedSince` for a Slack installation).
  */
-const SLACK_LOCK_TTL_SEC = 30
-const SLACK_FOLLOWER_MAX_WAIT_MS = SLACK_LOCK_TTL_SEC * 1000
+const REFRESH_LOCK_HEADROOM_MS = 15_000
+const REFRESH_LOCK_TTL_SEC = Math.ceil((TOKEN_REFRESH_TIMEOUT_MS + REFRESH_LOCK_HEADROOM_MS) / 1000)
+const REFRESH_FOLLOWER_MAX_WAIT_MS = REFRESH_LOCK_TTL_SEC * 1000
+
+interface StoredChain {
+  accessToken: string | null
+  accessTokenExpiresAt: Date | null
+  refreshToken: string | null
+}
+
+/** The chain an account row holds now, or nothing when the account is gone. */
+async function readStoredChain(accountId: string): Promise<StoredChain | undefined> {
+  const [stored] = await db
+    .select({
+      accessToken: account.accessToken,
+      accessTokenExpiresAt: account.accessTokenExpiresAt,
+      refreshToken: account.refreshToken,
+    })
+    .from(account)
+    .where(eq(account.id, accountId))
+    .limit(1)
+  return stored
+}
+
+/**
+ * The stored access token when it can still serve a request, as a follower would take it: a
+ * chain another writer just rotated carries one, and a token that has already expired is no
+ * answer at all.
+ */
+function usableStoredToken(stored: StoredChain, providerId: string): string | null {
+  return stored.accessToken && !isOAuthAccessTokenExpiring(stored.accessTokenExpiresAt, providerId)
+    ? stored.accessToken
+    : null
+}
 
 async function performCoalescedRefresh({
   accountId,
@@ -926,11 +958,8 @@ async function performCoalescedRefresh({
   const refreshPromise = coalesceLocally(lockKey, () =>
     withLeaderLock<string>({
       key: lockKey,
-      // Installation-keyed Slack locks gather followers from every sibling row,
-      // so their wait and the lock TTL must outlast the 15s provider timeout —
-      // the 3s/10s defaults would fail followers early and let a second leader
-      // start a concurrent rotation mid-refresh.
-      ...(slackTeamId ? { maxWaitMs: SLACK_FOLLOWER_MAX_WAIT_MS, ttlSec: SLACK_LOCK_TTL_SEC } : {}),
+      ttlSec: REFRESH_LOCK_TTL_SEC,
+      maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
       onLeader: async () => {
         try {
           let refreshTokenToUse = refreshToken
@@ -981,18 +1010,25 @@ async function performCoalescedRefresh({
               message: result.message,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
-              // A refresh that lost a race with a concurrent connect fails with
-              // a revoked/rotated-out token even though the installation just
-              // got a live chain — dead-flagging then would take down a healthy
-              // credential for an hour.
+              // A refresh that lost a race with a concurrent connect or a newer
+              // rotation fails with a revoked/rotated-out token even though the
+              // account just got a live chain — dead-flagging then would take
+              // down a healthy credential for an hour.
               if (
                 slackChainVersion &&
                 (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
               ) {
                 logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
-              } else {
-                await markCredentialDead(scopeKey, result.errorCode)
+                return null
               }
+              if (!slackTeamId) {
+                const stored = await readStoredChain(accountId)
+                if (stored && stored.refreshToken !== refreshToken) {
+                  logger.info('Skipping dead flag: chain moved during refresh', logContext)
+                  return usableStoredToken(stored, providerId)
+                }
+              }
+              await markCredentialDead(scopeKey, result.errorCode)
             }
             return null
           }
@@ -1027,7 +1063,33 @@ async function performCoalescedRefresh({
               )
             }
 
-            await db.update(account).set(updateData).where(eq(account.id, accountId))
+            /**
+             * The chain is rotated only from the refresh token this refresh started from.
+             * A lease is not mutual exclusion: it can expire under a slow provider or a
+             * paused process while the leader is still running, and an unconditional
+             * write would then let this refresh overwrite a newer rotation with a chain
+             * the provider has already retired, which the next refresh pays for as
+             * `invalid_grant` and, under reuse detection, as a revoked grant. When no row
+             * matches, another writer rotated first: its chain is the live one, so this
+             * caller uses what is stored and never retries the provider.
+             */
+            const rotated = await db
+              .update(account)
+              .set(updateData)
+              .where(and(eq(account.id, accountId), eq(account.refreshToken, refreshToken)))
+              .returning({ id: account.id })
+            if (rotated.length === 0) {
+              const stored = await readStoredChain(accountId)
+              if (!stored) {
+                logger.warn('Rotation write found no account; the credential is gone', logContext)
+                return null
+              }
+              logger.warn(
+                'Rotation write lost to a newer chain; using the stored token',
+                logContext
+              )
+              return usableStoredToken(stored, providerId)
+            }
           }
 
           logger.info('Successfully refreshed access token', logContext)
