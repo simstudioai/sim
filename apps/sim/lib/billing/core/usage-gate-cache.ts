@@ -21,6 +21,19 @@ import { coalesceLocally } from '@/lib/concurrency/singleflight'
 export const USAGE_GATE_TTL_MS = 5 * 60 * 1000
 
 /**
+ * How long a coalesced ledger read may take before its callers give up on it. The read sums a
+ * payer's ledger for the billing period, which for a large organization is millions of rows and,
+ * from a cold cache or under heavy I/O, takes longer than the singleflight default of 30 s. That
+ * default exists to bound a hung producer, and a slow read is not a hung one: the database bounds
+ * every statement with its own timeout, after which the read fails on its own and the failure is
+ * reported rather than cached. The deadline therefore sits above any statement ceiling the
+ * deployment applies, so only a connection that never answers is given up on. A shorter deadline
+ * fails the callers while the read is still running, and the next caller starts a second read
+ * of the same ledger alongside it.
+ */
+export const USAGE_GATE_SETTLE_TIMEOUT_MS = 120_000
+
+/**
  * Recent gate answers, admitted and refused, with `LRUCache` supplying the TTL
  * and the size bound. Each entry point decides which of them it may serve.
  */
@@ -62,9 +75,9 @@ function gateKey(attribution: BillingAttributionSnapshot): string {
  * the cache. A read that throws writes nothing.
  *
  * `coalesceLocally` collapses concurrent misses onto one ledger read and bounds
- * a hung read at its settle deadline. The write stays on the value this caller
- * received, so a producer that timed out and later resolved cannot overwrite a
- * fresher answer.
+ * a hung read at {@link USAGE_GATE_SETTLE_TIMEOUT_MS}. The write stays on the
+ * value this caller received, so a producer that timed out and later resolved
+ * cannot overwrite a fresher answer.
  *
  * There is deliberately no invalidator: usage and limit changes land in other
  * processes (execution workers, Stripe webhooks), so the TTL is the real bound.
@@ -77,8 +90,10 @@ async function checkUsageLimitsThroughCache(
   const cached = gateCache.get(key)
   if (cached !== undefined && (cacheRefusals || !cached.isExceeded)) return cached
 
-  const result = await coalesceLocally(`usage-gate:${key}`, () =>
-    checkAttributedUsageLimits(attribution)
+  const result = await coalesceLocally(
+    `usage-gate:${key}`,
+    () => checkAttributedUsageLimits(attribution),
+    USAGE_GATE_SETTLE_TIMEOUT_MS
   )
   if (cacheRefusals || !result.isExceeded) gateCache.set(key, result)
   return result
