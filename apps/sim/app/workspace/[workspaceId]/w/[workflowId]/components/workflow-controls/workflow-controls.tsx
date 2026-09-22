@@ -5,7 +5,6 @@ import {
   Button,
   ChevronDown,
   Cursor,
-  chipHoverSurfaceClass,
   cn,
   disclosureChevronClass,
   Hand,
@@ -101,7 +100,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
          * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
          * wall, so they take the 12 directly.
          */
-        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+        className='absolute bottom-3 left-3 z-10 flex h-9 items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -118,11 +117,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                     )}
                   </CanvasControlButton>
                 </Tooltip.Trigger>
-                <Button
-                  aria-label='Change canvas mode'
-                  variant='ghost'
-                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
-                >
+                <Button aria-label='Change canvas mode' variant='quiet' size='icon'>
                   <ChevronDown
                     className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
                   />
