@@ -213,8 +213,21 @@ async function resolveBillingContext(
 }
 
 /**
+ * Bound on one ledger sum. A large payer's period covers millions of rows, and from a cold
+ * cache or under heavy I/O the sum can run for tens of seconds; past this the database ends it
+ * and the read fails, so a caller that admits on the sum fails closed rather than waiting
+ * without limit. The usage gate derives its coalescing deadline from this bound, so the sum
+ * always ends at the database before the gate gives up on it.
+ */
+export const USAGE_LEDGER_STATEMENT_TIMEOUT_MS = 60_000
+
+/**
  * Returns attributed ledger usage for a billing entity/period. The ledger is
  * the sole source of truth for usage — there is no userStats baseline.
+ *
+ * The sum runs in a transaction of its own on the given client so that it can
+ * be bounded by {@link USAGE_LEDGER_STATEMENT_TIMEOUT_MS} for that statement
+ * alone: `SET LOCAL` ends with the transaction and never reaches the pool.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -238,12 +251,17 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await executor
-    .select({
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
+  const [row] = await executor.transaction(async (tx) => {
+    await tx.execute(
+      sql.raw(`SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`)
+    )
+    return tx
+      .select({
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+  })
 
   return Number.parseFloat(row?.cost ?? '0')
 }

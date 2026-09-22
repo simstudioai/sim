@@ -4,6 +4,7 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/core/usage-log'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 
 /**
@@ -21,17 +22,15 @@ import { coalesceLocally } from '@/lib/concurrency/singleflight'
 export const USAGE_GATE_TTL_MS = 5 * 60 * 1000
 
 /**
- * How long a coalesced ledger read may take before its callers give up on it. The read sums a
- * payer's ledger for the billing period, which for a large organization is millions of rows and,
- * from a cold cache or under heavy I/O, takes longer than the singleflight default of 30 s. That
- * default exists to bound a hung producer, and a slow read is not a hung one: the database bounds
- * every statement with its own timeout, after which the read fails on its own and the failure is
- * reported rather than cached. The deadline therefore sits above any statement ceiling the
- * deployment applies, so only a connection that never answers is given up on. A shorter deadline
- * fails the callers while the read is still running, and the next caller starts a second read
- * of the same ledger alongside it.
+ * How long a coalesced usage read may take before its callers give up on it. The read's cost is
+ * the ledger sum, which the database ends at {@link USAGE_LEDGER_STATEMENT_TIMEOUT_MS}; the
+ * remainder is a few indexed lookups and the connection waits around them. The singleflight
+ * default of 30 s exists to bound a hung producer, and a slow sum is not a hung one: given up on
+ * early, it keeps running detached while every joined caller fails and the next caller starts a
+ * second sum alongside it. Derived from the statement bound so the database always ends the sum
+ * first, and the gate only gives up on a connection that never answers.
  */
-export const USAGE_GATE_SETTLE_TIMEOUT_MS = 120_000
+export const USAGE_GATE_SETTLE_TIMEOUT_MS = USAGE_LEDGER_STATEMENT_TIMEOUT_MS + 15_000
 
 /**
  * Recent gate answers, admitted and refused, with `LRUCache` supplying the TTL

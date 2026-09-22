@@ -199,6 +199,8 @@ describe('Enterprise issuance preflight', () => {
     queueTableRows(schemaMock.workspace, [])
     queueTableRows(schemaMock.workspace, [])
     queueTableRows(schemaMock.subscription, [])
+    /** The run count resolves first; the ledger sum opens its bounded transaction before it reads. */
+    queueTableRows(schemaMock.usageLog, [{ workflowRuns: 0 }])
     queueTableRows(schemaMock.usageLog, [{ cost: '150' }])
 
     const result = await getEnterpriseIssuancePreflight({

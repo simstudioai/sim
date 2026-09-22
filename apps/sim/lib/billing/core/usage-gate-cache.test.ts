@@ -183,9 +183,7 @@ describe('checkExecutionUsageLimits', () => {
   it('waits for a slow ledger read past the singleflight default instead of blocking', async () => {
     vi.useFakeTimers()
     try {
-      mockCheck.mockReturnValueOnce(
-        new Promise((resolve) => setTimeout(() => resolve({ isExceeded: false }), 45_000))
-      )
+      mockCheck.mockImplementationOnce(() => sleep(45_000).then(() => ({ isExceeded: false })))
       const pending = checkExecutionUsageLimits(ATTRIBUTION)
       await vi.advanceTimersByTimeAsync(45_000)
       await expect(pending).resolves.toEqual({ isExceeded: false })

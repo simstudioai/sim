@@ -36,6 +36,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
+  getBillingPeriodUsageCost,
   getUserUsageLogs,
   getWorkspaceUsageLogs,
   recordCumulativeUsage,
@@ -43,6 +44,7 @@ import {
   resolveCumulativeTopUp,
   UNKNOWN_CURSOR_MESSAGE,
   UnknownUsageCursorError,
+  USAGE_LEDGER_STATEMENT_TIMEOUT_MS,
 } from '@/lib/billing/core/usage-log'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -552,5 +554,37 @@ describe('usage-log query scopes', () => {
         { type: 'eq', left: 'usageLog.workspaceId', right: 'workspace-1' },
       ],
     })
+  })
+})
+
+describe('getBillingPeriodUsageCost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    installSharedDbMocks()
+  })
+
+  it('bounds the ledger sum with its own statement timeout inside one transaction', async () => {
+    const execute = vi.fn().mockResolvedValue([])
+    const where = vi.fn().mockResolvedValue([{ cost: '12.5' }])
+    const tx = { execute, select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })) }
+    mockTransaction.mockImplementation((callback: (client: typeof tx) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    const cost = await getBillingPeriodUsageCost(
+      { type: 'organization', id: 'org-1' },
+      { start: new Date('2026-05-01T00:00:00Z'), end: new Date('2027-05-01T00:00:00Z') }
+    )
+
+    expect(cost).toBe(12.5)
+    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    const executed = execute.mock.calls.map(
+      ([statement]) => (statement as { toSQL: () => { sql: string } }).toSQL().sql
+    )
+    expect(executed).toContain(
+      `SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`
+    )
+    /** The bound is set before the sum runs, not after. */
+    expect(execute.mock.invocationCallOrder[0]).toBeLessThan(where.mock.invocationCallOrder[0])
   })
 })
