@@ -6,6 +6,9 @@
 import { loadRuntimeSecrets } from '@sim/runtime-secrets'
 
 await loadRuntimeSecrets()
+// The dev build supplies the default; explicit runtime configuration wins.
+process.env.SIM_SEARCH_LIVE ??= process.env.SIM_SEARCH_LIVE_DEFAULT ?? 'false'
+process.env.NEXT_PUBLIC_SIM_SEARCH_LIVE = process.env.SIM_SEARCH_LIVE
 // `server.js` is the Next standalone build artifact, a sibling of this file in
 // the image; it does not exist at type-check time, so the specifier is held in a
 // variable to keep it out of static module resolution.

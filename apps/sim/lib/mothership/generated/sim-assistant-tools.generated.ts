@@ -3,6 +3,76 @@
 
 import { z } from 'zod'
 
+export const liveSearchProviderSchema = z.enum([
+  'google_drive',
+  'gmail',
+  'google_calendar',
+  'slack',
+  'jira',
+  'confluence',
+  'github',
+  'gitlab',
+  'coda',
+])
+export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
+
+/** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
+export const nativeSearchQuerySchema = z
+  .object({
+    provider: liveSearchProviderSchema,
+    query: z.string().trim().min(1).max(2000),
+    accountId: z.string().min(1).max(200).optional(),
+    kind: z.enum(['issues', 'code', 'repositories', 'merge_requests', 'wiki']).optional(),
+    project: z.string().min(1).max(300).optional(),
+    cursor: z.string().max(4000).optional(),
+    termClauses: z.array(z.string().max(500)).max(10).optional(),
+    modifiers: z.string().max(1000).optional(),
+    keywordOnly: z.boolean().optional(),
+  })
+  .strict()
+export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>
+
+export const nativeSearchQueriesSchema = z
+  .array(nativeSearchQuerySchema)
+  .min(1)
+  .max(9)
+  .superRefine((queries, context) => {
+    for (const [index, query] of queries.entries()) {
+      if (
+        queries
+          .slice(0, index)
+          .some(
+            (previous) =>
+              previous.provider === query.provider &&
+              (!previous.accountId || !query.accountId || previous.accountId === query.accountId)
+          )
+      )
+        context.addIssue({
+          code: 'custom',
+          path: [index],
+          message:
+            'Use one query per provider/account per call; refine in another call or combine native query clauses.',
+        })
+    }
+  })
+
+export const liveSearchAccountStatusSchema = z.object({
+  accountId: z.string(),
+  provider: liveSearchProviderSchema,
+  displayName: z.string(),
+  status: z.enum(['ok', 'partial', 'reconnect', 'rate_limited', 'unavailable', 'timeout']),
+  message: z.string().optional(),
+  nextCursor: z.string().optional(),
+  retryAfterSeconds: z.number().optional(),
+})
+export type LiveSearchAccountStatus = z.output<typeof liveSearchAccountStatusSchema>
+
+export const liveSearchCoverageSchema = z.object({
+  backend: z.literal('live'),
+  accounts: z.array(liveSearchAccountStatusSchema),
+  guidance: z.string(),
+})
+
 /** Connected-source filters are shared by composer search and Assistant retrieval. */
 export const workspaceSearchFiltersSchema = z.object({
   source: z
@@ -23,7 +93,7 @@ export const workspaceSearchFiltersSchema = z.object({
     .optional()
     .describe('ISO datetime; restricts results to documents modified before this time.'),
   documentIds: z
-    .array(z.string().min(1).max(200))
+    .array(z.string().min(1).max(4000))
     .min(1)
     .max(20)
     .optional()
@@ -33,6 +103,11 @@ export const workspaceSearchFiltersSchema = z.object({
 })
 
 export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema.extend({
+  nativeQueries: nativeSearchQueriesSchema
+    .optional()
+    .describe(
+      'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+    ),
   query: z
     .string()
     .trim()
@@ -54,7 +129,7 @@ export const readDocumentInputSchema = z.object({
   documentId: z
     .string()
     .min(1)
-    .max(200)
+    .max(4000)
     .describe('Canonical document ID returned by search or selected document context.'),
   limit: z
     .number()
@@ -198,6 +273,7 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
 export const workspaceKnowledgeSearchDataSchema = z.object({
+  live: liveSearchCoverageSchema.optional(),
   query: z.string(),
   results: z.array(workspaceKnowledgeSearchResultSchema),
   retrieval: z.object({

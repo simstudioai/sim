@@ -4,6 +4,7 @@ import {
   readDocumentInputSchema,
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
@@ -30,6 +31,7 @@ import {
 } from '@/lib/mothership/application/execute-knowledge-use-case'
 import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
@@ -52,7 +54,8 @@ export const searchWorkspaceServerTool: BaseServerTool = {
         try {
           const inputStarted = performance.now()
           const scope = requireCopilotKnowledgeScope(context)
-          const { query, topK, ...requestedFilters } = searchWorkspaceInputSchema.parse(raw)
+          const { query, topK, nativeQueries, ...requestedFilters } =
+            searchWorkspaceInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
           const projected = projectResolvedSecretModelContent(query, registry)
@@ -72,6 +75,56 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             resultSecretRegistry: registry,
             signal: context?.abortSignal,
           } as const
+          if (isLiveEnterpriseSearchEnabled) {
+            const nativeProjection = projectResolvedSecretModelContent(
+              nativeQueries ?? [],
+              registry
+            )
+            if (!nativeProjection.safe)
+              return {
+                success: false,
+                message: 'Native queries contain protected content. Rephrase them.',
+              }
+            const liveInput = {
+              ...input,
+              nativeQueries: searchWorkspaceInputSchema.shape.nativeQueries.parse(
+                nativeQueries ? nativeProjection.value : undefined
+              ),
+            }
+            const data =
+              scope.kind === 'organization'
+                ? await executeCopilotOrganizationKnowledgeUseCase(context, searchLiveKnowledge, {
+                    ...liveInput,
+                    organizationId: scope.organizationId,
+                  })
+                : await executeCopilotKnowledgeUseCase(context, searchLiveKnowledge, {
+                    ...liveInput,
+                    workspaceId: scope.workspaceId,
+                  })
+            return {
+              success: true,
+              message: `Found ${data.results.length} live results. Read documentIds for more content. ${CITATION_INSTRUCTION}`,
+              data: {
+                ...data,
+                results: data.results.map((item) => ({
+                  ...item,
+                  siteName: connectorDisplayName(item.connectorType ?? ''),
+                  ...createKnowledgeDocumentCitation({
+                    scope,
+                    knowledgeBaseId: '',
+                    documentId: item.documentId,
+                    sourceUrl: item.sourceUrl,
+                    baseUrl: getBaseUrl(),
+                  }),
+                })),
+              },
+            }
+          }
+          if (nativeQueries)
+            return {
+              success: false,
+              message: 'Provider-native queries require live search to be enabled.',
+            }
           recordSearchStageDuration('tool_input', performance.now() - inputStarted)
           const result = await measureSearchStage('tool_application', () =>
             scope.kind === 'organization'
@@ -173,6 +226,41 @@ export const readDocumentServerTool: BaseServerTool = {
           const input = readDocumentInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
+          if (isLiveEnterpriseSearchEnabled) {
+            const liveInput = {
+              ...input,
+              filters: intersectWorkspaceSearchFilters(
+                { documentIds: [input.documentId] },
+                context?.assistantSearch
+              ),
+              resultSecretRegistry: registry,
+              signal: context?.abortSignal,
+            }
+            const data =
+              scope.kind === 'organization'
+                ? await executeCopilotOrganizationKnowledgeUseCase(context, readLiveDocument, {
+                    ...liveInput,
+                    organizationId: scope.organizationId,
+                  })
+                : await executeCopilotKnowledgeUseCase(context, readLiveDocument, {
+                    ...liveInput,
+                    workspaceId: scope.workspaceId,
+                  })
+            return {
+              success: true,
+              message: CITATION_INSTRUCTION,
+              data: {
+                ...data,
+                ...createKnowledgeDocumentCitation({
+                  scope,
+                  knowledgeBaseId: '',
+                  documentId: data.documentId,
+                  sourceUrl: data.sourceUrl,
+                  baseUrl: getBaseUrl(),
+                }),
+              },
+            }
+          }
           const readInput = {
             ...input,
             ...(scope.kind === 'organization'

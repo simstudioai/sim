@@ -9,6 +9,7 @@ import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   context: vi.fn(),
   sources: vi.fn(),
   overview: vi.fn(),
@@ -29,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   connectOrganizationAccount: vi.fn(),
   reconnectOrganizationAccount: vi.fn(),
   refetchAccounts: vi.fn(),
+}))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   organizationAccountsKeys: { detail: (id: string) => ['organization-accounts', 'detail', id] },
@@ -173,6 +177,7 @@ let rows: SearchSourceSummary[]
 let queryOverrides: Record<string, unknown>
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.live = false
   vi.spyOn(toast, 'error').mockReturnValue('toast')
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.setupConnector = null
@@ -966,5 +971,58 @@ describe('grouped member integrations', () => {
     options.onConnectionError('Choose the matching account')
     expect(toast.error).toHaveBeenCalledExactlyOnceWith('Choose the matching account')
     expect(document.body.textContent).not.toContain('Choose the matching account')
+  })
+})
+
+describe('live integrations backend selection', () => {
+  it('connects through existing OAuth enrollment without loading indexed sources', async () => {
+    mocks.live = true
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          status: 'active',
+          options: [
+            { id: 'drive', provider: 'google-drive', label: 'Google Drive', status: 'active' },
+          ],
+        },
+        viewerAccounts: [],
+      },
+      isError: false,
+    })
+    await render('', <OrganizationIntegrations />)
+    expect(container.textContent).toContain('no indexing setup is needed')
+    await act(async () => buttons('Connect')[0].click())
+    expect(mocks.connectOrganizationAccount).toHaveBeenCalledWith(
+      { organizationId: scope.organizationId, optionId: 'drive' },
+      expect.any(Object)
+    )
+    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(mocks.overview).not.toHaveBeenCalled()
+    expect(mocks.integrations).not.toHaveBeenCalled()
+    expect(mocks.connectSearchSource).not.toHaveBeenCalled()
+  })
+  it('offers reconnect for an existing personal grant', async () => {
+    mocks.live = true
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          status: 'active',
+          options: [{ id: 'slack', provider: 'slack', label: 'Slack', status: 'active' }],
+        },
+        viewerAccounts: [
+          {
+            credentialId: 'my-slack',
+            optionId: 'slack',
+            displayName: 'My Slack',
+            status: 'needs_reauth',
+          },
+        ],
+      },
+      isError: false,
+    })
+    await render('', <OrganizationIntegrations />)
+    await act(async () => buttons('Reconnect')[0].click())
+    expect(mocks.reconnectOrganizationAccount).toHaveBeenCalledWith('my-slack', expect.any(Object))
+    expect(container.textContent).toContain('reconnect needed')
   })
 })

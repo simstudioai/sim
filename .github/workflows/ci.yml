@@ -221,6 +221,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}-dev
+          build-args: SIM_SEARCH_LIVE_DEFAULT=true
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Build and upload tasks alongside tests and images. The unpromoted version

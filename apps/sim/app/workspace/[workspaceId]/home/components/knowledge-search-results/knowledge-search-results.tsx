@@ -10,6 +10,7 @@ import {
   type WorkspaceSearchFilters,
 } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/auth-client'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
@@ -117,8 +118,10 @@ export function KnowledgeSearchResults({
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
   const trimmed = query.trim()
+  const { features } = useDeploymentShape()
+  const Results = features.liveEnterpriseSearch ? LiveSearchResults : SearchResults
   return (
-    <SearchResults
+    <Results
       key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}
       scope={scope}
       query={trimmed}
@@ -377,6 +380,165 @@ function SearchResults({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Live results do not mount index or sync-status queries. */
+function LiveSearchResults({
+  scope,
+  query,
+  suppliedFilters,
+  topK,
+  onSummarize,
+  onSearchChange,
+}: SearchResultsProps) {
+  const [searchedAt] = useState(() => Date.now())
+  const [params, setParams] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const filters = useMemo(
+    () => suppliedFilters ?? searchFiltersFromParams(params, searchedAt),
+    [suppliedFilters, params.source, params.updated, params.from, params.to, searchedAt]
+  )
+  const awaitingRange =
+    !suppliedFilters && params.updated === 'custom' && !(params.from && params.to)
+  const { data, isPending, isFetching, isError, refetch } = useWorkspaceKnowledgeSearch(
+    scope,
+    awaitingRange ? '' : query,
+    filters,
+    topK ?? 20
+  )
+  useEffect(() => {
+    onSearchChange?.({ scope, query, filters, ...(topK ? { topK } : {}) })
+  }, [
+    scope.kind,
+    scope.kind === 'organization' ? scope.organizationId : scope.workspaceId,
+    query,
+    filters,
+    topK,
+    onSearchChange,
+  ])
+  const documents = groupResultsByDocument(data?.results ?? [])
+  const accounts = data?.live?.accounts ?? []
+  const sources = [
+    ...new Set([
+      ...accounts.map((account) => account.provider),
+      ...(filters.source ? [filters.source] : []),
+    ]),
+  ]
+  return (
+    <div className='flex flex-col'>
+      <div className='flex items-center gap-2 px-2 py-2'>
+        {awaitingRange ? (
+          <p className='text-caption'>Choose the days to search.</p>
+        ) : isPending || isFetching ? (
+          <ActivityStatus label='Searching connected accounts…' isActive />
+        ) : (
+          <p role='status' className='text-[var(--text-muted)] text-caption'>
+            {isError
+              ? 'Search couldn’t run.'
+              : `${documents.length} results · searched live as you`}
+          </p>
+        )}
+        {isError && (
+          <Chip variant='border' onClick={() => void refetch()}>
+            Try again
+          </Chip>
+        )}
+      </div>
+      {!suppliedFilters && (
+        <div className='flex flex-wrap gap-2 px-2 py-2'>
+          <Chip variant='border' onClick={() => void setParams({ source: null })}>
+            All sources
+          </Chip>
+          {sources.map((source) => (
+            <Chip key={source} variant='border' onClick={() => void setParams({ source })}>
+              {connectorDisplayName(source)}
+            </Chip>
+          ))}
+          {UPDATED_WINDOWS.map((window) => (
+            <Chip
+              key={window.id}
+              variant='border'
+              onClick={() =>
+                void setParams(
+                  window.id === 'custom'
+                    ? { updated: window.id }
+                    : { updated: window.id, from: null, to: null }
+                )
+              }
+            >
+              {window.label}
+            </Chip>
+          ))}
+          {params.updated === 'custom' && (
+            <ChipDatePicker
+              mode='range'
+              placeholder='Updated between'
+              startDate={params.from?.toISOString().slice(0, 10)}
+              endDate={params.to?.toISOString().slice(0, 10)}
+              onRangeChange={(start, end) =>
+                void setParams({ from: new Date(start), to: new Date(end) })
+              }
+              onClear={() => void setParams({ from: null, to: null })}
+            />
+          )}
+        </div>
+      )}
+      {!isPending && !isError && data?.live && accounts.length === 0 && (
+        <div className='flex items-center gap-2 px-2 py-2'>
+          <p className='text-caption'>Connect your personal accounts to search them live.</p>
+          <ChipLink
+            href={
+              scope.kind === 'organization'
+                ? `/o/${scope.organizationId}/integrations`
+                : `/workspace/${scope.workspaceId}/integrations`
+            }
+          >
+            Connected accounts
+          </ChipLink>
+        </div>
+      )}
+      {accounts
+        .filter((account) => account.status !== 'ok')
+        .map((account) => (
+          <p
+            key={`${account.provider}:${account.accountId}`}
+            role='status'
+            className='px-2 py-1 text-[var(--text-muted)] text-caption'
+          >
+            {connectorDisplayName(account.provider)} · {account.displayName}:{' '}
+            {account.message ?? 'More results are available; narrow the query.'}
+          </p>
+        ))}
+      {data?.retrieval.status === 'partial' && (
+        <p className='px-2 py-1 text-[var(--text-muted)] text-caption'>
+          Coverage is incomplete. Narrow the query or ask Assistant to refine it.
+        </p>
+      )}
+      <div
+        role='region'
+        aria-label='Search results'
+        aria-busy={isFetching}
+        className='flex flex-col'
+        onKeyDown={handleResultsKeyDown}
+      >
+        {documents.map((result) => (
+          <SourceCard
+            key={result.documentId}
+            source={toSource(result, query, scope)}
+            query={query}
+            onSummarize={
+              isFetching
+                ? undefined
+                : (cited) =>
+                    onSummarize(`Summarize "${cited.title ?? cited.url}"`, {
+                      ...filters,
+                      documentIds: [result.documentId],
+                    })
+            }
+          />
+        ))}
+      </div>
     </div>
   )
 }

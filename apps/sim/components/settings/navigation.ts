@@ -222,7 +222,7 @@ export function isSelfHostedOverrideEnabled(
   deployment: DeploymentShape
 ): boolean {
   if (override === undefined || deployment.hosted) return false
-  return override === 'always' || deployment.features[override]
+  return override === 'always' || deployment.features[override] === true
 }
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>

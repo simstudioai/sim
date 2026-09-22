@@ -57,6 +57,7 @@ import {
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -1210,6 +1211,8 @@ export function useWorkspaceKnowledgeSearch(
   filters?: WorkspaceSearchFilters,
   topK = 20
 ) {
+  const { features } = useDeploymentShape()
+  const live = features.liveEnterpriseSearch === true
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const userId = session?.user?.id
@@ -1223,7 +1226,10 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId),
+    queryKey: [
+      ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId),
+      live ? 'live' : 'indexed',
+    ],
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
@@ -1235,9 +1241,10 @@ export function useWorkspaceKnowledgeSearch(
         signal
       ),
     enabled: Boolean(scope && userId) && trimmed.length > 0,
-    staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    staleTime: live ? 0 : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
     placeholderData: (previous, previousQuery) =>
+      !live &&
       userId &&
       previousQuery?.state.status === 'success' &&
       previousQuery.queryKey[6] === topK &&

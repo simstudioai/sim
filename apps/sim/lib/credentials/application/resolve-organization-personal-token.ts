@@ -4,6 +4,7 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   isManagedCredentialGroupBindingLive,
@@ -16,6 +17,7 @@ import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integr
 import { providerIdsForService } from '@/lib/oauth/utils'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { listLiveAccounts } from '@/lib/sim-search/live/accounts'
 
 /** Search's organization delegation can use only the member's currently available personal grant. */
 export const organizationPersonalCredentialOperation = defineOrganizationOperation({
@@ -160,6 +162,21 @@ export const prepareOrganizationPersonalConnection = {
       organizationPersonalConnectionOperation,
       input
     )
+    if (isLiveEnterpriseSearchEnabled) {
+      if (input.credentialId) {
+        const accounts = await listLiveAccounts(
+          { organizationId: context.organizationId },
+          context.userId
+        )
+        if (!accounts.some((account) => account.id === input.credentialId))
+          throw new OrchestrationError('not_found', 'Personal account not found')
+      }
+      return {
+        provider: input.providerName,
+        providerId: input.providerName,
+        settingsPath: `/o/${encodeURIComponent(context.organizationId)}/integrations`,
+      }
+    }
     const requested = input.providerName.toLowerCase().trim()
     const connector = SEARCH_CONNECTORS.find((entry) =>
       [

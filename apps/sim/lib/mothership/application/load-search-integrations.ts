@@ -1,3 +1,4 @@
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import {
@@ -5,6 +6,7 @@ import {
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
+import { listLiveSearchAccounts } from '@/lib/sim-search/live/application'
 
 const MAX_INVENTORY_PAGES = 100
 const MAX_INVENTORY_BYTES = 256 * 1024
@@ -32,6 +34,19 @@ export async function loadCopilotSearchIntegrations(
     }
   )
   await authorizeOrganizationChatDelegation.execute({ principal })
+
+  if (isLiveEnterpriseSearchEnabled) {
+    const inventory = await listLiveSearchAccounts.execute({
+      principal,
+      input: { organizationId: context.organizationId },
+    })
+    return JSON.stringify({
+      ...inventory,
+      connectionPath: `/o/${encodeURIComponent(context.organizationId)}/integrations`,
+      connectionGuidance:
+        'Use this member integrations page to connect or reconnect accounts. Live search does not require a knowledge base or source index. No account inventory entry establishes provider search permission until a search succeeds.',
+    })
+  }
 
   const connections: IntegrationInventory['connections'] = []
   const available = new Map<string, IntegrationInventory['available'][number]>()

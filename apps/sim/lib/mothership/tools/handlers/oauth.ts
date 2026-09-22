@@ -33,6 +33,17 @@ export async function executeOAuthGetAuthLink(
         prepareOrganizationPersonalConnection,
         { providerName, credentialId }
       )
+      if ('settingsPath' in result) {
+        return {
+          success: true,
+          output: {
+            message:
+              'Connect or reconnect your own accounts on the integrations page; no index setup is required.',
+            url: result.settingsPath,
+            instructions: `Offer the exact link [Connected accounts](${result.settingsPath}). Do not invent a source setup card or claim that indexing is required.`,
+          },
+        }
+      }
       return {
         success: true,
         output: {

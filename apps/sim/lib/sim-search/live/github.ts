@@ -1,0 +1,126 @@
+import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
+import { collectNativePages } from '@/lib/sim-search/live/pages'
+import type {
+  NativeClient,
+  NativeDocument,
+  NativePage,
+  NativeSearchInput,
+} from '@/lib/sim-search/live/types'
+
+function githubDocument(row: Record<string, unknown>, kind: string): NativeDocument {
+  const repository = object(row.repository)
+  const repositoryUrl = string(row.repository_url)
+  const container =
+    string(repository.full_name) ||
+    repositoryUrl.replace('https://api.github.com/repos/', '') ||
+    string(row.full_name)
+  return {
+    id:
+      kind === 'code'
+        ? string(row.path)
+        : kind === 'repositories'
+          ? string(row.full_name)
+          : string(row.number),
+    container,
+    kind,
+    title: string(row.title) || string(row.name) || string(row.full_name),
+    url: string(row.html_url),
+    content:
+      string(row.body) ||
+      string(row.description) ||
+      array(row.text_matches)
+        .map((match) => string(match.fragment))
+        .join('\n') ||
+      string(row.path),
+    modifiedAt: string(row.updated_at),
+    author: string(object(row.user).login) || string(object(row.owner).login),
+  }
+}
+
+export async function searchGitHub(
+  client: NativeClient,
+  input: NativeSearchInput
+): Promise<NativePage> {
+  if (!input.native)
+    return collectNativePages(
+      ['issues', 'code'].map((kind) =>
+        searchGitHub(client, {
+          ...input,
+          native: {
+            provider: 'github',
+            query: input.query,
+            kind: kind === 'code' ? 'code' : 'issues',
+          },
+        })
+      ),
+      'GitHub searches issues and code. Use nativeQueries.kind to narrow or paginate either collection.'
+    )
+  const kind = input.native?.kind ?? 'issues'
+  if (!['issues', 'code', 'repositories'].includes(kind))
+    throw new NativeSearchError(
+      'unavailable',
+      'GitHub search supports issues, code, or repositories.'
+    )
+  const page = input.native?.cursor ?? '1'
+  if (!/^\d{1,3}$/.test(page) || Number(page) < 1)
+    throw new NativeSearchError('unavailable', 'Invalid GitHub page.')
+  const data = object(
+    await client.json(`/search/${kind}`, {
+      query: { q: input.native?.query ?? input.query, per_page: String(input.limit), page },
+    })
+  )
+  const total = Number(data.total_count)
+  const nextCursor =
+    Number(page) * input.limit < Math.min(total, 1000) ? String(Number(page) + 1) : undefined
+  return {
+    documents: array(data.items).map((row) => githubDocument(row, kind)),
+    nextCursor,
+    partial: data.incomplete_results === true || total > 1000,
+    message:
+      kind === 'code'
+        ? 'GitHub REST code search covers the default branch and files below 384 KB; code queries have a separate rate limit. Read results for file contents.'
+        : 'GitHub native search supports qualifiers and returns at most 1,000 results per query. Narrow large searches.',
+  }
+}
+
+export async function readGitHub(
+  client: NativeClient,
+  id: string,
+  repository?: string,
+  kind?: string
+): Promise<NativeDocument> {
+  if (
+    !repository ||
+    !/^[\w.-]+\/[\w.-]+$/.test(repository) ||
+    repository.split('/').some((part) => part === '..' || part === '.')
+  )
+    throw new NativeSearchError('unavailable', 'Invalid GitHub repository reference.')
+  const path = `/repos/${repository}`
+  if (kind === 'code') {
+    if (id.split('/').some((part) => part === '..' || part === '.'))
+      throw new NativeSearchError('unavailable', 'Invalid file path.')
+    const row = object(
+      await client.json(`${path}/contents/${id.split('/').map(segment).join('/')}`)
+    )
+    if (row.encoding !== 'base64')
+      throw new NativeSearchError(
+        'unavailable',
+        'This file is too large or cannot be read through the contents API.'
+      )
+    return {
+      id,
+      container: repository,
+      kind,
+      title: string(row.name),
+      url: string(row.html_url),
+      content: Buffer.from(string(row.content), 'base64').toString('utf8'),
+    }
+  }
+  if (kind === 'repositories') {
+    const row = object(await client.json(path))
+    return githubDocument(row, 'repositories')
+  }
+  if (!/^\d+$/.test(id))
+    throw new NativeSearchError('unavailable', 'Invalid GitHub issue reference.')
+  return githubDocument(object(await client.json(`${path}/issues/${id}`)), 'issues')
+}

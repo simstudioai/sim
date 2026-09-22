@@ -720,3 +720,9 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
 export function getCostMultiplier(): number {
   return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
+
+/** Backend selector. Kept independent of enterprise entitlement overrides. */
+export const isLiveEnterpriseSearchEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.SIM_SEARCH_LIVE)
+    : isTruthy(getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE'))
