@@ -3,6 +3,7 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
+import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import {
@@ -435,18 +436,19 @@ export function getEffectiveBlockOutputs(
 
   if (blockType === 'agent') {
     const model = subBlocks?.model?.value
-    if (typeof model !== 'string' || !isEvaluationModel(model)) {
-      const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
-      if (responseFormatOutputs) {
-        /** A referenced model may select either evaluation or chat at execution time. */
-        return typeof model === 'string' && containsReference(model)
-          ? {
-              ...getBlockOutputs('agent', subBlocks, false, { includeHidden }),
-              ...responseFormatOutputs,
-            }
-          : responseFormatOutputs
+    const mayEvaluate =
+      typeof model === 'string' && (isEvaluationModel(model) || containsReference(model))
+    if (mayEvaluate) {
+      const outputs = getBlockOutputs('agent', subBlocks, false, { includeHidden })
+      const answers = getJevAnswerOutput(subBlocks?.evaluationQuestions?.value)
+      return {
+        ...outputs,
+        ...(containsReference(model) ? getResponseFormatOutputs(subBlocks, 'agent') : undefined),
+        ...(answers ? { answers } : undefined),
       }
     }
+    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
+    if (responseFormatOutputs) return responseFormatOutputs
   }
 
   let baseOutputs: OutputDefinition
@@ -559,9 +561,7 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
 
     const currentObj = current as Record<string, unknown>
 
-    if (part in currentObj) {
-      current = currentObj[part]
-    } else if (
+    if (
       'type' in currentObj &&
       (currentObj.type === 'object' || currentObj.type === 'json') &&
       'properties' in currentObj &&
@@ -592,6 +592,8 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
       } else {
         return null
       }
+    } else if (part in currentObj) {
+      current = currentObj[part]
     } else {
       return null
     }
