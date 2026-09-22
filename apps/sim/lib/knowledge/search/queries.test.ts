@@ -2822,6 +2822,24 @@ describe('filters on a resolved scope', () => {
     expect(caps.at(-1)).toBe('20000')
   })
 
+  it('looks for an unfilled row through the ordered, capped read the partial index serves', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'src-a')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: plan(),
+    })
+    const probes = statements().filter((query) => query.sql.includes('AS unfilled'))
+    expect(probes).toHaveLength(1)
+    /** An `EXISTS` drops its order and limit, and the planner then takes a sequential scan. */
+    expect(probes[0].sql).not.toContain('EXISTS')
+    expect(probes[0].sql.replace(/\s+/g, ' ')).toContain(
+      'SELECT ( SELECT ? FROM ? WHERE ? IS NULL ORDER BY ? DESC LIMIT 1 ) IS NOT NULL AS unfilled'
+    )
+  })
+
   it('tests the date through the document inside an on-row walk when the filtered set is unbounded', async () => {
     traversedRows = [{ id: 'a' }]
     rerankRows = [hit('a', 'src-a')]
