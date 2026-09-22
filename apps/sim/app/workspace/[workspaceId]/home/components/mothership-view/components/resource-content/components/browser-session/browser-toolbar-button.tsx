@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, forwardRef } from 'react'
 import { Button, cn } from '@sim/emcn'
 
