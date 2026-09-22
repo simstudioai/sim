@@ -96,6 +96,7 @@ export {
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
+  chipModalFieldVariants,
   focusChipModalContent,
 } from './chip-modal/chip-modal'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'

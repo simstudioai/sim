@@ -763,7 +763,8 @@ export function McpServerFormModal({
               type='button'
               variant='ghost'
               onClick={() => setShowAdvanced((v) => !v)}
-              className='gap-1 self-start py-0 text-small'
+              size='inline'
+              className='gap-1 self-start'
             >
               {showAdvanced ? (
                 <ChevronDown className='size-[14px]' />
