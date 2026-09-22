@@ -36,9 +36,36 @@ const logger = createLogger('SlackExecutionStream')
 interface SlackMessageStream {
   channel: string
   ts: string
-  taskId: string
+  taskId?: string
   textLength: number
+  textComplete: boolean
   stopped: boolean
+}
+
+/** Prefer a nearby paragraph/sentence, then a whole word; only oversized words need hard cuts. */
+function textChunkEnd(
+  text: string,
+  offset: number,
+  capacity: number,
+  allowWordSplit: boolean
+): number {
+  let end = Math.min(offset + capacity, text.length)
+  if (end === text.length) return end
+  const candidate = text.slice(offset, end)
+  const nearby = Math.max(0, candidate.length - 1_024)
+  const boundaries = [/\n[\t\r ]*\n\s*/g, /[.!?]["'”’)]*\s+|\n\s*/g, /\s+/g]
+  for (const [index, boundary] of boundaries.entries()) {
+    let lastEnd = 0
+    for (const match of candidate.matchAll(boundary)) {
+      const boundaryEnd = match.index + match[0].length
+      if (index === 2 || boundaryEnd > nearby) lastEnd = boundaryEnd
+    }
+    if (lastEnd) return offset + lastEnd
+  }
+  if (!allowWordSplit) return offset
+  const lastCodeUnit = text.charCodeAt(end - 1)
+  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
+  return end
 }
 
 interface SlackReplyTarget extends SlackStreamSessionTarget {
@@ -141,18 +168,31 @@ class SlackInvocationStream {
     return this.chain
   }
 
-  private async ensureStarted(continueMessage = false): Promise<SlackMessageStream> {
+  private async ensureStarted(): Promise<SlackMessageStream> {
     const current = this.messages.at(-1)
-    if (current && !continueMessage) return current
-    const taskId = current ? `${this.taskId}-part-${this.messages.length + 1}` : this.taskId
+    if (current) return current
+    return this.startMessage(
+      [{ type: 'task_update', id: this.taskId, title: this.title, status: 'in_progress' }],
+      this.taskId
+    )
+  }
+
+  private async startMessage(
+    chunks: SlackStreamChunk[],
+    taskId?: string
+  ): Promise<SlackMessageStream> {
     const started = await startSlackAgentStream(
       this.token,
       this.target,
-      [{ type: 'task_update', id: taskId, title: this.title, status: 'in_progress' }],
+      chunks,
       this.config.taskDisplayMode,
       this.signal
     )
-    const message = { ...started, taskId, textLength: 0, stopped: false }
+    const textLength = chunks.reduce(
+      (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
+      0
+    )
+    const message = { ...started, taskId, textLength, textComplete: false, stopped: false }
     this.messages.push(message)
     return message
   }
@@ -181,39 +221,47 @@ class SlackInvocationStream {
   /** Continue in the same thread before the accumulated message reaches Slack's limit. */
   private async appendAnswerText(text: string): Promise<void> {
     for (let offset = 0; offset < text.length; ) {
-      let message = await this.ensureStarted()
-      /** UTF-16 accounting is conservative and a surrogate pair must stay in the same message. */
-      const nextCharacterSize = text.codePointAt(offset)! > 0xffff ? 2 : 1
-      if (message.textLength + nextCharacterSize > SLACK_MESSAGE_TEXT_LIMIT) {
-        message = await this.ensureStarted(true)
+      let message: SlackMessageStream | undefined = await this.ensureStarted()
+      let end = message.textComplete
+        ? offset
+        : textChunkEnd(
+            text,
+            offset,
+            SLACK_MESSAGE_TEXT_LIMIT - message.textLength,
+            !message.textLength
+          )
+      if (end === offset) {
+        message.textComplete = true
+        message = undefined
+        end = textChunkEnd(text, offset, SLACK_MESSAGE_TEXT_LIMIT, true)
       }
-      let end = Math.min(offset + SLACK_MESSAGE_TEXT_LIMIT - message.textLength, text.length)
-      const lastCodeUnit = text.charCodeAt(end - 1)
-      if (end < text.length && lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
       for (;;) {
         const chunk = text.slice(offset, end)
         try {
-          await this.append([{ type: 'markdown_text', text: chunk }], message)
+          const chunks: SlackStreamChunk[] = [{ type: 'markdown_text', text: chunk }]
+          if (message) await this.append(chunks, message)
+          else message = await this.startMessage(chunks)
           this.acknowledgedAnswer += chunk
           offset = end
+          message.textComplete = end < text.length
           break
         } catch (error) {
-          /** Only an explicit size rejection proves this text was not appended. */
+          /** Only an explicit size rejection proves this text was not delivered. */
           if (
             !(error instanceof SlackDeliveryError) ||
-            error.method !== 'chat.appendStream' ||
+            error.method !== (message ? 'chat.appendStream' : 'chat.startStream') ||
             error.outcome !== 'rejected' ||
             error.code !== 'msg_too_long'
           ) {
             throw error
           }
-          if (message.textLength > 0) {
-            message = await this.ensureStarted(true)
+          if (message && message.textLength > 0) {
+            message.textComplete = true
+            message = undefined
+            end = textChunkEnd(text, offset, SLACK_MESSAGE_TEXT_LIMIT, true)
           } else {
-            /** A rejected first append shrinks on each attempt, stopping at one code point. */
-            let smallerEnd = offset + Math.floor((end - offset) / 2)
-            const lastCodeUnit = text.charCodeAt(smallerEnd - 1)
-            if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) smallerEnd--
+            /** A rejected first write shrinks on each attempt, stopping at one code point. */
+            const smallerEnd = textChunkEnd(text, offset, Math.floor((end - offset) / 2), true)
             if (smallerEnd <= offset) throw error
             end = smallerEnd
           }
@@ -226,19 +274,26 @@ class SlackInvocationStream {
     if (
       this.failure ||
       !this.answerBuffer ||
-      (!force && this.answerBuffer.length < TEXT_FLUSH_SIZE)
+      (!force && this.acknowledgedAnswer && this.answerBuffer.length < TEXT_FLUSH_SIZE)
     )
       return
-    const projected = await this.projectLiveText(this.answerBuffer)
+    let end = this.answerBuffer.length
+    if (!force) {
+      end = 0
+      for (const match of this.answerBuffer.matchAll(/\s/g)) end = match.index + 1
+      if (!end && this.answerBuffer.length < SLACK_MESSAGE_TEXT_LIMIT) return
+      if (!end) end = this.answerBuffer.length
+    }
+    const projected = await this.projectLiveText(this.answerBuffer.slice(0, end))
     if (projected === null) return
     await this.appendAnswerText(projected)
-    this.answerBuffer = ''
+    this.answerBuffer = this.answerBuffer.slice(end)
   }
 
   private async appendAnswer(text: string): Promise<void> {
     if (this.failure) return
     this.answerBuffer += text
-    await this.flushAnswer(!this.acknowledgedAnswer)
+    await this.flushAnswer(false)
   }
 
   private async flushThinking(): Promise<void> {
@@ -367,12 +422,14 @@ class SlackInvocationStream {
             ? [this.toolChunk(id, { ...tool, status: 'error' })]
             : []
         )
-        chunks.push({
-          type: 'task_update',
-          id: message.taskId,
-          title: this.title,
-          status: failed ? 'error' : 'complete',
-        })
+        if (message.taskId) {
+          chunks.push({
+            type: 'task_update',
+            id: message.taskId,
+            title: this.title,
+            status: failed ? 'error' : 'complete',
+          })
+        }
         try {
           /** Cleanup has its own deadline and attempts every part even if an earlier stop failed. */
           await stopSlackAgentStream(
