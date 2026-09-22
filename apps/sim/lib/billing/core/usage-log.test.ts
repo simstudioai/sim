@@ -38,6 +38,9 @@ import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
   getBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser,
+  getBillingPeriodUsageCostWithSourceSubset,
+  getBillingPeriodWorkflowRunCount,
   getUserUsageLogs,
   getWorkspaceUsageLogs,
   recordCumulativeUsage,
@@ -557,34 +560,73 @@ describe('usage-log query scopes', () => {
   })
 })
 
-describe('getBillingPeriodUsageCost', () => {
+describe('ledger aggregates', () => {
+  const billingEntity = { type: 'organization' as const, id: 'org-1' }
+  const billingPeriod = {
+    start: new Date('2026-05-01T00:00:00Z'),
+    end: new Date('2027-05-01T00:00:00Z'),
+  }
+  /** Every aggregate over the ledger, with the row the mocked read hands back and the value it yields. */
+  const aggregates: Array<{
+    name: string
+    read: () => Promise<unknown>
+    rows: unknown[]
+    expected: unknown
+  }> = [
+    {
+      name: 'getBillingPeriodUsageCost',
+      read: () => getBillingPeriodUsageCost(billingEntity, billingPeriod),
+      rows: [{ cost: '12.5' }],
+      expected: 12.5,
+    },
+    {
+      name: 'getBillingPeriodWorkflowRunCount',
+      read: () => getBillingPeriodWorkflowRunCount(billingEntity, billingPeriod),
+      rows: [{ workflowRuns: 7 }],
+      expected: 7,
+    },
+    {
+      name: 'getBillingPeriodUsageCostWithSourceSubset',
+      read: () =>
+        getBillingPeriodUsageCostWithSourceSubset(billingEntity, billingPeriod, ['workflow']),
+      rows: [{ total: '20', subset: '5' }],
+      expected: { total: 20, subset: 5 },
+    },
+    {
+      name: 'getBillingPeriodUsageCostByUser',
+      read: () => getBillingPeriodUsageCostByUser(billingEntity, billingPeriod),
+      rows: [{ userId: 'user-1', cost: '3' }],
+      expected: new Map([['user-1', 3]]),
+    },
+  ]
+
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
   })
 
-  it('bounds the ledger sum with its own statement timeout inside one transaction', async () => {
-    const execute = vi.fn().mockResolvedValue([])
-    const where = vi.fn().mockResolvedValue([{ cost: '12.5' }])
-    const tx = { execute, select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })) }
-    mockTransaction.mockImplementation((callback: (client: typeof tx) => Promise<unknown>) =>
-      callback(tx)
-    )
+  for (const aggregate of aggregates) {
+    it(`${aggregate.name} reads through the bounded ledger transaction`, async () => {
+      const execute = vi.fn().mockResolvedValue([])
+      const terminal = vi.fn().mockResolvedValue(aggregate.rows)
+      const chain: Record<string, unknown> = {}
+      for (const step of ['select', 'from', 'where', 'leftJoin']) chain[step] = vi.fn(() => chain)
+      chain.groupBy = terminal
+      chain.then = (resolve: (rows: unknown[]) => unknown) => terminal().then(resolve)
+      const tx = { execute, select: chain.select }
+      mockTransaction.mockImplementation((callback: (client: typeof tx) => Promise<unknown>) =>
+        callback(tx)
+      )
 
-    const cost = await getBillingPeriodUsageCost(
-      { type: 'organization', id: 'org-1' },
-      { start: new Date('2026-05-01T00:00:00Z'), end: new Date('2027-05-01T00:00:00Z') }
-    )
-
-    expect(cost).toBe(12.5)
-    expect(mockTransaction).toHaveBeenCalledTimes(1)
-    const executed = execute.mock.calls.map(
-      ([statement]) => (statement as { toSQL: () => { sql: string } }).toSQL().sql
-    )
-    expect(executed).toContain(
-      `SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`
-    )
-    /** The bound is set before the sum runs, not after. */
-    expect(execute.mock.invocationCallOrder[0]).toBeLessThan(where.mock.invocationCallOrder[0])
-  })
+      await expect(aggregate.read()).resolves.toEqual(aggregate.expected)
+      expect(mockTransaction).toHaveBeenCalledTimes(1)
+      expect(
+        execute.mock.calls.map(
+          ([statement]) => (statement as { toSQL: () => { sql: string } }).toSQL().sql
+        )
+      ).toEqual([`SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`])
+      /** The bound is set before the aggregate runs, not after. */
+      expect(execute.mock.invocationCallOrder[0]).toBeLessThan(terminal.mock.invocationCallOrder[0])
+    })
+  }
 })
