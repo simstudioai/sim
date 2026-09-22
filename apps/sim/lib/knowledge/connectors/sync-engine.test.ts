@@ -109,6 +109,12 @@ vi.mock('@/connectors/registry.server', () => ({
       getDocument: mockGetDocument,
       listDocuments: mockListDocuments,
     },
+    oauth: {
+      name: 'OAuth',
+      auth: { mode: 'oauth', provider: 'example' },
+      getDocument: mockGetDocument,
+      listDocuments: mockListDocuments,
+    },
   },
 }))
 
@@ -3268,6 +3274,32 @@ describe('executeSync hard-delete reconciliation', () => {
      * sync, which is a cap that silently loses work rather than deferring it.
      */
     expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+  })
+
+  it('leaves an OAuth connector with no credential unscheduled instead of walking the failure ladder', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...CONNECTOR, connectorType: 'oauth', credentialId: null, encryptedApiKey: null },
+    ])
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(result.skipReason).toBe('credential_missing')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: 'Credential removed. Reconnect the connector to resume syncing.',
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+      })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ consecutiveFailures: expect.any(Number) })
+    )
   })
 
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {

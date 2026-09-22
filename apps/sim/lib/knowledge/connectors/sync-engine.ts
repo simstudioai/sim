@@ -56,6 +56,7 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_SYNC_MAX_DURATION_SECONDS,
+  CREDENTIAL_REMOVED_SYNC_ERROR,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -86,6 +87,7 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { ensureSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
+import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -827,6 +829,28 @@ export async function executeSync(
   const connectorConfig = CONNECTOR_REGISTRY[connectorBeforeLock.connectorType]
   if (!connectorConfig) {
     throw new Error(`Unknown connector type: ${connectorBeforeLock.connectorType}`)
+  }
+
+  /**
+   * A connector with no token source cannot succeed, and each attempt would only walk the
+   * failure ladder and, at its end, disable a connector that merely needs reconnecting. Left
+   * unscheduled with the reconnect error instead; the same terminal transition as a deleted
+   * knowledge base, so a live run's own terminal write cannot revive the schedule.
+   */
+  if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
+    logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
+    await db
+      .update(knowledgeConnector)
+      .set({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: CREDENTIAL_REMOVED_SYNC_ERROR,
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeConnector.id, connectorId))
+    return { ...result, skipReason: 'credential_missing' }
   }
 
   const kbRows = await db

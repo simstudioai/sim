@@ -25,6 +25,20 @@ export function isConnectorCredentialTypeAllowed(
   )
 }
 
+/**
+ * Whether a workspace-mode connector row still carries something to authenticate with. A
+ * connector whose credential was removed keeps its documents but has no token source, so a
+ * sync cannot run until it is reconnected.
+ */
+export function connectorHasAuthSource(
+  auth: ConnectorAuthConfig,
+  connector: { credentialId: string | null; encryptedApiKey: string | null }
+): boolean {
+  if (auth.mode === 'apiKey') return true
+  if (connector.credentialId) return true
+  return Boolean(getConnectorApiKeyConfig(auth) && connector.encryptedApiKey)
+}
+
 /** Workspace token input supported by a connector, independent of its member OAuth method. */
 export function getConnectorApiKeyConfig(
   auth: ConnectorAuthConfig

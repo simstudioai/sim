@@ -21,6 +21,10 @@ export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECO
  */
 export const MAX_CONSECUTIVE_FAILURES = 10
 
+/** The error a workspace connector carries once its credential is removed; cleared by reconnecting. */
+export const CREDENTIAL_REMOVED_SYNC_ERROR =
+  'Credential removed. Reconnect the connector to resume syncing.'
+
 /**
  * The error a connector carries once {@link MAX_CONSECUTIVE_FAILURES} disables it.
  *

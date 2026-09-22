@@ -195,6 +195,33 @@ describe('clearCredentialRefs', () => {
     }
   })
 
+  it('leaves a connector whose credential is removed unscheduled with the reconnect error', async () => {
+    await clearCredentialRefs('credential-target', {
+      kind: 'organization',
+      organizationId: 'organization-target',
+    })
+
+    const updates = capturedQueries.filter((query) =>
+      query.sql.startsWith('update "knowledge_connector"')
+    )
+    expect(updates).toHaveLength(1)
+    const statement = normalizeSql(updates[0].sql)
+    expect(statement).toContain('"credential_id" = $')
+    expect(statement).toContain('"next_sync_at" = $')
+    expect(statement).toContain('"sync_lock_token" = $')
+    expect(statement).toContain('"sync_lock_lease_at" = $')
+    expect(statement).toContain(
+      `CASE WHEN "knowledge_connector"."status" IN ('paused', 'disabled')`
+    )
+    expect(updates[0].params).toEqual(
+      expect.arrayContaining([
+        null,
+        'Credential removed. Reconnect the connector to resume syncing.',
+        'credential-target',
+      ])
+    )
+  })
+
   it('propagates database failures', async () => {
     driverRows.error = new Error('database unavailable')
     await expect(

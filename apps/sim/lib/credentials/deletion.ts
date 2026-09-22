@@ -11,6 +11,7 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { CREDENTIAL_REMOVED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
@@ -336,10 +337,25 @@ async function readWorkspaceCredentialRefs(
   `)
 }
 
+/**
+ * A connector whose credential is gone cannot sync until it is reconnected, so the scheduler
+ * must stop dispatching it: `nextSyncAt` leaves the due sweep, the status and error name the
+ * cause for the reconnect prompt, and the lock is released so a live run's terminal write cannot
+ * resurrect a schedule (same transition as a deleted knowledge base). Paused and disabled
+ * connectors keep their status.
+ */
 async function clearInKnowledgeConnectors(credentialId: string): Promise<void> {
   await db
     .update(schema.knowledgeConnector)
-    .set({ credentialId: null, updatedAt: new Date() })
+    .set({
+      credentialId: null,
+      status: sql`CASE WHEN ${schema.knowledgeConnector.status} IN ('paused', 'disabled') THEN ${schema.knowledgeConnector.status} ELSE 'error' END`,
+      lastSyncError: CREDENTIAL_REMOVED_SYNC_ERROR,
+      nextSyncAt: null,
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: new Date(),
+    })
     .where(eq(schema.knowledgeConnector.credentialId, credentialId))
 }
 
