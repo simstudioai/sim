@@ -1047,7 +1047,7 @@ async function performCoalescedRefresh({
               errorCode: result.errorCode,
               message: result.message,
             })
-            if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
+            if (result.errorCode && isTerminalRefreshError(result.errorCode, providerId)) {
               // A refresh that lost a race with a concurrent connect or a newer
               // rotation fails with a revoked/rotated-out token even though the
               // account just got a live chain — dead-flagging then would take
