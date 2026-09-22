@@ -302,6 +302,15 @@ export async function assertKnowledgeConnectorCredentialAccess(
     }
     return
   }
+  /** The policy grant outlives a removal until its revocation lands; the connector row does not. */
+  const [liveConnector] = await db
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(and(eq(knowledgeConnector.id, binding.connectorId), connectorIsLive()))
+    .limit(1)
+  if (!liveConnector) {
+    throw new KnowledgeConnectorMemberAccessDeniedError('Knowledge connector has been removed')
+  }
   const policy = await requireResourcePolicy(
     policyTarget({ ...binding, workspaceId: scope.workspaceId })
   ).catch((error: unknown) => {

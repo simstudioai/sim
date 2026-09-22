@@ -31,6 +31,12 @@ vi.mock('@sim/db/schema', () => ({
     id: 'knowledgeBase.id',
     workspaceId: 'knowledgeBase.workspaceId',
   },
+  knowledgeConnector: {
+    __table: 'knowledgeConnector',
+    detachedAt: 'knowledgeConnector.detachedAt',
+    detachReservedBytes: 'knowledgeConnector.detachReservedBytes',
+    knowledgeBaseId: 'knowledgeConnector.knowledgeBaseId',
+  },
   organization: {
     __table: 'organization',
     id: 'organization.id',
@@ -535,7 +541,10 @@ describe('changeWorkspaceStoragePayerInTx', () => {
     expect(query.values).not.toContain('workspaceFiles.deletedAt')
     expect(query.values).toContain('document.connectorId')
     expect(query.values).toContain('document.deletedAt')
-    expect(query.values.filter((value) => value === 'workspace-1')).toHaveLength(3)
+    /** A detaching connector's reservation is already charged, so a payer move carries it. */
+    expect(query.values).toContain('knowledgeConnector.detachReservedBytes')
+    expect(query.values).toContain('knowledgeConnector.detachedAt')
+    expect(query.values.filter((value) => value === 'workspace-1')).toHaveLength(4)
   })
 
   it('fails closed when a billable file is missing canonical size metadata', async () => {
