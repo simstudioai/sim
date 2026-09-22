@@ -10,6 +10,7 @@
  * that it does, in both directions.
  */
 import { act, type ReactNode, useState } from 'react'
+import { ChipCombobox } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { InsideModalContext } from '../modal/modal'
@@ -91,6 +92,27 @@ describe('Combobox onOpenChange', () => {
     expect(control.classList.contains('pr-[60px]')).toBe(true)
     expect(control.classList.contains('pr-10')).toBe(false)
   })
+
+  it.each(['label', 'icon', 'none'] as const)(
+    'preserves editable chip text visibility with %s overlay',
+    (overlay) => {
+      render(
+        <ChipCombobox
+          options={
+            overlay === 'icon' ? [{ label: 'Alpha', value: 'alpha', icon: () => <svg /> }] : OPTIONS
+          }
+          editable
+          value='alpha'
+          overlayContent={overlay === 'label' ? <span>Formatted Alpha</span> : undefined}
+          inputProps={{ className: 'text-[var(--text-primary)]' }}
+        />
+      )
+
+      const control = trigger()
+      expect(control.classList.contains('text-transparent')).toBe(overlay !== 'none')
+      expect(control.classList.contains('text-[var(--text-primary)]')).toBe(overlay === 'none')
+    }
+  )
 
   it.each([false, true])(
     'puts the field name and validation ARIA on the interactive control (editable=%s)',
