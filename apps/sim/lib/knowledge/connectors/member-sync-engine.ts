@@ -358,6 +358,11 @@ interface MemberSyncRun {
   deadlineAt: number
   result: MemberSyncResult
   lease: ReturnType<typeof createMemberSyncLease>
+  /**
+   * Documents whose observations this run removed, which the lifecycle checks
+   * for a remaining observer before anything else.
+   */
+  unobservedDocumentIds: Set<string>
 }
 
 /** A token minted for a member, reused within the run until it ages out. */
@@ -523,7 +528,8 @@ function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
 
 /** Keeps observations available until every changed ACL is rewritten, resuming by document identity. */
 export async function resumeMembershipRewrites(
-  run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'>
+  run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'> &
+    Partial<Pick<MemberSyncRun, 'unobservedDocumentIds'>>
 ): Promise<boolean> {
   for (;;) {
     if (Date.now() >= run.deadlineAt) return false
@@ -564,6 +570,9 @@ export async function resumeMembershipRewrites(
         documents.map((row) => row.documentId),
         tx
       )
+      if (checkpoint.removeMember) {
+        for (const row of documents) run.unobservedDocumentIds?.add(row.documentId)
+      }
       if (documents.length === 0 && checkpoint.removeMember) {
         await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
       } else {
@@ -1364,6 +1373,7 @@ async function applyMemberListing(
           outcome.observationRunId ?? run.runId,
           async (removed) => {
             await materializeDocumentAcls(run.connectorId, removed, tx)
+            for (const documentId of removed) run.unobservedDocumentIds.add(documentId)
           }
         )
       )
@@ -1399,7 +1409,10 @@ async function applyMemberListing(
         removedDocumentIds
       )
       run.result.observationsRemoved += removed.length
-      for (const documentId of removed) affected.add(documentId)
+      for (const documentId of removed) {
+        affected.add(documentId)
+        run.unobservedDocumentIds.add(documentId)
+      }
     }
     await tx
       .update(knowledgeConnectorMember)
@@ -1894,6 +1907,7 @@ export async function executeMemberSync(
       deadlineAt: runStartedAt.getTime() + MEMBER_SYNC_SOFT_BUDGET_SECONDS * 1000,
       result,
       lease: createMemberSyncLease(connectorId, runId),
+      unobservedDocumentIds: new Set(),
     }
     await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
@@ -2272,6 +2286,7 @@ export async function executeMemberSync(
           withLease: (fn) => withMemberLease(run, fn),
           deadlineAt: run.deadlineAt,
           allowRemoval: (listed?.count ?? 0) > 0,
+          unobservedDocumentIds: run.unobservedDocumentIds,
         })
         result.docsTombstoned = lifecycle.tombstoned
         result.docsResurrected = lifecycle.resurrected

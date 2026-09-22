@@ -9,7 +9,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type createKnowledgeAclFixtureIds,
@@ -19,7 +19,9 @@ import {
 import {
   applyMemberDocumentLifecycle,
   recordMemberObservations,
+  removeMemberObservationsForDocuments,
 } from '@/lib/knowledge/connectors/member-observations'
+import { MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
   SyncLockLostException,
@@ -62,12 +64,19 @@ describe('member document lifecycle in PostgreSQL', () => {
   const observe = (documentIds: string[]) =>
     recordMemberObservations(db, members.members[0].id, documentIds, members.runId)
 
-  const run = (options: { beforeWrite?: () => Promise<void>; allowRemoval?: boolean } = {}) =>
+  const run = (
+    options: {
+      beforeWrite?: () => Promise<void>
+      allowRemoval?: boolean
+      unobservedDocumentIds?: string[]
+    } = {}
+  ) =>
     applyMemberDocumentLifecycle({
       connectorId: members.connectorId,
       knowledgeBaseId: ids.knowledgeBaseId,
       runId: members.runId,
       allowRemoval: options.allowRemoval ?? true,
+      unobservedDocumentIds: options.unobservedDocumentIds ?? [],
       deadlineAt: Date.now() + 60_000,
       lease: { beatIfDue: async () => {} },
       withLease: async (fn) => {
@@ -106,6 +115,70 @@ describe('member document lifecycle in PostgreSQL', () => {
     for (const entry of [observed, excluded, archived, restore])
       expect(byId.get(entry.id)).toBeNull()
     expect(byId.get(noContent.id)).toEqual(deletedAt)
+  })
+
+  const insertRows = async (rows: ReturnType<typeof row>[]) => {
+    for (let offset = 0; offset < rows.length; offset += 500)
+      await db.insert(document).values(rows.slice(offset, offset + 500))
+  }
+  const tombstonedIds = async () =>
+    new Set(
+      (
+        await db
+          .select({ id: document.id })
+          .from(document)
+          .where(and(eq(document.connectorId, members.connectorId), isNotNull(document.deletedAt)))
+      ).map(({ id }) => id)
+    )
+  const savedCursor = async () =>
+    (
+      await db
+        .select({ cursor: knowledgeConnector.memberTombstoneCursor })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, members.connectorId))
+    )[0].cursor
+
+  it('tombstones what this run unobserved right away and leaves the rest of a large connector to later runs', async () => {
+    const pageBudget = MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN * 500
+    const unobserved = Array.from({ length: pageBudget + 20 }, (_, index) =>
+      row(`unobserved-${index}`)
+    )
+    const lastSeen = sql`'2026-06-01 00:00:00'::timestamp`
+    const [lostByThisRun, stillObservedByBob] = [
+      { ...row('lost-by-this-run'), sourceSeenAt: lastSeen },
+      { ...row('still-observed-by-bob'), sourceSeenAt: lastSeen },
+    ]
+    await insertRows([...unobserved, lostByThisRun, stillObservedByBob])
+    await observe([lostByThisRun.id, stillObservedByBob.id])
+    await recordMemberObservations(
+      db,
+      members.members[1].id,
+      [stillObservedByBob.id],
+      members.runId
+    )
+    const removed = await removeMemberObservationsForDocuments(db, members.members[0].id, [
+      lostByThisRun.id,
+      stillObservedByBob.id,
+    ])
+    expect(removed.sort()).toEqual([lostByThisRun.id, stillObservedByBob.id].sort())
+
+    expect(await run({ unobservedDocumentIds: removed })).toEqual({
+      tombstoned: pageBudget + 1,
+      resurrected: 0,
+      purged: 0,
+      finished: true,
+    })
+    const afterFirst = await tombstonedIds()
+    expect(afterFirst.has(lostByThisRun.id)).toBe(true)
+    expect(afterFirst.has(stillObservedByBob.id)).toBe(false)
+    expect(unobserved.filter(({ id }) => !afterFirst.has(id))).toHaveLength(20)
+    expect(await savedCursor()).toEqual({ seenAt: expect.any(String), id: expect.any(String) })
+
+    expect(await run()).toEqual({ tombstoned: 20, resurrected: 0, purged: 0, finished: true })
+    const afterSecond = await tombstonedIds()
+    expect(unobserved.every(({ id }) => afterSecond.has(id))).toBe(true)
+    expect(afterSecond.has(stillObservedByBob.id)).toBe(false)
+    expect(await savedCursor()).toBeNull()
   })
 
   it('continues past a full selected batch even if its observations change before UPDATE', async () => {

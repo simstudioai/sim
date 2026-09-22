@@ -5914,6 +5914,15 @@ export const knowledgeConnector = pgTable(
      */
     accessRewritePending: boolean('access_rewrite_pending').notNull().default(false),
     /**
+     * Where the members-mode absence reconcile resumes: the last document it
+     * checked, in `doc_connector_reconciliation_idx` order. NULL starts a new
+     * pass from the beginning.
+     */
+    memberTombstoneCursor: jsonb('member_tombstone_cursor').$type<{
+      seenAt: string
+      id: string
+    }>(),
+    /**
      * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
      *
      * `pending` and `syncing` are the two halves of a sync in flight: `pending`

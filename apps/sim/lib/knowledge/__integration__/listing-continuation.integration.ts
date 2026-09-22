@@ -1496,14 +1496,24 @@ describe('durable source and member cycles in PostgreSQL', () => {
       .where(eq(knowledgeConnector.id, memberFixture.connectorId))
     replay.deadlineAt = Date.now() + 60_000
     await expect(resumeMembershipRewrites(replay)).rejects.toThrow('reclaimed')
+    const unobservedDocumentIds = new Set<string>()
     expect(
       await resumeMembershipRewrites({
         connectorId: memberFixture.connectorId,
         runId: replacementRun,
         deadlineAt: Date.now() + 60_000,
         lease: createMemberSyncLease(memberFixture.connectorId, replacementRun),
+        unobservedDocumentIds,
       })
     ).toBe(true)
+    /** Every observation the removed member still held when this run resumed is handed to the lifecycle. */
+    const pausedAt = (paused.listingCheckpoint as { cursor: string }).cursor
+    expect([...unobservedDocumentIds].sort()).toEqual(
+      retained
+        .map((row) => row.id)
+        .filter((id) => id > pausedAt)
+        .sort()
+    )
     expect(
       await db
         .select()

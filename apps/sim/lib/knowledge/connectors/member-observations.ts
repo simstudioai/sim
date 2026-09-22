@@ -26,6 +26,7 @@ import {
   MEMBER_OBSERVATION_STALE_AFTER_HOURS,
   MEMBER_PURGE_MAX_PER_RUN,
   MEMBER_TOMBSTONE_PURGE_DAYS,
+  MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
@@ -361,18 +362,7 @@ export interface MemberDocumentLifecycleResult {
   finished: boolean
 }
 
-/**
- * The members-mode document lifecycle, applied idempotently every run:
- * a document nobody observes (in any member state) is tombstoned, one that is
- * observed again is resurrected, and one that has stayed unobserved past the
- * purge window is hard deleted under the run's lease. Existence follows the
- * observation graph; visibility follows the active observers through the ACL.
- *
- * A document whose content refresh failed this run is not resurrected: its
- * stored content is known-stale, and surfacing it would show pre-tombstone
- * content as current. It stays tombstoned for a later run to retry.
- */
-export async function applyMemberDocumentLifecycle(input: {
+interface MemberDocumentLifecycleInput {
   connectorId: string
   knowledgeBaseId: string
   runId: string
@@ -386,7 +376,149 @@ export async function applyMemberDocumentLifecycle(input: {
    * observed yet, so absence says nothing.
    */
   allowRemoval: boolean
-}): Promise<MemberDocumentLifecycleResult> {
+  /**
+   * Documents whose observations this run removed. Each is tombstoned if it has
+   * no observer left; absence arising any other way is found by the resumable
+   * reconcile.
+   */
+  unobservedDocumentIds: Iterable<string>
+}
+
+/** A live, eligible document of the connector that nobody observes: what a tombstone removes. */
+function unobservedLiveDocument(connectorId: string) {
+  return and(
+    eq(document.connectorId, connectorId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+    hasNoObservation()
+  )
+}
+
+/** The order of `doc_connector_reconciliation_idx`, which every lifecycle page walks. */
+const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
+
+type TombstoneCursor = NonNullable<
+  (typeof knowledgeConnector.$inferSelect)['memberTombstoneCursor']
+>
+
+/**
+ * Tombstones the given documents that nobody observes any more, in bounded
+ * batches under the run's lease. Returns false when the deadline stopped it.
+ */
+async function tombstoneUnobserved(
+  input: MemberDocumentLifecycleInput,
+  documentIds: readonly string[],
+  now: Date,
+  result: MemberDocumentLifecycleResult
+): Promise<boolean> {
+  for (let offset = 0; offset < documentIds.length; offset += MATERIALIZE_BATCH_SIZE) {
+    if (Date.now() >= input.deadlineAt) return false
+    await input.lease.beatIfDue()
+    const batch = documentIds.slice(offset, offset + MATERIALIZE_BATCH_SIZE)
+    const changed = await input.withLease((tx) =>
+      tx
+        .update(document)
+        .set({ deletedAt: now })
+        .where(and(unobservedLiveDocument(input.connectorId), inArray(document.id, batch)))
+        .returning({ id: document.id })
+    )
+    result.tombstoned += changed.length
+  }
+  return true
+}
+
+/**
+ * The backstop for absence the run did not cause itself — a member row
+ * deleted by an earlier run, a document restored from exclusion, a connector
+ * whose first listing just completed, or a run that stopped between removing
+ * observations and tombstoning. Walks the connector's documents in index
+ * order, one page per statement, and checks observations only in the UPDATE
+ * over that page's live ids: filtering the walk itself by observation lets
+ * the LIMIT stop bounding it, and a select-list `EXISTS` can be planned as a
+ * hash over every observation. Resumes from the cursor the previous run saved,
+ * so each run's cost is bounded by the page budget rather than the
+ * connector's size. Returns false when the deadline stopped it.
+ */
+async function reconcileUnobservedPages(
+  input: MemberDocumentLifecycleInput,
+  now: Date,
+  result: MemberDocumentLifecycleResult
+): Promise<boolean> {
+  const { connectorId } = input
+  const [connector] = await db
+    .select({ cursor: knowledgeConnector.memberTombstoneCursor })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connectorId))
+  let after: TombstoneCursor | null = connector?.cursor ?? null
+  for (let page = 0; page < MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN; page++) {
+    if (Date.now() >= input.deadlineAt) return false
+    await input.lease.beatIfDue()
+    const rows = await db
+      .select({
+        id: document.id,
+        seenAt: sql<string>`${seenOrder}::text`,
+        live: sql<boolean>`(${document.deletedAt} IS NULL)`,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          after
+            ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
+            : undefined
+        )
+      )
+      .orderBy(seenOrder, asc(document.id))
+      .limit(MATERIALIZE_BATCH_SIZE)
+    const candidates = rows.filter((row) => row.live).map((row) => row.id)
+    const last = rows.at(-1)
+    const next: TombstoneCursor | null =
+      rows.length < MATERIALIZE_BATCH_SIZE || !last ? null : { seenAt: last.seenAt, id: last.id }
+    if (Date.now() >= input.deadlineAt) return false
+    const changed = await input.withLease(async (tx) => {
+      const tombstoned =
+        candidates.length === 0
+          ? []
+          : await tx
+              .update(document)
+              .set({ deletedAt: now })
+              .where(and(unobservedLiveDocument(connectorId), inArray(document.id, candidates)))
+              .returning({ id: document.id })
+      await tx
+        .update(knowledgeConnector)
+        .set({ memberTombstoneCursor: next })
+        .where(eq(knowledgeConnector.id, connectorId))
+      return tombstoned
+    })
+    result.tombstoned += changed.length
+    if (!next) return true
+    after = next
+  }
+  return true
+}
+
+/**
+ * The members-mode document lifecycle, applied idempotently every run:
+ * a document nobody observes (in any member state) is tombstoned, one that is
+ * observed again is resurrected, and one that has stayed unobserved past the
+ * purge window is hard deleted under the run's lease. Existence follows the
+ * observation graph; visibility follows the active observers through the ACL.
+ *
+ * Tombstoning is driven by the documents whose observations this run removed,
+ * then by a bounded slice of a resumable pass over the whole connector, so a
+ * run never evaluates every live document of a large connector in one
+ * statement.
+ *
+ * A document whose content refresh failed this run is not resurrected: its
+ * stored content is known-stale, and surfacing it would show pre-tombstone
+ * content as current. It stays tombstoned for a later run to retry.
+ */
+export async function applyMemberDocumentLifecycle(
+  input: MemberDocumentLifecycleInput
+): Promise<MemberDocumentLifecycleResult> {
   const { connectorId, knowledgeBaseId, runId } = input
   const now = new Date()
 
@@ -396,56 +528,58 @@ export async function applyMemberDocumentLifecycle(input: {
     purged: 0,
     finished: false,
   }
-  for (const phase of ['tombstoned', 'resurrected'] as const) {
-    if (phase === 'tombstoned' && !input.allowRemoval) continue
-    const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
-    let after: { id: string; seenAt: string } | undefined
-    for (;;) {
-      if (Date.now() >= input.deadlineAt) return result
-      await input.lease.beatIfDue()
-      const condition = and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        phase === 'tombstoned'
-          ? and(isNull(document.deletedAt), hasNoObservation())
-          : and(isNotNull(document.deletedAt), isNotNull(document.contentHash), hasObservation())
+  if (input.allowRemoval) {
+    const unobserved = [...new Set(input.unobservedDocumentIds)]
+    if (!(await tombstoneUnobserved(input, unobserved, now, result))) return result
+    if (!(await reconcileUnobservedPages(input, now, result))) return result
+  }
+
+  let after: { id: string; seenAt: string } | undefined
+  for (;;) {
+    if (Date.now() >= input.deadlineAt) return result
+    await input.lease.beatIfDue()
+    const condition = and(
+      eq(document.connectorId, connectorId),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNotNull(document.deletedAt),
+      isNotNull(document.contentHash),
+      hasObservation()
+    )
+    /** Materialize the limited IDs before UPDATE so its observation check stays batch-bound. */
+    const candidates = await db
+      .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
+      .from(document)
+      .where(
+        and(
+          condition,
+          after
+            ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
+            : undefined
+        )
       )
-      /** Materialize the limited IDs before UPDATE so its observation check stays batch-bound. */
-      const candidates = await db
-        .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
-        .from(document)
+      .orderBy(seenOrder, asc(document.id))
+      .limit(MATERIALIZE_BATCH_SIZE)
+    if (candidates.length === 0) break
+    if (Date.now() >= input.deadlineAt) return result
+    const changed = await input.withLease(async (tx) => {
+      return tx
+        .update(document)
+        .set({ deletedAt: null })
         .where(
           and(
             condition,
-            after
-              ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
-              : undefined
-          )
-        )
-        .orderBy(seenOrder, asc(document.id))
-        .limit(MATERIALIZE_BATCH_SIZE)
-      if (candidates.length === 0) break
-      if (Date.now() >= input.deadlineAt) return result
-      const changed = await input.withLease(async (tx) => {
-        return tx
-          .update(document)
-          .set({ deletedAt: phase === 'tombstoned' ? now : null })
-          .where(
-            and(
-              condition,
-              inArray(
-                document.id,
-                candidates.map(({ id }) => id)
-              )
+            inArray(
+              document.id,
+              candidates.map(({ id }) => id)
             )
           )
-          .returning({ id: document.id })
-      })
-      result[phase] += changed.length
-      after = candidates.at(-1)
-      if (candidates.length < MATERIALIZE_BATCH_SIZE) break
-    }
+        )
+        .returning({ id: document.id })
+    })
+    result.resurrected += changed.length
+    after = candidates.at(-1)
+    if (candidates.length < MATERIALIZE_BATCH_SIZE) break
   }
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)

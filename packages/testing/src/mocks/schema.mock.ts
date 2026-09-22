@@ -1782,6 +1782,7 @@ export const schemaMock = {
     lastMemberSyncError: 'knowledgeConnector.lastMemberSyncError',
     memberSyncConsecutiveFailures: 'knowledgeConnector.memberSyncConsecutiveFailures',
     accessRewritePending: 'knowledgeConnector.accessRewritePending',
+    memberTombstoneCursor: 'knowledgeConnector.memberTombstoneCursor',
     createdAt: 'knowledgeConnector.createdAt',
     updatedAt: 'knowledgeConnector.updatedAt',
     archivedAt: 'knowledgeConnector.archivedAt',
