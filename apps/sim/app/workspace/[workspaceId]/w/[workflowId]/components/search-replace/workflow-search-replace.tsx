@@ -1,7 +1,7 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, toast } from '@sim/emcn'
+import { Button, ChipInput, cn, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -600,7 +600,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
             )}
           />
         </Button>
-        <Input
+        <ChipInput
           ref={searchInputRef}
           value={query}
           placeholder='Search'
