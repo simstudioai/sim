@@ -30,6 +30,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams } from 'next/navigation'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -1380,31 +1381,18 @@ function PreviewEditorContent({
                             cursorStyle='grab'
                           />
                         </div>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Button
-                              aria-label={
-                                isExecutionMode && onDrillDown
-                                  ? 'Expand workflow'
-                                  : 'Open in new tab'
-                              }
-                              type='button'
-                              variant='ghost'
-                              onClick={handleExpandChildWorkflow}
-                              iconSize='compact-fixed'
-                              className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
-                            >
-                              {isExecutionMode && onDrillDown ? (
-                                <Expand className='size-[12px]' />
-                              ) : (
-                                <SquareArrowUpRight className='size-[12px]' />
-                              )}
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content side='top'>
-                            {isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'}
-                          </Tooltip.Content>
-                        </Tooltip.Root>
+                        <WorkflowPreviewAction
+                          aria-label={
+                            isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'
+                          }
+                          onClick={handleExpandChildWorkflow}
+                        >
+                          {isExecutionMode && onDrillDown ? (
+                            <Expand className='size-[12px]' />
+                          ) : (
+                            <SquareArrowUpRight className='size-[12px]' />
+                          )}
+                        </WorkflowPreviewAction>
                       </>
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>

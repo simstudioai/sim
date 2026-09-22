@@ -13,12 +13,12 @@ import {
   Loader,
   OverflowText,
   Switch,
-  Tooltip,
   toast,
 } from '@sim/emcn'
 import { ArrowLeft, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type {
   AddWorkflowGroupBodyInput,
@@ -711,27 +711,18 @@ export function WorkflowSidebarBody({
                       />
                     </div>
                     {!isEnrichment && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            aria-label='Open workflow'
-                            type='button'
-                            variant='ghost'
-                            onClick={() =>
-                              window.open(
-                                `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
-                                '_blank',
-                                'noopener,noreferrer'
-                              )
-                            }
-                            iconSize='compact-fixed'
-                            className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
-                          >
-                            <SquareArrowUpRight className='size-[12px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
-                      </Tooltip.Root>
+                      <WorkflowPreviewAction
+                        aria-label='Open workflow'
+                        onClick={() =>
+                          window.open(
+                            `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        <SquareArrowUpRight className='size-[12px]' />
+                      </WorkflowPreviewAction>
                     )}
                   </>
                 ) : (
