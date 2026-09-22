@@ -3,6 +3,7 @@ import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
@@ -173,6 +174,19 @@ export async function persistDocumentAcls(
 
 const MAX_SAFE_TITLE_LENGTH = 200
 
+/**
+ * A document's filename and text tags sit under btree indexes, and Postgres refuses an index
+ * row past about 2.7 KB. A source title or tag value beyond that fails the row and, with it,
+ * every sync that lists the document again. 512 characters keeps a four-byte-per-character
+ * value inside the ceiling.
+ */
+const MAX_INDEXED_TEXT_LENGTH = 512
+
+/** Bounds a source-supplied value that lands in an indexed text column. */
+function boundIndexedText(value: string): string {
+  return truncate(value, MAX_INDEXED_TEXT_LENGTH)
+}
+
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
@@ -250,7 +264,8 @@ export function resolveTagMapping(
   const result: Partial<DocumentTags> = {}
   for (const [semanticKey, slot] of Object.entries(mapping)) {
     const value = semanticTags[semanticKey]
-    ;(result as Record<string, unknown>)[slot] = value != null ? value : null
+    ;(result as Record<string, unknown>)[slot] =
+      typeof value === 'string' ? boundIndexedText(value) : value != null ? value : null
   }
   return result
 }
@@ -278,7 +293,7 @@ function buildSkippedDocumentRow(
   return {
     id: generateId(),
     knowledgeBaseId,
-    filename: extDoc.title,
+    filename: boundIndexedText(extDoc.title),
     fileUrl: '',
     storageKey: null,
     /** No artifact was stored; a provider's reported source size is not local storage usage. */
@@ -630,7 +645,7 @@ export async function addDocument(
     await tx.insert(document).values({
       id: documentId,
       knowledgeBaseId,
-      filename: extDoc.title,
+      filename: boundIndexedText(extDoc.title),
       fileUrl,
       storageKey: fileInfo.key,
       fileSize: artifact.bytes.length,
@@ -745,7 +760,7 @@ export async function updateDocument(
     await tx
       .update(document)
       .set({
-        filename: extDoc.title,
+        filename: boundIndexedText(extDoc.title),
         fileUrl,
         storageKey: fileInfo.key,
         fileSize: artifact.bytes.length,
