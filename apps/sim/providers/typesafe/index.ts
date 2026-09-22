@@ -1,14 +1,11 @@
-import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { PROVIDER_HEADERS_TIMEOUT_MS } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 import { buildJevBody, parseJevResponse } from '@/providers/typesafe/schema'
+import { requestJevEvaluation } from '@/providers/typesafe/transport'
 import { calculateCost } from '@/providers/utils'
-
-const MAX_EVALUATION_RESPONSE_BYTES = 10 * 1024 * 1024
 
 export const typesafeProvider: ProviderConfig = {
   id: 'typesafe',
@@ -40,26 +37,8 @@ export const typesafeProvider: ProviderConfig = {
     )
     const start = Date.now()
     const startTime = new Date(start).toISOString()
-    const timeout = AbortSignal.timeout(PROVIDER_HEADERS_TIMEOUT_MS)
-    const signal = request.abortSignal ? AbortSignal.any([request.abortSignal, timeout]) : timeout
-    signal.throwIfAborted()
-    const response = await fetch('https://api.typesafe.ai/v1/systemone', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${request.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal,
-      redirect: 'error',
-    })
-    if (!response.ok) {
-      await consumeOrCancelBody(response)
-      throw new Error(`TypeSafe evaluation failed (HTTP ${response.status})`)
-    }
     const result = parseJevResponse(
-      await readResponseJsonWithLimit(response, {
-        maxBytes: MAX_EVALUATION_RESPONSE_BYTES,
-        label: 'TypeSafe evaluation response',
-        signal,
-      }),
+      await requestJevEvaluation(body, request.apiKey, request.abortSignal),
       body.questions
     )
     const content = JSON.stringify(result.answers)

@@ -650,7 +650,7 @@ Return ONLY the JSON array.`,
       type: 'json',
       description:
         'Evaluation answers keyed by question ID: choice, score, or noul, with probabilities and confidence where applicable',
-      condition: { field: 'model', value: EVALUATION_MODELS },
+      condition: { field: 'model', value: EVALUATION_MODELS, allowReference: true },
     },
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },

@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getHostedModels, getModelCapabilities, getProviderIcon } from '@/providers/models'
+import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderRequest } from '@/providers/types'
 import { typesafeProvider } from '@/providers/typesafe'
 import { buildJevBody, parseJevResponse } from '@/providers/typesafe/schema'
@@ -52,7 +53,11 @@ describe('TypeSafe provider', () => {
     fetchMock.mockReset().mockResolvedValue(Response.json(RESULT))
     vi.stubGlobal('fetch', fetchMock)
   })
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
 
   it.each(['jev-1.13.0', 'jev-latest', 'jev-preview'])(
     'routes %s through native BYOK evaluation',
@@ -131,6 +136,79 @@ describe('TypeSafe provider', () => {
     await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow(
       'TypeSafe evaluation failed (HTTP 401)'
     )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([408, 429, 500, 503])('retries HTTP %s and honors Retry-After', async (status) => {
+    vi.useFakeTimers()
+    fetchMock.mockResolvedValueOnce(new Response(null, { status, headers: { 'retry-after': '2' } }))
+    const result = typesafeProvider.executeRequest(REQUEST)
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await result).toMatchObject({ answers: RESULT.answers })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([400, 403, 422])('does not retry HTTP %s', async (status) => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status }))
+    await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow(`HTTP ${status}`)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries connection failures within the shared provider retry budget', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'))
+    const result = expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow('fetch failed')
+    await vi.runAllTimersAsync()
+    await result
+    expect(fetchMock).toHaveBeenCalledTimes(PROVIDER_MAX_RETRIES + 1)
+  })
+
+  it('stops retrying repeated server failures', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(async () => new Response(null, { status: 503 }))
+    const result = expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow('HTTP 503')
+    await vi.runAllTimersAsync()
+    await result
+    expect(fetchMock).toHaveBeenCalledTimes(PROVIDER_MAX_RETRIES + 1)
+  })
+
+  it('gives a timed-out attempt a fresh deadline', async () => {
+    vi.useFakeTimers()
+    const deadline = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal)
+    fetchMock.mockImplementationOnce(async () => {
+      deadline.abort(new DOMException('Timed out', 'TimeoutError'))
+      throw deadline.signal.reason
+    })
+    const result = typesafeProvider.executeRequest(REQUEST)
+    await vi.runAllTimersAsync()
+    expect(await result).toMatchObject({ answers: RESULT.answers })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1][1]?.signal?.aborted).toBe(false)
+  })
+
+  it('cancels immediately during Retry-After without sending another attempt', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 429, headers: { 'retry-after': '30' } })
+    )
+    const result = expect(
+      typesafeProvider.executeRequest({ ...REQUEST, abortSignal: controller.signal })
+    ).rejects.toThrow('Cancelled')
+    await vi.advanceTimersByTimeAsync(1)
+    controller.abort(new Error('Cancelled'))
+    await result
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not retry a malformed successful response', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{'))
+    await expect(typesafeProvider.executeRequest(REQUEST)).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('honors cancellation before network access', async () => {
@@ -216,5 +294,15 @@ describe('Jev native schema', () => {
     { model: 'jev-1.13.0', choices: [] },
   ])('rejects invalid provider responses', (value) => {
     expect(() => parseJevResponse(value, QUESTIONS)).toThrow('invalid Jev evaluation response')
+  })
+
+  it.each(['unknown', 'toString'])('rejects an unrequested Choice option %s', (choice) => {
+    const answers = {
+      ...RESULT.answers,
+      department: { type: 'choice', choice, probabilities: { [choice]: 1 }, confidence: 1 },
+    }
+    expect(() => parseJevResponse({ ...RESULT, answers }, QUESTIONS)).toThrow(
+      'outside the requested options'
+    )
   })
 })

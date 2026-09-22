@@ -113,5 +113,15 @@ export function parseJevResponse(
       'TypeSafe returned Jev answers that do not match the requested question IDs and types'
     )
   }
+  for (const [id, question] of Object.entries(questions)) {
+    const answer = answers[id]
+    if (
+      question.type === 'choice' &&
+      answer.type === 'choice' &&
+      !Object.hasOwn(question.criteria, answer.choice)
+    ) {
+      throw new Error('TypeSafe returned a Jev Choice answer outside the requested options')
+    }
+  }
   return result.data
 }

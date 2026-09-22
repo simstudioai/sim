@@ -4,6 +4,7 @@ import {
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import {
   classifyStartBlockType,
   StartBlockPath,
@@ -23,6 +24,7 @@ import {
   type OutputFieldDefinition,
 } from '@/blocks/types'
 import { isHumanInTheLoopBlock } from '@/executor/constants'
+import { isEvaluationModel } from '@/providers/models'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -61,15 +63,19 @@ function evaluateOutputCondition(
 
   const fieldValue = subBlocks[condition.field]?.value
 
+  const deferred =
+    condition.allowReference && typeof fieldValue === 'string' && containsReference(fieldValue)
   let matches: boolean
-  if (Array.isArray(condition.value)) {
+  if (deferred) {
+    matches = true
+  } else if (Array.isArray(condition.value)) {
     // For array conditions, check if fieldValue is a valid primitive and included
     matches = isConditionPrimitive(fieldValue) && condition.value.includes(fieldValue)
   } else {
     matches = fieldValue === condition.value
   }
 
-  if (condition.not) {
+  if (condition.not && !deferred) {
     matches = !matches
   }
 
@@ -428,8 +434,19 @@ export function getEffectiveBlockOutputs(
   const includeHidden = options?.includeHidden ?? false
 
   if (blockType === 'agent') {
-    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
-    if (responseFormatOutputs) return responseFormatOutputs
+    const model = subBlocks?.model?.value
+    if (typeof model !== 'string' || !isEvaluationModel(model)) {
+      const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
+      if (responseFormatOutputs) {
+        /** A referenced model may select either evaluation or chat at execution time. */
+        return typeof model === 'string' && containsReference(model)
+          ? {
+              ...getBlockOutputs('agent', subBlocks, false, { includeHidden }),
+              ...responseFormatOutputs,
+            }
+          : responseFormatOutputs
+      }
+    }
   }
 
   let baseOutputs: OutputDefinition
