@@ -5,6 +5,7 @@ import { Lock, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
@@ -24,6 +25,7 @@ import {
   useMyAccessRequests,
 } from '@/ee/access-requests/hooks/access-requests'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
+import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
@@ -32,6 +34,10 @@ interface MyAccessRequestsProps {
 }
 
 export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
+  const { hosted } = useDeploymentShape()
+  const workspace = useWorkspaceHostContextQuery(
+    scope.kind === 'workspace' ? scope.workspaceId : ''
+  )
   const [{ view, search, page, requestId }, setParams] = useQueryStates(
     accessRequestSearchParams,
     accessRequestUrlOptions
@@ -43,17 +49,23 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
   const searchPending = view === 'catalog' && search.trim() !== debouncedSearch
   const offset = page * ACCESS_REQUEST_PAGE_SIZE
   const requests = useMyAccessRequests(scope, offset, undefined, view === 'requests')
-  const catalog = useDiscoverAccessRequests(
-    {
-      ...scope,
-      search: debouncedSearch,
-      state: 'requestable',
-      limit: ACCESS_REQUEST_PAGE_SIZE,
-      offset,
-    },
-    view === 'catalog'
-  )
+  const catalog = useDiscoverAccessRequests({
+    ...scope,
+    search: view === 'catalog' ? debouncedSearch : '',
+    state: 'requestable',
+    limit: view === 'catalog' ? ACCESS_REQUEST_PAGE_SIZE : 1,
+    offset: view === 'catalog' ? offset : 0,
+  })
   const currentQuery = view === 'requests' ? requests : catalog
+  const showCatalog =
+    view === 'catalog' ||
+    (catalog.isSuccess && catalog.data.enabled && catalog.data.entries.length > 0)
+  const requestsPaused =
+    catalog.isSuccess && !catalog.data.enabled && Boolean(catalog.data.organizationId)
+  const scopeLabel =
+    scope.kind === 'workspace'
+      ? `Workspace: ${workspace.isSuccess ? workspace.data.workspace.name : 'Current workspace'}`
+      : 'Organization requests'
 
   return (
     <main className='flex h-full min-h-0 flex-col overflow-y-auto bg-[var(--bg)]'>
@@ -61,21 +73,34 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
         <div className='flex items-start justify-between gap-4'>
           <div className='space-y-1'>
             <h1 className='text-[var(--text-primary)] text-lg'>My access requests</h1>
+            <p className='text-[var(--text-muted)] text-sm'>{scopeLabel}</p>
+            {hosted && scope.kind === 'workspace' && workspace.data?.hostOrganizationId && (
+              <p className='text-[var(--text-muted)] text-sm'>
+                Includes your organization credit limit requests.
+              </p>
+            )}
           </div>
           {scope.kind === 'organization' && (
             <ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>
           )}
         </div>
-        <ChipSwitch
-          aria-label='Access request views'
-          options={[
-            { value: 'requests', label: 'My requests' },
-            { value: 'catalog', label: 'Browse access' },
-          ]}
-          value={view}
-          onChange={(value) => void setParams({ view: value, page: 0, requestId: null })}
-        />
-        {view === 'catalog' && (
+        {showCatalog && (
+          <ChipSwitch
+            aria-label='Access request views'
+            options={[
+              { value: 'requests', label: 'My requests' },
+              { value: 'catalog', label: 'Browse access' },
+            ]}
+            value={view}
+            onChange={(value) => void setParams({ view: value, page: 0, requestId: null })}
+          />
+        )}
+        {view === 'requests' && requestsPaused && (
+          <p className='text-[var(--text-muted)] text-sm'>
+            Your organization has paused new requests. Your request history is still available.
+          </p>
+        )}
+        {view === 'catalog' && catalog.isSuccess && catalog.data.enabled && (
           <ChipInput
             icon={Search}
             value={search}
@@ -99,14 +124,11 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
           <div className={RESOURCE_LIST_STACK}>
             {requests.data?.requests.length === 0 && (
               <EmptyState
-                title='No access requests yet'
-                description='Browse access to find a feature you need.'
-                action={
-                  <Chip
-                    onClick={() => void setParams({ view: 'catalog', page: 0, requestId: null })}
-                  >
-                    Browse access
-                  </Chip>
+                title={page > 0 ? 'No requests on this page' : 'No access requests yet'}
+                description={
+                  page > 0
+                    ? 'Go to the previous page to see your requests.'
+                    : 'Requests you send appear here so you can track their status.'
                 }
               />
             )}
@@ -126,15 +148,36 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
           </div>
         ) : !catalog.data?.enabled ? (
           <EmptyState
-            title='Access requests are unavailable'
-            description='Your organization is not accepting new requests.'
+            title={requestsPaused ? 'New requests are paused' : 'Access requests are unavailable'}
+            description={
+              requestsPaused
+                ? 'Your organization has paused new requests. You can still view your request history.'
+                : 'Access requests are available in organization workspaces.'
+            }
           />
         ) : (
           <div className={RESOURCE_LIST_STACK}>
             {catalog.data.entries.length === 0 && (
               <EmptyState
-                title='No matching access'
-                description='Try searching for another feature or integration.'
+                title={
+                  debouncedSearch
+                    ? 'No matching results'
+                    : page > 0
+                      ? 'No more access to request'
+                      : `Nothing to request in this ${scope.kind}`
+                }
+                description={
+                  debouncedSearch
+                    ? 'Try another search or clear it to see available requests.'
+                    : page > 0
+                      ? 'Go to the previous page to see available requests.'
+                      : 'There is no additional access available to request.'
+                }
+                action={
+                  debouncedSearch ? (
+                    <Chip onClick={() => setSearch('')}>Clear search</Chip>
+                  ) : undefined
+                }
               />
             )}
             {catalog.data.entries.map((entry) => (
