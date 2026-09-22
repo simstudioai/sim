@@ -2174,8 +2174,15 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         dateFilterCondition(params.filters)
           ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, dateFilterCondition(params.filters))})`
           : undefined,
+        /**
+         * The row's mirrored source decides it once the fill is complete; until then a row the
+         * fill has not reached carries no source, so its document is asked instead, as the
+         * vector leg does.
+         */
         excludedSources.length
-          ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
+          ? tinFilled
+            ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
+            : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ranked_tin_chunks.document_id AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))`
           : undefined
       )
     const documentConditions = (excludedSources: readonly string[]) =>
@@ -2188,6 +2195,23 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
         ),
         excludeSearchSources(excludedSources)
       )
+    /**
+     * A page read on the row takes each candidate's source from the row, which is what decides
+     * whether its live source proof is asked for. A row the fill has not reached carries no
+     * source, so until the fill is complete the page's own unfilled rows take it from their
+     * document: one primary-key read per row of the page, after its limit, never per ranked row.
+     */
+    const onRowPage = (ranked: SQL) =>
+      tinFilled
+        ? ranked
+        : sql`
+              SELECT paged.id, paged."documentId",
+                CASE WHEN paged.unfilled
+                  THEN (SELECT ${document.connectorId} FROM ${document} WHERE ${document.id} = paged."documentId")
+                  ELSE paged."connectorId"
+                END AS "connectorId",
+                paged.keyword_rank
+              FROM (${ranked}) AS paged`
     /**
      * One page from the top of Tin's ranking. The window of ranked chunks widens while too few of
      * them are readable to fill the page; if the widest window still cannot, the page is left to
@@ -2239,13 +2263,17 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
                      * so a window of mostly unreadable chunks costs an array test per row, not a
                      * document lookup. The full predicate follows at hydration.
                      */
-                    sql`
+                    onRowPage(
+                      sql`
               SELECT ranked_tin_chunks.id, ranked_tin_chunks.document_id AS "documentId",
-                ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank
+                ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank${
+                  tinFilled ? sql`` : sql`, ranked_tin_chunks.acl IS NULL AS unfilled`
+                }
               FROM ranked_tin_chunks /* on-row visibility */
               WHERE ranked_tin_chunks.enabled AND ${onRowKeywordVisibility(excludedSources)}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id
               LIMIT ${pageLimit} OFFSET ${offset}`
+                    )
                   : sql`
               SELECT ranked_tin_chunks.id, ${document.id} AS "documentId",
                 ${document.connectorId} AS "connectorId",
