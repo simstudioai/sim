@@ -37,7 +37,7 @@ export async function searchSlack(
   if (!input.scopes.includes('search:read.public'))
     throw new NativeSearchError(
       'reconnect',
-      'Reconnect your personal Slack account with search:read.public and any private-channel/DM search scopes you need. Existing indexing scopes do not grant RTS search.'
+      'Reconnect your Slack account to grant permission to search.'
     )
   const channels = [
     ['public_channel', 'search:read.public'],

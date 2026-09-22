@@ -391,7 +391,7 @@ export function SlackManagedUsersModal({
               <ChipModalField type='custom' title='Install Sim Search first'>
                 <p className='text-[var(--text-secondary)] text-sm'>
                   Install the Sim Search app in your Slack workspace to use the bot and connect
-                  Slack sources. Members can then authorize their own accounts for indexing.
+                  Slack accounts.
                 </p>
               </ChipModalField>
             ) : (

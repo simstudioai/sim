@@ -37,10 +37,9 @@ export async function executeOAuthGetAuthLink(
         return {
           success: true,
           output: {
-            message:
-              'Connect or reconnect your own accounts on the integrations page; no index setup is required.',
+            message: 'Connect or reconnect your accounts in Integrations.',
             url: result.settingsPath,
-            instructions: `Offer the exact link [Connected accounts](${result.settingsPath}). Do not invent a source setup card or claim that indexing is required.`,
+            instructions: `Offer the exact link [Integrations](${result.settingsPath}). Account setup happens on this page.`,
           },
         }
       }

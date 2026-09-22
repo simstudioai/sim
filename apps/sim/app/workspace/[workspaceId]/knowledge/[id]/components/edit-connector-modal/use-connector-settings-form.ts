@@ -309,7 +309,10 @@ export function useConnectorSettingsForm({
     (!accessDirty || !needsWorkspaceCredential || Boolean(workspaceCredentialId))
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
-    !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
+    !liveSearch &&
+    !accessDirty &&
+    connector.accessMode === 'members' &&
+    connector.memberSyncStatus === 'disabled'
   const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   const settingsComplete = connectorConfig?.configFields.every(
     (field) =>

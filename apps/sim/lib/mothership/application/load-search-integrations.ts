@@ -44,7 +44,7 @@ export async function loadCopilotSearchIntegrations(
       ...inventory,
       connectionPath: `/o/${encodeURIComponent(context.organizationId)}/integrations`,
       connectionGuidance:
-        'Use this member integrations page to connect or reconnect accounts. Live search does not require a knowledge base or source index. No account inventory entry establishes provider search permission until a search succeeds.',
+        'Use this member integrations page to connect or reconnect accounts. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
     })
   }
 

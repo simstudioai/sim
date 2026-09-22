@@ -34,6 +34,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/deployment-shape', () => ({
   useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
+vi.mock('@/hooks/queries/organization-secrets', () => ({
+  useOrganizationSecretSource: () => ({ data: { source: null } }),
+}))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
   organizationAccountsKeys: { detail: (id: string) => ['organization-accounts', 'detail', id] },
   useOrganizationAccounts: mocks.organizationAccounts,
