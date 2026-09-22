@@ -9,6 +9,7 @@ import type { AuthorizedApp, AuthorizedAppsPage } from '@/lib/api/contracts/user
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   context: vi.fn(),
   session: vi.fn(),
   push: vi.fn(),
@@ -27,6 +28,9 @@ const mocks = vi.hoisted(() => ({
   addResource: vi.fn(),
   selectResource: vi.fn(),
   activeResource: null as string | null,
+}))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }))
@@ -82,6 +86,7 @@ import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-hom
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  mocks.live = false
   vi.clearAllMocks()
   mocks.activeResource = null
   mocks.session.mockReturnValue({ data: { user: { id: 'reader' } } })
@@ -877,3 +882,22 @@ it('does not reopen closed search results merely because a query remains in the 
   await act(async () => composerProps().onChange('Different question'))
   expect(mocks.addResource).not.toHaveBeenCalled()
 })
+
+it.each(['adaptive', 'fast', 'max'] as const)(
+  'normalizes saved live Search level %s before sending',
+  async (level) => {
+    mocks.live = true
+    useOrganizationChatModeStore
+      .getState()
+      .setAssistantSearchLevel('reader', 'organization-a', level)
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
+    expect(composerProps().assistantSearchLevel).toBe(level === 'max' ? 'max' : 'fast')
+    await act(async () => composerProps().onSubmit('Find context'))
+    expect(mocks.send).toHaveBeenCalledWith(
+      'Find context',
+      undefined,
+      undefined,
+      expect.objectContaining({ assistantSearchLevel: level === 'max' ? 'max' : 'fast' })
+    )
+  }
+)

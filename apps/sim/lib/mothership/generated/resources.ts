@@ -9,6 +9,7 @@ import {
 
 export const ResourceType = z.enum([
   "search",
+  "sources",
   "workflow",
   "table",
   "knowledgebase",
@@ -45,6 +46,9 @@ export const ResourceAddress = z.object({
   viewId: z.string().optional(),
   executionId: z.string().optional(),
   search: SearchResource.optional(),
+  sources: z
+    .object({ messageId: z.string().min(1).max(200), requestId: z.string().min(1).max(200).optional() })
+    .optional(),
 });
 export type ResourceAddress = z.infer<typeof ResourceAddress>;
 

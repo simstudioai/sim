@@ -86,6 +86,7 @@ export interface StreamEventScope {
 
 export interface StreamLoopDeps {
   viewerId?: string
+  citedSourcesEnabled?: boolean
   workspaceId?: string
   organizationId?: string
   queryClient: QueryClient

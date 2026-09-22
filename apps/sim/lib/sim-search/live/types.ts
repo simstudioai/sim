@@ -25,6 +25,8 @@ export interface NativeDocument {
   accessMetadata?: Record<string, unknown>
   id: string
   container?: string
+  containerName?: string
+  containerUrl?: string
   kind?: string
   revision?: string
   threadId?: string

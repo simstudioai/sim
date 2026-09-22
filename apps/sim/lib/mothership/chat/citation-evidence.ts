@@ -56,8 +56,8 @@ export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitat
           ? { connectorType: result.connectorType }
           : {}),
         ...(typeof result.author === 'string' ? { author: result.author } : {}),
-        ...(typeof result.sourceModifiedAt === 'string'
-          ? { updatedAt: result.sourceModifiedAt }
+        ...(typeof (result.sourceDate ?? result.sourceModifiedAt) === 'string'
+          ? { updatedAt: result.sourceDate ?? result.sourceModifiedAt }
           : {}),
         ...(typeof result.content === 'string' ? { snippet: result.content.slice(0, 500) } : {}),
       })

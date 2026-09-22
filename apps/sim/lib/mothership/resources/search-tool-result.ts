@@ -3,6 +3,7 @@ import {
   searchWorkspaceInputSchema,
   workspaceKnowledgeSearchDataSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
@@ -18,7 +19,7 @@ export function searchResourceFromToolResult(
   output: unknown,
   context: ServerToolContext
 ) {
-  if (context.requestMode !== 'assistant') return undefined
+  if (context.requestMode !== 'assistant' || isLiveEnterpriseSearchEnabled) return undefined
   const result = successfulSearch.safeParse(output)
   if (!result.success) return undefined
   const scope = context.organizationId

@@ -1,5 +1,10 @@
 import { nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
+import {
+  slackConversationName,
+  slackConversationUrl,
+  slackPlainText,
+} from '@/lib/sim-search/live/slack-format'
 import type {
   NativeClient,
   NativeDocument,
@@ -78,7 +83,14 @@ export async function searchSlack(
       },
     })
   )
-  const documents = array(object(data.results).messages).map((message): NativeDocument => {
+  const messages = array(object(data.results).messages)
+  const users = new Map<string, string>()
+  for (const message of messages) {
+    const id = string(message.author_user_id)
+    const name = string(message.author_name)
+    if (id && name) users.set(id, name)
+  }
+  const documents = messages.map((message): NativeDocument => {
     const context = object(message.context_messages)
     const ts = string(message.message_ts)
     const timestamp = Number(ts) * 1000
@@ -86,7 +98,12 @@ export async function searchSlack(
       id: ts,
       ...(string(message.thread_ts) ? { threadId: string(message.thread_ts) } : {}),
       container: string(message.channel_id),
-      title: `#${string(message.channel_name)} · ${string(message.author_name)}`,
+      title: slackConversationName(string(message.channel_name), string(message.channel_id)),
+      containerName: slackConversationName(
+        string(message.channel_name),
+        string(message.channel_id)
+      ),
+      containerUrl: slackConversationUrl(string(message.permalink), string(message.channel_id)),
       url: string(message.permalink),
       content: [
         ...array(context.before).map((m) => string(m.text) || string(m.content)),
@@ -94,6 +111,7 @@ export async function searchSlack(
         ...array(context.after).map((m) => string(m.text) || string(m.content)),
       ]
         .filter(Boolean)
+        .map((text) => slackPlainText(text, users))
         .join('\n'),
       author: string(message.author_name),
       ...(Number.isFinite(timestamp) && timestamp > 0
@@ -108,7 +126,7 @@ export async function searchSlack(
       kind: 'file',
       title: string(file.title),
       url: string(file.permalink),
-      content: string(file.content),
+      content: slackPlainText(string(file.content), users),
       author: string(file.author_name),
       ...(Number.isFinite(updated) && updated > 0
         ? { modifiedAt: new Date(updated).toISOString() }
@@ -171,12 +189,17 @@ export async function readSlack(
     id,
     container: channel,
     threadId,
-    title: `Slack thread in ${channel}`,
+    title: 'Slack conversation',
+    containerName: 'Slack conversation',
+    containerUrl: slackConversationUrl(string(link.permalink), channel),
     url: string(link.permalink),
     modifiedAt: new Date(Number(id) * 1000).toISOString(),
     content:
       array(data.messages)
-        .map((m) => `${string(m.user)}: ${string(m.text)}`)
+        .map(
+          (m) =>
+            `${string(object(m.user_profile).display_name) || string(object(m.user_profile).real_name) || 'Slack member'}: ${slackPlainText(string(m.text))}`
+        )
         .join('\n') +
       (data.has_more ? '\n[Thread continues; open the source for the remaining messages.]' : ''),
   }

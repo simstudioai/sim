@@ -30,6 +30,7 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
@@ -529,6 +530,8 @@ export function selectDeletedWorkflowResources(
 }
 
 export interface ResourceEventOptions {
+  /** A completed Search answer reveals its cited evidence as the turn result. */
+  revealCitedSources?: boolean
   activate?: boolean
   tableViewId?: string
 }
@@ -2100,6 +2103,9 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
+        citedSourcesEnabled:
+          getDeploymentShape().features.liveEnterpriseSearch &&
+          requestModeRef.current === 'assistant',
         refreshRoute: () => router.refresh(),
         viewerId,
         workspaceId,

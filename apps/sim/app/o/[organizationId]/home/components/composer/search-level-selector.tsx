@@ -5,7 +5,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { resolveSearchLevel, type SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 
 const SEARCH_LEVELS = [
   { value: 'fast', label: 'Fast', description: 'Faster and cheaper' },
@@ -23,19 +24,28 @@ interface SearchLevelSelectorProps {
 }
 
 export function SearchLevelSelector({ value, onChange }: SearchLevelSelectorProps) {
+  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
+  const selected = resolveSearchLevel(value, liveSearch)
+  const levels = liveSearch
+    ? SEARCH_LEVELS.filter((level) => level.value !== 'adaptive').map((level) =>
+        level.value === 'fast'
+          ? { ...level, label: 'Auto', description: 'Fast, everyday answers' }
+          : level
+      )
+    : SEARCH_LEVELS
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Chip aria-label='Search level'>
-          {SEARCH_LEVELS.find((level) => level.value === value)?.label}
+          {levels.find((level) => level.value === selected)?.label}
         </Chip>
       </DropdownMenuTrigger>
       <DropdownMenuContent side='top' align='end'>
-        {SEARCH_LEVELS.map((level) => (
+        {levels.map((level) => (
           <DropdownMenuItem
             key={level.value}
             role='menuitemradio'
-            aria-checked={value === level.value}
+            aria-checked={selected === level.value}
             title={level.description}
             onSelect={() => onChange(level.value)}
           >

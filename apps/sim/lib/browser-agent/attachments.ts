@@ -31,7 +31,7 @@ export function buildResourceAttachments(
     // The terminal panel is not addressable context: unlike a browser tab it
     // carries no URL to reference, and the shell's state reaches the model
     // through the terminal tools instead.
-    if (resource.type === 'terminal') return []
+    if (resource.type === 'terminal' || resource.type === 'sources') return []
 
     if (resource.type !== 'browser') {
       return [

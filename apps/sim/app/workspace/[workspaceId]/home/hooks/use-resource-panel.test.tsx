@@ -43,7 +43,7 @@ const chat = {
 function Probe() {
   const controller = useResourcePanelController()
   panel = useChatResourcePanel(chat, controller)
-  return null
+  return <div data-active={controller.activeResourceParam ?? ''} />
 }
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -85,3 +85,17 @@ it('selects and expands the explicitly chosen scoped alias', async () => {
   expect(mocks.select).toHaveBeenCalledWith(getChatResourceSelectionId(second))
   expect(panel.isResourceCollapsed).toBe(false)
 })
+
+it.each([false, true])(
+  'reveals completed cited sources after a user selection (collapsed=%s)',
+  async (collapsed) => {
+    await act(async () => panel.addResourceFromUser(resource))
+    if (collapsed) await act(async () => panel.collapseResource())
+    await act(async () => panel.onResourceEvent('cited-sources', { revealCitedSources: true }))
+    expect(panel.isResourceCollapsed).toBe(false)
+    expect(panel.resourceActivityIds.has('cited-sources')).toBe(false)
+    expect(container.querySelector('[data-active]')?.getAttribute('data-active')).toBe(
+      'cited-sources'
+    )
+  }
+)

@@ -158,6 +158,12 @@ function resultFor(
     knowledgeBaseName: account.displayName,
     documentName: safeContent(document.title, registry),
     sourceUrl: isKnowledgeSourceUrl(document.url) ? document.url : null,
+    ...(document.containerName
+      ? { sourceContainerName: safeContent(document.containerName, registry) }
+      : {}),
+    ...(document.containerUrl && isKnowledgeSourceUrl(document.containerUrl)
+      ? { sourceContainerUrl: document.containerUrl }
+      : {}),
     connectorType: account.provider,
     sourceModifiedAt:
       document.modifiedAt && Number.isFinite(Date.parse(document.modifiedAt))
@@ -544,6 +550,13 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       sourceUrl: isKnowledgeSourceUrl(document.url) ? document.url : null,
       connectorType: reference.provider,
       sourceModifiedAt: document.modifiedAt ?? null,
+      sourceDate: sourceDate(document, reference.provider) ?? null,
+      ...(document.containerName
+        ? { sourceContainerName: safeContent(document.containerName, input.resultSecretRegistry) }
+        : {}),
+      ...(document.containerUrl && isKnowledgeSourceUrl(document.containerUrl)
+        ? { sourceContainerUrl: document.containerUrl }
+        : {}),
       chunks: [
         {
           chunkIndex: 0,

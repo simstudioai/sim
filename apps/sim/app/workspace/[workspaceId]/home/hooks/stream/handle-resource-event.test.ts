@@ -634,3 +634,28 @@ it('refreshes organization policy and its server layout only within the owning o
   expect(deps.queryClient.invalidateQueries).toHaveBeenCalledOnce()
   expect(deps.addResource).not.toHaveBeenCalled()
 })
+
+it('ignores intermediate search resources when the live answer owns the cited-sources panel', () => {
+  const deps = makeStreamLoopDeps({
+    citedSourcesEnabled: true,
+    organizationId: 'org',
+    onResourceEventRef: { current: vi.fn() },
+  })
+  const event: ResourceEvent = {
+    ...removeEvent('file', 'unused'),
+    payload: {
+      op: 'upsert',
+      resource: {
+        type: 'search',
+        id: 'search:organization:org',
+        title: 'Search results',
+        search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } },
+      },
+    },
+  }
+  handleResourceEvent({ deps } as StreamLoopContext, event)
+  expect(deps.addResource).not.toHaveBeenCalled()
+  expect(deps.onResourceEventRef.current).not.toHaveBeenCalled()
+  expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+})

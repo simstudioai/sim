@@ -427,24 +427,24 @@ function LiveSearchResults({
   ]
   return (
     <div className='flex flex-col'>
-      <div className='flex items-center gap-2 px-2 py-2'>
-        {awaitingRange ? (
-          <p className='text-caption'>Choose the days to search.</p>
-        ) : isPending || isFetching ? (
-          <ActivityStatus label='Searching connected accounts…' isActive />
-        ) : (
-          <p role='status' className='text-[var(--text-muted)] text-caption'>
-            {isError
-              ? 'Search couldn’t run.'
-              : `${documents.length} results · searched live as you`}
-          </p>
-        )}
-        {isError && (
-          <Chip variant='border' onClick={() => void refetch()}>
-            Try again
-          </Chip>
-        )}
-      </div>
+      {(awaitingRange || isPending || isFetching || isError) && (
+        <div className='flex items-center gap-2 px-2 py-2'>
+          {awaitingRange ? (
+            <p className='text-caption'>Choose the days to search.</p>
+          ) : isPending || isFetching ? (
+            <ActivityStatus label='Searching connected accounts…' isActive />
+          ) : (
+            <p role='status' className='text-[var(--text-muted)] text-caption'>
+              Search couldn’t run.
+            </p>
+          )}
+          {isError && (
+            <Chip variant='border' onClick={() => void refetch()}>
+              Try again
+            </Chip>
+          )}
+        </div>
+      )}
       {!suppliedFilters && (
         <div className='flex flex-wrap gap-2 px-2 py-2'>
           <Chip variant='border' onClick={() => void setParams({ source: null })}>

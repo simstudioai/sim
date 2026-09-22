@@ -37,7 +37,10 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 const logger = createLogger('WorkspaceSearchTool')
 
 const CITATION_INSTRUCTION =
-  'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.'
+  'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.' +
+  (isLiveEnterpriseSearchEnabled
+    ? ' When referring to a Slack conversation, link the returned sourceContainerName to its sourceContainerUrl when available.'
+    : '')
 
 export const searchWorkspaceServerTool: BaseServerTool = {
   name: 'search_workspace',

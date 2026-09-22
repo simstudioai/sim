@@ -9,6 +9,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
@@ -16,6 +17,7 @@ import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import {
   organizationHomeParsers,
+  resolveSearchLevel,
   type SearchLevel,
 } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -109,7 +111,11 @@ function OrganizationHomeContent({
   })
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode = !hasChat && mothershipAvailable && canBuild && searchAccess.memberScoped
-  const assistantSearchLevel = urlSearchLevel ?? rememberedSearchLevel
+  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
+  const assistantSearchLevel = resolveSearchLevel(
+    urlSearchLevel ?? rememberedSearchLevel,
+    liveSearch
+  )
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
@@ -206,13 +212,16 @@ function OrganizationHomeContent({
           : {}),
         ...(requestMode === 'assistant'
           ? {
-              assistantSearchLevel: handoff.assistantSearchLevel ?? assistantSearchLevel,
+              assistantSearchLevel: resolveSearchLevel(
+                handoff.assistantSearchLevel ?? assistantSearchLevel,
+                liveSearch
+              ),
             }
           : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, liveSearch])
 
   const send = (
     message: string,
@@ -334,7 +343,9 @@ function OrganizationHomeContent({
           composer={composer}
           onWorkspaceResourceSelect={requestMode === 'agent' ? selectResource : undefined}
           initialScrollBlocked={
-            requestMode === 'agent' && chat.resources.length > 0 && panel.isResourceCollapsed
+            (requestMode === 'agent' || liveSearch) &&
+            chat.resources.length > 0 &&
+            panel.isResourceCollapsed
           }
         />
       ) : (

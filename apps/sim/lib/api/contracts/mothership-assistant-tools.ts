@@ -321,6 +321,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
   connectorType: z.string().nullable(),
   sourceModifiedAt: z.string().nullable(),
   sourceDate: z.string().nullable().optional(),
+  sourceContainerName: z.string().optional(),
+  sourceContainerUrl: z.string().optional(),
   sourceDateType: z.enum(['event_start', 'message', 'modified']).optional(),
   /** The person behind the document, from its author-like tag; null when the source names none. */
   author: z.string().nullable(),

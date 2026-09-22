@@ -21,6 +21,7 @@ import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/search-resource-content'
+import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -296,7 +297,10 @@ export const MothershipView = memo(
                 </div>
               )
             })}
-            {active && !isPersistentPanel(active) && (
+            {active?.type === 'sources' && (
+              <SourcesResourceContent resource={active} chatId={chatId} />
+            )}
+            {active && active.type !== 'sources' && !isPersistentPanel(active) && (
               <ScopedResourceContent
                 workspaceId={activeWorkspaceId}
                 organizationId={organizationId}

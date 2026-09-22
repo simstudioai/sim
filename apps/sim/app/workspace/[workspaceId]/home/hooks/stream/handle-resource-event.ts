@@ -75,6 +75,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     return
   }
   if (payload.resource.type === 'search') {
+    if (ctx.deps.citedSourcesEnabled) return
     if (payload.op === 'refresh' || payload.op === 'clear_view') return
     const search = payload.resource.search
     if (!search) return

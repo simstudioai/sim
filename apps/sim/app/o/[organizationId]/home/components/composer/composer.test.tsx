@@ -8,6 +8,7 @@ import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
   resetTranscript: vi.fn(),
@@ -33,6 +34,9 @@ const mocks = vi.hoisted(() => ({
   ],
 }))
 
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
+}))
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
@@ -83,6 +87,7 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
+  mocks.live = false
   vi.clearAllMocks()
   mocks.workspaces = [
     {
@@ -831,4 +836,19 @@ it('offers only Fast, Auto, and Max search levels', async () => {
       (item) => item.textContent
     )
   ).toEqual(['Fast', 'Auto', 'Max'])
+})
+
+it('offers only Auto and Max for live Search, with Auto sending the Fast preset', async () => {
+  mocks.live = true
+  const onChange = vi.fn()
+  await render(true, '', 'assistant', { onAssistantSearchLevelChange: onChange })
+  const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
+  expect(picker.textContent).toBe('Auto')
+  await act(async () =>
+    picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+  expect(options.map((option) => option.textContent)).toEqual(['Auto', 'Max'])
+  await act(async () => options[0].click())
+  expect(onChange).toHaveBeenCalledWith('fast')
 })

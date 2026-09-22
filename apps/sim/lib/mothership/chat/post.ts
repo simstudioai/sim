@@ -113,6 +113,7 @@ const FileAttachmentSchema = z.object({
 
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
   search: 'Search results',
+  sources: 'Sources',
   workflow: 'Workflow',
   table: 'Table',
   integration: 'Integration',
@@ -552,6 +553,7 @@ async function resolveAgentContexts(params: {
   ) {
     const results = await Promise.allSettled(
       resourceAttachments.map(async (resource) => {
+        if (resource.type === 'sources') return null
         // The live browser panel resolves from the attachment itself: its
         // page state is client-held (the desktop app's embedded browser),
         // not a workspace entity the server could look up.

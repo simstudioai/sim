@@ -14,11 +14,12 @@ export function compactRetrievalCitations(toolName: string, raw: unknown): unkno
   if (!isRecordLike(output) || output.success === false) return undefined
   const data = isRecordLike(output.data) ? output.data : output
   const results = Array.isArray(data.results) ? data.results : [data]
+  // A live document reference permits 4,000 characters, plus the document: citation prefix.
   const citations = results.slice(0, 50).flatMap((item) => {
     if (
       !isRecordLike(item) ||
       typeof item.citationId !== 'string' ||
-      item.citationId.length > 240 ||
+      item.citationId.length > 4009 ||
       typeof item.citationUrl !== 'string' ||
       item.citationUrl.length > 2048
     )
@@ -34,6 +35,7 @@ export function compactRetrievalCitations(toolName: string, raw: unknown): unkno
       'connectorType',
       'author',
       'sourceModifiedAt',
+      'sourceDate',
       'content',
     ]) {
       const value = item[key]

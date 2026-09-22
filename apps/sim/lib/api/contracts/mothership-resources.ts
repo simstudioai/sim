@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
-import { SearchResource } from '@/lib/mothership/generated/resources'
+import { ResourceAddress, SearchResource } from '@/lib/mothership/generated/resources'
 import {
   type MothershipResource,
   MothershipResourceType,
@@ -19,8 +19,15 @@ const resourceAddressSchema = z
     viewId: z.string().min(1).optional(),
     executionId: z.string().optional(),
     search: SearchResource.optional(),
+    sources: ResourceAddress.shape.sources,
   })
   .superRefine((resource, ctx) => {
+    if ((resource.type === 'sources') !== (resource.sources !== undefined))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sources'],
+        message: 'Source message is required only for sources resources',
+      })
     if ((resource.type === 'search') !== (resource.search !== undefined))
       ctx.addIssue({
         code: 'custom',

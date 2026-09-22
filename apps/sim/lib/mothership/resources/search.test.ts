@@ -108,3 +108,18 @@ it('projects complete authorized search data separately and strips extra tool-on
   expect(searchResultFromToolResult({ success: false, data })).toBeUndefined()
   expect(searchResultFromToolResult({ success: true, data: { query: 'policy' } })).toBeUndefined()
 })
+
+it('round-trips cited-source addresses and replaces their answer without copying evidence', () => {
+  const first = {
+    type: 'sources' as const,
+    id: 'cited-sources',
+    title: 'Sources',
+    sources: { messageId: 'answer-1' },
+  }
+  const next = { ...first, sources: { messageId: 'answer-2', requestId: 'run-2' } }
+  expect(ResourceAddress.parse(first)).toEqual(first)
+  expect(mothershipResourceSchema.parse(next)).toEqual(next)
+  expect(sanitizeChatResources([next])).toEqual([next])
+  expect(mergeChatResource(first, next)).toEqual(next)
+  expect(mothershipResourceSchema.safeParse({ ...next, sources: undefined }).success).toBe(false)
+})

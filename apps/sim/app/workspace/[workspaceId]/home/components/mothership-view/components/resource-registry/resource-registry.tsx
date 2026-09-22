@@ -138,6 +138,15 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  sources: {
+    type: 'sources',
+    label: 'Sources',
+    icon: Search,
+    renderTabIcon: (_resource, className) => (
+      <Search className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   search: {
     type: 'search',
     label: 'Search results',

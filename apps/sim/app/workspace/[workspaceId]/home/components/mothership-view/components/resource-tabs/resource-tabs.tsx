@@ -67,6 +67,7 @@ import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
  * Module-scope by contract — `useAvailableResources` keys its group memo on this.
  */
 const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  'sources',
   'folder',
   'task',
   'integration',

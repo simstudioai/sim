@@ -117,6 +117,7 @@ const RESOURCE_TO_CONTEXT: Record<
 > = {
   /** A saved query is panel state, not document evidence or an attachable resource. */
   search: () => null,
+  sources: () => null,
   browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
   terminal: (r) => ({
     kind: 'terminal_tab',
