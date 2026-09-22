@@ -77,7 +77,7 @@ export function SelectorInput({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
+          <div className='w-full rounded-sm border p-4 text-center text-muted-foreground text-sm'>
             Selector not supported for service: {serviceId}
           </div>
         </Tooltip.Trigger>

@@ -161,7 +161,7 @@ export function SkillInput({
                 className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
+                  className='flex cursor-pointer items-center justify-between gap-2 rounded-t-sm bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkillId(fullSkill.id)

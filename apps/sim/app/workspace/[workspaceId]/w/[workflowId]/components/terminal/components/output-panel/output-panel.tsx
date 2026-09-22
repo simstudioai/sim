@@ -493,7 +493,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-sm border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'

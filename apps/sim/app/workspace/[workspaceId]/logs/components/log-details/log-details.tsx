@@ -517,7 +517,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       target='_blank'
                       rel='noopener noreferrer'
                       prefetch={false}
-                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
                     >
                       <span className='inline-grid size-[14px] shrink-0 place-items-center'>
                         <Workflow className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-none transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />

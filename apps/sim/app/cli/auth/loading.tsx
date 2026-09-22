@@ -11,11 +11,11 @@ import { AuthShell } from '@/app/(auth)/components'
 export function CliAuthLoading() {
   return (
     <div className='flex w-full flex-col items-center'>
-      <Skeleton className='h-[38px] w-[280px] rounded-[4px]' />
-      <Skeleton className='mt-1 h-[23px] w-[360px] rounded-[4px]' />
-      <Skeleton className='h-[23px] w-[240px] rounded-[4px]' />
-      <Skeleton className='mt-6 h-[70px] w-full rounded-[10px]' />
-      <Skeleton className='mt-4 h-9 w-full rounded-[10px]' />
+      <Skeleton className='h-[38px] w-[280px] rounded-sm' />
+      <Skeleton className='mt-1 h-[23px] w-[360px] rounded-sm' />
+      <Skeleton className='h-[23px] w-[240px] rounded-sm' />
+      <Skeleton className='mt-6 h-[70px] w-full rounded-lg' />
+      <Skeleton className='mt-4 h-9 w-full rounded-lg' />
     </div>
   )
 }

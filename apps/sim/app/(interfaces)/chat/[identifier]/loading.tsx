@@ -8,10 +8,10 @@ export default function ChatLoading() {
       <div className='border-[var(--border-1)] border-b px-4 py-3'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
-            <Skeleton className='size-[28px] rounded-[6px]' />
-            <Skeleton className='h-[18px] w-[120px] rounded-[4px]' />
+            <Skeleton className='size-[28px] rounded-md' />
+            <Skeleton className='h-[18px] w-[120px] rounded-sm' />
           </div>
-          <Skeleton className='h-[28px] w-[80px] rounded-[6px]' />
+          <Skeleton className='h-[28px] w-[80px] rounded-md' />
         </div>
       </div>
       <div className='flex min-h-0 flex-1 items-center justify-center px-4'>
@@ -24,16 +24,16 @@ export default function ChatLoading() {
             <div className='mt-8 w-full space-y-8'>
               <div className='space-y-2'>
                 <Skeleton className='h-4 w-16' />
-                <Skeleton className='h-10 w-full rounded-[10px]' />
+                <Skeleton className='h-10 w-full rounded-lg' />
               </div>
-              <Skeleton className='h-10 w-full rounded-[10px]' />
+              <Skeleton className='h-10 w-full rounded-lg' />
             </div>
           </div>
         </div>
       </div>
       <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
         <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
-          <Skeleton className='h-[48px] w-full rounded-[12px]' />
+          <Skeleton className='h-[48px] w-full rounded-xl' />
         </div>
       </div>
     </div>

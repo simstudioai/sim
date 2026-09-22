@@ -28,7 +28,7 @@ export function KnowledgeTagRow({
       className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
     >
       <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>{name}</span>
-      <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+      <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
         {typeLabel}
       </span>
       <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />

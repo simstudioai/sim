@@ -101,7 +101,7 @@ const COMPONENTS = {
   },
 
   inlineCode: ({ children }: { children?: React.ReactNode }) => (
-    <code className='rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--text-primary)] text-inherit'>
+    <code className='rounded-sm bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--text-primary)] text-inherit'>
       {children}
     </code>
   ),

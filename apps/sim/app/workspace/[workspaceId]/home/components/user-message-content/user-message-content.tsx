@@ -105,7 +105,7 @@ function computeIntegrationRanges(text: string, taken: MentionRange[]): MentionR
 
 function MentionHighlight({ context }: { context: ChatMessageContext }) {
   return (
-    <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
+    <span className='inline-flex items-baseline gap-1 rounded-sm bg-[var(--surface-5)] px-[5px]'>
       <ContextMentionIcon
         context={context}
         className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'

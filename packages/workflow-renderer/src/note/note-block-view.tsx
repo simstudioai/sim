@@ -108,7 +108,7 @@ const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
  */
 const NOTE_TASK_CHECKBOX_CLASS = [
   'mt-[3px] inline-grid size-[16px] shrink-0 appearance-none place-content-center',
-  'rounded-[3px] border border-[var(--border-1)] bg-transparent',
+  'rounded-sm border border-[var(--border-1)] bg-transparent',
   'checked:border-[var(--text-primary)] checked:bg-[var(--text-primary)]',
   "checked:after:size-[10px] checked:after:bg-[var(--surface-2)] checked:after:content-['']",
   'checked:after:[clip-path:polygon(14%_44%,0_65%,50%_100%,100%_16%,80%_0%,43%_62%)]',
@@ -251,14 +251,14 @@ const NOTE_COMPONENTS = {
     />
   ),
   inlineCode: ({ children }: { children?: ReactNode }) => (
-    <code className='whitespace-normal rounded bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
+    <code className='whitespace-normal rounded-sm bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
       {children}
     </code>
   ),
   code: ({ children, className, ...props }: { children?: ReactNode; className?: string }) => (
     <code
       {...props}
-      className='block whitespace-pre-wrap break-words rounded bg-black/15 p-2 text-current text-xs'
+      className='block whitespace-pre-wrap break-words rounded-sm bg-black/15 p-2 text-current text-xs'
     >
       {children}
     </code>
