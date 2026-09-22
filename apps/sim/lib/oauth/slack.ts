@@ -30,7 +30,8 @@ export function extractSlackTeamId(externalAccountId: string | null | undefined)
   return match ? match[1] : null
 }
 
-function installationFilter(teamId: string) {
+/** The account rows of one Slack installation: every bot token row of the team. */
+export function installationFilter(teamId: string) {
   return and(eq(account.providerId, 'slack'), like(account.accountId, `${teamId}-%`))
 }
 

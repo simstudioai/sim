@@ -1,16 +1,22 @@
 import { Suspense } from 'react'
 import { ChipLink } from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSearchParamsCache, createSerializer } from 'nuqs/server'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { ORGANIZATION_SETTINGS_ITEMS, toSettingsHeaderMeta } from '@/components/settings/navigation'
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { getSession } from '@/lib/auth'
-import { WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
+import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
+import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
-import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
-import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { AccessRequestsSettings } from '@/ee/access-requests/components/access-requests-settings'
 import { accessRequestEntrySearchParams } from '@/ee/access-requests/components/search-params'
+import { getLegacyAccessRequestsSettingsQuery } from '@/ee/access-requests/lib/navigation'
 
 export const metadata: Metadata = {
   title: 'Access requests',
@@ -23,6 +29,7 @@ interface AccessRequestsPageProps {
 
 const entrySearchParams = createSearchParamsCache(accessRequestEntrySearchParams)
 const serializeEntrySearchParams = createSerializer(accessRequestEntrySearchParams)
+const logger = createLogger('AccessRequestsPage')
 
 /** Session-only entry so access requests remain reachable outside the organization Search rollout. */
 export default async function AccessRequestsPage({ searchParams }: AccessRequestsPageProps) {
@@ -41,27 +48,50 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
     return (
       <EmptyState
         title='Choose an organization'
-        description='Open My access requests from your profile menu in a workspace.'
-        action={<ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>}
+        description='Open Settings → Requests in an organization or workspace.'
+        action={<ChipLink href={APP_ENTRY_PATH}>Back to Sim</ChipLink>}
       />
     )
   }
 
+  const query = getLegacyAccessRequestsSettingsQuery(rawParams)
+  if (params.view === 'admin' || params.view !== rawParams.view) {
+    const normalized = new URLSearchParams(query)
+    normalized.set('organizationId', params.organizationId)
+    redirect(`/access-requests?${normalized}`)
+  }
+
+  const context = await getOrganizationSurfaceContext(params.organizationId, session.user.id).catch(
+    (error) => {
+      logger.warn('Unable to resolve organization navigation for access requests', { error })
+      return null
+    }
+  )
+  if (context?.searchAccess.memberScoped) {
+    redirect(organizationRoutes(params.organizationId).settingsSection('requests') + query)
+  }
+
+  const access = await getOrganizationSettingsAccess(params.organizationId, session.user.id)
+  const meta = ORGANIZATION_SETTINGS_ITEMS.find((item) => item.id === 'requests')!
   return (
-    <Suspense fallback={<AccessRequestsLoading />}>
-      {params.view === 'admin' ? (
-        <main className='flex-1 px-6 py-8'>
-          <div className='mx-auto flex max-w-3xl flex-col gap-6'>
-            <div className='flex items-center justify-between gap-4'>
-              <h1 className='text-[var(--text-primary)] text-lg'>Access requests</h1>
-              <ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>
-            </div>
-            <OrganizationAccessRequests organizationId={params.organizationId} standalone />
-          </div>
-        </main>
-      ) : (
-        <MyAccessRequests scope={{ kind: 'organization', organizationId: params.organizationId }} />
-      )}
-    </Suspense>
+    <SettingsHeaderProvider>
+      <SettingsHeaderShell meta={toSettingsHeaderMeta(meta)}>
+        <SettingsSectionProvider section='requests' meta={meta}>
+          <Suspense
+            fallback={
+              <SettingsEmptyState variant='inline'>
+                <span role='status'>Loading requests...</span>
+              </SettingsEmptyState>
+            }
+          >
+            <AccessRequestsSettings
+              scope={{ kind: 'organization', organizationId: params.organizationId }}
+              reviewOrganizationId={access.isAdmin ? params.organizationId : undefined}
+              standalone
+            />
+          </Suspense>
+        </SettingsSectionProvider>
+      </SettingsHeaderShell>
+    </SettingsHeaderProvider>
   )
 }

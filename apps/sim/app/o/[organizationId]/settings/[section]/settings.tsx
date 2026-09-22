@@ -47,9 +47,9 @@ const Billing = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
-const OrganizationAccessRequests = dynamic(() =>
-  import('@/ee/access-requests/components/organization-access-requests').then(
-    (m) => m.OrganizationAccessRequests
+const AccessRequestsSettings = dynamic(() =>
+  import('@/ee/access-requests/components/access-requests-settings').then(
+    (m) => m.AccessRequestsSettings
   )
 )
 const AuditLogs = dynamic(() =>
@@ -111,7 +111,12 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
           requestsHref={getOrganizationSettingsHref(organizationId, 'requests')}
         />
       )}
-      {section === 'requests' && <OrganizationAccessRequests organizationId={organizationId} />}
+      {section === 'requests' && (
+        <AccessRequestsSettings
+          scope={{ kind: 'organization', organizationId }}
+          reviewOrganizationId={viewer.isAdmin ? organizationId : undefined}
+        />
+      )}
       {section === 'audit-logs' && <AuditLogs organizationId={organizationId} />}
       {section === 'usage' && (
         <UsageMonitoring

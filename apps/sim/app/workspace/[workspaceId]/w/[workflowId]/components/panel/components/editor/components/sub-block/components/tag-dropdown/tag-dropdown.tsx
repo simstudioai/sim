@@ -81,7 +81,7 @@ interface TagDropdownProps {
   /** Callback when the dropdown should close */
   onClose?: () => void
   /** Custom styles for positioning */
-  style?: React.CSSProperties
+  style?: Pick<React.CSSProperties, 'top' | 'left' | 'zIndex'>
   /** Reference to the input element for caret positioning */
   inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
@@ -1616,7 +1616,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <div
             className={cn('pointer-events-none', className)}
             style={{
-              ...style,
+              zIndex: style?.zIndex,
               position: inputElement ? 'fixed' : 'absolute',
               top: inputElement ? `${caretViewport.top}px` : style?.top,
               left: inputElement ? `${caretViewport.left}px` : style?.left,

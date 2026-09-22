@@ -14,6 +14,7 @@ import {
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { hasEmailService, sendEmail } from '@/lib/messaging/email/mailer'
 import { loadAccessRequestMembership } from '@/ee/access-requests/lib/application/authorization'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import {
   PERMISSION_ACCESS_REQUEST_CREATED_EVENT,
   PERMISSION_ACCESS_REQUEST_DECIDED_EVENT,
@@ -70,16 +71,22 @@ async function requesterHasCurrentAccess(request: NotificationRequest): Promise<
 }
 
 function requestLink(request: NotificationRequest, kind: 'created' | 'decided'): string {
-  const requesterWorkspaceId = kind === 'decided' ? request.workspaceId : null
-  const url = new URL(
-    requesterWorkspaceId
-      ? `/workspace/${encodeURIComponent(requesterWorkspaceId)}/access-requests`
-      : '/access-requests',
-    getBaseUrl()
-  )
-  if (!requesterWorkspaceId) url.searchParams.set('organizationId', request.organizationId)
-  if (kind === 'created') url.searchParams.set('view', 'admin')
-  url.searchParams.set('requestId', request.id)
+  if (kind === 'decided') {
+    return new URL(
+      getMyAccessRequestHref(
+        request.workspaceId
+          ? { kind: 'workspace', workspaceId: request.workspaceId }
+          : { kind: 'organization', organizationId: request.organizationId },
+        request.id
+      ),
+      getBaseUrl()
+    ).toString()
+  }
+
+  const url = new URL('/access-requests', getBaseUrl())
+  url.searchParams.set('organizationId', request.organizationId)
+  url.searchParams.set('view', 'review')
+  url.searchParams.set('request-id', request.id)
   return url.toString()
 }
 

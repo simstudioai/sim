@@ -167,7 +167,7 @@ export function SettingsSidebar({
         )
       }
       if (item.id === 'requests') {
-        return Boolean(hostContext.hostOrganizationId && isOrgAdminOrOwner)
+        return Boolean(hostContext.hostOrganizationId)
       }
       if (item.id === 'organization') {
         return Boolean(

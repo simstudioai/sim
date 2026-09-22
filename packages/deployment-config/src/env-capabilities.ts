@@ -1545,6 +1545,7 @@ export const LLM_KEY_POOLS = {
   zai: { keys: ['ZAI_API_KEY_1', 'ZAI_API_KEY_2', 'ZAI_API_KEY_3'] },
   xai: { keys: ['XAI_API_KEY_1', 'XAI_API_KEY_2', 'XAI_API_KEY_3'] },
   kimi: { keys: ['KIMI_API_KEY_1', 'KIMI_API_KEY_2', 'KIMI_API_KEY_3'] },
+  typesafe: { keys: ['TYPESAFE_API_KEY_1', 'TYPESAFE_API_KEY_2', 'TYPESAFE_API_KEY_3'] },
   fireworks: {
     keys: ['FIREWORKS_API_KEY_1', 'FIREWORKS_API_KEY_2', 'FIREWORKS_API_KEY_3'],
     fallbackKey: 'FIREWORKS_API_KEY',

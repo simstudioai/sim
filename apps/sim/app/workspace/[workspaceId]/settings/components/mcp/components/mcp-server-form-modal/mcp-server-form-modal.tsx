@@ -180,7 +180,7 @@ function FormattedInput({
           onClose={envVarProps.onClose}
           className='w-full'
           maxHeight='200px'
-          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99999 }}
+          style={{ top: '100%', left: 0, zIndex: 99999 }}
         />
       )}
     </div>

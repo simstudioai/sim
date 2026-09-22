@@ -68,7 +68,8 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
-import { useDiscoverAccessRequests } from '@/ee/access-requests/hooks/access-requests'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,
@@ -261,8 +262,12 @@ export const Panel = memo(function Panel() {
     if (usageExceeded) {
       if (usageLimitScope === 'member' && memberLimitTarget) {
         if (memberLimitTarget.pendingRequestId) {
-          const params = new URLSearchParams({ requestId: memberLimitTarget.pendingRequestId })
-          router.push(`/workspace/${encodeURIComponent(workspaceId)}/access-requests?${params}`)
+          router.push(
+            getMyAccessRequestHref(
+              { kind: 'workspace', workspaceId },
+              memberLimitTarget.pendingRequestId
+            )
+          )
         } else {
           setShowLimitRequest(true)
         }

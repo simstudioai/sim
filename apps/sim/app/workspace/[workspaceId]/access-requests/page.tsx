@@ -1,19 +1,21 @@
-import { Suspense } from 'react'
-import type { Metadata } from 'next'
-import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
-import { MyAccessRequests } from '@/ee/access-requests/components/my-access-requests'
-
-export const metadata: Metadata = { title: 'My access requests' }
+import { redirect } from 'next/navigation'
+import {
+  getAccessRequestsSettingsHref,
+  getLegacyAccessRequestsSettingsQuery,
+} from '@/ee/access-requests/lib/navigation'
 
 interface AccessRequestsPageProps {
   params: Promise<{ workspaceId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function AccessRequestsPage({ params }: AccessRequestsPageProps) {
-  const { workspaceId } = await params
-  return (
-    <Suspense fallback={<AccessRequestsLoading />}>
-      <MyAccessRequests scope={{ kind: 'workspace', workspaceId }} />
-    </Suspense>
+export default async function AccessRequestsPage({
+  params,
+  searchParams,
+}: AccessRequestsPageProps) {
+  const [{ workspaceId }, query] = await Promise.all([params, searchParams])
+  redirect(
+    getAccessRequestsSettingsHref({ kind: 'workspace', workspaceId }) +
+      getLegacyAccessRequestsSettingsQuery(query)
   )
 }

@@ -15,6 +15,8 @@ export interface SkillInput {
 }
 
 export interface AgentInputs {
+  evaluationState?: unknown
+  evaluationQuestions?: unknown
   model?: string
   responseFormat?: string | object
   tools?: ToolInput[]

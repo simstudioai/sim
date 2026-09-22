@@ -952,6 +952,8 @@ describe('getHostedModels', () => {
 describe('shouldBillModelUsage', () => {
   it('should return true for exact matches of hosted models', () => {
     expect(shouldBillModelUsage('gpt-6-astra')).toBe(true)
+    expect(shouldBillModelUsage('gpt-6-sol')).toBe(true)
+    expect(shouldBillModelUsage('gpt-6-luna')).toBe(true)
     expect(shouldBillModelUsage('gpt-4o')).toBe(true)
     expect(shouldBillModelUsage('o1')).toBe(true)
 

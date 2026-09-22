@@ -14,14 +14,11 @@ import {
   type ChipProps,
   toast,
 } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import type { AccessRequestScope, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
-import {
-  useCreateAccessRequest,
-  useDiscoverAccessRequests,
-} from '@/ee/access-requests/hooks/access-requests'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { getAccessRequestTargetKey } from '@/ee/access-requests/lib/targets'
+import { useCreateAccessRequest, useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 
 interface RequestAccessActionProps {
   scope: AccessRequestScope
@@ -30,16 +27,6 @@ interface RequestAccessActionProps {
   pendingRequestId?: string | null
   onViewRequest?: (requestId: string) => void
   variant?: ChipProps['variant']
-}
-
-function accessRequestHref(scope: AccessRequestScope, requestId: string): string {
-  const params = new URLSearchParams({ requestId })
-  if (scope.kind === 'organization') params.set('organizationId', scope.organizationId)
-  const pathname =
-    scope.kind === 'workspace'
-      ? `/workspace/${encodeURIComponent(scope.workspaceId)}/access-requests`
-      : '/access-requests'
-  return `${pathname}?${params}`
 }
 
 export function RequestAccessAction({
@@ -55,7 +42,6 @@ export function RequestAccessAction({
       return (
         <Chip
           variant={variant}
-          leftIcon={Lock}
           onClick={() => onViewRequest(pendingRequestId)}
           aria-label={`View request for ${label}`}
         >
@@ -66,8 +52,7 @@ export function RequestAccessAction({
     return (
       <ChipLink
         variant={variant}
-        href={accessRequestHref(scope, pendingRequestId)}
-        leftIcon={Lock}
+        href={getMyAccessRequestHref(scope, pendingRequestId)}
         aria-label={`View request for ${label}`}
       >
         View request
@@ -100,7 +85,6 @@ function RequestableAccessAction({
     <>
       <Chip
         variant={variant}
-        leftIcon={Lock}
         onClick={() => setOpen(true)}
         aria-label={
           target.kind === 'usage_limit'
@@ -225,7 +209,7 @@ export function RequestAccessModal({
             : pendingRequestId
               ? () => {
                   if (onViewRequest) onViewRequest(pendingRequestId)
-                  else router.push(accessRequestHref(scope, pendingRequestId))
+                  else router.push(getMyAccessRequestHref(scope, pendingRequestId))
                   onClose()
                 }
               : submit,

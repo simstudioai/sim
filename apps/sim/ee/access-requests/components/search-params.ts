@@ -23,6 +23,7 @@ const accessRequestSearchParser = createParser({
   serialize: String,
 }).withDefault('')
 
+/** Missing IDs mean no request selection or organization context, so there is no default. */
 const accessRequestIdParser = createParser({
   parse: (value) =>
     value.length > 0 && value.length <= ACCESS_REQUEST_MAX_ID_LENGTH ? value : null,
@@ -34,6 +35,13 @@ export const accessRequestSearchParams = {
   search: accessRequestSearchParser,
   requestId: accessRequestIdParser,
   page: accessRequestPageParser,
+} as const
+
+/** An omitted view preserves the review landing page for administrators. */
+export const accessRequestSettingsSearchParams = {
+  ...accessRequestSearchParams,
+  view: parseAsStringLiteral(['requests', 'catalog', 'review'] as const),
+  'request-id': accessRequestIdParser,
 } as const
 
 export const accessReviewSearchParams = {
@@ -56,7 +64,10 @@ export const accessRequestUrlOptions = { history: 'replace', clearOnDefault: tru
 export const accessRequestEntrySearchParams = {
   ...accessRequestSearchParams,
   organizationId: accessRequestIdParser,
-  view: parseAsStringLiteral(['requests', 'catalog', 'admin'] as const).withDefault('requests'),
+  view: parseAsStringLiteral(['requests', 'catalog', 'review', 'admin'] as const).withDefault(
+    'requests'
+  ),
+  'request-id': accessReviewSearchParams['request-id'],
   'request-page': accessReviewSearchParams['request-page'],
   'request-search': accessReviewSearchParams['request-search'],
   'request-status': accessReviewSearchParams['request-status'],

@@ -142,6 +142,8 @@ describe('OpenAI provider definition', () => {
 
 describe('direct provider catalog additions', () => {
   it.each([
+    ['gpt-6-sol', 'openai'],
+    ['gpt-6-luna', 'openai'],
     ['chat-latest', 'openai'],
     ['gpt-5.3-codex', 'openai'],
     ['gemini-3.7-flash', 'google'],
@@ -165,7 +167,7 @@ describe('catalog featured model metadata', () => {
 })
 
 describe('forced tool use capability', () => {
-  it.each(['claude-fable-5-1', 'CLAUDE-FABLE-5-1'])(
+  it.each(['claude-fable-5-1', 'CLAUDE-FABLE-5-1', 'claude-opus-5-5'])(
     'disables Force while keeping Auto and None support for %s',
     (model) => {
       expect(getModelCapabilities(model)).toMatchObject({
@@ -209,6 +211,7 @@ describe('Anthropic provider definition', () => {
       anthropic.models.filter((model) => model.sunset?.status === 'legacy').map((model) => model.id)
     ).toEqual([
       'claude-fable-5',
+      'claude-opus-5',
       'claude-opus-4-8',
       'claude-opus-4-7',
       'claude-opus-4-6',

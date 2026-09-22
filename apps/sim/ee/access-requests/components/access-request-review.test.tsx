@@ -13,7 +13,7 @@ vi.mock('@sim/emcn', async (importOriginal) => ({
 }))
 
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), resolve: vi.fn() }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   useAccessRequestPreview: mocks.preview,
   useResolveAccessRequest: mocks.resolve,
 }))

@@ -3,6 +3,7 @@
  */
 import { dbChainMockFns, drizzleOrmMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {
@@ -11,7 +12,9 @@ vi.mock('drizzle-orm', () => {
   }
   return {
     ...drizzleOrmMock,
-    sql: Object.assign(sqlTag, { raw: sqlTag }),
+    sql: Object.assign(sqlTag, {
+      raw: (rawSql: string) => ({ rawSql, toSQL: () => ({ sql: rawSql, params: [] }) }),
+    }),
     sum: () => ({ as: () => 'sum' }),
   }
 })
@@ -49,6 +52,14 @@ describe('computeBillingPeriodUsageWithWeeklyRefresh', () => {
       { ledgerTotal: '25.00', refreshWeekTotal: '12.00' },
       { ledgerTotal: '25.00', refreshWeekTotal: '4.00' },
     ])
+    /** The scan is a ledger aggregate: it runs inside the bounded ledger transaction. */
+    const boundBeforeScan = () =>
+      dbChainMockFns.transaction.mock.calls.length === 1 &&
+      dbChainMockFns.execute.mock.calls.some(([statement]) =>
+        String((statement as { toSQL?: () => { sql: string } }).toSQL?.().sql).includes(
+          `SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`
+        )
+      )
 
     await expect(
       computeBillingPeriodUsageWithWeeklyRefresh({
@@ -65,6 +76,7 @@ describe('computeBillingPeriodUsageWithWeeklyRefresh', () => {
       periodStart
     )
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.usageLog.billingPeriodEnd, periodEnd)
+    expect(boundBeforeScan()).toBe(true)
   })
 
   it('uses the reporting time range for the ledger while retaining captured-period refresh', async () => {

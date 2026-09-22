@@ -2,13 +2,13 @@ import { dbFor } from '@sim/db'
 import { executionLargeValues, memory, memoryArtifact } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import {
   collectLargeValueReferenceKeys,
   registerLargeValueOwner,
 } from '@/lib/execution/payloads/large-value-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 
 export const MAX_MEMORY_ARTIFACT_BYTES = 8 * 1024 * 1024
 export const MAX_MEMORY_ARTIFACT_STORED_BYTES = MAX_MEMORY_ARTIFACT_BYTES * 2 + 1024
@@ -71,7 +71,7 @@ function activeMemoryPredicate(scope: MemoryArtifactScope) {
 export async function storeMemoryArtifact(
   input: StoreMemoryArtifactInput
 ): Promise<StoredMemoryArtifact | undefined> {
-  const json = stringifyBoundedMemoryJson(input.value, MAX_MEMORY_ARTIFACT_BYTES)
+  const json = stringifyBoundedJson(input.value, MAX_MEMORY_ARTIFACT_BYTES)
   if (json === undefined) return undefined
   const execDb = dbFor('exec')
   const [conversation] = await execDb
@@ -183,9 +183,7 @@ export async function readMemoryArtifact(input: ReadMemoryArtifactInput): Promis
     const { decrypted } = await decryptSecret(envelope.encrypted, { logFailure: false })
     if (Buffer.byteLength(decrypted, 'utf8') > MAX_MEMORY_ARTIFACT_BYTES) return undefined
     const value: unknown = JSON.parse(decrypted)
-    return stringifyBoundedMemoryJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined
-      ? undefined
-      : value
+    return stringifyBoundedJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined ? undefined : value
   } catch {
     return undefined
   }

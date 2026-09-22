@@ -22,11 +22,11 @@ import type {
   WorkspaceCreditAvailability,
   WorkspaceUsageGate,
 } from '@/lib/api/contracts/workspaces'
+import { ACCESS_REQUEST_LIST_PAGE_SIZE } from '@/ee/access-requests/lib/constants'
 import {
   ACCESS_REQUESTS_STALE_TIME,
   accessRequestKeys,
-} from '@/ee/access-requests/hooks/access-request-keys'
-import { ACCESS_REQUEST_LIST_PAGE_SIZE } from '@/ee/access-requests/lib/constants'
+} from '@/hooks/queries/utils/access-request-keys'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'

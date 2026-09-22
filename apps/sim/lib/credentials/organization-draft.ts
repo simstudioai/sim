@@ -8,6 +8,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { getCredentialCreationOrganizationContext } from '@/lib/credentials/organization'
+import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 
 /** Completes the exact draft bound to the authenticated provider callback, rechecking current ownership under membership locks. */
@@ -124,6 +125,7 @@ export async function completeOrganizationCredentialDraft(input: {
     }
   })
   await clearOAuthRefreshDeadFlag(input.accountId)
+  if (result.reconnected) await resumeConnectorsAfterCredentialReconnect(input.accountId, now)
   recordAudit({
     actorId: input.userId,
     action: result.reconnected

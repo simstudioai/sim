@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  Button,
+  Chip,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
@@ -64,20 +64,21 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant='subtle' className='py-1 text-caption'>
-          {/* Aggregate state, mirroring the row iconography: spinner while anything runs, then
-              alert if any job failed, else a check. */}
-          {anyRunning ? (
-            <Loader animate className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-          ) : anyFailed ? (
-            <CircleAlert className='mr-1.5 size-[14px] text-[var(--text-error)]' />
-          ) : (
-            <CircleCheck className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-          )}
+        <Chip
+          leftAdornment={
+            anyRunning ? (
+              <Loader animate className='size-[14px] text-[var(--text-icon)]' />
+            ) : anyFailed ? (
+              <CircleAlert className='size-[14px] text-[var(--text-error)]' />
+            ) : (
+              <CircleCheck className='size-[14px] text-[var(--text-icon)]' />
+            )
+          }
+        >
           <span className='tabular-nums'>
             {done}/{total}
           </span>
-        </Button>
+        </Chip>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px]'>
         {imports.map((row) => {

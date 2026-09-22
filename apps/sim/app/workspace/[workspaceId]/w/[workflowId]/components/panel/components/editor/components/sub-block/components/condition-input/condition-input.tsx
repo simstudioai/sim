@@ -466,16 +466,16 @@ export function ConditionInput({
 
         // Create a hidden container with the same width as the editor
         const container = document.createElement('div')
-        container.style.cssText = `
-          position: absolute;
-          visibility: hidden;
-          width: ${preElement.clientWidth}px;
-          font-family: ${window.getComputedStyle(preElement).fontFamily};
-          font-size: ${window.getComputedStyle(preElement).fontSize};
-          padding: 12px;
-          white-space: pre-wrap;
-          word-break: break-word;
-        `
+        Object.assign(container.style, {
+          position: 'absolute',
+          visibility: 'hidden',
+          width: `${preElement.clientWidth}px`,
+          fontFamily: window.getComputedStyle(preElement).fontFamily,
+          fontSize: window.getComputedStyle(preElement).fontSize,
+          padding: '12px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        })
         document.body.appendChild(container)
 
         // Process each line
@@ -487,9 +487,6 @@ export function ConditionInput({
             parts.forEach((part) => {
               const span = document.createElement('span')
               span.textContent = part
-              if (part.startsWith('<') && part.endsWith('>')) {
-                span.style.color = 'rgb(153, 0, 85)'
-              }
               lineDiv.appendChild(span)
             })
           } else {

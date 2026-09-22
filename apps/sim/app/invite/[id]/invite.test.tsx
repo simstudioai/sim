@@ -419,7 +419,9 @@ describe('Invite', () => {
         (item) => item.textContent
       )
     ).toEqual(['Personal work', 'Archived project'])
-    expect(container.textContent).toContain('External Workspace: admin access')
+    const workspaceAccess = container.querySelector('[aria-label="Invited workspace access"] li')
+    expect(workspaceAccess?.textContent).toContain('External Workspace')
+    expect(workspaceAccess?.textContent).toContain('admin access')
     await clickAction('Accept Invitation')
     expect(mockRequestJson).toHaveBeenCalledWith(expect.objectContaining({ method: 'POST' }), {
       params: { id: 'invitation-1' },
@@ -433,7 +435,7 @@ describe('Invite', () => {
 
   it.each([
     ['already-member', 'Your organization role will stay the same'],
-    ['external', 'workspace access without joining an organization'],
+    ['external', null],
     ['blocked', 'This invitation cannot currently be accepted'],
   ] as const)('discloses %s without promising a membership change', async (outcome, message) => {
     membershipIntent = 'internal'
@@ -444,7 +446,8 @@ describe('Invite', () => {
       workspacesToMove: [],
     }
     await renderInvite()
-    expect(container.textContent).toContain(message)
+    if (message) expect(container.textContent).toContain(message)
+    else expect(container.textContent).not.toContain('without joining an organization')
     expect(container.textContent).not.toContain('as an organization admin')
     await clickAction('Accept Invitation')
     expect(mockRequestJson).toHaveBeenCalledWith(
