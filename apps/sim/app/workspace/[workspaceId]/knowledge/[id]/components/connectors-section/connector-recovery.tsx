@@ -80,7 +80,8 @@ export function ConnectorRecovery({
   }
 
   const docsUrl = isSearchIndex ? connectorDef?.searchDocsUrl : undefined
-  const credentialRemoved = connector.lastSyncError === CREDENTIAL_REMOVED_SYNC_ERROR
+  const credentialRemoved =
+    connector.lastSyncError === CREDENTIAL_REMOVED_SYNC_ERROR && !connector.credentialId
   const pausedTitle = credentialRemoved
     ? 'Reconnect to resume syncing'
     : 'Sync paused after repeated failures'
