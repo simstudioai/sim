@@ -300,6 +300,14 @@ jobs:
             lib/knowledge/connectors/external-directory.postgres.test.ts \
             lib/knowledge/connectors/sync-persistence.postgres.test.ts
 
+      - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
+        working-directory: packages/db
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); const [row] = await sql`SELECT 1 FROM pg_database WHERE datname = ${"sim_acl_test"}`; if (!row) await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
+          bunx vitest run script-migrations/0021_embedding_search_connector.postgres.test.ts
+
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}

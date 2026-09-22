@@ -1,7 +1,13 @@
-import { backfillProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import {
+  backfillProjectionSourceAcl,
+  PROJECTION_SOURCE_ACL_TABLES,
+  replaceProjectionSourceAclSync,
+} from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { projectionSourceAclBackfillMigration as embeddingSearchConnectorMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
+import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
@@ -124,5 +130,166 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
     ])
     const again = await backfillProjectionSourceAcl(sql, 'embedding_keyword_tin', { pauseMs: 0 })
     expect(again).toMatchObject({ scanned: 0, written: 0, afterId: '', done: true })
+  })
+  describe('a document change on chunks the backfill has not filled', () => {
+    /** A promise the test resolves by hand, to hold a transaction open at a chosen point. */
+    const gate = () => {
+      let resolve = () => {}
+      const promise = new Promise<void>((done) => {
+        resolve = done
+      })
+      return { promise, resolve }
+    }
+
+    /** Waits until `pid` is blocked on a lock, so the interleaving under test really happened. */
+    const blockedOnLock = async (pid: number) => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const [row] = await admin<{ waiting: boolean }[]>`
+          SELECT wait_event_type = 'Lock' AS waiting FROM pg_stat_activity WHERE pid = ${pid}`
+        if (row?.waiting) return true
+        await sleep(20)
+      }
+      return false
+    }
+
+    /** The backfill's page statement, run in a transaction the test holds open. */
+    const backfillPage = (tx: TransactionSql) =>
+      tx.unsafe(`WITH page AS (
+        SELECT s.id, s.document_id, d.connector_id, d.acl
+        FROM embedding_search s JOIN document d ON d.id = s.document_id
+        WHERE s.acl IS NULL ORDER BY s.id LIMIT 100
+        FOR SHARE OF d
+      )
+      UPDATE embedding_search s SET connector_id = page.connector_id, acl = page.acl
+      FROM page WHERE s.id = page.id AND s.document_id = page.document_id AND s.acl IS NULL`)
+
+    let other: Sql
+    beforeAll(() => {
+      other = postgres(databaseUrl!, {
+        max: 1,
+        onnotice: () => undefined,
+        connection: { search_path: schemaName },
+      })
+    })
+    afterAll(async () => {
+      await other?.end()
+    })
+
+    beforeEach(async () => {
+      /** A test below installs an older body; each starts from the current one. */
+      await replaceProjectionSourceAclSync(sql)
+      await sql`INSERT INTO document (id, connector_id, acl) VALUES ('doc', 'src', ARRAY['u:alice'])`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        await sql`INSERT INTO ${sql(projection)} (id, document_id, connector_id, acl) VALUES
+          ('filled', 'doc', 'src', ARRAY['u:alice']), ('unfilled', 'doc', NULL, NULL),
+          ('unfilled-sourced', 'doc', 'src', NULL)`
+      }
+    })
+
+    it('replaces the body a database already has when its own migration runs', async () => {
+      /** The body `0022` installed before this change. */
+      await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
+          WHERE document_id = NEW.id AND enabled
+            AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
+          UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
+          WHERE document_id = NEW.id AND enabled
+            AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
+          RETURN NEW;
+        END;
+        $$`)
+      await sql`UPDATE document SET acl = ARRAY['u:carol'] WHERE id = 'doc'`
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:carol'],
+        ['u:carol'],
+        ['u:carol'],
+      ])
+      await sql`UPDATE embedding_search SET acl = NULL WHERE id LIKE 'unfilled%'`
+
+      await projectionAclSkipUnfilledMigration.up(sql)
+      await sql`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:bob'],
+        null,
+        null,
+      ])
+    })
+
+    it('writes a changed ACL onto filled chunks only, leaving unfilled ones to their document', async () => {
+      await sql`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        expect(await projected(projection)).toEqual([
+          { id: 'filled', connector_id: 'src', acl: ['u:bob'] },
+          { id: 'unfilled', connector_id: null, acl: null },
+          { id: 'unfilled-sourced', connector_id: 'src', acl: null },
+        ])
+      }
+    })
+
+    it('still carries a changed source onto unfilled chunks, whose source filters read the row', async () => {
+      await sql`UPDATE document SET connector_id = 'moved' WHERE id = 'doc'`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        expect(await projected(projection)).toEqual([
+          { id: 'filled', connector_id: 'moved', acl: ['u:alice'] },
+          { id: 'unfilled', connector_id: 'moved', acl: null },
+          { id: 'unfilled-sourced', connector_id: 'moved', acl: null },
+        ])
+      }
+    })
+
+    it('fills the current ACL when the change commits before the backfill reads the document', async () => {
+      await sql`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      await backfillProjectionSourceAcl(sql, 'embedding_search', { pauseMs: 0 })
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:bob'],
+        ['u:bob'],
+        ['u:bob'],
+      ])
+    })
+
+    it('fans the change out after a backfill page that read the old ACL commits', async () => {
+      const [pageRead, release] = [gate(), gate()]
+      const page = sql.begin(async (tx) => {
+        await backfillPage(tx)
+        pageRead.resolve()
+        await release.promise
+      })
+      await pageRead.promise
+      const [{ pid }] = await other<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+      /** Blocks on the page's share lock on the document until the page commits. */
+      const change = other`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`.execute()
+      expect(await blockedOnLock(pid)).toBe(true)
+      release.resolve()
+      await page
+      await change
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:bob'],
+        ['u:bob'],
+        ['u:bob'],
+      ])
+    })
+
+    it('fills the new ACL when the backfill waits on a change that has not committed yet', async () => {
+      const [changed, commit] = [gate(), gate()]
+      const change = other.begin(async (tx) => {
+        await tx`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+        changed.resolve()
+        await commit.promise
+      })
+      await changed.promise
+      const [{ pid }] = await sql<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+      const fill = backfillProjectionSourceAcl(sql, 'embedding_search', { pauseMs: 0 })
+      expect(await blockedOnLock(pid)).toBe(true)
+      commit.resolve()
+      await change
+      await fill
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:bob'],
+        ['u:bob'],
+        ['u:bob'],
+      ])
+    })
   })
 })

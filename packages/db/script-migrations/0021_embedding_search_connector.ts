@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('ProjectionSourceAcl')
 
@@ -70,6 +70,36 @@ export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyw
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
 
 /**
+ * The document trigger's body: fans a document's source and ACL out to its enabled chunks.
+ *
+ * A chunk the backfill has not filled yet (`acl IS NULL`) keeps a NULL ACL. Search decides such a
+ * row on its document, so writing the ACL there changes no answer, while every write to
+ * `embedding_search` re-inserts the row into its vector index: a document whose ACL changed would
+ * otherwise rewrite each of its unfilled chunks inside the writer's statement. The backfill fills
+ * the row later from the document under a share lock, so it copies whichever ACL is current. A
+ * document that moves to another source still carries the source onto its unfilled chunks, because
+ * source filters read it from the row; an ACL change alone leaves them untouched.
+ */
+export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql): Promise<void> {
+  const fanOut = (projection: ProjectionSourceAclTable) => `
+      UPDATE ${projection}
+      SET connector_id = NEW.connector_id, acl = CASE WHEN acl IS NULL THEN NULL ELSE NEW.acl END
+      WHERE document_id = NEW.id AND enabled
+        AND CASE WHEN acl IS NULL
+          THEN moved AND connector_id IS DISTINCT FROM NEW.connector_id
+          ELSE connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl
+        END;`
+  await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+      moved boolean := TG_OP = 'UPDATE' AND OLD.connector_id IS DISTINCT FROM NEW.connector_id;
+    BEGIN${PROJECTION_SOURCE_ACL_TABLES.map(fanOut).join('')}
+      RETURN NEW;
+    END;
+    $$`)
+}
+
+/**
  * Carries a chunk's source and ACL onto the ranking projections and keeps them there.
  *
  * Each projection's own trigger reads both from the chunk's document on every write, under a share
@@ -85,18 +115,7 @@ export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[num
 export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        RETURN NEW;
-      END;
-      $$`)
+    await replaceProjectionSourceAclSync(tx)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER projection_source_acl_sync
       AFTER INSERT OR UPDATE OF connector_id, acl ON document
       FOR EACH ROW EXECUTE FUNCTION sync_projection_source_acl()`)

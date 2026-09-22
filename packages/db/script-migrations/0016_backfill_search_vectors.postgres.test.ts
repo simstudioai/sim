@@ -393,6 +393,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       { name: '0019_tin_keyword_projection' },
       { name: '0021_embedding_search_connector' },
       { name: '0022_projection_source_acl_backfill' },
+      { name: '0023_projection_acl_skip_unfilled' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id
