@@ -32,7 +32,6 @@ describe('organizationRoutes', () => {
     expect(routes.root).toBe('/o/org-1')
     expect(routes.home).toBe('/o/org-1/home')
     expect(routes.search).toBe('/o/org-1/search')
-    expect(routes.accessRequests).toBe('/o/org-1/access-requests')
     expect(routes.settings).toBe('/o/org-1/settings')
     expect(routes.settingsSection('members')).toBe('/o/org-1/settings/members')
     expect(routes.chat('c-1')).toBe('/o/org-1/chat/c-1')

@@ -115,6 +115,21 @@ describe('WorkspaceSettingsSectionPage', () => {
     expect(mockSectionPrefetch).not.toHaveBeenCalled()
   })
 
+  it('keeps Requests in the current workspace when the organization surface is enabled', async () => {
+    mockGetHostContext.mockResolvedValue({
+      hostOrganizationId: 'org-target',
+      features: { organizationSearch: true },
+    })
+
+    expect(await WorkspaceSettingsSectionPage(pageProps('requests'))).toBeTruthy()
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(mockAuthorizeSection).toHaveBeenCalledWith({
+      workspaceId: 'workspace-b',
+      userId: 'viewer-a',
+      section: 'requests',
+    })
+  })
+
   it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
     'keeps %s in the workspace outside the organization rollout',
     async (section) => {
@@ -137,7 +152,7 @@ describe('WorkspaceSettingsSectionPage', () => {
 
   it.each([
     { organizationSearch: false, destination: '/workspace/workspace-b/settings/requests' },
-    { organizationSearch: true, destination: '/o/org-target/settings/requests' },
+    { organizationSearch: true, destination: '/workspace/workspace-b/settings/requests' },
   ])(
     'moves saved request review tabs to the canonical destination with org rollout=$organizationSearch',
     async ({ organizationSearch, destination }) => {

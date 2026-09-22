@@ -88,9 +88,9 @@ const WorkflowMcpServers = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
-const OrganizationAccessRequests = dynamic(() =>
-  import('@/ee/access-requests/components/organization-access-requests').then(
-    (m) => m.OrganizationAccessRequests
+const AccessRequestsSettings = dynamic(() =>
+  import('@/ee/access-requests/components/access-requests-settings').then(
+    (m) => m.AccessRequestsSettings
   )
 )
 const CustomBlocks = dynamic(() =>
@@ -191,7 +191,12 @@ function SettingsPageContent({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'requests' && organizationId && (
-        <OrganizationAccessRequests organizationId={organizationId} />
+        <AccessRequestsSettings
+          scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+          reviewOrganizationId={
+            hostContext.viewer.isHostOrganizationAdmin ? organizationId : undefined
+          }
+        />
       )}
       {effectiveSection === 'custom-blocks' && <CustomBlocks />}
       {effectiveSection === 'audit-logs' && organizationId && (

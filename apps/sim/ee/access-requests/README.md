@@ -1,6 +1,6 @@
 # Permission access requests
 
-Members request access from locked features or the block picker and track their requests through **My access requests** in the profile menu. The history page offers **Browse access** when additional access is requestable and identifies its workspace or organization scope. Organization owners and administrators review requests in **Organization settings → Requests** or through an authenticated email link. Requests remain available outside the Enterprise permission-group settings because the same queue handles increases to an administrator-set member credit cap.
+Members request access from locked features or the block picker and track their requests in **Settings → Requests** on both workspace and organization surfaces. **My requests** shows the current scope's history, including the member's credit-limit requests, and **Browse access** lists additional requestable access. Organization administrators also have **Review requests** for the organization-wide queue. Saved requester links and authenticated email links resolve to settings; the standalone entry remains available outside the organization Search rollout. Requests are independent of the Enterprise permission-group settings because the same queue handles increases to an administrator-set member credit cap.
 
 ## Deployment
 
