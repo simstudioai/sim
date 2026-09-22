@@ -2252,6 +2252,61 @@ describe('completeSuccessfulSync', () => {
     }
   )
 
+  it('counts the documents before taking the completion locks', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    const countOrder = dbChainMockFns.from.mock.invocationCallOrder[0]
+    const transactionOrder = dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    expect(dbChainMockFns.from.mock.calls[0][0]).toBe(schemaMock.document)
+    expect(countOrder).toBeLessThan(transactionOrder)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', lastSyncDocCount: 4 })
+    )
+  })
+
+  it('keeps the previous document count when the count cannot be read', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    dbChainMockFns.where.mockImplementationOnce(() =>
+      Promise.reject(
+        new DrizzleQueryError(
+          'select private SQL',
+          [],
+          Object.assign(new Error('canceling statement due to statement timeout'), {
+            code: '57014',
+          })
+        )
+      )
+    )
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    const successWrite = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.status === 'active')
+    expect(successWrite).toBeDefined()
+    expect(successWrite).not.toHaveProperty('lastSyncDocCount')
+    expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
+  })
+
   it('commits the completed log and connector state in one guarded transaction', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 

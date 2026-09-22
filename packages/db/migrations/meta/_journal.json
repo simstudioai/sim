@@ -2619,6 +2619,13 @@
       "when": 1790044060326,
       "tag": "0374_document_connector_tombstone_index",
       "breakpoints": true
+    },
+    {
+      "idx": 375,
+      "version": "7",
+      "when": 1790051159355,
+      "tag": "0375_document_connector_live_index",
+      "breakpoints": true
     }
   ]
 }

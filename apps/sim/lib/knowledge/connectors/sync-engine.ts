@@ -393,6 +393,18 @@ export async function completeSuccessfulSync(
     : null
   const completionNotice =
     [directoryNotice, listingNotice, contentNotice].filter(Boolean).join('\n') || null
+  /**
+   * A display snapshot, taken before the completion transaction so a slow count neither holds
+   * the connector lock nor turns a sync whose documents already landed into a failure. When it
+   * cannot be read the previous count stands.
+   */
+  const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+    logger.warn('Could not count connector documents; keeping the previous count', {
+      connectorId,
+      diagnostic: getConnectorFailureDiagnostic(error),
+    })
+    return null
+  })
   try {
     const completed = await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -423,18 +435,6 @@ export async function completeSuccessfulSync(
           restoredAcls,
         })
       }
-
-      const [{ count: actualDocCount }] = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
 
       const now = new Date()
       const [closedLog] = await tx
@@ -703,9 +703,25 @@ export function buildSyncCapacityUpdate(
  * `consecutiveFailures` still resets: a held pass is a healthy sync that declined
  * to delete, not a failure, and marking it broken would stop it syncing at all.
  */
+/** Live documents the connector owns: what the connector list shows as its document count. */
+async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+  return row?.count ?? 0
+}
+
 export function buildSyncSuccessUpdate(
   now: Date,
-  actualDocCount: number,
+  actualDocCount: number | null,
   nextSyncAt: Date | null,
   holdNotice: string | null,
   advanceLastSyncAt = true
@@ -714,7 +730,7 @@ export function buildSyncSuccessUpdate(
     status: 'active' as const,
     ...(advanceLastSyncAt ? { lastSyncAt: now } : {}),
     lastSyncError: holdNotice,
-    lastSyncDocCount: actualDocCount,
+    ...(actualDocCount === null ? {} : { lastSyncDocCount: actualDocCount }),
     nextSyncAt,
     consecutiveFailures: 0,
     // Releases the lock so a stale token can never match a later run, and closes
