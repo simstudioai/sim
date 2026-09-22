@@ -1,10 +1,10 @@
 import { LRUCache } from 'lru-cache'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
-import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/core/usage-log'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 
 /**

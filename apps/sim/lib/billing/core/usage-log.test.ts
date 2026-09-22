@@ -33,6 +33,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   isOrgScopedSubscription: mockIsOrgScopedSubscription,
 }))
 
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
@@ -44,7 +45,6 @@ import {
   resolveCumulativeTopUp,
   UNKNOWN_CURSOR_MESSAGE,
   UnknownUsageCursorError,
-  USAGE_LEDGER_STATEMENT_TIMEOUT_MS,
 } from '@/lib/billing/core/usage-log'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'

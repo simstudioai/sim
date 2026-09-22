@@ -15,6 +15,7 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -211,15 +212,6 @@ async function resolveBillingContext(
     billingPeriod: billingPeriod ?? derived.billingPeriod,
   }
 }
-
-/**
- * Bound on one ledger sum. A large payer's period covers millions of rows, and from a cold
- * cache or under heavy I/O the sum can run for tens of seconds; past this the database ends it
- * and the read fails, so a caller that admits on the sum fails closed rather than waiting
- * without limit. The usage gate derives its coalescing deadline from this bound, so the sum
- * always ends at the database before the gate gives up on it.
- */
-export const USAGE_LEDGER_STATEMENT_TIMEOUT_MS = 60_000
 
 /**
  * Returns attributed ledger usage for a billing entity/period. The ledger is
