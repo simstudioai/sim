@@ -299,6 +299,12 @@ jobs:
             lib/knowledge/access/predicate.postgres.test.ts \
             lib/knowledge/connectors/external-directory.postgres.test.ts
 
+      - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
+        working-directory: packages/db
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: bunx vitest run script-migrations/0021_embedding_search_connector.postgres.test.ts
+
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}

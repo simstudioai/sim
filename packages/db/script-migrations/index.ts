@@ -6,6 +6,7 @@ import { indexSearchDocumentsMigration } from '@sim/db/script-migrations/0017_in
 import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
 import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
 import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
+import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -46,6 +47,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   tinKeywordProjectionMigration,
   /** 0022 supersedes 0021, whose synchronous backfill could not finish inside a deploy. */
   projectionSourceAclBackfillMigration,
+  /** 0023 stops document ACL changes from writing chunks the 0022 backfill has not filled. */
+  projectionAclSkipUnfilledMigration,
 ]
 
 /**
