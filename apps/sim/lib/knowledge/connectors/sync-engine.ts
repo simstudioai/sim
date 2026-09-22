@@ -857,9 +857,10 @@ export async function executeSync(
   if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
     logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
     /**
-     * Written only while the row is still the credential-less runnable row this run read: a
-     * reconnect that landed in between keeps its schedule, and a paused or disabled connector
-     * a stale task reached keeps its status.
+     * Written only while the row is still the credential-less row this run read: a reconnect
+     * that landed in between keeps its schedule, and a paused or disabled connector a stale task
+     * reached keeps its status. A row this dispatch marked `pending` is released with it, the
+     * same token match the lock acquisition below applies.
      */
     const observed = (
       column: typeof knowledgeConnector.credentialId | typeof knowledgeConnector.encryptedApiKey,
@@ -873,7 +874,15 @@ export async function executeSync(
           eq(knowledgeConnector.id, connectorId),
           observed(knowledgeConnector.credentialId, connectorBeforeLock.credentialId),
           observed(knowledgeConnector.encryptedApiKey, connectorBeforeLock.encryptedApiKey),
-          inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES])
+          or(
+            inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES]),
+            options.dispatchToken
+              ? and(
+                  eq(knowledgeConnector.status, 'pending'),
+                  eq(knowledgeConnector.syncLockToken, options.dispatchToken)
+                )
+              : undefined
+          )
         )
       )
     return { ...result, skipReason: 'credential_missing' }
