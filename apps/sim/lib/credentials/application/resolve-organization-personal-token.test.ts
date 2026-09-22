@@ -1,5 +1,7 @@
 /** @vitest-environment node */
+
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +12,9 @@ const mocks = vi.hoisted(() => ({
   approval: vi.fn(),
   projection: vi.fn(),
   audit: vi.fn(),
+  liveAccounts: vi.fn(),
 }))
+vi.mock('@/lib/sim-search/live/accounts', () => ({ listLiveAccounts: mocks.liveAccounts }))
 vi.mock('@/lib/core/application', () => ({ recordProjectedUseCaseAuditEntries: mocks.audit }))
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: mocks.authorize,
@@ -81,6 +85,8 @@ const liveBinding = {
 describe('organization personal token authorization', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    resetEnvFlagsMock()
+    mocks.liveAccounts.mockResolvedValue([])
     mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'person', role: 'member' })
     mocks.binding.mockResolvedValue(liveBinding)
     mocks.projection.mockReturnValue({ tools: [{ toolId: 'drive_list' }] })
@@ -93,6 +99,36 @@ describe('organization personal token authorization', () => {
     mocks.token.mockResolvedValue({ accessToken: 'secret', refreshed: false })
   })
 
+  it('uses current personal OAuth inventory in live mode without consulting indexed sources', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mocks.liveAccounts.mockResolvedValue([
+      { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
+    ])
+    await expect(
+      resolveOrganizationPersonalToken.execute({ principal, input })
+    ).resolves.toHaveProperty('accessToken', 'secret')
+    expect(mocks.inventory).not.toHaveBeenCalled()
+    expect(mocks.liveAccounts).toHaveBeenCalledWith({ organizationId: 'org' }, 'person')
+  })
+  it.each(['admin_source', 'service_account', 'personal_token', 'managed_mcp'])(
+    'never substitutes a %s for a personal OAuth account',
+    async (type) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+      mocks.liveAccounts.mockResolvedValue([{ id: 'own', providerId: 'google-drive', type }])
+      await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
+        'own connected account'
+      )
+      expect(mocks.token).not.toHaveBeenCalled()
+      expect(mocks.inventory).not.toHaveBeenCalled()
+    }
+  )
+  it('observes a revoked live account without falling back to old indexing membership', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
+      'own connected account'
+    )
+    expect(mocks.token).not.toHaveBeenCalled()
+  })
   it('uses the authenticated person inventory and organization token scope without a workspace', async () => {
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).resolves.toEqual({
       accessToken: 'secret',

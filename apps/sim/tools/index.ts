@@ -15,7 +15,7 @@ import {
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   createTimeoutAbortController,
@@ -75,6 +75,10 @@ import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import {
+  assistantConnectedAccountTokenParam,
+  projectAssistantConnectedAccountTool,
+} from '@/lib/mothership/assistant/connected-account-tool'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -1818,6 +1822,10 @@ async function executeToolImplementation(
       }
     }
 
+    if (operationContext?.requestMode === 'assistant' && tool) {
+      tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+    }
+
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
     for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
@@ -1966,6 +1974,10 @@ async function executeToolImplementation(
           ])
         }
         contextParams.accessToken = data.accessToken
+        if (operationContext?.requestMode === 'assistant') {
+          const tokenParam = assistantConnectedAccountTokenParam(tool)
+          if (tokenParam) contextParams[tokenParam] = data.accessToken
+        }
         if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
           contextParams.credentialType = data.credentialType
         }

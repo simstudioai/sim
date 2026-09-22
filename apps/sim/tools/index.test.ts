@@ -43,6 +43,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
+import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
@@ -205,6 +206,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  github_search_issues_v2: searchIssuesV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -7089,5 +7091,88 @@ describe('organization scratch internal entrance', () => {
         input: expect.objectContaining({ chatId: 'org-chat' }),
       })
     )
+  })
+})
+
+describe('Live Search Assistant GitHub OAuth binding', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const metadata = await import('@/tools/metadata')
+    const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')
+    vi.mocked(metadata.getToolMetadata).mockImplementation(actual.getToolMetadata)
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({
+      encrypted: 'protected-github-oauth',
+      iv: 'test-iv',
+    })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'personal-github-oauth' })
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'personal-github-oauth',
+      credentialType: 'managed_oauth',
+    })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockImplementation(async () =>
+      toSecureFetchResponse(
+        Response.json({ total_count: 137, incomplete_results: false, items: [] })
+      )
+    )
+    setupFetchMock({ body: { total_count: 137, incomplete_results: false, items: [] } })
+  })
+  afterEach(resetEnvFlagsMock)
+  const options = () => ({
+    skipPostProcess: true,
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    operationContext: {
+      userId: 'person',
+      organizationId: 'org',
+      chatId: 'chat',
+      toolCallId: 'call',
+      copilotToolExecution: true,
+      requestMode: 'assistant' as const,
+    },
+  })
+  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
+    const { getToolMetadata } = await import('@/tools/metadata')
+    const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
+    expect(isLiveEnterpriseSearchEnabled).toBe(true)
+    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
+      id: 'github_search_issues_v2',
+      params: { apiKey: { required: true } },
+    })
+    const params = {
+      credentialId: 'own-account',
+      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+    }
+    const result = await executeTool('github_search_issues_v2', params, options())
+    expect(result.success, result.error).toBe(true)
+    expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'own-account',
+        userId: 'person',
+        toolId: 'github_search_issues_v2',
+        copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
+      })
+    )
+    expect(params).not.toHaveProperty('apiKey')
+    const requests = [
+      ...mockSecureFetchWithPinnedIP.mock.calls,
+      ...vi.mocked(global.fetch).mock.calls,
+    ]
+    expect(
+      requests.some((call) => JSON.stringify(call).includes('Bearer personal-github-oauth'))
+    ).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('personal-github-oauth')
+  })
+  it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
+    const result = await executeTool(
+      'github_search_issues_v2',
+      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      options()
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('cannot supply the apiKey')
+    expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

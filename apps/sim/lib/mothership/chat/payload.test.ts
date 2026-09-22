@@ -1,9 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
+import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 
 const {
   mockCreateUserToolSchema,
@@ -149,13 +151,15 @@ vi.mock('@/tools/params', () => ({
 
 vi.mock('@/tools/metadata', () => ({
   getToolMetadata: (id: string) =>
-    id === 'gmail_send'
-      ? {
-          id,
-          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
-          oauth: { required: true, provider: 'google-email' },
-        }
-      : undefined,
+    id === 'github_search_issues_v2'
+      ? searchIssuesV2Tool
+      : id === 'gmail_send'
+        ? {
+            id,
+            params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+            oauth: { required: true, provider: 'google-email' },
+          }
+        : undefined,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -634,6 +638,43 @@ describe('Assistant payload', () => {
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockSearchApprovals.mockResolvedValue(new Map())
+  })
+  it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
+    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+      {
+        toolId: searchIssuesV2Tool.id,
+        config: searchIssuesV2Tool,
+        service: 'github',
+        operation: 'search_issues',
+        blockType: 'github_v2',
+        owners: [{ service: 'github', blockType: 'github_v2' }],
+      },
+    ])
+    const actualParams = await vi.importActual<typeof import('@/tools/params')>('@/tools/params')
+    mockCreateUserToolSchema.mockImplementationOnce(actualParams.createUserToolSchema)
+    const tools = await buildIntegrationToolSchemas('github-live-person', {
+      schemaSurface: 'copilot',
+      personalAccountsOnly: true,
+      organizationId: 'org',
+    })
+    expect(tools).toHaveLength(1)
+    expect(tools[0]).toMatchObject({
+      name: 'github_search_issues_v2',
+      oauth: { provider: 'github-repositories' },
+      input_schema: { required: expect.arrayContaining(['q', 'credentialId']) },
+    })
+    expect(tools[0].input_schema.properties).not.toHaveProperty('apiKey')
+    mockSearchApprovals.mockResolvedValue(new Map([['github', false]]))
+    expect(
+      await buildIntegrationToolSchemas('github-live-person', {
+        schemaSurface: 'copilot',
+        personalAccountsOnly: true,
+        organizationId: 'org',
+      })
+    ).toEqual([])
   })
   it('advertises approved personal organization integrations and rechecks revocation', async () => {
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))

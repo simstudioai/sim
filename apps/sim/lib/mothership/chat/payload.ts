@@ -7,7 +7,7 @@ import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import {
   type IntegrationGateConfig,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/integrations/tool-projection'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import {
   isAssistantIntegrationParameter,
   isAssistantIntegrationTool,
@@ -212,7 +213,10 @@ export async function buildIntegrationToolSchemas(
     )
     return structuredClone(
       schemas.filter((schema) => {
-        const metadata = getToolMetadata(schema.name)
+        const original = getToolMetadata(schema.name)
+        const metadata = original
+          ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
+          : undefined
         return (
           !metadata?.personalToken &&
           metadata?.oauth?.required &&
@@ -241,7 +245,10 @@ async function buildIntegrationToolSchemasUncached({
   for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
-    const userSchema = createUserToolSchema(toolConfig, {
+    const projectedTool = options.personalAccountsOnly
+      ? projectAssistantConnectedAccountTool(toolConfig, isLiveEnterpriseSearchEnabled)
+      : toolConfig
+    const userSchema = createUserToolSchema(projectedTool, {
       surface: options.schemaSurface,
       // On hosted deployments the executor injects hosted keys server-side,
       // so the gateway schema must not force the model to supply one (the
@@ -286,11 +293,11 @@ async function buildIntegrationToolSchemasUncached({
       }),
       defer_loading: true,
       executeLocally: catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-      ...(toolConfig.oauth?.required &&
-        isOAuthServiceDeploymentAvailable(toolConfig.oauth.provider) && {
+      ...(projectedTool.oauth?.required &&
+        isOAuthServiceDeploymentAvailable(projectedTool.oauth.provider) && {
           oauth: {
             required: true,
-            provider: toolConfig.oauth.provider,
+            provider: projectedTool.oauth.provider,
           },
         }),
     })

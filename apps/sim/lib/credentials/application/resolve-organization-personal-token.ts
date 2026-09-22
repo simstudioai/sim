@@ -83,9 +83,16 @@ export const resolveOrganizationPersonalToken = {
       throw new OrchestrationError('forbidden', 'This integration operation is unavailable.')
     }
     let cursor: string | undefined
-    let owned = false
+    let owned = isLiveEnterpriseSearchEnabled
+      ? (await listLiveAccounts({ organizationId: context.organizationId }, context.userId)).some(
+          (account) =>
+            account.id === input.credentialId &&
+            account.type === 'managed_oauth' &&
+            account.providerId === binding.providerId
+        )
+      : false
     const seen = new Set<string>()
-    for (let page = 0; page < 100; page++) {
+    for (let page = 0; !isLiveEnterpriseSearchEnabled && page < 100; page++) {
       const inventory = await listPersonalSearchIntegrations.execute({
         principal,
         input: {

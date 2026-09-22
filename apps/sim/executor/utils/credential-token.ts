@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
 import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import {
   type CredentialTokenPayload,
@@ -61,7 +63,10 @@ export async function resolveExecutorCredentialToken(
     if (!userId || userId !== copilotExecutionContext.userId || executorDelegationOrigin) {
       throw new Error('Assistant credential use requires the authenticated person for this turn.')
     }
-    const tool = toolId ? getToolMetadata(toolId) : undefined
+    const original = toolId ? getToolMetadata(toolId) : undefined
+    const tool = original
+      ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
+      : undefined
     if (
       !tool?.oauth?.required ||
       (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||
