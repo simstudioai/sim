@@ -103,6 +103,9 @@ describe('classifyDatabaseFailure', () => {
     ['EHOSTUNREACH', 'connect EHOSTUNREACH', 'connection'],
     ['ENOTFOUND', 'getaddrinfo ENOTFOUND', 'connection'],
     ['EAI_AGAIN', 'getaddrinfo EAI_AGAIN', 'connection'],
+    ['ENETDOWN', 'connect ENETDOWN', 'connection'],
+    ['ENETRESET', 'read ENETRESET', 'connection'],
+    ['ENETUNREACH', 'connect ENETUNREACH', 'connection'],
   ])('classifies %s through a query wrapper', (code, message, expected) => {
     const wrapped = failedQuery(code, message)
     expect(classifyDatabaseFailure(wrapped)).toBe(expected)
@@ -132,6 +135,9 @@ describe('classifyDatabaseFailure', () => {
     'EHOSTUNREACH',
     'ENOTFOUND',
     'EAI_AGAIN',
+    'ENETDOWN',
+    'ENETRESET',
+    'ENETUNREACH',
   ])('treats %s with no database query in its chain as permanent', (code) => {
     const download = Object.assign(new Error(`socket ${code}`), { code })
     expect(classifyDatabaseFailure(download)).toBe('permanent')
