@@ -25,7 +25,7 @@ export const LOCAL_PAGE_SCHEME = 'sim-shell'
 const LOCAL_PAGE_HOST = 'pages'
 export const LOCAL_PAGE_ORIGIN = `${LOCAL_PAGE_SCHEME}://${LOCAL_PAGE_HOST}`
 
-export type LocalPage = 'offline.html' | 'server.html' | 'dialog.html'
+export type LocalPage = 'offline.html' | 'server.html' | 'dialog.html' | 'credential-picker.html'
 
 const LOCAL_PAGES: ReadonlySet<string> = new Set<LocalPage>(['offline.html', 'server.html'])
 
@@ -44,6 +44,9 @@ const SERVABLE_FILES: ReadonlySet<string> = new Set([
   'dialog.html',
   'dialog.js',
   'dialog.css',
+  'credential-picker.html',
+  'credential-picker.js',
+  'credential-picker.css',
 ])
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {

@@ -10,7 +10,11 @@ export function getShellTheme(): ShellTheme | undefined {
 }
 
 function isShellPage(url: string): boolean {
-  return isLocalPageUrl(url) || url === localPageUrl('dialog.html')
+  return (
+    isLocalPageUrl(url) ||
+    url === localPageUrl('dialog.html') ||
+    url === localPageUrl('credential-picker.html')
+  )
 }
 
 /** Retains Sim's last resolved theme so recovery works even after its renderer stops. */

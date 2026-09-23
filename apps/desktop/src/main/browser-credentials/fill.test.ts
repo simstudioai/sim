@@ -4,13 +4,31 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
-import { Menu } from 'electron'
 import { FillCoordinator } from '@/main/browser-credentials/fill'
+import type { CredentialPicker } from '@/main/browser-credentials/picker'
 import type { CredentialVault } from '@/main/browser-credentials/vault'
+import type { CredentialFormReport } from '@/shared/browser-credentials'
 
 const ORIGIN = 'https://example.com'
 const SCOPE = 'chat-a'
-const WINDOW = {} as BrowserWindow
+const WINDOW = {
+  getContentBounds: () => ({ x: 0, y: 0 }),
+  isDestroyed: () => false,
+} as BrowserWindow
+
+const { pickerOptions } = vi.hoisted(() => ({ pickerOptions: vi.fn() }))
+vi.mock('@/main/browser-credentials/picker', () => ({
+  CredentialPicker: class {
+    constructor(private readonly options: ConstructorParameters<typeof CredentialPicker>[0]) {
+      pickerOptions(options)
+    }
+    close() {
+      this.options.closed()
+    }
+    position() {}
+    focus() {}
+  },
+}))
 
 function fakeContents(url = `${ORIGIN}/login`) {
   return {
@@ -66,15 +84,11 @@ function setup(contents: Contents = fakeContents(), vault = fakeVault()) {
   }
 }
 
-function loginFormState(
-  overrides: Partial<{
-    origin: string
-    hasLoginForm: boolean
-    hasPasswordField: boolean
-  }> = {}
-) {
+function loginFormState(overrides: Partial<CredentialFormReport> = {}) {
   return {
     origin: ORIGIN,
+    targetId: 'target-1',
+    bounds: null,
     hasLoginForm: true,
     hasPasswordField: true,
     ...overrides,
@@ -85,10 +99,13 @@ function loginFormState(
 async function openChooser(context: ReturnType<typeof setup>) {
   context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
   await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
-  const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
-    | Array<{ label: string; click: () => void }>
-    | undefined
-  return template ?? []
+  const options = pickerOptions.mock.calls.at(-1)?.[0] as ConstructorParameters<
+    typeof CredentialPicker
+  >[0]
+  return options.configuration.accounts.map((account) => ({
+    label: account.username,
+    click: () => options.select(account.id),
+  }))
 }
 
 /**
@@ -106,7 +123,7 @@ async function settle(): Promise<void> {
 }
 
 beforeEach(() => {
-  vi.mocked(Menu.buildFromTemplate).mockClear()
+  pickerOptions.mockClear()
 })
 
 describe('fill availability', () => {
@@ -290,8 +307,17 @@ describe('renderer credential chooser', () => {
     context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await context.coordinator.listFillOptions(SCOPE)
 
-    await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(true)
+    const result = context.coordinator.fillCredential('c1', SCOPE)
+    await settle()
+    const request = context.contents.send.mock.calls.at(-1)?.[1]
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: request.requestId,
+      status: 'filled',
+    })
+    await expect(result).resolves.toBe(true)
     expect(context.contents.send).toHaveBeenCalledWith('browser-credentials:fill', {
+      requestId: expect.any(String),
+      targetId: 'target-1',
       origin: ORIGIN,
       username: 'ada',
       password: 'hunter2',
@@ -351,10 +377,12 @@ describe('performing a fill', () => {
     const context = setup()
     const template = await openChooser(context)
 
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.contents.send).toHaveBeenCalledWith('browser-credentials:fill', {
+      requestId: expect.any(String),
+      targetId: 'target-1',
       origin: ORIGIN,
       username: 'ada',
       password: 'hunter2',
@@ -368,15 +396,16 @@ describe('performing a fill', () => {
       loginFormState({ hasPasswordField: false })
     )
     await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
-      click: () => void
-    }>
-
-    template[0].click()
+    const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
+      typeof CredentialPicker
+    >[0]
+    void options.select('c1')
     await settle()
 
     // The page has nowhere to put a password, so it does not get one.
     expect(context.contents.send).toHaveBeenCalledWith('browser-credentials:fill', {
+      requestId: expect.any(String),
+      targetId: 'target-1',
       origin: ORIGIN,
       username: 'ada',
       password: undefined,
@@ -388,7 +417,7 @@ describe('performing a fill', () => {
     const template = await openChooser(context)
 
     context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.vault.readForFill).not.toHaveBeenCalled()
@@ -402,7 +431,7 @@ describe('performing a fill', () => {
     const template = await openChooser(context)
     context.contents.getURL.mockReturnValue('https://evil.test/login')
 
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.vault.readForFill).not.toHaveBeenCalled()
@@ -414,7 +443,7 @@ describe('performing a fill', () => {
     const template = await openChooser(context)
     context.setActive(fakeContents())
 
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.contents.send).not.toHaveBeenCalled()
@@ -425,7 +454,7 @@ describe('performing a fill', () => {
     const template = await openChooser(context)
     context.contents.isDestroyed.mockReturnValue(true)
 
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.contents.send).not.toHaveBeenCalled()
@@ -448,7 +477,7 @@ describe('performing a fill', () => {
     const context = setup(fakeContents(), vault)
     const template = await openChooser(context)
 
-    template[0].click()
+    void template[0].click()
     await settle()
     context.coordinator.noteNavigation(context.contents as unknown as WebContents)
     releaseRead()
@@ -462,9 +491,141 @@ describe('performing a fill', () => {
     const context = setup(fakeContents(), fakeVault({ readForFill: vi.fn(async () => null) }))
     const template = await openChooser(context)
 
-    template[0].click()
+    void template[0].click()
     await settle()
 
     expect(context.contents.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('fill acknowledgements and target freshness', () => {
+  async function start() {
+    const context = setup()
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
+    await context.coordinator.listFillOptions(SCOPE)
+    const result = context.coordinator.fillCredential('c1', SCOPE)
+    await settle()
+    const request = context.contents.send.mock.calls.at(-1)![1]
+    return { ...context, result, request }
+  }
+
+  it('does not report success merely because IPC was sent', async () => {
+    const context = await start()
+    let settled = false
+    void context.result.then(() => {
+      settled = true
+    })
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: 'wrong-request',
+      status: 'filled',
+    })
+    context.coordinator.noteFillResult(fakeContents() as unknown as WebContents, {
+      requestId: context.request.requestId,
+      status: 'filled',
+    })
+    await settle()
+    expect(settled).toBe(false)
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: context.request.requestId,
+      status: 'failed',
+    })
+    await expect(context.result).resolves.toBe(false)
+  })
+
+  it('invalidates an in-flight fill when the selected form changes', async () => {
+    const context = await start()
+    context.coordinator.noteFormState(
+      context.contents as unknown as WebContents,
+      loginFormState({ targetId: 'replacement' })
+    )
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: context.request.requestId,
+      status: 'filled',
+    })
+    await expect(context.result).resolves.toBe(false)
+  })
+
+  it('expires an unacknowledged fill', async () => {
+    vi.useFakeTimers()
+    try {
+      const context = setup()
+      context.coordinator.noteFormState(
+        context.contents as unknown as WebContents,
+        loginFormState()
+      )
+      await context.coordinator.listFillOptions(SCOPE)
+      const result = context.coordinator.fillCredential('c1', SCOPE)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(result).resolves.toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('invalidates selection before reading secrets when a form is replaced', async () => {
+    const context = setup()
+    await openChooser(context)
+    context.coordinator.noteFormState(
+      context.contents as unknown as WebContents,
+      loginFormState({ targetId: 'replacement' })
+    )
+    await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(false)
+    expect(context.vault.readForFill).not.toHaveBeenCalled()
+  })
+})
+
+describe('native picker lifetime', () => {
+  it('survives unchanged browser visibility heartbeats', async () => {
+    const context = setup()
+    await openChooser(context)
+    await context.coordinator.refreshAvailability(true)
+    const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
+      typeof CredentialPicker
+    >[0]
+    const result = options.select('c1')
+    await settle()
+    const request = context.contents.send.mock.calls.at(-1)![1]
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: request.requestId,
+      status: 'filled',
+    })
+    await expect(result).resolves.toBe('filled')
+  })
+
+  it.each(['dismiss', 'dispose', 'closed'] as const)(
+    'cancels a vault read after %s',
+    async (action) => {
+      let resolve!: (value: { username: string; password: string }) => void
+      const promise = new Promise<{ username: string; password: string }>((done) => {
+        resolve = done
+      })
+      const context = setup(fakeContents(), fakeVault({ readForFill: vi.fn(() => promise) }))
+      await openChooser(context)
+      const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
+        typeof CredentialPicker
+      >[0]
+      const result = options.select('c1')
+      if (action === 'dispose') context.coordinator.dispose()
+      else if (action === 'closed') options.closed()
+      else context.coordinator.dismissPicker()
+      resolve({ username: 'ada', password: 'fixture-secret' })
+      await expect(result).resolves.toBe('stale-target')
+      expect(context.contents.send).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves older hosted chooser authorization while its native panel is occluded', async () => {
+    const context = setup()
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
+    await context.coordinator.listFillOptions(SCOPE)
+    context.coordinator.dismissPicker()
+    const result = context.coordinator.fillCredential('c1', SCOPE)
+    await settle()
+    const request = context.contents.send.mock.calls.at(-1)![1]
+    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
+      requestId: request.requestId,
+      status: 'filled',
+    })
+    await expect(result).resolves.toBe(true)
   })
 })

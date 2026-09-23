@@ -314,7 +314,7 @@ export interface BrowserDownloadsState {
 }
 
 /** Renderer navigation requested by the native browser toolbar menu. */
-export type BrowserToolbarCommand = 'browser-settings' | 'import'
+export type BrowserToolbarCommand = 'browser-settings' | 'import' | 'passwords'
 
 /** Selected text and live page identity handed from the native browser to Sim. */
 export interface BrowserAddToChatPayload {

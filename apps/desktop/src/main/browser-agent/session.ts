@@ -139,6 +139,8 @@ export interface BrowserDownloadSettings {
 }
 
 export interface AgentSessionEvents {
+  /** The native page moved or its visibility changed. */
+  onPanelGeometryChanged?: () => void
   /** The browser session ended (all tabs gone). */
   onSessionClosed: () => void
   /** A newly created tab's WebContents, for the driver to instrument. */
@@ -859,6 +861,7 @@ export function initSession(
   browserSessionPersistence = persistence ?? null
   browserDownloadSettings = downloadSettings ?? null
   initPanel({
+    onGeometryChanged: () => events?.onPanelGeometryChanged?.(),
     getMainWindow: () => getMainWindow(),
     activeTab: () => {
       const scopeId = getActiveBrowserScopeId()

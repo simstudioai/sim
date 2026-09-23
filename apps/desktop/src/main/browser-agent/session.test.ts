@@ -4014,8 +4014,9 @@ describe('browser-agent session', () => {
     const retainedDownload = mockDownloadItem({ filename: 'retained.bin', totalBytes: 100 })
 
     startMockDownload(suspendedContents, suspendedDownload)
-    startMockDownload(retainedContents, retainedDownload)
+    await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect(suspendedDownload.item.setSavePath).toHaveBeenCalledOnce())
+    startMockDownload(retainedContents, retainedDownload)
     await vi.waitFor(() => expect(retainedDownload.item.resume).toHaveBeenCalledOnce())
     onDownloadsChanged.mockClear()
 

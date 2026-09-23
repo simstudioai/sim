@@ -10,11 +10,7 @@ import type {
   BrowserSitePermissionRequest,
 } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import type {
-  BrowserAddToChatPayload,
-  BrowserCredentialMetadata,
-  DesktopAppearanceTheme,
-} from '@sim/desktop-bridge'
+import type { BrowserAddToChatPayload, DesktopAppearanceTheme } from '@sim/desktop-bridge'
 import {
   Button,
   ChipConfirmModal,
@@ -33,15 +29,13 @@ import {
   PopoverContent,
   PopoverItem,
 } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, Globe, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
-  fillBrowserCredential,
-  loadBrowserFillOptions,
   loadBrowserSearchSuggestions,
   loadBrowserSuggestionSources,
   onBrowserAddToChat,
@@ -448,7 +442,6 @@ export function BrowserSession({
   const getHostRect = useCallback(() => hostRef.current?.getBoundingClientRect() ?? null, [])
   const urlInputRef = useRef<HTMLInputElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
-  const fillButtonRef = useRef<HTMLButtonElement>(null)
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
@@ -471,8 +464,6 @@ export function BrowserSession({
   const [panelVisible, setPanelVisible] = useState(false)
   /** Whether the shell has a saved password for the page currently open. */
   const [fillAvailable, setFillAvailable] = useState(false)
-  /** Accounts the active page can accept, loaded only when its key menu opens. */
-  const [fillOptions, setFillOptions] = useState<BrowserCredentialMetadata[]>([])
   /** Visited hosts worth suggesting, optionally decorated by imported credentials. */
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
   /** Highlighted row, or null when Enter should submit the omnibox text. */
@@ -545,11 +536,6 @@ export function BrowserSession({
   useEffect(() => onBrowserFillAvailability(setFillAvailable, scopeId), [scopeId])
 
   useEffect(() => {
-    if (fillAvailable || activeOverlay !== 'credentials') return
-    void closeOverlay('credentials')
-  }, [activeOverlay, closeOverlay, fillAvailable])
-
-  useEffect(() => {
     let active = true
     void loadDesktopBrowserAppearanceTheme().then((next) => {
       if (active) setAppearanceTheme(next)
@@ -568,7 +554,10 @@ export function BrowserSession({
           setImportOpen(true)
           return
         }
-        navigateToSettings({ section: 'browser' })
+        navigateToSettings({
+          section: 'browser',
+          ...(command === 'passwords' ? { browserView: 'passwords' } : {}),
+        })
       }, scopeId),
     [navigateToSettings, scopeId]
   )
@@ -1002,27 +991,10 @@ export function BrowserSession({
     urlInputRef.current?.blur()
   }
 
-  /**
-   * Opens the shell's native account chooser under the key icon. Called
-   * directly from the click so the page still has an active user gesture,
-   * which the shell requires before it will read anything from the vault.
-   */
-  const handleShowCredentials = useCallback(() => {
-    const rect = fillButtonRef.current?.getBoundingClientRect()
-    if (!rect) return
-    showBrowserCredentialChooser({ x: rect.left, y: rect.bottom }, scopeId)
-  }, [scopeId])
-
-  /** Swaps the native page for its captured frame before opening the emcn menu. */
-  const handleOpenCredentialMenu = useCallback(async () => {
-    const options = await loadBrowserFillOptions(scopeId)
-    if (options.length === 0) {
-      handleShowCredentials()
-      return
-    }
-    setFillOptions(options)
-    await requestOverlay('credentials', handleShowCredentials)
-  }, [handleShowCredentials, requestOverlay, scopeId])
+  const handleShowCredentials = () => {
+    const rect = toolbarMenuButtonRef.current?.getBoundingClientRect()
+    if (rect) showBrowserCredentialChooser({ x: rect.left, y: rect.bottom }, scopeId)
+  }
 
   const handleShowNativeToolbarMenu = useCallback(() => {
     const rect = toolbarMenuButtonRef.current?.getBoundingClientRect()
@@ -1256,42 +1228,6 @@ export function BrowserSession({
           {findOpen && (
             <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
           )}
-          {fillAvailable && (
-            <DropdownMenu
-              open={activeOverlay === 'credentials'}
-              modal={false}
-              onOpenChange={(open) => {
-                if (open) void handleOpenCredentialMenu()
-                else void closeOverlay('credentials')
-              }}
-            >
-              <DropdownMenuTrigger asChild>
-                <Button
-                  ref={fillButtonRef}
-                  type='button'
-                  variant='ghost-secondary'
-                  size='sm'
-                  aria-label='Fill a saved password'
-                  title='Fill a saved password'
-                  className='size-[30px] shrink-0 p-0'
-                >
-                  <Key className='size-[14px]' />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' sideOffset={5} className='w-[240px]'>
-                {fillOptions.map((credential) => (
-                  <DropdownMenuItem
-                    key={credential.id}
-                    onSelect={() => void fillBrowserCredential(credential.id, scopeId)}
-                  >
-                    <span className='min-w-0 flex-1 truncate'>
-                      {credential.username || '(no username)'}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
           <BrowserDownloads
             scopeId={scopeId}
             open={activeOverlay === 'downloads'}
@@ -1338,6 +1274,19 @@ export function BrowserSession({
                 )}
               />
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={afterToolbarClose(handleShowCredentials)}
+                disabled={!fillAvailable}
+              >
+                Fill Saved Password
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={afterToolbarClose(() =>
+                  navigateToSettings({ section: 'browser', browserView: 'passwords' })
+                )}
+              >
+                Passwords
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={afterToolbarClose(() => setImportOpen(true))}
                 disabled={!canImport}

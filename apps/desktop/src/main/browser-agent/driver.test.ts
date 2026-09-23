@@ -1116,7 +1116,14 @@ describe('executeTool', () => {
       | MenuItemConstructorOptions[]
       | undefined
     const labels = template?.filter((item) => item.type !== 'separator').map((item) => item.label)
-    expect(labels).toEqual(['Find in Page', 'Zoom (110%)', 'Import Passwords', 'Browser Settings'])
+    expect(labels).toEqual([
+      'Find in Page',
+      'Zoom (110%)',
+      'Fill Saved Password',
+      'Passwords',
+      'Import Passwords',
+      'Browser Settings',
+    ])
 
     const settings = template?.find((item) => item.label === 'Browser Settings')
     const openSettings = settings?.click as (() => void) | undefined

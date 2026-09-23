@@ -69,11 +69,13 @@ import {
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
 import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
 import type { ConfigStore } from '@/main/config'
+import { trackInputActivity } from '@/main/input-activity'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -506,6 +508,7 @@ function pushTabsState(): void {
 
 /** Instruments a fresh tab: CDP dialog handling + page-state pushes. */
 function instrumentTab(contents: WebContents): void {
+  trackInputActivity(contents)
   const scopeId = session.browserScopeIdForContents(contents) ?? session.getBrowserScopeId()
   const inScope =
     <Args extends unknown[]>(fn: (...args: Args) => void) =>
@@ -625,6 +628,35 @@ export function initDriver(
   // leaving the old chain head in place would queue the new session's first
   // tool call behind a promise nothing can ever settle.
   initFillCoordinator({
+    pickerHost: (contents, bounds) => {
+      const scopeId = session.getActiveBrowserScopeId()
+      const window = panelWindow()
+      if (!scopeId || !window || window.isDestroyed() || !window.isVisible() || !isPanelVisible())
+        return null
+      return session.withBrowserScope(scopeId, () => {
+        const tab = session.activeTab()
+        if (!tab || tab.view.webContents !== contents || !tab.view.getVisible()) return null
+        const panel = tab.view.getBounds()
+        const content = window.getContentBounds()
+        const zoom = contents.getZoomFactor()
+        if (
+          bounds.x + bounds.width <= 0 ||
+          bounds.y + bounds.height <= 0 ||
+          bounds.x * zoom >= panel.width ||
+          bounds.y * zoom >= panel.height
+        )
+          return null
+        return {
+          window,
+          anchor: {
+            x: content.x + panel.x + bounds.x * zoom,
+            y: content.y + panel.y + bounds.y * zoom,
+            width: bounds.width * zoom,
+            height: bounds.height * zoom,
+          },
+        }
+      })
+    },
     getActiveContents: (scopeId) => {
       const activeScopeId = session.getActiveBrowserScopeId()
       if (!activeScopeId) return null
@@ -646,6 +678,7 @@ export function initDriver(
   })
   session.initSession(
     {
+      onPanelGeometryChanged: () => fillCoordinator()?.dismissPicker(),
       onSessionClosed: () => {
         driverCallbacks?.onSessionStatus(false, session.getBrowserScopeId())
       },
@@ -748,6 +781,14 @@ export function showToolbarMenu(
       ],
     },
     { type: 'separator' },
+    {
+      label: 'Fill Saved Password',
+      enabled: pageAvailable,
+      click: () => {
+        void fillCoordinator()?.showChooser(ownerWindow, anchor, resolved)
+      },
+    },
+    { label: 'Passwords', click: () => sendCommand('passwords') },
     { label: 'Import Passwords', click: () => sendCommand('import') },
     { type: 'separator' },
     { label: 'Browser Settings', click: () => sendCommand('browser-settings') },
