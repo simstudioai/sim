@@ -234,24 +234,41 @@ describe('purging a knowledge base with a source still being detached', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 
-  it('fences the pending detach job so it releases nothing once the reservation is settled', async () => {
+  it('keeps a positive reservation billed and the detach running when the purge stops before the documents', async () => {
     const ids = await seed()
-    await db
-      .insert(document)
-      .values(
-        Array.from({ length: SOURCE_DOCUMENTS }, (_, index) => sourceDocument(ids, (index % 7) + 1))
-      )
+    const rows = Array.from({ length: SOURCE_DOCUMENTS }, (_, index) =>
+      sourceDocument(ids, (index % 7) + 1)
+    )
+    const keptBytes = rows.reduce((total, row) => total + row.fileSize, 0)
+    await db.insert(document).values(rows)
     await disconnect(ids)
 
-    await settleDetachedConnectorReservations([ids.knowledgeBaseId])
-    expect(await reservation(ids)).toBe(0)
-    expect(await runDetachOnce(ids)).toBe('completed')
+    /** The purge settled only overdrawn reservations, then its document deletion failed. */
+    await settleDetachedConnectorReservations([ids.knowledgeBaseId], 'overdrawn')
+    expect(await reservation(ids)).toBe(keptBytes)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+
+    /** The detach is not fenced off, so a base restored now still releases its documents. */
+    expect(await runDetachOnce(ids)).toBe('pending')
     const [released] = await db
-      .select({ count: sql<number>`count(*)::integer` })
+      .select({ bytes: sql<number>`COALESCE(SUM(${document.fileSize}), 0)::integer` })
       .from(document)
       .where(and(eq(document.knowledgeBaseId, ids.knowledgeBaseId), isNull(document.connectorId)))
-    expect(released.count).toBe(0)
-    expect(await reservation(ids)).toBe(0)
+    expect(released.bytes).toBeGreaterThan(0)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+
+    /** A retried purge finishes the job and leaves the ledger at a from-scratch recount. */
+    await db
+      .update(knowledgeBase)
+      .set({ deletedAt: new Date(Date.now() - 2 * RETENTION_HOURS * 60 * 60 * 1000) })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    await runCleanupSoftDeletes({
+      label: 'purge-retry-fixture',
+      plan: 'free',
+      retentionHours: RETENTION_HOURS,
+      workspaceIds: [ids.workspaceId],
+    })
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 
   it('zeroes a refunded reservation so a detach run that still reaches the source refunds nothing', async () => {
@@ -264,10 +281,10 @@ describe('purging a knowledge base with a source still being detached', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 66, payerBytes: 66 })
     expect(await hardDeleteDocuments([source.id], generateId())).toBe(1)
 
-    await settleDetachedConnectorReservations([ids.knowledgeBaseId])
+    await settleDetachedConnectorReservations([ids.knowledgeBaseId], 'remaining')
     expect(await reservation(ids)).toBe(0)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 29, payerBytes: 29 })
-    await settleDetachedConnectorReservations([ids.knowledgeBaseId])
+    await settleDetachedConnectorReservations([ids.knowledgeBaseId], 'remaining')
     expect(await ledger(ids)).toEqual({ workspaceBytes: 29, payerBytes: 29 })
 
     await drainConnectorEvent(ids.connectorId, KNOWLEDGE_CONNECTOR_DETACH_EVENT)
@@ -284,7 +301,7 @@ describe('purging a knowledge base with a source still being detached', () => {
       .set({ detachReservedBytes: -7 })
       .where(eq(knowledgeConnector.id, ids.connectorId))
 
-    await settleDetachedConnectorReservations([ids.knowledgeBaseId])
+    await settleDetachedConnectorReservations([ids.knowledgeBaseId], 'remaining')
     expect(await reservation(ids)).toBe(0)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 36, payerBytes: 36 })
 

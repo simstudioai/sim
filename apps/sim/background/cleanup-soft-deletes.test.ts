@@ -309,7 +309,7 @@ describe('cleanup soft deletes', () => {
     )
   })
 
-  it('settles detached source reservations before the documents and the base delete', async () => {
+  it('settles overdrawn reservations before the documents and the rest before the base delete', async () => {
     mockChunkedBatchDelete.mockImplementationOnce(
       async (options: { onBatch?: (rows: Array<{ id: string }>) => Promise<void> }) => {
         await options.onBatch?.([{ id: 'kb-1' }, { id: 'kb-2' }])
@@ -324,10 +324,15 @@ describe('cleanup soft deletes', () => {
 
     await runCleanupSoftDeletes(basePayload)
 
-    expect(mockSettleDetachedConnectorReservations).toHaveBeenCalledWith(['kb-1', 'kb-2'])
-    const [settled] = mockSettleDetachedConnectorReservations.mock.invocationCallOrder
-    expect(settled).toBeLessThan(mockHardDeleteDocuments.mock.invocationCallOrder[0])
-    expect(settled).toBeLessThan(mockKnowledgeBaseContainerDelete.mock.invocationCallOrder[0])
+    expect(mockSettleDetachedConnectorReservations.mock.calls).toEqual([
+      [['kb-1', 'kb-2'], 'overdrawn'],
+      [['kb-1', 'kb-2'], 'remaining'],
+    ])
+    const [overdrawn, remaining] = mockSettleDetachedConnectorReservations.mock.invocationCallOrder
+    const [deletedDocuments] = mockHardDeleteDocuments.mock.invocationCallOrder
+    expect(overdrawn).toBeLessThan(deletedDocuments)
+    expect(deletedDocuments).toBeLessThan(remaining)
+    expect(remaining).toBeLessThan(mockKnowledgeBaseContainerDelete.mock.invocationCallOrder[0])
   })
 
   it('soft-deletes abandoned KB bindings and removes their storage objects', async () => {

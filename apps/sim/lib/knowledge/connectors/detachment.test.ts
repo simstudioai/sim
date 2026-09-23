@@ -245,17 +245,14 @@ describe('purged knowledge base reservations', () => {
       { id: 'connector-b', reservedBytes: 50 },
     ])
 
-    await settleDetachedConnectorReservations(['kb-1'])
+    await settleDetachedConnectorReservations(['kb-1'], 'remaining')
 
     expect(mocks.decrementStorage).toHaveBeenCalledOnce()
     expect(mocks.decrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 43)
     expect(mocks.incrementStorage).not.toHaveBeenCalled()
     expect(mocks.notifyStorage).not.toHaveBeenCalled()
-    /** Re-stamping the detach fences out the pending job before the purge deletes the documents. */
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      detachReservedBytes: 0,
-      detachedAt: expect.any(Date),
-    })
+    /** Settlement zeroes the reservation and leaves the detach itself untouched. */
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ detachReservedBytes: 0 })
   })
 
   it('charges a net overdraft once and notifies with the final balance', async () => {
@@ -264,7 +261,7 @@ describe('purged knowledge base reservations', () => {
       { id: 'connector-b', reservedBytes: 10 },
     ])
 
-    await settleDetachedConnectorReservations(['kb-1'])
+    await settleDetachedConnectorReservations(['kb-1'], 'remaining')
 
     expect(mocks.incrementStorage).toHaveBeenCalledOnce()
     expect(mocks.incrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 20)

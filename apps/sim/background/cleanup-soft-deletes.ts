@@ -447,14 +447,15 @@ async function cleanupExpiredKnowledgeBases(
       lt(knowledgeBase.deletedAt, retentionDate)
     ),
     /**
-     * The bases' DELETE cascades their connectors away, so a detached connector's remaining
-     * reservation is settled first, before the documents: their deletion floors usage at zero,
-     * which would swallow part of an overdrawn reservation settled afterwards.
+     * The bases' DELETE cascades their connectors away, so a detached connector's reservation is
+     * settled here: an overdrawn one before the documents (their deletion floors usage at zero),
+     * the rest after them, so a deletion that fails partway leaves every step's ledger consistent.
      */
     onBatch: async (rows: { id: string }[]) => {
       const knowledgeBaseIds = rows.map(({ id }) => id)
-      await settleDetachedConnectorReservations(knowledgeBaseIds)
+      await settleDetachedConnectorReservations(knowledgeBaseIds, 'overdrawn')
       await hardDeleteKnowledgeBaseDocuments(knowledgeBaseIds, label)
+      await settleDetachedConnectorReservations(knowledgeBaseIds, 'remaining')
     },
   }
   return scope.kind === 'workspace'

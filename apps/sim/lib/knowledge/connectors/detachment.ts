@@ -6,7 +6,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
 } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -98,23 +98,33 @@ async function settleDetachReservationInTx(
 }
 
 /**
- * Settles the reservations of detached connectors on knowledge bases about to be hard-deleted.
+ * Which detach reservations a purge settles at each of its two points.
+ * `overdrawn` settles only negative reservations and runs before the documents are deleted;
+ * `remaining` settles whatever is left and runs after them.
+ */
+export type DetachReservationSettlement = 'overdrawn' | 'remaining'
+
+/**
+ * Settles the reservations of detached connectors on knowledge bases being hard-deleted.
  *
  * Purging a base cascades its connectors away, and with them the reservation a detached connector
  * still holds for documents it never released; its pending detach job then finds no base and
- * settles nothing. So before the purge deletes the bases' documents, each base's detached
- * connectors are locked in the detach job's order (base, then connector), their net reservation is
- * settled exactly as the job's final transaction would settle it, and zeroed in the same
- * transaction, so a retried purge settles nothing twice.
+ * settles nothing. So the purge settles them itself, locking each base's detached connectors in
+ * the detach job's order (base, then connector), settling their net reservation exactly as the
+ * job's final transaction would, and zeroing it in the same transaction so nothing settles twice.
  *
- * It runs before the documents are deleted because deleting a released document decrements the
- * payer's usage with a floor at zero: an overdrawn (negative) reservation settled afterwards would
- * re-add bytes the floor already discarded. Settling first also means the pending detach job must
- * not release another page before the documents go, so the same transaction re-stamps each
- * connector's `detached_at`; the job's own supersession check then treats its event as obsolete.
+ * The ledger must match the base's documents after every step, since document deletion can fail
+ * partway and be retried. Deleting a released document decrements usage with a floor at zero, so
+ * an overdrawn reservation settled afterwards would re-add bytes the floor discarded: `overdrawn`
+ * settles those before the documents go, which only charges bytes the released documents already
+ * hold. A positive reservation still pays for documents that remain until they are deleted, so
+ * `remaining` settles it afterwards. The detach job is left running in between: each page it
+ * releases moves bytes from the reservation to a standalone document in one transaction, and a
+ * base restored before the purge completes resumes its detach unchanged.
  */
 export async function settleDetachedConnectorReservations(
-  knowledgeBaseIds: string[]
+  knowledgeBaseIds: string[],
+  settlement: DetachReservationSettlement
 ): Promise<void> {
   for (const knowledgeBaseId of knowledgeBaseIds) {
     const [owner] = await db
@@ -147,7 +157,10 @@ export async function settleDetachedConnectorReservations(
         .where(
           and(
             eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-            isNotNull(knowledgeConnector.detachedAt)
+            isNotNull(knowledgeConnector.detachedAt),
+            settlement === 'overdrawn'
+              ? lt(knowledgeConnector.detachReservedBytes, 0)
+              : ne(knowledgeConnector.detachReservedBytes, 0)
           )
         )
         .orderBy(asc(knowledgeConnector.id))
@@ -162,7 +175,7 @@ export async function settleDetachedConnectorReservations(
       const grownUsage = await settleDetachReservationInTx(tx, storageContext, netReservedBytes)
       await tx
         .update(knowledgeConnector)
-        .set({ detachReservedBytes: 0, detachedAt: new Date() })
+        .set({ detachReservedBytes: 0 })
         .where(
           inArray(
             knowledgeConnector.id,
