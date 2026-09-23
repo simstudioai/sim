@@ -575,12 +575,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button
-            aria-label='Close search'
-            variant='ghost'
-            className='size-[26px] p-0'
-            onClick={close}
-          >
+          <Button aria-label='Close search' variant='ghost' iconSize='regular' onClick={close}>
             <X className='size-[14px]' />
           </Button>
         </div>
@@ -589,7 +584,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
         <Button
           variant='ghost'
-          className='size-8 p-0'
+          iconSize='roomy'
           aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
@@ -614,7 +609,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         <Button
           aria-label='Previous match'
           variant='ghost'
-          className='size-8 p-0'
+          iconSize='roomy'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(-1)}
         >
@@ -623,7 +618,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         <Button
           aria-label='Next match'
           variant='ghost'
-          className='size-8 p-0'
+          iconSize='roomy'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(1)}
         >
