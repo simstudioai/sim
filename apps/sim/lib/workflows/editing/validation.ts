@@ -20,7 +20,7 @@ import {
 } from '@/lib/workflows/blocks/fallback-models'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
-import { containsReference } from '@/lib/workflows/sanitization/references'
+import { containsReference, splitOutsideReferences } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
@@ -1249,10 +1249,18 @@ function collectSelectorFields(
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue
       if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
-        values = subBlockValue
-          .split(',')
-          .map((v: string) => v.trim())
-          .filter(Boolean)
+        values = splitOutsideReferences(subBlockValue)
+      }
+
+      /**
+       * A reference or env var only resolves to an id at execution time, so it cannot be checked
+       * here. Filtered per entry so the literal ids of a mixed multi-select are still checked.
+       */
+      if (Array.isArray(values)) {
+        values = values.filter((entry) => !containsReference(entry))
+        if (values.length === 0) continue
+      } else if (containsReference(values)) {
+        continue
       }
 
       fields.push({
