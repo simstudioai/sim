@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { credentialGroup, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -307,6 +307,7 @@ describe('knowledge connector member access', () => {
     })
 
     it('resolves the token when the policy names the connector under the credential option and audits it', async () => {
+      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(2, [
           { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
@@ -338,7 +339,21 @@ describe('knowledge connector member access', () => {
       )
     })
 
+    it('refuses a removed connector even while its policy grant remains', async () => {
+      mocks.requireResourcePolicy.mockResolvedValue(
+        storedPolicy(2, [
+          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
+        ])
+      )
+
+      await expect(mintKnowledgeConnectorMemberToken(mintInput)).rejects.toThrow(
+        'Knowledge connector has been removed'
+      )
+      expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
+    })
+
     it('reports provider rejection only under the current connector grant', async () => {
+      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(2, [
           { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
@@ -451,6 +466,7 @@ describe('knowledge connector member access', () => {
 
   describe('list', () => {
     it('pages the option credentials only for a granted connector', async () => {
+      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(2, [
           { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },

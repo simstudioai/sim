@@ -59,7 +59,9 @@ import {
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
   renewMemberObservationsInScopes,
+  resurrectObservedDocuments,
   rewriteConnectorAcls,
+  tombstoneDocumentsObservedOnlyBy,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
@@ -358,6 +360,16 @@ interface MemberSyncRun {
   deadlineAt: number
   result: MemberSyncResult
   lease: ReturnType<typeof createMemberSyncLease>
+  /**
+   * Documents whose observations this run removed, which the lifecycle checks
+   * for a remaining observer before anything else.
+   */
+  unobservedDocumentIds: Set<string>
+  /**
+   * Whether observations decide which documents exist: false when a dedicated
+   * content credential owns the corpus, which outlives its last observer.
+   */
+  tombstonesUnobserved: boolean
 }
 
 /** A token minted for a member, reused within the run until it ages out. */
@@ -521,9 +533,22 @@ function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
     : null
 }
 
-/** Keeps observations available until every changed ACL is rewritten, resuming by document identity. */
+/**
+ * Keeps observations available until every changed ACL is rewritten, resuming by document identity.
+ *
+ * For a member being removed, each page also tombstones the documents nobody
+ * else observes, in the transaction that advances the checkpoint: the
+ * member's deletion cascades its observations away, after which nothing
+ * records which documents it alone kept alive, and the absence reconcile does
+ * not run once no member with a completed listing remains. Only where
+ * observations decide existence (`tombstonesUnobserved`); a service-owned
+ * corpus outlives its last observer. A walk that is not a removal resurrects
+ * what the lifecycle would on each page, so pages a withdrawn removal already
+ * tombstoned come back with the member's restored ACLs in the same run.
+ */
 export async function resumeMembershipRewrites(
-  run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'>
+  run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'> &
+    Partial<Pick<MemberSyncRun, 'tombstonesUnobserved' | 'result'>>
 ): Promise<boolean> {
   for (;;) {
     if (Date.now() >= run.deadlineAt) return false
@@ -564,6 +589,23 @@ export async function resumeMembershipRewrites(
         documents.map((row) => row.documentId),
         tx
       )
+      if (checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        const tombstoned = await tombstoneDocumentsObservedOnlyBy(
+          tx,
+          run.connectorId,
+          member.id,
+          documents.map((row) => row.documentId)
+        )
+        if (run.result) run.result.docsTombstoned += tombstoned
+      }
+      if (!checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        const resurrected = await resurrectObservedDocuments(
+          tx,
+          run.connectorId,
+          documents.map((row) => row.documentId)
+        )
+        if (run.result) run.result.docsResurrected += resurrected
+      }
       if (documents.length === 0 && checkpoint.removeMember) {
         await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
       } else {
@@ -1364,6 +1406,7 @@ async function applyMemberListing(
           outcome.observationRunId ?? run.runId,
           async (removed) => {
             await materializeDocumentAcls(run.connectorId, removed, tx)
+            for (const documentId of removed) run.unobservedDocumentIds.add(documentId)
           }
         )
       )
@@ -1399,7 +1442,10 @@ async function applyMemberListing(
         removedDocumentIds
       )
       run.result.observationsRemoved += removed.length
-      for (const documentId of removed) affected.add(documentId)
+      for (const documentId of removed) {
+        affected.add(documentId)
+        run.unobservedDocumentIds.add(documentId)
+      }
     }
     await tx
       .update(knowledgeConnectorMember)
@@ -1894,6 +1940,8 @@ export async function executeMemberSync(
       deadlineAt: runStartedAt.getTime() + MEMBER_SYNC_SOFT_BUDGET_SECONDS * 1000,
       result,
       lease: createMemberSyncLease(connectorId, runId),
+      unobservedDocumentIds: new Set(),
+      tombstonesUnobserved: !connector.credentialId,
     }
     await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
@@ -2253,7 +2301,9 @@ export async function executeMemberSync(
          * Nobody has completed a listing yet — a connector that just entered
          * members mode, waiting for its first member to connect — so an
          * unobserved document says nothing about access and must not be
-         * tombstoned, let alone purged a week later.
+         * tombstoned, let alone purged a week later. What this run explicitly
+         * unobserved is tombstoned regardless, including after removing the
+         * last member that had completed a listing.
          */
         const [listed] = await db
           .select({ count: sql<number>`count(*)::int` })
@@ -2272,9 +2322,10 @@ export async function executeMemberSync(
           withLease: (fn) => withMemberLease(run, fn),
           deadlineAt: run.deadlineAt,
           allowRemoval: (listed?.count ?? 0) > 0,
+          unobservedDocumentIds: run.unobservedDocumentIds,
         })
-        result.docsTombstoned = lifecycle.tombstoned
-        result.docsResurrected = lifecycle.resurrected
+        result.docsTombstoned += lifecycle.tombstoned
+        result.docsResurrected += lifecycle.resurrected
         result.docsPurged = lifecycle.purged
         result.docsDeleted = lifecycle.purged
         result.membersRemaining = !lifecycle.finished

@@ -1,4 +1,6 @@
+import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import type {
   ConnectorPermissionSummary,
   PrepareConnectorPermissionsInput,
@@ -30,7 +32,11 @@ export async function prepareConnectorPermissions(
     }
     return undefined
   }
-  return capability.prepare(input)
+  return capability.prepare(input).catch((error: unknown) => {
+    const sanitized = toError(error)
+    sanitized.message = redactKnownSensitiveValues(sanitized.message, [input.apiKey ?? ''])
+    throw sanitized
+  })
 }
 
 export async function readConnectorPermissionSummary(connectorType: string, connectorId: string) {

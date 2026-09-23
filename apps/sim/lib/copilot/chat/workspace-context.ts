@@ -24,6 +24,7 @@ import {
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkillsForUser } from '@/lib/workflows/skills/operations'
@@ -457,13 +458,7 @@ async function buildWorkspaceMdData(
               connectorType: knowledgeConnector.connectorType,
             })
             .from(knowledgeConnector)
-            .where(
-              and(
-                inArray(knowledgeConnector.knowledgeBaseId, kbIds),
-                isNull(knowledgeConnector.archivedAt),
-                isNull(knowledgeConnector.deletedAt)
-              )
-            )
+            .where(and(inArray(knowledgeConnector.knowledgeBaseId, kbIds), connectorIsLive()))
         : []
     const connectorTypesByKb = new Map<string, string[]>()
     for (const row of connectorRows) {

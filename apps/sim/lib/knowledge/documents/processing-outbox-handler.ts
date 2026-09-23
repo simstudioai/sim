@@ -12,6 +12,10 @@ import {
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
 } from '@/lib/knowledge/connectors/deletion'
 import {
+  detachKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/detachment'
+import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
@@ -236,6 +240,7 @@ const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
 
 export const knowledgeDocumentProcessingOutboxHandlers = {
   [KNOWLEDGE_CONNECTOR_CLEANUP_EVENT]: cleanupKnowledgeConnector,
+  [KNOWLEDGE_CONNECTOR_DETACH_EVENT]: detachKnowledgeConnector,
   [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,

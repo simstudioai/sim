@@ -73,7 +73,10 @@ describe('private memory checkpoint encoding', () => {
 
   it('rejects altered ciphertext and oversized plaintext before decryption', async () => {
     const encrypted = await encryptMemoryCheckpoint({ private: 'value' })
-    await expect(decryptMemoryCheckpoint(`${encrypted.slice(0, -2)}ff`)).rejects.toThrow()
+    /** Always change the auth tag's last hex digit; overwriting it with a fixed value can be a no-op. */
+    const tampered = `${encrypted.slice(0, -1)}${encrypted.endsWith('0') ? '1' : '0'}`
+    expect(tampered).not.toBe(encrypted)
+    await expect(decryptMemoryCheckpoint(tampered)).rejects.toThrow()
     await expect(encryptMemoryCheckpoint({ output: 'a'.repeat(3 * 1024 * 1024) })).rejects.toThrow(
       'byte limit'
     )

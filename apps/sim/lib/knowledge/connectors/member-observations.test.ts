@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -19,7 +26,10 @@ import {
   staleMemberWindowMs,
   sweepStaleMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
-import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  MEMBER_OBSERVATION_STALE_AFTER_HOURS,
+  MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
   ConnectorSyncDeletionGuardError,
@@ -238,22 +248,138 @@ describe('applyMemberDocumentLifecycle', () => {
     vi.mocked(hardDeleteDocuments).mockReset()
   })
 
-  it('tombstones in bounded transactions and leaves remaining work for the next run', async () => {
-    const batch = Array.from({ length: 500 }, (_, i) => ({ id: `document-${i}` }))
-    queueTableRows(schemaMock.document, batch)
-    dbChainMockFns.returning.mockResolvedValueOnce(batch)
-    const input: Parameters<typeof applyMemberDocumentLifecycle>[0] = {
-      connectorId: 'c-1',
-      knowledgeBaseId: 'kb-1',
-      runId: 'run-1',
-      deadlineAt: Date.now() + 60_000,
-      allowRemoval: true,
-      lease: { beatIfDue: async () => {} },
-      withLease: async (fn) => {
-        const value = await fn(db)
-        input.deadlineAt = Date.now() - 1
-        return value
+  const lifecycleInput = (
+    overrides: Partial<Parameters<typeof applyMemberDocumentLifecycle>[0]> = {}
+  ): Parameters<typeof applyMemberDocumentLifecycle>[0] => ({
+    connectorId: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    runId: 'run-1',
+    deadlineAt: Date.now() + 60_000,
+    allowRemoval: true,
+    unobservedDocumentIds: [],
+    lease: { beatIfDue: async () => {} },
+    withLease: (fn) => fn(db),
+    ...overrides,
+  })
+  const pageRow = (id: string) => ({ id, externalId: `ext-${id}` })
+  /** The WHERE of every statement that targets documents by id, in call order. */
+  const documentUpdateConditions = () =>
+    dbChainMockFns.where.mock.calls
+      .map(([condition]) => condition)
+      .filter((condition) => updatedIds(condition) !== undefined)
+  const updatedIds = (condition: unknown) =>
+    flattenMockConditions(condition).find(
+      (node) => node.type === 'inArray' && node.column === schemaMock.document.id
+    )?.values
+
+  it('tombstones the documents whose observations this run removed, rechecking each for an observer', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'd-gone' }])
+
+    await expect(
+      applyMemberDocumentLifecycle(
+        lifecycleInput({ unobservedDocumentIds: ['d-gone', 'd-still-observed', 'd-gone'] })
+      )
+    ).resolves.toEqual({ tombstoned: 1, resurrected: 0, purged: 0, finished: true })
+
+    const [targeted] = documentUpdateConditions()
+    expect(updatedIds(targeted)).toEqual(['d-gone', 'd-still-observed'])
+    expect(hasMockCondition(targeted, (node) => node.type === 'notExists')).toBe(true)
+    expect(hasMockCondition(targeted, (node) => node.type === 'isNull')).toBe(true)
+  })
+
+  it('checks observations only for the live documents of one bounded page', async () => {
+    queueTableRows(schemaMock.document, [pageRow('observed'), pageRow('unobserved')])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'unobserved' }])
+
+    await expect(applyMemberDocumentLifecycle(lifecycleInput())).resolves.toEqual({
+      tombstoned: 1,
+      resurrected: 0,
+      purged: 0,
+      finished: true,
+    })
+
+    const [pageCondition] = dbChainMockFns.where.mock.calls
+      .map(([condition]) => condition)
+      .filter((condition) =>
+        hasMockCondition(
+          condition,
+          (node) => node.type === 'eq' && node.left === schemaMock.document.connectorId
+        )
+      )
+    /** The observation check must not filter the page, or LIMIT stops bounding the walk. */
+    expect(
+      hasMockCondition(pageCondition, (node) => node.type === 'notExists' || node.type === 'exists')
+    ).toBe(false)
+    expect(
+      hasMockCondition(
+        pageCondition,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.deletedAt
+      )
+    ).toBe(true)
+    /** An immutable key: `source_seen_at` moves on every listing, so a walk ordered by it never ends. */
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith({
+      type: 'asc',
+      column: schemaMock.document.externalId,
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(500)
+    const [tombstone] = documentUpdateConditions()
+    expect(updatedIds(tombstone)).toEqual(['observed', 'unobserved'])
+    expect(hasMockCondition(tombstone, (node) => node.type === 'notExists')).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ memberTombstoneCursor: null })
+  })
+
+  it('stops after its page budget, saving where the next run resumes', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [{ cursor: { externalId: 'previous-run' } }])
+    for (let page = 0; page < MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN; page++) {
+      queueTableRows(
+        schemaMock.document,
+        Array.from({ length: 500 }, (_, index) => pageRow(`p${page}-${index}`))
+      )
+    }
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+
+    await expect(applyMemberDocumentLifecycle(lifecycleInput())).resolves.toEqual({
+      tombstoned: 0,
+      resurrected: 0,
+      purged: 0,
+      finished: true,
+    })
+
+    const firstPage = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenMockConditions(condition))
+      .find((nodes) => nodes.some((node) => node.left === schemaMock.document.connectorId))
+    expect(firstPage).toContainEqual({
+      type: 'gt',
+      left: schemaMock.document.externalId,
+      right: 'previous-run',
+    })
+    const cursors = dbChainMockFns.set.mock.calls
+      .map(([value]) => value)
+      .filter((value) => 'memberTombstoneCursor' in value)
+    /** Written once for the run, not once per page. */
+    expect(cursors).toHaveLength(1)
+    expect(cursors.at(-1)).toEqual({
+      memberTombstoneCursor: {
+        externalId: `ext-p${MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN - 1}-499`,
       },
+    })
+    expect(documentUpdateConditions()).toHaveLength(MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN)
+  })
+
+  it('leaves remaining work for the next run once the deadline passes', async () => {
+    const input = lifecycleInput()
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: 500 }, (_, index) => pageRow(`document-${index}`))
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce(
+      Array.from({ length: 500 }, (_, index) => ({ id: `document-${index}` }))
+    )
+    input.withLease = async (fn) => {
+      const value = await fn(db)
+      input.deadlineAt = Date.now() - 1
+      return value
     }
     expect(await applyMemberDocumentLifecycle(input)).toEqual({
       tombstoned: 500,
@@ -261,19 +387,23 @@ describe('applyMemberDocumentLifecycle', () => {
       purged: 0,
       finished: false,
     })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(500)
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'remaining' }]).mockResolvedValueOnce([])
-    queueTableRows(schemaMock.document, [{ id: 'remaining' }])
+  })
+
+  it('before any completed listing, tombstones only what this run explicitly unobserved', async () => {
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [])
-    expect(
-      await applyMemberDocumentLifecycle({ ...input, deadlineAt: Date.now() + 60_000 })
-    ).toEqual({
-      tombstoned: 1,
-      resurrected: 0,
-      purged: 0,
-      finished: true,
-    })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'd-removed-member' }])
+    await expect(
+      applyMemberDocumentLifecycle(
+        lifecycleInput({ allowRemoval: false, unobservedDocumentIds: ['d-removed-member'] })
+      )
+    ).resolves.toEqual({ tombstoned: 1, resurrected: 0, purged: 0, finished: true })
+    const [targeted] = documentUpdateConditions()
+    expect(updatedIds(targeted)).toEqual(['d-removed-member'])
+    expect(hasMockCondition(targeted, (node) => node.type === 'notExists')).toBe(true)
+    /** Neither the absence reconcile nor the purge runs: absence alone still says nothing. */
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnector)
+    expect(documentUpdateConditions()).toHaveLength(1)
+    expect(hardDeleteDocuments).not.toHaveBeenCalled()
   })
 
   it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
@@ -293,6 +423,7 @@ describe('applyMemberDocumentLifecycle', () => {
         withLease: (fn) => fn(db as never),
         deadlineAt: Date.now() + 60_000,
         allowRemoval: true,
+        unobservedDocumentIds: [],
         lease: { beatIfDue: async () => {} } as never,
       })
     ).rejects.toBeInstanceOf(SyncLockLostException)

@@ -90,6 +90,7 @@ import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { ensureSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
 import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
+import { isCredentialRevocationError } from '@/lib/oauth/terminal-errors'
 import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -746,8 +747,8 @@ export function buildSyncSuccessUpdate(
 }
 
 /**
- * A credential the source rejected outright: the refresh path recorded a terminal error for
- * it, so no retry can produce a token until the credential is reauthorized.
+ * A credential the source revoked: the refresh path recorded a revocation for it, so no retry
+ * can produce a token until the credential is reauthorized.
  */
 export class ConnectorCredentialRevokedError extends Error {
   constructor(
@@ -760,9 +761,22 @@ export class ConnectorCredentialRevokedError extends Error {
 }
 
 /**
+ * The revocation code a credential's refresh was last rejected with, if its grant is gone. An
+ * app-registration fault is terminal for the refresh too, but it is ours to fix and fixing it
+ * restores the credential, so it reads as nothing here and the connector keeps its retry ladder
+ * rather than waiting on an owner to reconnect a credential that was never broken.
+ */
+async function getCredentialRevocationError(credentialId: string): Promise<string | null> {
+  const rejection = await getCredentialTerminalRefreshError(credentialId)
+  return rejection && isCredentialRevocationError(rejection.errorCode, rejection.providerId)
+    ? rejection.errorCode
+    : null
+}
+
+/**
  * Resolves the token a connector syncs with, failing loudly where the shared
  * resolver reports "no token" — a sync has no reconnect prompt to fall back to.
- * A credential the source has rejected outright fails as
+ * A credential the source has revoked fails as
  * {@link ConnectorCredentialRevokedError}, so the run can unschedule the
  * connector instead of walking the failure ladder toward a retry that cannot help.
  */
@@ -789,12 +803,12 @@ async function resolveAccessToken(
       userId,
       authMode: connectorConfig.auth.mode,
     })
-    const terminalError =
+    const revocationError =
       connectorConfig.auth.mode === 'oauth' && connector.credentialId
-        ? await getCredentialTerminalRefreshError(connector.credentialId)
+        ? await getCredentialRevocationError(connector.credentialId)
         : null
-    if (terminalError && connector.credentialId) {
-      throw new ConnectorCredentialRevokedError(connector.credentialId, terminalError)
+    if (revocationError && connector.credentialId) {
+      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
     }
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
@@ -1467,7 +1481,7 @@ export async function executeSync(
          * cannot record the unschedule is a failure, so the runner reports it
          * instead of leaving the connector locked behind a benign outcome.
          */
-        const stillRejected = await getCredentialTerminalRefreshError(error.credentialId)
+        const stillRejected = await getCredentialRevocationError(error.credentialId)
         if (stillRejected) {
           logger.warn('Sync unscheduled: the source rejected the connector credential', {
             connectorId,

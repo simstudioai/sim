@@ -10,7 +10,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
     'Sync repository files, wiki pages, issues, merge requests, and their non-internal comments from a GitLab project',
   version: '1.3.0',
   mirrorsSourceAcls: true,
-  supportedAccessModes: ['admin'],
+  supportedAccessModes: ['admin', 'workspace'],
   adminSetupHint:
     'Use an administrator token, or a non-admin token with CSV permissions. Both require read_api access and a self-managed GitLab host.',
   icon: GitLabIcon,

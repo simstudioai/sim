@@ -205,6 +205,8 @@ export interface ExternalListingFailures {
     status?: number
     reasons: string[]
     reasonState?: ConnectorSourceReasonState
+    /** When a standing account condition was first observed, bounding how long it is retained. */
+    since?: string
   }[]
 }
 

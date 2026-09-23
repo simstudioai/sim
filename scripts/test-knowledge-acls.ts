@@ -167,6 +167,11 @@ try {
     cwd: path.join(root, 'packages/db'),
     env: environment,
   })
+  /** Production projections mirror each document's source and ACL by trigger; tests must too. */
+  run('bun', ['./script-migrations/0021_embedding_search_connector.ts'], {
+    cwd: path.join(root, 'packages/db'),
+    env: environment,
+  })
   run(
     'bunx',
     [
@@ -198,7 +203,12 @@ try {
     )
     run(
       'bunx',
-      ['vitest', 'run', 'script-migrations/0016_backfill_search_vectors.postgres.test.ts'],
+      [
+        'vitest',
+        'run',
+        'script-migrations/0016_backfill_search_vectors.postgres.test.ts',
+        'script-migrations/0021_embedding_search_connector.postgres.test.ts',
+      ],
       {
         cwd: path.join(root, 'packages/db'),
         env: environment,

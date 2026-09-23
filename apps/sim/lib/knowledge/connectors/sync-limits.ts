@@ -141,6 +141,14 @@ export const MEMBER_TOMBSTONE_PURGE_DAYS = 7
 /** Hard deletes one members-mode run may perform; bounds the blast radius of a bad run. */
 export const MEMBER_PURGE_MAX_PER_RUN = 1000
 
+/**
+ * Pages of the connector's documents one members-mode run checks for a document nobody
+ * observes, beyond the ones whose observations the run itself removed. The check resumes
+ * where the previous run stopped, so a pass over a large connector spans several runs
+ * while each run's cost stays independent of the connector's size.
+ */
+export const MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN = 20
+
 export const SOURCE_PERMISSION_ERROR =
   'Some document permissions could not be verified. Documents without verified access stay hidden from search.'
 

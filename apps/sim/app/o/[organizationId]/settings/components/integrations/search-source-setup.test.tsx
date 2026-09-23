@@ -6,6 +6,11 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/hooks/queries/environment', () => ({
+  usePersonalEnvironment: () => ({ data: {} }),
+  useWorkspaceEnvironment: () => ({ data: { workspace: {}, personal: {} } }),
+}))
+
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
   hasMaxAccess: true,
@@ -269,6 +274,7 @@ async function chooseSyncFrequency(label: string) {
 async function fill(placeholder: string, value: string) {
   const input = document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)
   expect(input, `Input ${placeholder}`).not.toBeNull()
+  await act(async () => input?.focus())
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
     input?.dispatchEvent(new Event('input', { bubbles: true }))
@@ -897,8 +903,8 @@ describe('member content credentials in real add and edit dialogs', () => {
     )
     await click(card!)
     expect(document.body.textContent).not.toContain('Connected members')
-    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
-    expect(document.body.textContent).not.toContain('Connection method')
+    expect(document.body.textContent).not.toContain('Administrator token')
+    expect(document.body.textContent).toContain('Everyone in this workspace')
     await fill('Enter your GitLab PAT', 'new-pat')
     await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', '1')
@@ -906,7 +912,7 @@ describe('member content credentials in real add and edit dialogs', () => {
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
-      accessMode: 'admin',
+      accessMode: 'workspace',
       apiKey: 'new-pat',
     })
     expect(mocks.create.mock.calls[1][0].sourceConfig).not.toHaveProperty('excludeChannels')

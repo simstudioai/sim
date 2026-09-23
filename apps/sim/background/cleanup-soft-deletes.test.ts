@@ -26,6 +26,7 @@ const {
   mockPrepareChatCleanup,
   mockResolveStorageBillingContext,
   mockSelectRowsByIdChunks,
+  mockSettleDetachedConnectorReservations,
   mockDeduplicateWorkflowName,
   mockAllocateUniqueWorkspaceFileName,
   mockDeduplicateFolderName,
@@ -46,6 +47,7 @@ const {
   mockPrepareChatCleanup: vi.fn(async () => ({ execute: vi.fn(async () => undefined) })),
   mockResolveStorageBillingContext: vi.fn(),
   mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
+  mockSettleDetachedConnectorReservations: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/billing/cleanup-dispatcher', () => ({ runCleanupWithLimits: vi.fn() }))
@@ -69,6 +71,10 @@ vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareCh
 vi.mock('@/lib/billing/storage', () => ({
   decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
   resolveStorageBillingContext: mockResolveStorageBillingContext,
+}))
+
+vi.mock('@/lib/knowledge/connectors/detachment', () => ({
+  settleDetachedConnectorReservations: mockSettleDetachedConnectorReservations,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -301,6 +307,32 @@ describe('cleanup soft deletes', () => {
     expect(mockHardDeleteDocuments.mock.invocationCallOrder[0]).toBeLessThan(
       mockKnowledgeBaseContainerDelete.mock.invocationCallOrder[0]
     )
+  })
+
+  it('settles overdrawn reservations before the documents and the rest before the base delete', async () => {
+    mockChunkedBatchDelete.mockImplementationOnce(
+      async (options: { onBatch?: (rows: Array<{ id: string }>) => Promise<void> }) => {
+        await options.onBatch?.([{ id: 'kb-1' }, { id: 'kb-2' }])
+        mockKnowledgeBaseContainerDelete()
+        return { deleted: 2, failed: 0 }
+      }
+    )
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'doc-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockSettleDetachedConnectorReservations.mock.calls).toEqual([
+      [['kb-1', 'kb-2'], 'overdrawn'],
+      [['kb-1', 'kb-2'], 'remaining'],
+    ])
+    const [overdrawn, remaining] = mockSettleDetachedConnectorReservations.mock.invocationCallOrder
+    const [deletedDocuments] = mockHardDeleteDocuments.mock.invocationCallOrder
+    expect(overdrawn).toBeLessThan(deletedDocuments)
+    expect(deletedDocuments).toBeLessThan(remaining)
+    expect(remaining).toBeLessThan(mockKnowledgeBaseContainerDelete.mock.invocationCallOrder[0])
   })
 
   it('soft-deletes abandoned KB bindings and removes their storage objects', async () => {

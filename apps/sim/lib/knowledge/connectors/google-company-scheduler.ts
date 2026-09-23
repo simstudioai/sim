@@ -6,10 +6,14 @@ import type {
 import { googleDriveCompanyCursorAdapter } from '@/connectors/google-drive/company-crawl'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
-import { googleWorkspaceCompanyCursorAdapter } from '@/connectors/google-workspace/company-crawl'
-import type {
-  GoogleCompanyCursorAdapter,
-  GoogleCompanyUserWork,
+import {
+  googleWorkspaceCompanyCursorAdapter,
+  serviceNotEnabledFailure,
+} from '@/connectors/google-workspace/company-crawl'
+import {
+  type GoogleCompanyCursorAdapter,
+  type GoogleCompanyUserWork,
+  googleCompanyUserContextSchema,
 } from '@/connectors/google-workspace/company-work'
 import {
   listGoogleWorkspaceUsers,
@@ -27,6 +31,8 @@ const CURSOR_PREFIX = 'google-company-work:v2:'
 export const GOOGLE_COMPANY_PERMISSION_REFRESH_MS = 12 * 60 * 60 * 1000
 const DIRECTORY_REFRESH_MS = 60 * 60 * 1000
 const MAX_UNRESOLVED_FAILURES_PER_PASS = 3
+/** Google applies a change to a user's services or organizational unit within 24 hours. */
+const SERVICE_CHANGE_PROPAGATION_MS = 24 * 60 * 60 * 1000
 const cursorSchema = z.object({
   directoryComplete: z.boolean(),
   directoryCursor: z.string().max(8192).optional(),
@@ -114,6 +120,8 @@ export function createGoogleCompanyScheduler(input: {
   store: ConnectorPartitionWorkStore<GoogleCompanyUserWork['user']>
   listDocuments: ConnectorConfig['listDocuments']
   isListingCursorInvalidError?: ConnectorConfig['isListingCursorInvalidError']
+  /** Whether this user still has documents readers can see, which a skip would remove. */
+  hasVisibleDocuments: (user: GoogleCompanyUserWork['user']) => Promise<boolean>
   syncIntervalMinutes: number
   now?: () => Date
 }) {
@@ -183,9 +191,18 @@ export function createGoogleCompanyScheduler(input: {
           nextCursor: nextCursor({ ...state, directoryCursor: undefined }, {}),
         }
       }
-      const users = page.users.filter(
-        (user) => user.active && (!selected.length || selected.includes(user.email))
-      )
+      const users: typeof page.users = []
+      for (const user of page.users) {
+        if (!user.active || (selected.length && !selected.includes(user.email))) continue
+        /** A user without a mailbox is out of scope like an inactive one, unless readers still see their mail. */
+        if (
+          input.provider === 'gmail' &&
+          user.isMailboxSetup === false &&
+          !(await input.hasVisibleDocuments(user))
+        )
+          continue
+        users.push(user)
+      }
       return {
         documents: [],
         currentCursor: writeCursor(state),
@@ -249,6 +266,8 @@ export function createGoogleCompanyScheduler(input: {
       active: { userId: work.partitionKey, kind: work.kind },
     }
     const currentCursor = writeCursor(active)
+    /** The user's first provider page, from identity alone so extra persisted fields never alter it. */
+    const seed = adapter.seed(googleCompanyUserContextSchema.parse(work.context))
     const next = {
       ...state,
       revision: active.revision,
@@ -278,7 +297,7 @@ export function createGoogleCompanyScheduler(input: {
           update: {
             partitionKey: work.partitionKey,
             kind: work.kind,
-            cursor: resetCursor ? adapter.seed(work.context) : (work.cursor ?? null),
+            cursor: resetCursor ? seed : (work.cursor ?? null),
             completed: false,
             retryAt,
             attempts: work.attempts + 1,
@@ -296,14 +315,58 @@ export function createGoogleCompanyScheduler(input: {
           : {}),
       }
     }
+    /** A user without the service completes cleanly and is re-probed no sooner than the Directory refresh. */
+    const skipped = (): ExternalDocumentList => ({
+      documents: [],
+      currentCursor,
+      hasMore: true,
+      nextCursor: nextCursor(next, {
+        update: {
+          partitionKey: work.partitionKey,
+          kind: work.kind,
+          cursor: null,
+          completed: true,
+          attempts: 0,
+          failure: null,
+          retryAt: new Date(
+            now().getTime() +
+              (work.kind === 'permissions'
+                ? GOOGLE_COMPANY_PERMISSION_REFRESH_MS
+                : Math.max(DIRECTORY_REFRESH_MS, input.syncIntervalMinutes * 60_000))
+          ),
+          ...(work.kind === 'permissions' ? { permissionStartedAt: null } : {}),
+        },
+      }),
+    })
+    /**
+     * Only a user's first page proves the whole account lacks the service, and a user whose
+     * documents readers still see keeps them until the condition outlasts Google's propagation
+     * window. Until then it is a retained failure, which holds absence reconciliation.
+     */
+    const unavailable = async (
+      reason: Omit<ListingFailure, 'scope'>
+    ): Promise<ExternalDocumentList> => {
+      const since = work.failure?.since
+      const persisted =
+        since !== undefined &&
+        now().getTime() - new Date(since).getTime() >= SERVICE_CHANGE_PROPAGATION_MS
+      const firstPage = !work.cursor || work.cursor === seed
+      if (
+        firstPage &&
+        (persisted ||
+          work.kind === 'permissions' ||
+          (!since && !(await input.hasVisibleDocuments(work.context))))
+      )
+        return skipped()
+      return failed(
+        { scope: work.context.email, ...reason, since: since ?? now().toISOString() },
+        false,
+        persisted
+      )
+    }
     let page: ExternalDocumentList
     try {
-      page = await input.listDocuments(
-        accessToken,
-        sourceConfig,
-        work.cursor ?? adapter.seed(work.context),
-        syncContext
-      )
+      page = await input.listDocuments(accessToken, sourceConfig, work.cursor ?? seed, syncContext)
     } catch (error) {
       signal?.throwIfAborted()
       if (input.isListingCursorInvalidError?.(error))
@@ -312,6 +375,8 @@ export function createGoogleCompanyScheduler(input: {
           false,
           true
         )
+      const serviceNotEnabled = serviceNotEnabledFailure(error)
+      if (serviceNotEnabled) return unavailable(serviceNotEnabled)
       const failure = deferredUserFailure(error, work.context)
       if (!failure) throw error
       return failed(failure, true)

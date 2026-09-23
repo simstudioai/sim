@@ -8,7 +8,7 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   continueOutboxHandler,
@@ -56,6 +56,49 @@ export async function enqueueConnectorDeletion(
     deletionPayloadSchema.parse({ version: 1, ...payload }),
     { maxAttempts: 48 }
   )
+}
+
+/**
+ * Final phase of both connector removals, once no document references the connector: deletes one
+ * bounded page of its sync history and member rows per call, then the connector row itself. The
+ * row delete is guarded by the removal's own tombstone so a superseded event cannot delete it.
+ */
+export async function removeDrainedConnector(
+  tx: DbOrTx,
+  target: { connectorId: string; knowledgeBaseId: string },
+  retiredBy: SQL,
+  signal: AbortSignal
+): Promise<'progress' | 'complete'> {
+  for (const table of [
+    knowledgeConnectorSyncLog,
+    knowledgeConnectorMemberSyncLog,
+    knowledgeConnectorMember,
+  ]) {
+    const rows = await tx
+      .select({ id: table.id })
+      .from(table)
+      .where(eq(table.connectorId, target.connectorId))
+      .limit(RELATED_ROW_BATCH_SIZE)
+    if (rows.length === 0) continue
+    await tx.delete(table).where(
+      inArray(
+        table.id,
+        rows.map(({ id }) => id)
+      )
+    )
+    signal.throwIfAborted()
+    return 'progress'
+  }
+  await tx
+    .delete(knowledgeConnector)
+    .where(
+      and(
+        eq(knowledgeConnector.id, target.connectorId),
+        eq(knowledgeConnector.knowledgeBaseId, target.knowledgeBaseId),
+        retiredBy
+      )
+    )
+  return 'complete'
 }
 
 /**
@@ -114,36 +157,12 @@ export const cleanupKnowledgeConnector: OutboxHandler = async (rawPayload, conte
         .for('update')
       context.signal.throwIfAborted()
       if (docs.length === 0) {
-        for (const table of [
-          knowledgeConnectorSyncLog,
-          knowledgeConnectorMemberSyncLog,
-          knowledgeConnectorMember,
-        ]) {
-          const rows = await tx
-            .select({ id: table.id })
-            .from(table)
-            .where(eq(table.connectorId, payload.connectorId))
-            .limit(RELATED_ROW_BATCH_SIZE)
-          if (rows.length === 0) continue
-          await tx.delete(table).where(
-            inArray(
-              table.id,
-              rows.map(({ id }) => id)
-            )
-          )
-          context.signal.throwIfAborted()
-          return 'progress'
-        }
-        await tx
-          .delete(knowledgeConnector)
-          .where(
-            and(
-              eq(knowledgeConnector.id, payload.connectorId),
-              eq(knowledgeConnector.knowledgeBaseId, payload.knowledgeBaseId),
-              eq(knowledgeConnector.deletedAt, new Date(payload.deletedAt))
-            )
-          )
-        return 'complete'
+        return removeDrainedConnector(
+          tx,
+          payload,
+          eq(knowledgeConnector.deletedAt, new Date(payload.deletedAt)),
+          context.signal
+        )
       }
       const documentIds = docs.map(({ id }) => id)
       const chunks = await tx

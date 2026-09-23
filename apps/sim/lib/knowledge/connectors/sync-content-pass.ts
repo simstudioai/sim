@@ -30,6 +30,7 @@ import { assertSyncLeaseHeldInTx, type SyncRunLease } from '@/lib/knowledge/conn
 import {
   type KnowledgeBaseOwner,
   persistSourceDocumentFailures,
+  revokeDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import {
   buildReconciliationHoldNotice,
@@ -45,6 +46,7 @@ import {
   resolveReconciliationDeleteCap,
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -139,6 +141,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         provider: input.connector.connectorType,
         listDocuments: input.connectorConfig.listDocuments,
         isListingCursorInvalidError: input.connectorConfig.isListingCursorInvalidError,
+        hasVisibleDocuments: (user) => hasVisibleUserDocuments(input.connectorId, user.email),
         syncIntervalMinutes,
         store: {
           get: (...args) => companyStore().get(...args),
@@ -177,23 +180,18 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         })
         /** Revoke grants without matching stored content, retaining the content crawl's observation for EOF reconciliation. */
         if (changed.length)
-          await withLease(async (tx) => {
-            for (let offset = 0; offset < changed.length; offset += 500) {
-              await tx
-                .update(document)
-                .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-                .where(
-                  and(
-                    eq(document.connectorId, input.connectorId),
-                    inArray(
-                      document.externalId,
-                      changed.slice(offset, offset + 500).map((item) => item.externalId)
-                    ),
-                    isNull(document.archivedAt)
-                  )
+          await withLease((tx) =>
+            revokeDocumentAcls(
+              tx,
+              changed.map((item) => item.externalId),
+              (batch) =>
+                and(
+                  eq(document.connectorId, input.connectorId),
+                  inArray(document.externalId, batch),
+                  isNull(document.archivedAt)
                 )
-            }
-          })
+            )
+          )
       }
       const state = createSyncRunState(input.result)
       const startedAt = new Date(cycle.startedAt)
@@ -429,18 +427,11 @@ async function reconcileCompletedListing(
       const rows = await loadBatch(and(absent, sql`cardinality(${document.acl}) > 0`), 500, after)
       if (rows.length === 0) break
       await withLease((tx) =>
-        tx
-          .update(document)
-          .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-          .where(
-            and(
-              absent,
-              inArray(
-                document.id,
-                rows.map((row) => row.id)
-              )
-            )
-          )
+        revokeDocumentAcls(
+          tx,
+          rows.map((row) => row.id),
+          (batch) => and(absent, inArray(document.id, batch))
+        )
       )
       after = rows.at(-1)
     }

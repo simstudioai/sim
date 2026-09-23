@@ -591,6 +591,7 @@ describe('OAuth access-token refresh headroom', () => {
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toBeNull()
     expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_grant')
+    expect(isTerminalRefreshError).toHaveBeenCalledWith('invalid_grant', 'google-drive')
   })
 
   it('uses the stored chain when the rotation write loses to a newer one', async () => {
@@ -931,9 +932,10 @@ describe('getCredentialTerminalRefreshError', () => {
     ])
     queueTableRows(account, [{ providerId: 'confluence', providerAccountId: 'provider-subject' }])
     mocks.getRecentTerminalError.mockResolvedValueOnce('invalid_grant')
-    await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toBe(
-      'invalid_grant'
-    )
+    await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toEqual({
+      errorCode: 'invalid_grant',
+      providerId: 'confluence',
+    })
     expect(mocks.getRecentTerminalError).toHaveBeenCalledWith(
       getOAuthRefreshCoordinationIdentity(RAW_ACCOUNT_ID)
     )
@@ -948,6 +950,14 @@ describe('getCredentialTerminalRefreshError', () => {
     expect(mocks.getRecentTerminalError).toHaveBeenCalledWith(
       getOAuthRefreshCoordinationIdentity('slack:TEXAMPLE')
     )
+  })
+
+  it('reports nothing for an account with no flag', async () => {
+    queueTableRows(credential, [
+      { id: RAW_CREDENTIAL_ID, type: 'oauth', accountId: RAW_ACCOUNT_ID },
+    ])
+    queueTableRows(account, [{ providerId: 'confluence', providerAccountId: 'provider-subject' }])
+    await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toBeNull()
   })
 
   it('reports nothing for a service account, which never refreshes a chain', async () => {
