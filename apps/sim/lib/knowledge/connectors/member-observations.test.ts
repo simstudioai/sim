@@ -529,6 +529,27 @@ describe('writeProjectionPages', () => {
     }
   })
 
+  /** The lease heartbeat runs before each page and can itself use up what is left of the budget. */
+  it('opens no transaction when the heartbeat before a page outlasts the deadline', async () => {
+    let clock = Date.now()
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    try {
+      const transaction = vi.fn()
+      const write = vi.fn()
+      const beforePage = vi.fn(async () => {
+        clock += 2_000
+      })
+
+      await expect(
+        writeProjectionPages(['a'], transaction, write, { beforePage, deadlineAt: clock + 1_000 })
+      ).resolves.toEqual({ written: 0, finished: false })
+      expect(beforePage).toHaveBeenCalledOnce()
+      expect(transaction).not.toHaveBeenCalled()
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   it('writes every page when no deadline is given', async () => {
     queueTableRows(schemaMock.document, [
       { id: 'a', chunkCount: 200 },

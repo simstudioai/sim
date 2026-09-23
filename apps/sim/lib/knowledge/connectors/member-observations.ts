@@ -425,9 +425,9 @@ export async function writeProjectionPages(
   let pending = [...documentIds]
   let written = 0
   while (pending.length > 0) {
+    await options.beforePage?.()
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt)
       return { written, finished: false }
-    await options.beforePage?.()
     const { rows, rest } = await transaction(async (tx) => {
       const { page, rest } = await lockProjectionPage(tx, pending)
       return { rows: page.length > 0 ? await write(tx, page) : 0, rest }
@@ -471,8 +471,8 @@ export async function rewriteConnectorDocumentAcls(input: {
   let rewritten = 0
   let after: ConnectorDocumentCursor | undefined
   for (;;) {
-    if (expired()) return { rewritten, finished: false }
     await input.beforePage?.()
+    if (expired()) return { rewritten, finished: false }
     const window = await db
       .select({
         id: document.id,
