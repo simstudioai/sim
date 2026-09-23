@@ -2,9 +2,7 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 
@@ -23,7 +21,7 @@ export async function dispatchDocumentProcessingContinuation(
   payload: DocumentProcessingPayload,
   deferredUntil: Date,
   idempotencyKey: string,
-  useTrigger = isInsideTriggerRun() || Boolean(isTriggerDevEnabled && env.TRIGGER_SECRET_KEY)
+  useTrigger = isTriggerAvailable()
 ): Promise<void> {
   if (useTrigger) {
     const region = await resolveTriggerRegion()

@@ -6461,6 +6461,12 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsPurged: integer('docs_purged').notNull().default(0),
     credentialsAudited: integer('credentials_audited').notNull().default(0),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcmsl_connector_started_at_idx').on(
@@ -6500,6 +6506,12 @@ export const knowledgeConnectorSyncLog = pgTable(
     /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
     listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(

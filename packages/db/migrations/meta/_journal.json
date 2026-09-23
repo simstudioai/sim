@@ -2647,6 +2647,13 @@
       "when": 1790147511551,
       "tag": "0378_knowledge_projection_dirty",
       "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1790179236777,
+      "tag": "0379_sync_log_database_failure_class",
+      "breakpoints": true
     }
   ]
 }

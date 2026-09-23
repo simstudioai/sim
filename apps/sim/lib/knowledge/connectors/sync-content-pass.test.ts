@@ -43,9 +43,9 @@ const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: mocks.hardDelete,
-  isTriggerAvailable: () => true,
   processDocumentsWithQueue: mocks.dispatch,
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mocks.upload } }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mocks.deleteFile }))
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -211,9 +211,11 @@ describe('completed listing removal counts', () => {
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
       const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
       queueTableRows(schemaMock.document, granting)
-      /** Each revocation page locks its documents and rereads their chunks before writing. */
-      for (let offset = 0; offset < granting.length; offset += 25)
+      /** Each revocation page plans from an unlocked read, then locks and rereads its chunks. */
+      for (let offset = 0; offset < granting.length; offset += 25) {
         queueTableRows(schemaMock.document, granting.slice(offset, offset + 25))
+        queueTableRows(schemaMock.document, granting.slice(offset, offset + 25))
+      }
       /** Every revocation page is its own lease-proving transaction: one evidence clear, then acl pages. */
       const batches = 1 + Math.ceil(options.revoked.length / 25)
       for (let batch = 0; batch < batches; batch++)
@@ -381,7 +383,8 @@ async function runPass(
   /** A permission-only page revokes a changed body first: its read of what still grants someone. */
   if (options.permissionsOnly && options.existing && options.existing.contentHash === 'old-body') {
     queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
-    /** The revocation page locks the document and rereads its chunks before writing. */
+    /** The revocation page plans from an unlocked read, then locks and rereads its chunks. */
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
     queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
   }
   if (options.readCurrent) {

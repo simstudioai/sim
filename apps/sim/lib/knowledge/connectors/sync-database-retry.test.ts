@@ -32,13 +32,25 @@ import {
 
 const MINUTE = 60 * 1000
 const NO_WRITES = { docsAdded: 0, docsUpdated: 0, docsDeleted: 0 }
-const contentRun = (status: string, writes: Partial<typeof NO_WRITES> = {}) => ({
+/** A failed row carries the database failure class that ended it unless a test says otherwise. */
+const failureClassOf = (status: string) => (status === 'failed' ? 'capacity' : null)
+const contentRun = (
+  status: string,
+  writes: Partial<typeof NO_WRITES> = {},
+  databaseFailureClass: string | null = failureClassOf(status)
+) => ({
   status,
+  databaseFailureClass,
   ...NO_WRITES,
   ...writes,
 })
-const memberRun = (status: string, writes: Record<string, number> = {}) => ({
+const memberRun = (
+  status: string,
+  writes: Record<string, number> = {},
+  databaseFailureClass: string | null = failureClassOf(status)
+) => ({
   status,
+  databaseFailureClass,
   membersCompleted: 0,
   docsAdded: 0,
   docsUpdated: 0,
@@ -72,6 +84,24 @@ describe('countZeroProgressFailedRuns', () => {
       contentRun('failed'),
     ])
     expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(2)
+  })
+
+  it.each([
+    ['a provider or throttling failure', 'content'],
+    ['a run logged before failure classes were recorded', 'content'],
+    ['a provider failure of a members-mode run', 'member'],
+  ] as const)('ends the streak at %s', async (_label, kind) => {
+    const table =
+      kind === 'content'
+        ? schemaMock.knowledgeConnectorSyncLog
+        : schemaMock.knowledgeConnectorMemberSyncLog
+    const run = kind === 'content' ? contentRun : memberRun
+    queueTableRows(table, [
+      run('failed', {}, 'connection'),
+      run('failed', {}, null),
+      run('failed', {}, 'conflict'),
+    ])
+    expect(await countZeroProgressFailedRuns(kind, 'c-1', 'run-1')).toBe(2)
   })
 
   it('counts only this run after a success', async () => {
@@ -234,6 +264,19 @@ describe('resolveDatabaseRetryDelayMs', () => {
       'Connector sync keeps failing on the database without progress',
       { connectorId: 'c-1', kind: 'content', zeroProgressFailedRuns: DATABASE_FAILURE_ALERT_STREAK }
     )
+  })
+
+  /** Throttled or provider-failed runs are logged `failed` too, but say nothing of the database. */
+  it('neither climbs nor alerts on failed runs the database did not cause', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
+      contentRun('failed'),
+      ...Array.from({ length: DATABASE_FAILURE_ALERT_STREAK }, () =>
+        contentRun('failed', {}, null)
+      ),
+    ])
+    const delay = await resolveDatabaseRetryDelayMs({ ...retry, madeProgress: false })
+    expect(delay).toBeLessThanOrEqual(61 * MINUTE)
+    expect(mockLogError).not.toHaveBeenCalled()
   })
 
   it('stays quiet below the alert threshold', async () => {

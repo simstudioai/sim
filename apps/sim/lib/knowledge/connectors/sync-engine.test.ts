@@ -52,10 +52,10 @@ const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: vi.fn(),
-  isTriggerAvailable: vi.fn(),
   processDocumentAsync: vi.fn(),
   processDocumentsWithQueue: mockProcessDocumentsWithQueue,
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: vi.fn() }))
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
 const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn(),
@@ -1199,9 +1199,9 @@ describe('executeSync database failures', () => {
 
   it('backs a repeated database failure off by the streak in the run log', async () => {
     queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
-      { status: 'failed' },
-      { status: 'failed' },
-      { status: 'completed' },
+      { status: 'failed', databaseFailureClass: 'capacity' },
+      { status: 'failed', databaseFailureClass: 'capacity' },
+      { status: 'completed', databaseFailureClass: null },
     ])
     const timeout = new DrizzleQueryError(
       'select private SQL',
@@ -1215,6 +1215,9 @@ describe('executeSync database failures', () => {
     expect(delay).toBeGreaterThanOrEqual(90 * 60 * 1000)
     expect(delay).toBeLessThanOrEqual(91 * 60 * 1000)
     expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
+    )
   })
 
   it('retries within minutes after a run that added documents before the database failed', async () => {
@@ -1249,6 +1252,8 @@ describe('executeSync database failures', () => {
       status: 'disabled',
       consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
     })
+    const failedLog = dbChainMockFns.set.mock.calls.find(([values]) => values?.status === 'failed')
+    expect(failedLog?.[0]).not.toHaveProperty('databaseFailureClass')
   })
 })
 

@@ -16,7 +16,7 @@ import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isBillingEnabled, isDataRetentionEnabled } from '@/lib/core/config/env-flags'
-import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('RetentionDispatcher')

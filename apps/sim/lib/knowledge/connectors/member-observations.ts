@@ -71,7 +71,9 @@ const STALE_MEMBER_SWEEP_BUDGET_MS = 60_000
 /**
  * The subject-token aggregate that is a members-mode document's ACL. Ordered
  * under the "C" collation so the array matches the code-unit order every other
- * writer of an ACL produces.
+ * writer of an ACL produces. Only members of the document's own connector
+ * count: an observation left by another connector's member never grants the
+ * document, whatever connector the document belongs to now.
  */
 function observedAcl() {
   return sql<string[]>`COALESCE((
@@ -80,6 +82,7 @@ function observedAcl() {
     JOIN ${knowledgeConnectorMember}
       ON ${knowledgeConnectorMember.id} = ${knowledgeDocumentObservation.memberId}
      AND ${knowledgeConnectorMember.status} = 'active'
+     AND ${knowledgeConnectorMember.connectorId} = ${document.connectorId}
     WHERE ${knowledgeDocumentObservation.documentId} = ${document.id}
   ), '{}'::text[])`
 }
@@ -387,32 +390,50 @@ export function pagesByProjectionRows(
   return pages
 }
 
+/** The leading documents of `ids`, in order, whose chunk counts in `rows` fit one page. */
+function leadingProjectionPage(
+  ids: readonly string[],
+  rows: readonly { id: string; chunkCount: number }[]
+): string[] {
+  const chunks = new Map(rows.map((row) => [row.id, row.chunkCount]))
+  const [page = []] = pagesByProjectionRows(
+    ids.map((id) => ({ id, chunkCount: chunks.get(id) ?? 0 }))
+  )
+  return page
+}
+
 /**
- * Locks `documentIds` (in id order, so pages never deadlock one another) and splits off the leading
- * page, in the order given, whose chunks as committed now fit {@link PROJECTION_ROW_BATCH_SIZE};
- * the rest wait for a later page. A chunk count read
- * earlier without a lock can be stale: a processing commit holds its document's row while it
- * replaces the chunks and sets `chunk_count`, so locking first either waits for that commit and
- * reads its count, or makes it wait until this page commits, when the rows it inserts copy the new
- * ACL. The rows are the ones the page's write locks anyway. An id with no document row costs
- * nothing.
+ * Splits off the leading page of `documentIds`, in the order given, whose chunks as committed now
+ * fit {@link PROJECTION_ROW_BATCH_SIZE}, and locks only that page; the rest wait for a later page.
+ * The page is planned from an unlocked read, so a document past it that a processing commit holds
+ * never stalls this one. Only the planned documents are locked, in id order so pages never
+ * deadlock one another, and their counts are read again under the lock: a count read without a
+ * lock can be stale, because a processing commit holds its document's row while it replaces the
+ * chunks and sets `chunk_count`. Locking either waits for that commit and reads its count, or makes
+ * it wait until this page commits, when the rows it inserts copy the new ACL. A page that no longer
+ * fits is cut to the documents that still do, never fewer than one. The rows are the ones the
+ * page's write locks anyway. An id with no document row costs nothing.
  */
 export async function lockProjectionPage(
   tx: DbOrTx,
   documentIds: readonly string[]
 ): Promise<{ page: string[]; rest: string[] }> {
   if (documentIds.length === 0) return { page: [], rest: [] }
+  const ordered = [...new Set(documentIds)]
+  const counted = await tx
+    .select({ id: document.id, chunkCount: document.chunkCount })
+    .from(document)
+    .where(inArray(document.id, ordered))
+  const planned = leadingProjectionPage(ordered, counted)
   const locked = await tx
     .select({ id: document.id, chunkCount: document.chunkCount })
     .from(document)
-    .where(inArray(document.id, [...documentIds]))
+    .where(inArray(document.id, planned))
     .orderBy(asc(document.id))
     .for('update')
-  const chunks = new Map(locked.map((row) => [row.id, row.chunkCount]))
-  const ordered = [...new Set(documentIds)].map((id) => ({ id, chunkCount: chunks.get(id) ?? 0 }))
-  const [page = []] = pagesByProjectionRows(ordered)
+  const page = leadingProjectionPage(planned, locked)
   const taken = new Set(page)
-  return { page, rest: ordered.map(({ id }) => id).filter((id) => !taken.has(id)) }
+  return { page, rest: ordered.filter((id) => !taken.has(id)) }
 }
 
 /**

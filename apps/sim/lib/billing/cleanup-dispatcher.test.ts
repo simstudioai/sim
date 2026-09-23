@@ -28,7 +28,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 }))
 vi.mock('@/lib/core/async-jobs/config', () => ({ shouldExecuteInline: vi.fn(() => false) }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@/lib/workspaces/policy', () => ({

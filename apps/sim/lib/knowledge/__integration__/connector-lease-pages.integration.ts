@@ -21,6 +21,7 @@ import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embed
 import { installKnowledgeProjectionAsync } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import postgres from 'postgres'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const provider = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), changes: vi.fn() }))
@@ -1047,6 +1048,69 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         DOCUMENTS - 2 * PAGE,
       ])
       await expectBounded(members.connectorId)
+    })
+  })
+
+  describe('lockProjectionPage', () => {
+    const withChunks = async (rows: { id: string }[], chunkCount: number) =>
+      db
+        .update(document)
+        .set({ chunkCount })
+        .where(
+          inArray(
+            document.id,
+            rows.map((row) => row.id)
+          )
+        )
+    const lockPage = (documentIds: string[]) =>
+      db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '500ms'`)
+        return memberObservations.lockProjectionPage(tx, documentIds)
+      })
+    const waitingOnLock = async () => {
+      const [row] = await db.execute<{ waiting: boolean }>(
+        sql`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted) AS waiting`
+      )
+      return Boolean(row?.waiting)
+    }
+
+    it('locks only the page it will write, so a held document past it stalls nothing', async () => {
+      const [first, held, last] = await seedDocuments(members.connectorId, [], 3)
+      await withChunks([first, held, last], PROJECTION_ROW_BATCH_SIZE)
+      const holder = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      try {
+        await holder.begin(async (tx) => {
+          await tx`SELECT id FROM document WHERE id = ${held.id} FOR UPDATE`
+          await expect(lockPage([first.id, held.id, last.id])).resolves.toEqual({
+            page: [first.id],
+            rest: [held.id, last.id],
+          })
+        })
+      } finally {
+        await holder.end()
+      }
+    })
+
+    it('cuts the page to what still fits once a concurrent commit grows its chunks', async () => {
+      const [first, grown] = await seedDocuments(members.connectorId, [], 2)
+      await withChunks([first, grown], PROJECTION_ROW_BATCH_SIZE / 2)
+      const holder = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      try {
+        let page: Promise<{ page: string[]; rest: string[] }> | undefined
+        await holder.begin(async (tx) => {
+          await tx`UPDATE document SET chunk_count = ${PROJECTION_ROW_BATCH_SIZE} WHERE id = ${grown.id}`
+          page = db.transaction(async (lockTx) =>
+            memberObservations.lockProjectionPage(lockTx, [first.id, grown.id])
+          )
+          await vi.waitFor(async () => expect(await waitingOnLock()).toBe(true), {
+            timeout: 5_000,
+            interval: 10,
+          })
+        })
+        await expect(page).resolves.toEqual({ page: [first.id], rest: [grown.id] })
+      } finally {
+        await holder.end()
+      }
     })
   })
 

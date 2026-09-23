@@ -1,4 +1,7 @@
-/** Relation locks held by the document processing commit while it writes embeddings. */
+/**
+ * Relation locks held by the document processing commit while it writes embeddings, and the source
+ * check that discards its output when a connector or knowledge base deletion commits meanwhile.
+ */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -7,6 +10,7 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
+import postgres from 'postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtures = vi.hoisted(() => ({ root: '', process: vi.fn(), embeddings: vi.fn() }))
@@ -29,6 +33,9 @@ import {
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+
+/** Advisory lock key that parks a processing transaction inside its embedding insert. */
+const EMBEDDING_GATE = 7_310_191
 
 describe('document processing commit lock scope', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -151,39 +158,71 @@ describe('document processing commit lock scope', () => {
     ['connector', 'lock-scope-deleted-connector', 'knowledge_connector', () => ids.connectorId],
     ['knowledge base', 'lock-scope-deleted-kb', 'knowledge_base', () => ids.knowledgeBaseId],
   ])(
-    'rolls back the embeddings when the %s is deleted during the embedding writes',
+    'discards the embeddings when a %s deletion commits during the embedding writes',
     async (_, externalId, table, id) => {
       const file = await addConnectorDocument(externalId)
-      await installEmbeddingProbe(
-        file.documentId,
-        `UPDATE ${table} SET deleted_at = now() WHERE id = '${id()}';`
-      )
+      /**
+       * The embedding insert waits on an advisory lock the test holds, so the processing
+       * transaction is parked mid-write while a second connection commits the deletion.
+       */
+      const gate = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      const deleter = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      try {
+        await gate`SELECT pg_advisory_lock(${EMBEDDING_GATE})`
+        await installEmbeddingProbe(
+          file.documentId,
+          `PERFORM pg_advisory_xact_lock_shared(${EMBEDDING_GATE});`
+        )
+        const processing = processDocumentAsync(
+          ids.knowledgeBaseId,
+          file.documentId,
+          file,
+          {},
+          await billing()
+        )
+        await vi.waitFor(
+          async () => {
+            const [row] = await deleter<Array<{ parked: boolean }>>`
+              SELECT EXISTS (
+                SELECT 1 FROM pg_locks
+                WHERE locktype = 'advisory' AND objid = ${EMBEDDING_GATE} AND NOT granted
+              ) AS parked`
+            expect(row?.parked).toBe(true)
+          },
+          { timeout: 10_000, interval: 20 }
+        )
+        await deleter.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL lock_timeout = '2s'`)
+          await tx.unsafe(`UPDATE ${table} SET deleted_at = now() WHERE id = $1`, [id()])
+        })
+        await gate`SELECT pg_advisory_unlock(${EMBEDDING_GATE})`
 
-      const result = await processDocumentAsync(
-        ids.knowledgeBaseId,
-        file.documentId,
-        file,
-        {},
-        await billing()
-      )
-
-      expect(result).toEqual({ outcome: 'skipped', reason: 'superseded' })
-      expect(
-        await db
-          .select({ id: embedding.id })
-          .from(embedding)
-          .where(eq(embedding.documentId, file.documentId))
-      ).toEqual([])
-      for (const table of ['embedding_search', 'embedding_keyword_search']) {
+        expect(await processing).toEqual({ outcome: 'skipped', reason: 'superseded' })
+        const [tombstone] = await deleter.unsafe(`SELECT deleted_at FROM ${table} WHERE id = $1`, [
+          id(),
+        ])
+        expect(tombstone?.deleted_at).toBeInstanceOf(Date)
         expect(
-          await db.$client.unsafe(`SELECT id FROM ${table} WHERE document_id = $1`, [
-            file.documentId,
-          ])
+          await db
+            .select({ id: embedding.id })
+            .from(embedding)
+            .where(eq(embedding.documentId, file.documentId))
         ).toEqual([])
+        for (const projection of ['embedding_search', 'embedding_keyword_search']) {
+          expect(
+            await db.$client.unsafe(`SELECT id FROM ${projection} WHERE document_id = $1`, [
+              file.documentId,
+            ])
+          ).toEqual([])
+        }
+        expect(
+          await db.select().from(document).where(eq(document.id, file.documentId))
+        ).toMatchObject([{ processingStatus: 'processing', chunkCount: 0 }])
+      } finally {
+        await db.$client.unsafe(`UPDATE ${table} SET deleted_at = NULL WHERE id = $1`, [id()])
+        await gate.end()
+        await deleter.end()
       }
-      expect(
-        await db.select().from(document).where(eq(document.id, file.documentId))
-      ).toMatchObject([{ processingStatus: 'processing', chunkCount: 0 }])
     }
   )
   it.each([

@@ -11,7 +11,12 @@ import {
   knowledgeDocumentObservation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getTransientDatabaseFailure, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getTransientDatabaseFailure,
+  type TransientDatabaseFailureClass,
+  toError,
+} from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
@@ -1484,15 +1489,20 @@ async function listForMember(input: {
 /**
  * Writes what one member's listing established: observations for everything
  * they saw, removals only after a full, complete, non-suspect listing or by
- * the change feed's explicit word, and the member's schedule, watermark, and
- * feed cursor. Returns the documents whose ACL changed.
+ * the change feed's explicit word, then the ACLs those decide through
+ * `rematerialize`, and only then the member's schedule, watermark, and feed
+ * cursor. The checkpoint lands last so a run that fails while rematerialising
+ * rereads the same listing or feed window; a replayed feed removal finds its
+ * observation already gone, so every document the feed names is rematerialised,
+ * not only the observations this call removed.
  */
 async function applyMemberListing(
   run: MemberSyncRun,
   outcome: MemberListingOutcome,
   documentIdByExternalId: Map<string, string>,
-  syncIntervalMinutes: number
-): Promise<Set<string>> {
+  syncIntervalMinutes: number,
+  rematerialize: (documentIds: Set<string>) => Promise<unknown>
+): Promise<void> {
   const affected = new Set<string>()
   const seenDocumentIds: string[] = []
   for (const externalId of outcome.seenExternalIds) {
@@ -1557,11 +1567,14 @@ async function applyMemberListing(
         removedDocumentIds
       )
       run.result.observationsRemoved += removed.length
-      for (const documentId of removed) {
-        affected.add(documentId)
-        run.unobservedDocumentIds.add(documentId)
-      }
+      for (const documentId of removedDocumentIds) affected.add(documentId)
+      for (const documentId of removed) run.unobservedDocumentIds.add(documentId)
     }
+  })
+
+  await rematerialize(affected)
+
+  await withMemberLease(run, async (tx) => {
     await tx
       .update(knowledgeConnectorMember)
       .set({
@@ -1590,7 +1603,6 @@ async function applyMemberListing(
 
   if (outcome.complete) run.result.membersCompleted += 1
   else run.result.membersIncomplete += 1
-  return affected
 }
 
 /** Exclusion pauses content ingestion, while observations must still track source access for restoration. */
@@ -1834,13 +1846,19 @@ async function completeMemberSync(
   })
 }
 
-async function failMemberSyncLog(runId: string, result: MemberSyncResult, errorMessage: string) {
+async function failMemberSyncLog(
+  runId: string,
+  result: MemberSyncResult,
+  errorMessage: string,
+  databaseFailureClass?: TransientDatabaseFailureClass
+) {
   await db
     .update(knowledgeConnectorMemberSyncLog)
     .set({
       status: 'failed',
       completedAt: new Date(),
       errorMessage,
+      databaseFailureClass: databaseFailureClass ?? null,
       membersClaimed: result.membersClaimed,
       membersCompleted: result.membersCompleted,
       membersIncomplete: result.membersIncomplete,
@@ -2449,13 +2467,14 @@ export async function executeMemberSync(
           observationRunId: listed.observationRunId,
         }
         const relevantIds = [...outcome.seenExternalIds, ...outcome.removedExternalIds]
-        const affected = await applyMemberListing(
+        await applyMemberListing(
           run,
           outcome,
           await loadDocumentIdsByExternalId(connectorId, relevantIds),
-          connector.syncIntervalMinutes
+          connector.syncIntervalMinutes,
+          (affected) =>
+            rematerializeDocumentAcls(connectorId, affected, aclPage, run.lease.beatIfDue)
         )
-        await rematerializeDocumentAcls(connectorId, affected, aclPage, run.lease.beatIfDue)
       }
 
       /** A service-owned corpus outlives its last observer; only the content pass removes it. */
@@ -2596,7 +2615,14 @@ export async function executeMemberSync(
       const retryAfterMs = getRetryAfterMs(error)
       logger.error('Member sync failed', { connectorId, runId, error: errorMessage, diagnostic })
       try {
-        await failMemberSyncLog(runId, result, errorMessage)
+        await failMemberSyncLog(
+          runId,
+          result,
+          errorMessage,
+          error instanceof ConnectorSyncCapacityError
+            ? undefined
+            : getTransientDatabaseFailure(error)
+        )
         const failureUpdate = await resolveMemberSyncFailureUpdate(error, {
           connectorId,
           runId,

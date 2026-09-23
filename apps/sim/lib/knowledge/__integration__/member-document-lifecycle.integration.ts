@@ -19,7 +19,9 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
   applyMemberDocumentLifecycle,
+  materializeDocumentAcls,
   recordMemberObservations,
+  rematerializeDocumentAcls,
   removeMemberObservationsForDocuments,
 } from '@/lib/knowledge/connectors/member-observations'
 import { resumeMembershipRewrites } from '@/lib/knowledge/connectors/member-sync-engine'
@@ -140,6 +142,24 @@ describe('member document lifecycle in PostgreSQL', () => {
         .from(knowledgeConnector)
         .where(eq(knowledgeConnector.id, members.connectorId))
     )[0].cursor
+
+  it('never grants a re-owned document to observers of the connector it left', async () => {
+    const moved = row('re-owned')
+    await insertRows([moved])
+    await observe([moved.id])
+    const aclOf = async () =>
+      (await db.select({ acl: document.acl }).from(document).where(eq(document.id, moved.id)))[0]
+        ?.acl
+    expect(await materializeDocumentAcls(members.connectorId, [moved.id])).toBe(1)
+    expect(await aclOf()).toEqual([members.members[0].subjectToken])
+
+    await db.update(document).set({ connectorId: ids.connectorId }).where(eq(document.id, moved.id))
+    expect(
+      await rematerializeDocumentAcls(ids.connectorId, [moved.id], (write) => db.transaction(write))
+    ).toBe(1)
+    expect(await aclOf()).toEqual([])
+    expect(await materializeDocumentAcls(ids.connectorId, [moved.id])).toBe(0)
+  })
 
   it('tombstones what this run unobserved right away and leaves the rest of a large connector to later runs', async () => {
     const pageBudget = MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN * 500

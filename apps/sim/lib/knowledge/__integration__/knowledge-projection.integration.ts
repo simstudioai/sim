@@ -815,6 +815,73 @@ describe('the projector', () => {
     await db.delete(document).where(inArray(document.id, documents))
   })
 
+  it('marks what it can while a document it chose is deleted under it', async () => {
+    const [deleted, kept] = [generateId(), generateId()]
+    await db.insert(document).values(
+      [deleted, kept].map((id, index) => ({
+        id,
+        connectorId,
+        knowledgeBaseId: ids.knowledgeBaseId,
+        externalId: `fill-race-${index}`,
+        filename: `fill-race-${index}.md`,
+        fileUrl: `https://fixture.test/fill-race-${index}`,
+        fileSize: 12,
+        mimeType: 'text/plain',
+        processingStatus: 'completed' as const,
+        acl: aclOf('alice', 'bob'),
+      }))
+    )
+    await write('async', (tx) =>
+      tx
+        .insert(embedding)
+        .values([deleted, kept].map((id) => ({ ...chunkRow(generateId(), 0), documentId: id })))
+    )
+    await project()
+    for (const table of [embeddingSearch, embeddingKeywordTin]) {
+      await db
+        .update(table)
+        .set({ connectorId: null, acl: null })
+        .where(inArray(table.documentId, [deleted, kept]))
+    }
+    const deleter = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+    try {
+      /** The deletion is under way when the fill reads, and commits while the fill still runs. */
+      let fill: ReturnType<typeof markUnfilledProjectionDocuments> | undefined
+      let settled = false
+      await deleter.begin(async (tx) => {
+        await tx`DELETE FROM document WHERE id = ${deleted}`
+        fill = markUnfilledProjectionDocuments(projector)
+        void fill.then(
+          () => {
+            settled = true
+          },
+          () => {
+            settled = true
+          }
+        )
+        await vi.waitFor(
+          async () => {
+            const [row] = await db.execute<{ waiting: boolean }>(
+              sql`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted) AS waiting`
+            )
+            expect(settled || Boolean(row?.waiting)).toBe(true)
+          },
+          { timeout: 5_000, interval: 10 }
+        )
+      })
+      await expect(fill).resolves.toMatchObject({ marked: expect.any(Number) })
+      const marks = await db
+        .select({ documentId: knowledgeProjectionDirty.documentId })
+        .from(knowledgeProjectionDirty)
+        .where(inArray(knowledgeProjectionDirty.documentId, [deleted, kept]))
+      expect(marks.map((mark) => mark.documentId)).toEqual([kept])
+    } finally {
+      await deleter.end()
+      await project()
+      await db.delete(document).where(inArray(document.id, [deleted, kept]))
+    }
+  })
+
   it.each(['sync', 'async'] as const)(
     'writes %s projection rows from a chunk commit only when the writer did not defer them',
     async (mode) => {

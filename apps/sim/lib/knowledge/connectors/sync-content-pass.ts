@@ -197,7 +197,8 @@ export async function runConnectorContentPass(input: ContentPassInput) {
                 eq(document.connectorId, input.connectorId),
                 inArray(document.externalId, batch),
                 isNull(document.archivedAt)
-              )
+              ),
+            { beforePage: input.lease.beatIfDue }
           )
       }
       const state = createSyncRunState(input.result)
@@ -437,7 +438,8 @@ async function reconcileCompletedListing(
       await revokeDocumentAcls(
         withAclPage,
         rows.map((row) => row.id),
-        (batch) => and(absent, inArray(document.id, batch))
+        (batch) => and(absent, inArray(document.id, batch)),
+        { beforePage: input.lease.beatIfDue }
       )
       after = rows.at(-1)
     }

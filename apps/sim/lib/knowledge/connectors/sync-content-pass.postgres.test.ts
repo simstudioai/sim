@@ -18,9 +18,9 @@ vi.mock('@sim/db', () => ({
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: hardDelete,
-  isTriggerAvailable: () => true,
   processDocumentsWithQueue: vi.fn(),
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: vi.fn() }))

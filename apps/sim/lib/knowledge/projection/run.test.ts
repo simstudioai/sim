@@ -128,6 +128,25 @@ describe('runKnowledgeProjectionPass', () => {
       expect(mocks.markUnfilled).not.toHaveBeenCalled()
     })
 
+    it('reports a fill the budget cut off as remaining once its marks are settled', async () => {
+      mocks.markUnfilled.mockResolvedValueOnce({
+        marked: 2,
+        cursor: { projection: 0, afterId: 'row-2' },
+      })
+      mocks.runProjection
+        .mockResolvedValueOnce(drained)
+        .mockResolvedValueOnce(drained)
+        .mockImplementation(async () => {
+          vi.advanceTimersByTime(60_001)
+          return drained
+        })
+      await expect(runKnowledgeProjectionPass({ budgetMs: 60_000 })).resolves.toMatchObject({
+        remaining: true,
+        filled: 2,
+      })
+      expect(mocks.markUnfilled).toHaveBeenCalledOnce()
+    })
+
     it('reports documents the fill marked but no round settled as remaining', async () => {
       mocks.markUnfilled.mockImplementation(async () => {
         vi.advanceTimersByTime(60_001)

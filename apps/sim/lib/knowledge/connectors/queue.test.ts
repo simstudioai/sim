@@ -33,7 +33,7 @@ vi.mock('@trigger.dev/sdk', () => ({
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
