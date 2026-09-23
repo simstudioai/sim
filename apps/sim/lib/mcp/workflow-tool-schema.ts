@@ -26,7 +26,9 @@ export function sanitizeToolName(name: string): string {
  * This converts the workflow's input format definition to JSON Schema format
  * that MCP clients can use to understand tool parameters.
  */
-export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToolSchema {
+export function generateToolInputSchema(
+  inputFormat: InputFormatField[]
+): McpToolSchema & { properties: Record<string, McpToolSchemaProperty> } {
   const schema = z.toJSONSchema(z.object(generateWorkflowInputShape(inputFormat)), {
     target: 'draft-07',
     io: 'input',

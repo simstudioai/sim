@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cliVersion } from '#sim-cli/version'
 import { SimApiError } from '../http/client'
-import { CLI_VERSION } from '../version'
 import {
   COMMAND_EVENT,
   type CommandEventProperties,
@@ -117,7 +117,7 @@ describe('command telemetry', () => {
     expect(request.timestamp).toBe(NOW.toISOString())
     expect(request.properties).toMatchObject({
       $lib: 'sim-cli',
-      $lib_version: CLI_VERSION,
+      $lib_version: cliVersion(),
       $process_person_profile: false,
       session_sequence: 1,
       surface: 'cli',
@@ -126,7 +126,7 @@ describe('command telemetry', () => {
       arg_count: 0,
       exit_code: 0,
       duration_ms: 1432,
-      cli_version: CLI_VERSION,
+      cli_version: cliVersion(),
       node_version: process.versions.node,
       os: process.platform,
       arch: process.arch,

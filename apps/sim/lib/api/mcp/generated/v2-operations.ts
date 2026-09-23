@@ -389,7 +389,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2AddWorkflowGroupContract,
     summary: 'Add Workflow Group',
     description:
-      'Bind a workflow or enrichment to the table and create the columns populated by its outputs.\n\nOAuth scope: `api:write`.',
+      'Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/tables/[tableId]/groups/route').then((route) => route.POST),
   },
   addWorkspaceFilesToKnowledgeBase: {
@@ -534,7 +534,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CancelWorkflowRunContract,
     summary: 'Cancel Workflow Run',
     description:
-      'Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.\n\nOAuth scope: `api:write`.',
+      'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/cancel/route').then(
         (route) => route.POST
@@ -1167,7 +1167,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExportWorkflowContract,
     summary: 'Export Workflow',
     description:
-      'Export a portable, secret-sanitized workflow; Set includeReferences=true to include non-secret source reference identities for mapped import; default exports keep their existing sanitized shape. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'Export a portable, secret-sanitized workflow. Use includeReferences=true for non-secret source identities and field occurrences used by mapped imports. Use includeWorkspaceBindings=true to retain non-secret workspace bindings for a same-workspace round trip; default exports clear those bindings. Credentials and secrets are cleared either way. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/export/route').then((route) => route.GET),
   },
@@ -1290,7 +1290,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetLogStatsContract,
     summary: 'Get Log Statistics',
     description:
-      'Get run counts, success and error counts, and latency by workspace or workflow. Default bounds span recorded runs, or the last 24 hours when empty. Buckets may extend past the end. Folder filters include descendants; `workflowsTruncated` affects series, not totals. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/logs/stats/route').then((route) => route.GET),
   },
   getMcpServer: {
@@ -1396,9 +1396,9 @@ export const V2_MCP_OPERATIONS = {
   },
   getRowEnrichment: {
     contract: v2GetRowEnrichmentContract,
-    summary: 'Get Enrichment Run Detail',
+    summary: 'Get Row Group Run',
     description:
-      "Get an enrichment cell's provider attempts, statuses, hosted-key costs, durations, and matching provider. Null means no run detail was recorded; `404` means the table, row, or group does not exist.\n\nOAuth scope: `api:read`.",
+      'Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]/route').then(
         (route) => route.GET
@@ -1502,7 +1502,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowDeploymentContract,
     summary: 'Get Workflow Deployment',
     description:
-      'Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.\n\nOAuth scope: `api:read`.',
+      'Read live status, deployment time, latest attempt readiness and failure, draft divergence (`needsRedeployment`), anonymous execution access (`isPublicApi`), and registered webhook URLs. This read exposes public API access and webhook URLs; see their field descriptions for security and delivery details.\n\n`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/deployment/route').then((route) => route.GET),
   },
@@ -1648,7 +1648,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListConnectorTypesContract,
     summary: 'List Connector Types',
     description:
-      'List connector types and accepted source configuration. A field with `multi: true` stores `string[]`. `canonicalParamId` links picker and manual fields that write the same key; send exactly one, keyed by `canonicalParamId` rather than its own `id`. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.',
+      'List knowledge-base connector types with opaque cursors, defaulting to 25 summaries per page: identifier, name, description, and auth mode. `detail=full` adds accepted source configuration fields. Fields with `multi: true` accept `string[]` instead of `string`. A `canonicalParamId` pairs a picker with manual entry for the same configuration key: send exactly one value, keyed by `canonicalParamId` rather than the field’s `id`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/connector-types/route').then((route) => route.GET),
   },
   listCredentialProviders: {
@@ -1947,9 +1947,9 @@ export const V2_MCP_OPERATIONS = {
   },
   listTableDispatches: {
     contract: v2ListTableDispatchesContract,
-    summary: 'List Active Run Dispatches',
+    summary: 'List Run Dispatches',
     description:
-      'List in-flight run dispatches for a table in one page; `nextCursor` is always null. Use Get Run Dispatch to read a settled dispatch.\n\nOAuth scope: `api:read`.',
+      'List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/dispatches/route').then((route) => route.GET),
   },
@@ -2014,7 +2014,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListWorkflowMcpToolsContract,
     summary: 'List Workflow MCP Tools',
     description:
-      "List a server's published tools by name, including workflow IDs used to unpublish them. Returns up to 2,000 tools with `nextCursor: null`; `truncated` indicates an incomplete inventory that cannot be paginated. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+      'List published tools ordered by name, including the `workflowId` used to delete each registration. Undeploying a workflow makes its registrations `inactive`; redeploying reactivates them. Results are capped at 2,000 tools: `nextCursor` is always null, and `truncated` marks an incomplete inventory that cannot be paginated. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflow-mcp-servers/[serverId]/tools/route').then((route) => route.GET),
@@ -2197,7 +2197,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ReadFileTextContract,
     summary: 'Read File Text',
     description:
-      'Extract text without changing the file. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.\n\nOAuth scope: `api:read`.',
+      'Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/files/[fileId]/text/route').then((route) => route.GET),
   },
   readFileVersionText: {
@@ -2282,7 +2282,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ReplaceWorkflowStateContract,
     summary: 'Replace Workflow State',
     description:
-      'Replace the draft graph atomically; concurrent writes are last-write-wins. Recompute containers from blocks and preserve omitted variables. Foreign IDs return `409`; lint is advisory. The live deployment is unchanged. `dryRun=true` validates without saving, auditing, or notifying; `needsRedeployment` describes the pre-write state. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Atomically replace the draft graph; row-locked concurrent writes are last-write-wins. Block, edge, or subflow IDs owned by another workflow return `409`. Deployments remain immutable snapshots; schedules and webhook registrations are unchanged. Deploy to publish edits. Lint is advisory. Use `dryRun=true` to validate without writing. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/state/route').then((route) => route.PUT),
@@ -2313,7 +2313,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2RestoreFileContract,
     summary: 'Restore File',
     description:
-      'Restore an archived file to the workspace root. Name collisions add a `_restored` suffix; use the returned `name` and `folderPath`. An active file returns unchanged. An archived workspace returns `400`; an unresolved name collision returns `409`.\n\nOAuth scope: `api:write`.',
+      'Restore a soft-deleted file to its original folder, or the workspace root if that folder was archived. Name collisions add a `_restored` suffix; read `folderPath` and `name` from the response. Already-active files return unchanged, making retries safe. An archived workspace returns `400`; an unresolved name collision returns `409`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/restore/route').then((route) => route.POST),
   },
   restoreFileFolder: {
@@ -2695,7 +2695,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateTableColumnContract,
     summary: 'Update Column',
     description:
-      'Update a column by name and return the complete resulting table schema.\n\nOAuth scope: `api:write`.',
+      'Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/columns/route').then((route) => route.PATCH),
   },

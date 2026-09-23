@@ -1,11 +1,19 @@
-import { db } from '@sim/db'
-import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPersonalApiKeyContract } from '@/lib/api/contracts'
+import { listPersonalApiKeysContract } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
-import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  listPersonalApiKeys,
+  personalApiKeyOperations,
+} from '@/lib/api-key/application/personal-api-keys'
 import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,53 +38,27 @@ function personalKeyManagementWithheld(userId: string): Promise<boolean> {
   return isCapabilityWithheldForUser(userId, 'api_keys.manage')
 }
 
-// GET /api/users/me/api-keys - Get all API keys for the current user
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-
-    const withheld = await personalKeyManagementWithheld(userId)
-    if (withheld) {
-      return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
-    }
-
-    const keys = await db
-      .select({
-        id: apiKey.id,
-        name: apiKey.name,
-        key: apiKey.key,
-        createdAt: apiKey.createdAt,
-        lastUsed: apiKey.lastUsed,
-        expiresAt: apiKey.expiresAt,
-      })
-      .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
-      .orderBy(apiKey.createdAt)
-
-    const maskedKeys = await Promise.all(
-      keys.map(async (key) => {
-        const displayFormat = await getApiKeyDisplayFormat(key.key)
-        return {
-          id: key.id,
-          name: key.name,
-          createdAt: key.createdAt,
-          lastUsed: key.lastUsed,
-          expiresAt: key.expiresAt,
-          displayKey: displayFormat,
-        }
-      })
-    )
-
-    return NextResponse.json({ keys: maskedKeys })
-  } catch (error) {
-    logger.error('Failed to fetch API keys', { error })
-    return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: listPersonalApiKeysContract,
+  auth: internalSessionAuth,
+  operation: personalApiKeyOperations.list,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing personal-key settings admission',
+  }),
+  errorPolicy: {
+    project: internalOrchestrationErrorPolicy.project,
+    unhandled: () => internalErrorResponse(500, { error: 'Failed to fetch API keys' }),
+  },
+  mapInput: () => ({}),
+  useCase: listPersonalApiKeys,
+  present: ({ keys }) => ({
+    keys: keys.map((key) => ({
+      ...key,
+      createdAt: key.createdAt.toISOString(),
+      lastUsed: key.lastUsed?.toISOString() ?? null,
+      expiresAt: key.expiresAt?.toISOString() ?? null,
+    })),
+  }),
 })
 
 // POST /api/users/me/api-keys - Create a new API key

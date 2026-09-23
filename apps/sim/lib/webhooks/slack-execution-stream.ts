@@ -1,8 +1,8 @@
-import { getErrorMessage } from '@sim/utils/errors'
+import { createLogger } from '@sim/logger'
 import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import {
   appendSlackAgentStream,
@@ -12,6 +12,7 @@ import {
   startSlackAgentStream,
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 import type {
   SlackStreamOutputConfig,
   SlackStreamResponseConfig,
@@ -27,8 +28,45 @@ import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 
 const TEXT_FLUSH_SIZE = 128
-const SLACK_MARKDOWN_LIMIT = 12_000
+/** Slack applies the markdown limit to the accumulated message, not only the next append. */
+const SLACK_MESSAGE_TEXT_LIMIT = 12_000
 const TASK_TEXT_LIMIT = 256
+const logger = createLogger('SlackExecutionStream')
+
+interface SlackMessageStream {
+  channel: string
+  ts: string
+  taskId?: string
+  textLength: number
+  textComplete: boolean
+  stopped: boolean
+}
+
+/** Prefer a nearby paragraph/sentence, then a whole word; only oversized words need hard cuts. */
+function textChunkEnd(
+  text: string,
+  offset: number,
+  capacity: number,
+  allowWordSplit: boolean
+): number {
+  let end = Math.min(offset + capacity, text.length)
+  if (end === text.length) return end
+  const candidate = text.slice(offset, end)
+  const nearby = Math.max(0, candidate.length - 1_024)
+  const boundaries = [/\n[\t\r ]*\n\s*/g, /[.!?]["'”’)]*\s+|\n\s*/g, /\s+/g]
+  for (const [index, boundary] of boundaries.entries()) {
+    let lastEnd = 0
+    for (const match of candidate.matchAll(boundary)) {
+      const boundaryEnd = match.index + match[0].length
+      if (index === 2 || boundaryEnd > nearby) lastEnd = boundaryEnd
+    }
+    if (lastEnd) return offset + lastEnd
+  }
+  if (!allowWordSplit) return offset
+  const lastCodeUnit = text.charCodeAt(end - 1)
+  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
+  return end
+}
 
 interface SlackReplyTarget extends SlackStreamSessionTarget {
   initiatorUserId: string
@@ -88,17 +126,6 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
   }
 }
 
-function splitMarkdown(text: string): SlackStreamChunk[] {
-  const chunks: SlackStreamChunk[] = []
-  for (let offset = 0; offset < text.length; offset += SLACK_MARKDOWN_LIMIT) {
-    chunks.push({
-      type: 'markdown_text',
-      text: text.slice(offset, offset + SLACK_MARKDOWN_LIMIT),
-    })
-  }
-  return chunks
-}
-
 function formatOutput(value: unknown): string {
   if (typeof value === 'string') return value
   const serialized = JSON.stringify(value, null, 2)
@@ -107,13 +134,21 @@ function formatOutput(value: unknown): string {
 }
 
 class SlackInvocationStream {
-  private channel?: string
-  private ts?: string
+  private readonly messages: SlackMessageStream[] = []
   private answerBuffer = ''
-  private fullAnswer = ''
+  private acknowledgedAnswer = ''
   private thinking = ''
-  private emittedAnswer = false
+  private failure?: Error
+  private stopAttempted = false
   private chain: Promise<void> = Promise.resolve()
+  private readonly tools = new Map<
+    string,
+    {
+      name: string
+      status: 'pending' | 'in_progress' | 'complete' | 'error'
+      message: SlackMessageStream
+    }
+  >()
 
   constructor(
     private readonly token: string,
@@ -122,159 +157,303 @@ class SlackInvocationStream {
     private readonly taskId: string,
     private readonly title: string,
     private readonly projectLiveText: (text: string) => Promise<string | null>,
-    private readonly projectFinalText: (text: string) => Promise<string | null>,
     private readonly signal?: AbortSignal
   ) {}
 
+  /** Retain the first failure without poisoning the queue used to settle and stop this response. */
   private enqueue(operation: () => Promise<void>): Promise<void> {
-    this.chain = this.chain.then(operation)
+    this.chain = this.chain.then(operation).catch((error) => {
+      this.failure ??= formatSlackApiFailure(error)
+    })
     return this.chain
   }
 
-  private async ensureStarted(): Promise<void> {
-    if (this.channel && this.ts) return
+  private async ensureStarted(): Promise<SlackMessageStream> {
+    const current = this.messages.at(-1)
+    if (current) return current
+    return this.startMessage(
+      [{ type: 'task_update', id: this.taskId, title: this.title, status: 'in_progress' }],
+      this.taskId
+    )
+  }
+
+  private async startMessage(
+    chunks: SlackStreamChunk[],
+    taskId?: string
+  ): Promise<SlackMessageStream> {
     const started = await startSlackAgentStream(
       this.token,
       this.target,
-      [
-        {
-          type: 'task_update',
-          id: this.taskId,
-          title: this.title,
-          status: 'in_progress',
-        },
-      ],
+      chunks,
       this.config.taskDisplayMode,
       this.signal
     )
-    this.channel = started.channel
-    this.ts = started.ts
+    const textLength = chunks.reduce(
+      (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
+      0
+    )
+    const message = { ...started, taskId, textLength, textComplete: false, stopped: false }
+    this.messages.push(message)
+    return message
   }
 
-  private async append(chunks: SlackStreamChunk[]): Promise<void> {
-    await this.ensureStarted()
-    await appendSlackAgentStream(this.token, this.channel!, this.ts!, chunks, this.signal)
+  private async append(chunks: SlackStreamChunk[], message?: SlackMessageStream): Promise<void> {
+    const target = message ?? (await this.ensureStarted())
+    const textLength = chunks.reduce(
+      (length, chunk) => length + (chunk.type === 'markdown_text' ? chunk.text.length : 0),
+      0
+    )
+    try {
+      await appendSlackAgentStream(this.token, target.channel, target.ts, chunks, this.signal)
+      target.textLength += textLength
+    } catch (error) {
+      logger.warn('Slack stream append failed', {
+        taskId: this.taskId,
+        messageCount: this.messages.length,
+        acknowledgedMessageCharacters: target.textLength,
+        appendCharacters: textLength,
+        error: formatSlackApiFailure(error).message,
+      })
+      throw error
+    }
+  }
+
+  /** Continue in the same thread before the accumulated message reaches Slack's limit. */
+  private async appendAnswerText(text: string): Promise<void> {
+    for (let offset = 0; offset < text.length; ) {
+      let message: SlackMessageStream | undefined = await this.ensureStarted()
+      let end = message.textComplete
+        ? offset
+        : textChunkEnd(
+            text,
+            offset,
+            SLACK_MESSAGE_TEXT_LIMIT - message.textLength,
+            !message.textLength
+          )
+      if (end === offset) {
+        message.textComplete = true
+        message = undefined
+        end = textChunkEnd(text, offset, SLACK_MESSAGE_TEXT_LIMIT, true)
+      }
+      for (;;) {
+        const chunk = text.slice(offset, end)
+        try {
+          const chunks: SlackStreamChunk[] = [{ type: 'markdown_text', text: chunk }]
+          if (message) await this.append(chunks, message)
+          else message = await this.startMessage(chunks)
+          this.acknowledgedAnswer += chunk
+          offset = end
+          message.textComplete = end < text.length
+          break
+        } catch (error) {
+          /** Only an explicit size rejection proves this text was not delivered. */
+          if (
+            !(error instanceof SlackDeliveryError) ||
+            error.method !== (message ? 'chat.appendStream' : 'chat.startStream') ||
+            error.outcome !== 'rejected' ||
+            error.code !== 'msg_too_long'
+          ) {
+            throw error
+          }
+          if (message && message.textLength > 0) {
+            message.textComplete = true
+            message = undefined
+            end = textChunkEnd(text, offset, SLACK_MESSAGE_TEXT_LIMIT, true)
+          } else {
+            /** A rejected first write shrinks on each attempt, stopping at one code point. */
+            const smallerEnd = textChunkEnd(text, offset, Math.floor((end - offset) / 2), true)
+            if (smallerEnd <= offset) throw error
+            end = smallerEnd
+          }
+        }
+      }
+    }
   }
 
   private async flushAnswer(force: boolean): Promise<void> {
-    if (!force && this.answerBuffer.length < TEXT_FLUSH_SIZE) return
-    if (!this.answerBuffer) return
-    const value = this.answerBuffer
-    this.answerBuffer = ''
-    const projected = await this.projectLiveText(value)
-    if (!projected) return
-    await this.append(splitMarkdown(projected))
-    this.emittedAnswer = true
+    if (
+      this.failure ||
+      !this.answerBuffer ||
+      (!force && this.acknowledgedAnswer && this.answerBuffer.length < TEXT_FLUSH_SIZE)
+    )
+      return
+    let end = this.answerBuffer.length
+    if (!force) {
+      end = 0
+      for (const match of this.answerBuffer.matchAll(/\s/g)) end = match.index + 1
+      if (!end && this.answerBuffer.length < SLACK_MESSAGE_TEXT_LIMIT) return
+      if (!end) end = this.answerBuffer.length
+    }
+    const projected = await this.projectLiveText(this.answerBuffer.slice(0, end))
+    if (projected === null) return
+    await this.appendAnswerText(projected)
+    this.answerBuffer = this.answerBuffer.slice(end)
   }
 
-  private async appendAnswer(text: string, force = false): Promise<void> {
-    if (!text) return
-    this.fullAnswer += text
+  private async appendAnswer(text: string): Promise<void> {
+    if (this.failure) return
     this.answerBuffer += text
-    await this.flushAnswer(force || !this.emittedAnswer)
+    await this.flushAnswer(false)
   }
 
   private async flushThinking(): Promise<void> {
-    if (!this.config.includeThinking || !this.thinking) return
-    const value = this.thinking
+    if (this.failure || !this.config.includeThinking || !this.thinking) return
+    const projected = await this.projectLiveText(this.thinking)
+    if (projected === null) return
+    if (projected) {
+      await this.append([
+        {
+          type: 'task_update',
+          id: `${this.taskId}-thinking`,
+          title: 'Thinking',
+          status: 'complete',
+          details: truncate(projected, TASK_TEXT_LIMIT),
+        },
+      ])
+    }
     this.thinking = ''
-    const projected = await this.projectLiveText(value)
-    if (!projected) return
-    await this.append([
-      {
-        type: 'task_update',
-        id: `${this.taskId}-thinking`,
-        title: 'Thinking',
-        status: 'complete',
-        details: truncate(projected, TASK_TEXT_LIMIT),
-      },
-    ])
   }
 
   onEvent(event: AgentStreamEvent): Promise<void> {
     return this.enqueue(async () => {
       switch (event.type) {
         case 'text_delta':
-          if (event.turn !== 'intermediate') {
-            await this.appendAnswer(event.text)
-          }
+          if (event.turn !== 'intermediate') await this.appendAnswer(event.text)
           return
         case 'turn_end':
           await this.flushThinking()
           await this.flushAnswer(true)
+          if (event.turn === 'intermediate' && !this.failure) {
+            this.acknowledgedAnswer = ''
+            this.answerBuffer = ''
+          }
           return
         case 'thinking_delta':
           if (this.config.includeThinking) this.thinking += event.text
           return
-        case 'tool_call_start':
+        case 'tool_call_start': {
+          await this.flushAnswer(true)
           await this.flushThinking()
-          if (this.config.includeToolCalls) {
-            await this.append([
-              {
-                type: 'task_update',
-                id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(getToolDisplayTitle(event.name), TASK_TEXT_LIMIT),
-                status: 'in_progress',
-              },
-            ])
-          }
+          if (!this.config.includeToolCalls || this.failure || this.tools.has(event.id)) return
+          const message = await this.ensureStarted()
+          const tool = { name: event.name, status: 'in_progress' as const, message }
+          this.tools.set(event.id, { ...tool, status: 'pending' })
+          await this.append([this.toolChunk(event.id, tool)], message)
+          this.tools.set(event.id, tool)
           return
-        case 'tool_call_end':
-          if (this.config.includeToolCalls) {
-            await this.append([
-              {
-                type: 'task_update',
-                id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(getToolDisplayTitle(event.name), TASK_TEXT_LIMIT),
-                status: event.status === 'success' ? 'complete' : 'error',
-              },
-            ])
+        }
+        case 'tool_call_end': {
+          const previous = this.tools.get(event.id)
+          if (!this.config.includeToolCalls || this.failure || previous?.status !== 'in_progress')
+            return
+          const tool = {
+            name: previous.name,
+            status: event.status === 'success' ? ('complete' as const) : ('error' as const),
+            message: previous.message,
           }
+          await this.append([this.toolChunk(event.id, tool)], tool.message)
+          this.tools.set(event.id, tool)
+          return
+        }
       }
     })
+  }
+
+  private toolChunk(
+    id: string,
+    tool: { name: string; status: 'in_progress' | 'complete' | 'error' }
+  ): SlackStreamChunk {
+    return {
+      type: 'task_update',
+      id: `${this.taskId}-tool-${id}`,
+      title: truncate(getToolDisplayTitle(tool.name), TASK_TEXT_LIMIT),
+      status: tool.status,
+    }
   }
 
   appendProjectedBytes(text: string): Promise<void> {
     return this.enqueue(() => this.appendAnswer(text))
   }
 
-  complete(): Promise<void> {
+  drain(): Promise<void> {
     return this.enqueue(async () => {
       await this.flushThinking()
       await this.flushAnswer(true)
-      if (!this.emittedAnswer && this.fullAnswer) {
-        const projected = await this.projectFinalText(this.fullAnswer)
-        if (projected) {
-          await this.append(splitMarkdown(projected))
-          this.emittedAnswer = true
-        }
-      }
-      await this.append([
-        {
-          type: 'task_update',
-          id: this.taskId,
-          title: this.title,
-          status: 'complete',
-        },
-      ])
-      await stopSlackAgentStream(this.token, this.channel!, this.ts!, 'processing', this.signal)
     })
   }
 
-  sendSettledOutput(text: string): Promise<void> {
+  /** The settled output is an explicit snapshot; never infer snapshots from live delta prefixes. */
+  reconcileSettledOutput(text: string): Promise<void> {
     return this.enqueue(async () => {
-      await this.ensureStarted()
-      await this.append(splitMarkdown(text))
-      await this.append([
-        {
-          type: 'task_update',
-          id: this.taskId,
-          title: this.title,
-          status: 'complete',
-        },
-      ])
-      await stopSlackAgentStream(this.token, this.channel!, this.ts!, 'processing', this.signal)
+      if (this.failure || this.stopAttempted) return
+      if (!text.startsWith(this.acknowledgedAnswer)) {
+        throw new Error('Slack delivery failed: settled output differs from acknowledged answer')
+      }
+      const remaining = text.slice(this.acknowledgedAnswer.length)
+      await this.appendAnswerText(remaining)
+      this.answerBuffer = ''
     })
+  }
+
+  recordFailure(error: unknown): void {
+    this.failure ??= formatSlackApiFailure(error)
+  }
+
+  finish(success: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      if (this.stopAttempted) return
+      if (this.messages.length === 0) {
+        if (this.failure || !success) return
+        await this.ensureStarted()
+      }
+      if (
+        success &&
+        [...this.tools.values()].some(
+          (tool) => tool.status === 'pending' || tool.status === 'in_progress'
+        )
+      ) {
+        this.failure ??= new Error('Slack delivery ended with unfinished tool calls')
+      }
+      this.stopAttempted = true
+      for (const message of this.messages) {
+        const failed = Boolean(this.failure) || !success
+        const chunks: SlackStreamChunk[] = [...this.tools].flatMap(([id, tool]) =>
+          tool.message === message && (tool.status === 'pending' || tool.status === 'in_progress')
+            ? [this.toolChunk(id, { ...tool, status: 'error' })]
+            : []
+        )
+        if (message.taskId) {
+          chunks.push({
+            type: 'task_update',
+            id: message.taskId,
+            title: this.title,
+            status: failed ? 'error' : 'complete',
+          })
+        }
+        try {
+          /** Cleanup has its own deadline and attempts every part even if an earlier stop failed. */
+          await stopSlackAgentStream(
+            this.token,
+            message.channel,
+            message.ts,
+            failed ? 'suspended' : 'processing',
+            undefined,
+            undefined,
+            chunks
+          )
+          message.stopped = true
+        } catch (error) {
+          this.recordFailure(error)
+        }
+      }
+    })
+  }
+
+  assertSucceeded(): void {
+    if (this.failure) throw this.failure
+    if (this.messages.some((message) => !message.stopped)) {
+      throw new Error('Slack response stream was not stopped')
+    }
   }
 }
 
@@ -286,6 +465,8 @@ export class SlackExecutionStreamController {
   private readonly target: SlackReplyTarget
   private readonly token: string
   private readonly invocations = new Map<string, SlackInvocationStream>()
+  private finalization?: Promise<void>
+  private finalized = false
 
   private constructor(
     private readonly options: SlackExecutionStreamControllerOptions,
@@ -372,14 +553,6 @@ export class SlackExecutionStreamController {
     return typeof display.chunk === 'string' ? display.chunk : null
   }
 
-  private async projectFinalText(
-    text: string,
-    provenance: StreamingExecution['displayResolvedSecretTraceProvenance']
-  ): Promise<string | null> {
-    const display = await this.options.loggingSession.projectDisplayContent({ text }, provenance)
-    return typeof display.text === 'string' ? display.text : null
-  }
-
   private async onStream(stream: StreamingExecution): Promise<void> {
     try {
       if (!stream.blockId || stream.executionOrder === undefined) {
@@ -403,7 +576,6 @@ export class SlackExecutionStreamController {
         this.taskId(stream.executionOrder, stream.childWorkflowInstanceId),
         this.options.config.taskTitle,
         (text) => this.projectLiveText(text, stream.displayResolvedSecretTraceProvenance),
-        (text) => this.projectFinalText(text, stream.displayResolvedSecretTraceProvenance),
         this.options.abortSignal
       )
       this.invocations.set(key, invocation)
@@ -429,9 +601,13 @@ export class SlackExecutionStreamController {
           const remainder = decoder.decode()
           if (remainder) await invocation.appendProjectedBytes(remainder)
         }
-        await invocation.complete()
+        await invocation.drain()
+      } catch (error) {
+        invocation.recordFailure(error)
+        throw error
       } finally {
         unsubscribe?.()
+        reader.releaseLock()
       }
     } catch (error) {
       throw this.recordFailure(error)
@@ -448,7 +624,6 @@ export class SlackExecutionStreamController {
         data.executionOrder,
         data.childWorkflowInstanceId
       )
-      if (this.invocations.has(key)) return
 
       const display = await this.options.loggingSession.projectDisplayContent(
         { output: data.output },
@@ -464,26 +639,46 @@ export class SlackExecutionStreamController {
         values.length === 1
           ? formatOutput(values[0].value)
           : values.map(({ path, value }) => `*${path}*\n${formatOutput(value)}`).join('\n\n')
-      const invocation = new SlackInvocationStream(
-        this.token,
-        this.target,
-        this.options.config,
-        this.taskId(data.executionOrder, data.childWorkflowInstanceId),
-        this.options.config.taskTitle,
-        async (value) => value,
-        async (value) => value,
-        this.options.abortSignal
-      )
+      const invocation =
+        this.invocations.get(key) ??
+        new SlackInvocationStream(
+          this.token,
+          this.target,
+          this.options.config,
+          this.taskId(data.executionOrder, data.childWorkflowInstanceId),
+          this.options.config.taskTitle,
+          async (value) => value,
+          this.options.abortSignal
+        )
       this.invocations.set(key, invocation)
-      await invocation.sendSettledOutput(text)
+      await invocation.reconcileSettledOutput(text)
     } catch (error) {
       this.recordFailure(error)
     }
   }
 
-  async finalize(result: ExecutionResult): Promise<void> {
+  finalize(result: ExecutionResult): Promise<void> {
+    this.finalization ??= this.finalizeOnce(result)
+    return this.finalization
+  }
+
+  private async finalizeOnce(result: ExecutionResult): Promise<void> {
+    for (const invocation of this.invocations.values()) {
+      await invocation.finish(
+        !this.failure &&
+          result.success &&
+          result.status !== 'cancelled' &&
+          result.status !== 'paused'
+      )
+      try {
+        invocation.assertSucceeded()
+      } catch (error) {
+        this.recordFailure(error)
+      }
+    }
     const status =
-      result.status === 'cancelled' || (result.success && result.status !== 'paused')
+      !this.failure &&
+      (result.status === 'cancelled' || (result.success && result.status !== 'paused'))
         ? 'active'
         : 'suspended'
     try {
@@ -500,11 +695,11 @@ export class SlackExecutionStreamController {
     } catch (error) {
       this.recordFailure(error)
     }
+    this.finalized = true
   }
 
   assertSucceeded(): void {
-    if (this.failure) {
-      throw new Error(getErrorMessage(this.failure, 'Slack response streaming failed'))
-    }
+    if (this.failure) throw this.failure
+    if (!this.finalized) throw new Error('Slack delivery has not been finalized')
   }
 }

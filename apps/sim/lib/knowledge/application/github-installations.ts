@@ -121,6 +121,11 @@ export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
           { signal: input.signal }
         )
       } catch (error) {
+        if (
+          error instanceof GitHubInstallationError &&
+          error.operation === 'membership-permissions'
+        )
+          throw new OrchestrationError('validation', error.message)
         /** Only reader-token discovery can request reauthorization; App JWT failures stay errors. */
         if (
           (error instanceof GitHubInstallationError && error.status === 401) ||

@@ -5,9 +5,11 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { WebContentsView } from 'electron'
 import {
   buildKeyDispatchPlan,
+  cdpModifiers,
   dispatchKeyCombo,
   KeyDispatchError,
   parseKeyCombo,
+  parseModifiers,
 } from '@/main/browser-agent/keyboard'
 
 describe('parseKeyCombo', () => {
@@ -32,6 +34,26 @@ describe('parseKeyCombo', () => {
     expect(parseKeyCombo('Mod+K', 'darwin')).toMatchObject({ meta: true, ctrl: false })
     expect(parseKeyCombo('Mod+K', 'linux')).toMatchObject({ meta: false, ctrl: true })
     expect(parseKeyCombo('ControlOrMeta+K', 'darwin')).toMatchObject({ meta: true })
+  })
+
+  it('parses function keys and Insert without inserting text', () => {
+    expect(parseKeyCombo('F2')).toMatchObject({ key: 'F2', code: 'F2', keyCode: 113 })
+    expect(parseKeyCombo('Shift+F12')).toMatchObject({ key: 'F12', keyCode: 123, shift: true })
+    expect(parseKeyCombo('Insert')).toMatchObject({ key: 'Insert', keyCode: 45 })
+    const [down] = buildKeyDispatchPlan(parseKeyCombo('F2'), 'linux')
+    expect(down).toMatchObject({ type: 'rawKeyDown', key: 'F2' })
+    expect(down.text).toBeUndefined()
+  })
+
+  it('parses modifier lists shared with pointer input', () => {
+    expect(parseModifiers(['Shift', 'Mod'], 'darwin')).toEqual({
+      ctrl: false,
+      meta: true,
+      shift: true,
+      alt: false,
+    })
+    expect(cdpModifiers(parseModifiers(['Mod', 'Alt'], 'linux'))).toBe(3)
+    expect(() => parseModifiers(['Hyper'])).toThrow(/Unrecognized modifier/)
   })
 
   it('rejects unknown keys and modifiers', () => {

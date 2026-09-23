@@ -124,4 +124,6 @@ Sim can build custom tools from a description:
   { question: "What's the difference between a scheduled job and a deployed workflow?", answer: "A scheduled job runs a Chat prompt on a cron schedule — Sim decides what to do each time based on current workspace state. A deployed workflow runs a saved graph of blocks, which can include Agent reasoning. Use jobs when you want Sim to reason and adapt; use workflows when you want predictable, auditable execution." },
   { question: "Can a scheduled job trigger a workflow?", answer: "Yes. Include it in the job prompt: 'Run the invoice sync workflow and then post the results to Slack.'" },
   { question: "Can direct actions be undone?", answer: "It depends on the service and action. Some records can be edited or deleted afterward; sending an email cannot be undone by deleting the Chat task." },
+  { question: "How do I know what integrations are connected?", answer: "Ask Sim: 'What integrations are connected to this workspace?' or check the Integrations page." },
+  { question: "How do workflows reference environment variables?", answer: "Use {{ENV_VAR}} syntax. Resolution depends on the variable's scope and the execution context." },
 ]} />

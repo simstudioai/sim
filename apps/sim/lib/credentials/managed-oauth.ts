@@ -38,6 +38,7 @@ export type ManagedOAuthCredentialErrorCode =
   | 'MANAGED_CREDENTIAL_NEEDS_REAUTH'
   | 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE'
   | 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET'
+  | 'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE'
   | 'MANAGED_CREDENTIAL_REFRESH_FAILED'
 
 export class ManagedOAuthCredentialError extends Error {
@@ -258,9 +259,9 @@ async function assertManagedCredentialUsable(
   } catch (error) {
     if (!(error instanceof CredentialGroupProviderConfigurationError)) throw error
     throw new ManagedOAuthCredentialError(
-      'MANAGED_CREDENTIAL_NEEDS_REAUTH',
+      'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE',
       'Managed credential authorization app is unavailable',
-      401
+      503
     )
   }
   if (

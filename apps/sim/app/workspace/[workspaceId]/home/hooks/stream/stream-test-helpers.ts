@@ -1,9 +1,9 @@
 import type { MutableRefObject } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { vi } from 'vitest'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import type { RevealedSimKeysByMessage } from '@/lib/copilot/chat/sim-key-redaction'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-redaction'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type {
   ActiveTurn,
   StreamLoopDeps,
@@ -25,6 +25,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     workspaceId: 'ws-1',
     queryClient: {
       invalidateQueries: vi.fn(),
+      cancelQueries: vi.fn(),
       setQueryData: vi.fn(),
       // double-cast-allowed: minimal QueryClient stub for stream-loop unit fixtures
     } as unknown as QueryClient,

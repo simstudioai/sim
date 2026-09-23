@@ -359,6 +359,7 @@ async function persistGrant(
     await dispatchMemberSyncsForCredentialOption({
       ...resourceScopeFields(resourceScopeFromOwner(context)),
       credentialGroupOptionId: context.option.id,
+      connectedCredentialId: completion.credentialId,
     })
   } catch (error) {
     logger.warn('Failed to queue member syncs after an account connected', {

@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn, OverflowText } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   SidebarRowAction,

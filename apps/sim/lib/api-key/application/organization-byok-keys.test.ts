@@ -27,6 +27,10 @@ vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: async () => null,
+}))
+
 vi.mock('@/lib/api-key/byok-entitlement', () => ({
   isOrganizationBYOKEntitled: mocks.isEntitled,
 }))
@@ -36,6 +40,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
+  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
   permissionSatisfies: (actual: string | null, required: string) => {
     const rank = { read: 1, write: 2, admin: 3 } as const
     return (
@@ -372,4 +377,120 @@ describe('organization BYOK application boundary', () => {
     expect(mocks.isEntitled).toHaveBeenCalledWith(ORGANIZATION_ID)
     expect(JSON.stringify(result)).not.toContain(ORGANIZATION_ID)
   })
+})
+
+describe('organization settings BYOK delegation', () => {
+  const principal = {
+    kind: 'organization_delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'admin-1',
+    organizationId: ORGANIZATION_ID,
+    delegationId: 'byok-list',
+    audience: 'sim:settings',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { chatId: 'chat' },
+  } as const
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.isEntitled.mockResolvedValue(false)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({
+      decrypted: 'sk-private-provider-value',
+    })
+  })
+  it('lists masked metadata for current administrators even after plan expiry', async () => {
+    queueOrganizationAdmin()
+    queueTableRows(schemaMock.organizationBYOKKeys, [storedKeyRow('key-1')])
+    const result = await listOrganizationByokKeys.execute({
+      principal,
+      input: { organizationId: ORGANIZATION_ID },
+    })
+    expect(result).toMatchObject({
+      entitled: false,
+      keys: [{ id: 'key-1', maskedKey: 'sk-pri...alue' }],
+    })
+    expect(JSON.stringify(result)).not.toContain('sk-private-provider-value')
+    expect(JSON.stringify(result)).not.toContain('encrypted-key-1')
+  })
+  it('revokes using canonical organization/provider scope and the actual delegated actor', async () => {
+    queueOrganizationAdmin()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'key-1' }])
+    await expect(
+      deleteOrganizationByokKey.execute({
+        principal,
+        input: { organizationId: ORGANIZATION_ID, providerId: 'openai', keyId: 'key-1' },
+      })
+    ).resolves.toEqual({ success: true })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        metadata: expect.objectContaining({ operation: 'byok_keys.organization.delete' }),
+      })
+    )
+  })
+  it.each([
+    { ...principal, organizationId: 'foreign' },
+    { ...principal, audience: 'sim:search' },
+    { ...principal, expiresAt: new Date(0) },
+  ])('rejects invalid delegated scope before reading secrets', async (invalid) => {
+    await expect(
+      listOrganizationByokKeys.execute({
+        principal: invalid,
+        input: { organizationId: ORGANIZATION_ID },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+  it('rejects regular members before reading secrets', async () => {
+    queueOrganizationAdmin('member')
+    await expect(
+      listOrganizationByokKeys.execute({ principal, input: { organizationId: ORGANIZATION_ID } })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+  it('keeps plaintext key submission on the authenticated browser flow', async () => {
+    await expect(
+      saveOrganizationByokKey.execute({
+        principal,
+        input: { organizationId: ORGANIZATION_ID, providerId: 'openai', apiKey: 'private' },
+      })
+    ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+})
+
+it('reads inherited provider status through scoped settings delegation without decrypting keys', async () => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+  mocks.loadWorkspaceContext.mockResolvedValue({
+    workspaceId: WORKSPACE_ID,
+    workspaceOrganizationId: ORGANIZATION_ID,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing',
+  })
+  mocks.resolveWorkspacePermission.mockResolvedValue('read')
+  mocks.isEntitled.mockResolvedValue(true)
+  queueTableRows(schemaMock.workspaceBYOKKeys, [{ providerId: 'openai' }])
+  queueTableRows(schemaMock.organizationBYOKKeys, [
+    { providerId: 'openai' },
+    { providerId: 'anthropic' },
+  ])
+  const principal = {
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'reader',
+    workspaceId: WORKSPACE_ID,
+    delegationId: 'inherited',
+    audience: 'sim:settings',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { chatId: 'chat' },
+  } as const
+  await expect(
+    readInheritedByokStatus.execute({ principal, input: { workspaceId: WORKSPACE_ID } })
+  ).resolves.toEqual({ inheritedProviderIds: ['anthropic'] })
+  expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
 })

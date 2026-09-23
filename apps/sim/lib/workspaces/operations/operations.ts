@@ -10,6 +10,13 @@ export const workspaceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
 }

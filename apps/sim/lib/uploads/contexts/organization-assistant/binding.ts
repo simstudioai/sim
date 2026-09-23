@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface OrganizationAttachmentBinding {
   organizationId: string
+  requestMode: 'agent' | 'assistant' | 'plan'
   userId: string
   sessionId: string
 }
@@ -34,6 +35,12 @@ export function organizationAttachmentBinding(
   }
   return {
     organizationId: binding.organizationId,
+    requestMode:
+      binding.requestMode === 'plan'
+        ? 'plan'
+        : binding.requestMode === 'agent'
+          ? 'agent'
+          : 'assistant',
     userId: session.userId,
     sessionId: binding.sessionId,
   }

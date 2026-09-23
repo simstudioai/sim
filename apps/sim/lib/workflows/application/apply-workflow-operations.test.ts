@@ -18,12 +18,14 @@ const mocks = vi.hoisted(() => ({
   normalizeState: vi.fn(),
   sandboxAccess: vi.fn(),
   blockVisibility: vi.fn(),
+  customBlocks: vi.fn(),
   permissionConfig: vi.fn(),
   preValidate: vi.fn(),
   collectReferences: vi.fn(),
   collectToolReferences: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   collectGraphIds: vi.fn(),
+  lintGraph: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -44,6 +46,9 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveContext,
+}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  listCustomBlocksWithInputsForWorkspace: mocks.customBlocks,
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
@@ -72,14 +77,8 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 }))
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
-  lintEditedWorkflowState: () => ({
-    sources: [],
-    sinks: [],
-    orphanBlocks: [],
-    emptyOutgoingPorts: [],
-    invalidBranchPorts: [],
-    invalidConnectionTargets: [],
-  }),
+  collectDanglingBlockOutputReferences: () => [],
+  lintEditedWorkflowState: mocks.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mocks.sandboxAccess,
@@ -120,7 +119,10 @@ vi.mock('@/lib/workflows/autolayout', () => ({
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
+import {
+  applyWorkflowOperations,
+  DRY_RUN_PREVIEW_BLOCK_IDS_WARNING,
+} from '@/lib/workflows/application/apply-workflow-operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 
 const BLOCK = {
@@ -168,9 +170,20 @@ function graph(blocks: Record<string, unknown> = { 'block-1': BLOCK }) {
 
 const GRAPH_IDS = { blockIds: ['block-1'], edgeIds: [], subflowIds: [] }
 
+/** The graph lint with no findings, in the shape `lintEditedWorkflowState` returns. */
+const EMPTY_GRAPH_LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+}
+
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.customBlocks.mockResolvedValue([])
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -184,6 +197,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -192,6 +206,7 @@ describe('applyWorkflowOperations', () => {
     mocks.needsRedeployment.mockResolvedValue(true)
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
+    mocks.lintGraph.mockReturnValue(EMPTY_GRAPH_LINT)
   })
 
   it('writes once, through the shared persistence primitive', async () => {
@@ -233,12 +248,89 @@ describe('applyWorkflowOperations', () => {
     })
 
     expect(mocks.normalizeState).toHaveBeenCalledWith(emptyGraph)
-    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null, false)
     expect(mocks.replace).toHaveBeenCalledTimes(1)
     expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
   })
 
+  /**
+   * A delete is exactly when orphans and dangling references appear, so the
+   * report must be built from the post-delete graph even though the batch adds
+   * and edits nothing — never skipped or answered as `null`.
+   */
+  it('lints the post-delete graph for a delete-only batch', async () => {
+    const deleteOnly = [{ operation_type: 'delete' as const, block_id: 'block-2' }]
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.preValidate.mockResolvedValue({ filteredOperations: deleteOnly, errors: [] })
+    mocks.applyOperations.mockReturnValue({
+      state: graph({ 'block-1': BLOCK }),
+      validationErrors: [],
+      skippedItems: [],
+      mintedBlockIds: {},
+    })
+    mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations: deleteOnly },
+    })
+
+    expect(result.applied).toBe(1)
+    expect(mocks.lintGraph).toHaveBeenCalledTimes(1)
+    expect(mocks.lintGraph.mock.calls[0][0].blocks).not.toHaveProperty('block-2')
+    expect(result.lint).toEqual({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan],
+      fieldIssues: [],
+      unresolvedReferences: [],
+      tableFieldIssues: [],
+      notes: ['No entry block: nothing can start this workflow.'],
+    })
+  })
+
   describe('dry run', () => {
+    /**
+     * The engine mints a UUID for every non-UUID `block_id` on each call, so a
+     * dry run's ids are never the ids the committed apply produces. Reporting
+     * them as `mintedBlockIds` made them look authoritative.
+     */
+    it('reports minted ids as previews, with a warning, instead of as minted', async () => {
+      mocks.applyOperations.mockReturnValue({
+        state: graph(),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: { triage: 'preview-uuid' },
+      })
+
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.mintedBlockIds).toEqual({})
+      expect(dry.previewBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(dry.warnings).toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+
+      const committed = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(committed.mintedBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(committed.previewBlockIds).toBeUndefined()
+      expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+    })
+
+    it('raises no preview warning when the dry run minted nothing', async () => {
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.previewBlockIds).toEqual({})
+      expect(dry.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+    })
+
     it('runs the whole engine and stops at the write', async () => {
       const result = await applyWorkflowOperations.execute({
         principal: sessionPrincipal,
@@ -307,6 +399,7 @@ describe('applyWorkflowOperations', () => {
         },
         validationErrors: [],
         skippedItems: [],
+        mintedBlockIds: {},
       })
       mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
 
@@ -451,9 +544,10 @@ describe('applyWorkflowOperations', () => {
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
     expect(mocks.loadNormalized).not.toHaveBeenCalled()
-    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
 
     vi.clearAllMocks()
+    mocks.customBlocks.mockResolvedValue([])
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.sandboxAccess.mockResolvedValue(true)
@@ -478,7 +572,7 @@ describe('applyWorkflowOperations', () => {
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
     expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
   })
 
   it('applies the block enablement slice and declines a locked block as a skipped item', async () => {

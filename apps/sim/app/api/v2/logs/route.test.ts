@@ -97,6 +97,144 @@ describe('GET /api/v2/logs', () => {
     })
   })
 
+  it('publishes hasHandledErrors on every row and forwards includeHandledErrors as a filter', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [
+        { log: { ...log, hasHandledErrors: true } },
+        { log: { ...log, executionId: 'run-2', hasHandledErrors: false } },
+        {
+          log: {
+            kind: 'job',
+            id: 'job-1',
+            workspaceId: WORKSPACE_ID,
+            executionId: 'job-run-1',
+            level: 'info',
+            trigger: 'chat',
+            startedAt: new Date('2026-08-06T00:00:00Z'),
+            endedAt: new Date('2026-08-06T00:00:01Z'),
+            totalDurationMs: 1000,
+            cost: null,
+          },
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&level=error&includeHandledErrors=true&includeJobRuns=true`
+    )
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.map((row: { hasHandledErrors: boolean }) => row.hasHandledErrors)).toEqual([
+      true,
+      false,
+      false,
+    ])
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ level: 'error', includeHandledErrors: true }),
+        }),
+      })
+    )
+  })
+
+  it('defaults includeHandledErrors off and leaves it out of an unfiltered cursor', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
+    await GET(request)
+
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ includeHandledErrors: false }),
+        }),
+      })
+    )
+
+    /** A cursor minted with the flag on must not resume a walk with it off. */
+    const cursor = encodeSortedCursor(
+      cursorSortKey('startedAt', 'desc'),
+      [log.startedAt.toISOString(), 'run-1'],
+      cursorScopeKey(cursorRoute(v2ListLogsContract), {
+        workspaceId: WORKSPACE_ID,
+        level: 'error',
+        includeHandledErrors: true,
+      })
+    )
+    mocks.execute.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+    expect(replayed.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it.each(['', '&level=info'])(
+    'ignores handled-error flags outside error filters (%s)',
+    async (level) => {
+      const cursor = encodeSortedCursor(
+        cursorSortKey('startedAt', 'desc'),
+        [log.startedAt.toISOString(), 'run-1'],
+        cursorScopeKey(cursorRoute(v2ListLogsContract), {
+          workspaceId: WORKSPACE_ID,
+          level: level ? 'info' : undefined,
+        })
+      )
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}${level}&includeHandledErrors=true&cursor=${encodeURIComponent(cursor)}`
+        )
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.execute).toHaveBeenCalled()
+    }
+  )
+
+  it('publishes durationMs on included trace spans from the stored duration', async () => {
+    mocks.execute.mockResolvedValue({
+      items: [
+        {
+          log,
+          executionData: {
+            finalOutput: null,
+            traceSpans: [
+              {
+                id: 'agent-1',
+                name: 'Agent',
+                type: 'agent',
+                duration: 80,
+                startTime: '2026-08-06T00:00:00.010Z',
+                endTime: '2026-08-06T00:00:00.090Z',
+              },
+            ],
+          },
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: true,
+      includeFinalOutput: false,
+      includeTraceSpans: true,
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeTraceSpans=true`
+      )
+    )
+
+    expect((await response.json()).data[0].traceSpans[0]).toMatchObject({
+      duration: 80,
+      durationMs: 80,
+    })
+  })
+
   it('serves a run whose persisted status is paused', async () => {
     mocks.execute.mockResolvedValue({
       items: [{ log: { ...log, status: 'paused' }, executionData: null }],
@@ -552,6 +690,7 @@ describe('GET /api/v2/logs', () => {
       totalDurationMs: 2000,
       cost: { total: 0.5 },
       files: null,
+      hasHandledErrors: false,
     })
   })
 

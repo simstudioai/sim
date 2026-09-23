@@ -5,6 +5,7 @@ import {
   resolvePrincipalAttribution,
   toPrincipalActor,
 } from '@sim/auth/principal'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   requireWorkflowChatDeployment,
   resolveWorkflowChatDeploymentApplicationContext,
@@ -91,7 +92,7 @@ function resolveContext({ input }: { input: WorkflowChatDeploymentInput }) {
 export const readWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.read,
   resolveContext,
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ context }): Promise<WorkflowChatDeploymentResult> {
     return {
       deployment: toEffectiveChatDeploymentView(
@@ -131,7 +132,7 @@ export interface WorkflowChatDeploymentStatus {
 export const readWorkflowChatDeploymentStatus = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.list,
   resolveContext,
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ context }): Promise<WorkflowChatDeploymentStatus> {
     const deployment = context.chatDeployment
     if (!deployment) return { isDeployed: false, deployment: null }
@@ -183,7 +184,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.replace,
   resolveContext: ({ input }: { input: ReplaceWorkflowChatDeploymentInput }) =>
     resolveWorkflowChatDeploymentApplicationContext({ workflowId: input.workflowId }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, input, context }) {
     const existing = context.chatDeployment
     const authType = input.authType ?? 'public'
@@ -285,7 +286,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
 export const deleteWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.delete,
   resolveContext,
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, context }): Promise<WorkflowChatDeploymentResult> {
     const deployment = requireWorkflowChatDeployment(context)
     const attribution = resolvePrincipalAttribution(principal, {

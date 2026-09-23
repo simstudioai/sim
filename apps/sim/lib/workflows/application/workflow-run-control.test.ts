@@ -140,6 +140,55 @@ describe('workflow run-control application use cases', () => {
     }
   )
 
+  /**
+   * A run that was already terminal is satisfied but nothing was cancelled.
+   * The use case says so explicitly, so a surface can answer `success: false`
+   * for the no-op without re-deriving it from three flags, and the analytics
+   * event for a cancellation is not captured for a cancel that did nothing.
+   */
+  it.each(['already_completed', 'already_failed', 'already_cancelled'] as const)(
+    'reports a %s run as satisfied but not cancelled',
+    async (reason) => {
+      mocks.cancel.mockResolvedValue({
+        success: true,
+        executionId: 'parent-run-1',
+        redisAvailable: true,
+        durablyRecorded: false,
+        locallyAborted: false,
+        pausedCancelled: false,
+        reason,
+      })
+
+      const result = await cancelWorkflowRun.execute({
+        principal: principals[0].principal,
+        input: { runId: 'parent-run-1' },
+      })
+
+      expect(result).toMatchObject({ success: true, cancelled: false, reason })
+      expect(mocks.capture).not.toHaveBeenCalled()
+    }
+  )
+
+  it('treats a queue-only cancellation as having cancelled the run', async () => {
+    mocks.cancel.mockResolvedValue({
+      success: true,
+      executionId: 'parent-run-1',
+      redisAvailable: false,
+      durablyRecorded: false,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'queue_cancelled',
+    })
+
+    const result = await cancelWorkflowRun.execute({
+      principal: principals[0].principal,
+      input: { runId: 'parent-run-1' },
+    })
+
+    expect(result).toMatchObject({ success: true, cancelled: true, reason: 'queue_cancelled' })
+    expect(mocks.capture).toHaveBeenCalledTimes(1)
+  })
+
   it.each(principals)(
     'authorizes $principal.kind resume and preserves the parent/new run distinction',
     async ({ principal, actorUserId }) => {

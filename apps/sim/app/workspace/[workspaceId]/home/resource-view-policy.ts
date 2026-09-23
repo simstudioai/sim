@@ -1,5 +1,8 @@
 import type { SetStateAction } from 'react'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 
 /** The tab each desktop-backed kind currently shows, as resource ids. */
 export interface NativeActiveTabIds {
@@ -24,7 +27,10 @@ export function resolveEffectiveResourceId(
   nativeActiveTabIds?: NativeActiveTabIds
 ): string | null {
   if (resources.length === 0) return null
-  if (selectedResourceId && resources.some((resource) => resource.id === selectedResourceId)) {
+  if (
+    selectedResourceId &&
+    resources.some((resource) => getChatResourceSelectionId(resource) === selectedResourceId)
+  ) {
     return selectedResourceId
   }
   const fallback = resources[resources.length - 1]
@@ -37,7 +43,7 @@ export function resolveEffectiveResourceId(
       return nativeId
     }
   }
-  return fallback.id
+  return getChatResourceSelectionId(fallback)
 }
 
 export function resolveResourceSelectionUpdate(
@@ -45,6 +51,21 @@ export function resolveResourceSelectionUpdate(
   update: SetStateAction<string | null>
 ): string | null {
   return typeof update === 'function' ? update(currentResourceId) : update
+}
+
+/** Match attention to the existing tab's canonical address without inventing an owner. */
+export function resolveFileResourceSelectionId(
+  resources: readonly MothershipResource[],
+  fileId: string,
+  workspaceId?: string
+): string {
+  const resource = resources.find(
+    (item) =>
+      item.type === 'file' &&
+      item.id === fileId &&
+      (!workspaceId || !item.workspaceId || item.workspaceId === workspaceId)
+  )
+  return resource ? getChatResourceSelectionId(resource) : fileId
 }
 
 export interface ResourceEventPresentationInput {

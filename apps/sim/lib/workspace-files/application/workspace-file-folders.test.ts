@@ -64,8 +64,8 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 
-import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   createWorkspaceFileFolderOperation,
   deleteWorkspaceFileFolderOperation,

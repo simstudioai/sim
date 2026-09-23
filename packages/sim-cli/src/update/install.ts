@@ -4,10 +4,9 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import { lock } from 'proper-lockfile'
 import { upgradeCommand } from '#sim-cli/update/check'
-import { CLI_VERSION } from '#sim-cli/version'
+import { cliVersion } from '#sim-cli/version'
 
 export class CliUpdateError extends Error {}
 
@@ -170,7 +169,7 @@ function parseRegistryVersion(output: string, manager: PackageManager): string {
 /** Updates the verified global installation and reports the version actually installed. */
 export async function installUpdate(options: InstallUpdateOptions = {}): Promise<void> {
   const modulePath = resolveInstallationPath(options.modulePath ?? fileURLToPath(import.meta.url))
-  const env = omit(options.env ?? process.env, ['SIM_API_KEY'])
+  const env: NodeJS.ProcessEnv = { ...(options.env ?? process.env), SIM_API_KEY: undefined }
   const normalized = modulePath.replaceAll('\\', '/').toLowerCase()
   if (
     env.npm_command === 'exec' ||
@@ -189,7 +188,7 @@ export async function installUpdate(options: InstallUpdateOptions = {}): Promise
   }
   const packageManager = manager as PackageManager
   const run = options.run ?? runPackageManager
-  const currentVersion = options.currentVersion ?? CLI_VERSION
+  const currentVersion = options.currentVersion ?? cliVersion()
   const current = parseReleaseVersion(currentVersion)
   const target = current.channel
   const write = options.write ?? ((message: string) => void process.stderr.write(message))

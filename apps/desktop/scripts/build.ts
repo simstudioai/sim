@@ -102,6 +102,7 @@ const renderer: BuildOptions = {
     server: 'src/renderer/server/index.tsx',
     offline: 'src/renderer/offline/index.tsx',
     dialog: 'src/renderer/dialog/index.tsx',
+    'credential-picker': 'src/renderer/credential-picker/index.tsx',
   },
   outdir: 'dist/renderer',
   bundle: true,
@@ -146,6 +147,11 @@ async function run(): Promise<void> {
       entryPoints: ['src/preload/shell.ts'],
       outfile: 'dist/shell-preload.cjs',
     })
+    const credentialPickerPreloadCtx = await context({
+      ...common,
+      entryPoints: ['src/preload/credential-picker.ts'],
+      outfile: 'dist/credential-picker-preload.cjs',
+    })
     const mainCtx = await context({
       ...common,
       entryPoints: ['src/main/index.ts'],
@@ -169,11 +175,17 @@ async function run(): Promise<void> {
       browserPreloadCtx.watch(),
       rendererCtx.watch(),
       shellPreloadCtx.watch(),
+      credentialPickerPreloadCtx.watch(),
     ])
     return
   }
   await Promise.all([
     build(renderer),
+    build({
+      ...common,
+      entryPoints: ['src/preload/credential-picker.ts'],
+      outfile: 'dist/credential-picker-preload.cjs',
+    }),
     build({ ...common, entryPoints: ['src/preload/shell.ts'], outfile: 'dist/shell-preload.cjs' }),
     build({ ...common, entryPoints: ['src/main/index.ts'], outfile: 'dist/main.cjs' }),
     build({ ...common, entryPoints: ['src/preload/index.ts'], outfile: 'dist/preload.cjs' }),

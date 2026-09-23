@@ -42,8 +42,6 @@ vi.mock('@/lib/embeddings', async () => ({
 }))
 
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
@@ -124,48 +122,31 @@ afterAll(async () => {
 it.each([
   { surface: 'application', apiKey: input.apiKey },
   { surface: 'application', apiKey: '{{GITLAB_PAT}}' },
-  { surface: 'mothership', apiKey: input.apiKey },
-  { surface: 'mothership', apiKey: '{{GITLAB_PAT}}' },
+  { surface: 'delegated application', apiKey: input.apiKey },
+  { surface: 'delegated application', apiKey: '{{GITLAB_PAT}}' },
 ])(
   'creates, syncs, edits, and searches a workspace GitLab source through $surface using $apiKey',
   async ({ surface, apiKey }) => {
-    let connectorId: string
-    if (surface === 'mothership') {
-      const result = await knowledgeBaseServerTool.execute(
-        {
-          operation: 'add_connector',
-          args: {
-            knowledgeBaseId: ids.knowledgeBaseId,
-            connectorType: 'gitlab',
-            apiKey,
-            sourceConfig,
-          },
-        },
-        {
-          userId: ids.aliceId,
-          workspaceId: ids.workspaceId,
-          chatId: generateId(),
-          executionId: generateId(),
-          toolCallId: generateId(),
-          copilotToolExecution: true,
-          billingAttribution: await resolveBillingAttribution({
-            actorUserId: ids.aliceId,
+    const caller =
+      surface === 'application'
+        ? principal
+        : {
+            kind: 'delegated' as const,
+            serviceId: 'copilot' as const,
+            subjectUserId: ids.aliceId,
             workspaceId: ids.workspaceId,
-          }),
-        }
-      )
-      expect(result.success, result.message).toBe(true)
-      expect(JSON.stringify(result)).not.toContain(input.apiKey)
-      if (typeof result.data?.id !== 'string') throw new Error('Expected a connector ID')
-      connectorId = result.data.id
-    } else {
-      const { connector } = await createKnowledgeConnector.execute({
-        principal,
-        input: { ...input, apiKey },
-      })
-      expect(JSON.stringify(connector)).not.toContain(input.apiKey)
-      connectorId = connector.id
-    }
+            delegationId: generateId(),
+            audience: 'sim:knowledge',
+            issuedAt: new Date(),
+            expiresAt: new Date(Date.now() + 60000),
+            resourceScope: { chatId: generateId() },
+          }
+    const { connector } = await createKnowledgeConnector.execute({
+      principal: caller,
+      input: { ...input, apiKey },
+    })
+    expect(JSON.stringify(connector)).not.toContain(input.apiKey)
+    const connectorId = connector.id
     await expect
       .poll(
         async () => {

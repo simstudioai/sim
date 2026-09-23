@@ -4,7 +4,8 @@
 
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import { getMothershipChatResponseSchema } from '@/lib/api/contracts/mothership-chats'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 const { queryClient, suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
   clearChat: vi.fn(),
@@ -47,6 +48,7 @@ import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
+  useRemoveChatResource,
 } from '@/hooks/queries/mothership-chats'
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -76,6 +78,7 @@ describe('tasks query boundary parsing', () => {
         data: [
           {
             id: 'chat-1',
+            mode: 'agent',
             title: 'Launch plan',
             updatedAt: '2026-04-11T10:00:00.000Z',
             activeStreamId: 'stream-1',
@@ -93,6 +96,7 @@ describe('tasks query boundary parsing', () => {
     expect(tasks[0]).toEqual(
       expect.objectContaining({
         id: 'chat-1',
+        mode: 'agent',
         name: 'Launch plan',
         isActive: true,
         isUnread: false,
@@ -131,6 +135,7 @@ describe('tasks query boundary parsing', () => {
         success: true,
         chat: {
           id: 'chat-1',
+          mode: 'agent',
           title: 'Task history',
           messages: [],
           activeStreamId: 'stream-1',
@@ -148,6 +153,7 @@ describe('tasks query boundary parsing', () => {
 
     expect(history).toEqual({
       id: 'chat-1',
+      mode: 'agent',
       title: 'Task history',
       messages: [],
       activeStreamId: 'stream-1',
@@ -160,6 +166,129 @@ describe('tasks query boundary parsing', () => {
     })
   })
 
+  describe.each(['primary', 'fallback'] as const)('%s history endpoint', (endpoint) => {
+    it.each(getMothershipChatResponseSchema.shape.chat.shape.mode.options)(
+      'reopens a saved %s transcript without sending a new message',
+      async (mode) => {
+        const messages = [
+          {
+            id: 'user-1',
+            role: 'user',
+            content: 'Investigate incidents',
+            timestamp: '2026-09-23T00:19:00Z',
+            requestMode: mode,
+          },
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            content: 'Saved investigation',
+            timestamp: '2026-09-23T00:36:00Z',
+            requestMode: mode,
+          },
+        ]
+        if (endpoint === 'fallback') {
+          vi.mocked(fetch).mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+        }
+        vi.mocked(fetch).mockResolvedValueOnce(
+          jsonResponse({
+            success: true,
+            chat: {
+              id: 'chat-plan',
+              mode,
+              title: 'Incident triage',
+              messages,
+              activeStreamId: null,
+              resources: [],
+            },
+          })
+        )
+
+        const history = await fetchMothershipChatHistory('chat-plan')
+
+        expect(history.mode).toBe(mode)
+        expect(history.messages).toEqual(
+          messages.map((message) => expect.objectContaining(message))
+        )
+        expect(fetch).toHaveBeenCalledTimes(endpoint === 'fallback' ? 2 : 1)
+        expect(
+          vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')
+        ).toBe(true)
+      }
+    )
+
+    it('rejects an unknown conversation mode', async () => {
+      if (endpoint === 'fallback') {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          chat: {
+            id: 'chat-invalid',
+            mode: 'unknown',
+            title: null,
+            messages: [],
+            activeStreamId: null,
+            resources: [],
+          },
+        })
+      )
+      await expect(fetchMothershipChatHistory('chat-invalid')).rejects.toThrow()
+    })
+  })
+
+  it('retains saved table views, file paths and execution identities when reading chat resources', async () => {
+    const resources: MothershipResource[] = [
+      { type: 'table', id: 'table-1', title: 'Invoices', viewId: 'overdue' },
+      { type: 'file', id: 'file-1', title: 'Report.csv', path: 'reports/Report.csv' },
+      { type: 'log', id: 'log-1', title: 'Invoice run', executionId: 'run-1' },
+    ]
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        chat: {
+          id: 'chat-1',
+          mode: 'agent',
+          title: null,
+          messages: [],
+          activeStreamId: null,
+          resources,
+        },
+      })
+    )
+    expect((await fetchMothershipChatHistory('chat-1')).resources).toEqual(resources)
+  })
+
+  it('sends and reads the complete resource address through the client mutation contract', async () => {
+    const resource: MothershipResource = {
+      type: 'table',
+      id: 'table-1',
+      title: 'Invoices',
+      viewId: 'overdue',
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ success: true, resources: [resource] }))
+    const mutation = useAddChatResource('chat-1') as unknown as {
+      mutationFn: (input: {
+        chatId: string
+        resource: MothershipResource
+      }) => Promise<{ resources: MothershipResource[] }>
+    }
+    expect(await mutation.mutationFn({ chatId: 'chat-1', resource })).toEqual({
+      resources: [resource],
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/mothership/chat/resources',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(String),
+      })
+    )
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual({
+      chatId: 'chat-1',
+      resource,
+    })
+  })
+
   it('rejects invalid fallback chat history responses', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
@@ -168,6 +297,7 @@ describe('tasks query boundary parsing', () => {
           success: true,
           chat: {
             id: 'chat-1',
+            mode: 'agent',
             title: null,
             messages: [],
             activeStreamId: null,
@@ -177,7 +307,7 @@ describe('tasks query boundary parsing', () => {
       )
 
     await expect(fetchMothershipChatHistory('chat-1')).rejects.toThrow(
-      'Invalid chat response: chat.resources[0].type is invalid'
+      'Invalid chat response: chat.resources[0] is invalid'
     )
   })
 
@@ -327,4 +457,53 @@ describe('tasks query boundary parsing', () => {
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
   })
+})
+
+it('removes only the requested workspace alias and forwards its owner', async () => {
+  const first: MothershipResource = {
+    type: 'file',
+    id: 'files/report.csv',
+    title: 'A',
+    workspaceId: 'ws-a',
+  }
+  const second: MothershipResource = { ...first, title: 'B', workspaceId: 'ws-b' }
+  let cached = {
+    id: 'chat-1',
+    title: null,
+    messages: [],
+    activeStreamId: null,
+    resources: [first, second],
+  }
+  queryClient.setQueryData.mockImplementation((_key, update) => {
+    cached = update(cached)
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(jsonResponse({ success: true, resources: [first] }))
+  )
+  const mutation = useRemoveChatResource('chat-1') as unknown as {
+    onMutate: (input: {
+      chatId: string
+      resourceType: 'file'
+      resourceId: string
+      workspaceId: string
+    }) => Promise<unknown>
+    mutationFn: (input: {
+      chatId: string
+      resourceType: 'file'
+      resourceId: string
+      workspaceId: string
+    }) => Promise<unknown>
+  }
+  const input = {
+    chatId: 'chat-1',
+    resourceType: 'file' as const,
+    resourceId: 'files/report.csv',
+    workspaceId: 'ws-b',
+  }
+  await mutation.onMutate(input)
+  expect(cached.resources).toEqual([first])
+  await mutation.mutationFn(input)
+  expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(input)
+  vi.unstubAllGlobals()
 })

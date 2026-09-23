@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import type { Session } from 'electron'
 import { app } from 'electron'
+import { isAgentWebContents } from '@/main/browser-agent/registry'
 import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopDownloads')
@@ -136,7 +137,8 @@ export async function uniqueDownloadPath(
  * downloads bounce the Dock Downloads stack.
  */
 export function attachDownloadHandling(session: Session, events: EventRecorder): void {
-  session.on('will-download', (_event, item) => {
+  session.on('will-download', (_event, item, contents) => {
+    if (contents && isAgentWebContents(contents)) return
     const filename = suggestedFilename(item.getFilename(), item.getMimeType())
     item.setSaveDialogOptions({
       defaultPath: join(app.getPath('downloads'), filename),

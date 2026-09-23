@@ -60,6 +60,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   browser_read_text: File,
   browser_reload: Cursor,
   browser_request_takeover: Cursor,
+  browser_save_download: File,
   browser_screenshot: Eye,
   browser_scroll: Cursor,
   browser_select_option: Cursor,
@@ -67,6 +68,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   browser_snapshot: Eye,
   browser_switch_tab: Cursor,
   browser_type: Pencil,
+  browser_upload_file: File,
   browser_wait_for: Cursor,
   browser_zoom: Eye,
   call_integration_tool: Integration,
@@ -152,6 +154,10 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   search_knowledge_base: Database,
   search_library_docs: Library,
   search_workspace: Search,
+  search_sources: Search,
+  settings: Settings,
+  list_workspaces: Search,
+  workspaces: Search,
   set_block_enabled: Pencil,
   set_environment_variables: Settings,
   set_global_workflow_variables: Settings,
@@ -166,6 +172,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   table_rows: TableIcon,
   table_views: TableIcon,
   tail_agent: Brain,
+  task: Brain,
   terminal: TerminalWindow,
   terminal_cwd: TerminalWindow,
   terminal_input: TerminalWindow,
@@ -185,8 +192,8 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   workflow: Hammer,
 }
 
-export function getAgentIcon(name: string): IconComponent {
-  return Object.hasOwn(TOOL_ICONS, name) ? TOOL_ICONS[name] : Blimp
+export function getAgentIcon(name: string, fallback: IconComponent = Blimp): IconComponent {
+  return Object.hasOwn(TOOL_ICONS, name) ? TOOL_ICONS[name] : fallback
 }
 
 export function getToolIcon(name: string): IconComponent {

@@ -23,6 +23,9 @@ const { mockGetSession, mockIsEnterprise, mockRecordAudit, mockCheckDomainTxtRec
 vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: async () => null,
+}))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
@@ -36,9 +39,9 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { ORGANIZATION: 'organization' },
 }))
 
-vi.mock('@/lib/auth/sso/domain-verification', () => ({
+vi.mock('@/lib/auth/sso/domain-verification', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/sso/domain-verification')>()),
   checkDomainTxtRecord: mockCheckDomainTxtRecord,
-  toDomainResponse: (row: { id: string; status: string }) => ({ id: row.id, status: row.status }),
 }))
 
 import { POST } from '@/app/api/organizations/[id]/domains/[domainId]/verify/route'
@@ -66,6 +69,7 @@ describe('verify org domain route', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
+      session: { id: 'session-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
     mockCheckDomainTxtRecord.mockResolvedValue('present')

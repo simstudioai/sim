@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import type { PersonalCredential } from '@/lib/api/contracts/credentials'
 import {
   createOAuthChatAttempt,
@@ -16,6 +15,7 @@ import {
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import { resolveOAuthServiceForSlug } from '@/lib/integrations/oauth-service'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
 import {
   usePersonalCredentials,
   useStartPersonalCredentialConnection,
@@ -43,7 +43,7 @@ export function usePersonalCredentialConnection({
   displayName,
   onConnected,
 }: PersonalCredentialConnectionProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const providerId = resolveOAuthServiceForSlug(provider)?.providerId ?? provider.toLowerCase()
   const personalControlId = `personal:${controlId}`
   const [attempt, setAttempt] = useState<OAuthChatAttempt | null>(() =>

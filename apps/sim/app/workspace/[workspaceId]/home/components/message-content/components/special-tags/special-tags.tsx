@@ -1,6 +1,15 @@
 'use client'
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from '@sim/emcn'
 import {
   ArrowRight,
@@ -10,8 +19,9 @@ import {
   SquareArrowUpRight,
   TerminalWindow,
 } from '@sim/emcn/icons'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
+import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -36,7 +46,9 @@ import {
 } from '@/lib/knowledge/search/connection-target'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -52,10 +64,19 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import {
+  CredentialWorkspaceHost,
+  useCredentialWorkspaceId,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import {
+  OrganizationSecretInputHost,
+  useOrganizationSecretInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/organization-secret-input'
+import {
   resolveOAuthChipTarget,
   useOAuthChipConnection,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import { usePersonalCredentialConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-personal-credential-connection'
+import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import type {
   ChatMessageContext,
   MothershipResource,
@@ -65,7 +86,7 @@ import type {
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { MemberLimitRequestAction } from '@/ee/access-requests/components/member-limit-request-action'
@@ -140,11 +161,13 @@ export const CREDENTIAL_TAG_TYPES = [
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
 
-export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
+export const SECRET_INPUT_SCOPES = ['personal', 'workspace', 'organization'] as const
 
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
 export interface CredentialItemData {
+  /** Explicit workspace target for organization Agent credential controls. */
+  workspaceId?: string
   value?: string
   type: CredentialTagType
   provider?: string
@@ -154,7 +177,7 @@ export interface CredentialItemData {
    * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
-  /** Where a secret_input value is persisted. Defaults to "workspace". */
+  /** Defaults to workspace; organization uses the current org's Generic Secrets source. */
   scope?: SecretInputScope
   /**
    * What the secret is for (secret_input, workspace scope only), written by the
@@ -170,6 +193,8 @@ export interface CredentialItemData {
   /** Canonical Search source requested by an organization connection control. */
   connectorType?: string
   connectorId?: string
+  connectionMode?: 'live'
+  optionId?: string
 }
 
 /**
@@ -327,6 +352,8 @@ export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as con
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
 export interface WorkspaceResourceTagData {
+  /** Explicit resource owner in organization chat; omitted on a workspace surface. */
+  workspaceId?: string
   type: WorkspaceResourceTagType
   id?: string
   path?: string
@@ -496,6 +523,13 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
   )
 }
 
+function isOptionalWorkspaceTarget(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim())
+  )
+}
+
 function isCredentialItemData(value: unknown): value is CredentialItemData {
   if (!isRecordLike(value)) return false
   if (
@@ -505,6 +539,7 @@ function isCredentialItemData(value: unknown): value is CredentialItemData {
     return false
   }
   if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  if (!isOptionalWorkspaceTarget(value.workspaceId)) return false
   // secret_input is an empty input the user fills in — it carries a key name to
   // save under, not a value.
   if (value.type === 'secret_input') {
@@ -514,6 +549,12 @@ function isCredentialItemData(value: unknown): value is CredentialItemData {
     ) {
       return false
     }
+    if (value.scope === 'organization')
+      return (
+        value.workspaceId === undefined &&
+        value.value === undefined &&
+        organizationSecretNameSchema.safeParse(value.name).success
+      )
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
   // folder_access, browser_takeover and terminal_handoff are value-less action
@@ -613,7 +654,7 @@ function isSourceTagData(value: unknown): value is SourceTagData {
 }
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
-  if (!isRecordLike(value)) return false
+  if (!isRecordLike(value) || !isOptionalWorkspaceTarget(value.workspaceId)) return false
   if (
     typeof value.type !== 'string' ||
     !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
@@ -1739,7 +1780,7 @@ function recoverTrailingBareOptions(segments: ContentSegment[]): void {
 
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   /** Stable identity for interaction state owned by this message/tag. */
   interactionId?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
@@ -1900,14 +1941,41 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
   }
 }
 
-export function WorkspaceResourceDisplay({
-  data,
-  onSelect,
-}: {
+interface WorkspaceResourceDisplayProps {
   data: WorkspaceResourceTagData
   onSelect?: (resource: WorkspaceResourceRef) => void
-}) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+}
+
+export function WorkspaceResourceDisplay(props: WorkspaceResourceDisplayProps) {
+  const { workspaceId, organizationId } = useParams<{
+    workspaceId?: string
+    organizationId?: string
+  }>()
+  if (organizationId) {
+    const target = props.data.workspaceId
+    if (!target) return <span role='status'>This resource needs an explicit workspace target.</span>
+    return (
+      <ResourceWorkspaceHost
+        key={target}
+        workspaceId={target}
+        organizationId={organizationId}
+        inline
+      >
+        <WorkspaceResourceDisplayContent {...props} workspaceId={target} addressed />
+      </ResourceWorkspaceHost>
+    )
+  }
+  if (!workspaceId || (props.data.workspaceId && props.data.workspaceId !== workspaceId))
+    return <span role='status'>This resource belongs to a different workspace.</span>
+  return <WorkspaceResourceDisplayContent {...props} workspaceId={workspaceId} />
+}
+
+function WorkspaceResourceDisplayContent({
+  data,
+  onSelect,
+  workspaceId,
+  addressed = false,
+}: WorkspaceResourceDisplayProps & { workspaceId: string; addressed?: boolean }) {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
@@ -1934,11 +2002,23 @@ export function WorkspaceResourceDisplay({
     const id = data.id ?? fileFromPath?.id
     return {
       type: toMothershipResourceType(data.type),
+      ...(addressed ? { workspaceId } : {}),
       ...(id ? { id } : {}),
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
-  }, [data.id, data.path, data.title, data.type, files, knowledgeBases, tables, workflows])
+  }, [
+    data.id,
+    data.path,
+    data.title,
+    data.type,
+    files,
+    knowledgeBases,
+    tables,
+    workflows,
+    addressed,
+    workspaceId,
+  ])
 
   const context = toChatMessageContext(data, resource.title)
 
@@ -2002,11 +2082,12 @@ function getCredentialProviderDisplayName(provider: string): string {
  */
 interface CredentialControlProps {
   data: CredentialItemData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   controlId?: string
   embedded?: boolean
   divided?: boolean
   secretValue?: string
+  disabled?: boolean
   onSecretValueChange?: (value: string) => void
   onSaved?: () => void
   onConnected?: () => void
@@ -2022,11 +2103,11 @@ interface CredentialControlProps {
  * secret, so no single row can own a description.
  */
 function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const describedByName = useMemo(() => {
     const entries = new Map<string, string>()
     for (const item of items) {
-      if (item.type !== 'secret_input' || item.scope === 'personal') continue
+      if (item.type !== 'secret_input' || (item.scope && item.scope !== 'workspace')) continue
       const name = item.name?.trim()
       const description = item.description?.trim()
       if (name && description) entries.set(name, description)
@@ -2070,9 +2151,10 @@ function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
 }
 
 function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const secretName = (data.name ?? '').trim()
-  const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
+  const scope = data.scope ?? 'workspace'
+  const organizationSecretInput = useOrganizationSecretInput()
 
   const [value, setValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
@@ -2080,16 +2162,18 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
 
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const personalQuery = usePersonalEnvironment()
+  const personalQuery = usePersonalEnvironment({ enabled: scope === 'personal' })
   const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
   const attachDescriptions = useWorkspaceSecretDescriptions(useMemo(() => [data], [data]))
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
-  const canManage = scope === 'personal' || canEdit
+  const canManage =
+    scope === 'organization' ? Boolean(organizationSecretInput) : scope === 'personal' || canEdit
 
-  const isSaving = upsertWorkspace.isPending || savePersonal.isPending
+  const isSaving =
+    upsertWorkspace.isPending || savePersonal.isPending || organizationSecretInput?.isSaving
   // Personal saves replace the whole map, so block until existing vars are loaded.
   const personalReady = scope !== 'personal' || personalEnv !== undefined
   const canSave =
@@ -2098,7 +2182,10 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
   const handleSave = async () => {
     if (!canSave) return
     try {
-      if (scope === 'personal') {
+      if (scope === 'organization') {
+        if (!organizationSecretInput) return
+        await organizationSecretInput.save({ [secretName]: value })
+      } else if (scope === 'personal') {
         // The personal POST replaces the whole map, so re-read the latest vars
         // right before merging — a stale snapshot would drop keys saved elsewhere.
         const { data: latest } = await personalQuery.refetch()
@@ -2131,6 +2218,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
       divided={divided}
       type='text'
       value={isFocused ? value : '•'.repeat(value.length)}
+      disabled={isSaving}
       placeholder={`Paste ${secretName}`}
       autoComplete='off'
       aria-label={secretName}
@@ -2178,6 +2266,7 @@ interface CredentialSecretInputRowProps {
   name: string
   value: string
   divided?: boolean
+  disabled?: boolean
   onChange: (value: string) => void
 }
 
@@ -2186,6 +2275,7 @@ function CredentialSecretInputRow({
   name,
   value,
   divided = false,
+  disabled = false,
   onChange,
 }: CredentialSecretInputRowProps) {
   const [isFocused, setIsFocused] = useState(false)
@@ -2193,6 +2283,7 @@ function CredentialSecretInputRow({
   return (
     <InteractionCardInputRow
       divided={divided}
+      disabled={disabled}
       type='text'
       value={isFocused ? value : '•'.repeat(value.length)}
       placeholder={`Paste ${name}`}
@@ -2362,7 +2453,7 @@ function ServiceAccountConnectDisplay({
   divided = false,
   onConnected,
 }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const { canEdit } = useUserPermissionsContext()
   const [open, setOpen] = useState(false)
   const [locallyConnected, setLocallyConnected] = useState(false)
@@ -2527,7 +2618,7 @@ function PersonalCredentialLinkDisplay({
   divided = false,
   onConnected,
 }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const { canEdit } = useUserPermissionsContext()
   const [tokenModalOpen, setTokenModalOpen] = useState(false)
   const provider = data.provider?.trim() ?? ''
@@ -2665,7 +2756,7 @@ const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
 function isCredentialCardItemVisible(
   item: CredentialItemData,
   canEdit: boolean,
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
 ): boolean {
   if (requestMode === 'assistant')
     return (
@@ -2674,7 +2765,8 @@ function isCredentialCardItemVisible(
       (item.provider?.trim().toLowerCase() !== 'gitlab' || canEdit)
     )
   if (item.type === 'sim_key') return false
-  if (item.type === 'secret_input') return item.scope === 'personal' || canEdit
+  if (item.type === 'secret_input')
+    return item.scope === 'personal' || item.scope === 'organization' || canEdit
   if (item.type === 'link') {
     return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
   }
@@ -2685,7 +2777,7 @@ function isCredentialCardItemVisible(
 export function credentialTagHasVisibleCard(
   data: CredentialTagData,
   canEdit: boolean,
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
 ): boolean {
   return (
     data.length > 0 &&
@@ -2701,6 +2793,7 @@ function CredentialItemDisplay({
   embedded = false,
   divided = false,
   secretValue,
+  disabled,
   onSecretValueChange,
   onSaved,
   onConnected,
@@ -2708,6 +2801,7 @@ function CredentialItemDisplay({
   const { organizationId } = useParams<{ organizationId?: string }>()
   const { SearchConnectionComponent } = useChatSurface()
   const { data: session } = useSession()
+  const organizationSecretInput = useOrganizationSecretInput()
   if (
     requestMode === 'assistant' &&
     data.type !== 'link' &&
@@ -2724,12 +2818,19 @@ function CredentialItemDisplay({
           name={secretName}
           value={secretValue ?? ''}
           divided={divided}
+          disabled={disabled}
           onChange={onSecretValueChange}
         />
       )
     }
     return (
-      <SecretInputDisplay data={data} embedded={embedded} divided={divided} onSaved={onSaved} />
+      <SecretInputDisplay
+        key={data.scope === 'organization' ? organizationSecretInput?.sourceKey : undefined}
+        data={data}
+        embedded={embedded}
+        divided={divided}
+        onSaved={onSaved}
+      />
     )
   }
 
@@ -2815,30 +2916,47 @@ function CredentialInputCard({
   onContinue,
 }: {
   data: CredentialTagData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   interactionId?: string
   submitted?: CredentialSubmissionPayload
   abandoned?: boolean
   onContinue?: (message: string) => void
 }) {
-  const { workspaceId, organizationId } = useParams<{
-    workspaceId: string
-    organizationId?: string
-  }>()
+  const workspaceId = useCredentialWorkspaceId()
+  const { organizationId } = useParams<{ organizationId?: string }>()
   const { data: session } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const personalQuery = usePersonalEnvironment({ enabled: requestMode !== 'assistant' })
+  const organizationSecretInput = useOrganizationSecretInput()
+  const personalQuery = usePersonalEnvironment({
+    enabled:
+      requestMode !== 'assistant' &&
+      data.some((item) => item.type === 'secret_input' && item.scope === 'personal'),
+  })
   const attachDescriptions = useWorkspaceSecretDescriptions(requestMode === 'assistant' ? [] : data)
-  const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
-  const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
+  const organizationSourceKey = organizationSecretInput?.sourceKey
+  const currentOrganizationSource = useRef(organizationSourceKey)
+  const [secretState, setSecretState] = useState(() => ({
+    organizationSourceKey,
+    drafts: {} as Record<number, string>,
+    savedRows: new Set<number>(),
+  }))
+  const { drafts: secretDrafts, savedRows: savedSecretRows } = secretState
   const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
     () => new Set()
   )
   const [locallySubmitted, setLocallySubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const controlIdPrefix = interactionId ?? 'credential-card'
+
+  /** Async submissions compare against the committed source, including unmount. */
+  useLayoutEffect(() => {
+    currentOrganizationSource.current = organizationSourceKey
+    return () => {
+      currentOrganizationSource.current = undefined
+    }
+  }, [organizationSourceKey])
 
   /**
    * An abandoned card recaps from progress its rows made, but it replaces those
@@ -2913,8 +3031,32 @@ function CredentialInputCard({
       item.type === 'link' || item.type === 'service_account' ? integrationIndex++ : undefined,
     secretIndex: item.type === 'secret_input' ? secretIndex++ : undefined,
   }))
-  const visibleRows = indexedRows.filter(({ item }) =>
-    isCredentialCardItemVisible(item, canEdit, requestMode)
+  const organizationSecretIndexes = indexedRows.flatMap(({ item, secretIndex }) =>
+    item.type === 'secret_input' && item.scope === 'organization' && secretIndex !== undefined
+      ? [secretIndex]
+      : []
+  )
+  if (secretState.organizationSourceKey !== organizationSourceKey) {
+    setSecretState({
+      organizationSourceKey,
+      drafts: omit(secretDrafts, organizationSecretIndexes),
+      savedRows:
+        submitted || abandoned || locallySubmitted
+          ? savedSecretRows
+          : new Set(
+              [...savedSecretRows].filter((index) => !organizationSecretIndexes.includes(index))
+            ),
+    })
+  }
+  const visibleRows = indexedRows.filter(
+    ({ item }) =>
+      isCredentialCardItemVisible(item, canEdit, requestMode) &&
+      (item.type !== 'secret_input' ||
+        item.scope !== 'organization' ||
+        organizationSecretInput ||
+        submitted ||
+        abandoned ||
+        locallySubmitted)
   )
   if (visibleRows.length === 0) return null
 
@@ -2948,11 +3090,25 @@ function CredentialInputCard({
       />
     )),
     ...secretRows.map(({ item, dataIndex, secretIndex }, index) => {
+      if (secretIndex !== undefined && savedSecretRows.has(secretIndex))
+        return (
+          <div
+            key={`saved-${dataIndex}`}
+            className={cn(
+              INTERACTION_CARD_ROW_CLASSES,
+              (integrationRows.length > 0 || index > 0) && 'border-t'
+            )}
+          >
+            <span className='flex-1 text-sm'>{item.name}</span>
+            <span className='text-[var(--text-muted)] text-sm'>Added</span>
+          </div>
+        )
       return (
         <CredentialItemDisplay
           key={`${item.type}-${item.name ?? dataIndex}-${dataIndex}`}
           data={item}
           embedded
+          disabled={isSubmitting}
           divided={integrationRows.length > 0 || index > 0}
           secretValue={
             item.type === 'secret_input' ? (secretDrafts[secretIndex ?? -1] ?? '') : undefined
@@ -2960,9 +3116,9 @@ function CredentialInputCard({
           onSecretValueChange={
             item.type === 'secret_input' && secretIndex !== undefined
               ? (value) =>
-                  setSecretDrafts((current) => ({
+                  setSecretState((current) => ({
                     ...current,
-                    [secretIndex]: value,
+                    drafts: { ...current.drafts, [secretIndex]: value },
                   }))
               : undefined
           }
@@ -2976,47 +3132,93 @@ function CredentialInputCard({
 
     const workspaceVariables: Record<string, string> = {}
     const personalVariables: Record<string, string> = {}
-    const enteredSecretIndexes: number[] = []
+    const organizationVariables: Record<string, string> = {}
 
     for (const { item, secretIndex } of secretRows) {
       if (secretIndex === undefined) continue
       const name = item.name?.trim()
       const value = secretDrafts[secretIndex] ?? ''
       if (!name || value.trim().length === 0) continue
-      const target = item.scope === 'personal' ? personalVariables : workspaceVariables
+      const target =
+        item.scope === 'organization'
+          ? organizationVariables
+          : item.scope === 'personal'
+            ? personalVariables
+            : workspaceVariables
       target[name] = value
-      enteredSecretIndexes.push(secretIndex)
     }
-
-    try {
-      const saves: Promise<unknown>[] = []
-      if (Object.keys(workspaceVariables).length > 0) {
-        saves.push(upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables }))
-      }
-      if (Object.keys(personalVariables).length > 0) {
-        saves.push(
-          (async () => {
-            const { data: latest } = await personalQuery.refetch()
-            const merged: Record<string, string> = {}
-            for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
-              merged[key] = entry.value
-            }
-            Object.assign(merged, personalVariables)
-            await savePersonal.mutateAsync({ variables: merged })
-          })()
-        )
-      }
-      await Promise.all(saves)
-    } catch {
-      toast.error(`Couldn't save secrets. Please try again.`)
-      return false
-    }
-
-    await attachDescriptions(Object.keys(workspaceVariables))
 
     const nextSavedSecretRows = new Set(savedSecretRows)
-    for (const index of enteredSecretIndexes) nextSavedSecretRows.add(index)
-    setSavedSecretRows(nextSavedSecretRows)
+    const saveGroup = async (
+      scope: SecretInputScope,
+      variables: Record<string, string>,
+      save: () => Promise<unknown>
+    ) => {
+      await save()
+      for (const { item, secretIndex } of secretRows) {
+        if (
+          secretIndex !== undefined &&
+          (item.scope ?? 'workspace') === scope &&
+          Object.hasOwn(variables, item.name?.trim() ?? '')
+        )
+          nextSavedSecretRows.add(secretIndex)
+      }
+      if (scope === 'workspace') await attachDescriptions(Object.keys(variables))
+    }
+
+    const saves: Promise<unknown>[] = []
+    if (Object.keys(organizationVariables).length > 0) {
+      if (!organizationSecretInput) return false
+      saves.push(
+        saveGroup('organization', organizationVariables, () =>
+          organizationSecretInput.save(organizationVariables)
+        )
+      )
+    }
+    if (Object.keys(workspaceVariables).length > 0) {
+      saves.push(
+        saveGroup('workspace', workspaceVariables, () =>
+          upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables })
+        )
+      )
+    }
+    if (Object.keys(personalVariables).length > 0) {
+      saves.push(
+        saveGroup('personal', personalVariables, async () => {
+          const { data: latest } = await personalQuery.refetch()
+          const merged: Record<string, string> = {}
+          for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
+            merged[key] = entry.value
+          }
+          Object.assign(merged, personalVariables)
+          await savePersonal.mutateAsync({ variables: merged })
+        })
+      )
+    }
+    const results = await Promise.allSettled(saves)
+    setSecretState((current) => {
+      const completedRows = [...nextSavedSecretRows].filter(
+        (index) =>
+          current.organizationSourceKey === organizationSourceKey ||
+          !organizationSecretIndexes.includes(index)
+      )
+      return {
+        ...current,
+        savedRows: new Set([...current.savedRows, ...completedRows]),
+        drafts: omit(current.drafts, completedRows),
+      }
+    })
+    if (results.some((result) => result.status === 'rejected')) {
+      toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
+      return false
+    }
+    if (
+      currentOrganizationSource.current !== organizationSourceKey &&
+      organizationSecretIndexes.some((index) => nextSavedSecretRows.has(index))
+    ) {
+      toast.error('Generic Secrets changed. Review the remaining entries before submitting.')
+      return false
+    }
 
     onContinue(
       formatCredentialSubmissionMessage(data, {
@@ -3086,7 +3288,70 @@ function CredentialInputCard({
   )
 }
 
-export function CredentialDisplay({
+/** Workspace credential controls in organization chat require one explicit, authorized target. */
+export function CredentialDisplay(props: Parameters<typeof CredentialDisplayContent>[0]) {
+  const { organizationId, workspaceId } = useParams<{
+    organizationId?: string
+    workspaceId?: string
+  }>()
+  if (props.requestMode === 'assistant') return <CredentialDisplayContent {...props} />
+  const organizationSecrets = props.data.filter(
+    (item) => item.type === 'secret_input' && item.scope === 'organization'
+  )
+  if (
+    organizationSecrets.length > 0 &&
+    (!organizationId || organizationSecrets.some((item) => item.workspaceId))
+  )
+    return (
+      <p role='status'>
+        Organization Generic Secrets require an organization conversation and no workspace target.
+      </p>
+    )
+  const targeted = props.data.filter(
+    (item) =>
+      item.type === 'link' ||
+      item.type === 'service_account' ||
+      item.type === 'sim_key' ||
+      (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
+  )
+  const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
+  const target = targets.values().next().value
+  const mismatchedLink =
+    Boolean(organizationId) &&
+    targeted.some((item) => {
+      if (item.type !== 'link' || !item.value) return false
+      try {
+        return new URL(item.value).searchParams.get('workspaceId') !== item.workspaceId
+      } catch {
+        return true
+      }
+    })
+  const invalid =
+    mismatchedLink ||
+    targets.size > 1 ||
+    (organizationId && targeted.some((item) => !item.workspaceId)) ||
+    (!organizationId && target && target !== workspaceId)
+  if (invalid)
+    return <p role='status'>This credential request needs one explicit workspace target.</p>
+  const content =
+    organizationSecrets.length > 0 && !props.submitted && !props.abandoned ? (
+      <OrganizationSecretInputHost organizationId={organizationId ?? ''}>
+        <CredentialDisplayContent {...props} />
+      </OrganizationSecretInputHost>
+    ) : (
+      <CredentialDisplayContent {...props} />
+    )
+  if (organizationId && target) {
+    return (
+      <CredentialWorkspaceHost key={target} workspaceId={target} organizationId={organizationId}>
+        {content}
+      </CredentialWorkspaceHost>
+    )
+  }
+  return content
+}
+
+function CredentialDisplayContent({
   data,
   requestMode,
   interactionId,
@@ -3095,7 +3360,7 @@ export function CredentialDisplay({
   onContinue,
 }: {
   data: CredentialTagData
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   interactionId?: string
   submitted?: CredentialSubmissionPayload
   abandoned?: boolean
@@ -3162,7 +3427,8 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
-  const hostContext = useWorkspaceHostContext()
+  const hostContext = useOptionalWorkspaceHostContext()
+  const organizationContext = useOptionalOrganizationContext()
   const { getSettingsHref } = useSettingsNavigation()
   const { hosted } = useDeploymentShape()
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
@@ -3170,17 +3436,25 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   // Self-hosted plan and limit both live on the hosted account, so local
   // workspace billing roles say nothing about who may change them.
   const href = hosted
-    ? getSettingsHref({ section: 'billing' })
+    ? organizationContext
+      ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
+      : getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
-  const canManageBilling = !hosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
+  const canManageBilling =
+    !hosted ||
+    (organizationContext
+      ? organizationContext.viewer.isAdmin
+      : Boolean(hostContext && canManageWorkspaceBilling(hostContext, session?.user?.id)))
   const usageGate = useWorkspaceUsageGate(
-    data.action === 'increase_limit' && !canManageBilling ? hostContext.workspace.id : undefined
+    data.action === 'increase_limit' && !canManageBilling ? hostContext?.workspace.id : undefined
   )
-  const unavailableMessage = hostContext.hostOrganizationId
-    ? 'Contact an organization admin to manage this workspace’s usage limits.'
-    : 'Only the workspace owner can manage this workspace’s usage limits.'
+  const unavailableMessage = organizationContext
+    ? 'Contact an organization admin to manage usage limits.'
+    : hostContext?.hostOrganizationId
+      ? 'Contact an organization admin to manage this workspace’s usage limits.'
+      : 'Only the workspace owner can manage this workspace’s usage limits.'
 
   return (
     <div className='rounded-2xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
@@ -3221,7 +3495,8 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       ) : (
         <div className='mt-2 flex flex-col items-start gap-2'>
           <p className='text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
-          {usageGate.isSuccess &&
+          {hostContext &&
+            usageGate.isSuccess &&
             usageGate.data.isExceeded &&
             usageGate.data.scope === 'member' && (
               <MemberLimitRequestAction

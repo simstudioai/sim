@@ -10,8 +10,8 @@ afterEach(() => {
 })
 
 describe('credential group OAuth completion', () => {
-  it.each([undefined, 'denied', 'configuration_changed'] as const)(
-    'publishes %s to only its initiating tab and closes',
+  it.each([undefined, 'failed', 'denied', 'configuration_changed'] as const)(
+    'publishes %s to only its initiating tab and keeps failures visible',
     (failure) => {
       const postMessage = vi.fn()
       const closeChannel = vi.fn()
@@ -40,7 +40,8 @@ describe('credential group OAuth completion', () => {
         expect(names).toEqual([`sim:credential-group-oauth:${completionId}`])
         expect(postMessage).toHaveBeenCalledExactlyOnceWith(failure ?? 'connected')
         expect(closeChannel).toHaveBeenCalledOnce()
-        expect(closeWindow).toHaveBeenCalledOnce()
+        if (failure) expect(closeWindow).not.toHaveBeenCalled()
+        else expect(closeWindow).toHaveBeenCalledOnce()
       } finally {
         act(() => root.unmount())
       }

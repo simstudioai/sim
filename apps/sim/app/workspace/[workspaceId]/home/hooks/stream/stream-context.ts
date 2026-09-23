@@ -1,11 +1,11 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import type { RevealedSimKeysByMessage } from '@/lib/copilot/chat/sim-key-redaction'
-import { captureRevealedSimKeys } from '@/lib/copilot/chat/sim-key-redaction'
-import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
-import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-redaction'
+import { captureRevealedSimKeys } from '@/lib/mothership/chat/sim-key-redaction'
+import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import {
   createTurnModel,
   type TurnModel,
@@ -15,6 +15,7 @@ import {
   modelMainText,
   modelToContentBlocks,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
+import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
   ChatMessage,
   ContentBlock,
@@ -67,8 +68,12 @@ export interface StreamLoopState {
    */
   model: TurnModel
   streamRequestId: string | undefined
+  /** Search tab opened during this turn, even before React commits it to resourcesRef. */
+  liveSearchResource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'> | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
+  /** The terminal complete frame's status — the SERVER's verdict on the turn. */
+  completionStatus: 'complete' | 'error' | 'cancelled' | null
   browserAgentRunIds: Set<string>
   scheduledTextFlushFrame: number | null
   /** Trailing timer for the min-interval text-flush gate (see flushText). */
@@ -82,9 +87,12 @@ export interface StreamEventScope {
 }
 
 export interface StreamLoopDeps {
+  viewerId?: string
+  citedSourcesEnabled?: boolean
   workspaceId?: string
   organizationId?: string
   queryClient: QueryClient
+  refreshRoute?: () => void
   assistantId: string
   expectedGen: number | undefined
   options: StreamLoopOptions
@@ -98,7 +106,11 @@ export interface StreamLoopDeps {
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
   addResource: (resource: MothershipResourceUpdate) => boolean
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  removeResource: (
+    resourceType: MothershipResourceType,
+    resourceId: string,
+    workspaceId?: string
+  ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientBrowserTool: (
@@ -165,7 +177,7 @@ export interface StreamLoopDeps {
   onToolResultRef: MutableRefObject<
     ((toolName: string, success: boolean, result: unknown) => void) | undefined
   >
-  onResourceEventRef: MutableRefObject<((resourceId: string) => void) | undefined>
+  onResourceEventRef: MutableRefObject<ResourceEventHandler | undefined>
   previewSessionRef: MutableRefObject<FilePreviewSession | null>
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>
@@ -209,8 +221,10 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       ? contentBlocksToModel(deps.streamingBlocksRef.current)
       : createTurnModel(),
     streamRequestId: undefined,
+    liveSearchResource: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
+    completionStatus: null,
     browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,
     scheduledTextFlushTimer: null,
@@ -242,7 +256,10 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     if (isStale()) return
     // The model is authoritative: serialize it to the persisted/rendered block
     // shape and main-lane content for every snapshot write.
-    const modelBlocks = modelToContentBlocks(state.model)
+    const modelBlocks = modelToContentBlocks(state.model, {
+      workspaceId: deps.workspaceId,
+      resources: deps.resourcesRef.current,
+    })
     const modelContent = modelMainText(state.model)
     deps.streamingBlocksRef.current = modelBlocks
     deps.streamingContentRef.current = modelContent

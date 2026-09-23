@@ -17,7 +17,7 @@ export const POST = defineV2JsonRoute({
   parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
   mapInput: ({ body }) => body,
   useCase: importWorkflow,
-  present: ({ workflow, folderPath, operation }) => ({
+  present: ({ workflow, folderPath, operation, warnings }) => ({
     data: {
       ...operation,
       id: workflow.id,
@@ -27,6 +27,8 @@ export const POST = defineV2JsonRoute({
       folderPath,
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
+      blocks: workflow.blocks,
+      warnings,
     },
   }),
 })

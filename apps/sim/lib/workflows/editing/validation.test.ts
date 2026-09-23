@@ -2,8 +2,10 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTuningOptionsForModel } from '@/lib/workflows/blocks/fallback-models'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { getThinkingLevelsForModel } from '@/providers/models'
 import { normalizeConditionRouterIds } from './builders'
 
@@ -188,6 +190,17 @@ const mothershipBlockConfig = {
   ],
 }
 
+// Mirrors table_v2: a JSON-language code field beside a plain code field.
+const jsonCodeBlockConfig = {
+  type: 'json_code_block',
+  name: 'JSON Code Block',
+  outputs: {},
+  subBlocks: [
+    { id: 'filter', type: 'code', language: 'json' },
+    { id: 'script', type: 'code' },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -244,6 +257,7 @@ const blockConfigsByType: Record<string, unknown> = {
   throw_selector_block: throwSelectorBlockConfig,
   generic_webhook: genericWebhookBlockConfig,
   mothership: mothershipBlockConfig,
+  json_code_block: jsonCodeBlockConfig,
 }
 
 vi.mock('@/blocks/registry', () => ({
@@ -270,6 +284,8 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
+vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn(async () => null) }))
+
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: (toolCall: unknown) =>
     typeof toolCall === 'object' &&
@@ -283,6 +299,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
+import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import {
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
@@ -431,6 +448,78 @@ describe('validateInputsForBlock', () => {
     const result = validateInputsForBlock('condition', { conditions: 'not-json' }, 'condition-1')
 
     expect(result.validInputs.conditions).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a JSON array')
+  })
+
+  it.each([
+    ['a JSON string', JSON.stringify([{ title: 'Billing', value: 'Invoices and payments' }])],
+    [
+      'a raw array with optional ids',
+      [
+        { id: 'r-1', title: 'Billing', value: 'Invoices and payments' },
+        { title: 'Other', value: 'Everything else' },
+      ],
+    ],
+  ])('accepts router routes shaped {id?, title, value} given as %s', (_label, routes) => {
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.routes).toEqual(routes)
+  })
+
+  /**
+   * The runtime shows the model each route's `value` as its description. A
+   * route stored as `{title, description}` reads as having no description, so
+   * every request falls through to route 1 — silently, unless the key is named.
+   */
+  it('rejects a router route that carries its description under an unknown key', () => {
+    const result = validateInputsForBlock(
+      'router_v2',
+      {
+        routes: [
+          { id: 'r-1', title: 'Billing', value: 'Invoices and payments' },
+          { id: 'r-2', title: 'Support', description: 'Help requests' },
+        ],
+      },
+      'router-1'
+    )
+
+    expect(result.validInputs.routes).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'router-1', field: 'routes' })
+    expect(result.errors[0]?.error).toBe(
+      'Invalid route at index 1: missing "value", unknown key "description" — a route is {id?, title, value}; "value" holds the description the model reads'
+    )
+  })
+
+  it.each([
+    ['an empty value', [{ title: 'Billing', value: '' }], '"value" must be a non-empty string'],
+    ['a missing title', [{ value: 'Invoices' }], '"title" must be a non-empty string'],
+    ['a non-object entry', ['Billing'], 'expected an object'],
+  ])('rejects router routes with %s', (_label, routes, message) => {
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.validInputs.routes).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('Invalid route at index 0')
+    expect(result.errors[0]?.error).toContain(message)
+  })
+
+  it('tolerates editor UI state beside a complete route so stored routes round-trip', () => {
+    const routes = [
+      { id: 'r-1', title: 'Billing', value: 'Invoices', showTags: false, cursorPosition: 0 },
+    ]
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.routes).toEqual(routes)
+  })
+
+  it('rejects non-array router-input values', () => {
+    const result = validateInputsForBlock('router_v2', { routes: 'not-json' }, 'router-1')
+
+    expect(result.validInputs.routes).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('expected a JSON array')
   })
@@ -1233,6 +1322,23 @@ describe('collectUnresolvedReferences', () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
   })
 
+  it('propagates an unavailable credential lookup only for a complete diagnostic', async () => {
+    const state = {
+      blocks: {
+        b1: { type: 'slack', subBlocks: { credential: { value: 'cred-1' } } },
+      },
+    }
+    mockValidateSelectorIds.mockRejectedValueOnce(new Error('lookup unavailable'))
+    await expect(
+      collectUnresolvedReferences(state, CTX, { requireComplete: true })
+    ).rejects.toThrow('lookup unavailable')
+    expect(mockValidateSelectorIds).toHaveBeenLastCalledWith('oauth-input', 'cred-1', CTX, {
+      requireComplete: true,
+    })
+    mockValidateSelectorIds.mockRejectedValueOnce(new Error('lookup unavailable'))
+    await expect(collectUnresolvedReferences(state, CTX)).resolves.toEqual([])
+  })
+
   it('flags a basic-mode credential that does not resolve (kind: credential)', async () => {
     mockValidateSelectorIds.mockResolvedValue({
       valid: [],
@@ -1287,6 +1393,38 @@ describe('collectUnresolvedReferences', () => {
     expect(mockValidateSelectorIds).not.toHaveBeenCalled()
   })
 
+  it('validates active manual references only when complete diagnostics are requested', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['manual-credential'] })
+    const state = {
+      blocks: {
+        c1: {
+          type: 'canonicalcred',
+          subBlocks: {
+            credential: { value: '' },
+            manualCredential: { value: 'manual-credential' },
+          },
+        },
+      },
+    }
+    await expect(collectUnresolvedReferences(state, CTX)).resolves.toEqual([])
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+    await expect(
+      collectUnresolvedReferences(state, CTX, { requireComplete: true })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        field: 'manualCredential',
+        value: 'manual-credential',
+        kind: 'credential',
+      }),
+    ])
+    expect(mockValidateSelectorIds).toHaveBeenCalledExactlyOnceWith(
+      'oauth-input',
+      'manual-credential',
+      CTX,
+      { requireComplete: true }
+    )
+  })
+
   it('validates the active basic credential member', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['good-but-missing'] })
     const state = {
@@ -1300,7 +1438,7 @@ describe('collectUnresolvedReferences', () => {
       },
     }
     const refs = await collectUnresolvedReferences(state, CTX)
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX, {})
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
   })
@@ -1566,6 +1704,71 @@ describe('collectUnresolvedAgentToolReferences', () => {
     mockGetSkillById.mockResolvedValue(null)
   })
 
+  it.each(['custom-tool', 'mcp', 'skill', 'credential'])(
+    'a real lint report cannot hide an unavailable %s lookup in complete mode',
+    async (kind) => {
+      const isCredential = kind === 'credential'
+      const field = kind === 'skill' ? 'skills' : isCredential ? 'credential' : 'tools'
+      const lookup =
+        kind === 'custom-tool'
+          ? mockGetCustomToolById
+          : kind === 'skill'
+            ? mockGetSkillById
+            : mockValidateSelectorIds
+      const value =
+        kind === 'custom-tool'
+          ? [{ type: 'custom-tool', customToolId: 'tool-1' }]
+          : kind === 'mcp'
+            ? [{ type: 'mcp', params: { serverId: 'server-1' } }]
+            : kind === 'skill'
+              ? [{ skillId: 'skill-1' }]
+              : 'cred-1'
+      const graph: Pick<WorkflowState, 'blocks' | 'edges'> = {
+        blocks: {
+          b1: {
+            id: 'b1',
+            type: isCredential ? 'slack' : 'agent',
+            name: 'Block',
+            enabled: true,
+            position: { x: 0, y: 0 },
+            outputs: {},
+            subBlocks: {
+              [field]: {
+                id: field,
+                type: isCredential
+                  ? 'oauth-input'
+                  : kind === 'skill'
+                    ? 'skill-input'
+                    : 'tool-input',
+                value,
+              },
+            },
+          },
+        },
+        edges: [],
+      }
+      const scope = { workflowId: 'wf-1', workspaceId: CTX.workspaceId, subjectUserId: CTX.userId }
+      lookup.mockRejectedValueOnce(new Error('private database details'))
+      await expect(
+        buildWorkflowLintReport(graph, scope, { requireComplete: true })
+      ).rejects.toThrow(
+        'Workflow reference checks could not complete; retry when lookup is available'
+      )
+      if (kind === 'mcp' || isCredential) {
+        expect(mockValidateSelectorIds).toHaveBeenLastCalledWith(
+          isCredential ? 'oauth-input' : 'mcp-server-selector',
+          isCredential ? 'cred-1' : 'server-1',
+          CTX,
+          { requireComplete: true }
+        )
+      }
+      lookup.mockRejectedValueOnce(new Error('private database details'))
+      await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({
+        unresolvedReferences: [],
+      })
+    }
+  )
+
   it('flags a custom tool whose customToolId does not resolve', async () => {
     mockGetCustomToolById.mockResolvedValue(null)
     const state = {
@@ -1650,7 +1853,12 @@ describe('collectUnresolvedAgentToolReferences', () => {
     const refs = await collectUnresolvedAgentToolReferences(state, CTX)
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'tools', kind: 'mcp-tool' })
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('mcp-server-selector', 'srv_missing', CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'mcp-server-selector',
+      'srv_missing',
+      CTX,
+      {}
+    )
   })
 
   it('defers an advanced MCP server reference until workflow execution', async () => {
@@ -1714,5 +1922,69 @@ describe('collectUnresolvedAgentToolReferences', () => {
     const refs = await collectUnresolvedAgentToolReferences(state, CTX)
     expect(refs).toHaveLength(0)
     expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateInputsForBlock - code fields', () => {
+  it('stores an object handed to a JSON-language code field as its JSON text', () => {
+    const filter = { field: 'wins', op: 'gte', value: 10 }
+
+    const result = validateInputsForBlock('json_code_block', { filter }, 'block-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.filter).toBe(JSON.stringify(filter))
+  })
+
+  it('stores an array handed to a JSON-language code field as its JSON text', () => {
+    const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+
+    const result = validateInputsForBlock('json_code_block', { filter: rows }, 'block-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.filter).toBe(JSON.stringify(rows))
+  })
+
+  it('still rejects an object for a code field without a JSON language', () => {
+    const result = validateInputsForBlock('json_code_block', { script: { not: 'code' } }, 'block-1')
+
+    expect(result.validInputs.script).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a string, got object')
+  })
+})
+
+describe('validateInputsForBlock conditional declarations', () => {
+  it('validates the real video catalog against explicit provider and model selectors', () => {
+    const original = blockConfigsByType.video_generator_v3
+    blockConfigsByType.video_generator_v3 = VideoGeneratorV3Block
+    try {
+      const selectors = { provider: 'falai', model: 'veo-3.1-fast' }
+      const valid = validateInputsForBlock(
+        'video_generator_v3',
+        { duration: '4', resolution: '720p', ...selectors },
+        'video-1'
+      )
+      expect(valid.errors).toEqual([])
+      expect(valid.validInputs).toEqual({ duration: '4', resolution: '720p', ...selectors })
+
+      const invalid = validateInputsForBlock(
+        'video_generator_v3',
+        { ...selectors, duration: '20', resolution: '2160p' },
+        'video-1'
+      )
+      expect(invalid.errors.map((error) => error.field)).toEqual(['duration', 'resolution'])
+      expect(invalid.validInputs).toEqual(selectors)
+
+      const edited = validateInputsForBlock(
+        'video_generator_v3',
+        { duration: '4', resolution: '720p' },
+        'video-1',
+        { provider: 'falai', model: 'veo-3.1', duration: '8', resolution: '1080p' }
+      )
+      expect(edited.errors).toEqual([])
+      expect(edited.validInputs).toEqual({ duration: '4', resolution: '720p' })
+    } finally {
+      blockConfigsByType.video_generator_v3 = original
+    }
   })
 })

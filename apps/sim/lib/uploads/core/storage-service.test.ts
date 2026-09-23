@@ -112,6 +112,22 @@ describe('createMultipartUpload', () => {
     expect(mockInsertFileMetadata).not.toHaveBeenCalled()
   })
 
+  it('forwards metadata-free immutable publication to the provider conditional put', async () => {
+    await uploadFile({
+      file: Buffer.from('image'),
+      fileName: 'image.webp',
+      customKey: 'chat-images/chat/request/image.webp',
+      contentType: 'image/webp',
+      context: 'mothership',
+      preserveKey: true,
+      persistMetadata: false,
+      createOnly: true,
+    })
+    expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
+    expect(mockUploadToS3.mock.calls[0][6]).toBeUndefined()
+    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
+  })
+
   it('preserves a pre-reserved create-only identity without registering metadata again', async () => {
     await uploadFile({
       file: Buffer.from('reserved content'),

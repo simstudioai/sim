@@ -4,6 +4,7 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
+import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { TableOperation } from '@/lib/table/application/operations'
 
 export const TABLE_DELEGATION_AUDIENCE = 'sim:tables'
@@ -24,6 +25,12 @@ export const tableDelegationPolicy: WorkspaceDelegationPolicy<TableAuthorization
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: TableAuthorizationContext
   ) {
+    if (
+      isCopilotWorkspaceInvocation(principal) &&
+      principal.workspaceId === context.workspaceId &&
+      principal.resourceScope?.tableId === undefined
+    )
+      return true
     return context.tableId === undefined
       ? principal.resourceScope?.tableId === undefined
       : principal.resourceScope?.tableId === context.tableId

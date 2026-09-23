@@ -354,6 +354,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       workflowId: 'workflow-1',
       status: 'completed',
       output: { result: 'done' },
+      blockOutputs: null,
       error: null,
       durationMs: 42,
     })
@@ -407,6 +408,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
           workflowId: 'workflow-1',
           status: 'completed',
           output: { result: 'done' },
+          blockOutputs: null,
           error: null,
           startedAt: '2026-07-31T00:00:00.000Z',
           endedAt: '2026-07-31T00:00:01.000Z',
@@ -794,12 +796,74 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
-  it('rejects selectedOutputs on a sync request rather than ignoring it', async () => {
-    const res = await callExecute({ selectedOutputs: ['agent_1.content'] })
+  it('returns blockOutputs for selectedOutputs on a sync request', async () => {
+    const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      blocks: { [agentBlockId]: { id: agentBlockId, name: 'Agent 1' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      output: { result: 'done' },
+      logs: [
+        {
+          blockId: agentBlockId,
+          blockName: 'Agent 1',
+          startedAt: 's',
+          endedAt: 'e',
+          durationMs: 5,
+          success: true,
+          output: { content: 'hi', tokens: { total: 7 } },
+        },
+      ],
+      metadata: {
+        duration: 42,
+        startTime: '2026-07-31T00:00:00.000Z',
+        endTime: '2026-07-31T00:00:01.000Z',
+      },
+    })
+
+    const res = await callExecute({
+      input: {},
+      selectedOutputs: ['Agent 1.content', 'Agent 1.absent', agentBlockId],
+    })
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.blockOutputs).toEqual({
+      'Agent 1.content': 'hi',
+      [agentBlockId]: { content: 'hi', tokens: { total: 7 } },
+    })
+  })
+
+  it('rejects a selectedOutputs selector whose block is unknown before running, naming the available blocks', async () => {
+    const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const startBlockId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      blocks: {
+        [agentBlockId]: { id: agentBlockId, name: 'Agent 1' },
+        [startBlockId]: { id: startBlockId, name: 'Start' },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+
+    const res = await callExecute({
+      input: {},
+      selectedOutputs: ['Agent 1.content', 'Agent 2.content'],
+    })
 
     expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('selectedOutputs requires stream: true')
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    const body = await res.json()
+    expect(body.error.message).toBe(
+      'Invalid selectedOutputs: Unknown block "Agent 2" in selector "Agent 2.content". Available blocks: Agent 1, Start'
+    )
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
   it.each(['includeThinking', 'includeToolCalls'])(

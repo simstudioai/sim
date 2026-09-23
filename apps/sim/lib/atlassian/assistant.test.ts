@@ -3,12 +3,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
+import { createConfluenceClient } from '@/lib/internal/confluence/client'
+import { createJiraClient } from '@/lib/internal/jira/client'
 import {
   assertAssistantIntegrationCall,
   isAssistantIntegrationTool,
-} from '@/lib/copilot/assistant/tool-policy'
-import { createConfluenceClient } from '@/lib/internal/confluence/client'
-import { createJiraClient } from '@/lib/internal/jira/client'
+} from '@/lib/mothership/assistant/tool-policy'
 import { getToolMetadata } from '@/tools/metadata'
 import { getToolIds } from '@/tools/tool-ids'
 

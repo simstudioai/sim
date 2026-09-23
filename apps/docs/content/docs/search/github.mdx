@@ -1,129 +1,53 @@
 ---
 title: GitHub
-description: Index repository files with a GitHub App while preserving each person's access
+description: Search GitHub with member accounts or an App restricted to selected repositories
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+GitHub supports **Member accounts** and **GitHub App**. Each person connects their own GitHub account in both modes. Live Search calls GitHub's APIs for issues, code, and repositories on `github.com`.
 
-GitHub Search indexes repository text files and supported PDF and Office documents on `github.com`. An organization admin can install the GitHub App once and use it to index selected repositories. Each person connects their own GitHub account once to search the repositories they can access. Installing the App does not connect teammates or give them the installer's permissions.
+## Member accounts
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. Installation indexing is available for organization Search.
+An admin adds GitHub in **Settings → Sources**, selects **Member accounts**, and saves. Each member connects GitHub from **Integrations**. There is no admin repository selection in this mode: the member's provider access determines what they can search.
 
-## Before you start
-
-The repository must contain at least one commit. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
-
-On Sim Cloud, connect through the Sim Search GitHub App in the setup flow below. If you self-host Sim, a deployment administrator must first [configure GitHub Search](/platform/self-hosting/integrations-oauth#github-search).
-
-To connect an installation for central indexing, you must be a Sim organization admin and either own the GitHub personal account or be an owner of the GitHub organization where the App is installed. You must also be able to read the repository you add.
+Native GitHub qualifiers such as `repo:`, `org:`, and `user:` can narrow an individual search. Without an explicit scope, discovery is bounded to the connected account's first 100 affiliated repositories. Provider search and pagination limits still apply.
 
 ## Add a repository
 
-<Steps>
-<Step>
+For an organization-selected repository boundary, use **GitHub App**:
 
-### Open GitHub setup
+1. Open **Settings → Sources → Add source → GitHub**, choose **GitHub App**, and select **Add repository**.
+2. Connect the GitHub App installation. Choose the account or organization and approve its repository access. An organization owner may need to approve or perform installation.
+3. Choose one repository from the searchable **Repository** picker. Installing on all repositories does not automatically add them all to Search.
+4. Optionally set **Path Filter** and **File Extensions** for code results, then save.
+5. Use **Add repository** again for every additional repository.
+6. Each teammate opens **Integrations → GitHub → Connect** and authorizes their own account.
 
-Open **Settings → Sources → Add source** and select **GitHub**. This opens **Add GitHub repository**. Add one repository per connection; to add another, open **GitHub** from the Sources list and select **Add repository**.
+The App installation and personal authorization are separate. A member connects once per Sim organization; adding another repository reuses that connection. The member never receives the installer's permissions.
 
-</Step>
-<Step>
+GitHub's live code search uses the default branch, so the live source form does not offer a branch setting. Path and extension filters apply to code; they do not narrow issue text by file path.
 
-### Connect GitHub
+## How access and filtering work
 
-Select **Connect GitHub** and approve the requested access on GitHub. If you need to install the App, choose your account or organization and the repositories it can read. Sim automatically returns you to the repository picker when approval finishes. Your open form stays in place.
+Search queries GitHub using the member's connected token. In App mode, Sim scopes the query to configured repositories. For each result, it checks the installation's current repository access, obtains a repository-scoped read token, verifies stable repository and owner identities under both tokens, and applies the source's code filters.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-connect.png" alt="Add GitHub repository with one Connect GitHub action" width={510} height={310} />
+Document reads use the member token and repeat the same boundary checks. A personal repository outside the selected sources is excluded even when the member can read it. Removing a repository from the App or revoking the member's access blocks later requests once GitHub reflects the change.
 
-Sim reuses an eligible installation when one is already available. If you have more than one, choose the GitHub account to use. Only installations on your own account or organizations you own are eligible.
-
-When adding more repositories, your connected GitHub account is already selected. To connect a different organization, open the **GitHub** picker and select **Connect another organization**. Installing on all repositories does not automatically add all of them to Search.
-
-</Step>
-<Step>
-
-### Choose what to index
-
-Search the **Repository** picker and select one repository. It lists repositories available to the selected GitHub installation. Use **Add repository** again to add another.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-repository-picker.png" alt="Searchable repository picker for the connected GitHub account" width={510} height={344} />
-
-Open **More options** if you need a different branch, path or extension filters, or metadata tags.
-
-| Field | What to enter |
-|---|---|
-| Repository | Select a repository available to the connected installation. |
-| Branch | Optional. Leave blank to follow the repository's default branch. |
-| Path Filter | Optional prefix such as `docs/`. |
-| File Extensions | Optional comma-separated list, such as `.md, .txt, .mdx`. |
-
-**Metadata tags** controls the metadata stored with results. Its defaults are suitable for most sources. Select **Add repository** to save the connection.
-
-</Step>
-<Step>
-
-### Connect your account
-
-Teammates open **Integrations** in the main sidebar, select **Connect** beside **GitHub**, and authorize their own GitHub account. Members do not choose repositories or an indexing method.
-
-<Image className="mx-auto h-auto w-full max-w-2xl" src="/static/search/github-member-connect.png" alt="Member Integrations page with one GitHub Connect action" width={550} height={184} />
-
-Each person connects once per Sim organization. When an admin adds another repository, Sim reuses existing member connections and checks each person's access automatically. No additional repository invitation is needed. The member's GitHub row shows their connection status; **Reconnect** appears if authorization needs renewal, and **Disconnect** remains available for their own account.
-
-<Image className="mx-auto h-auto w-full max-w-2xl" src="/static/search/github-member-connected.png" alt="Connected member GitHub account reused across repositories" width={550} height={184} />
-
-The installation can begin indexing as soon as the admin saves a repository. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
-
-Admins can use **Settings → Sources → People**, filter by **GitHub**, then select **Request connections** to request teammates' initial connections. These requests do not grant organization membership.
-
-</Step>
-</Steps>
+There is no content crawl, PDF/Office extraction, embedding, or indexed-document retry in live GitHub Search. Provider search freshness, API limits, and supported search types determine coverage. Code search is not a complete inventory of every file.
 
 ## Manage repositories
 
-Open **Settings → Sources → GitHub** to see the repositories and their sync status. Select **Add repository** to add another, or open an existing repository to inspect **Documents**, edit **Settings**, or review **Sync history**.
-
-<Image className="mx-auto h-auto w-full" src="/static/search/github-repositories.png" alt="Admin GitHub page listing configured repositories and their sync status" width={550} height={306} />
-
-The document filter separates **Failed** processing from intentionally **Skipped** files. Skipped entries explain why they were omitted and do not offer a processing retry. They are reconsidered when the source file changes. Empty files, unsupported binaries, oversized files, and links that do not resolve to files within the repository are skipped. Supported PDFs and Office documents use the shared knowledge-base parser.
-
-<Image className="mx-auto h-auto w-full" src="/static/search/github-skipped-documents.png" alt="Skipped GitHub files with reasons and no Retry action" width={800} height={410} />
-
-A genuine source download failure remains **Failed** and is retried by scheduled connector sync. A processing failure with downloaded content can be retried from the document view.
-
-**Change connection** in a repository's Settings repairs its connection while keeping the same repository. The replacement connection must have access to that repository. To index a different repository, use **Add repository**.
-
-## How access is enforced
-
-GitHub App installation access supplies file contents for indexing. Each reader's own connected GitHub account determines which repository's indexed content they can search. Sim organization admins follow the same rule as other readers.
-
-For installation-indexed sources, Sim checks the installation's current status and verifies repository content access with the reader's GitHub account before returning results or opening indexed content. If GitHub cannot confirm access, that repository's content is withheld. Removing a person's repository access, disconnecting their account, or removing the repository from the App's access prevents subsequent reads once GitHub reflects the change. File edits still appear after background indexing.
-
-This is an installation plus personal authorization flow. GitHub Search does not impersonate everyone in an email domain. [Google Drive delegation and GitLab administrator indexing](/search#choose-the-right-connection-method) use different supported identity and permission models.
+Open **Settings → Sources → GitHub** to add repositories or change their settings. Replace a connection only with one that can access the same configured repository; use **Add repository** for another repository. Removing a source stops subsequent Search access through that source.
 
 ## Troubleshooting
 
 | Problem | Next step |
-|---|---|
-| GitHub is unavailable in Search | Ask your Sim organization admin to enable GitHub under **Settings → Sources**. For self-hosted Sim, also check the [GitHub App configuration](/platform/self-hosting/integrations-oauth#github-search). |
-| Repository cannot be read | Confirm the App is installed on that repository and your GitHub account has access. For SAML organizations, establish your GitHub SSO session before reconnecting. |
-| A teammate cannot authorize the App | Check the GitHub organization's App policies and required approvals. Self-hosted deployments must allow the teammate's account in their App visibility settings. |
-| GitHub approval did not finish | Select **Connect GitHub** again and complete approval. If GitHub requires owner approval, ask an organization owner to install the App first, then retry. Requesting an installation does not complete it. |
-| No approval window opens | Allow pop-ups for Sim in your browser and select **Connect GitHub** again. You can cancel an unfinished connection without losing your repository form. |
-| GitHub does not return to Sim after installation | For self-hosted Sim, verify the App’s **Setup URL** and **Redirect on update** settings. See [GitHub Search configuration](/platform/self-hosting/integrations-oauth#github-search). |
-| Repository is missing or GitHub rejects it | Confirm the repository is included in the selected installation and reopen the picker. Update the source's Repository field after a rename. To index a different repository or one transferred to another owner, use **Add repository** with the appropriate connection. |
-| Your GitHub email does not match | Add and verify the email used by your Sim account in GitHub's email settings, then reconnect. A verified secondary or private email is supported; a public profile email alone is insufficient. |
-| GitHub does not allow Sim to read your email addresses | Ask the GitHub App administrator to enable read access to user email addresses, then reconnect. This is a user permission, separate from repository permissions. |
-| GitHub is temporarily unavailable during authorization | Retry connecting after GitHub recovers or its rate limit resets. |
-| Authorization fails after installation | Return to Sim and start **Connect** there. Do not enable authorization during installation. |
-| Account authorization did not complete | Start the connection again from Sim. If it repeats, contact your organization admin or Sim support. For self-hosted Sim, check the [App callback and credentials](/platform/self-hosting/integrations-oauth#github-search). |
-| GitHub asks for a provider configuration update | An organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected users reconnect GitHub. |
-| Indexed files no longer appear | Confirm your own repository access, App repository selection, and connection status. Installation-indexed content is also withheld when GitHub cannot verify current access; retry once GitHub is available. |
-| Sync is incomplete | Review the source status. Very large Git trees, file size limits, and unreadable files can limit indexing. |
-| Empty repository returns an error | Add an initial commit, then sync again. GitHub does not return a file tree for an uninitialized repository. |
+| --- | --- |
+| GitHub is unavailable | Add the source and check the deployment's GitHub Search App configuration. |
+| Repository missing from the picker | Confirm the installation includes it and that the selected account can read it. |
+| Member cannot find an allowed repository | Confirm both personal access and App installation access. Check GitHub SSO and app policies. |
+| The wrong account is connected | Disconnect or reconnect with the intended GitHub account. |
+| A file does not appear in search | Check the default branch, path/extensions, GitHub code-search behavior, and provider limits. |
+| Installation does not return to Sim | Check the App setup URL and Redirect on update settings. |
+| Reconnect appears | Renew the member grant; changing App permissions may require renewed approval. |
 
-<Callout type="info">
-  GitHub Search covers repository text files and supported PDF, Word, Excel, PowerPoint, and OpenDocument files up to 100 MiB, including symbolic links to files within the same repository. Path and extension filters apply to the link's path. Broken or external links, unsupported binaries, and submodules are not indexed. Issues, pull requests, separate wikis, GitHub Enterprise Server, and `ghe.com` domains are not supported by this connector. Personal access tokens remain available for general knowledge-base connectors, with that knowledge base's access rules.
-</Callout>
+Self-hosted Sim operators configure the App using [GitHub Search setup](/platform/self-hosting/integrations-oauth#github-search). This adapter does not support GitHub Enterprise Server or `ghe.com` hosts. Ordinary GitHub knowledge-base connectors retain their separate indexing behavior.

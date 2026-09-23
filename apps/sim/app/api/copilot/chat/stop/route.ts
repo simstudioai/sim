@@ -4,22 +4,22 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import {
   normalizeMessage,
   type PersistedMessage,
   withStoppedContentBlock,
-} from '@/lib/copilot/chat/persisted-message'
-import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
+} from '@/lib/mothership/chat/persisted-message'
+import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   CopilotChatFinalizeOutcome,
   CopilotStopOutcome,
-} from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -77,6 +77,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
         userMessageId: streamId,
         assistantMessage,
         streamMarkerPolicy: 'active-or-cleared',
+        preferServerReplay: true,
       })
       span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, result.appendedAssistant)
       const stopOutcome = !result.found

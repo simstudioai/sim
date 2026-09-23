@@ -1,14 +1,18 @@
 import { v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
-import { toV2FileText } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/v2/files/[fileId]/text — extract a file's text.
+ *
+ * `[fileId]` is a file id or the file's VFS path, so a Chat upload — absent from
+ * every listing — is readable by the `uploads/<name>` path its upload notice
+ * names. The response echoes the canonical path that was read.
  *
  * Runs on the existing `files.read_content` operation: extracting text reads
  * exactly the bytes that operation already authorizes.
@@ -33,12 +37,12 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
-    fileId: params.fileId,
-    assertedWorkspaceId: query.workspaceId,
+    workspaceId: query.workspaceId,
+    reference: params.fileId,
     maxBytes: query.maxBytes,
     offset: query.offset,
     limit: query.limit,
   }),
   useCase: readWorkspaceFileText,
-  present: (result) => ({ data: toV2FileText(result) }),
+  present: presentWorkspaceFileText,
 })

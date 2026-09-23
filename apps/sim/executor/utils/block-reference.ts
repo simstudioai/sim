@@ -206,6 +206,34 @@ function getSchemaFieldNames(schema: OutputSchema | undefined): string[] {
   return Object.keys(schema)
 }
 
+/**
+ * The output field the executor writes on every block that fails, regardless of
+ * the block's declared schema. Declared here as a string node so `<block.error>`
+ * validates like any declared field: a failed block resolves it to the message,
+ * a successful block resolves it empty instead of raising `InvalidFieldError` —
+ * which is what lets one error collector sit downstream of several error edges.
+ */
+const IMPLICIT_ERROR_OUTPUT_SCHEMA: OutputSchema = { error: { type: 'string' } }
+
+/**
+ * Whether a path that the declared schema rejects is valid through the implicit
+ * `error` output every block carries.
+ */
+function isImplicitErrorPath(pathParts: string[]): boolean {
+  return pathParts[0] === 'error' && isPathInSchema(IMPLICIT_ERROR_OUTPUT_SCHEMA, pathParts)
+}
+
+function assertPathInSchema(
+  blockName: string,
+  pathParts: string[],
+  schema: OutputSchema | undefined
+): void {
+  if (!schema || isPathInSchema(schema, pathParts) || isImplicitErrorPath(pathParts)) {
+    return
+  }
+  throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))
+}
+
 export function resolveBlockReference(
   blockName: string,
   pathParts: string[],
@@ -238,11 +266,8 @@ export function resolveBlockReference(
 
   const value = navigatePath(blockOutput, pathParts, options)
 
-  const schema = context.blockOutputSchemas?.[blockId]
-  if (value === undefined && schema) {
-    if (!isPathInSchema(schema, pathParts)) {
-      throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))
-    }
+  if (value === undefined) {
+    assertPathInSchema(blockName, pathParts, context.blockOutputSchemas?.[blockId])
   }
 
   return { value, blockId }
@@ -273,11 +298,8 @@ export async function resolveBlockReferenceAsync(
 
   const value = await navigatePathAsync(blockOutput, pathParts, resolutionContext)
 
-  const schema = context.blockOutputSchemas?.[blockId]
-  if (value === undefined && schema) {
-    if (!isPathInSchema(schema, pathParts)) {
-      throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))
-    }
+  if (value === undefined) {
+    assertPathInSchema(blockName, pathParts, context.blockOutputSchemas?.[blockId])
   }
 
   return { value, blockId }

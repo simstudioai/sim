@@ -6,6 +6,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -15,7 +16,7 @@ import {
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
   isWorkflowToolExecutionClaimable,
-} from '@/lib/copilot/async-runs/lifecycle'
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   completeClaimedAsyncToolCall,
@@ -24,34 +25,34 @@ import {
   getAsyncToolCall,
   getClaimedWorkflowExecutionId,
   getRunSegment,
-} from '@/lib/copilot/async-runs/repository'
-import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
+} from '@/lib/mothership/async-runs/repository'
+import { CopilotConfirmOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
   retainSealedClientToolContext,
   sealClientToolCompletion,
-} from '@/lib/copilot/request/tools/client-completion-seal.server'
+} from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
-  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
-  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
+  getWorkflowToolLaunchError,
   isWorkflowToolName,
   resolveWorkflowToolTargetId,
-} from '@/lib/copilot/tools/workflow-tools'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+  WORKFLOW_EXECUTION_BUSY,
+  type WorkflowToolLaunchError,
+} from '@/lib/mothership/tools/workflow-tools'
 import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
 
 const logger = createLogger('CopilotConfirmAPI')
@@ -287,16 +288,22 @@ export const POST = withRouteHandler((req: NextRequest) => {
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
         const isNativeClientTool =
-          isBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)
+          isBrowserToolName(existing.toolName) ||
+          isTerminalToolName(existing.toolName) ||
+          existing.toolName === 'import_local_files'
         const isPreclaimNativeTerminalOutcome =
-          (isCurrentBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)) &&
+          (isCurrentBrowserToolName(existing.toolName) ||
+            isTerminalToolName(existing.toolName) ||
+            existing.toolName === 'import_local_files') &&
           existing.status === ASYNC_TOOL_STATUS.pending &&
           isErrorOrCancelledOutcome
         const nativeClaimOwner = isCurrentBrowserToolName(existing.toolName)
           ? DESKTOP_TOOL_CLAIM_OWNER.browser
           : isTerminalToolName(existing.toolName)
             ? DESKTOP_TOOL_CLAIM_OWNER.terminal
-            : undefined
+            : existing.toolName === 'import_local_files'
+              ? DESKTOP_TOOL_CLAIM_OWNER.files
+              : undefined
         const isIndeterminateNativeExit =
           isPreclaimNativeTerminalOutcome &&
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
@@ -313,7 +320,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         let effectiveStatus = status
         let executionId = submittedExecutionId
-        let deploymentError: AsyncWorkflowDeploymentError | undefined
+        let launchError: WorkflowToolLaunchError | undefined
 
         if (isWorkflowTool) {
           const claimedExecutionId = getClaimedWorkflowExecutionId(existing.claimedBy)
@@ -368,25 +375,28 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
           if (
             effectiveStatus === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
-            executionId === undefined &&
-            existing.toolName === 'run_workflow' &&
-            isPlainRecord(existing.args) &&
-            existing.args.async === true
+            executionId === undefined
           ) {
-            deploymentError = getAsyncWorkflowDeploymentError(data)
+            const submittedError = getWorkflowToolLaunchError(data)
+            if (
+              submittedError?.code === WORKFLOW_EXECUTION_BUSY.code ||
+              (existing.toolName === 'run_workflow' &&
+                isPlainRecord(existing.args) &&
+                existing.args.async === true)
+            )
+              launchError = submittedError
           }
         }
 
         span.setAttribute(TraceAttr.ToolConfirmationStatus, effectiveStatus)
         const projected = isWorkflowTool
           ? {
-              message:
-                deploymentError?.message ?? getWorkflowToolCompletionMessage(effectiveStatus),
+              message: launchError?.message ?? getWorkflowToolCompletionMessage(effectiveStatus),
               data: createStructuralWorkflowToolCompletionData(
                 effectiveStatus,
                 workflowId,
                 executionId,
-                deploymentError
+                launchError
               ),
             }
           : {

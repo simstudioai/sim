@@ -23,6 +23,9 @@ interface OrganizationIntegrationsPageProps {
   params: Promise<{ organizationId: string }>
   searchParams: Promise<{
     slack?: string | string[]
+    connectionMode?: string | string[]
+    optionId?: string | string[]
+    provider?: string | string[]
     connectorType?: string | string[]
     connectorId?: string | string[]
     credentialId?: string | string[]
@@ -39,10 +42,17 @@ export default async function OrganizationIntegrationsPage({
   const selection = loadIntegrationConnectionParams(query)
   const connector = SEARCH_CONNECTORS.find((entry) => entry.type === selection.connectorType)
   const requested =
-    selection.connectorType || selection.connectorId || selection.credentialId
+    selection.connectorType ||
+    selection.connectorId ||
+    selection.credentialId ||
+    selection.connectionMode ||
+    selection.optionId ||
+    selection.provider
       ? searchConnectionTargetSchema.safeParse({
           type: 'link',
-          provider: connector?.providerId,
+          ...(selection.connectionMode ? { connectionMode: selection.connectionMode } : {}),
+          ...(selection.optionId ? { optionId: selection.optionId } : {}),
+          provider: selection.provider || connector?.providerId,
           connectorType: selection.connectorType,
           ...(selection.connectorId ? { connectorId: selection.connectorId } : {}),
           ...(selection.credentialId ? { credentialId: selection.credentialId } : {}),

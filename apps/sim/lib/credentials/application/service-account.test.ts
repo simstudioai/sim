@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getActor: vi.fn(),
   deleteRecord: vi.fn(),
   capture: vi.fn(),
+  environment: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -47,11 +48,13 @@ vi.mock('@/lib/credentials/access', () => ({
   },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/environment/utils', () => ({ getEffectiveDecryptedEnv: mocks.environment }))
 
 import {
   createServiceAccountCredentialUseCase,
   deleteCredentialUseCase,
 } from '@/lib/credentials/application/service-account'
+import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
 
 const WORKSPACE_ID = 'workspace-1'
 const workspace = {
@@ -106,6 +109,7 @@ describe('credential service-account application operations', () => {
       providerId: 'zoom-service-account',
       available: true,
     })
+    mocks.environment.mockResolvedValue({ SIGNING: 'secret-signing', BOT: 'secret-bot' })
   })
 
   it('rejects workspace keys before canonical loading on create', async () => {
@@ -156,6 +160,111 @@ describe('credential service-account application operations', () => {
         providerId: 'zoom-service-account',
       })
     )
+  })
+
+  const storedInput = {
+    workspaceId: WORKSPACE_ID,
+    displayName: 'Support bot',
+    storedSlackSecrets: { signingSecretEnvVar: 'SIGNING', botTokenEnvVar: 'BOT' },
+  }
+  const copilotContext = {
+    userId: 'user-1',
+    workspaceId: WORKSPACE_ID,
+    toolCallId: 'tool-1',
+    copilotToolExecution: true,
+  }
+  const connectStored = (context = copilotContext, input = storedInput) =>
+    executeCopilotCredentialUseCase(context, createServiceAccountCredentialUseCase, input)
+
+  it('resolves stored Slack secrets as the delegated user and audits only credential metadata', async () => {
+    await connectStored()
+    expect(mocks.environment).toHaveBeenCalledWith('user-1', WORKSPACE_ID)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        providerId: 'slack-custom-bot',
+        signingSecret: 'secret-signing',
+        botToken: 'secret-bot',
+        displayName: 'Support bot',
+      })
+    )
+    expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('storedSlackSecrets')
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        metadata: expect.objectContaining({
+          operation: 'credentials.service_accounts.create',
+          actor: expect.objectContaining({
+            kind: 'delegated',
+            serviceId: 'copilot',
+            subjectUserId: 'user-1',
+          }),
+        }),
+      })
+    )
+    expect(JSON.stringify(auditMockFns.mockRecordAudit.mock.calls)).not.toContain('secret-signing')
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain('secret-bot')
+  })
+
+  it('rejects forged execution context before canonical loading', async () => {
+    await expect(async () =>
+      connectStored({ ...copilotContext, copilotToolExecution: false })
+    ).rejects.toThrow('trusted')
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.environment).not.toHaveBeenCalled()
+  })
+
+  it('rejects cross-workspace delegation before resolving stored secrets', async () => {
+    mocks.loadWorkspace.mockResolvedValueOnce({ ...workspace, workspaceId: 'other' })
+    await expect(
+      connectStored(copilotContext, { ...storedInput, workspaceId: 'other' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.environment).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('checks current write permission before resolving stored secrets', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    await expect(connectStored()).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.environment).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('checks provider visibility before resolving stored secrets', async () => {
+    mocks.requireProvider.mockImplementationOnce(() => {
+      throw new OrchestrationError('conflict', 'Provider hidden')
+    })
+    await expect(connectStored()).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.environment).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('reports missing names without sending any partial credential to the provider', async () => {
+    mocks.environment.mockResolvedValue({ SIGNING: 'secret-signing' })
+    await expect(connectStored()).rejects.toThrow('Stored secrets unavailable: BOT')
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('does not let delegated callers supply inline credential values', async () => {
+    await expect(
+      executeCopilotCredentialUseCase(copilotContext, createServiceAccountCredentialUseCase, {
+        workspaceId: WORKSPACE_ID,
+        providerId: 'slack-custom-bot',
+        signingSecret: 'raw-signing',
+        botToken: 'raw-token',
+      })
+    ).rejects.toThrow('must reference existing Sim secrets')
+    expect(mocks.environment).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('does not duplicate creation audit or analytics when the primitive reuses a credential', async () => {
+    mocks.create.mockResolvedValue({ success: true, credential, created: false })
+    expect((await connectStored()).created).toBe(false)
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('rejects service-account providers hidden by workspace policy', async () => {

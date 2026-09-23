@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { getExecutionKeyParts } from '@/lib/execution/payloads/access-keys'
 import {
   getLargeValueMaterializationError,
   isGrantedLargeValueKey,
@@ -204,25 +205,6 @@ function normalizeRange(buffer: Buffer, options: ReadUserFileContentOptions): Bu
   return buffer.subarray(offset, offset + length)
 }
 
-function getExecutionKeyParts(key: string):
-  | {
-      workspaceId: string
-      workflowId: string
-      executionId: string
-    }
-  | undefined {
-  const parts = key.split('/')
-  if (parts[0] !== 'execution' || parts.length < 5) {
-    return undefined
-  }
-
-  return {
-    workspaceId: parts[1],
-    workflowId: parts[2],
-    executionId: parts[3],
-  }
-}
-
 export class ExecutionFileAccessError extends Error {
   constructor() {
     super('File is not available in this execution.')
@@ -250,12 +232,14 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     throw new ExecutionFileAccessError()
   }
 
-  if (options.workflowId && parts.workflowId !== options.workflowId) {
-    throw new ExecutionFileAccessError()
-  }
-
+  // Explicit file grants are minted only after workspace authorization. They can carry
+  // an input from another workflow/run without granting any neighboring execution files.
   if (allowedFileKeys.has(key)) {
     return
+  }
+
+  if (options.workflowId && parts.workflowId !== options.workflowId) {
+    throw new ExecutionFileAccessError()
   }
 
   if (

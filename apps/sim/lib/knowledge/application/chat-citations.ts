@@ -1,6 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
-import { compactRetrievalCitations } from '@/lib/copilot/chat/retrieval-citations'
-import type { ToolCallSummary } from '@/lib/copilot/request/types'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
+import type { ToolCallSummary } from '@/lib/mothership/request/types'
 
 export interface SearchChatCitation {
   id: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
@@ -11,8 +11,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
  */
 export function WorkspaceScopeSync() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const hydrationWorkspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
-  const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
   const posthog = usePostHog()
   const { data: workspaceData } = useWorkspacesWithMetadata()
 
@@ -34,13 +32,26 @@ export function WorkspaceScopeSync() {
     posthog?.group('workspace', workspaceId, workspaceName ? { name: workspaceName } : undefined)
   }, [posthog, workspaceId, workspaceName, organizationId, activeWorkspace])
 
+  return <WorkflowScopeSync workspaceId={workspaceId} />
+}
+
+/** Binds the single mounted workflow canvas to its explicit resource workspace. */
+export function WorkflowScopeSync({
+  workspaceId,
+  children,
+}: {
+  workspaceId: string
+  children?: ReactNode
+}) {
+  const hydrationWorkspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
+  const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
   useEffect(() => {
-    if (!workspaceId || hydrationWorkspaceId === workspaceId) {
+    if (!workspaceId || useWorkflowRegistry.getState().hydration.workspaceId === workspaceId) {
       return
     }
 
     switchToWorkspace(workspaceId)
   }, [hydrationWorkspaceId, switchToWorkspace, workspaceId])
 
-  return null
+  return hydrationWorkspaceId === workspaceId ? children : null
 }

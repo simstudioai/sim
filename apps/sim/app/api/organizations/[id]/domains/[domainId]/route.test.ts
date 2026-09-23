@@ -20,6 +20,9 @@ const { mockGetSession, mockIsEnterprise, mockRecordAudit } = vi.hoisted(() => (
 vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: async () => null,
+}))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
@@ -43,6 +46,7 @@ describe('remove org domain route', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
+      session: { id: 'session-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
   })

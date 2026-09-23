@@ -2,6 +2,7 @@ import { and } from 'drizzle-orm'
 import { MAX_STATS_WORKFLOWS } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { folderScopeCondition, resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import { buildLogFilters, type LogFilters } from '@/lib/logs/public-filters'
@@ -14,6 +15,12 @@ export interface GetLogStatsInput {
   filters: Omit<LogFilters, 'workspaceId' | 'folderIds' | 'cursor' | 'order'>
   folderPaths?: string[]
   segmentCount: number
+  /**
+   * Whether buckets with no runs are published. Off unless asked: this surface
+   * is read by callers that pay per byte of response, and a dense series of
+   * `segmentCount` zero rows says nothing the totals do not.
+   */
+  includeEmpty?: boolean
 }
 
 export type GetLogStatsResult = ReturnType<typeof buildDashboardStats>
@@ -35,7 +42,7 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: logDelegationAuthorization(),
   execute: async ({ input, context }): Promise<GetLogStatsResult> => {
     const folderScope = input.folderPaths
       ? await resolveLogFolderScope(context.workspaceId, input.folderPaths)
@@ -51,9 +58,17 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
       requestedStart: input.filters.startDate,
       requestedEnd: input.filters.endDate,
     })
-    const rows = await readLogStatsSegments(where, window.startTime.toISOString(), window.segmentMs)
+    const includeHandledErrors = input.filters.includeHandledErrors === true
+    const rows = await readLogStatsSegments(
+      where,
+      window.startTime.toISOString(),
+      window.segmentMs,
+      { countHandledErrors: includeHandledErrors }
+    )
     return buildDashboardStats(rows, window, input.segmentCount, {
       maxWorkflows: MAX_STATS_WORKFLOWS,
+      includeEmpty: input.includeEmpty === true,
+      includeHandledErrors,
     })
   },
 })

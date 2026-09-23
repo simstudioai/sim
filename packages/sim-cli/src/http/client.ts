@@ -1,4 +1,5 @@
-import chalk from 'chalk'
+import { writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
@@ -392,8 +393,8 @@ function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * log the user pasted it into.
  */
 function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
-  process.stderr.write(
-    `${chalk.dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
+  writeStderr(
+    `${styles().dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
   )
 }
 
@@ -603,14 +604,16 @@ export class SimClient {
     // to abort, so neither can mask the other.
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
-    const signal = combineSignals(options.signal, timeout)
+    const caller = combineSignals(options.signal, this.profile.signal)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
     const startedAt = performance.now()
 
     let response: Response
     try {
-      response = await fetch(url, {
+      response = await (this.profile.transport ?? fetch)(url, {
         method,
         headers: {
           ...(credential?.kind === 'api_key' ? { 'x-api-key': credential.apiKey } : {}),
@@ -628,7 +631,7 @@ export class SimClient {
       })
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
-      if (options.signal?.aborted) {
+      if (caller?.aborted) {
         throw new SimApiError('Request cancelled.', 0)
       }
       if (timeout?.aborted) {
@@ -766,12 +769,12 @@ export function pageProgress(): PageProgress {
   let reported = false
   return {
     advance: (fetched) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(`fetched ${fetched}…`)}\u001b[K`)
+      writeStderr(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
     },
     finish: () => {
-      if (reported) process.stderr.write('\r\u001b[K')
+      if (reported) writeStderr('\r\u001b[K')
     },
   }
 }

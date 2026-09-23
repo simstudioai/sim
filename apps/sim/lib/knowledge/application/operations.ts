@@ -16,18 +16,39 @@ export type ScopedKnowledgeOperation<O extends WorkspaceOperation = WorkspaceOpe
 }
 
 interface KnowledgeOperationOptions {
-  organizationDelegation?: 'deny'
+  organizationDelegation?: 'allow' | 'deny'
+  organizationDelegationAudience?: 'sim:knowledge' | 'sim:settings'
+}
+
+type AllowedKnowledgeDelegation = {
+  organizationDelegation: 'allow'
+  organizationDelegationAudience?: 'sim:knowledge' | 'sim:settings'
+}
+type DeniedKnowledgeDelegation = { organizationDelegation?: 'deny' }
+type ExplicitKnowledgeDelegation<O extends WorkspaceOperation> = ScopedKnowledgeOperation<O> & {
+  readonly organizationDelegation: 'allow'
+}
+type OptionalKnowledgeDelegation<O extends WorkspaceOperation> = ScopedKnowledgeOperation<O> & {
+  readonly organizationDelegation?: 'allow' | 'deny'
 }
 
 /** Binds organization policy to the same semantic operation declared for workspace access. */
 function defineKnowledgeOperation<const O extends WorkspaceOperation>(
   operation: O,
+  options: AllowedKnowledgeDelegation
+): ExplicitKnowledgeDelegation<O>
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
+  operation: O,
+  options?: DeniedKnowledgeDelegation
+): ScopedKnowledgeOperation<O>
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
+  operation: O,
   options?: KnowledgeOperationOptions
-): ScopedKnowledgeOperation<O> {
+): OptionalKnowledgeDelegation<O> {
   const supportsOrganizationDelegation =
     options?.organizationDelegation !== 'deny' &&
-    operation.minimumRole === 'read' &&
-    operation.delegatedServices?.includes('copilot')
+    (options?.organizationDelegation === 'allow' ||
+      (operation.minimumRole === 'read' && operation.delegatedServices?.includes('copilot')))
   const organizationOperation = defineOrganizationOperation({
     id: operation.id,
     capability: operation.capability,
@@ -42,13 +63,13 @@ function defineKnowledgeOperation<const O extends WorkspaceOperation>(
             'oauth_access_token',
             'organization_delegated',
           ],
-          delegationAudience: 'sim:knowledge',
+          delegationAudience: options?.organizationDelegationAudience ?? 'sim:knowledge',
           delegatedServices:
             operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot'],
         } as const)
       : ({ principalKinds: ['session', 'personal_api_key', 'oauth_access_token'] } as const)),
   })
-  return Object.freeze({ ...operation, organizationOperation })
+  return Object.freeze({ ...operation, organizationOperation, ...options })
 }
 
 const ALL_PRINCIPAL_POLICY = {
@@ -226,7 +247,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
   ),
   configureSlackInstallation: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -235,7 +257,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
   ),
   removeSlackInstallation: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -244,7 +267,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
   ),
   /**
    * Lists the workspace's knowledge bases, active or archived.
@@ -287,7 +311,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.export',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   /**
@@ -437,7 +461,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   relocateFolder: defineKnowledgeOperation(
@@ -447,7 +471,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   deleteFolder: defineKnowledgeOperation(
@@ -457,7 +481,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   listDocuments: defineKnowledgeOperation(
@@ -819,7 +843,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow' }
   ),
   readOrganizationSearchOverview: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -846,7 +871,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow' }
   ),
   /** Sources with a personal connection, including identities used by mirrored ACLs. */
   listWorkspaceMemberConnectors: defineKnowledgeOperation(
@@ -920,7 +946,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   prepareSearchSource: defineKnowledgeOperation(
@@ -930,7 +956,8 @@ export const knowledgeOperations = {
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
       principalKinds: ['session'],
-    })
+    }),
+    { organizationDelegation: 'allow' }
   ),
   deleteConnector: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -985,7 +1012,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadParts: defineKnowledgeOperation(
@@ -995,7 +1022,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadComplete: defineKnowledgeOperation(
@@ -1005,7 +1032,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadCancel: defineKnowledgeOperation(
@@ -1015,7 +1042,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
 } as const

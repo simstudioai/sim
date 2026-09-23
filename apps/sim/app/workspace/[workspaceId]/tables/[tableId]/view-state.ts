@@ -6,6 +6,7 @@ export interface TableViewSelection {
   selectedView: TableViewWire | null
   defaultView: TableViewWire | null
   activeView: TableViewWire | null
+  pending: boolean
 }
 
 /**
@@ -28,7 +29,8 @@ export function resolveTableViewConfig(
 export function resolveTableViewSelection(
   views: TableViewWire[],
   activeViewId: string | null,
-  restoredViewId?: string
+  restoredViewId?: string,
+  isFetching = false
 ): TableViewSelection {
   let selectedView: TableViewWire | null = null
   let defaultView: TableViewWire | null = null
@@ -41,6 +43,11 @@ export function resolveTableViewSelection(
   return {
     selectedView,
     defaultView,
+    pending:
+      isFetching &&
+      activeViewId !== null &&
+      activeViewId !== ALL_VIEW_PARAM &&
+      selectedView === null,
     activeView:
       selectedView ??
       (activeViewId === null

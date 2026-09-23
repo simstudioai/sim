@@ -36,7 +36,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFile: mockDownloadFile,
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
 

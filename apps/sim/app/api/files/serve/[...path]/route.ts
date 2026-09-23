@@ -10,14 +10,14 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
+import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
@@ -277,11 +277,15 @@ export const GET = withRouteHandler(
       const isCloudPath = isS3Path || isBlobPath || isGcsPath
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
+      /** Chat images are served only through the current private-chat owner boundary. */
+      if (cloudKey.startsWith('chat-images/')) throw new FileNotFoundError('File not found')
+
       if (cloudKey.startsWith('assistant/')) {
         const principal = await internalSessionAuth.authenticate()
-        const image = await readOrganizationAssistantImage({
+        const image = await readOrganizationChatAttachment({
           principal,
           key: cloudKey,
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
           signal: request.signal,
         })
         return createFileResponse({

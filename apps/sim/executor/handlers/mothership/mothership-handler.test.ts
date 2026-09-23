@@ -7,6 +7,7 @@ import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
 
 const BILLING_ATTRIBUTION = {
@@ -790,7 +791,10 @@ describe('MothershipBlockHandler', () => {
 
     const body = JSON.parse(String(options.body))
     expect(body).toEqual({
+      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      effort: 'high',
       messages: [{ role: 'user', content: 'Hello from workflow' }],
+      useConversationHistory: true,
       workspaceId: 'workspace-1',
       userId: 'user-1',
       chatId: resolveMothershipConversation('workspace-1', 'chat-uuid').chatId,
@@ -874,7 +878,10 @@ describe('MothershipBlockHandler', () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
     expect(body).toEqual({
+      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      effort: 'high',
       messages: [{ role: 'user', content: 'Continue this thread' }],
+      useConversationHistory: true,
       workspaceId: 'workspace-1',
       userId: 'user-1',
       chatId: resolveMothershipConversation('workspace-1', 'existing-chat-id').chatId,
@@ -950,6 +957,78 @@ describe('MothershipBlockHandler', () => {
       entries: [],
     })
   })
+
+  it.each(['auto', 'force', 'none'])(
+    'resolves variable MCP permission mode %s before discovery and execution',
+    async (mode) => {
+      fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      await handler.execute(context, block, {
+        prompt: 'Use my tools',
+        tools: [
+          {
+            type: 'mcp',
+            usageControl: 'auto',
+            usageControlExpression: ` ${mode.toUpperCase()} `,
+            params: { serverId: 'mcp-server-1', toolName: 'search' },
+          },
+        ],
+      })
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
+      expect(body.mcpTools).toEqual(
+        mode === 'none'
+          ? undefined
+          : [
+              {
+                type: 'mcp',
+                usageControl: mode,
+                params: { serverId: 'mcp-server-1', toolName: 'search' },
+              },
+            ]
+      )
+    }
+  )
+
+  it('does not discover an advanced MCP server disabled by a variable', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    mockDiscoverMcpServerToolsAsExecutor.mockClear()
+    block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+    await handler.execute(context, block, {
+      prompt: 'No tools',
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          usageControl: 'force',
+          usageControlExpression: 'none',
+          params: { serverId: 'mcp-server-1' },
+        },
+      ],
+    })
+    expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).not.toHaveProperty('mcpTools')
+  })
+
+  it.each(['', 'sometimes', '<start.unresolved>', null])(
+    'rejects an invalid variable mode before making requests: %s',
+    async (mode) => {
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      mockDiscoverMcpServerToolsAsExecutor.mockClear()
+      await expect(
+        handler.execute(context, block, {
+          prompt: 'Use tools',
+          tools: [
+            {
+              type: 'mcp-server-advanced',
+              usageControlExpression: mode,
+              params: { serverId: 'mcp-server-1' },
+            },
+          ],
+        })
+      ).rejects.toThrow('mode must resolve to Auto, Force, or None')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    }
+  )
 
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
@@ -1243,6 +1322,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
+        usageControl: 'auto',
         schema: {
           type: 'object',
           description: 'Search {{MCP_SCHEMA_DESCRIPTION}} for Box',
@@ -1676,6 +1756,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toHaveLength(5)
     expect(body.mcpTools[0]).toEqual({
       type: 'mcp',
+      usageControl: 'auto',
       params: { serverId: secret, toolName: 'search' },
     })
     expect(body.mcpTools[2].schema).toEqual({ type: 'string', enum: [secret] })
@@ -1799,6 +1880,106 @@ describe('MothershipBlockHandler', () => {
       handler.execute(context, block, { prompt: 'Hello from workflow' })
     ).rejects.toThrow('Sim execution failed: Mothership execution aborted')
   })
+
+  it.each([
+    { model: 'gpt-6-astra', effort: 'max', fastMode: true },
+    { model: 'claude-opus-5', effort: 'low', fastMode: true },
+  ])('forwards model controls and clears hidden Opus Fast mode: $model', async (selection) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ content: 'done' })))
+    await handler.execute(context, block, { prompt: 'hello', ...selection })
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toMatchObject({
+      effort: selection.effort,
+      modelSelection: { model: selection.model, fastMode: selection.model === 'gpt-6-astra' },
+    })
+  })
+
+  it.each([{ model: 'arbitrary' }, { effort: 'ultra' }, { fastMode: 'true' }])(
+    'rejects unsupported model controls before HTTP dispatch: %j',
+    async (selection) => {
+      await expect(
+        handler.execute(context, block, { prompt: 'hello', ...selection })
+      ).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([true, false])('uses deployment agent-event opt-in: %s', async (agentEvents) => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    context.metadata.agentEvents = agentEvents
+    const timeline = [
+      { type: 'thinking_delta', text: 'Considering the request' },
+      { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+      { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+    ]
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        ...timeline.map((event) => ({ type: 'agent_event', event })),
+        { type: 'chunk', content: 'Answer' },
+        { type: 'final', data: { content: 'Answer', tokens: { total: 9 } } },
+      ])
+    )
+    const result = (await handler.execute(context, block, {
+      prompt: 'hello',
+    })) as StreamingExecution
+    expect(result.streamFormat).toBe(agentEvents ? 'agent-events-v1' : 'text')
+    if (agentEvents) {
+      const reader = result.stream.getReader()
+      const events = []
+      for (;;) {
+        const next = await reader.read()
+        if (next.done) break
+        events.push(next.value)
+      }
+      expect(events).toEqual([...timeline, { type: 'text_delta', text: 'Answer' }])
+    } else {
+      await expect(readStreamText(result.stream)).resolves.toBe('Answer')
+    }
+    expect(result.execution.output).toMatchObject({ content: 'Answer', tokens: { total: 9 } })
+  })
+
+  it.each([true, false])(
+    'projects only the post-tool final answer: agent events %s',
+    async (agentEvents) => {
+      context.stream = true
+      context.selectedOutputs = [`${block.id}_content`]
+      context.metadata.agentEvents = agentEvents
+      fetchMock.mockResolvedValue(
+        createNdjsonResponse([
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'I will check.', turn: 'pending' },
+          },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
+          { type: 'agent_event', event: { type: 'tool_call_start', id: 'lookup', name: 'Lookup' } },
+          {
+            type: 'agent_event',
+            event: { type: 'tool_call_end', id: 'lookup', name: 'Lookup', status: 'success' },
+          },
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'Final answer.', turn: 'pending' },
+          },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
+          { type: 'final', data: { content: 'Final answer.' } },
+        ])
+      )
+      const result = (await handler.execute(context, block, {
+        prompt: 'hello',
+      })) as StreamingExecution
+      const pump = createAgentStreamPump({
+        source: result.stream,
+        streamFormat: result.streamFormat,
+      })
+      const text = readStreamText(pump.textStream!)
+      await pump.run()
+      expect(await text).toBe('Final answer.')
+      expect(result.execution.output.content).toBe('Final answer.')
+    }
+  )
 
   it('streams mothership assistant chunks and preserves final metadata', async () => {
     context.stream = true

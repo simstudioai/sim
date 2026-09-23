@@ -271,7 +271,7 @@ export type AddWorkflowGroupBody = {
     deploymentMode?: 'live' | 'deployed'
     autoRun?: boolean
   }
-  outputColumns: Array<{
+  outputColumns?: Array<{
     name: string
     type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
@@ -299,7 +299,7 @@ type AddWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -578,8 +578,15 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
   }>
   notes: Array<string>
 }
@@ -593,6 +600,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   deferred: Array<ApplyWorkflowOperationsResponseRef0>
   inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
   mintedBlockIds: Record<string, string>
+  previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
   dryRun: boolean
 }
@@ -1157,6 +1165,31 @@ type CancelTableRunsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CancelTableRunsBody = {
   workspaceId: string
@@ -1316,6 +1349,7 @@ export type ChatBody = {
   workspaceId: string
   message: string
   conversationId?: string
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 }
 
 export type ChatResponse = {
@@ -2765,6 +2799,31 @@ type CreateTableDispatchBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CreateTableDispatchBody = {
   workspaceId: string
@@ -4025,6 +4084,31 @@ type DeleteTableRowsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type DeleteTableRowsBody = {
   workspaceId: string
@@ -4709,6 +4793,7 @@ type ExecuteWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ExecuteWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -4748,6 +4833,7 @@ export type ExportWorkflowParams = {
 
 export type ExportWorkflowQuery = {
   includeReferences?: boolean
+  includeWorkspaceBindings?: boolean
 }
 
 type ExportWorkflowResponseRef0 = {
@@ -4943,6 +5029,7 @@ type GetBlockResponseRef0 = {
     id: string
     label?: string
     hasIcon?: boolean
+    hosted?: boolean
   }>
   min?: number
   max?: number
@@ -5569,9 +5656,23 @@ export type GetLogStatsQuery = {
   folderPaths?: string
   triggers?: string
   level?: 'info' | 'error'
+  includeHandledErrors?: boolean
   startDate?: string
   endDate?: string
   segmentCount?: number
+  includeEmpty?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
 }
 
 type GetLogStatsResponseRef0 = {
@@ -5596,6 +5697,7 @@ type GetLogStatsResponseRef2 = {
   aggregateSegments: Array<GetLogStatsResponseRef1>
   totalRuns: number
   totalErrors: number
+  handledErrorRuns?: number
   avgLatency: number
   timeBounds: {
     start: string
@@ -5913,16 +6015,28 @@ export type GetRowEnrichmentQuery = {
 }
 
 type GetRowEnrichmentResponseRef0 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetRowEnrichmentResponseRef1 = Record<string, unknown>
+
+type GetRowEnrichmentResponseRef2 = {
   startedAt: string | null
   completedAt: string | null
   durationMs: number
   totalCost: number
   matchedProvider: string | null
   aborted: boolean
-  providers: Array<GetRowEnrichmentResponseRef1>
+  providers: Array<GetRowEnrichmentResponseRef3>
 }
 
-type GetRowEnrichmentResponseRef1 = {
+type GetRowEnrichmentResponseRef3 = {
   id: string
   label: string
   toolId: string
@@ -5932,8 +6046,15 @@ type GetRowEnrichmentResponseRef1 = {
   error: string | null
 }
 
+type GetRowEnrichmentResponseRef4 = {
+  groupId: string
+  runState: GetRowEnrichmentResponseRef0 | null
+  outputs: GetRowEnrichmentResponseRef1
+  cascade: GetRowEnrichmentResponseRef2 | null
+}
+
 export type GetRowEnrichmentResponse = {
-  data: GetRowEnrichmentResponseRef0 | null
+  data: GetRowEnrichmentResponseRef4
 }
 
 /** `GET /api/v2/sandboxes/[sandboxId]` */
@@ -6561,6 +6682,12 @@ type GetWorkflowDeploymentResponseRef3 = {
 }
 
 type GetWorkflowDeploymentResponseRef4 = {
+  blockId: string | null
+  provider: string | null
+  url: string
+}
+
+type GetWorkflowDeploymentResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -6569,10 +6696,11 @@ type GetWorkflowDeploymentResponseRef4 = {
   latestDeploymentAttempt: GetWorkflowDeploymentResponseRef1 | null
   needsRedeployment: boolean
   isPublicApi: boolean
+  webhooks: Array<GetWorkflowDeploymentResponseRef4>
 }
 
 export type GetWorkflowDeploymentResponse = {
-  data: GetWorkflowDeploymentResponseRef4
+  data: GetWorkflowDeploymentResponseRef5
 }
 
 /** `GET /api/v2/workflow-mcp-servers/[serverId]` */
@@ -7100,12 +7228,20 @@ export type ImportWorkflowBody = {
 
 type ImportWorkflowResponseRef0 = {
   id: string
+  type: string
+  name: string
+}
+
+type ImportWorkflowResponseRef1 = {
+  id: string
   name: string
   description: string | null
   workspaceId: string
   folderPath: string
   createdAt: string
   updatedAt: string
+  blocks?: Array<ImportWorkflowResponseRef0>
+  warnings: Array<string>
   operationId?: string
   requestId?: string
   kind?: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
@@ -7147,7 +7283,7 @@ type ImportWorkflowResponseRef0 = {
 }
 
 export type ImportWorkflowResponse = {
-  data: ImportWorkflowResponseRef0
+  data: ImportWorkflowResponseRef1
 }
 
 /** `GET /api/v2/audit-logs` */
@@ -7241,6 +7377,7 @@ export type ListBlocksQuery = {
   category?: 'blocks' | 'tools' | 'triggers'
   capability?: 'trigger'
   source?: 'builtin' | 'custom'
+  includeSunset?: boolean
   sortBy?: 'id' | 'name' | 'category'
   sortOrder?: 'asc' | 'desc'
   limit?: number
@@ -7318,6 +7455,9 @@ export type ListChatDeploymentsResponse = {
 export type ListConnectorTypesQuery = {
   workspaceId: string
   search?: string
+  detail?: 'summary' | 'full'
+  limit?: number
+  cursor?: string
 }
 
 type ListConnectorTypesResponseRef0 = {
@@ -7370,8 +7510,17 @@ type ListConnectorTypesResponseRef1 = {
   multi?: boolean
 }
 
+type ListConnectorTypesResponseRef2 = {
+  connectorType: string
+  name: string
+  description: string
+  auth: {
+    mode: 'oauth' | 'apiKey'
+  }
+}
+
 export type ListConnectorTypesResponse = {
-  data: Array<ListConnectorTypesResponseRef0>
+  data: Array<ListConnectorTypesResponseRef0 | ListConnectorTypesResponseRef2>
   nextCursor: string | null
 }
 
@@ -7911,6 +8060,7 @@ export type ListLogsQuery = {
   includeFinalOutput?: boolean
   limit?: number
   cursor?: string
+  includeHandledErrors?: boolean
   status?: string
   workflowName?: string
   includeJobRuns?: boolean
@@ -7935,6 +8085,7 @@ type ListLogsResponseRef0 = {
     total: number
   } | null
   files: Array<ListLogsResponseRef1> | null
+  hasHandledErrors: boolean
   workflow?: {
     id: string | null
     name: string
@@ -9211,7 +9362,7 @@ type ListWorkflowGroupsResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -9264,6 +9415,7 @@ type ListWorkflowMcpToolsResponseRef0 = {
   apiEndpoint: string
   createdAt: string
   updatedAt: string
+  status: 'active' | 'inactive'
 }
 
 export type ListWorkflowMcpToolsResponse = {
@@ -10848,6 +11000,7 @@ export type ReadFileTextQuery = {
 type ReadFileTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean
@@ -10883,6 +11036,7 @@ export type ReadFileVersionTextQuery = {
 type ReadFileVersionTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean
@@ -10908,10 +11062,12 @@ export type RelocateFileFolderQuery = Record<string, unknown>
 
 type RelocateFileFolderBodyRef0 = string
 
+type RelocateFileFolderBodyRef1 = string
+
 export type RelocateFileFolderBody = {
   workspaceId: string
   path: RelocateFileFolderBodyRef0
-  destinationPath: RelocateFileFolderBodyRef0
+  destinationPath: RelocateFileFolderBodyRef1
 }
 
 type RelocateFileFolderResponseRef0 = {
@@ -10931,10 +11087,12 @@ export type RelocateKnowledgeFolderQuery = Record<string, unknown>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
+type RelocateKnowledgeFolderBodyRef1 = string
+
 export type RelocateKnowledgeFolderBody = {
   workspaceId: string
   path: RelocateKnowledgeFolderBodyRef0
-  destinationPath: RelocateKnowledgeFolderBodyRef0
+  destinationPath: RelocateKnowledgeFolderBodyRef1
 }
 
 type RelocateKnowledgeFolderResponseRef0 = {
@@ -10954,10 +11112,12 @@ export type RelocateTableFolderQuery = Record<string, unknown>
 
 type RelocateTableFolderBodyRef0 = string
 
+type RelocateTableFolderBodyRef1 = string
+
 export type RelocateTableFolderBody = {
   workspaceId: string
   path: RelocateTableFolderBodyRef0
-  destinationPath: RelocateTableFolderBodyRef0
+  destinationPath: RelocateTableFolderBodyRef1
 }
 
 type RelocateTableFolderResponseRef0 = {
@@ -10977,10 +11137,12 @@ export type RelocateWorkflowFolderQuery = Record<string, unknown>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
+type RelocateWorkflowFolderBodyRef1 = string
+
 export type RelocateWorkflowFolderBody = {
   workspaceId: string
   path: RelocateWorkflowFolderBodyRef0
-  destinationPath: RelocateWorkflowFolderBodyRef0
+  destinationPath: RelocateWorkflowFolderBodyRef1
 }
 
 type RelocateWorkflowFolderResponseRef0 = {
@@ -11286,8 +11448,15 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
   }>
   notes: Array<string>
 }
@@ -11696,6 +11865,7 @@ type ResumeWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ResumeWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -12015,6 +12185,8 @@ type SearchKnowledgeResponseRef0 = {
   chunkIndex: number
   metadata: Record<string, unknown>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 
@@ -12098,6 +12270,31 @@ type SearchTableRowsBodyRef0 =
             value?: unknown
           }
       >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
     }
 
 export type SearchTableRowsBody = {
@@ -12235,16 +12432,22 @@ type UndeployWorkflowResponseRef3 = {
 }
 
 type UndeployWorkflowResponseRef4 = {
+  serverId: string
+  toolName: string
+}
+
+type UndeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
   warnings: Array<string>
   activeDeployment: UndeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: UndeployWorkflowResponseRef1 | null
+  archivedMcpTools: Array<UndeployWorkflowResponseRef4>
 }
 
 export type UndeployWorkflowResponse = {
-  data: UndeployWorkflowResponseRef4
+  data: UndeployWorkflowResponseRef5
 }
 
 /** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
@@ -12981,6 +13184,31 @@ type UpdateRowsByFilterBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 type UpdateRowsByFilterBodyRef1 = Record<string, unknown>
 
@@ -13203,6 +13431,14 @@ export type UpdateTableColumnBody = {
 }
 
 type UpdateTableColumnResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  blockId: string
+  blockName: string
+  fields: Array<'filter' | 'order' | 'data'>
+}
+
+type UpdateTableColumnResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
@@ -13217,10 +13453,11 @@ type UpdateTableColumnResponseRef0 = {
     multiple?: boolean
     currencyCode?: string
   }>
+  unmigrated: Array<UpdateTableColumnResponseRef0>
 }
 
 export type UpdateTableColumnResponse = {
-  data: UpdateTableColumnResponseRef0
+  data: UpdateTableColumnResponseRef1
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -13506,7 +13743,7 @@ type UpdateWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -13880,8 +14117,9 @@ export const V2_OPERATIONS = {
       },
       outputColumns: {
         kind: 'array',
-        required: true,
-        describe: 'Columns created for producer outputs.',
+        default: [],
+        describe:
+          'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.',
       },
       autoRun: {
         kind: 'boolean',
@@ -13924,7 +14162,7 @@ export const V2_OPERATIONS = {
       dryRun: {
         kind: 'boolean',
         describe:
-          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
       },
     },
     body: {
@@ -13996,7 +14234,7 @@ export const V2_OPERATIONS = {
     summary: 'Delete Files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
-      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
     },
   },
   bulkDeleteTables: {
@@ -14231,7 +14469,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
@@ -14274,6 +14512,11 @@ export const V2_OPERATIONS = {
       conversationId: {
         kind: 'string',
         describe: 'Conversation to continue; a new one starts when omitted.',
+      },
+      effort: {
+        kind: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'] as const,
+        describe: 'Model effort for this turn; defaults to the deployment default (high).',
       },
     },
   },
@@ -14914,7 +15157,8 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional credential description.' },
       id: {
         kind: 'string',
-        describe: 'Required only when provider discovery requests a client-generated ID.',
+        describe:
+          'Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A `slack-custom-bot` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.',
       },
       credentials: {
         kind: 'string',
@@ -14993,7 +15237,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
       limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
@@ -15608,7 +15852,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
@@ -16004,7 +16248,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.',
+          'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -16073,6 +16317,11 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Include non-secret resource identifiers and source field occurrences for mapped imports.',
+      },
+      includeWorkspaceBindings: {
+        kind: 'boolean',
+        describe:
+          'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.',
       },
     },
   },
@@ -16341,6 +16590,11 @@ export const V2_OPERATIONS = {
         values: ['info', 'error'] as const,
         describe: 'Severity level to include.',
       },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.',
+      },
       startDate: {
         kind: 'string',
         describe:
@@ -16355,7 +16609,27 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 72,
         describe:
-          'Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.',
+          'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+      },
+      includeEmpty: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        default: false,
+        describe:
+          'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
     },
   },
@@ -16551,7 +16825,7 @@ export const V2_OPERATIONS = {
       groupId: 'Workflow or enrichment group to run.',
     },
     responseMode: 'json',
-    summary: 'Get Enrichment Run Detail',
+    summary: 'Get Row Group Run',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -17206,7 +17480,12 @@ export const V2_OPERATIONS = {
       source: {
         kind: 'enum',
         values: ['builtin', 'custom'] as const,
-        describe: "Restrict to built-in blocks or this workspace's deployed custom blocks.",
+        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      includeSunset: {
+        kind: 'boolean',
+        describe:
+          'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.',
       },
       sortBy: {
         kind: 'enum',
@@ -17289,6 +17568,24 @@ export const V2_OPERATIONS = {
       search: {
         kind: 'string',
         describe: 'Case-insensitive substring match against the connector name.',
+      },
+      detail: {
+        kind: 'enum',
+        values: ['summary', 'full'] as const,
+        default: 'summary',
+        describe:
+          'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 25,
+        describe:
+          'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -17967,6 +18264,11 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.',
       },
       status: {
         kind: 'string',
@@ -18843,7 +19145,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Active Run Dispatches',
+    summary: 'List Run Dispatches',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -19396,9 +19698,9 @@ export const V2_OPERATIONS = {
       },
       limit: {
         kind: 'integer',
-        default: 50,
+        default: 25,
         describe:
-          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
       cursor: {
         kind: 'string',
@@ -19768,7 +20070,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]/text',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
+    },
     responseMode: 'json',
     summary: 'Read File Text',
     query: {
@@ -19824,7 +20129,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -19840,7 +20146,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -19856,7 +20163,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -19872,7 +20180,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -19981,7 +20290,7 @@ export const V2_OPERATIONS = {
       dryRun: {
         kind: 'boolean',
         describe:
-          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
       },
     },
     body: {
@@ -20418,7 +20727,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
@@ -20996,7 +21305,7 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         required: true,
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       data: {
         kind: 'object',

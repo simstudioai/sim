@@ -19,7 +19,7 @@ describe('PATCH /api/users/me/settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
   })
 
   it('reports success when the write lands', async () => {
@@ -73,7 +73,7 @@ describe('GET /api/users/me/settings', () => {
   })
 
   it('does not replace unavailable saved preferences with permission to collect', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     dbChainMockFns.select.mockImplementationOnce(() => {
       throw new Error('Database unavailable')
     })

@@ -1,5 +1,7 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
+import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
+import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
+import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -7,14 +9,17 @@ import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { CallIntegrationTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   normalizeToolActivityDescription,
-} from '@/lib/copilot/tools/tool-display'
+  refineStreamingCliToolName,
+} from '@/lib/mothership/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -66,6 +71,7 @@ export interface ToolNode extends NodeBase {
   name: string
   status: NodeStatus
   args?: Record<string, unknown>
+  activity?: ToolActivity
   streamingArgs?: string
   uiTitle?: string
   /** Model-authored activity text preserved across stream and snapshot replay. */
@@ -95,6 +101,8 @@ export interface AgentNode extends NodeBase {
   status: NodeStatus
   /** Wire seq at which the run terminated (span end), for ordering the close marker. */
   endSeq?: number
+  /** The terminal failure reported by this child, independent of its tools. */
+  error?: string
 }
 
 export interface TextNode extends NodeBase {
@@ -105,7 +113,17 @@ export interface TextNode extends NodeBase {
   endedAtMs?: number
 }
 
-export type LifecycleNode = ToolNode | AgentNode | TextNode
+/**
+ * A background task the turn armed (`run`/`task_armed`); resolves in place when the
+ * task's notification is steered into this same turn (`run`/`task_delivered`). The
+ * pill under the turn (mothership 21-background-tasks.md §6.4).
+ */
+export interface TaskNode extends NodeBase {
+  kind: 'task'
+  task: TaskBlockInfo
+}
+
+export type LifecycleNode = ToolNode | AgentNode | TextNode | TaskNode
 
 export interface TurnModel {
   status: TurnStatus
@@ -259,26 +277,6 @@ function turnTerminalNodeStatus(turn: Exclude<TurnStatus, 'streaming'>): NodeSta
   return 'success'
 }
 
-/**
- * Builds the inline `<mothership-error>` tag rendered for a stream error. Kept
- * byte-identical to the prior `buildInlineErrorTag` so the error special-tag
- * parser renders it the same way.
- */
-function buildMothershipErrorTag(payload: Record<string, unknown>): string {
-  const message =
-    asString(payload.displayMessage) ??
-    asString(payload.message) ??
-    asString(payload.error) ??
-    'An unexpected error occurred'
-  const provider = asString(payload.provider)
-  const code = asString(payload.code)
-  return `<mothership-error>${JSON.stringify({
-    message,
-    ...(code ? { code } : {}),
-    ...(provider ? { provider } : {}),
-  })}</mothership-error>`
-}
-
 /** Closes a span's open text segment for `channel`, stamping its end time. */
 function closeOpenText(
   model: TurnModel,
@@ -368,7 +366,16 @@ function upsertToolNode(
 ): ToolNode {
   const existing = model.nodes.get(id)
   if (existing && existing.kind === 'tool') {
-    if (name && !existing.name) existing.name = name
+    // Fill blanks, and refine CLI names: the worker's partial frame names CLI rows
+    // `sim_cli` (args unknowable mid-stream), streaming deltas may refine that to a
+    // provisional `cli_*`, and the finalized frame carries the authoritative verb —
+    // so any cli-family name accepts a different cli-family (or authoritative)
+    // successor. Scoped to the cli family so the gateway rebind's model-authored
+    // branding is never clobbered by a later frame.
+    const cliFamily = existing.name === 'sim_cli' || existing.name.startsWith('cli_')
+    if (name && (!existing.name || (cliFamily && name !== existing.name && name !== 'sim_cli'))) {
+      existing.name = name
+    }
     return existing
   }
   const node: ToolNode = {
@@ -531,7 +538,11 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // back into an ordinary running row without waiting for the result.
           node.status = 'running'
         }
-        if (isRecordLike(payload.arguments)) node.args = payload.arguments
+        if (isRecordLike(payload.arguments)) {
+          node.args = payload.arguments
+          const activity = ToolActivity.safeParse(payload.arguments.activity)
+          if (!node.activity && activity.success) node.activity = activity.data
+        }
         // Only the snapshot-replay path (contentBlocksToModel) carries this
         // field — the live wire never does; it restores the rebound gateway
         // description across a preserve-state rebuild.
@@ -550,6 +561,13 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         )
         const delta = asString(payload.argumentsDelta)
         if (delta) node.streamingArgs = (node.streamingArgs ?? '') + delta
+        // Progressive CLI title: upgrade the placeholder to the specific verb as
+        // soon as enough argv tokens have streamed to name the command — the
+        // browser mirror of the server handler's refinement.
+        if (delta && (node.name === 'sim_cli' || node.name.startsWith('cli_'))) {
+          const refined = refineStreamingCliToolName(node.streamingArgs ?? '')
+          if (refined && refined !== node.name) node.name = refined
+        }
       } else if (phase === MothershipStreamV1ToolPhase.result) {
         applyToolResult(
           model,
@@ -620,10 +638,12 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         if (data?.pending === true) break
         breakLane(model, resolvedSpanId, tsMs)
         const node = model.nodes.get(resolvedSpanId)
-        const spanErrored = Boolean(data && asString(data.error))
+        const error = data && asString(data.error)
+        const spanErrored = Boolean(error)
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
           node.status = spanErrored ? 'error' : 'success'
           node.endSeq = seq
+          if (error) node.error = error
         }
         // The lane is over: settle any tool row still `running` in it (its
         // result was dropped or reordered past the end). Left open, the row
@@ -643,9 +663,27 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       break
     }
     case MothershipStreamV1EventType.run: {
-      const payload = payloadRecord(envelope.payload)
+      const payload = envelope.payload
       const kind = payload.kind
-      if (kind === MothershipStreamV1RunKind.compaction_start) {
+      if (kind === 'task_armed' || kind === 'task_delivered') {
+        const id = `task:${payload.taskId}`
+        const node = model.nodes.get(id)
+        const task = reduceTaskState(node?.kind === 'task' ? node.task : undefined, payload)
+        if (!task) break
+        if (node?.kind === 'task') {
+          node.task = task
+        } else {
+          model.nodes.set(id, {
+            id,
+            kind: 'task',
+            spanId,
+            seq,
+            ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
+            task,
+          })
+          model.order.push(id)
+        }
+      } else if (kind === MothershipStreamV1RunKind.compaction_start) {
         ensureSubagentLane(model, spanId, scope, seq, tsMs)
         const node = upsertToolNode(
           model,
@@ -692,7 +730,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       // The error tag is content (rendered inline by the error special-tag); turn
       // termination on error is applied by the stream loop's terminal handling,
       // not here, so a non-fatal mid-stream error event never settles the turn.
-      const tag = buildMothershipErrorTag(payloadRecord(envelope.payload))
+      const tag = buildMothershipErrorTag(envelope.payload)
       const key = `${spanId}::assistant`
       const openId = model.openTextByKey.get(key)
       const open = openId ? model.nodes.get(openId) : undefined
@@ -741,7 +779,7 @@ export function applyTurnTerminal(model: TurnModel, turn: Exclude<TurnStatus, 's
   const nodeStatus = turnTerminalNodeStatus(turn)
   for (const id of model.order) {
     const node = model.nodes.get(id)
-    if (!node || node.kind === 'text') continue
+    if (!node || node.kind === 'text' || node.kind === 'task') continue
     // An unanswered permission prompt is a straggler too: the turn ended, so
     // the card must stop offering actions rather than sit there forever.
     if (node.status === 'running' || node.status === 'awaiting_approval') {

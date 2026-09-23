@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { deriveFilePreviewSession } from './apply-file-preview-phase'
 
 const NOW = '2026-06-08T00:00:00.000Z'

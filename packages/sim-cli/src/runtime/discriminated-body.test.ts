@@ -50,9 +50,9 @@ function request(args: string[]) {
 }
 
 describe('discriminated body flags', () => {
-  it('builds an apply request and coerces an optional credit cap', () => {
+  it('builds an apply request and coerces an optional credit cap', async () => {
     expect(
-      request([
+      await request([
         '--action',
         'apply',
         '--expected-fingerprint',
@@ -67,28 +67,32 @@ describe('discriminated body flags', () => {
     })
   })
 
-  it('builds a decline request without requiring apply fields', () => {
-    expect(request(['--action', 'decline', '--reason', 'Not needed']).body).toEqual({
+  it('builds a decline request without requiring apply fields', async () => {
+    expect((await request(['--action', 'decline', '--reason', 'Not needed'])).body).toEqual({
       action: 'decline',
       reason: 'Not needed',
     })
   })
 
-  it('allows an apply request without the optional credit cap', () => {
-    expect(request(['--action', 'apply', '--expected-fingerprint', 'preview']).body).toEqual({
+  it('allows an apply request without the optional credit cap', async () => {
+    expect(
+      (await request(['--action', 'apply', '--expected-fingerprint', 'preview'])).body
+    ).toEqual({
       action: 'apply',
       expectedFingerprint: 'preview',
     })
   })
 
-  it('leaves branch defaults to the server and validates shared enum flags against the selected branch', () => {
-    expect(request(['--action', 'decline', '--reason', 'No']).body).not.toHaveProperty('mode')
-    expect(
-      request(['--action', 'decline', '--reason', 'No', '--mode', 'manual']).body
-    ).toMatchObject({ mode: 'manual' })
-    expect(() => request(['--action', 'decline', '--reason', 'No', '--mode', 'automatic'])).toThrow(
-      '--mode must be one of: manual'
+  it('leaves branch defaults to the server and validates shared enum flags against the selected branch', async () => {
+    expect((await request(['--action', 'decline', '--reason', 'No'])).body).not.toHaveProperty(
+      'mode'
     )
+    expect(
+      (await request(['--action', 'decline', '--reason', 'No', '--mode', 'manual'])).body
+    ).toMatchObject({ mode: 'manual' })
+    await expect(
+      request(['--action', 'decline', '--reason', 'No', '--mode', 'automatic'])
+    ).rejects.toThrow('--mode must be one of: manual')
   })
 
   it.each([
@@ -110,15 +114,17 @@ describe('discriminated body flags', () => {
       ['--action', 'apply', '--expected-fingerprint', 'preview', '--new-limit-credits', '1.5'],
       '--new-limit-credits must be a whole number',
     ],
-  ])('refuses an invalid selected-branch request %j before sending', (args, error) => {
-    expect(() => request(args)).toThrow(error)
+  ])('refuses an invalid selected-branch request %j before sending', async (args, error) => {
+    await expect(request(args)).rejects.toThrow(error)
   })
 
-  it('rejects unknown and missing discriminator values in direct request building', () => {
-    expect(() => buildRequest('updateTable', ['request'], {}, null)).toThrow('--action is required')
-    expect(() => buildRequest('updateTable', ['request'], { action: 'other' }, null)).toThrow(
-      '--action must be one of: apply, decline'
+  it('rejects unknown and missing discriminator values in direct request building', async () => {
+    await expect(buildRequest('updateTable', ['request'], {}, null)).rejects.toThrow(
+      '--action is required'
     )
+    await expect(
+      buildRequest('updateTable', ['request'], { action: 'other' }, null)
+    ).rejects.toThrow('--action must be one of: apply, decline')
   })
 
   it('advertises action choices and all branch flags without requiring opaque JSON', () => {

@@ -6,6 +6,7 @@ import type {
   OrganizationBillingSummaryOperation,
   OrganizationBillingSummaryPrincipal,
 } from '@/lib/billing/application/organization-billing-summary/operations'
+import { organizationBillingSettingsActor } from '@/lib/billing/application/organization-settings-actor'
 import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
 
 export interface AuthorizedOrganizationBillingSummaryContext {
@@ -28,7 +29,7 @@ interface AuthorizedOrganizationBillingSummaryDefinition<
   }): Promise<R>
 }
 
-function requireSessionPrincipal(
+function requireBillingSettingsPrincipal(
   principal: Principal,
   operation: OrganizationBillingSummaryOperation
 ): asserts principal is OrganizationBillingSummaryPrincipal {
@@ -53,12 +54,17 @@ export function defineAuthorizedOrganizationBillingSummaryUseCase<
   return {
     operation: definition.operation,
     async execute({ principal, input }) {
-      requireSessionPrincipal(principal, definition.operation)
+      requireBillingSettingsPrincipal(principal, definition.operation)
       const organizationId = definition.organizationId(input)
+      const actorUserId = await organizationBillingSettingsActor(
+        principal,
+        definition.operation,
+        organizationId
+      )
       const [membership] = await db
         .select({ role: member.role })
         .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, principal.userId)))
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, actorUserId)))
         .limit(1)
 
       if (!membership) {
@@ -79,7 +85,7 @@ export function defineAuthorizedOrganizationBillingSummaryUseCase<
         input,
         context: {
           organizationId,
-          actorUserId: principal.userId,
+          actorUserId,
           userRole: membership.role,
         },
       })

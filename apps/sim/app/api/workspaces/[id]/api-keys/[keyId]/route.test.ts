@@ -4,6 +4,7 @@
 import {
   authMockFns,
   createMockRequest,
+  dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   queueTableRows,
@@ -31,6 +32,21 @@ vi.mock('@sim/audit', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org',
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing',
+  }),
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
+    mockGetUserEntityPermissions(...args),
+  permissionSatisfies: (actual: string, required: string) =>
+    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
+}))
+
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { DELETE, PUT } from '@/app/api/workspaces/[id]/api-keys/[keyId]/route'
@@ -53,7 +69,7 @@ describe('workspace API key by id', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'admin-1' }, session: { id: 'session' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
   })
 
@@ -84,7 +100,7 @@ describe('workspace API key by id', () => {
   it('renames when no group withholds API key management', async () => {
     queueTableRows(schemaMock.apiKey, [{ id: 'key-1', name: 'Old name' }])
     queueTableRows(schemaMock.apiKey, [])
-    queueTableRows(schemaMock.apiKey, [
+    dbChainMockFns.returning.mockResolvedValueOnce([
       {
         id: 'key-1',
         name: 'Renamed key',

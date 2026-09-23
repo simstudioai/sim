@@ -1,8 +1,8 @@
 import type { Command } from 'commander'
+import { cliVersion } from '#sim-cli/version'
 import { profileFrom } from '../context'
 import { isCi } from '../environment'
 import { SimApiError } from '../http/client'
-import { CLI_VERSION } from '../version'
 import { detectCodingAgent, NO_CODING_AGENT } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState, nextSession, type TelemetryState, writeTelemetryState } from './state'
@@ -245,7 +245,7 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
 
     const properties: CommandEventProperties = {
       $lib: LIBRARY_NAME,
-      $lib_version: CLI_VERSION,
+      $lib_version: cliVersion(),
       $process_person_profile: false,
       $session_id: session.id,
       session_sequence: session.sequence,
@@ -256,7 +256,7 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
       exit_code: outcome.exitCode,
       duration_ms: Math.round(elapsed()),
       ...failureProperties(outcome.error),
-      cli_version: CLI_VERSION,
+      cli_version: cliVersion(),
       node_version: process.versions.node,
       os: process.platform,
       arch: process.arch,

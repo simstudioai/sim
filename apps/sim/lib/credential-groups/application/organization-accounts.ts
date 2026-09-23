@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeOrganizationOperation,
@@ -13,13 +15,18 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { validateUpdateCredentialGroupInput } from '@/lib/credential-groups/application/validation'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
-import { createCredentialGroupOAuthStartUrl } from '@/lib/credential-groups/enrollment-links'
+import {
+  createCredentialGroupMcpOAuthStartUrl,
+  createCredentialGroupOAuthStartUrl,
+} from '@/lib/credential-groups/enrollment-links'
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   ensureWorkspaceAccountsGroup,
   getOrganizationAccountsGroup,
@@ -29,32 +36,43 @@ import type {
   CredentialGroupOptionInput,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
-import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
+import {
+  listViewerOrganizationAccounts,
+  listViewerOrganizationMcpAccounts,
+} from '@/lib/credential-groups/viewer-accounts'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 
 export const organizationAccountOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.read',
     minimumRole: 'member',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   ensure: defineOrganizationOperation({
     id: 'organization_accounts.ensure',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.update',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   connect: defineOrganizationOperation({
     id: 'organization_accounts.connect',
     minimumRole: 'member',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
 } as const
@@ -121,7 +139,11 @@ export function defineOrganizationAccountsUseCase<
           actorId: context.userId,
           action: AuditAction.CREDENTIAL_GROUP_UPDATED,
           resourceType: AuditResourceType.CREDENTIAL_GROUP,
-          metadata: { organizationId: context.organizationId },
+          metadata: {
+            organizationId: context.organizationId,
+            operation: definition.operation.id,
+            actor: resolvePrincipalAuditAttribution(principal).actor,
+          },
           request,
         })
       await definition.afterSuccess?.({ result, context })
@@ -136,6 +158,13 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
     const credentialGroup = await getOrganizationAccountsGroup(context.organizationId)
     return {
       credentialGroup,
+      viewerMcpAccounts: credentialGroup
+        ? await listViewerOrganizationMcpAccounts({
+            organizationId: context.organizationId,
+            userId: context.userId,
+            matching: eq(credentialGroupTable.id, credentialGroup.id),
+          })
+        : [],
       viewerAccounts: credentialGroup
         ? await listViewerOrganizationAccounts({
             organizationId: context.organizationId,
@@ -212,16 +241,43 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     input,
     context,
   }: {
-    input: OrganizationAccountsInput & { optionId: string }
+    input: OrganizationAccountsInput &
+      StartOrganizationAccountConnectionBody & {
+        oauthCompletionId?: string
+        connectionIntent?: CredentialGroupConnectionIntent
+      }
     context: OrganizationMembershipContext
   }) {
     const group = await getOrganizationAccountsGroup(context.organizationId)
     if (!group || group.status !== 'active')
       throw new OrchestrationError('not_found', 'Ask an organization admin to set up this source')
+    if ('mcpServerId' in input) {
+      if (!group.mcpServers.some((server) => server.id === input.mcpServerId && server.enabled))
+        throw new OrchestrationError('not_found', 'This account provider is no longer available')
+      const { invitationLink } = await createViewerCredentialGroupEnrollment({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        credentialGroupId: group.id,
+      })
+      return {
+        invitationLink,
+        authorizationUrl: createCredentialGroupMcpOAuthStartUrl(invitationLink, input.mcpServerId),
+      }
+    }
     if (
       !group.options.some((option) => option.id === input.optionId && option.status === 'active')
     ) {
       throw new OrchestrationError('not_found', 'This account option is no longer available')
+    }
+    if (input.oauthCompletionId) {
+      return startViewerCredentialGroupOAuth({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        credentialGroupId: group.id,
+        optionId: input.optionId,
+        completionId: input.oauthCompletionId,
+        connectionIntent: input.connectionIntent,
+      })
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({
       organizationId: context.organizationId,

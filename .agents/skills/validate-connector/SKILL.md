@@ -6,6 +6,12 @@ argument-hint: <service-name> [api-docs-url]
 
 # Validate Connector Skill
 
+## Identify the runtime under review
+
+For **Sim Search**, validate the [live provider registration and access pipeline](../../../apps/sim/lib/sim-search/live/README.md#adding-a-live-search-connector): catalog and metadata parity, both search/read handlers, current member grants, service-source restrictions, safe scoped references, pagination, provenance, and provider failure behavior. Test real localhost setup/search/read with authorized fixtures when available, and distinguish those results from mocked provider tests. Live Search must not enqueue content indexing or background ACL/directory builds; GitLab still computes request-time permissions or uses current CSV grants.
+
+The ingestion-specific checks below apply to ordinary workspace KB connectors and legacy Search selected with `SIM_SEARCH_LIVE=false`. Keep those checks for providers supporting both runtimes; do not require a live-only provider to implement content hashes, ingestion cursors, embeddings, or stored ACL snapshots.
+
 You are an expert auditor for Sim knowledge base connectors. Your job is to thoroughly validate that an existing connector is correct, complete, and follows all conventions.
 
 ## Your Task

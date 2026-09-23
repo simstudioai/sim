@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/resources/types'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { NativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/resource-view-policy'

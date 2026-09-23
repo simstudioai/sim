@@ -18,9 +18,11 @@ import {
   Menu,
   shell,
   systemPreferences,
+  WebContentsView,
 } from 'electron'
 import { BASE_ZOOM_FACTOR, steppedZoomFactor } from '@/main/browser-agent/context-menu'
 import * as panel from '@/main/browser-agent/panel'
+import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
@@ -30,6 +32,12 @@ const realPlatform = process.platform
 
 function setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { configurable: true, value: platform })
+}
+
+type PopupHandler = (details: { url: string }) => {
+  action: string
+  outlivesOpener?: boolean
+  createWindow?: (options: Record<string, unknown>) => unknown
 }
 
 interface MockView {
@@ -97,7 +105,8 @@ function freshSession(
   win: BrowserWindow | null | (() => BrowserWindow | null),
   eventOverrides: Partial<sessionModule.AgentSessionEvents> = {},
   browserPersistence?: sessionModule.BrowserSessionPersistence,
-  downloadSettings?: sessionModule.BrowserDownloadSettings
+  downloadSettings?: sessionModule.BrowserDownloadSettings,
+  appSession?: sessionModule.BrowserAppSession
 ): SessionModule {
   const mainWindowProvider = typeof win === 'function' ? win : () => win
   const session = sessionModule
@@ -115,7 +124,8 @@ function freshSession(
     },
     mainWindowProvider,
     browserPersistence,
-    downloadSettings
+    downloadSettings,
+    appSession
   )
   session.activateBrowserScope('chat-test')
   return session
@@ -2358,6 +2368,26 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(13)
   })
 
+  it('gives background automation a viewport without taking panel ownership', () => {
+    const tab = session.withBrowserScope('background-chat', () => session.ensureTab())
+
+    expect(tab.view.setBounds).toHaveBeenCalledWith({
+      x: 0,
+      y: 0,
+      width: 1180,
+      height: 850,
+    })
+    expect(win.contentView.addChildView).not.toHaveBeenCalledWith(tab.view)
+    expect(session.getActiveBrowserScopeId()).toBe('chat-test')
+  })
+
+  it('initializes a detached viewport when no application window exists', () => {
+    const headlessSession = freshSession(null)
+    const tab = headlessSession.ensureTab()
+
+    expect(tab.view.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 1280, height: 720 })
+  })
+
   it('embeds the active view in the MAIN window only while panel bounds are reported', () => {
     const tab = session.ensureTab()
     const view = tab.view as unknown as MockView
@@ -2643,19 +2673,56 @@ describe('browser-agent session', () => {
     expect(contents.session.setPermissionRequestHandler).toHaveBeenCalled()
     expect(contents.session.setPermissionCheckHandler).toHaveBeenCalled()
 
-    const openHandler = contents.setWindowOpenHandler.mock.calls[0][0] as (details: {
-      url: string
-    }) => { action: string }
-    expect(openHandler({ url: 'https://example.com/popup' })).toEqual({ action: 'deny' })
+    const openHandler = contents.setWindowOpenHandler.mock.calls[0][0] as PopupHandler
+    const popup = openHandler({ url: 'https://example.com/popup' })
+    expect(popup).toMatchObject({ action: 'allow', outlivesOpener: true })
+    const adopted = popup.createWindow?.({ webContents: {} as never })
     expect(session.listTabs()).toHaveLength(2)
     const popupContents = (session.activeTab()?.view as unknown as MockView | undefined)
       ?.webContents
-    expect(popupContents?.loadURL).toHaveBeenCalledWith('https://example.com/popup')
+    expect(adopted).toBe(popupContents)
+    // Chromium already navigates an adopted popup, which is what keeps window.opener.
+    expect(popupContents?.loadURL).not.toHaveBeenCalled()
     expect(contents.loadURL).not.toHaveBeenCalledWith('https://example.com/popup')
     // Non-http(s) popups are denied without navigating anywhere.
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('returns agent work to the opener when an adopted popup closes itself', () => {
+    const opener = session.ensureTab()
+    session.setAutomationActive(true)
+    const source = (opener.view as unknown as MockView).webContents
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+    openWindow({ url: 'https://accounts.example/authorize' }).createWindow?.({
+      webContents: {},
+    })
+    const popup = session.automationTab()
+    expect(popup).not.toBe(opener)
+    const popupView = popup?.view as unknown as { webContents?: MockView['webContents'] }
+    const destroyed = popupView.webContents?.on.mock.calls.find(
+      ([event]) => event === 'destroyed'
+    )?.[1] as (() => void) | undefined
+
+    // Electron drops a view's contents once the page closes itself.
+    popupView.webContents = undefined
+    destroyed?.()
+
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([opener.id])
+    expect(session.automationTab()).toBe(opener)
+  })
+
+  it('opens a background-disposition popup by URL and keeps cross-scheme popups denied', () => {
+    const source = (session.ensureTab().view as unknown as MockView).webContents
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+
+    openWindow({ url: 'https://example.com/later' }).createWindow?.({})
+    const popup = (session.activeTab()?.view as unknown as MockView).webContents
+    expect(popup).not.toBe(source)
+    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later')
+    expect(openWindow({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+    expect(session.listTabs()).toHaveLength(2)
   })
 
   it('opens agent working tabs behind the visible page', () => {
@@ -2681,10 +2748,8 @@ describe('browser-agent session', () => {
     onTabCreated.mockClear()
     session.setAutomationActive(true)
 
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
-      url: string
-    }) => { action: string }
-    openWindow({ url: 'https://agent-popup.example/' })
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+    openWindow({ url: 'https://agent-popup.example/' }).createWindow?.({})
     const agentPopup = session.automationTab()
     expect(agentPopup).not.toBeNull()
     expect(session.activeTab()).toBe(sourceTab)
@@ -2718,12 +2783,10 @@ describe('browser-agent session', () => {
   it('lets internal page popups navigate after the network check', async () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const source = (session.ensureTab().view as unknown as MockView).webContents
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
-      url: string
-    }) => { action: string }
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
     const destination = 'http://127.0.0.1:4099/private?token=secret'
 
-    openWindow({ url: destination })
+    openWindow({ url: destination }).createWindow?.({})
     const popup = (session.activeTab()?.view as unknown as MockView).webContents
     const request = beginMainFrameRequest(popup, destination)
 
@@ -3990,8 +4053,9 @@ describe('browser-agent session', () => {
     const retainedDownload = mockDownloadItem({ filename: 'retained.bin', totalBytes: 100 })
 
     startMockDownload(suspendedContents, suspendedDownload)
-    startMockDownload(retainedContents, retainedDownload)
+    await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect(suspendedDownload.item.setSavePath).toHaveBeenCalledOnce())
+    startMockDownload(retainedContents, retainedDownload)
     await vi.waitFor(() => expect(retainedDownload.item.resume).toHaveBeenCalledOnce())
     onDownloadsChanged.mockClear()
 
@@ -4306,5 +4370,82 @@ describe('importAgentCookies', () => {
     )
 
     await expect(session.importAgentCookies([cookie('a')])).rejects.toThrow('Disk unavailable')
+  })
+})
+
+describe('first-party browser sessions', () => {
+  const origin = 'https://www.dev.sim.ai'
+  function initialize(persistence?: sessionModule.BrowserSessionPersistence) {
+    return freshSession(null, {}, persistence, undefined, {
+      origin,
+      session: new WebContentsView().webContents.session,
+    })
+  }
+
+  it('adopts the app session for a blank tab without changing its identity', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab()
+    const original = tab.view.webContents
+    vi.mocked(original.getURL).mockReturnValue('about:blank')
+    const contents = session.tabForNavigation(original, `${origin}/home`, { agentOwned: true })
+    expect(contents).not.toBe(original)
+    expect(agentAppOrigin(contents)).toBe(origin)
+    expect(session.automationTab()?.id).toBe(tab.id)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(original.close).toHaveBeenCalledOnce()
+    expect(contents.session.setPermissionRequestHandler).not.toHaveBeenCalled()
+    expect(contents.session.webRequest.onBeforeRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps a populated tab and its history when crossing the session boundary', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab(`${origin}/home`)
+    const original = tab.view.webContents
+    vi.mocked(original.getURL).mockReturnValue(`${origin}/home`)
+    const destination = session.tabForNavigation(original, 'https://example.com/', {
+      agentOwned: true,
+    })
+    expect(destination).not.toBe(original)
+    expect(agentAppOrigin(destination)).toBeUndefined()
+    expect(session.listTabs()).toHaveLength(2)
+    expect(original.close).not.toHaveBeenCalled()
+    expect(session.navigationTarget(original)).toBe(destination)
+    expect(session.automationTab()?.view.webContents).toBe(destination)
+    session.recordPageLoadFailure(original, {
+      kind: 'load-error',
+      code: -2,
+      description: 'ERR_FAILED',
+      url: 'https://example.com/',
+    })
+    expect(session.pageIssueForContents(original)).toBeUndefined()
+    expect(routeAgentNavigation(original, `${origin}/home`)).toBe(false)
+    expect(session.navigationTarget(original)).toBe(original)
+  })
+
+  it('does not replay cross-session form submissions as GET requests', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab(`${origin}/home`)
+    const contents = tab.view.webContents
+    expect(routeAgentNavigation(contents, 'https://example.com/submit', 'POST')).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(contents.loadURL).not.toHaveBeenCalled()
+    expect(routeAgentNavigation(contents, `${origin}/submit`, 'POST')).toBe(false)
+  })
+
+  it('restores Sim and external tabs into their respective sessions', () => {
+    const { persistence } = memoryBrowserPersistence({
+      'chat-test': {
+        v: 1,
+        tabs: [{ url: `${origin}/home` }, { url: 'https://example.com/' }],
+        activeIndex: 0,
+        downloads: [],
+      },
+    })
+    const session = initialize(persistence)
+    session.restoreBrowserSession()
+    const first = session.switchTab('1').view.webContents
+    const second = session.switchTab('2').view.webContents
+    expect(agentAppOrigin(first)).toBe(origin)
+    expect(agentAppOrigin(second)).toBeUndefined()
   })
 })

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { loadConnectorPermissionGroupTokens } from '@/lib/knowledge/access/connector-permissions'
 import {
+  hasConnectorPermissionGrant,
   loadConnectorPermissionSnapshot,
   readConnectorPermissionMetadata,
   writeConnectorPermissions,
@@ -68,6 +69,15 @@ describe('connector-owned permission storage', () => {
         workspaceId: owners[0].workspaceId,
       })
     ).toEqual([])
+    expect(await hasConnectorPermissionGrant(owners[0].connectorId, 'readers', subject)).toBe(true)
+    expect(await hasConnectorPermissionGrant(owners[0].connectorId, 'other', subject)).toBe(false)
+    expect(
+      await hasConnectorPermissionGrant(
+        owners[0].connectorId,
+        'readers',
+        `u:${owners[0].bobId}@fixture.test`
+      )
+    ).toBe(false)
     await db
       .update(knowledgeConnector)
       .set({ accessRewritePending: false })
@@ -102,5 +112,12 @@ describe('connector-owned permission storage', () => {
         workspaceId: owner.workspaceId,
       })
     ).toEqual([])
+    expect(
+      await hasConnectorPermissionGrant(
+        owner.connectorId,
+        'readers',
+        `u:${owner.aliceId}@fixture.test`
+      )
+    ).toBe(false)
   })
 })

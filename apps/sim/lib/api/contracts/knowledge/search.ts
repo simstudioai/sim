@@ -1,5 +1,18 @@
 import { z } from 'zod'
 import {
+  nativeSearchQueriesSchema,
+  workspaceKnowledgeSearchDataSchema,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
+export {
+  type WorkspaceKnowledgeSearchData,
+  type WorkspaceKnowledgeSearchResult,
+  workspaceKnowledgeSearchDataSchema,
+  workspaceKnowledgeSearchResultSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
+import {
   resolvedSecretTraceProvenanceSchema,
   resourceOwnerSchema,
 } from '@/lib/api/contracts/primitives'
@@ -110,7 +123,17 @@ export const internalKnowledgeSearchResultSchema = z.object({
   content: z.string(),
   chunkIndex: z.number(),
   metadata: z.record(z.string(), z.unknown()),
-  similarity: z.number(),
+  similarity: z
+    .number()
+    .describe(
+      'Cosine similarity between the query embedding and the chunk (1 - cosine distance), in every search mode; 1 for tag-only matches. In hybrid mode this is not the ordering key — see rankScore.'
+    ),
+  rankScore: z
+    .number()
+    .describe(
+      'The score results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode (a sum of 1/(60 + rank) per retrieval leg), the cosine similarity in vector mode, or rerankerScore when a reranker ordered the results.'
+    ),
+  rank: z.number().int().positive().describe('1-based position in the returned order.'),
   rerankerScore: z.number().optional(),
 })
 
@@ -155,30 +178,8 @@ export const internalKnowledgeSearchContract = defineRouteContract({
   },
 })
 
-/** One document a workspace search matched, with the best chunk of it. */
-export const workspaceKnowledgeSearchResultSchema = z.object({
-  documentId: z.string(),
-  knowledgeBaseId: z.string(),
-  knowledgeBaseName: z.string(),
-  documentName: z.string().nullable(),
-  sourceUrl: z.string().nullable(),
-  connectorType: z.string().nullable(),
-  sourceModifiedAt: z.string().nullable(),
-  /** The person behind the document, from its author-like tag; null when the source names none. */
-  author: z.string().nullable(),
-  content: z.string(),
-  chunkIndex: z.number(),
-  similarity: z.number(),
-})
-export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
+export { workspaceSearchFiltersSchema }
 
-/** A plain object, so the Assistant's search input may still extend it; the window's order is checked on the request. */
-export const workspaceSearchFiltersSchema = z.object({
-  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
-  modifiedAfter: z.string().datetime({ offset: true }).optional(),
-  modifiedBefore: z.string().datetime({ offset: true }).optional(),
-  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
-})
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
 /** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
@@ -189,11 +190,24 @@ export type WorkspaceKnowledgeSearchLimit =
 export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
   .safeExtend({
     filters: workspaceSearchFiltersSchema.optional(),
-    query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
+    query: z.string().trim().max(2000, 'Query is too long').default(''),
     topK: z.number().int().min(1).max(50).optional().default(20),
+    nativeQueries: nativeSearchQueriesSchema.optional(),
   })
   .superRefine((body, ctx) => {
-    const { modifiedAfter, modifiedBefore } = body.filters ?? {}
+    const { modifiedAfter, modifiedBefore, startDate, endDate } = body.filters ?? {}
+    if (!body.query && !startDate && !endDate && !modifiedAfter && !modifiedBefore)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'A search query or date bound is required',
+      })
+    if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters', 'endDate'],
+        message: 'endDate must be after startDate',
+      })
     if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
       ctx.addIssue({
         code: 'custom',
@@ -203,16 +217,6 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
     }
   })
 export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
-
-export const workspaceKnowledgeSearchDataSchema = z.object({
-  query: z.string(),
-  results: z.array(workspaceKnowledgeSearchResultSchema),
-  retrieval: z.object({
-    status: z.enum(['complete', 'partial']),
-    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])).max(3),
-  }),
-})
-export type WorkspaceKnowledgeSearchData = z.output<typeof workspaceKnowledgeSearchDataSchema>
 
 /**
  * The search a signed-in person runs from the composer: what their own

@@ -63,11 +63,14 @@ export function defineAuthorizedOrganizationUsageUseCase<
     operation: definition.operation,
     async execute({ principal, input }) {
       requireOrganizationUsagePrincipal(principal, definition.operation)
-      const actorUserId = principal.userId
       const organizationId = definition.organizationId(input)
       const billingEntity: BillingEntity = { type: 'organization', id: organizationId }
 
-      await authorizeOrganizationOperation(principal, definition.operation, { organizationId })
+      const { userId: actorUserId } = await authorizeOrganizationOperation(
+        principal,
+        definition.operation,
+        { organizationId }
+      )
 
       /**
        * One call covers both the plan and the deployment: with billing on it checks

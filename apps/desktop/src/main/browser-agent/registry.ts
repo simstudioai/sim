@@ -1,4 +1,5 @@
-import type { WebContents } from 'electron'
+import type { Session, WebContents } from 'electron'
+import { isAppOrigin } from '@/main/navigation'
 
 /**
  * Registry of WebContents that belong to the agent browser (the browser-agent
@@ -10,11 +11,61 @@ import type { WebContents } from 'electron'
  * navigation time, so the post-construction registration races nothing.
  */
 const agentContents = new WeakSet<WebContents>()
+const agentSessions = new WeakMap<Session, string | undefined>()
+const appOrigins = new WeakMap<WebContents, string>()
+const navigations = new WeakMap<WebContents, (url: string, method: string) => boolean>()
+const permissions = new WeakMap<WebContents, BrowserPermissionHandlers>()
 
-export function registerAgentWebContents(contents: WebContents): void {
+export interface BrowserPermissionHandlers {
+  request: NonNullable<Parameters<Session['setPermissionRequestHandler']>[0]>
+  check: NonNullable<Parameters<Session['setPermissionCheckHandler']>[0]>
+}
+
+export function registerAgentWebContents(
+  contents: WebContents,
+  appOrigin?: string,
+  handlers?: BrowserPermissionHandlers
+): void {
   agentContents.add(contents)
+  agentSessions.set(contents.session, appOrigin)
+  if (appOrigin) appOrigins.set(contents, appOrigin)
+  if (handlers) permissions.set(contents, handlers)
+}
+
+/**
+ * Unattributed workers retain network guards, but a shared session's configured
+ * app origin remains reachable for ordinary app workers on self-hosted networks.
+ */
+export function shouldGuardUnownedAgentRequest(session: Session, url: string): boolean {
+  if (!agentSessions.has(session)) return false
+  const appOrigin = agentSessions.get(session)
+  return !appOrigin || !isAppOrigin(url, appOrigin)
 }
 
 export function isAgentWebContents(contents: WebContents): boolean {
   return agentContents.has(contents)
+}
+
+/** Only first-party browser views may use the app's authenticated session. */
+export function agentAppOrigin(contents: WebContents): string | undefined {
+  return appOrigins.get(contents)
+}
+
+/** Browser views keep browser permission policy even when sharing Sim authentication. */
+export function agentPermissionHandlers(
+  contents: WebContents | null
+): BrowserPermissionHandlers | undefined {
+  return contents ? permissions.get(contents) : undefined
+}
+
+/** Session routing also runs at the request boundary, before redirected requests send cookies. */
+export function registerAgentNavigation(
+  contents: WebContents,
+  route: (url: string, method: string) => boolean
+): void {
+  navigations.set(contents, route)
+}
+
+export function routeAgentNavigation(contents: WebContents, url: string, method = 'GET'): boolean {
+  return navigations.get(contents)?.(url, method) ?? false
 }

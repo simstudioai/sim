@@ -1,89 +1,32 @@
 ---
 title: Confluence
-description: Connect Confluence Cloud spaces and set up each teammate's search access
+description: Search Confluence Cloud with member access and optional service-source restrictions
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Confluence supports **Member accounts** and **Service account**. Each reader connects their own Confluence account in both modes. Search queries Confluence Cloud directly; Server and Data Center are not supported by this adapter.
 
-Search pages, blog posts, and their PDF, Word, Excel, and PowerPoint attachments from selected Confluence Cloud spaces. A Sim organization admin enables Confluence; **each teammate connects their own account**.
+## Member accounts
 
-| Method | How it works |
-| --- | --- |
-| **Service account** | One account indexes content and permissions. Each teammate connects to match their Atlassian identity to those permissions. |
-| **Member accounts** | Sim indexes the pages each connected teammate can access, using that person's account. |
+1. An admin adds **Confluence** under **Settings → Sources** and selects **Member accounts**.
+2. Each teammate opens **Integrations → Confluence → Connect** and authorizes the appropriate Atlassian account.
+3. Search content that account can access. Member mode has no admin space or label configuration.
 
-## Before you start
-
-- Use **Confluence Cloud**. Server and Data Center are not supported.
-- Each teammate needs a verified Sim email matching their active Atlassian account's email.
-- For a central source, an Atlassian organization admin creates a service account with Confluence access. Grant it access to the chosen spaces and restricted pages, plus permission to read space permissions and the user/group directory. Admin status alone does not bypass page restrictions.
-
-<Callout type="info">
-Teammates authorize Sim's shared Confluence app, which also requests workflow permissions, including writes. Search does not edit pages. Hosted Sim provides this app; self-hosted deployments must [configure it](#self-hosted-operator-setup), even when a service account supplies content.
-</Callout>
+The default search includes pages and blog posts. The assistant can use CQL to narrow the content type or target a space. Site selection and permissions come from the connected account.
 
 ## Set up a central source
 
-<Steps>
-<Step>
+1. Add Confluence in Sources, choose **Service account**, and use **Add connection**, or select an existing connection.
+2. In **Connect Confluence site**, choose or add the service credential, enter its site, and select **Spaces**. The picker and manual space-key input set the same boundary. **All** includes spaces currently accessible to the service account.
+3. Choose the content type and optional label filter, then save the connection. Choose that connection as the integration's service source.
+4. Each reader connects their personal Confluence account under **Integrations**.
 
-### Choose Confluence
-
-Open **Settings → Sources → Add source** and select **Confluence**. This opens **Connect Confluence site** with service-account authentication. To connect another site later, open **Confluence** from the Sources list and select **Add Confluence site**.
-
-</Step>
-<Step>
-
-### Choose the account and spaces
-
-Under **Service account**, select a service account or [add one](#using-a-service-account). Enter the same **Confluence site** as the credential, then choose **Spaces**. **All** in the dropdown includes every space the syncing account can access at each sync, including newly accessible spaces. Clear the picker search before selecting all.
-
-If you selected all spaces before this behavior was introduced, reselect **All** and save. Previously saved selections remain a fixed list of spaces.
-
-To enter comma-separated keys such as `ENG, PRODUCT`, use the switch beside **Spaces**. Switching between the picker and manual entry keeps your selection.
-
-Open **More options** for content type, labels, and metadata tags. The default is **Pages only**; choose **All content** to include blog posts.
-
-</Step>
-<Step>
-
-### Sync and connect your identity
-
-Select **Connect & Sync** to start indexing. Then open **Integrations** in the main sidebar and select **Connect** for Confluence. Authorize the configured site using the Atlassian email matching your verified Sim email.
-
-Each teammate completes this identity connection. An existing authorized account may already cover the site. Confluence appears once in Integrations, even with multiple sites; **Connect** or **Reconnect** appears when another authorization is needed.
-
-</Step>
-</Steps>
-
-## Connect member accounts
-
-After an admin configures Confluence, open **Integrations** and select **Connect** beside Confluence. Authorize your account; you do not enter the site's domain or choose its spaces again.
-
-If Confluence is allowed but no source exists, select **Connect** beside Confluence. To add another site later, open the Confluence row’s actions menu (**…**) and select **Add Confluence site**:
-
-1. Open **Your account** and select a saved account or **Connect Confluence account**. Authorize using the Atlassian email matching your verified Sim email.
-2. Enter the hostname under **Atlassian site**, then choose **Spaces**. Use **All** in the dropdown for all spaces accessible at each sync, or the arrows beside **Spaces** to enter comma-separated keys. You can select up to 1,000 individual spaces in this form.
-3. Select **Connect & Sync**. Sim saves the selected scope and starts indexing with your account.
-
-<Image className="mx-auto h-auto w-full max-w-md"
-  src="/static/search/confluence-personal-setup.png"
-  alt="Confluence personal source setup with a saved account, Atlassian site, and selected spaces"
-  width={515}
-  height={345}
-/>
-
-To configure this method as an admin, open **Settings → Sources → Confluence → Add Confluence site** and choose **Sync using → Member accounts**. Enter the site and spaces, then select **Add Confluence site**. **Account for browsing** populates the space picker but does not connect that person to Search; manual space keys work without a browsing account. Teammates then connect from **Integrations**.
+The source can select pages, blog posts, or both. Multiple labels are alternatives: matching any selected label satisfies that filter. A missing required space selection does not broaden access.
 
 ## Using a service account
 
-Use a **scoped API token** from an Atlassian service account:
+Use an Atlassian service account with access to the configured site, spaces, and restricted content. Admin status does not bypass page restrictions. Create a scoped API token in **Atlassian Administration → Directory → Service accounts**.
 
-1. In [Atlassian Administration](https://admin.atlassian.com/), open **Directory → Service accounts**. Create or select the account and grant the Confluence access described above.
-2. Select **Create credentials → API token → Next**. Name the token and choose an expiry between 1 and 365 days.
-3. Add **all scopes below**. Use the **App: Confluence** and **Scope type** filters to find both classic and granular scopes.
+The shared service credential and connector validation use these read scopes:
 
 ```text
 read:confluence-content.all
@@ -101,60 +44,25 @@ read:user:confluence
 read:group:confluence
 ```
 
-Use all 13 scopes for account validation, pickers, content, attachments, permissions, and directory reads. Central indexing does not need write scopes.
+In the source form, select **Service account → Add service account**, paste the token, and supply the matching site hostname. This is separate from the shared OAuth app that members authorize. See [Atlassian's service account token instructions](https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/).
 
-4. Review and create the token, then copy it. Atlassian shows it only once.
-5. In Sim's source form, open **Service account → Add service account**. Paste the **API token**, enter **Site domain** (hostname only), and select **Add service account**. Continue in the source form with the same domain.
+## How filtering works
 
-<Image className="mx-auto h-auto w-full max-w-md"
-  src="/static/credentials/atlassian/admin-auth-type-picker.png"
-  alt="Atlassian Administration credential selector with API token selected"
-  width={700}
-  height={551}
-/>
+Search sends the member's query through their OAuth grant. In service mode, it incorporates the source's content type, space, and label restrictions where supported. Before returning a candidate, Sim uses the source credential to confirm its site, current status, space, type, labels, and readability. The member must also be able to read it.
 
-See Atlassian's [account setup](https://support.atlassian.com/user-management/docs/manage-your-service-accounts/) and [token instructions](https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/). Scopes do not grant space or page access. To replace an expiring token or change scopes, add a new credential in the source's **Settings**, select **Change service account**, and verify a sync before revoking the old token.
+Reading the document uses the member's connection and repeats the service-boundary checks. Sim does not build a background mirror of Confluence groups or page ACLs for this live path. It returns the page or blog-post content exposed by the current API; it does not perform the old attachment ingestion and OCR pipeline.
 
-## Configuration and indexed content
-
-| Setting | What it controls |
-| --- | --- |
-| **Confluence site** | Cloud hostname only, such as `your-team.atlassian.net`; omit page URLs and `/wiki`. |
-| **Spaces / Space Keys** | Required spaces. The picker and manual input set the same scope. |
-| **Content Type** | **Pages only** (default), **Blog posts only**, or **All content** for both. |
-| **Filter by Label** | Optional comma-separated labels; content can match any listed label. |
-| **Metadata tags** | Labels, version, and last-modified tags. |
-
-Search manages the schedule and hides item limits. It indexes published/current content and each page's own text, including supported local callouts and code blocks. PDF, Word `.docx`, Word 97–2003 `.doc`, Excel `.xlsx`, and PowerPoint `.pptx` attachments on the selected pages and blog posts are indexed as separate documents with their parent content's permissions. Space, content-type, and label filters apply to the parent content. Attachment changes are checked on each sync, even when the parent text has not changed.
-
-Archived content, comments, other attachment formats, and expanded Include Page, Excerpt Include, or third-party macro output are excluded. Referenced pages can be indexed separately with their own permissions. Attachments over 100 MB are shown as skipped; convert older Word 6/95 files to `.docx`, and `.xls` and `.ppt` files to `.xlsx` and `.pptx`, before attaching them. Spaces that were already connected pick up newly supported formats on their next sync.
-
-## Manage access and sync
-
-Central sources combine space permissions, page and ancestor restrictions, and group membership. Before returning central content, Sim uses your personal connection to check that you still have access to the configured Confluence site. If Atlassian cannot confirm that access, the content is hidden. Member sources use each person's provider listing. Sim admin status does not grant access to all pages, and permission changes take effect after syncing and processing.
-
-Open **Settings → Sources → Confluence**, then a source's **Documents**, **Settings**, or **Sync history**. Invite teammates through **Settings → Members → Invite** or SSO, then have them connect through **Integrations**. **People → Request connections** only requests a provider connection; it does not invite people to the organization.
-
-Syncing runs automatically. Admins can use **Sync now** for an immediate update, **Pause syncing** to stop scheduled syncs, or **Resume syncing** to restart them. Successful manual syncs have a one-minute cooldown; failed syncs can be retried immediately.
-
-In **Sync history**, **Continuing** means a healthy listing needs another batch. **Partial** means the sync did not fully succeed; read the accompanying notice. If permissions could not be verified, the last successful sync time stays unchanged and documents without verified access remain hidden from Search.
+Search visits up to four accessible Atlassian sites by default. Native CQL can target a specific cloud site ID and follow its continuation cursor. Confluence's own search freshness and limits still apply.
 
 ## Troubleshooting
 
 | Problem | What to check |
 | --- | --- |
-| **Connect & Sync** is disabled | Select a service account, enter its site domain, and choose at least one space. |
-| Space picker is empty or fails | Check the domain, account's space access, and `read:space:confluence` scope. Manual space keys are also supported. |
-| Service-account validation fails | Check token expiry, site, Confluence app access, and the full scope list above, including `read:confluence-user`. |
-| Content syncs but Search is empty | Connect your personal Confluence identity. Check permission/directory sync errors and group-read scopes. |
-| **Permission verification incomplete** | Open the source's **Sync history**. Check the service account's space, page, and directory access. If access is correct and the warning persists, ask your operator to inspect the connector run's permission errors, including incomplete or repeated permission pages. Documents without verified access stay hidden; do not broaden sharing to clear the warning. |
-| A new page, blog post, or label is missing | Confluence search can take time to update. Once the content appears in Confluence search with the selected label, sync again. |
-| A restricted page is missing | Both your account and the crawling account need access to the page and its ancestors. |
-| Embedded content is missing | Index the referenced page separately; remote macro output is excluded. |
-| Attachments are missing | Check `read:attachment:confluence` and access to the parent page. Existing service-account tokens may need to be replaced with one that includes this scope. Attachment access failures are reported as a partial sync. |
-| **Reconnect** or email mismatch | Authorize with the Atlassian account matching your verified Sim email and grant all requested permissions. |
-
-Open a missing page as the affected teammate, check its space and page restrictions, then sync again after correcting access. See Atlassian's [content access](https://support.atlassian.com/confluence-cloud/docs/add-or-remove-page-restrictions/) and [permission inspection](https://support.atlassian.com/confluence-cloud/docs/inspect-a-users-permissions/) guides.
+| Spaces picker is empty | Check the service credential's site, space access, and scopes. Manual space keys remain available. |
+| Service account fails validation | Check expiry, site, Confluence app access, and the credential's required read scopes. |
+| Member sees no results | Connect their personal account; confirm both that account and the selected service credential can open the content. |
+| Blog posts or a labeled page are absent | Check content type, labels, selected spaces, and Confluence's own search results. |
+| Results disappear after changing a source | Verify the new boundary and credential; access is checked again on every search and read. |
 
 ## Self-hosted operator setup
 
@@ -164,6 +72,6 @@ Configure one shared Confluence OAuth app for teammates' connections:
 2. Under **Authorization → OAuth 2.0 (3LO)**, add `https://<your-sim-domain>/api/auth/oauth2/callback/confluence` as a callback.
 3. Under **Permissions**, add the Confluence API and its full `confluence` scope list from [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts), including `read:group:confluence`. Add **User Identity API → read:me**. Sim requests `offline_access` for refresh tokens; the service-account list above does not replace this shared OAuth scope set.
 4. Enable sharing under **Distribution**. Set `CONFLUENCE_CLIENT_ID` and `CONFLUENCE_CLIENT_SECRET` from the app's **Settings**, verify `NEXT_PUBLIC_APP_URL`, and restart Sim.
-5. Connect from **Integrations** and select the configured site. After changing the OAuth client or requested scopes, use **Settings → Sources → More → Update sign-in settings**, then have affected teammates reconnect.
+5. Connect from **Integrations** and select the configured site. After changing the OAuth client or requested scopes, update the organization’s provider configuration and have affected teammates reconnect.
 
 The callback must match Sim's scheme, hostname, port, and path exactly. If only the app owner can connect, check **Distribution**. See the [Atlassian OAuth guide](https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/) and [Sim deployment reference](/platform/self-hosting/integrations-oauth).

@@ -59,6 +59,16 @@ describe('Slack trigger extended-scope capability', () => {
 })
 
 describe('Slack response streaming fields', () => {
+  it('enables tool-call progress by default for the shared response stream', () => {
+    expect(
+      slackOAuthTrigger.subBlocks.find((input) => input.id === 'streamIncludeToolCalls')
+    ).toMatchObject({
+      type: 'switch',
+      defaultValue: true,
+      condition: { field: 'streamResponse', value: true },
+    })
+  })
+
   it('labels response streaming as an agent session', () => {
     const agentSession = slackOAuthTrigger.subBlocks.find(
       (subBlock) => subBlock.id === 'streamResponse'

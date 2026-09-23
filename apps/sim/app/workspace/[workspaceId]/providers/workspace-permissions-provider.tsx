@@ -109,6 +109,9 @@ const WorkspacePermissionsContext = createContext<WorkspacePermissionsContextTyp
 })
 
 interface WorkspacePermissionsProviderProps {
+  workspaceId?: string
+  workflowId?: string
+  isFileViewer?: boolean
   children: React.ReactNode
 }
 
@@ -116,11 +119,16 @@ interface WorkspacePermissionsProviderProps {
  * Provides workspace permissions and connection-aware user access throughout the app.
  * Enforces read-only mode when offline to prevent data loss.
  */
-export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsProviderProps) {
+export function WorkspacePermissionsProvider({
+  children,
+  workspaceId: scopedWorkspaceId,
+  workflowId,
+  isFileViewer: scopedFileViewer,
+}: WorkspacePermissionsProviderProps) {
   const params = useParams()
-  const workspaceId = params?.workspaceId as string
-  const urlWorkflowId = params?.workflowId as string | undefined
-  const isFileViewer = Boolean(params?.fileId)
+  const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string)
+  const urlWorkflowId = scopedWorkspaceId ? workflowId : (params?.workflowId as string | undefined)
+  const isFileViewer = scopedFileViewer ?? Boolean(params?.fileId)
   const queryClient = useQueryClient()
 
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)

@@ -2,10 +2,8 @@
 
 import { Table as TableIcon } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
-import {
-  type BreadcrumbItem,
-  ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
+import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Tables', icon: TableIcon, onClick: noop },

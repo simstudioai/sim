@@ -7,21 +7,24 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  ChatWorkspaceAccessError,
+  listWorkspaceChats,
+} from '@/lib/mothership/chat/application/use-cases'
 import {
   createOrganizationChat,
   listOrganizationChats,
-} from '@/lib/copilot/chat/organization-chats'
-import { chatPubSub } from '@/lib/copilot/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
+} from '@/lib/mothership/chat/organization-chats'
+import { chatPubSub } from '@/lib/mothership/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   assertActiveWorkspaceAccess,
@@ -55,12 +58,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (!workspaceId) throw new Error('Conversation owner is required')
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-
-    const data = await listMothershipChats(userId, workspaceId, scope)
+    if (!principal) return createUnauthorizedResponse()
+    const data = await listWorkspaceChats.execute({ principal, input: { workspaceId, scope } })
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
+    if (error instanceof ChatWorkspaceAccessError)
+      return createForbiddenResponse('Workspace access denied')
     const code = asOrchestrationError(error)?.code
     if (code === 'not_found' || code === 'forbidden')
       return createForbiddenResponse('Organization access denied')
@@ -85,11 +89,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const validation = await parseRequest(createMothershipChatContract, request, {})
     if (!validation.success) return validation.response
-    const { workspaceId, organizationId } = validation.data.body
+    const { workspaceId, organizationId, mode } = validation.data.body
 
     if (organizationId) {
       if (!principal) return createUnauthorizedResponse()
-      const chat = await createOrganizationChat.execute({ principal, input: { organizationId } })
+      const chat = await createOrganizationChat.execute({
+        principal,
+        input: { organizationId, mode },
+      })
       return NextResponse.json({ success: true, id: chat.id })
     }
 
