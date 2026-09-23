@@ -154,6 +154,7 @@ export interface DesktopTerminalHint {
 
 export interface DesktopChatCapabilities {
   desktopCapabilities?: {
+    localFiles?: true
     localFilesystem?: true
     browser?: true
     terminal?: true
@@ -174,6 +175,7 @@ export async function getDesktopChatCapabilities(
   // Never advertise a surface the user switched off, even on the first
   // request after launch, before the cached preferences have arrived.
   await loadDevicePreferences()
+  const localFiles = typeof bridge?.localFiles === 'function'
   const localFilesystem = hasLocalFilesystem()
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
@@ -211,9 +213,10 @@ export async function getDesktopChatCapabilities(
           .catch(() => [])
       : []
   return {
-    ...(localFilesystem || browser || terminal
+    ...(localFiles || localFilesystem || browser || terminal
       ? {
           desktopCapabilities: {
+            ...(localFiles ? { localFiles: true as const } : {}),
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),

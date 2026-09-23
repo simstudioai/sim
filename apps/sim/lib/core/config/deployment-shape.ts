@@ -14,6 +14,7 @@ import {
   isHosted,
   isInboxEnabled,
   isLiveEnterpriseSearchEnabled,
+  isMothershipModelSelectorEnabled,
   isPlanModeEnabled,
   isSandboxesEnabled,
   isScimEnabled,
@@ -91,6 +92,7 @@ export function resolveDeploymentShape(): DeploymentShape {
     cohereConfigured: isCohereConfigured,
     features: {
       planMode: isPlanModeEnabled,
+      mothershipModelSelector: isMothershipModelSelectorEnabled,
       liveEnterpriseSearch: isLiveEnterpriseSearchEnabled,
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,

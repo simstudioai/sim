@@ -503,6 +503,31 @@ describe('sse-handlers tool lifecycle', () => {
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
 
+  it('keeps native imports pending until the desktop claims them', async () => {
+    isSimExecuted.mockReturnValue(false)
+    context.runId = 'run-1'
+    await prePersistClientExecutableToolCall(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'import-1',
+          toolName: 'import_local_files',
+          arguments: { path: '~/Reports', targetWorkspaceId: 'workspace-1' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context
+    )
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 'import-1',
+        status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      })
+    )
+  })
+
   it('keeps non-browser client tools in the established running state', async () => {
     isSimExecuted.mockReturnValue(false)
     context.runId = 'run-1'

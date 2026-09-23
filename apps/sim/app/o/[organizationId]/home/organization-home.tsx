@@ -15,11 +15,7 @@ import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachm
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
-import {
-  organizationHomeParsers,
-  resolveSearchLevel,
-  type SearchLevel,
-} from '@/app/o/[organizationId]/home/search-params'
+import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
@@ -78,12 +74,6 @@ function OrganizationHomeContent({
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
-  const rememberedSearchLevel = useOrganizationChatModeStore(
-    (state) => state.assistantSearchLevels?.[`${userId}:${organization.id}`] ?? 'adaptive'
-  )
-  const rememberAssistantSearchLevel = useOrganizationChatModeStore(
-    (state) => state.setAssistantSearchLevel
-  )
   const [{ q, source, updated, searchLevel: urlSearchLevel }, setSearchParams] = useQueryStates(
     organizationHomeParsers,
     organizationSearchUrlKeys
@@ -116,10 +106,7 @@ function OrganizationHomeContent({
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
   const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
-  const assistantSearchLevel = resolveSearchLevel(
-    urlSearchLevel ?? rememberedSearchLevel,
-    liveSearch
-  )
+  const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
@@ -146,13 +133,6 @@ function OrganizationHomeContent({
     chat.resources,
     addResource,
   ])
-  const changeAssistantSearchLevel = (level: SearchLevel) => {
-    if (userId) {
-      rememberAssistantSearchLevel(userId, organization.id, level)
-      rememberMode(userId, organization.id, 'assistant')
-    }
-    void setSearchParams({ searchLevel: level })
-  }
   const selectResource = useCallback(
     async (ref: WorkspaceResourceRef) => {
       if (!ref.workspaceId) {
@@ -216,10 +196,7 @@ function OrganizationHomeContent({
           : {}),
         ...(requestMode === 'assistant'
           ? {
-              assistantSearchLevel: resolveSearchLevel(
-                handoff.assistantSearchLevel ?? assistantSearchLevel,
-                liveSearch
-              ),
+              assistantSearchLevel,
             }
           : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
@@ -283,8 +260,6 @@ function OrganizationHomeContent({
       <Composer
         requestMode={requestMode}
         searchEnabled={searchAccess.memberScoped}
-        assistantSearchLevel={assistantSearchLevel}
-        onAssistantSearchLevelChange={changeAssistantSearchLevel}
         showModeSelector={canSelectMode}
         onModeChange={canSelectMode ? changeMode : undefined}
         value={draft}
@@ -324,8 +299,6 @@ function OrganizationHomeContent({
               const queuedMode = queued.requestMode ?? requestMode
               setSelectedMode(queuedMode)
               setDraft(queued.content)
-              if (queuedMode === 'assistant')
-                changeAssistantSearchLevel(queued.assistantSearchLevel ?? 'adaptive')
               setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({

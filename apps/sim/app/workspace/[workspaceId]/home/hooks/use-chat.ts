@@ -56,6 +56,7 @@ import {
 import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import {
   isTerminalStreamStatus,
   parsePersistedStreamEventEnvelopeJson,
@@ -81,7 +82,7 @@ import {
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
-import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -1526,7 +1527,10 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs)) {
+      if (
+        !isNativeFileTool(toolName) &&
+        (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs))
+      ) {
         return
       }
       if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
@@ -3667,8 +3671,10 @@ export function useChat(
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             ...(options?.requestMode !== 'assistant'
               ? {
-                  effort: useMothershipEffortStore.getState().effort,
-                  modelSelection: useMothershipEffortStore.getState().modelSelection,
+                  ...resolveMothershipModelSettings(
+                    useMothershipEffortStore.getState(),
+                    getDeploymentShape().features.mothershipModelSelector === true
+                  ),
                 }
               : {}),
           }),

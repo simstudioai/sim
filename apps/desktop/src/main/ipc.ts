@@ -81,6 +81,7 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
+import { executeLocalFileRequest } from '@/main/local-files'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
@@ -507,7 +508,9 @@ interface DesktopToolAuthorization {
 async function fetchDesktopToolAuthorization(
   event: IpcMainInvokeEvent,
   deps: IpcDeps,
-  toolCallId: unknown
+  toolCallId: unknown,
+  claim = false,
+  onFailureStatus?: (status: number) => void
 ): Promise<DesktopToolAuthorization | null> {
   if (!isDesktopToolCallId(toolCallId)) return null
   const startedAt = Date.now()
@@ -518,11 +521,12 @@ async function fetchDesktopToolAuthorization(
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolCallId }),
+        body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
         signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
       }
     )
     if (!response.ok) {
+      onFailureStatus?.(response.status)
       logger.warn('Desktop tool authorization was rejected', {
         toolCallId,
         status: response.status,
@@ -711,6 +715,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         return deps.beginOAuthConnect(providerId, parsedScope)
       },
+    },
+    'desktop:local-files': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      passSender: true,
+      denied: { ok: false, error: 'Local file tools are unavailable from this page.' },
+      handler: (_sender, request, authorization) =>
+        executeLocalFileRequest(request, authorization as DesktopToolAuthorization),
     },
     'desktop:local-filesystem': {
       kind: 'invoke',
@@ -2058,6 +2071,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             code: 'ACCESS_DENIED',
             error: 'This local filesystem request is not an authorized pending Copilot tool call.',
           }
+        }
+        if (channel === 'desktop:local-files') {
+          const request = args[0]
+          if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
+          let failureStatus: number | undefined
+          const authorization = await fetchDesktopToolAuthorization(
+            event,
+            deps,
+            request.toolCallId,
+            request.operation === 'manifest',
+            (status) => {
+              failureStatus = status
+            }
+          )
+          if (failureStatus === 409)
+            return {
+              ok: false,
+              code: 'ALREADY_STARTED',
+              error: 'This import is already running or was already started.',
+            }
+          if (
+            !authorization ||
+            !['read_local_file', 'import_local_files'].includes(authorization.toolName)
+          )
+            return { ok: false, error: 'This is not an authorized pending local file tool call.' }
+          handlerArgs = [request, authorization]
         }
         if (spec.passSender) {
           handlerArgs = [event.sender, ...handlerArgs]

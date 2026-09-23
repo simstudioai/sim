@@ -254,9 +254,7 @@ describe('CredentialDisplay link tag', () => {
           viewer: { isAdmin: mode === 'organization' },
         } as never)
         render([{ ...secret, description: 'Only for this organization' }])
-        expect(container.textContent).toContain(
-          mode === 'organization' ? 'shared with Example' : 'private to you in this organization'
-        )
+        expect(container.textContent).not.toContain('Submitting replaces')
         enter()
         await submit()
         expect(fetch).toHaveBeenCalledExactlyOnceWith(
@@ -347,7 +345,6 @@ describe('CredentialDisplay link tag', () => {
         setSource({ id: 'replacement-source', mode: 'organization' })
         await sleep(0)
       })
-      expect(container.textContent).toContain('shared with Example')
       expect(container.querySelector('input')?.value).toBe('')
       await submit()
       expect(fetch).not.toHaveBeenCalled()

@@ -15,6 +15,7 @@ export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
 export const DESKTOP_TOOL_CLAIM_OWNER = {
   browser: 'desktop-browser',
   terminal: 'desktop-terminal',
+  files: 'desktop-files',
 } as const
 
 export type AsyncLifecycleStatus =

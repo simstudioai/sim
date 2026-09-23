@@ -99,11 +99,6 @@ export function OrganizationSecretInputHost({
       key={`${organizationId}:${session.user.id}:${source.id}:${source.mode}`}
       value={{ save, isSaving: mutation.isPending }}
     >
-      <p className='mb-2 text-[var(--text-muted)] text-sm'>
-        {source.mode === 'organization'
-          ? `Generic Secrets are shared with ${organizationContext.organization.name}. Submitting replaces any existing keys with the same names.`
-          : 'These Generic Secrets are private to you in this organization. Submitting replaces your existing keys with the same names.'}
-      </p>
       {children}
     </OrganizationSecretInputContext.Provider>
   )

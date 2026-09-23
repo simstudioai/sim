@@ -10,6 +10,7 @@ import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 const mocks = vi.hoisted(() => ({
   live: false,
   plan: false,
+  advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
   resetTranscript: vi.fn(),
@@ -37,7 +38,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/config/deployment-shape', () => ({
   useDeploymentShape: () => ({
-    features: { liveEnterpriseSearch: mocks.live, planMode: mocks.plan },
+    features: {
+      liveEnterpriseSearch: mocks.live,
+      planMode: mocks.plan,
+      mothershipModelSelector: mocks.advanced,
+    },
   }),
   getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
@@ -91,6 +96,11 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
+  mocks.advanced = false
+  useMothershipEffortStore.setState({
+    effort: 'high',
+    modelSelection: { model: 'gpt-6-astra', fastMode: false },
+  })
   mocks.plan = false
   mocks.live = false
   vi.clearAllMocks()
@@ -184,19 +194,11 @@ async function render(
   requestMode: 'agent' | 'assistant' = 'assistant',
   controls: Pick<
     ComponentProps<typeof Composer>,
-    | 'isSending'
-    | 'showModeSelector'
-    | 'onModeChange'
-    | 'restoredContexts'
-    | 'assistantSearchLevel'
-    | 'onAssistantSearchLevelChange'
+    'isSending' | 'showModeSelector' | 'onModeChange' | 'restoredContexts'
   > = { isSending: false }
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
-    const [assistantSearchLevel, setAssistantSearchLevel] = useState(
-      controls.assistantSearchLevel ?? 'adaptive'
-    )
     const files = useFileAttachments({
       userId: 'user-a',
       organizationId: 'organization-a',
@@ -205,10 +207,6 @@ async function render(
     return (
       <Composer
         requestMode={requestMode}
-        assistantSearchLevel={assistantSearchLevel}
-        onAssistantSearchLevelChange={
-          controls.onAssistantSearchLevelChange ?? setAssistantSearchLevel
-        }
         showModeSelector={controls.showModeSelector}
         onModeChange={controls.onModeChange}
         restoredContexts={controls.restoredContexts}
@@ -244,7 +242,7 @@ describe('organization voice composer', () => {
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
       expect(container.querySelector('[aria-label="Reasoning effort"]')).toBeNull()
       expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
-      expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe('Search level')
+      expect(mic.previousElementSibling).toBeNull()
       expect(mic.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
@@ -751,30 +749,16 @@ describe('Search levels', () => {
     expect(mocks.submit).toHaveBeenCalledWith('First line\nSecond line', [])
   })
 
-  it.each(['Fast', 'Auto', 'Max'])(
-    'selects %s without losing the draft or image',
-    async (label) => {
-      await render(true, 'Preserved question')
-      await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
-      const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
-      expect(picker.textContent).toBe('Auto')
-      expect(picker.nextElementSibling?.getAttribute('aria-label')).toBe('Voice input')
-      await act(async () =>
-        picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      )
-      const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
-        (item) => item.textContent?.startsWith(label)
-      )!
-      await act(async () => option.click())
-      expect(picker.textContent).toBe(label)
-      expect(
-        container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
-          .value
-      ).toBe('Preserved question')
-      expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
-      expect(mocks.submit).not.toHaveBeenCalled()
-    }
-  )
+  it('keeps the draft and image without exposing a model selector', async () => {
+    await render(true, 'Preserved question')
+    await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
+    expect(container.querySelector('[aria-label="Search level"]')).toBeNull()
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Ask Sim"]')!.value).toBe(
+      'Preserved question'
+    )
+    expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
+    expect(mocks.submit).not.toHaveBeenCalled()
+  })
 
   it('keeps the Search editor between the left and right controls in one row', async () => {
     await render(true, '', 'assistant', {
@@ -790,30 +774,24 @@ describe('Search levels', () => {
     expect(mode.textContent).toBe('')
     expect(mode.querySelectorAll('svg')).toHaveLength(2)
     expect(mode.parentElement?.nextElementSibling).toBeNull()
-    expect(row.querySelector('[aria-label="Search level"]')?.textContent).toBe('Auto')
+    expect(row.querySelector('[aria-label="Search level"]')).toBeNull()
   })
 })
 
-it('offers only the five Build efforts and changes effort without losing the draft', async () => {
+it('offers the three simplified Build efforts and changes effort without losing the draft', async () => {
   useMothershipEffortStore.getState().setEffort('high')
   await render(true, 'Build draft', 'agent')
   const picker = container.querySelector<HTMLButtonElement>('[aria-label="Reasoning effort"]')!
-  expect(picker?.textContent).toBe('High')
+  expect(picker?.textContent).toBe('Medium')
   expect(container.textContent).not.toMatch(/GPT-6 Astra|Opus/)
   await act(async () =>
     picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
   const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
-  expect(options.map((item) => item.textContent)).toEqual([
-    'Low',
-    'Medium',
-    'High',
-    'Extra High',
-    'Max',
-  ])
-  expect(options[2].getAttribute('aria-checked')).toBe('true')
-  await act(async () => options[3].click())
-  expect(picker.textContent).toBe('Extra High')
+  expect(options.map((item) => item.textContent)).toEqual(['Low', 'Medium', 'High'])
+  expect(options[1].getAttribute('aria-checked')).toBe('true')
+  await act(async () => options[2].click())
+  expect(picker.textContent).toBe('High')
   expect(useMothershipEffortStore.getState()).toMatchObject({
     effort: 'xhigh',
     modelSelection: { model: 'gpt-6-astra' },
@@ -824,7 +802,8 @@ it('offers only the five Build efforts and changes effort without losing the dra
   expect(mocks.submit).not.toHaveBeenCalled()
 })
 
-it('keeps Build Fast independent of Search levels', async () => {
+it('exposes Fast with the advanced model flag', async () => {
+  mocks.advanced = true
   useMothershipEffortStore.getState().setFastMode(false)
   await render(true, 'Build', 'agent')
   expect(container.querySelector('[aria-label="Search level"]')).toBeNull()
@@ -835,33 +814,19 @@ it('keeps Build Fast independent of Search levels', async () => {
   await act(async () => useMothershipEffortStore.getState().setFastMode(false))
 })
 
-it('offers only Fast, Auto, and Max search levels', async () => {
-  await render(true, '', 'assistant', { isSending: false })
-  const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
-  await act(async () =>
-    picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-  )
-  expect(
-    [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(
-      (item) => item.textContent
+it.each([false, true])(
+  'does not expose Search model or effort controls (live=%s)',
+  async (live) => {
+    mocks.live = live
+    await render(true, 'Find the launch', 'assistant', { isSending: false })
+    expect(container.querySelector('[aria-label="Search level"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Reasoning effort"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Ask Sim"]')!.value).toBe(
+      'Find the launch'
     )
-  ).toEqual(['Fast', 'Auto', 'Max'])
-})
-
-it('offers only Auto and Max for live Search, with Auto sending the Fast preset', async () => {
-  mocks.live = true
-  const onChange = vi.fn()
-  await render(true, '', 'assistant', { onAssistantSearchLevelChange: onChange })
-  const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
-  expect(picker.textContent).toBe('Auto')
-  await act(async () =>
-    picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-  )
-  const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
-  expect(options.map((option) => option.textContent)).toEqual(['Auto', 'Max'])
-  await act(async () => options[0].click())
-  expect(onChange).toHaveBeenCalledWith('fast')
-})
+  }
+)
 
 it.each([false, true])('exposes Plan only when enabled (%s)', async (enabled) => {
   mocks.plan = enabled
@@ -883,4 +848,57 @@ it.each([false, true])('exposes Plan only when enabled (%s)', async (enabled) =>
     await act(async () => plan.click())
     expect(onModeChange).toHaveBeenCalledExactlyOnceWith('plan')
   }
+})
+
+it('hides advanced saved preferences when the flag is disabled', async () => {
+  useMothershipEffortStore.setState({
+    effort: 'max',
+    modelSelection: { model: 'claude-opus-5-5', fastMode: true },
+  })
+  await render(true, 'Build', 'agent')
+  expect(container.querySelector('[aria-label="Model"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Reasoning effort"]')?.textContent).toBe('High')
+})
+
+it('offers the advanced models and each model’s supported efforts', async () => {
+  mocks.advanced = true
+  await render(true, 'Build draft', 'agent')
+  const model = container.querySelector<HTMLButtonElement>('[aria-label="Model"]')!
+  await act(async () =>
+    model.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const models = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+  expect(models.map((item) => item.textContent)).toEqual(['GPT-6 Astra', 'GPT-6 Sol', 'Opus 5.5'])
+  await act(async () => models[1].click())
+  const effort = container.querySelector<HTMLButtonElement>('[aria-label="Reasoning effort"]')!
+  await act(async () =>
+    effort.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const efforts = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+  expect(efforts.map((item) => item.textContent)).toEqual([
+    'None',
+    'Low',
+    'Medium',
+    'High',
+    'Extra High',
+    'Max',
+  ])
+  await act(async () => efforts[0].click())
+  expect(useMothershipEffortStore.getState()).toMatchObject({
+    effort: 'none',
+    modelSelection: { model: 'gpt-6-sol' },
+  })
+  await act(async () => useMothershipEffortStore.getState().setModel('claude-opus-5-5'))
+  expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
+  expect(useMothershipEffortStore.getState().modelSelection.fastMode).toBe(false)
+  expect(effort.textContent).toBe('Medium')
+  await act(async () =>
+    effort.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  expect(
+    [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(
+      (item) => item.textContent
+    )
+  ).toEqual(['Low', 'Medium', 'High', 'Extra High', 'Max'])
 })

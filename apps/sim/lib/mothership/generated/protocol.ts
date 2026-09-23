@@ -88,16 +88,21 @@ const WorkspaceInventorySchema = z.object({
 /** Composer choices are a closed catalog; credentials and provider routes stay server-owned. */
 export const ModelSelectionSchema = z
   .object({
-    model: z.enum(["gpt-6-astra", "claude-opus-5"]),
+    model: z.enum(["gpt-6-astra", "gpt-6-sol", "claude-opus-5-5", "claude-opus-5"]),
     fastMode: z.boolean().default(false),
   })
-  .refine((selection) => !selection.fastMode || selection.model === "gpt-6-astra", {
-    message: "Fast mode is available only for GPT-6 Astra",
-  });
+  .refine(
+    (selection) =>
+      !selection.fastMode || selection.model === "gpt-6-astra" || selection.model === "gpt-6-sol",
+    {
+      message: "Fast mode is available only for GPT-6 Astra and GPT-6 Sol",
+    },
+  );
 export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 
 /** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
 export const DesktopContextSchema = z.object({
+  localFiles: z.boolean().optional(),
   browser: z.boolean().default(false),
   terminal: z.boolean().default(false),
   terminals: z
@@ -172,12 +177,18 @@ export const ChatPayloadSchema = z
      * message (21-background-tasks.md); recorded on the turn's user_message event. */
     origin: z.enum(["task"]).optional(),
     /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
-    effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+    effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
     modelSelection: ModelSelectionSchema.optional(),
     /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
+      ctx.addIssue({
+        code: "custom",
+        path: ["effort"],
+        message: "None effort is available only for GPT-6 Sol",
+      });
     if (value.assistantSearchLevel !== undefined && value.mode !== "assistant")
       ctx.addIssue({ code: "custom", message: "Search levels require Assistant mode" });
     if (value.assistantSearchLevel && (value.modelSelection || value.assistantFast !== undefined))
@@ -230,7 +241,7 @@ export interface StreamToolReplay {
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
   desktop?: DesktopContext | undefined;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+  effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" | undefined;
   modelSelection?: ModelSelection | undefined;
   simConnection?: SimConnection | undefined;
   message: string;

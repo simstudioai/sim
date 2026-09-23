@@ -311,7 +311,10 @@ export async function prePersistClientExecutableToolCall(
     // client tools retain the established "already dispatched" running state.
     // A gated tool is likewise pending: nothing has been dispatched yet.
     status:
-      gated || isCurrentBrowserToolName(data.toolName) || isTerminalToolName(data.toolName)
+      gated ||
+      isCurrentBrowserToolName(data.toolName) ||
+      isTerminalToolName(data.toolName) ||
+      data.toolName === 'import_local_files'
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
   }).catch((err) => {

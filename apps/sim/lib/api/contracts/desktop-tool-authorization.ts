@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const authorizeDesktopToolBodySchema = z.object({
+  claim: z.boolean().optional(),
   toolCallId: z
     .string()
     .min(1, 'Tool call ID is required')

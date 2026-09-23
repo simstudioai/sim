@@ -14,7 +14,7 @@ import {
   extractResourcesFromToolResult,
   isResourceToolName,
 } from '@/lib/mothership/resources/extraction'
-import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
@@ -200,9 +200,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
     }
   }
   const localFilesystemArgs = payload.arguments as Record<string, unknown> | undefined
-  if (isUserLocalVfsToolCall(name, localFilesystemArgs) && !isPartial) {
+  if ((isNativeFileTool(name) || isUserLocalVfsToolCall(name, localFilesystemArgs)) && !isPartial) {
     const shouldStartLocalFilesystemTool =
-      node?.kind === 'tool' && node.status === 'running' && !node.result
+      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
+      node?.kind === 'tool' &&
+      node.status === 'running' &&
+      !node.result
     if (shouldStartLocalFilesystemTool) {
       deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
     }

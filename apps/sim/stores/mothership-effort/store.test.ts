@@ -11,7 +11,7 @@ beforeEach(() => {
 })
 
 describe('Build reasoning preferences', () => {
-  it('replaces a saved Opus selection with Astra while preserving effort', async () => {
+  it('updates a saved Opus selection to Opus 5.5 while preserving effort', async () => {
     localStorage.setItem(
       'mothership-effort',
       JSON.stringify({
@@ -22,12 +22,12 @@ describe('Build reasoning preferences', () => {
     await useMothershipEffortStore.persist.rehydrate()
     expect(useMothershipEffortStore.getState()).toMatchObject({
       effort: 'xhigh',
-      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      modelSelection: { model: 'claude-opus-5-5', fastMode: false },
     })
     useMothershipEffortStore.getState().setFastMode(true)
     expect(JSON.parse(localStorage.getItem('mothership-effort')!).state).toEqual({
       effort: 'xhigh',
-      modelSelection: { model: 'gpt-6-astra', fastMode: true },
+      modelSelection: { model: 'claude-opus-5-5', fastMode: false },
     })
   })
 

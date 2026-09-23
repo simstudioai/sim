@@ -273,6 +273,7 @@ describe('handleUnifiedChatPost', () => {
   })
 
   beforeEach(() => {
+    setEnvFlags({ isMothershipModelSelectorEnabled: true })
     vi.clearAllMocks()
     resetDbChainMock()
     atomicallyClaimChatSend.mockResolvedValue({
@@ -845,6 +846,67 @@ describe('handleUnifiedChatPost', () => {
       expect(listPersonal).not.toHaveBeenCalled()
     }
   })
+
+  it.each([
+    ['medium', 'medium'],
+    ['high', 'high'],
+    ['xhigh', 'xhigh'],
+    ['max', 'xhigh'],
+    ['low', 'medium'],
+    ['none', 'medium'],
+  ])(
+    'enforces the default model and effort range on submitted %s effort',
+    async (effort, expected) => {
+      setEnvFlags({ isMothershipModelSelectorEnabled: false })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Build',
+            workspaceId: 'ws-1',
+            effort,
+            modelSelection: { model: 'gpt-6-sol', fastMode: true },
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          effort: expected,
+          modelSelection: { model: 'gpt-6-astra', fastMode: false },
+        }),
+        expect.anything()
+      )
+    }
+  )
+
+  it.each(['gpt-6-sol', 'claude-opus-5-5'])(
+    'admits advanced %s and Fast when enabled',
+    async (model) => {
+      setEnvFlags({ isMothershipModelSelectorEnabled: true })
+      const effort = model === 'gpt-6-sol' ? 'none' : 'max'
+      const fastMode = model === 'gpt-6-sol'
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Build',
+            workspaceId: 'ws-1',
+            effort,
+            modelSelection: { model, fastMode },
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          effort,
+          modelSelection: { model, fastMode },
+        }),
+        expect.anything()
+      )
+    }
+  )
 
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
@@ -1956,7 +2018,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     expect(response.status).toBe(200)
     expect(createSSEStream).toHaveBeenCalledTimes(1)
     expect(startCopilotOtelRoot.mock.results.at(-1)?.value.setRequestShape).toHaveBeenCalledWith(
-      expect.objectContaining({ model: undefined })
+      expect.objectContaining({ model: 'gpt-6-astra' })
     )
   })
 

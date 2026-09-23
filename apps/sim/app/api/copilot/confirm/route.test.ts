@@ -276,6 +276,8 @@ describe('Copilot Confirm API Route', () => {
     ['browser_snapshot', 'cancelled', 'cancelled'],
     ['terminal', 'error', 'failed'],
     ['terminal', 'cancelled', 'cancelled'],
+    ['import_local_files', 'error', 'failed'],
+    ['import_local_files', 'cancelled', 'cancelled'],
   ] as const)(
     'accepts a pending %s %s before the desktop authorization claim',
     async (toolName, status, durableStatus) => {
@@ -311,6 +313,7 @@ describe('Copilot Confirm API Route', () => {
   it.each([
     ['browser_snapshot', 'error'],
     ['terminal', 'cancelled'],
+    ['import_local_files', 'error'],
   ] as const)(
     'rejects a pending %s %s when the native authorization claim wins the race',
     async (toolName, status) => {
@@ -342,6 +345,7 @@ describe('Copilot Confirm API Route', () => {
   it.each([
     ['browser_snapshot', 'desktop-browser'],
     ['terminal', 'desktop-terminal'],
+    ['import_local_files', 'desktop-files'],
   ] as const)(
     'settles an indeterminate pending %s result when the exact %s claim wins the race',
     async (toolName, claimOwner) => {

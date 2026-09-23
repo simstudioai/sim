@@ -18,7 +18,8 @@ import micromatch from 'micromatch'
 import { getDesktopBridge } from '@/lib/desktop'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import { reportClientToolCompletion } from '@/lib/mothership/tools/client/completion'
-import { USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
+import { executeNativeFileTool } from '@/lib/mothership/tools/client/native-files'
+import { isNativeFileTool, USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
 import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
 
 const logger = createLogger('CopilotLocalFilesystemTool')
@@ -38,7 +39,7 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
 }
 
 interface LocalFilesystemExecutionContext {
-  workspaceId: string
+  workspaceId?: string
   chatId?: string
   signal?: AbortSignal
 }
@@ -342,6 +343,10 @@ export function executeLocalFilesystemTool(
   args: Record<string, unknown>,
   context: LocalFilesystemExecutionContext
 ): void {
+  if (isNativeFileTool(toolName)) {
+    void executeNativeFileTool(toolCallId, toolName, context.signal)
+    return
+  }
   void execute(toolCallId, toolName, args, context).then(
     async (data) => {
       if (context.signal?.aborted) return

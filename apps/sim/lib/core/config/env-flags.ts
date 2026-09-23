@@ -730,4 +730,9 @@ export const isLiveEnterpriseSearchEnabled =
 /** Private organizational planning, enabled only by this deployment. */
 export const isPlanModeEnabled =
   typeof window === 'undefined' &&
-  (envBoolean(env.MSHIP_PLAN_MODE) ?? process.env.NODE_ENV === 'development')
+  (envBoolean(env.MSHIP_PLAN_MODE) ?? (isDev || appHostname === 'dev.sim.ai'))
+
+/** Advanced model, effort and Fast controls share one dev-default deployment gate. */
+export const isMothershipModelSelectorEnabled =
+  typeof window === 'undefined' &&
+  (envBoolean(env.MSHIP_MODEL_SELECTOR) ?? (isDev || appHostname === 'dev.sim.ai'))

@@ -82,8 +82,9 @@ interface BuildPayloadParams {
   /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
   userTimezone?: string
   /** Per-turn model effort dial (user-selected in the composer). */
-  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  effort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   modelSelection?: ModelSelection
+  desktopLocalFiles?: boolean
   desktopLocalFilesystem?: boolean
   browser?: boolean
   terminalCapable?: boolean
@@ -470,9 +471,10 @@ export async function buildCopilotRequestPayload(
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
     ...(inventory ? { inventory } : {}),
-    ...(!isAssistant && (params.browser || params.terminalCapable)
+    ...(!isAssistant && (params.desktopLocalFiles || params.browser || params.terminalCapable)
       ? {
           desktop: {
+            ...(params.desktopLocalFiles ? { localFiles: true } : {}),
             browser: params.browser === true,
             terminal: params.terminalCapable === true,
             terminals: params.terminalCapable ? (params.terminals ?? []).slice(0, 20) : [],

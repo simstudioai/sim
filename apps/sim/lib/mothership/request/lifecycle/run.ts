@@ -14,7 +14,11 @@ import {
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
-import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import {
+  isCopilotToolPermissionsEnabled,
+  isHosted,
+  isMothershipModelSelectorEnabled,
+} from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
 import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
@@ -1651,7 +1655,11 @@ async function withEnterpriseByokKey(
 ): Promise<Record<string, unknown>> {
   if (!BYOK_ROUTES.includes(route)) return payload
   const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
-  const refreshed = omit(payload, ['byokApiKey'])
+  const refreshed = omit(payload, [
+    'byokApiKey',
+    /** The hidden hosted default must not override the customer-key provider pin. */
+    ...(byokApiKey && !isMothershipModelSelectorEnabled ? ['modelSelection'] : []),
+  ])
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
 }
 

@@ -665,6 +665,8 @@ const TOOL_TITLES: Record<string, string> = {
   browser_snapshot: 'Scanning page',
   browser_find: 'Finding page element',
   browser_read_text: 'Reading page',
+  read_local_file: 'Reading local file',
+  import_local_files: 'Importing local files',
   browser_screenshot: 'Taking screenshot',
   browser_click: 'Clicking element',
   browser_click_at: 'Clicking point',

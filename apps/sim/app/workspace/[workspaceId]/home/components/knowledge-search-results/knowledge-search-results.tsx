@@ -502,47 +502,18 @@ function LiveSearchResults({
           )}
         </div>
       )}
-      {!isPending && !isError && data?.live && accounts.length === 0 && (
-        <div className='flex items-center gap-2 px-2 py-2'>
-          <p className='text-caption'>
-            Connect an enabled app, or ask an admin to configure search.
+      {!awaitingRange &&
+        !isPending &&
+        !isFetching &&
+        !isError &&
+        data?.retrieval.status === 'complete' &&
+        documents.length === 0 && (
+          <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
+            Search found no results.
           </p>
-          <ChipLink
-            href={
-              scope.kind === 'organization'
-                ? `/o/${scope.organizationId}/integrations`
-                : `/workspace/${scope.workspaceId}/integrations`
-            }
-          >
-            Connected accounts
-          </ChipLink>
-        </div>
-      )}
-      {accounts.some((account) => account.status === 'reconnect') && (
-        <div role='status' className='flex items-center gap-2 px-2 py-2 text-caption'>
-          <span>
-            {[
-              ...new Set(
-                accounts
-                  .filter((account) => account.status === 'reconnect')
-                  .map((account) => connectorDisplayName(account.provider))
-              ),
-            ].join(', ')}{' '}
-            needs to reconnect.
-          </span>
-          <ChipLink
-            href={
-              scope.kind === 'organization'
-                ? `/o/${scope.organizationId}/integrations`
-                : `/workspace/${scope.workspaceId}/integrations`
-            }
-          >
-            Manage connections
-          </ChipLink>
-        </div>
-      )}
+        )}
       {accounts.some((account) =>
-        ['unavailable', 'timeout', 'rate_limited'].includes(account.status)
+        ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
       ) && (
         <p role='status' className='px-2 py-1 text-[var(--text-muted)] text-caption'>
           Some apps couldn’t be searched. Showing available results.

@@ -777,6 +777,7 @@ describe('Assistant payload', () => {
         browser: true,
         terminalCapable: true,
         desktopLocalFilesystem: true,
+        desktopLocalFiles: true,
       },
       { selectedModel: '' }
     )
@@ -803,6 +804,7 @@ describe('Assistant payload', () => {
         commands: ['run_function'],
         mcpServerIds: ['shared-server'],
         desktopLocalFilesystem: true,
+        desktopLocalFiles: true,
         browser: true,
         terminalCapable: true,
       },
@@ -847,6 +849,29 @@ describe('desktop request capabilities', () => {
         { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
       ],
     })
+  })
+  it('advertises native files in org mode independently of browser and terminal', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Read and import my report',
+        organizationId: 'org-files',
+        chatId: 'org-chat',
+        userId: 'user',
+        userMessageId: 'message',
+        mode: 'ask',
+        model: 'gpt-6-astra',
+        desktopLocalFiles: true,
+      },
+      { selectedModel: 'gpt-6-astra' }
+    )
+    expect(payload.desktop).toEqual({
+      localFiles: true,
+      browser: false,
+      terminal: false,
+      terminals: [],
+      browserSessions: [],
+    })
+    expect(payload.workspaceId).toBeUndefined()
   })
   it('does not advertise desktop tools for a web-only turn', async () => {
     const payload = await buildCopilotRequestPayload(

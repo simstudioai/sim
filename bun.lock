@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -56,6 +55,7 @@
         "@xterm/headless": "6.0.0",
         "electron-updater": "6.8.9",
         "micromatch": "4.0.8",
+        "pdf-lib": "1.17.1",
         "safe-regex2": "5.1.0",
       },
       "devDependencies": {

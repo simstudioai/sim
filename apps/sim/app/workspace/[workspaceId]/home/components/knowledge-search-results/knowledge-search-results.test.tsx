@@ -306,10 +306,12 @@ describe('live backend selection', () => {
     expect(mocks.overview).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain('searched live as you')
     expect(container.querySelector('[role="status"]')).toBeNull()
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('/o/org/integrations')
+    expect(container.querySelector('a')).toBeNull()
+    expect(container.textContent).not.toContain('Connected accounts')
+    expect(container.textContent).toContain('Search found no results.')
     expect(container.textContent).not.toContain('indexing')
   })
-  it('shows a provider reconnect reason instead of saying the index is empty', async () => {
+  it('reports incomplete results without connection management in the results pane', async () => {
     mocks.live = true
     mocks.search.mockReturnValue({
       data: {
@@ -335,7 +337,9 @@ describe('live backend selection', () => {
       isError: false,
     })
     await render()
-    expect(container.textContent).toContain('Slack needs to reconnect.')
+    expect(container.textContent).toContain('Some apps couldn’t be searched.')
+    expect(container.textContent).not.toContain('Manage connections')
+    expect(container.textContent).not.toContain('Search found no results.')
     expect(container.textContent).not.toContain('RTS')
     expect(container.textContent).not.toContain('Coverage is incomplete')
     expect(mocks.index).not.toHaveBeenCalled()

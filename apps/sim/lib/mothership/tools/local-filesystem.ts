@@ -21,3 +21,8 @@ export function isUserLocalVfsToolCall(
   if (name === 'glob') return hasUserLocalVfsPrefix(args.pattern)
   return false
 }
+
+/** Native tools use OS paths; the older VFS tools retain their mounted-path contract. */
+export function isNativeFileTool(name: string): boolean {
+  return name === 'read_local_file' || name === 'import_local_files'
+}

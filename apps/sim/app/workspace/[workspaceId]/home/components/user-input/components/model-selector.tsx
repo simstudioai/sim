@@ -2,38 +2,72 @@
 
 import {
   Chip,
+  ChipDropdown,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { MOTHERSHIP_EFFORT_OPTIONS } from '@/lib/mothership/model-options'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  MOTHERSHIP_MODEL_OPTIONS,
+  MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
+  mothershipEffortOptions,
+  resolveMothershipModelSettings,
+} from '@/lib/mothership/model-options'
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 /** Reasoning effort and Fast mode for Build chat composers. */
 export function ModelSelector() {
-  const fastMode = useMothershipEffortStore((state) => state.modelSelection.fastMode)
+  const advanced = useDeploymentShape().features.mothershipModelSelector === true
+  const selection = useMothershipEffortStore((state) => state.modelSelection)
+  const setModel = useMothershipEffortStore((state) => state.setModel)
   const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
-  const effort = useMothershipEffortStore((state) => state.effort)
+  const storedEffort = useMothershipEffortStore((state) => state.effort)
+  const { effort, modelSelection } = resolveMothershipModelSettings(
+    { effort: storedEffort, modelSelection: selection },
+    advanced
+  )
+  const options = advanced
+    ? mothershipEffortOptions(modelSelection.model)
+    : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = useMothershipEffortStore((state) => state.setEffort)
   return (
     <div className='flex items-center'>
-      <FastModeToggle
-        enabled={fastMode}
-        onChange={setFastMode}
-        description='Faster responses at a higher price'
-      />
+      {advanced && (
+        <>
+          {modelSelection.model !== 'claude-opus-5-5' && (
+            <FastModeToggle
+              enabled={modelSelection.fastMode}
+              onChange={setFastMode}
+              description='Faster responses at a higher price'
+            />
+          )}
+          <ChipDropdown
+            variant='default'
+            className='border-0'
+            aria-label='Model'
+            value={modelSelection.model}
+            options={MOTHERSHIP_MODEL_OPTIONS}
+            matchTriggerWidth={false}
+            onChange={(value) => {
+              const model = MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === value)
+              if (model) setModel(model.value)
+            }}
+          />
+        </>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Chip aria-label='Reasoning effort' className='-ml-2'>
-            {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
+          <Chip aria-label='Reasoning effort' className={advanced ? undefined : '-ml-2'}>
+            {options.find((option) => option.value === effort)?.label}
           </Chip>
         </DropdownMenuTrigger>
         <DropdownMenuContent side='top' align='start'>
           <DropdownMenuRadioGroup aria-label='Reasoning effort'>
-            {MOTHERSHIP_EFFORT_OPTIONS.map((option) => (
+            {options.map((option) => (
               <DropdownMenuItem
                 key={option.value}
                 role='menuitemradio'

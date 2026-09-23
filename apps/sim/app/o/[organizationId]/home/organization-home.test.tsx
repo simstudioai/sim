@@ -162,7 +162,7 @@ it('waits for the user before first rendering their saved mode and level', async
   mocks.session.mockReturnValue({ data: { user: { id: 'reader' } } })
   await act(async () => renderHome(<OrganizationHome />))
   expect(mocks.composer.mock.calls.every(([props]) => props.requestMode === 'assistant')).toBe(true)
-  expect(composerProps().assistantSearchLevel).toBe('max')
+  expect(composerProps()).not.toHaveProperty('assistantSearchLevel')
 })
 
 function hasCompletedMcpStep() {
@@ -395,7 +395,7 @@ describe('organization home', () => {
       'Find our launch plan',
       undefined,
       undefined,
-      { requestMode: 'assistant', assistantSearchLevel: 'adaptive' }
+      { requestMode: 'assistant', assistantSearchLevel: 'fast' }
     )
     expect(composerProps().value).toBe('')
   })
@@ -427,7 +427,7 @@ describe('organization home', () => {
         }),
       ],
       undefined,
-      { requestMode: 'assistant', assistantSearchLevel: 'adaptive' }
+      { requestMode: 'assistant', assistantSearchLevel: 'fast' }
     )
     expect(composerProps().files.attachedFiles).toEqual([])
   })
@@ -470,13 +470,13 @@ describe('organization home', () => {
       undefined,
       {
         requestMode: 'assistant',
-        assistantSearchLevel: 'adaptive',
+        assistantSearchLevel: 'fast',
       }
     )
   })
 
   it.each(['adaptive', 'fast', 'max'] as const)(
-    'resumes image-only handoffs preserving level=%s and attachments',
+    'resumes image-only handoffs with fixed Search routing despite saved level=%s',
     async (assistantSearchLevel) => {
       const attachments = [
         {
@@ -495,7 +495,7 @@ describe('organization home', () => {
       await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
       expect(mocks.send).toHaveBeenCalledWith('', attachments, undefined, {
         requestMode: 'assistant',
-        assistantSearchLevel,
+        assistantSearchLevel: 'fast',
       })
     }
   )
@@ -510,7 +510,7 @@ describe('organization home', () => {
     )
     expect(mocks.send).toHaveBeenCalledWith('Summarize', undefined, undefined, {
       requestMode: 'assistant',
-      assistantSearchLevel: 'adaptive',
+      assistantSearchLevel: 'fast',
       assistantSearch,
     })
   })
@@ -781,16 +781,13 @@ it('keeps the Home greeting and shows Search setup steps instead of Build sugges
   expect(container.textContent).not.toContain('Suggested actions')
 })
 
-describe('Search Fast preference and images', () => {
-  it('is available without Build permission and sends the captured org/user choice', async () => {
+describe('Fixed Search model and images', () => {
+  it('is available without Build permission and sends the fixed Search preset', async () => {
     mocks.context.mockReturnValue({ ...mocks.context(), canBuild: false })
     await act(async () => renderHome(<OrganizationHome userName='Reader' />))
-    expect(composerProps().assistantSearchLevel).toBe('adaptive')
+    expect(composerProps()).not.toHaveProperty('assistantSearchLevel')
     expect(composerProps().showModeSelector).toBe(false)
-    await act(async () => composerProps().onAssistantSearchLevelChange?.('fast'))
-    expect(useOrganizationChatModeStore.getState().assistantSearchLevels).toEqual({
-      'reader:organization-a': 'fast',
-    })
+    expect(composerProps()).not.toHaveProperty('onAssistantSearchLevelChange')
     await act(async () => composerProps().onSubmit('Find Orion'))
     expect(mocks.send).toHaveBeenCalledWith('Find Orion', undefined, undefined, {
       requestMode: 'assistant',
@@ -812,7 +809,7 @@ describe('Search Fast preference and images', () => {
         Object.assign(images, { item: (index: number) => images[index] ?? null })
       )
     )
-    expect(composerProps().assistantSearchLevel).toBe('fast')
+    expect(composerProps()).not.toHaveProperty('assistantSearchLevel')
     expect(notice).not.toHaveBeenCalled()
     await act(async () => composerProps().onSubmit('Describe this'))
     expect(mocks.send).toHaveBeenCalledWith(
@@ -844,7 +841,7 @@ it('keeps Search Fast enabled for follow-up turns with historical images', async
   await act(async () =>
     renderHome(<OrganizationHome chatId='with-images' requestMode='assistant' />)
   )
-  expect(composerProps().assistantSearchLevel).toBe('fast')
+  expect(composerProps()).not.toHaveProperty('assistantSearchLevel')
   await act(async () => composerProps().onSubmit('Follow up'))
   expect(mocks.send).toHaveBeenCalledWith('Follow up', undefined, undefined, {
     requestMode: 'assistant',
@@ -896,13 +893,13 @@ it.each(['adaptive', 'fast', 'max'] as const)(
       .getState()
       .setAssistantSearchLevel('reader', 'organization-a', level)
     await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
-    expect(composerProps().assistantSearchLevel).toBe(level === 'max' ? 'max' : 'fast')
+    expect(composerProps()).not.toHaveProperty('assistantSearchLevel')
     await act(async () => composerProps().onSubmit('Find context'))
     expect(mocks.send).toHaveBeenCalledWith(
       'Find context',
       undefined,
       undefined,
-      expect.objectContaining({ assistantSearchLevel: level === 'max' ? 'max' : 'fast' })
+      expect.objectContaining({ assistantSearchLevel: 'fast' })
     )
   }
 )

@@ -10,11 +10,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
+import { Chip, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
@@ -30,6 +29,7 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
@@ -97,7 +97,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   },
   ref
 ) {
-  const planEnabled = useDeploymentShape().features.planMode === true
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
@@ -585,14 +584,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       <InputToolbar
         leadingControls={
           <>
-            {planEnabled && onModeChange && (
-              <ChipDropdown
-                aria-label='Conversation mode'
+            {onModeChange && (
+              <ConversationModeSelector
                 value={requestMode}
-                options={[
-                  { value: 'agent', label: 'Build' },
-                  { value: 'plan', label: 'Plan' },
-                ]}
                 onChange={(mode) => {
                   if (mode === 'agent' || mode === 'plan') onModeChange(mode)
                 }}

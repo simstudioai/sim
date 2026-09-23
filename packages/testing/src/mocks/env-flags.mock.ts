@@ -33,6 +33,7 @@ export interface EnvFlagsMockState {
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isPlanModeEnabled: boolean
+  isMothershipModelSelectorEnabled: boolean
   isLiveEnterpriseSearchEnabled: boolean
   isInboxEnabled: boolean
   isSandboxDeploymentEntitled: boolean
@@ -91,6 +92,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
   isPlanModeEnabled: false,
+  isMothershipModelSelectorEnabled: false,
   isLiveEnterpriseSearchEnabled: false,
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,

@@ -383,6 +383,7 @@ export async function getRunSegment(runId: string) {
           chatId: copilotRuns.chatId,
           // Needed to resolve the deciding user's permission group.
           workspaceId: copilotRuns.workspaceId,
+          organizationId: copilotRuns.organizationId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))

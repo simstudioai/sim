@@ -1,21 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Chip, ChipDropdown, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
+import { useEffect, useRef } from 'react'
+import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { escapeRegExp } from '@sim/utils/string'
 import { useQueries } from '@tanstack/react-query'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
-import { SearchLevelSelector } from '@/app/o/[organizationId]/home/components/composer/search-level-selector'
-import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
+import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
@@ -35,16 +33,9 @@ import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
-const CONVERSATION_MODES = [
-  { value: 'assistant', label: 'Search' },
-  { value: 'agent', label: 'Build' },
-] as const
-
 interface ComposerProps {
   searchEnabled?: boolean
   requestMode?: ChatRequestMode
-  assistantSearchLevel?: SearchLevel
-  onAssistantSearchLevelChange?: (level: SearchLevel) => void
   onModeChange?: (mode: ChatRequestMode) => void
   showModeSelector?: boolean
   value: string
@@ -67,8 +58,6 @@ export function Composer({
   searchEnabled = true,
   requestMode = 'assistant',
   onModeChange,
-  assistantSearchLevel = 'adaptive',
-  onAssistantSearchLevelChange,
   showModeSelector = false,
   value,
   files,
@@ -79,10 +68,7 @@ export function Composer({
   restoredContexts,
   onStop,
 }: ComposerProps) {
-  const planEnabled = useDeploymentShape().features.planMode === true
-  const modes = CONVERSATION_MODES.filter((mode) => searchEnabled || mode.value !== 'assistant')
   const imagesOnly = requestMode === 'assistant'
-  const [modeSelectorOpen, setModeSelectorOpen] = useState(false)
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -197,29 +183,12 @@ export function Composer({
   const leadingControls = (
     <>
       {showModeSelector && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <span className={cn('inline-flex shrink-0', imagesOnly && '-mx-2')}>
-              <ChipDropdown
-                variant='ghost'
-                iconOnly={imagesOnly}
-                leftIcon={imagesOnly ? Search : undefined}
-                aria-label='Conversation mode'
-                options={planEnabled ? [...modes, { value: 'plan', label: 'Plan' }] : modes}
-                value={requestMode}
-                disabled={!onModeChange}
-                align='start'
-                matchTriggerWidth={false}
-                showSelectedCheck={false}
-                onOpenChange={setModeSelectorOpen}
-                onChange={(mode) => {
-                  if (
-                    (mode !== 'assistant' &&
-                      mode !== 'agent' &&
-                      !(planEnabled && mode === 'plan')) ||
-                    mode === requestMode
-                  )
-                    return
+        <ConversationModeSelector
+          value={requestMode}
+          searchEnabled={searchEnabled}
+          onChange={
+            onModeChange
+              ? (mode) => {
                   if (
                     mode === 'assistant' &&
                     (editor.getActiveContexts().length > 0 ||
@@ -230,13 +199,11 @@ export function Composer({
                     )
                     return
                   }
-                  onModeChange?.(mode)
-                }}
-              />
-            </span>
-          </Tooltip.Trigger>
-          {!modeSelectorOpen && <Tooltip.Content side='top'>Select mode</Tooltip.Content>}
-        </Tooltip.Root>
+                  onModeChange(mode)
+                }
+              : undefined
+          }
+        />
       )}
       {imagesOnly && !showModeSelector && (
         <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -265,9 +232,6 @@ export function Composer({
       isListening={voice.isListening}
       onToggle={voice.toggleListening}
     />
-  )
-  const searchLevelControl = imagesOnly && onAssistantSearchLevelChange && (
-    <SearchLevelSelector value={assistantSearchLevel} onChange={onAssistantSearchLevelChange} />
   )
   const submitControl = isSending ? (
     <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation' active>
@@ -321,7 +285,6 @@ export function Composer({
           placeholder={placeholder}
           aria-label='Ask Sim'
           leadingControls={leadingControls}
-          selectionControl={searchLevelControl}
           voiceControl={voiceControl}
           submitControl={submitControl}
         />

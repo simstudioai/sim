@@ -21,7 +21,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
-import { isPlanModeEnabled } from '@/lib/core/config/env-flags'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/core/config/env-flags'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -67,6 +67,7 @@ import {
 import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -284,12 +285,13 @@ const ChatMessageSchema = z
     contexts: z.array(ChatContextSchema).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
-    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+    effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
     modelSelection: ModelSelectionSchema.optional(),
     clientCapabilities: z.array(z.string()).optional(),
     desktopCapabilities: z
       .object({
         localFilesystem: z.boolean().optional(),
+        localFiles: z.boolean().optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         terminals: z
@@ -379,7 +381,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
-        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        effort?: ChatRequest['effort']
         modelSelection?: ModelSelection
         workflowId: string
         workflowName?: string
@@ -393,6 +395,7 @@ type UnifiedChatBranch =
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
+        desktopLocalFiles?: boolean
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -432,8 +435,9 @@ type UnifiedChatBranch =
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
-        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        effort?: ChatRequest['effort']
         modelSelection?: ModelSelection
+        desktopLocalFiles?: boolean
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -824,6 +828,7 @@ async function resolveBranch(params: {
             effort: payloadParams.effort,
             modelSelection: payloadParams.modelSelection,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+            desktopLocalFiles: payloadParams.desktopLocalFiles,
             browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
             terminals: payloadParams.terminals,
@@ -889,6 +894,7 @@ async function resolveBranch(params: {
           effort: payloadParams.effort,
           modelSelection: payloadParams.modelSelection,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+          desktopLocalFiles: payloadParams.desktopLocalFiles,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           terminals: payloadParams.terminals,
@@ -982,6 +988,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
+    if (body.mode !== 'assistant')
+      Object.assign(body, resolveMothershipModelSettings(body, isMothershipModelSelectorEnabled))
     if (body.mode === 'plan' && !isPlanModeEnabled)
       return createBadRequestResponse('Plan mode is disabled')
     if (
@@ -1371,6 +1379,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,
@@ -1397,6 +1406,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 effort: body.effort,
                 modelSelection: body.modelSelection,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
+                desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,

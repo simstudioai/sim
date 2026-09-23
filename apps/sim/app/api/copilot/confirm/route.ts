@@ -288,16 +288,22 @@ export const POST = withRouteHandler((req: NextRequest) => {
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
         const isNativeClientTool =
-          isBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)
+          isBrowserToolName(existing.toolName) ||
+          isTerminalToolName(existing.toolName) ||
+          existing.toolName === 'import_local_files'
         const isPreclaimNativeTerminalOutcome =
-          (isCurrentBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)) &&
+          (isCurrentBrowserToolName(existing.toolName) ||
+            isTerminalToolName(existing.toolName) ||
+            existing.toolName === 'import_local_files') &&
           existing.status === ASYNC_TOOL_STATUS.pending &&
           isErrorOrCancelledOutcome
         const nativeClaimOwner = isCurrentBrowserToolName(existing.toolName)
           ? DESKTOP_TOOL_CLAIM_OWNER.browser
           : isTerminalToolName(existing.toolName)
             ? DESKTOP_TOOL_CLAIM_OWNER.terminal
-            : undefined
+            : existing.toolName === 'import_local_files'
+              ? DESKTOP_TOOL_CLAIM_OWNER.files
+              : undefined
         const isIndeterminateNativeExit =
           isPreclaimNativeTerminalOutcome &&
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
