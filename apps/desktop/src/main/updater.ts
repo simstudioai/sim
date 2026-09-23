@@ -554,13 +554,21 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         }
         acceptedUpdateVersion = info.version
         deps.events.record('update_check', { available: info.version, replacing: stagedVersion })
+        const replacementVersion = info.version
+        // Cancellation rejects without an `error` event, so the promise owns
+        // clearing its replacement for every failure mode.
         void autoUpdater.downloadUpdate().catch((error) => {
+          if (acceptedUpdateVersion === replacementVersion) acceptedUpdateVersion = null
+          if (pendingReplacementVersion === replacementVersion) pendingReplacementVersion = null
           logger.warn('Replacement update download failed; keeping the staged update', {
             message: getErrorMessage(error, 'unknown'),
           })
         })
         return
       }
+      // An offer mirrors the feed's latest release, even after a rollback: the
+      // library only keeps this check's update info, so Update would download
+      // this version regardless of which one the offer displayed.
       if (state.status === 'available' && validCandidate && state.version === info.version) {
         return
       }

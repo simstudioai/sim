@@ -640,6 +640,38 @@ describe('initUpdater state machine', () => {
     expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled()
   })
 
+  it('resumes refreshing after a replacement download is cancelled without an error event', async () => {
+    const { handle } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    await vi.advanceTimersByTimeAsync(10_000)
+    autoUpdaterMock.downloadUpdate.mockImplementationOnce(() =>
+      Promise.reject(new Error('cancelled'))
+    )
+    emit('update-available', { version: '2.1.0' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(3)
+    emit('update-available', { version: '2.1.0' })
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(3)
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+  })
+
+  it('follows the feed when a re-check rolls an offered release back', async () => {
+    const { handle } = await createUpdater({ autoDownload: false })
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.2.0' })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('update-available', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.1.0' })
+
+    handle.check()
+    emit('update-downloaded', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.1.0' })
+  })
+
   it('withdraws an offered update once a re-check stores a blocked candidate', async () => {
     const { handle } = await createUpdater({ autoDownload: false })
     handle.check()
