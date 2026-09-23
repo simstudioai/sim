@@ -211,23 +211,37 @@ function civilDaysBetween(fromKey: string, toKey: string): number {
 }
 
 /**
- * The last `days` up to now, starting on the viewer's hour. A start mid-hour would
- * leave the window's first hour partial, and a partial hour can never be cached —
- * every view would read it from the ledger again. The hour is local, not UTC: in a
- * half-hour-offset zone a UTC hour starts halfway through a segment.
+ * The start of the viewer-local hour an instant falls in. Local, not UTC: in a
+ * half-hour-offset zone a UTC hour starts halfway through a local one.
  */
-function trailingRange(days: number, now: Date, timezone: string): UsageAnalyticsWindow {
-  const from = new Date(now.getTime() - days * DAY_MS)
+function startOfLocalHour(instant: Date, timezone: string): Date {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     minute: 'numeric',
     second: 'numeric',
-  }).formatToParts(from)
+  }).formatToParts(instant)
   const part = (type: 'minute' | 'second') =>
     Number(parts.find((entry) => entry.type === type)?.value ?? 0)
-  from.setTime(from.getTime() - (part('minute') * 60 + part('second')) * 1000)
-  from.setUTCMilliseconds(0)
-  return { kind: 'range', from, to: now }
+  const start = new Date(instant.getTime() - (part('minute') * 60 + part('second')) * 1000)
+  start.setUTCMilliseconds(0)
+  return start
+}
+
+/**
+ * The last `days` before `to`, starting on the viewer's hour. A start mid-hour would
+ * leave the window's first hour partial, and a partial hour can never be cached —
+ * every view would read it from the ledger again.
+ */
+function trailingRange(
+  days: number,
+  to: Date,
+  timezone: string
+): Extract<UsageAnalyticsWindow, { kind: 'range' }> {
+  return {
+    kind: 'range',
+    from: startOfLocalHour(new Date(to.getTime() - days * DAY_MS), timezone),
+    to,
+  }
 }
 
 /**
@@ -254,14 +268,12 @@ export function resolveUsageAnalyticsWindow({
       const previous = resolvePreviousPeriod(period)
       if (previous) return { kind: 'period', period: previous }
       // An open period has no meaningful predecessor — deriving one from its length
-      // reaches back eight millennia — so it steps back by the display window instead.
+      // reaches back eight millennia — so it steps back by the display window instead,
+      // ending exactly where the current period's window starts: no hour is counted in
+      // both, and both ends fall on the viewer's hour, so every segment can settle.
       if (isUnboundedPeriod(period)) {
-        const to = new Date(now.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS)
-        return {
-          kind: 'range',
-          from: new Date(to.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS),
-          to,
-        }
+        const current = trailingRange(UNBOUNDED_PERIOD_DISPLAY_DAYS, now, timezone)
+        return trailingRange(UNBOUNDED_PERIOD_DISPLAY_DAYS, current.from, timezone)
       }
       // A stripe period carries no rule for deriving its predecessor, so fall back to
       // a range of the same length rather than inventing stamps that would match
@@ -282,7 +294,7 @@ export function resolveUsageAnalyticsWindow({
       // through the same branch, which is what keeps an unbounded period from being
       // scanned in full here as well.
       if (!customStart || !customEnd) {
-        return resolveUsageAnalyticsWindow({ preset: 'current-period', period, now })
+        return resolveUsageAnalyticsWindow({ preset: 'current-period', period, timezone, now })
       }
       /**
        * The picker offers calendar days and sends `YYYY-MM-DD`, which arrives here
