@@ -30,6 +30,7 @@ describe('resolveDeploymentShape', () => {
       cohereConfigured: false,
       features: {
         liveEnterpriseSearch: false,
+        mothershipModelSelector: false,
         planMode: false,
         accessControl: false,
         auditLogs: false,

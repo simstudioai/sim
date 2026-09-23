@@ -6,7 +6,8 @@ describe('MothershipBlock', () => {
   it('exposes the closed model and effort catalog with an Astra-only Fast switch', () => {
     expect(MothershipBlock.subBlocks.find((input) => input.id === 'model')?.options).toEqual([
       { id: 'gpt-6-astra', label: 'GPT-6 Astra' },
-      { id: 'claude-opus-5', label: 'Opus 5' },
+      { id: 'gpt-6-sol', label: 'GPT-6 Sol' },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
     ])
     expect(MothershipBlock.subBlocks.find((input) => input.id === 'effort')?.options).toHaveLength(
       5
