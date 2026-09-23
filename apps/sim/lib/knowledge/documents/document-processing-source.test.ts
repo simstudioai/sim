@@ -219,6 +219,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []
@@ -333,6 +334,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, connectorId: 'connector-1' }])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
 
     await processDocumentAsync(
       'knowledge-base-1',
@@ -444,6 +446,7 @@ describe('knowledge document processing source', () => {
         .mockReset()
         .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, fileUrl: executionUrl }])
         .mockResolvedValueOnce([{ ...PERSISTED_PROVENANCE_ROW, fileUrl: executionUrl }])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
         .mockResolvedValueOnce([{ id: 'document-1' }])
       mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
         context === 'execution' ? [executionBinding] : []
@@ -571,6 +574,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, processingStatus: 'processing' }])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     dbChainMockFns.returning.mockReset().mockResolvedValue([{ id: 'document-1' }])
 
     await processDocumentAsync(
@@ -602,6 +606,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -643,6 +648,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -672,6 +678,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -706,6 +713,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -916,6 +924,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -961,6 +970,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1002,6 +1012,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -1063,6 +1074,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     // The guarded claim matched no rows: another pass owns this document.
     dbChainMockFns.returning.mockReset().mockResolvedValue([])
 
@@ -1114,6 +1126,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -1191,6 +1204,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1235,6 +1249,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1278,6 +1293,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1310,6 +1326,7 @@ describe('processDocumentAsync write guards', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -1527,6 +1544,7 @@ describe('processDocumentAsync write guards', () => {
         .mockResolvedValueOnce([PERSISTED_CONTEXT])
         .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
         .mockResolvedValueOnce([{ id: 'document-1' }])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
       mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
       mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
         new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -1599,6 +1617,7 @@ describe('in-process quota continuation dispatch', () => {
       .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
@@ -1767,6 +1786,7 @@ describe('in-process quota continuation dispatch', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     dbChainMockFns.set.mockClear()
     mockGenerateEmbeddings.mockResolvedValue({
       embeddings: [Array(1536).fill(0)],
@@ -1810,6 +1830,7 @@ describe('in-process quota continuation dispatch', () => {
       dbChainMockFns.limit
         .mockResolvedValueOnce([PERSISTED_CONTEXT])
         .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
         .mockResolvedValueOnce([{ id: 'document-1' }])
       mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
       mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -1880,6 +1901,7 @@ describe('in-process quota continuation dispatch', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
 
     await expect(

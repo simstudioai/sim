@@ -33,25 +33,26 @@ import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 describe('document processing commit lock scope', () => {
   const ids = createKnowledgeAclFixtureIds()
   const probe = `fixture_lock_probe_${generateId().replaceAll('-', '')}`
+  const chunks = Array.from({ length: 3 }, (_, index) => ({
+    text: `Synthetic chunk ${index}`,
+    metadata: { startIndex: index * 20, endIndex: index * 20 + 19 },
+  }))
+  const embeddingResult = {
+    embeddings: chunks.map(() => Array(1536).fill(0.2)),
+    billableTokens: 0,
+    modelName: 'text-embedding-3-small',
+    pricingId: 'text-embedding-3-small',
+  }
 
   beforeAll(async () => {
     fixtures.root = mkdtempSync(path.join(tmpdir(), 'sim-processing-lock-scope-'))
     await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
     vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockResolvedValue(undefined)
-    const chunks = Array.from({ length: 3 }, (_, index) => ({
-      text: `Synthetic chunk ${index}`,
-      metadata: { startIndex: index * 20, endIndex: index * 20 + 19 },
-    }))
     fixtures.process.mockResolvedValue({
       chunks,
       metadata: { chunkCount: chunks.length, tokenCount: 9, characterCount: 60 },
     })
-    fixtures.embeddings.mockResolvedValue({
-      embeddings: chunks.map(() => Array(1536).fill(0.2)),
-      billableTokens: 0,
-      modelName: 'text-embedding-3-small',
-      pricingId: 'text-embedding-3-small',
-    })
+    fixtures.embeddings.mockResolvedValue(embeddingResult)
   })
 
   afterEach(async () => {
@@ -102,22 +103,35 @@ describe('document processing commit lock scope', () => {
       FOR EACH ROW EXECUTE FUNCTION ${probe}()`)
   }
 
+  /**
+   * Fails any embedding insert statement whose backend holds a lock on
+   * `knowledge_connector`. A statement-level AFTER trigger fires once the row
+   * triggers and foreign-key checks of that statement have run, so it sees
+   * every lock the insert itself took.
+   */
+  async function installConnectorLockProbe() {
+    await db.$client.unsafe(`CREATE FUNCTION ${probe}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_locks
+          WHERE pid = pg_backend_pid() AND relation = 'knowledge_connector'::regclass
+        ) THEN
+          RAISE EXCEPTION 'embedding write holds a knowledge_connector lock';
+        END IF;
+        RETURN NULL;
+      END;
+      $$`)
+    await db.$client.unsafe(`CREATE TRIGGER ${probe} AFTER INSERT ON embedding
+      FOR EACH STATEMENT EXECUTE FUNCTION ${probe}()`)
+  }
+
   function billing() {
     return resolveBillingAttribution({ actorUserId: ids.aliceId, workspaceId: ids.workspaceId })
   }
 
-  it('holds no lock on the connector or knowledge base tables while writing embeddings', async () => {
+  it('holds no knowledge_connector lock while writing embeddings', async () => {
     const file = await addConnectorDocument('lock-scope-fixture')
-    await installEmbeddingProbe(
-      file.documentId,
-      `IF EXISTS (
-          SELECT 1 FROM pg_locks
-          WHERE pid = pg_backend_pid()
-            AND relation IN ('knowledge_connector'::regclass, 'knowledge_base'::regclass)
-        ) THEN
-          RAISE EXCEPTION 'embedding write holds a connector or knowledge base lock';
-        END IF;`
-    )
+    await installConnectorLockProbe()
 
     const result = await processDocumentAsync(
       ids.knowledgeBaseId,
@@ -137,7 +151,7 @@ describe('document processing commit lock scope', () => {
     ['connector', 'lock-scope-deleted-connector', 'knowledge_connector', () => ids.connectorId],
     ['knowledge base', 'lock-scope-deleted-kb', 'knowledge_base', () => ids.knowledgeBaseId],
   ])(
-    'rolls back the embeddings when the %s is deleted before the completion write',
+    'rolls back the embeddings when the %s is deleted during the embedding writes',
     async (_, externalId, table, id) => {
       const file = await addConnectorDocument(externalId)
       await installEmbeddingProbe(
@@ -170,6 +184,42 @@ describe('document processing commit lock scope', () => {
       expect(
         await db.select().from(document).where(eq(document.id, file.documentId))
       ).toMatchObject([{ processingStatus: 'processing', chunkCount: 0 }])
+    }
+  )
+  it.each([
+    ['connector', 'lock-scope-precheck-connector', 'knowledge_connector', () => ids.connectorId],
+    ['knowledge base', 'lock-scope-precheck-kb', 'knowledge_base', () => ids.knowledgeBaseId],
+  ])(
+    'skips the index writes when the %s went inactive after the claim',
+    async (_, externalId, table, id) => {
+      const file = await addConnectorDocument(externalId)
+      await installEmbeddingProbe(
+        file.documentId,
+        `RAISE EXCEPTION 'index writes ran for an inactive source';`
+      )
+      fixtures.embeddings.mockImplementationOnce(async () => {
+        await db.$client.unsafe(`UPDATE ${table} SET deleted_at = now() WHERE id = $1`, [id()])
+        return embeddingResult
+      })
+
+      try {
+        const result = await processDocumentAsync(
+          ids.knowledgeBaseId,
+          file.documentId,
+          file,
+          {},
+          await billing()
+        )
+        expect(result).toEqual({ outcome: 'skipped', reason: 'superseded' })
+      } finally {
+        await db.$client.unsafe(`UPDATE ${table} SET deleted_at = NULL WHERE id = $1`, [id()])
+      }
+      expect(
+        await db
+          .select({ id: embedding.id })
+          .from(embedding)
+          .where(eq(embedding.documentId, file.documentId))
+      ).toEqual([])
     }
   )
 })

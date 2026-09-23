@@ -267,6 +267,7 @@ jobs:
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
           lib/knowledge/__integration__/embedding-insert-batches.integration.ts
+          lib/knowledge/__integration__/processing-lock-scope.integration.ts
           lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
           lib/knowledge/__integration__/connector-deferral.integration.ts
           lib/knowledge/__integration__/stored-document-recovery.integration.ts

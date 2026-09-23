@@ -216,8 +216,8 @@ export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
 
 /**
  * Rolls back a processing pass whose completion write matched no row: the
- * document, its connector, or its knowledge base stopped being active while the
- * embeddings were written, so none of that output may commit.
+ * document, its connector, or its knowledge base stopped being active before
+ * the completion write, so none of the pass's output may commit.
  */
 class SupersededProcessingOutput extends Error {
   constructor() {
@@ -1973,16 +1973,35 @@ export async function processDocumentAsync(
               }))
 
               signal.throwIfAborted()
+              /**
+               * Skips the index writes when the connector or knowledge base went
+               * inactive after the claim. As its own autocommit statement it
+               * releases its locks immediately; the completion write inside the
+               * transaction stays the authoritative check.
+               */
+              const [sourceActive] = await db
+                .select({ id: document.id })
+                .from(document)
+                .where(
+                  and(
+                    eq(document.id, documentId),
+                    documentConnectorIsActive(),
+                    knowledgeBaseIsActive()
+                  )
+                )
+                .limit(1)
+              if (!sourceActive) return
               processingCommitted = await db
                 .transaction(async (tx) => {
                   signal.throwIfAborted()
                   /**
-                   * Reads only the document row. The connector and knowledge base
-                   * are checked by the completion write at the end instead: any
-                   * read of those tables here would hold a lock on them until
-                   * commit, across the embedding writes, and a slow index write
-                   * would then block DDL on the connector and knowledge base
-                   * tables for its whole duration.
+                   * Reads only the document row. Connector activity is checked by
+                   * the completion write at the end instead: reading
+                   * `knowledge_connector` here would hold a lock on it until commit,
+                   * across the embedding writes, so a slow index write would block
+                   * DDL on the connector table for its whole duration. The
+                   * knowledge base table stays locked for the pass regardless,
+                   * through the embedding foreign key and projection triggers.
                    */
                   const activeDocument = await tx
                     .select({ id: document.id })

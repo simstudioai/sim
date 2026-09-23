@@ -186,13 +186,14 @@ const DOC_DATA = {
 
 /**
  * Re-arms the row sets one `processDocumentAsync` call consumes: the KB/document
- * context JOIN, the document secret-provenance row, and the in-transaction claim
- * re-check that lets the attempt commit.
+ * context JOIN, the document secret-provenance row, the pre-commit source check,
+ * and the in-transaction claim re-check that lets the attempt commit.
  */
 function armDocumentReads(): void {
   dbChainMockFns.limit
     .mockResolvedValueOnce([PERSISTED_CONTEXT])
     .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+    .mockResolvedValueOnce([{ id: DOCUMENT_ID }])
     .mockResolvedValueOnce([{ id: DOCUMENT_ID }])
 }
 
