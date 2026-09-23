@@ -15,14 +15,18 @@ const { databaseUrl, execute, select } = vi.hoisted(() => {
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
 vi.mock('@sim/db', () => ({ dbReplica: { execute, select } }))
+vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
 
+import type { ActivityScope } from '@/lib/billing/core/organization-activity'
 import {
   readActivityBreakdown,
-  readActivitySummary,
+  readActivityDays,
   readActivityWorkspace,
 } from '@/lib/billing/core/organization-activity-queries'
+import { summarizeActivityDays } from '@/lib/billing/core/organization-activity-summary'
 import {
   resolveUsageAnalyticsWindow,
+  type UsageBucket,
   usageBucketTimestamps,
 } from '@/lib/billing/core/usage-analytics'
 
@@ -37,6 +41,16 @@ const connection = databaseUrl
     })
   : undefined
 const database = connection ? drizzle(connection) : undefined
+/** The summary the use case draws: per-day reads folded into the window's buckets. */
+async function readActivitySummary(scope: ActivityScope, bucket: UsageBucket, timezone: string) {
+  const window = { kind: 'range', from: scope.start, to: scope.end } as const
+  return summarizeActivityDays(
+    await readActivityDays(scope, timezone),
+    usageBucketTimestamps(window, bucket, timezone),
+    bucket
+  )
+}
+
 const scope = {
   organizationId: 'org',
   start: new Date('2026-03-08T08:00:00Z'),
@@ -114,9 +128,16 @@ describe.skipIf(!databaseUrl)('organization activity SQL', () => {
       averageDurationMs: 2000,
     })
     expect(result.series.toSorted((a, b) => a.timestamp.localeCompare(b.timestamp))).toEqual([
-      { timestamp: '2026-03-08T00:00:00', workflowRuns: 2, chatRuns: 1, failed: 1 },
-      { timestamp: '2026-03-09T00:00:00', workflowRuns: 3, chatRuns: 2, failed: 0 },
+      { timestamp: '2026-03-08T00:00:00', workflowRuns: 2, completed: 1, failed: 1, chatRuns: 1 },
+      { timestamp: '2026-03-09T00:00:00', workflowRuns: 3, completed: 0, failed: 0, chatRuns: 2 },
     ])
+  })
+
+  it('counts unfinished runs so their hours are never cached', async () => {
+    const days = await readActivityDays(scope, 'America/Los_Angeles')
+    // `l3` (paused) and `l5` (running) can still change; completed, failed, and
+    // cancelled runs cannot.
+    expect(days.reduce((sum, [, activity]) => sum + activity.inFlight, 0)).toBe(2)
   })
 
   it('uses a half-open local calendar window across daylight saving time', () => {

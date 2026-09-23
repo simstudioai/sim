@@ -6,6 +6,7 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 /**
@@ -35,6 +36,15 @@ export const USAGE_BREAKDOWN_DIMENSIONS = [
   'source',
 ] as const
 export type UsageBreakdownDimension = (typeof USAGE_BREAKDOWN_DIMENSIONS)[number]
+
+/**
+ * Dimensions keyed on `description`, which holds a model name for model categories.
+ * They carry token totals, and BYOK rows among them are unbilled by definition.
+ */
+export const USAGE_MODEL_DIMENSIONS: ReadonlySet<UsageBreakdownDimension> = new Set([
+  'model',
+  'byok',
+])
 
 export type UsageBucket = 'day' | 'week' | 'month'
 
@@ -201,6 +211,26 @@ function civilDaysBetween(fromKey: string, toKey: string): number {
 }
 
 /**
+ * The last `days` up to now, starting on the viewer's hour. A start mid-hour would
+ * leave the window's first hour partial, and a partial hour can never be cached —
+ * every view would read it from the ledger again. The hour is local, not UTC: in a
+ * half-hour-offset zone a UTC hour starts halfway through a segment.
+ */
+function trailingRange(days: number, now: Date, timezone: string): UsageAnalyticsWindow {
+  const from = new Date(now.getTime() - days * DAY_MS)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    minute: 'numeric',
+    second: 'numeric',
+  }).formatToParts(from)
+  const part = (type: 'minute' | 'second') =>
+    Number(parts.find((entry) => entry.type === type)?.value ?? 0)
+  from.setTime(from.getTime() - (part('minute') * 60 + part('second')) * 1000)
+  from.setUTCMilliseconds(0)
+  return { kind: 'range', from, to: now }
+}
+
+/**
  * Maps a picker selection to a window the ledger can actually match.
  *
  * `current-period` and `previous-period` stay *periods* so they use the same
@@ -218,11 +248,7 @@ export function resolveUsageAnalyticsWindow({
   switch (preset) {
     case 'current-period':
       return isUnboundedPeriod(period)
-        ? {
-            kind: 'range',
-            from: new Date(now.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS),
-            to: now,
-          }
+        ? trailingRange(UNBOUNDED_PERIOD_DISPLAY_DAYS, now, timezone)
         : { kind: 'period', period }
     case 'previous-period': {
       const previous = resolvePreviousPeriod(period)
@@ -248,9 +274,9 @@ export function resolveUsageAnalyticsWindow({
       }
     }
     case '7d':
-      return { kind: 'range', from: new Date(now.getTime() - 7 * DAY_MS), to: now }
+      return trailingRange(7, now, timezone)
     case '30d':
-      return { kind: 'range', from: new Date(now.getTime() - 30 * DAY_MS), to: now }
+      return trailingRange(30, now, timezone)
     case 'custom': {
       // A partial selection is not a range, so it falls back to the current period —
       // through the same branch, which is what keeps an unbounded period from being
@@ -305,6 +331,28 @@ export function resolvePreviousPeriod(period: ResolvedUsagePeriod): ResolvedUsag
     period.interval,
     new Date(period.start.getTime() - 1)
   )
+}
+
+/**
+ * The window a headline is compared against, or `null` when none is exact.
+ *
+ * A rolling or custom range compares with the same span immediately before it,
+ * which is exact by construction. The current period compares with its predecessor
+ * only when that is derivable (see {@link resolvePreviousPeriod}); the previous
+ * period has nothing honest to compare with.
+ */
+export function resolveComparisonWindow(
+  preset: UsageWindowPreset,
+  window: UsageAnalyticsWindow,
+  period: ResolvedUsagePeriod
+): UsageAnalyticsWindow | null {
+  if (preset === 'current-period') {
+    const previous = resolvePreviousPeriod(period)
+    return previous ? { kind: 'period', period: previous } : null
+  }
+  if (preset === 'previous-period' || window.kind !== 'range') return null
+  const span = window.to.getTime() - window.from.getTime()
+  return { kind: 'range', from: new Date(window.from.getTime() - span), to: window.from }
 }
 
 /**
@@ -373,7 +421,7 @@ function civilKey(date: Date): string {
  * the 1st. The series keys have to land on the same boundaries the SQL emitted or
  * no lookup below will ever hit.
  */
-function truncateToBucket(key: string, bucket: UsageBucket): string {
+export function truncateToBucket(key: string, bucket: UsageBucket): string {
   const date = civilDate(key)
   if (bucket === 'week') date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7))
   else if (bucket === 'month') date.setUTCDate(1)
@@ -443,6 +491,93 @@ export function usageBucketTimestamps(
   }
 
   return points
+}
+
+/**
+ * How long after a stretch of time ends before its ledger rows are final.
+ *
+ * Rows are stamped when inserted, but a cumulative model charge tops up its row's
+ * cost in place for as long as its stream runs — which {@link STREAM_TIMEOUT_MS}
+ * caps — plus the retry flushes that follow it. Past the cap and this margin a day or
+ * hour can no longer change and is treated as settled.
+ */
+export const USAGE_SETTLE_MS = STREAM_TIMEOUT_MS + 2 * 60 * 60 * 1000
+
+const HOUR_MS = 60 * 60 * 1000
+
+export interface UsageSegment {
+  /** `YYYY-MM-DD` for a whole day, `YYYY-MM-DDTHH` for one hour — the viewer's clock. */
+  key: string
+  /** The viewer's calendar date the segment falls on. */
+  day: string
+  from: Date
+  to: Date
+  /** Whole and past the settle lag, so its aggregate can no longer change. */
+  settled: boolean
+}
+
+/** The `YYYY-MM-DDTHH` local hour a segment key or SQL group names. */
+export function usageHourKey(day: string, hour: number): string {
+  return `${day}T${String(hour).padStart(2, '0')}`
+}
+
+/**
+ * The window cut at the viewer's midnights, and the unsettled days at their hours.
+ *
+ * A whole day that settled is one segment, which keeps a year to a few hundred
+ * cache entries. Every other day — the window's partial ends, today, yesterday until
+ * its lag passes — is cut into hours, each settled once it is whole and past
+ * {@link USAGE_SETTLE_MS}. So what must be read live is the last few hours, not the
+ * whole of today, whose rows are the most expensive to read. `settleMs` defaults
+ * to the ledger's lag; a reader whose rows settle sooner passes its own.
+ */
+export function usageWindowSegments(
+  window: UsageAnalyticsWindow,
+  timezone: string,
+  { settleMs = USAGE_SETTLE_MS, now = new Date() }: { settleMs?: number; now?: Date } = {}
+): UsageSegment[] {
+  const { start, end } = usageWindowBounds(window)
+  const settledBefore = now.getTime() - settleMs
+  const segments: UsageSegment[] = []
+  const cursor = civilDate(localCalendarDate(start, timezone))
+
+  for (let days = 0; days < 1000; days++) {
+    const day = civilKey(cursor)
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+    const dayStart = zonedWallClockToUtc(`${day}T00:00`, timezone)
+    const dayEnd = zonedWallClockToUtc(`${civilKey(cursor)}T00:00`, timezone)
+    if (dayStart >= end) break
+
+    if (dayStart >= start && dayEnd <= end && dayEnd.getTime() <= settledBefore) {
+      segments.push({ key: day, day, from: dayStart, to: dayEnd, settled: true })
+      continue
+    }
+    /**
+     * On a DST day a local hour label names two spans, or none, so a row's hour
+     * label need not match the segment holding it. Such a day settles only whole.
+     */
+    const hoursSettle = dayEnd.getTime() - dayStart.getTime() === 24 * HOUR_MS
+    for (let hour = 0; hour < 24; hour++) {
+      const hourStart = zonedWallClockToUtc(`${usageHourKey(day, hour)}:00`, timezone)
+      const hourEnd =
+        hour === 23 ? dayEnd : zonedWallClockToUtc(`${usageHourKey(day, hour + 1)}:00`, timezone)
+      const from = hourStart > start ? hourStart : start
+      const to = hourEnd < end ? hourEnd : end
+      if (from >= to) continue
+      segments.push({
+        key: usageHourKey(day, hour),
+        day,
+        from,
+        to,
+        settled:
+          hoursSettle &&
+          from.getTime() === hourStart.getTime() &&
+          to.getTime() === hourEnd.getTime() &&
+          hourEnd.getTime() <= settledBefore,
+      })
+    }
+  }
+  return segments
 }
 
 export interface UsageBreakdownEntry {
@@ -549,6 +684,15 @@ export const USAGE_NULL_KEY_LABELS: Record<UsageBreakdownDimension, string> = {
   source: 'Other',
 }
 
+/** A dimension's usage for one key, with every figure a number. */
+export interface UsageGroupRow {
+  key: string | null
+  cost: number
+  events: number
+  inputTokens?: number
+  outputTokens?: number
+}
+
 export interface MergeableRow {
   key: string | null
   cost: string | number | null
@@ -569,8 +713,8 @@ export interface MergeableRow {
 export function mergeRowsByKey<T extends MergeableRow>(
   rows: T[],
   resolveKey: (key: string | null) => string | null
-): MergeableRow[] {
-  const merged = new Map<string, MergeableRow>()
+): UsageGroupRow[] {
+  const merged = new Map<string, UsageGroupRow>()
   for (const row of rows) {
     const key = resolveKey(row.key)
     const mapKey = key ?? ''
@@ -585,8 +729,8 @@ export function mergeRowsByKey<T extends MergeableRow>(
       })
       continue
     }
-    existing.cost = toNumber(existing.cost) + toNumber(row.cost)
-    existing.events = Math.round(toNumber(existing.events) + toNumber(row.events))
+    existing.cost += toNumber(row.cost)
+    existing.events = Math.round(existing.events + toNumber(row.events))
     if (row.inputTokens !== undefined) {
       existing.inputTokens = (existing.inputTokens ?? 0) + row.inputTokens
     }
@@ -595,4 +739,22 @@ export function mergeRowsByKey<T extends MergeableRow>(
     }
   }
   return [...merged.values()]
+}
+
+/**
+ * A dimension's `[day, rows]` entries summed over the window.
+ *
+ * `billedOnly` applies the credit lists' rule — a group every row of which was
+ * reporting-only sums to zero and is dropped — after summing, where it describes the
+ * whole window, exactly as the ledger query's `HAVING` does.
+ */
+export function sumUsageDays(
+  days: Iterable<[string, MergeableRow[]]>,
+  { billedOnly }: { billedOnly: boolean }
+): UsageGroupRow[] {
+  const merged = mergeRowsByKey(
+    [...days].flatMap(([, rows]) => rows),
+    (key) => key
+  )
+  return billedOnly ? merged.filter((row) => row.cost > 0) : merged
 }

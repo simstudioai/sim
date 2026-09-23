@@ -57,7 +57,7 @@ vi.mock('@/lib/billing/organizations/member-limits', () => ({
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageTotals: mocks.totals,
   readUsageTimeSeries: mocks.series,
-  readUsageBreakdown: mocks.breakdown,
+  readUsageGroups: mocks.breakdown,
   readUsageEntityNames: vi.fn().mockResolvedValue(new Map()),
 }))
 vi.mock('@/lib/billing/core/usage-log', () => ({ getBillingEntityUsageLogs: mocks.logs }))
@@ -431,7 +431,9 @@ describe('organization usage API authorization and bounds', () => {
     )
     const response = await breakdown(request('usage/breakdown?dimension=member'), usageContext)
     expect(response.status).toBe(413)
-    expect(mocks.breakdown).toHaveBeenCalledWith(expect.any(Array), 'member', undefined, 10_000)
+    expect(mocks.breakdown).toHaveBeenCalledWith(
+      expect.objectContaining({ dimension: 'member', maxRows: 10_000 })
+    )
   })
 })
 

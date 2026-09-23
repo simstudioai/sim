@@ -36,8 +36,9 @@ export const organizationActivitySummarySchema = z.object({
       z.object({
         timestamp: z.string(),
         workflowRuns: z.number().int().nonnegative(),
-        chatRuns: z.number().int().nonnegative(),
+        completed: z.number().int().nonnegative(),
         failed: z.number().int().nonnegative(),
+        chatRuns: z.number().int().nonnegative(),
       })
     )
     .max(1000),
