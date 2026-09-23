@@ -79,6 +79,13 @@ const workspaceFileReferenceUseCases = {
   [fileOperations.move.id]: defineWorkspaceFileReferenceUseCase(fileOperations.move),
   [fileOperations.delete.id]: defineWorkspaceFileReferenceUseCase(fileOperations.delete),
   [fileOperations.updateShare.id]: defineWorkspaceFileReferenceUseCase(fileOperations.updateShare),
+  [fileOperations.updateMetadata.id]: defineWorkspaceFileReferenceUseCase(
+    fileOperations.updateMetadata
+  ),
+  [fileOperations.runWorkflow.id]: defineWorkspaceFileReferenceUseCase(fileOperations.runWorkflow),
+  [fileOperations.readWorkflowResult.id]: defineWorkspaceFileReferenceUseCase(
+    fileOperations.readWorkflowResult
+  ),
 } satisfies Record<string, WorkspaceFileReferenceUseCase>
 
 function getWorkspaceFileReferenceUseCase(operation: WorkspaceOperation) {

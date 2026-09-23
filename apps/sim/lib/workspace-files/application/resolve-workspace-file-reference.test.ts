@@ -71,6 +71,21 @@ describe('workspace file reference application service', () => {
     expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    { label: 'configuration', operation: fileOperations.updateMetadata },
+    { label: 'runs', operation: fileOperations.runWorkflow },
+    { label: 'result reads', operation: fileOperations.readWorkflowResult },
+  ])('resolves file workflow references for $label', async ({ operation }) => {
+    await expect(
+      resolveWorkspaceFileReference({
+        principal,
+        operation,
+        workspaceId: 'workspace-1',
+        reference: 'files/source.txt',
+      })
+    ).resolves.toBe(file)
+  })
+
   it('reads a referenced file with one canonical load and authorization', async () => {
     await expect(
       readWorkspaceFileReference({
