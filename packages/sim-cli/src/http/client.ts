@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@sim/utils/retry'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
@@ -11,6 +12,9 @@ import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment
  * request.
  */
 export class SimApiError extends Error {
+  /** Server-requested delay, retained for opt-in retries of replayable operations. */
+  retryAfterMs: number | null = null
+
   constructor(
     message: string,
     readonly status: number,
@@ -325,7 +329,7 @@ export function isRequestTimeout(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'TimeoutError'
 }
 
-function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+export function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.SIM_TIMEOUT_SECONDS
   if (raw === undefined || raw.trim() === '') return DEFAULT_TIMEOUT_SECONDS * 1000
 
@@ -359,7 +363,7 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
  * on the earliest 20.x releases calling it would throw a bare `TypeError`
  * before the request was ever made — turning a supported runtime into a crash.
  */
-function combineSignals(
+export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
@@ -504,6 +508,16 @@ export class SimClient {
     this.oauth = profile.oauth ?? null
   }
 
+  /** The invocation cancellation also applies to signed transfers outside the API transport. */
+  get signal(): AbortSignal | undefined {
+    return this.profile.signal
+  }
+
+  /** Gives bounded cleanup its own cancellation without reloading credentials or host transport. */
+  withSignal(signal: AbortSignal): SimClient {
+    return new SimClient({ ...this.profile, oauth: this.oauth, signal }, this.options)
+  }
+
   private resolveCredential(auth: AuthRequirement = 'required'): StoredCredential | undefined {
     if (this.profile.apiKey) return { kind: 'api_key', apiKey: this.profile.apiKey }
     if (this.oauth) return { kind: 'oauth', oauth: this.oauth }
@@ -605,7 +619,7 @@ export class SimClient {
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
     const caller = combineSignals(options.signal, this.profile.signal)
-    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, 'REQUEST_CANCELLED')
     const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
@@ -632,17 +646,19 @@ export class SimClient {
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
       if (caller?.aborted) {
-        throw new SimApiError('Request cancelled.', 0)
+        throw new SimApiError('Request cancelled.', 0, 'REQUEST_CANCELLED')
       }
       if (timeout?.aborted) {
         throw new SimApiError(
           `${url} did not answer within ${timeoutMs / 1000}s. ${RAISE_TIMEOUT_HINT}`,
-          0
+          0,
+          'REQUEST_TIMEOUT'
         )
       }
       throw new SimApiError(
         `Could not reach ${this.profile.endpoint}: ${transportErrorMessage(cause)}`,
-        0
+        0,
+        'TRANSPORT_FAILED'
       )
     }
 
@@ -670,6 +686,10 @@ export class SimClient {
     if (!response.ok) {
       const raw = await readResponseText(response)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
+      error.retryAfterMs = parseRetryAfter(
+        response.headers.get('retry-after'),
+        Number.MAX_SAFE_INTEGER
+      )
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }

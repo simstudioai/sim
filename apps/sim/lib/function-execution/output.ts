@@ -4,6 +4,7 @@ export interface SandboxExportedFile {
   fileName: string
   vfsPath: string
   downloadUrl?: string
+  revision?: string
   sandboxPath?: string
   size: number
   previousSize?: number

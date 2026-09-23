@@ -8766,6 +8766,7 @@ type ReadFileTextResponseRef0 = {
   name: string
   path: string
   type: string
+  revision?: string
   text: string
   truncated: boolean
   degraded: boolean
@@ -8802,6 +8803,7 @@ type ReadFileVersionTextResponseRef0 = {
   name: string
   path: string
   type: string
+  revision?: string
   text: string
   truncated: boolean
   degraded: boolean
@@ -13252,7 +13254,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+          'Revision from a file text read, Get File Metadata, or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -17281,7 +17283,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+          'Revision from a file text read, Get File Metadata, or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },

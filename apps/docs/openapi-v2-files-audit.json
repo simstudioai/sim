@@ -4450,6 +4450,10 @@
             "type": "string",
             "description": "Stored MIME type of the source file."
           },
+          "revision": {
+            "description": "Opaque revision of the source bytes read. Send as expectedRevision on a conditional edit. Absent for records without a content timestamp. Extracted or truncated text is not a full replacement of the source file.",
+            "type": "string"
+          },
           "text": {
             "type": "string",
             "description": "Extracted text."
@@ -4816,6 +4820,10 @@
           "type": {
             "type": "string",
             "description": "Stored MIME type of the source file."
+          },
+          "revision": {
+            "description": "Opaque revision of the source bytes read. Send as expectedRevision on a conditional edit. Absent for records without a content timestamp. Extracted or truncated text is not a full replacement of the source file.",
+            "type": "string"
           },
           "text": {
             "type": "string",
@@ -5999,7 +6007,7 @@
             "description": "One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between."
           },
           "expectedRevision": {
-            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "description": "Revision from a file text read, Get File Metadata, or an earlier write; the request is refused with `409` when the content moved on.",
             "type": "string",
             "minLength": 1
           }
@@ -6304,7 +6312,7 @@
             "enum": ["utf-8", "base64"]
           },
           "expectedRevision": {
-            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "description": "Revision from a file text read, Get File Metadata, or an earlier write; the request is refused with `409` when the content moved on.",
             "type": "string",
             "minLength": 1
           }

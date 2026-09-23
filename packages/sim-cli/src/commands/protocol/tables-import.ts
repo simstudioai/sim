@@ -251,6 +251,7 @@ export function attachTableImport(tables: Command): void {
             uploadToken: started.data.uploadToken,
             transfer: started.data.transfer,
             size: local.size,
+            completionStatuses: ['processing', 'completed'],
           },
           path
         )

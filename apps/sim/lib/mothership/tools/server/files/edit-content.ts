@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import {
   messageForCopilotFileError,
@@ -12,6 +13,14 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { getE2BDocFormat } from '@/lib/mothership/tools/server/files/doc-compile'
+import { buildEmbeddedImageRefWarning } from '@/lib/mothership/tools/server/files/embedded-image-refs'
+import { waitForLatestFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
+import {
+  compileDocForWrite,
+  getDocumentFormatInfo,
+  inferContentType,
+} from '@/lib/mothership/tools/server/files/workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
   collectSimPageDiagnostics,
@@ -20,10 +29,6 @@ import {
   isSimPageSource,
   SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
-import { getE2BDocFormat } from './doc-compile'
-import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { waitForLatestFileIntent } from './file-intent-store'
-import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
 
@@ -34,6 +39,7 @@ type EditContentArgs = {
 type EditContentResult = {
   success: boolean
   message: string
+  errorCode?: 'conflict'
   data?: Record<string, unknown>
 }
 
@@ -84,6 +90,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
     try {
       const { operation, fileRecord } = intent
+      if (!intent.expectedRevision) {
+        throw new OrchestrationError(
+          'conflict',
+          'This prepared edit has no content revision. Read the file and call prepare_file_edit again before applying it.'
+        )
+      }
       const docInfo = getDocumentFormatInfo(fileRecord.name)
       const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileRecord.name) : null
       // Agent-authored pages are stored as SOURCE (frontmatter + markdown +
@@ -302,6 +314,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           assertedWorkspaceId: workspaceId,
           content: finalContent,
           encoding: 'utf-8',
+          expectedRevision: intent.expectedRevision,
           contentType: storedContentType,
           provenanceMode: operation === 'update' ? 'replace_empty' : 'preserve',
         },
@@ -344,6 +357,14 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         },
       }
     } catch (error) {
+      if (asOrchestrationError(error)?.code === 'conflict') {
+        return {
+          success: false,
+          errorCode: 'conflict',
+          message:
+            'The file changed or the prepared edit has no valid revision. Read the current file, call prepare_file_edit again, then apply the revised edit. No content was written.',
+        }
+      }
       const safeMessage = messageForCopilotFileError(error, 'Failed to edit file content')
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in apply_file_edit tool', {

@@ -289,6 +289,13 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
   },
 })
 
+export const downloadWorkspaceFileStreamContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]/download',
+  params: workspaceFileParamsSchema,
+  response: { mode: 'binary' },
+})
+
 export const downloadWorkspaceFileUrlContract = defineRouteContract({
   method: 'POST',
   path: '/api/workspaces/[id]/files/[fileId]/download',

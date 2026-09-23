@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
@@ -9,10 +10,13 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
-const { peekFileIntentMock, executeCopilotFileUseCaseMock } = vi.hoisted(() => ({
-  peekFileIntentMock: vi.fn(),
-  executeCopilotFileUseCaseMock: vi.fn(),
-}))
+const { peekFileIntentMock, executeCopilotFileUseCaseMock, resolveFileReferenceMock } = vi.hoisted(
+  () => ({
+    peekFileIntentMock: vi.fn(),
+    executeCopilotFileUseCaseMock: vi.fn(),
+    resolveFileReferenceMock: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/tools/server/files/file-intent-store', () => ({
   peekFileIntent: peekFileIntentMock,
@@ -20,7 +24,7 @@ vi.mock('@/lib/mothership/tools/server/files/file-intent-store', () => ({
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: executeCopilotFileUseCaseMock,
-  resolveCopilotWorkspaceFileReference: vi.fn(),
+  resolveCopilotWorkspaceFileReference: resolveFileReferenceMock,
 }))
 
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
@@ -191,8 +195,10 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    executeCopilotFileUseCaseMock.mockResolvedValue({
-      files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
+    resolveFileReferenceMock.mockResolvedValue({
+      id: 'file-9',
+      name: 'notes.md',
+      folderPath: null,
     })
   })
 
@@ -208,13 +214,17 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
       state: createFilePreviewAdapterState(),
     })
 
-    expect(executeCopilotFileUseCaseMock).toHaveBeenCalled()
-    expect(executeCopilotFileUseCaseMock.mock.calls[0][0]).toMatchObject({
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      copilotToolExecution: true,
-      toolCallId: WORKSPACE_FILE_TOOL_CALL_ID,
-    })
+    expect(resolveFileReferenceMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        copilotToolExecution: true,
+        toolCallId: WORKSPACE_FILE_TOOL_CALL_ID,
+      }),
+      expect.objectContaining({ id: 'files.read_metadata', minimumRole: 'read' }),
+      { workspaceId: 'workspace-1', reference: 'files/notes.md' }
+    )
+    expect(executeCopilotFileUseCaseMock).not.toHaveBeenCalled()
     expect(context.activeFileIntents.get('')?.target).toEqual({
       kind: 'file_id',
       fileId: 'file-9',
@@ -223,8 +233,12 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
     })
   })
 
-  it('keeps the path target and does not throw when resolution fails', async () => {
-    executeCopilotFileUseCaseMock.mockRejectedValue(new Error('workspace file listing unavailable'))
+  it.each([
+    new OrchestrationError('not_found', 'File not found'),
+    new OrchestrationError('forbidden', 'Access denied'),
+    new Error('Workspace file lookup unavailable'),
+  ])('keeps the path target and does not throw when resolution fails', async (error) => {
+    resolveFileReferenceMock.mockRejectedValue(error)
     const context = createStreamingContext()
 
     await expect(

@@ -1662,7 +1662,10 @@ async function getWorkspaceFileByExactReference(
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string,
-  options?: WorkspaceFileLookupOptions
+  options?: WorkspaceFileLookupOptions & {
+    /** Reuse a request-scoped workspace listing only after the exact lookup misses. */
+    loadFallbackFiles?: () => Promise<WorkspaceFileRecord[]>
+  }
 ): Promise<WorkspaceFileRecord | null> {
   const includeChatUploads = options?.includeChatUploads === true
   if (includeChatUploads) {
@@ -1685,7 +1688,7 @@ export async function resolveWorkspaceFileReference(
   const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId)
+  const files = await (options?.loadFallbackFiles?.() ?? listWorkspaceFiles(workspaceId))
   return findWorkspaceFileRecord(files, fileReference)
 }
 

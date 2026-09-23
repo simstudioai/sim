@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   file: vi.fn(),
   list: vi.fn(),
+  referenceResolver: vi.fn(),
+  reference: vi.fn(),
   context: vi.fn(),
   buffer: vi.fn(),
   permission: vi.fn(),
@@ -26,10 +28,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.file,
   fetchWorkspaceFileBuffer: mocks.buffer,
   loadActiveWorkspaceFileContext: mocks.context,
-  findWorkspaceFileRecord: (files: { id: string }[], id: string) =>
-    files.find((file) => file.id === id),
   getSandboxWorkspaceFilePath: () => '/home/user/files/source.txt',
-  parseChatUploadReference: () => null,
+  parseChatUploadReference: (path: string) => /^uploads\/([^/]+)$/.exec(path)?.[1] ?? null,
 }))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mocks.file,
@@ -37,6 +37,9 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 }))
 vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
   listAllWorkspaceFiles: { execute: mocks.list },
+}))
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  createWorkspaceFileReferenceResolver: mocks.referenceResolver,
 }))
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
   fetchAuthorizedServableWorkspaceFileBuffer: mocks.render,
@@ -48,6 +51,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
 vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
@@ -116,6 +120,8 @@ describe('Mothership file mounts bind content and classification to the same rec
     resetDbChainMock()
     mocks.file.mockResolvedValue(file)
     mocks.list.mockResolvedValue({ files: [file] })
+    mocks.referenceResolver.mockReturnValue(mocks.reference)
+    mocks.reference.mockResolvedValue(file)
     mocks.context.mockResolvedValue({
       workspaceId: 'workspace',
       fileId: 'file',
@@ -129,6 +135,79 @@ describe('Mothership file mounts bind content and classification to the same rec
     mocks.decrypt.mockResolvedValue({ decrypted: content })
     mocks.presign.mockResolvedValue('https://storage.test/old-key')
   })
+
+  it.each(['wf_source', 'files/Reports/source.txt', 'uploads/source.txt'])(
+    'mounts %s through one authorized reference without enumerating workspace files',
+    async (path) => {
+      queueProvenance('exact')
+      const trace = new ResolvedSecretTraceRegistry([], {
+        userId: 'reader',
+        workspaceId: 'workspace',
+      })
+      const mounts = await resolveInputFiles(context, [path], undefined, undefined, trace)
+      expect(mounts).toHaveLength(1)
+      expect(mocks.referenceResolver).toHaveBeenCalledExactlyOnceWith({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'reader',
+          workspaceId: 'workspace',
+          resourceScope: { chatId: 'chat' },
+        }),
+        operation: expect.objectContaining({ id: 'files.read_content' }),
+        workspaceId: 'workspace',
+      })
+      expect(mocks.reference).toHaveBeenCalledExactlyOnceWith(path)
+      expect(mocks.list).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['files/missing.txt', 'files ls'],
+    ['uploads/missing.txt', 'upload notice'],
+    ['tables/report', 'inputs.tables'],
+  ])('preserves the missing-mount guidance for %s', async (path, guidance) => {
+    mocks.reference.mockRejectedValue(new OrchestrationError('not_found', 'File not found'))
+    await expect(resolveInputFiles(context, [path])).rejects.toThrow(guidance)
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.buffer).not.toHaveBeenCalled()
+    expect(mocks.presign).not.toHaveBeenCalled()
+  })
+
+  it('reuses one scoped reference resolver for every individual mount in the request', async () => {
+    queueProvenance('exact')
+    queueProvenance('exact')
+    const trace = new ResolvedSecretTraceRegistry([], {
+      userId: 'reader',
+      workspaceId: 'workspace',
+    })
+    const mounts = await resolveInputFiles(
+      context,
+      [
+        { path: 'first.txt', sandboxPath: '/tmp/first.txt' },
+        { path: 'second.txt', sandboxPath: '/tmp/second.txt' },
+      ],
+      undefined,
+      undefined,
+      trace
+    )
+
+    expect(mounts).toHaveLength(2)
+    expect(mocks.referenceResolver).toHaveBeenCalledTimes(1)
+    expect(mocks.reference.mock.calls).toEqual([['first.txt'], ['second.txt']])
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it.each([new OrchestrationError('forbidden', 'Access denied'), new Error('Storage unavailable')])(
+    'does not turn reference failures into not-found or fall back to a listing',
+    async (error) => {
+      mocks.reference.mockRejectedValue(error)
+      await expect(run()).rejects.toBe(error)
+      expect(mocks.list).not.toHaveBeenCalled()
+      expect(mocks.file).not.toHaveBeenCalled()
+      expect(mocks.buffer).not.toHaveBeenCalled()
+    }
+  )
 
   it('never reloads a different content version after choosing the mount source', async () => {
     const replacement = {
@@ -267,6 +346,7 @@ describe('Mothership file mounts bind content and classification to the same rec
     const controller = new AbortController()
     controller.abort(new Error('Stopped'))
     await expect(run(undefined, { abortSignal: controller.signal })).rejects.toThrow('Stopped')
+    expect(mocks.reference).not.toHaveBeenCalled()
     expect(mocks.context).not.toHaveBeenCalled()
     expect(mocks.buffer).not.toHaveBeenCalled()
     expect(mocks.presign).not.toHaveBeenCalled()

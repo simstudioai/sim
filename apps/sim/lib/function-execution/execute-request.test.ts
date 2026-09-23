@@ -31,6 +31,7 @@ import {
   SandboxOutputFileError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { functionExecuteTool } from '@/tools/function/execute'
 
 const {
   mockExecuteInSandbox,
@@ -1005,6 +1006,91 @@ describe('Function execution request', () => {
         expect.objectContaining({ path: 'files/reports/summary.json' }),
       ])
     })
+
+    it.each([false, true])(
+      'retains the prevalidated overwrite revision through sandbox export (concurrent edit: %s)',
+      async (conflict) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        mockExecuteInSandbox.mockResolvedValueOnce({
+          result: 'done',
+          stdout: '',
+          sandboxId: 'sandbox-123',
+          exportedFiles: { '/tmp/first.txt': 'new', '/tmp/second.txt': 'two' },
+        })
+        mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
+          mode: target.mode,
+          vfsPath: target.path,
+          ...(target.mode === 'overwrite'
+            ? { existingFileId: 'first', revision: 'prevalidated-revision' }
+            : {}),
+        }))
+        /** This later advisory snapshot must not silently refresh the write precondition. */
+        mockResolveWorkspaceFileReference.mockResolvedValue({
+          id: 'first',
+          name: 'first.txt',
+          size: 100,
+          contentUpdatedAt: new Date('2026-09-23T10:02:00Z'),
+        })
+        mockWriteWorkspaceFileByPath.mockImplementation(async ({ target, buffer }) => {
+          if (conflict) throw new OrchestrationError('conflict', 'File changed after validation')
+          return {
+            id: target.path,
+            name: target.path.split('/').at(-1),
+            vfsPath: target.path,
+            mode: target.mode,
+            size: buffer.length,
+            contentType: 'text/plain',
+            revision: `committed:${target.path}`,
+          }
+        })
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'print("done")',
+            language: 'python',
+            workspaceId: 'workspace-1',
+            outputs: {
+              files: [
+                { path: 'files/first.txt', mode: 'overwrite', sandboxPath: '/tmp/first.txt' },
+                { path: 'files/second.txt', mode: 'create', sandboxPath: '/tmp/second.txt' },
+              ],
+            },
+          })
+        )
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            target: expect.objectContaining({
+              path: 'files/first.txt',
+              expectedRevision: 'prevalidated-revision',
+            }),
+          })
+        )
+        if (conflict) {
+          expect(response.status).toBe(409)
+          expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledOnce()
+          await expect(response.json()).resolves.toMatchObject({
+            success: false,
+            error: 'File changed after validation',
+          })
+        } else {
+          expect(response.status).toBe(200)
+          const projected = await functionExecuteTool.transformResponse!(response.clone(), {
+            code: 'print("done")',
+          })
+          expect(projected.output.exported?.files.map((file) => file.revision)).toEqual([
+            'committed:files/first.txt',
+            'committed:files/second.txt',
+          ])
+          const data = await response.json()
+          expect(
+            data.output.exported.files.map((file: { revision?: string }) => file.revision)
+          ).toEqual(['committed:files/first.txt', 'committed:files/second.txt'])
+          expect(mockWriteWorkspaceFileByPath.mock.calls[1][0].target).not.toHaveProperty(
+            'expectedRevision'
+          )
+        }
+      }
+    )
 
     it('exports a .jpg declared without a format as image/jpeg bytes, never as base64 text', async () => {
       // The sandbox reads a .jpg back as base64; the exporter used to classify it by its

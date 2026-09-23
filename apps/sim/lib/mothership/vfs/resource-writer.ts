@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type CopilotFileDelegationContext,
   resolveCopilotFilePrincipal,
@@ -15,11 +15,13 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
   createWorkspaceFileBufferByPath,
   updateWorkspaceFileContentBufferByPath,
+  type WriteWorkspaceFileByPathResult,
 } from '@/lib/workspace-files/application/write-workspace-file-by-path'
 import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
 
@@ -29,16 +31,8 @@ export interface WorkspaceFileWriteTarget {
   path: string
   mode: WorkspaceFileWriteMode
   mimeType?: string
-}
-
-export interface WorkspaceFileWriteResult {
-  id: string
-  name: string
-  size: number
-  contentType: string
-  downloadUrl?: string
-  vfsPath: string
-  mode: WorkspaceFileWriteMode
+  /** Conditional overwrites must match this revision and never create a missing target. */
+  expectedRevision?: string
 }
 
 interface ResolvedCreateTarget {
@@ -59,6 +53,7 @@ export type WorkspaceFileWriteValidation =
       mode: 'overwrite'
       vfsPath: string
       existingFileId: string
+      revision?: string
     }
 
 /**
@@ -180,6 +175,7 @@ export async function validateWorkspaceFileWriteTarget(args: {
       mode: 'overwrite',
       vfsPath: vfsPathForRecord(existing),
       existingFileId: existing.id,
+      ...workspaceFileRevisionField(existing),
     }
   }
 
@@ -207,18 +203,30 @@ export async function writeWorkspaceFileByPath(args: {
   syncLiveDoc?: boolean
   /** Private provenance for the exact bytes being written. */
   secretProvenance?: WorkspaceFileSecretProvenance
-}): Promise<WorkspaceFileWriteResult> {
+}): Promise<WriteWorkspaceFileByPathResult> {
+  if (
+    args.target.expectedRevision !== undefined &&
+    (args.target.mode !== 'overwrite' || !args.target.expectedRevision)
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      'expectedRevision requires an overwrite and must not be empty'
+    )
+  }
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
-    // Overwrite is an upsert: "put these bytes at this path". A missing target
-    // falls through to create instead of failing — otherwise every generator
-    // (generate_image, ffmpeg, downloads) forces the model through a
-    // create-vs-overwrite guessing dance racing its own earlier writes.
+    /** Unconditional overwrites retain their upsert behavior for generator outputs. */
     let missingTarget = false
     try {
       await assertWorkspaceFileWriteAccess(args)
     } catch (accessError) {
       if (asOrchestrationError(accessError)?.code !== 'not_found') throw accessError
+      if (args.target.expectedRevision !== undefined) {
+        throw new OrchestrationError(
+          'conflict',
+          'The overwrite target no longer exists. Read the current file before retrying.'
+        )
+      }
       missingTarget = true
     }
     if (!missingTarget) {
@@ -231,19 +239,12 @@ export async function writeWorkspaceFileByPath(args: {
           content: args.buffer,
           contentType,
           syncLiveDoc: args.syncLiveDoc,
+          expectedRevision: args.target.expectedRevision,
           secretProvenance: args.secretProvenance,
         },
       })
 
-      return {
-        id: updated.id,
-        name: updated.name,
-        size: updated.size,
-        contentType: updated.contentType,
-        downloadUrl: updated.downloadUrl,
-        vfsPath: updated.vfsPath,
-        mode: 'overwrite',
-      }
+      return updated
     }
     args = { ...args, target: { ...args.target, mode: 'create' } }
   }
@@ -264,15 +265,7 @@ export async function writeWorkspaceFileByPath(args: {
     },
   })
 
-  return {
-    id: created.id,
-    name: created.name,
-    size: created.size,
-    contentType: created.contentType,
-    downloadUrl: created.downloadUrl,
-    vfsPath: created.vfsPath,
-    mode: 'create',
-  }
+  return created
 }
 
 type CopilotWorkspaceFileWriteArgs = Omit<

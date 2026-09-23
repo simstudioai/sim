@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   executeCopilotFileUseCase,
@@ -19,29 +19,41 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import {
+  compileDoc,
+  DOCXJS_SOURCE_MIME,
+  getE2BDocFormat,
+  PPTXGENJS_SOURCE_MIME,
+} from '@/lib/mothership/tools/server/files/doc-compile'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
+import { buildEmbeddedImageRefWarning } from '@/lib/mothership/tools/server/files/embedded-image-refs'
+import { ensureCopilotFileFolderPath } from '@/lib/mothership/tools/server/files/file-folder-application'
+import { storeFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import {
-  compileDoc,
-  DOCXJS_SOURCE_MIME,
-  getE2BDocFormat,
-  PPTXGENJS_SOURCE_MIME,
-} from './doc-compile'
-import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { ensureCopilotFileFolderPath } from './file-folder-application'
-import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
+
+function requireFileRevision(file: WorkspaceFileRecord): string {
+  const revision = workspaceFileRevision(file)
+  if (!revision) {
+    throw new OrchestrationError(
+      'conflict',
+      'The file has no content revision. Read it again before preparing an edit.'
+    )
+  }
+  return revision
+}
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -441,6 +453,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             messageId: context.messageId,
             channelId: context.parentToolCallId,
             fileRecord: result.file,
+            expectedRevision: requireFileRevision(result.file),
             contentType,
             title: normalized.title,
             createdAt: Date.now(),
@@ -472,17 +485,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           } = await resolveExistingTarget(target, 'append')
           if (error || !existingFile) return { success: false, message: error || 'File not found' }
 
-          const currentBuffer = (
-            await executeCopilotFileUseCase(
-              context,
-              readWorkspaceFileContent,
-              {
-                fileId: existingFile.id,
-                assertedWorkspaceId: workspaceId,
-              },
-              { fileId: existingFile.id }
-            )
-          ).content
+          const current = await executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: existingFile.id,
+              assertedWorkspaceId: workspaceId,
+            },
+            { fileId: existingFile.id }
+          )
           await storeFileIntent(workspaceId, existingFile.id, {
             operation: 'append',
             fileId: existingFile.id,
@@ -491,8 +502,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             chatId: context.chatId,
             messageId: context.messageId,
             channelId: context.parentToolCallId,
-            fileRecord: existingFile,
-            existingContent: currentBuffer.toString('utf-8'),
+            fileRecord: current.file,
+            expectedRevision: requireFileRevision(current.file),
+            existingContent: current.content.toString('utf-8'),
             contentType: normalized.contentType,
             title: normalized.title,
             createdAt: Date.now(),
@@ -521,6 +533,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             messageId: context.messageId,
             channelId: context.parentToolCallId,
             fileRecord,
+            expectedRevision: requireFileRevision(fileRecord),
             contentType: normalized.contentType,
             title: normalized.title,
             createdAt: Date.now(),
@@ -656,18 +669,16 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           const { fileRecord, vfsPath, error } = await resolveExistingTarget(target, 'patch')
           if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
-          const currentBuffer = (
-            await executeCopilotFileUseCase(
-              context,
-              readWorkspaceFileContent,
-              {
-                fileId: fileRecord.id,
-                assertedWorkspaceId: workspaceId,
-              },
-              { fileId: fileRecord.id }
-            )
-          ).content
-          const existingContent = currentBuffer.toString('utf-8')
+          const current = await executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: fileRecord.id,
+              assertedWorkspaceId: workspaceId,
+            },
+            { fileId: fileRecord.id }
+          )
+          const existingContent = current.content.toString('utf-8')
 
           if (normalized.edit.strategy === 'search_replace') {
             const search = normalized.edit.search
@@ -706,7 +717,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             chatId: context.chatId,
             messageId: context.messageId,
             channelId: context.parentToolCallId,
-            fileRecord,
+            fileRecord: current.file,
+            expectedRevision: requireFileRevision(current.file),
             existingContent,
             edit: {
               strategy: normalized.edit.strategy,

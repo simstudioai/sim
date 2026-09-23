@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -58,6 +59,7 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
 }))
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
+  resolveCopilotWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
   executeCopilotFileUseCase: (
     context: { userId: string; workspaceId: string; toolCallId: string },
     useCase: { execute: (args: unknown) => unknown },
@@ -190,7 +192,9 @@ describe('copilot go stream helpers', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
-    resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
+    resolveWorkspaceFileReferenceMock.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
     listAllWorkspaceFilesMock.mockReset()
     listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
     changeStoredChatResourcesMock.mockReset()
@@ -529,8 +533,10 @@ describe('copilot go stream helpers', () => {
   })
 
   it('hydrates path-based prepare_file_edit edits into file preview events before apply_file_edit streams', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
-      files: [{ id: 'file-1', name: 'notes.md', folderPath: null }],
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-1',
+      name: 'notes.md',
+      folderPath: null,
     })
 
     const workspaceFileCall = createEvent({
@@ -662,24 +668,23 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'file-1',
     })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
-      principal: expect.objectContaining({
-        kind: 'delegated',
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
         workspaceId: 'workspace-1',
+        toolCallId: 'workspace-file-path-1',
       }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
-    })
+      expect.objectContaining({ id: 'files.read_metadata', minimumRole: 'read' }),
+      { workspaceId: 'workspace-1', reference: 'files/notes.md' }
+    )
+    expect(listAllWorkspaceFilesMock).not.toHaveBeenCalled()
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
-      files: [
-        {
-          id: 'changelog-file-1',
-          name: 'changelog.md',
-          folderPath: 'workflows/My Workflow',
-        },
-      ],
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'changelog-file-1',
+      name: 'changelog.md',
+      folderPath: 'workflows/My Workflow',
     })
 
     const workspaceFileCall = createEvent({
@@ -786,13 +791,16 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
-      principal: expect.objectContaining({
-        kind: 'delegated',
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
         workspaceId: 'workspace-1',
+        toolCallId: 'workspace-file-alias-1',
       }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
-    })
+      expect.objectContaining({ id: 'files.read_metadata', minimumRole: 'read' }),
+      { workspaceId: 'workspace-1', reference: 'workflows/My%20Workflow/changelog.md' }
+    )
+    expect(listAllWorkspaceFilesMock).not.toHaveBeenCalled()
   })
 
   it('drops duplicate tool_result events before forwarding them', async () => {

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '#sim-cli/http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachProtocolCommands } from './index'
 
@@ -12,7 +13,11 @@ const { mockRequest } = vi.hoisted(() => ({
 
 vi.mock('../../context', () => ({
   clientFrom: () => ({
-    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
+    client: {
+      request: mockRequest,
+      requireWorkspace: () => 'ws_local',
+      withSignal: () => ({ request: mockRequest }),
+    },
     profile: {
       workspaceId: 'ws_local',
       output: 'json',
@@ -63,6 +68,32 @@ function uploadSession() {
 }
 
 describe('knowledge documents upload', () => {
+  it('preserves ambiguous completion without requesting a nonexistent status endpoint', async () => {
+    const path = join(dir, 'notes.doc')
+    writeFileSync(path, 'hello')
+    mockRequest
+      .mockResolvedValueOnce({
+        data: {
+          session: uploadSession(),
+          uploadToken: 'private-control-token',
+          transfer: { method: 'put', url: 'https://storage.example/file', headers: {} },
+        },
+      })
+      .mockRejectedValueOnce(new SimApiError('Finalization is already in progress', 409))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'knowledge', 'documents', 'upload', 'kb_1', path])
+    ).rejects.toMatchObject({
+      code: 'UPLOAD_COMPLETION_UNCONFIRMED',
+      message: expect.stringContaining('check the destination for the uploaded resource'),
+    })
+    expect(mockRequest.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+      ['/api/v2/knowledge/kb_1/documents/uploads', 'POST'],
+      ['/api/v2/knowledge/kb_1/documents/uploads/upload_1/complete', 'POST'],
+    ])
+  })
+
   it('owns the multipart protocol while hiding its low-level operations', () => {
     const root = program()
     const knowledge = root.commands.find((command) => command.name() === 'knowledge')

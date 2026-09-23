@@ -5,6 +5,7 @@ import {
   type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
   getWorkspaceFileByName,
+  listWorkspaceFiles,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
   type WorkspaceFileLookupOptions,
@@ -30,6 +31,8 @@ interface WorkspaceFileReferenceInput {
   folderId?: string | null
   /** Trusted internal caller scope; public route contracts do not expose it. */
   chatId?: string
+  /** Owned by one resolver invocation group; never accepted from a surface contract. */
+  loadFallbackFiles?: () => Promise<WorkspaceFileRecord[]>
 }
 
 interface WorkspaceFileReferenceResult {
@@ -46,7 +49,7 @@ export interface ReferencedWorkspaceFileContext extends ActiveWorkspaceFileConte
 }
 
 /**
- * Reads may reach a chat upload through its explicit `uploads/<name>` reference (or its
+ * Content reads may reach a chat upload through its explicit `uploads/<name>` reference (or its
  * own id); every other file operation resolves workspace files only, so no write, move,
  * rename, delete, or share can land on one.
  */
@@ -70,7 +73,13 @@ export async function resolveReferencedWorkspaceFileContext(
       ? await resolveStoredWorkspaceFileReference(
           input.workspaceId,
           input.reference,
-          chatId === undefined ? options : { ...options, chatId }
+          input.loadFallbackFiles || chatId !== undefined
+            ? {
+                ...options,
+                ...(chatId === undefined ? {} : { chatId }),
+                ...(input.loadFallbackFiles ? { loadFallbackFiles: input.loadFallbackFiles } : {}),
+              }
+            : options
         )
       : await getWorkspaceFileByName(input.workspaceId, input.reference, {
           folderId: input.folderId,
@@ -109,6 +118,9 @@ type WorkspaceFileReferenceUseCase = OperationUseCase<
 >
 
 const workspaceFileReferenceUseCases = {
+  [fileOperations.readMetadata.id]: defineWorkspaceFileReferenceUseCase(
+    fileOperations.readMetadata
+  ),
   [fileOperations.readContent.id]: defineWorkspaceFileReferenceUseCase(
     fileOperations.readContent,
     CHAT_UPLOAD_LOOKUP
@@ -143,14 +155,45 @@ export async function resolveWorkspaceFileReference({
   chatId,
 }: ResolveWorkspaceFileReferenceInput): Promise<WorkspaceFileRecord> {
   const useCase = getWorkspaceFileReferenceUseCase(operation)
-  const result = await useCase.execute({
-    principal,
-    input: {
+  return executeReferenceLookup(principal, useCase, {
+    workspaceId,
+    reference,
+    ...(folderId === undefined ? {} : { folderId }),
+    ...(chatId === undefined ? {} : { chatId }),
+  })
+}
+
+/**
+ * Resolves a group of references without repeating the legacy whole-workspace fallback.
+ * Exact lookups stay lazy and fresh; every result still reloads canonical context and authorizes.
+ */
+export function createWorkspaceFileReferenceResolver({
+  principal,
+  operation,
+  workspaceId,
+  chatId,
+}: Omit<ResolveWorkspaceFileReferenceInput, 'reference' | 'folderId'>) {
+  const useCase = getWorkspaceFileReferenceUseCase(operation)
+  let fallbackFiles: Promise<WorkspaceFileRecord[]> | undefined
+  const loadFallbackFiles = () =>
+    (fallbackFiles ??= listWorkspaceFiles(workspaceId, { throwOnError: true }))
+  return (reference: string): Promise<WorkspaceFileRecord> =>
+    executeReferenceLookup(principal, useCase, {
       workspaceId,
       reference,
-      ...(folderId === undefined ? {} : { folderId }),
       ...(chatId === undefined ? {} : { chatId }),
-    },
+      loadFallbackFiles,
+    })
+}
+
+async function executeReferenceLookup(
+  principal: Principal,
+  useCase: WorkspaceFileReferenceUseCase,
+  input: WorkspaceFileReferenceInput
+): Promise<WorkspaceFileRecord> {
+  const result = await useCase.execute({
+    principal,
+    input,
   })
   return result.file
 }

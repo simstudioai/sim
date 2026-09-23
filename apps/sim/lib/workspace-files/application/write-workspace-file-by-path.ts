@@ -1,7 +1,10 @@
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  loadActiveWorkspaceContext,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { encodeVfsPathSegments, encodeVfsSegment } from '@/lib/vfs/path'
 import {
@@ -9,6 +12,7 @@ import {
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
@@ -25,6 +29,8 @@ export interface WriteWorkspaceFileByPathInput {
   encoding: 'utf-8' | 'base64'
   contentType: string
   mode: 'create' | 'overwrite'
+  /** Bind an overwrite to the content revision returned by an earlier read or validation. */
+  expectedRevision?: string
   exactName?: boolean
   syncLiveDoc?: boolean
   secretProvenance?: WorkspaceFileSecretProvenance
@@ -43,17 +49,11 @@ export interface WriteWorkspaceFileByPathResult {
   downloadUrl?: string
   vfsPath: string
   mode: WriteWorkspaceFileByPathInput['mode']
+  revision?: string
 }
 
 function toResult(
-  file: {
-    id: string
-    name: string
-    size: number
-    type: string
-    url?: string
-    folderPath?: string | null
-  },
+  file: WorkspaceFileRecord,
   mode: WriteWorkspaceFileByPathInput['mode']
 ): WriteWorkspaceFileByPathResult {
   const folderPath = file.folderPath ?? ''
@@ -68,6 +68,19 @@ function toResult(
     downloadUrl: file.url,
     vfsPath: `files/${encodedFolderPath ? `${encodedFolderPath}/` : ''}${encodeVfsSegment(file.name)}`,
     mode,
+    ...workspaceFileRevisionField(file),
+  }
+}
+
+function assertWritePrecondition(
+  input: WriteWorkspaceFileByPathInput | WriteWorkspaceFileBufferByPathInput,
+  mode: WriteWorkspaceFileByPathInput['mode']
+): void {
+  if (input.expectedRevision !== undefined && (mode !== 'overwrite' || !input.expectedRevision)) {
+    throw new OrchestrationError(
+      'validation',
+      'expectedRevision requires an overwrite and must not be empty'
+    )
   }
 }
 
@@ -78,6 +91,7 @@ async function executeCreate({
   principal: Principal
   input: WriteWorkspaceFileByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  assertWritePrecondition(input, 'create')
   const parsed = parseWorkspaceFileCreatePath(input.path)
   await admitCreateWorkspaceFile(principal, input.workspaceId)
 
@@ -111,6 +125,7 @@ async function executeOverwrite({
   principal: Principal
   input: WriteWorkspaceFileByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  assertWritePrecondition(input, 'overwrite')
   const existing = await resolveWorkspaceFileReference({
     principal,
     operation: fileOperations.updateContent,
@@ -127,6 +142,7 @@ async function executeOverwrite({
       contentType: input.contentType,
       provenanceMode: 'replace_empty',
       syncLiveDoc: input.syncLiveDoc,
+      expectedRevision: input.expectedRevision,
       secretProvenance: input.secretProvenance,
     },
   })
@@ -140,6 +156,7 @@ async function executeCreateBuffer({
   principal: Principal
   input: WriteWorkspaceFileBufferByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  assertWritePrecondition(input, 'create')
   const parsed = parseWorkspaceFileCreatePath(input.path)
   await admitCreateWorkspaceFile(principal, input.workspaceId)
   const folderUserId = await resolveFolderAttributionUserId(principal, input.workspaceId)
@@ -170,6 +187,7 @@ async function executeOverwriteBuffer({
   principal: Principal
   input: WriteWorkspaceFileBufferByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
+  assertWritePrecondition(input, 'overwrite')
   const existing = await resolveWorkspaceFileReference({
     principal,
     operation: fileOperations.updateContent,
@@ -185,6 +203,7 @@ async function executeOverwriteBuffer({
       contentType: input.contentType,
       provenanceMode: 'replace_empty',
       syncLiveDoc: input.syncLiveDoc,
+      expectedRevision: input.expectedRevision,
       secretProvenance: input.secretProvenance,
     },
   })

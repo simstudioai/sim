@@ -53,7 +53,13 @@ interface InternalBinaryRouteOptions<
   auth: typeof internalSessionAuth
   rateLimit: InternalBinaryRateLimitPolicy
   errorPolicy: InternalErrorPolicy
-  onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
+  /** Authorize HEAD without opening storage streams or running download effects. */
+  headSafe?: boolean
+  onSuccess?(args: {
+    principal: SessionPrincipal
+    input: NoInfer<I>
+    result: NoInfer<R>
+  }): void | Promise<void>
 }
 
 /**
@@ -73,6 +79,9 @@ export function defineInternalBinaryRoute<
     options.operation,
     options.useCase.operation
   )
+  if (options.headSafe === false && !options.useCase.authorize) {
+    throw new Error(`${options.contract.path} requires authorize() for headSafe: false`)
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -99,6 +108,13 @@ export function defineInternalBinaryRoute<
 
       try {
         const input = options.mapInput(parsed.data)
+        if (request.method === 'HEAD' && options.headSafe === false) {
+          await options.useCase.authorize!({ principal, input, request })
+          return new NextResponse(null, {
+            status: successStatus,
+            headers: { 'Cache-Control': 'private, no-store' },
+          })
+        }
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
         await options.onSuccess?.({ principal, input, result })

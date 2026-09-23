@@ -65,7 +65,7 @@ import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-enve
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
-import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -605,6 +605,24 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
 
 const fileLogger = createLogger('EmbeddedFileActions')
 
+/** Resolves legacy path references only after the canonical file ID is confirmed missing. */
+function useResourceFileRecord(workspaceId: string, fileId: string, filePath?: string) {
+  const detail = useWorkspaceFileRecord(workspaceId, fileId)
+  const resolvePath = !!filePath && detail.isSuccess && detail.data === null
+  const inventory = useWorkspaceFiles(workspaceId, 'active', { enabled: resolvePath })
+  const file =
+    detail.data ??
+    (resolvePath && !inventory.isPlaceholderData
+      ? inventory.data?.find(
+          (entry) =>
+            entry.id !== fileId &&
+            canonicalWorkspaceFilePath({ folderPath: entry.folderPath, name: entry.name }) ===
+              filePath
+        )
+      : undefined)
+  return { file, isLoading: (resolvePath && inventory.isLoading) || detail.isFetching }
+}
+
 interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
@@ -619,17 +637,7 @@ function EmbeddedFileActions({
   downloadSourceRef,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
-  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
-  const listedFile = files.find(
-    (file) =>
-      file.id === fileId ||
-      (filePath &&
-        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
-  )
-  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
-    enabled: !listedFile && !listLoading,
-  })
-  const file = listedFile ?? detail.data
+  const { file } = useResourceFileRecord(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
 
   const handleDownload = async () => {
@@ -784,17 +792,7 @@ function EmbeddedFile({
   previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
-  const listedFile = files.find(
-    (file) =>
-      file.id === fileId ||
-      (filePath &&
-        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
-  )
-  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
-    enabled: !listedFile && !listLoading,
-  })
-  const file = listedFile ?? detail.data
+  const { file, isLoading } = useResourceFileRecord(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
   const contentSource = useMemo(
     () =>
@@ -804,7 +802,7 @@ function EmbeddedFile({
     [isUpload, workspaceId, file?.storageContext]
   )
 
-  if (!file && (listLoading || detail.isFetching)) return LOADING_SKELETON
+  if (!file && isLoading) return LOADING_SKELETON
 
   if (!file) {
     return (

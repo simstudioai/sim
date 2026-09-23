@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -17,6 +19,7 @@ export type PendingFileIntent = {
   // their content into each other's file.
   channelId?: string
   fileRecord: WorkspaceFileRecord
+  expectedRevision: string
   existingContent?: string
   edit?: {
     strategy: string
@@ -73,7 +76,33 @@ function channelMatches(intent: PendingFileIntent, scope?: FileIntentScope): boo
 }
 
 function buildScopedField(fileId: string, scope?: FileIntentScope): string {
-  return `${scope?.chatId ?? ''}:${scope?.messageId ?? ''}:${fileId}`
+  return JSON.stringify([scope?.chatId, scope?.messageId, scope?.channelId, fileId])
+}
+
+/** Claims the observed identity without sending its potentially large content back to Redis. */
+const DELETE_OBSERVED_INTENTS_SCRIPT = `
+local claimed = 0
+for i = 1, #ARGV, 3 do
+  local current = redis.call('hget', KEYS[1], ARGV[i])
+  local mode = ARGV[i + 1]
+  local expected = ARGV[i + 2]
+  if current and (
+    (mode == 'prefix' and string.sub(current, 1, string.len(expected)) == expected) or
+    (mode == 'sha1' and redis.sha1hex(current) == expected)
+  ) then
+    redis.call('hdel', KEYS[1], ARGV[i])
+    if i == 1 then claimed = 1 end
+  end
+end
+return claimed
+`
+
+function observedIntentGuard(field: string, raw: string): string[] {
+  const prefix = /^\{"intentId":"[a-f0-9-]{36}",/.exec(raw.slice(0, 64))?.[0]
+  /** Older values have no leading identity; their digest keeps cleanup bounded on the wire. */
+  return prefix
+    ? [field, 'prefix', prefix]
+    : [field, 'sha1', createHash('sha1').update(raw).digest('hex')]
 }
 
 function cleanupStale(): void {
@@ -140,17 +169,19 @@ export async function storeFileIntent(
   fileId: string,
   intent: PendingFileIntent
 ): Promise<void> {
+  /** Keep identity first in JSON and replace any identity carried by a reused intent. */
+  const stored = Object.assign({ intentId: '' }, intent, { intentId: generateId() })
   const redis = getRedisClient()
   if (!redis) {
     cleanupStale()
-    memoryStore.set(buildKey(workspaceId, buildScopedField(fileId, intent)), intent)
+    memoryStore.set(buildKey(workspaceId, buildScopedField(fileId, intent)), stored)
     return
   }
 
   await withRedisRetry('store_file_intent', workspaceId, async (client) => {
     const key = getWorkspaceRedisKey(workspaceId)
     const pipeline = client.pipeline()
-    pipeline.hset(key, buildScopedField(fileId, intent), JSON.stringify(intent))
+    pipeline.hset(key, buildScopedField(fileId, intent), JSON.stringify(stored))
     pipeline.expire(key, INTENT_TTL_SECONDS)
     await pipeline.exec()
   })
@@ -174,7 +205,12 @@ export async function peekFileIntent(
   const intent = parseIntent(raw)
   if (!intent && raw !== null) {
     await withRedisRetry('clear_stale_file_intent', workspaceId, async (client) => {
-      await client.hdel(getWorkspaceRedisKey(workspaceId), buildScopedField(fileId, scope))
+      await client.eval(
+        DELETE_OBSERVED_INTENTS_SCRIPT,
+        1,
+        getWorkspaceRedisKey(workspaceId),
+        ...observedIntentGuard(buildScopedField(fileId, scope), raw)
+      )
     })
   }
   return intent
@@ -242,11 +278,11 @@ export async function consumeLatestFileIntent(
   )
   let latest: PendingFileIntent | undefined
   let latestField: string | undefined
-  const staleFields: string[] = []
+  const staleEntries: string[] = []
   for (const [field, raw] of Object.entries(entries)) {
     const parsed = parseIntent(raw)
     if (!parsed) {
-      staleFields.push(field)
+      staleEntries.push(...observedIntentGuard(field, raw))
       continue
     }
     if (!scopeMatches(parsed, scope) || !channelMatches(parsed, scope)) {
@@ -258,11 +294,17 @@ export async function consumeLatestFileIntent(
     }
   }
 
-  const fieldsToDelete = latestField ? [...staleFields, latestField] : staleFields
-  if (fieldsToDelete.length > 0) {
-    await withRedisRetry('delete_workspace_file_intents', workspaceId, async (client) => {
-      await client.hdel(getWorkspaceRedisKey(workspaceId), ...fieldsToDelete)
-    })
-  }
-  return latest
+  const observedEntries = latestField
+    ? [...observedIntentGuard(latestField, entries[latestField]!), ...staleEntries]
+    : staleEntries
+  if (observedEntries.length === 0) return undefined
+
+  /** An uncertain claim must not be retried against a newer intent. */
+  const claimed = await redis.eval(
+    DELETE_OBSERVED_INTENTS_SCRIPT,
+    1,
+    getWorkspaceRedisKey(workspaceId),
+    ...observedEntries
+  )
+  return latestField && claimed === 1 ? latest : undefined
 }

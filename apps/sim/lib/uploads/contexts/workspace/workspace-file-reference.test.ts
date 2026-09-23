@@ -58,6 +58,7 @@ import {
   listWorkspaceFiles,
   parseChatUploadReference,
   resolveWorkspaceFileReference,
+  type WorkspaceFileRecord,
   workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -113,6 +114,43 @@ describe('resolveWorkspaceFileReference', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+  })
+
+  it('does not load a supplied fallback when an exact name resolves', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [chatUploadRow({ context: 'workspace' })])
+    const loadFallbackFiles = vi.fn()
+
+    await expect(
+      resolveWorkspaceFileReference(WS, 'files/face.png', { loadFallbackFiles })
+    ).resolves.toMatchObject({ id: 'wf_upload', name: 'face.png' })
+
+    expect(loadFallbackFiles).not.toHaveBeenCalled()
+    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the supplied listing for the existing nested bare-name fallback', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [])
+    const nested: WorkspaceFileRecord = {
+      id: 'wf_nested',
+      workspaceId: WS,
+      name: 'source.txt',
+      key: 'workspace/source.txt',
+      path: '/api/files/serve/source.txt',
+      type: 'text/plain',
+      size: 12,
+      uploadedBy: 'user-1',
+      uploadedAt: new Date('2026-09-01T00:00:00Z'),
+      folderId: 'folder-1',
+      folderPath: 'Reports',
+    }
+    const loadFallbackFiles = vi.fn(async () => [nested])
+
+    await expect(
+      resolveWorkspaceFileReference(WS, 'source.txt', { loadFallbackFiles })
+    ).resolves.toBe(nested)
+
+    expect(loadFallbackFiles).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
   })
 
   it('resolves uploads/<name> to the newest chat upload when a read opts in', async () => {

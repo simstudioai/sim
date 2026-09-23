@@ -5,11 +5,13 @@ import { toError } from '@sim/utils/errors'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
   keepPreviousData,
+  type QueryClient,
   useIsFetching,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
 import {
@@ -45,8 +47,10 @@ export const workspaceFilesKeys = {
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
   records: () => [...workspaceFilesKeys.all, 'record'] as const,
+  workspaceRecords: (workspaceId: string) =>
+    [...workspaceFilesKeys.records(), workspaceId] as const,
   record: (workspaceId: string, fileId: string) =>
-    [...workspaceFilesKeys.records(), workspaceId, fileId] as const,
+    [...workspaceFilesKeys.workspaceRecords(workspaceId), fileId] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
@@ -72,42 +76,68 @@ export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
 export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 
-/**
- * Hook to fetch a single workspace file record by ID.
- * Shares the `list(workspaceId, 'active')` query key with {@link useWorkspaceFiles} so no extra
- * network request is made when the list is already cached (warm path).
- * On a cold path (e.g. direct navigation to a file URL), this fetches the full active file list
- * for the workspace and selects the matching record via `select`.
- */
-export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
-  return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'active', signal),
-    enabled: !!workspaceId && !!fileId,
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
-    select: (files) => files.find((f) => f.id === fileId) ?? null,
-  })
+/** Reconciles inventory and directly addressed records after metadata changes. */
+export function invalidateWorkspaceFileMetadata(
+  queryClient: QueryClient,
+  workspaceId: string,
+  fileId?: string
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) }),
+    fileId
+      ? queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.record(workspaceId, fileId) })
+      : queryClient.invalidateQueries({
+          queryKey: workspaceFilesKeys.workspaceRecords(workspaceId),
+        }),
+  ])
 }
 
-/** Canonical read fallback for addressed resources absent from the workspace file inventory. */
-export function useAddressedWorkspaceFileRecord(
+function getWorkspaceFileRecordQueryOptions(workspaceId: string, fileId: string) {
+  return {
+    queryKey: workspaceFilesKeys.record(workspaceId, fileId),
+    queryFn: async ({ signal }: { signal?: AbortSignal }): Promise<WorkspaceFileRecord | null> => {
+      try {
+        const result = await requestJson(readWorkspaceFileContract, {
+          params: { id: workspaceId, fileId },
+          signal,
+        })
+        return result.file
+      } catch (error) {
+        if (isApiClientError(error) && error.status === 404) return null
+        throw error
+      }
+    },
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
+    retry: (failureCount: number, error: Error) =>
+      failureCount < 1 &&
+      (isApiClientError(error)
+        ? error.status === 408 || error.status === 429 || error.status >= 500
+        : error instanceof TypeError),
+  }
+}
+
+/** Reads one file directly, retaining the freshness of metadata already loaded by the browser. */
+export function useWorkspaceFileRecord(
   workspaceId: string,
   fileId: string,
   options?: { enabled?: boolean }
 ) {
-  return useQuery({
-    queryKey: workspaceFilesKeys.record(workspaceId, fileId),
-    queryFn: async ({ signal }) => {
-      const result = await requestJson(readWorkspaceFileContract, {
-        params: { id: workspaceId, fileId },
-        signal,
-      })
-      return result.file
-    },
+  const queryClient = useQueryClient()
+  const listKey = workspaceFilesKeys.list(workspaceId)
+  const query = useQuery({
+    ...getWorkspaceFileRecordQueryOptions(workspaceId, fileId),
     enabled: !!workspaceId && !!fileId && (options?.enabled ?? true),
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
-    retry: false,
+    initialData: () => {
+      const list = queryClient.getQueryState<WorkspaceFileRecord[]>(listKey)
+      return list?.status === 'success' && !list.isInvalidated
+        ? list.data?.find((file) => file.id === fileId)
+        : undefined
+    },
+    initialDataUpdatedAt: () => queryClient.getQueryState(listKey)?.dataUpdatedAt,
   })
+  const accessDenied =
+    isApiClientError(query.error) && (query.error.status === 401 || query.error.status === 403)
+  return { ...query, data: accessDenied ? undefined : query.data }
 }
 
 /**
@@ -240,43 +270,31 @@ class StaleStorageKeyError extends Error {
 }
 
 /**
- * Re-resolve a workspace's file records after a read found its storage key superseded.
- *
- * The key a content read addresses comes from the cached file list, and nothing invalidates that
- * list when a write rotates the key — the collaborative relay projects an open document back to
- * markdown every few seconds, entirely server-side, so an open tab's key can be replaced many times
- * over without a single client-visible event. Recovering on the 404 makes the rotation cost exactly
- * one request instead of stranding the reader on a dead key until a full reload.
- *
- * Re-reads the RECORD, never the failed query: the refetched list either hands back a new key — which
- * re-keys the read onto a fresh cache entry that fetches once — or the same one, in which case nothing
- * refetches and the failure stands. That asymmetry is what makes this loop-proof, and it is why a
- * genuinely deleted file settles instead of retrying: the list simply stops containing it.
- *
- * Both details below exist because this runs from inside the failing read's own `queryFn`, and each was
- * measured: without them the recovery is requested and no fetch happens at all, so the reader is left
- * on the dead key showing a failure until something unrelated (a window focus, another consumer)
- * happens to re-resolve the record.
+ * A relay save may rotate the storage key without a client-visible event. Refresh existing
+ * metadata queries after a stale-key response so either a browser list or a direct file viewer
+ * can select the new key. The failed byte query is never retried by this recovery, so an unchanged
+ * key or missing file terminates recovery rather than creating a fetch loop.
  */
-function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
+function useStaleKeyRecovery(workspaceId: string, fileId: string): (error: unknown) => void {
   const queryClient = useQueryClient()
   return useCallback(
     (error: unknown) => {
       if (!workspaceId || !(error instanceof StaleStorageKeyError)) return
-      // Off this fetch's own cycle (one microtask): a refetch asked for from inside a `queryFn` — where
-      // this catch sits — is dropped by react-query, silently. This is what turned "one extra request"
-      // into "no recovery at all".
-      //
-      // `cancelRefetch` because a re-resolution has to OBSERVE the rotation: a record read already in
-      // flight was started before it, so it can only hand back the key we already know is dead.
+      /** Defer outside the failed fetch cycle and cancel reads started before the key rotated. */
       void Promise.resolve().then(() =>
-        queryClient.refetchQueries(
-          { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
-          { cancelRefetch: true }
-        )
+        Promise.all([
+          queryClient.refetchQueries(
+            { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
+            { cancelRefetch: true }
+          ),
+          queryClient.refetchQueries(
+            { queryKey: workspaceFilesKeys.record(workspaceId, fileId) },
+            { cancelRefetch: true }
+          ),
+        ])
       )
     },
-    [queryClient, workspaceId]
+    [queryClient, workspaceId, fileId]
   )
 }
 
@@ -324,7 +342,7 @@ export function useWorkspaceFileContent(
   }
 ): WorkspaceFileContentResult {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   const query = useQuery({
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
     queryFn: async ({ signal }) => {
@@ -342,7 +360,7 @@ export function useWorkspaceFileContent(
   })
   return {
     data: query.data,
-    ...useStaleKeyRecoveryState(workspaceId, query.isLoading, query.error),
+    ...useStaleKeyRecoveryState(workspaceId, fileId, query.isLoading, query.error),
   }
 }
 
@@ -369,13 +387,17 @@ export interface WorkspaceFileContentResult {
  */
 function useStaleKeyRecoveryState(
   workspaceId: string,
+  fileId: string,
   isLoading: boolean,
   error: unknown
 ): { isLoading: boolean; error: Error | null } {
-  const resolvingRecord = useIsFetching({
+  const resolvingList = useIsFetching({
     queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
   })
-  const recovering = error instanceof StaleStorageKeyError && resolvingRecord > 0
+  const resolvingRecord = useIsFetching({
+    queryKey: workspaceFilesKeys.record(workspaceId, fileId),
+  })
+  const recovering = error instanceof StaleStorageKeyError && resolvingList + resolvingRecord > 0
   return {
     isLoading: isLoading || recovering,
     error: recovering ? null : ((error as Error) ?? null),
@@ -439,7 +461,7 @@ export function useWorkspaceFileBinary(
   options?: { enabled?: boolean; version?: string | number }
 ) {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   return useQuery({
     queryKey:
       options?.version != null
@@ -562,9 +584,7 @@ export function useUploadWorkspaceFile() {
       uploadWorkspaceFile(workspaceId, file, folderId, onProgress, signal),
     onSettled: (_data, _error, variables) => {
       if (variables.skipInvalidation) return
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId)
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onSuccess: (_data, variables) => {
@@ -597,9 +617,7 @@ export function useCreateWorkspaceFile() {
         body,
       }),
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId)
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -632,9 +650,7 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId, variables.fileId)
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -657,12 +673,11 @@ export function useReloadWorkspaceFileContent() {
       fileId: string
       raw: boolean
     }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
-      const files = await queryClient.fetchQuery({
-        ...getWorkspaceFilesQueryOptions(workspaceId),
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.record(workspaceId, fileId) })
+      const file = await queryClient.fetchQuery({
+        ...getWorkspaceFileRecordQueryOptions(workspaceId, fileId),
         staleTime: 0,
       })
-      const file = files.find((record) => record.id === fileId)
       if (!file) throw new Error('File no longer exists')
       if (!file.contentUpdatedAt) throw new Error('The latest file version is unavailable')
       const content = await queryClient.fetchQuery({
@@ -697,7 +712,19 @@ export function useRenameWorkspaceFile() {
         body: { name },
       }),
     onMutate: async ({ workspaceId, fileId, name }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) }),
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.record(workspaceId, fileId) }),
+      ])
+      const previousRecord = queryClient.getQueryData<WorkspaceFileRecord | null>(
+        workspaceFilesKeys.record(workspaceId, fileId)
+      )
+      if (previousRecord) {
+        queryClient.setQueryData(workspaceFilesKeys.record(workspaceId, fileId), {
+          ...previousRecord,
+          name,
+        })
+      }
       const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
       )
@@ -707,9 +734,15 @@ export function useRenameWorkspaceFile() {
           previous.map((f) => (f.id === fileId ? { ...f, name } : f))
         )
       }
-      return { previous }
+      return { previous, previousRecord }
     },
     onError: (error, variables, context) => {
+      if (context?.previousRecord) {
+        queryClient.setQueryData(
+          workspaceFilesKeys.record(variables.workspaceId, variables.fileId),
+          context.previousRecord
+        )
+      }
       if (context?.previous) {
         queryClient.setQueryData(
           workspaceFilesKeys.list(variables.workspaceId, 'active'),
@@ -719,9 +752,7 @@ export function useRenameWorkspaceFile() {
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId, variables.fileId)
     },
   })
 }
@@ -743,7 +774,16 @@ export function useDeleteWorkspaceFile() {
         params: { id: workspaceId, fileId },
       }),
     onMutate: async ({ workspaceId, fileId }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) }),
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.record(workspaceId, fileId) }),
+      ])
+      const previousRecord = queryClient.getQueryData<WorkspaceFileRecord | null>(
+        workspaceFilesKeys.record(workspaceId, fileId)
+      )
+      if (previousRecord) {
+        queryClient.setQueryData(workspaceFilesKeys.record(workspaceId, fileId), null)
+      }
 
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -756,9 +796,15 @@ export function useDeleteWorkspaceFile() {
         )
       }
 
-      return { previousFiles }
+      return { previousFiles, previousRecord }
     },
     onError: (_err, variables, context) => {
+      if (context?.previousRecord) {
+        queryClient.setQueryData(
+          workspaceFilesKeys.record(variables.workspaceId, variables.fileId),
+          context.previousRecord
+        )
+      }
       if (context?.previousFiles) {
         queryClient.setQueryData(
           workspaceFilesKeys.list(variables.workspaceId, 'active'),
@@ -772,9 +818,7 @@ export function useDeleteWorkspaceFile() {
       toast.success('File moved to trash')
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId, variables.fileId)
       queryClient.removeQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
@@ -798,9 +842,7 @@ export function useRestoreWorkspaceFile() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      void invalidateWorkspaceFileMetadata(queryClient, variables.workspaceId, variables.fileId)
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
   })

@@ -29,6 +29,7 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { GET } from '@/app/api/v2/files/[fileId]/text/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -100,6 +101,22 @@ describe('GET /api/v2/files/[fileId]/text', () => {
 
     expect(body.data).toHaveProperty('degraded')
     expect(typeof body.data.degraded).toBe('boolean')
+  })
+
+  it('returns the revision of the record whose bytes were read, including line windows', async () => {
+    const contentUpdatedAt = new Date('2026-09-23T11:00:00.123Z')
+    mocks.readText.mockResolvedValueOnce(
+      result({
+        file: { id: FILE_ID, name: 'notes.txt', type: 'text/plain', contentUpdatedAt },
+        lineRange: { offset: 3, lineCount: 1, totalLines: 10, totalLinesExact: true },
+      })
+    )
+    const response = await GET(textRequest(`workspaceId=${WORKSPACE_ID}&offset=3&limit=1`), context)
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(parseWorkspaceFileRevision(body.data.revision, FILE_ID)).toEqual(contentUpdatedAt)
+    expect(body.data.lineRange.offset).toBe(3)
+    expect(mocks.readText).toHaveBeenCalledOnce()
   })
 
   it('carries a degraded extraction and its reason to the wire', async () => {

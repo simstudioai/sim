@@ -140,9 +140,9 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
-  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
+  /** Only Markdown embeds consume workspace image dimensions; custom sources supply their own. */
   const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
-    enabled: !contentSource,
+    enabled: !contentSource && isMarkdownFile(props.file),
   })
   const source = useMemo(
     () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),

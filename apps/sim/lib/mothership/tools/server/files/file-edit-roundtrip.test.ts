@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -53,9 +54,15 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
 
 import { extractResourcesFromToolResult } from '@/lib/mothership/resources/extraction'
 import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
-import { consumeLatestFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
+import {
+  consumeLatestFileIntent,
+  type PendingFileIntent,
+  storeFileIntent,
+} from '@/lib/mothership/tools/server/files/file-intent-store'
 import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 
 function file(name: string, workspaceId: string): WorkspaceFileRecord {
@@ -84,7 +91,10 @@ function context(workspaceId = generateId()): ServerToolContext {
 }
 
 describe('prepared file write across tool invocations', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    executeFileUseCase.mockReset()
+  })
 
   it('creates then applies content in a new tool context without another prepare', async () => {
     const prepareContext = context()
@@ -116,12 +126,138 @@ describe('prepared file write across tool invocations', () => {
       2,
       applyContext,
       updateWorkspaceFileContent,
-      expect.objectContaining({ fileId: created.id, content }),
+      expect.objectContaining({
+        fileId: created.id,
+        content,
+        expectedRevision: workspaceFileRevision(created),
+      }),
       { fileId: created.id }
     )
     expect(
       await consumeLatestFileIntent(prepareContext.workspaceId!, prepareContext)
     ).toBeUndefined()
+  })
+
+  it.each(['append', 'patch'] as const)(
+    'binds %s to the revision returned with its content, not the earlier target lookup',
+    async (operation) => {
+      const ctx = context()
+      const initial = file('notes.md', ctx.workspaceId!)
+      const current = { ...initial, contentUpdatedAt: new Date('2030-01-02T00:00:00Z') }
+      executeFileUseCase
+        .mockResolvedValueOnce({ file: initial })
+        .mockResolvedValueOnce({ file: current, content: Buffer.from('original') })
+        .mockResolvedValueOnce({ file: current })
+
+      const prepared = await workspaceFileServerTool.execute(
+        {
+          operation,
+          target: { kind: 'file_id', fileId: initial.id },
+          ...(operation === 'patch'
+            ? { edit: { strategy: 'search_replace' as const, search: 'original' } }
+            : {}),
+        },
+        ctx
+      )
+      expect(prepared.success, prepared.message).toBe(true)
+      expect(executeFileUseCase).toHaveBeenNthCalledWith(
+        2,
+        ctx,
+        readWorkspaceFileContent,
+        { fileId: initial.id, assertedWorkspaceId: ctx.workspaceId },
+        { fileId: initial.id }
+      )
+      const applied = await editContentServerTool.execute({ content: 'next' }, ctx)
+      expect(applied.success, applied.message).toBe(true)
+      expect(executeFileUseCase).toHaveBeenLastCalledWith(
+        ctx,
+        updateWorkspaceFileContent,
+        expect.objectContaining({
+          expectedRevision: workspaceFileRevision(current),
+          content: operation === 'append' ? 'original\nnext' : 'next',
+        }),
+        { fileId: initial.id }
+      )
+    }
+  )
+
+  it('returns a typed conflict when another writer changes a prepared replacement', async () => {
+    const ctx = context()
+    const original = file('notes.md', ctx.workspaceId!)
+    executeFileUseCase
+      .mockResolvedValueOnce({ file: original })
+      .mockRejectedValueOnce(new OrchestrationError('conflict', 'Content changed'))
+    const prepared = await workspaceFileServerTool.execute(
+      { operation: 'update', target: { kind: 'file_id', fileId: original.id } },
+      ctx
+    )
+    expect(prepared.success, prepared.message).toBe(true)
+    const applied = await editContentServerTool.execute({ content: 'replacement' }, ctx)
+    expect(applied).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(applied.message).toContain('prepare_file_edit again')
+    expect(executeFileUseCase).toHaveBeenLastCalledWith(
+      ctx,
+      updateWorkspaceFileContent,
+      expect.objectContaining({ expectedRevision: workspaceFileRevision(original) }),
+      { fileId: original.id }
+    )
+    expect(extractResourcesFromToolResult('apply_file_edit', {}, applied)).toEqual([])
+  })
+
+  it('refuses legacy preparations without a revision before compiling or writing', async () => {
+    const ctx = context()
+    const original = file('notes.md', ctx.workspaceId!)
+    await storeFileIntent(ctx.workspaceId!, original.id, {
+      operation: 'update',
+      fileId: original.id,
+      workspaceId: ctx.workspaceId!,
+      userId: ctx.userId!,
+      chatId: ctx.chatId,
+      messageId: ctx.messageId,
+      fileRecord: original,
+      createdAt: Date.now(),
+    } as PendingFileIntent)
+    const applied = await editContentServerTool.execute({ content: 'replacement' }, ctx)
+    expect(applied).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(executeFileUseCase).not.toHaveBeenCalled()
+    expect(compileDoc).not.toHaveBeenCalled()
+  })
+
+  it('keeps both same-file preparations and lets the shared write precondition reject the loser', async () => {
+    const common = context()
+    const original = file('shared.md', common.workspaceId!)
+    const contexts = ['first', 'second'].map((parentToolCallId) => ({
+      ...common,
+      parentToolCallId,
+    }))
+    let committedContent: string | undefined
+    executeFileUseCase.mockImplementation(async (_context, useCase, input) => {
+      if (useCase !== updateWorkspaceFileContent) return { file: original }
+      expect(input.expectedRevision).toBe(workspaceFileRevision(original))
+      if (committedContent !== undefined) {
+        throw new OrchestrationError('conflict', 'A newer revision is already stored')
+      }
+      committedContent = input.content
+      return { file: original }
+    })
+    const prepared = await Promise.all(
+      contexts.map((ctx) =>
+        workspaceFileServerTool.execute(
+          { operation: 'update', target: { kind: 'file_id', fileId: original.id } },
+          ctx
+        )
+      )
+    )
+    expect(prepared.every((result) => result.success)).toBe(true)
+    const applied = await Promise.all(
+      contexts.map((ctx, index) =>
+        editContentServerTool.execute({ content: `writer-${index}` }, ctx)
+      )
+    )
+    expect(applied.filter((result) => result.success)).toHaveLength(1)
+    expect(applied.filter((result) => result.errorCode === 'conflict')).toHaveLength(1)
+    expect(committedContent).toBe(`writer-${applied.findIndex((result) => result.success)}`)
+    expect(executeFileUseCase).toHaveBeenCalledTimes(4)
   })
 
   it('prepares empty document targets without trying to compile absent source', async () => {

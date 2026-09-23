@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest'
 import {
   consumeLatestFileIntent,
   type PendingFileIntent,
+  peekFileIntent,
   storeFileIntent,
   waitForLatestFileIntent,
-} from './file-intent-store'
+} from '@/lib/mothership/tools/server/files/file-intent-store'
 
 function makeIntent(overrides: Partial<PendingFileIntent>): PendingFileIntent {
   return {
@@ -17,6 +18,7 @@ function makeIntent(overrides: Partial<PendingFileIntent>): PendingFileIntent {
     chatId: 'chat-1',
     messageId: 'msg-1',
     fileRecord: { id: overrides.fileId ?? 'file-x' } as unknown as PendingFileIntent['fileRecord'],
+    expectedRevision: 'revision-1',
     createdAt: Date.now(),
     ...overrides,
   }
@@ -27,6 +29,38 @@ function uniqueWorkspace(): string {
 }
 
 describe('file-intent-store channel scoping', () => {
+  it('keeps independent preparations of the same file on different channels', async () => {
+    const workspaceId = uniqueWorkspace()
+    const scope = { chatId: 'chat-1', messageId: 'msg-1' }
+    for (const channelId of ['first', 'second']) {
+      await storeFileIntent(
+        workspaceId,
+        'same-file',
+        makeIntent({ workspaceId, fileId: 'same-file', channelId, existingContent: channelId })
+      )
+    }
+    expect(
+      (await peekFileIntent(workspaceId, 'same-file', { ...scope, channelId: 'first' }))
+        ?.existingContent
+    ).toBe('first')
+    const results = await Promise.all(
+      ['first', 'second'].map((channelId) =>
+        consumeLatestFileIntent(workspaceId, { ...scope, channelId })
+      )
+    )
+    expect(results.map((intent) => intent?.existingContent)).toEqual(['first', 'second'])
+  })
+
+  it('allows only one concurrent consumer to claim a preparation', async () => {
+    const workspaceId = uniqueWorkspace()
+    const scope = { chatId: 'chat-1', messageId: 'msg-1', channelId: 'first' }
+    await storeFileIntent(workspaceId, 'file-x', makeIntent({ workspaceId, ...scope }))
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => consumeLatestFileIntent(workspaceId, scope))
+    )
+    expect(results.filter(Boolean)).toHaveLength(1)
+  })
+
   it('consumes the intent for the requesting channel, not the latest in the message', async () => {
     const ws = uniqueWorkspace()
     const scope = { chatId: 'chat-1', messageId: 'msg-1' }

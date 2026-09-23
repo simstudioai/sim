@@ -100,6 +100,7 @@ import { activeSandboxChatOwner } from '@/lib/mothership/tools/sandbox-resources
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import {
   validateWorkspaceFileWriteTarget,
+  type WorkspaceFileWriteValidation,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
@@ -1573,7 +1574,9 @@ function exportFailure(
 }
 
 function workspaceFileExportErrorStatus(error: unknown): number {
-  return asOrchestrationError(error)?.code === 'forbidden' ? 403 : 400
+  const code = asOrchestrationError(error)?.code
+  if (code === 'forbidden') return 403
+  return code === 'conflict' ? 409 : 400
 }
 
 /**
@@ -1774,6 +1777,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
           fileName: written.name,
           vfsPath: written.vfsPath,
           downloadUrl: written.downloadUrl,
+          revision: written.revision,
           sandboxPath: outputSandboxPath,
           size: fileBuffer.length,
           previousSize,
@@ -1922,9 +1926,9 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     delegationId: `function-execute:${args.routeContext.requestId}`,
     executionId: args.routeContext.executionId,
   })
-  let validationPaths: string[]
+  let validations: WorkspaceFileWriteValidation[]
   try {
-    const validations = await Promise.all(
+    validations = await Promise.all(
       preparedFiles.map((prepared) =>
         validateWorkspaceFileWriteTarget({
           workspaceId: resolvedWorkspaceId,
@@ -1933,7 +1937,6 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         })
       )
     )
-    validationPaths = validations.map((validation) => validation.vfsPath)
   } catch (error) {
     return exportFailure(
       getErrorMessage(error, 'Invalid sandbox output destination'),
@@ -1943,6 +1946,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       args.cost
     )
   }
+  const validationPaths = validations.map((validation) => validation.vfsPath)
   const duplicateDestination = validationPaths.find(
     (vfsPath, index) => validationPaths.indexOf(vfsPath) !== index
   )
@@ -1958,7 +1962,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
 
   const writtenFiles = []
   try {
-    for (const prepared of preparedFiles) {
+    for (const [index, prepared] of preparedFiles.entries()) {
       const buffer = Buffer.isBuffer(prepared.content)
         ? prepared.content
         : Buffer.from(prepared.content, prepared.isBinary ? 'base64' : 'utf-8')
@@ -1975,10 +1979,16 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         unchanged = check.identical
       }
       const sha256 = sha256Hex(buffer)
+      const validation = validations[index]!
       const written = await writeWorkspaceFileByPath({
         workspaceId: resolvedWorkspaceId,
         principal,
-        target: prepared.target,
+        target: {
+          ...prepared.target,
+          ...(validation.mode === 'overwrite' && validation.revision
+            ? { expectedRevision: validation.revision }
+            : {}),
+        },
         buffer,
         inferredMimeType: prepared.resolvedMimeType,
         secretProvenance: prepared.secretProvenance,
@@ -2038,6 +2048,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       fileName: file.name,
       vfsPath: file.vfsPath,
       downloadUrl: file.downloadUrl,
+      revision: file.revision,
       sandboxPath: file.sandboxPath,
       size: file.exportedBytes,
       previousSize: file.previousSize,

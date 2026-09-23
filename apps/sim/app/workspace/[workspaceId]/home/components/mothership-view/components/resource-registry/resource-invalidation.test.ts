@@ -64,7 +64,7 @@ describe('resource cache reconciliation', () => {
       for (const key of [...affected, other]) client.setQueryData(key, {})
       invalidateResourceQueries(client, 'w', 'file', id)
       for (const key of affected) expect(client.getQueryState(key)?.isInvalidated).toBe(true)
-      expect(client.getQueryState(other)?.isInvalidated).toBe(id === undefined)
+      expect(client.getQueryState(other)?.isInvalidated).toBe(false)
     }
   )
 

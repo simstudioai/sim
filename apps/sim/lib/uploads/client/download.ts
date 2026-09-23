@@ -1,8 +1,14 @@
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
-import { requestRaw } from '@/lib/api/client/request'
+import { contractUrl, requestJson, requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
-import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
+import {
+  downloadWorkspaceFileStreamContract,
+  exportWorkspaceFileSnapshotContract,
+  readWorkspaceFileContract,
+} from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { isMarkdownFile, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
 export interface FileDownloadSource {
@@ -13,17 +19,18 @@ export interface FileDownloadSource {
 
 export function saveBlob(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob)
+  downloadUrl(objectUrl, fileName)
+  /** Revoking synchronously can race the browser starting the download. */
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+}
+
+function downloadUrl(url: string, fileName: string): void {
   const anchor = document.createElement('a')
-  anchor.href = objectUrl
+  anchor.href = url
   anchor.download = fileName
-  // Attached before clicking: a detached anchor works in current browsers, but every
-  // other download helper in the app attaches, and a silent no-op here would look
-  // exactly like a download that never started.
   document.body.appendChild(anchor)
   anchor.click()
   document.body.removeChild(anchor)
-  // Deferred: revoking synchronously after click() can race the download starting.
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
 }
 
 function fileNameFromDisposition(response: Response, fallback: string): string {
@@ -39,14 +46,19 @@ function fileNameFromDisposition(response: Response, fallback: string): string {
   return disposition.match(/filename="([^"]+)"/)?.[1] ?? fallback
 }
 
+function isMarkdownDownload(record: WorkspaceFileRecord): boolean {
+  return isMarkdownFile(record) || record.type === 'text/x-markdown'
+}
+
+function needsPageRendering(record: WorkspaceFileRecord): boolean {
+  return record.type === SIM_PAGE_CONTENT_TYPE || record.name.toLowerCase().endsWith('.html')
+}
+
 export async function triggerFileDownload(
   record: WorkspaceFileRecord,
   source?: FileDownloadSource | null
 ): Promise<void> {
-  const isMarkdown =
-    record.type === 'text/markdown' ||
-    record.type === 'text/x-markdown' ||
-    /\.(?:md|markdown)$/i.test(record.name)
+  const isMarkdown = isMarkdownDownload(record)
 
   const content =
     isMarkdown &&
@@ -77,8 +89,34 @@ export async function triggerFileDownload(
     return
   }
 
+  if (
+    !isMarkdown &&
+    !needsPageRendering(record) &&
+    record.vfsNamespace !== 'uploads' &&
+    (record.storageContext ?? 'workspace') === 'workspace'
+  ) {
+    const input = { params: { id: record.workspaceId, fileId: record.id } }
+    /** Surface access errors before handing an ordinary download to the browser. */
+    const { file } = await requestJson(readWorkspaceFileContract, input)
+    if (
+      needsPageRendering(file) ||
+      isMarkdownDownload(file) ||
+      needsRenderedArtifact(file.type, file.name)
+    ) {
+      /** Transformed exports retain their existing limits and in-app failure handling. */
+      await downloadStoredFile(file)
+    } else {
+      downloadUrl(contractUrl(downloadWorkspaceFileStreamContract, input), file.name)
+    }
+    return
+  }
+
+  await downloadStoredFile(record)
+}
+
+async function downloadStoredFile(record: WorkspaceFileRecord): Promise<void> {
   const url =
-    isMarkdown &&
+    isMarkdownDownload(record) &&
     record.vfsNamespace !== 'uploads' &&
     (record.storageContext ?? 'workspace') === 'workspace'
       ? `/api/files/export/${encodeURIComponent(record.id)}`

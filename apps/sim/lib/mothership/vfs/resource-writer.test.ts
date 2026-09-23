@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 
 const mocks = vi.hoisted(() => {
   class FileConflictError extends Error {
@@ -294,6 +296,7 @@ describe('resource writer', () => {
       size: 7,
       type: 'text/csv',
       folderPath: 'Reports/2026',
+      contentUpdatedAt: new Date('2026-09-23T10:00:00Z'),
     })
 
     const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
@@ -313,11 +316,14 @@ describe('resource writer', () => {
       mode: 'overwrite',
       existingFileId: 'file-report',
       vfsPath: 'files/Reports/2026/summary.csv',
+      revision: workspaceFileRevision({
+        id: 'file-report',
+        updatedAt: new Date('2026-09-23T10:00:00Z'),
+      }),
     })
   })
 
   it('upserts: an overwrite of a missing target falls through to create', async () => {
-    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
     mocks.resolveWorkspaceFileReference.mockRejectedValue(
       new OrchestrationError('not_found', 'File not found')
     )
@@ -328,6 +334,7 @@ describe('resource writer', () => {
       contentType: 'image/png',
       downloadUrl: 'url',
       vfsPath: 'files/chart.png',
+      mode: 'create',
     })
 
     const written = await writeWorkspaceFileByPath({
@@ -356,6 +363,7 @@ describe('resource writer', () => {
       contentType: 'image/png',
       downloadUrl: 'url',
       vfsPath: 'files/chart.png',
+      mode: 'overwrite',
     })
 
     const written = await writeWorkspaceFileByPath({
@@ -369,4 +377,97 @@ describe('resource writer', () => {
     expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
     expect(written).toMatchObject({ id: 'file-1', mode: 'overwrite' })
   })
+
+  it('never recreates a missing conditional overwrite target', async () => {
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        target: { path: 'files/chart.png', mode: 'overwrite', expectedRevision: 'revision' },
+        buffer: Buffer.from('png'),
+        inferredMimeType: 'image/png',
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+    expect(mocks.updateWorkspaceFileContentBufferByPath.execute).not.toHaveBeenCalled()
+    expect(mocks.admitCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it.each(['conflict', 'not_found'] as const)(
+    'does not fall through to create when an admitted conditional write fails with %s',
+    async (code) => {
+      mocks.resolveWorkspaceFileReference.mockResolvedValue({ id: 'file-1', name: 'chart.png' })
+      mocks.updateWorkspaceFileContentBufferByPath.execute.mockRejectedValueOnce(
+        new OrchestrationError(code, 'The target changed')
+      )
+      await expect(
+        writeWorkspaceFileByPath({
+          workspaceId: 'workspace-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          target: {
+            path: 'files/chart.png',
+            mode: 'overwrite',
+            expectedRevision: 'observed-revision',
+          },
+          buffer: Buffer.from('png'),
+          inferredMimeType: 'image/png',
+        })
+      ).rejects.toMatchObject({ code })
+      expect(mocks.updateWorkspaceFileContentBufferByPath.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ expectedRevision: 'observed-revision' }),
+        })
+      )
+      expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+    }
+  )
+
+  it('returns the committed revision without substituting its authorization snapshot', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({ id: 'file-1', name: 'chart.png' })
+    mocks.updateWorkspaceFileContentBufferByPath.execute.mockResolvedValue({
+      id: 'file-1',
+      name: 'chart.png',
+      size: 3,
+      contentType: 'image/png',
+      vfsPath: 'files/chart.png',
+      mode: 'overwrite',
+      revision: 'committed-revision',
+    })
+    const result = await writeWorkspaceFileByPath({
+      workspaceId: 'workspace-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      target: { path: 'files/chart.png', mode: 'overwrite', expectedRevision: 'observed-revision' },
+      buffer: Buffer.from('png'),
+      inferredMimeType: 'image/png',
+    })
+    expect(result.revision).toBe('committed-revision')
+    expect(mocks.updateWorkspaceFileContentBufferByPath.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ expectedRevision: 'observed-revision' }),
+      })
+    )
+  })
+
+  it.each([
+    { mode: 'overwrite' as const, expectedRevision: '' },
+    { mode: 'create' as const, expectedRevision: 'revision' },
+  ])(
+    'rejects an invalid precondition instead of writing unconditionally: $mode/$expectedRevision',
+    async (target) => {
+      await expect(
+        writeWorkspaceFileByPath({
+          workspaceId: 'workspace-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          target: { path: 'files/chart.png', ...target },
+          buffer: Buffer.from('png'),
+          inferredMimeType: 'image/png',
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+      expect(mocks.updateWorkspaceFileContentBufferByPath.execute).not.toHaveBeenCalled()
+    }
+  )
 })

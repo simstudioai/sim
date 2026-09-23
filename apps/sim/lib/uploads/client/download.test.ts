@@ -2,12 +2,19 @@
 
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { requestRaw } from '@/lib/api/client/request'
-import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
+import { requestJson, requestRaw } from '@/lib/api/client/request'
+import {
+  exportWorkspaceFileSnapshotContract,
+  readWorkspaceFileContract,
+} from '@/lib/api/contracts/workspace-files'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
-vi.mock('@/lib/api/client/request', () => ({ requestRaw: vi.fn() }))
+vi.mock('@/lib/api/client/request', () => ({
+  requestRaw: vi.fn(),
+  requestJson: vi.fn(),
+  contractUrl: vi.fn(() => '/api/workspaces/workspace-1/files/file-1/download'),
+}))
 
 const file: WorkspaceFileRecord = {
   id: 'file-1',
@@ -25,6 +32,7 @@ const fetchMock = vi.fn<typeof fetch>()
 const createObjectURL = vi.fn((_blob: Blob) => 'blob:download')
 const click = vi.fn()
 let downloadedName = ''
+let downloadedUrl = ''
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -39,11 +47,17 @@ beforeEach(() => {
   )
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
     downloadedName = this.download
+    downloadedUrl = this.getAttribute('href') ?? ''
     click()
   })
   downloadedName = ''
+  downloadedUrl = ''
   fetchMock.mockResolvedValue(new Response('stored'))
   vi.mocked(requestRaw).mockResolvedValue(new Response('snapshot'))
+  vi.mocked(requestJson).mockResolvedValue({
+    success: true,
+    file: { ...file, type: 'text/plain', name: 'document.txt' },
+  })
 })
 
 afterEach(() => {
@@ -118,16 +132,72 @@ describe('file download snapshots', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('does not change non-Markdown downloads', async () => {
+  it('hands large ordinary downloads to the browser without fetching bytes into a Blob', async () => {
     const mounted = source()
-    await triggerFileDownload({ ...file, name: 'document.txt', type: 'text/plain' }, mounted)
+    await triggerFileDownload(
+      { ...file, name: 'document.txt', type: 'text/plain', size: 5 * 1024 ** 3 },
+      mounted
+    )
     expect(mounted.getContent).not.toHaveBeenCalled()
+    expect(requestJson).toHaveBeenCalledExactlyOnceWith(readWorkspaceFileContract, {
+      params: { id: file.workspaceId, fileId: file.id },
+    })
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(downloadedUrl).toBe('/api/workspaces/workspace-1/files/file-1/download')
+    expect(downloadedName).toBe('document.txt')
+  })
+
+  it('surfaces revoked access without starting a browser download', async () => {
+    vi.mocked(requestJson).mockRejectedValueOnce(new Error('File not found'))
+    await expect(
+      triggerFileDownload({ ...file, name: 'document.txt', type: 'text/plain' })
+    ).rejects.toThrow('File not found')
+    expect(click).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps generated-document errors in place and uses the fresh record type', async () => {
+    vi.mocked(requestJson).mockResolvedValueOnce({
+      success: true,
+      file: { ...file, name: 'report.pdf', type: 'text/x-pdflibjs' },
+    })
+    fetchMock.mockResolvedValueOnce(new Response('Document is still compiling', { status: 409 }))
+    await expect(
+      triggerFileDownload({ ...file, name: 'report.pdf', type: 'application/pdf' })
+    ).rejects.toThrow('Failed to download "report.pdf"')
     expect(requestRaw).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/files/serve/stored-version'),
-      {
-        cache: 'no-store',
-      }
+      { cache: 'no-store' }
+    )
+    expect(click).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: 'Page', type: 'text/x-sim-page' },
+    { name: 'legacy.html', type: 'text/html' },
+  ])('preserves the rendered page download for $name', async (page) => {
+    await triggerFileDownload({ ...file, ...page })
+    expect(requestJson).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/files/serve/stored-version'),
+      { cache: 'no-store' }
+    )
+  })
+
+  it('preserves rendering when the preflight discovers a page type change', async () => {
+    vi.mocked(requestJson).mockResolvedValueOnce({
+      success: true,
+      file: { ...file, name: 'Page', type: 'text/x-sim-page' },
+    })
+    await triggerFileDownload({ ...file, name: 'file.txt', type: 'text/plain' })
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/files/serve/stored-version'),
+      { cache: 'no-store' }
     )
   })
 

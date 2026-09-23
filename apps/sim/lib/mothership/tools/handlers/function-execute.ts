@@ -45,7 +45,6 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/v
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import {
-  findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   parseChatUploadReference,
   type WorkspaceFileRecord,
@@ -58,7 +57,7 @@ import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/appli
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { createWorkspaceFileReferenceResolver } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
   buildWorkspaceFileFolderDisplayPath,
@@ -184,30 +183,19 @@ function refField(ref: unknown, key: 'path' | 'tableId' | 'sandboxPath'): string
 }
 
 /**
- * Locates one `inputs.files[].path`. Chat uploads are absent from the workspace listing
- * by design, so an `uploads/<name>` reference resolves through the read-content
- * reference use case — the only path that may reach a chat upload — and a miss there
- * is the honest not-found rather than a hint to go looking elsewhere.
+ * Resolves one mount through the authorized reference lookup. Exact hits avoid a workspace list;
+ * legacy normalized-name fallback remains owned by the shared resolver.
+ * Chat uploads retain their own not-found guidance and trusted chat scope.
  */
 async function resolveMountableWorkspaceFile(
-  allFiles: WorkspaceFileRecord[],
   filePath: string,
-  workspaceId: string,
-  principal: Principal
+  resolveReference: (reference: string) => Promise<WorkspaceFileRecord>
 ): Promise<WorkspaceFileRecord> {
-  const listed = findWorkspaceFileRecord(allFiles, filePath)
-  if (listed) return listed
-
-  if (parseChatUploadReference(filePath) !== null) {
-    try {
-      return await resolveWorkspaceFileReference({
-        principal,
-        operation: fileOperations.readContent,
-        workspaceId,
-        reference: filePath,
-      })
-    } catch (error) {
-      if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+  try {
+    return await resolveReference(filePath)
+  } catch (error) {
+    if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+    if (parseChatUploadReference(filePath) !== null) {
       throw new Error(
         `Input file not found: "${filePath}". Copy the exact "uploads/<name>" path from the upload notice.`
       )
@@ -322,19 +310,16 @@ export async function resolveInputFiles(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+    const resolveReference = createWorkspaceFileReferenceResolver({
       principal: filePrincipal,
-      input: { workspaceId, scope: 'active' },
+      operation: fileOperations.readContent,
+      workspaceId,
     })
     for (const fileRef of inputFiles) {
+      context.abortSignal?.throwIfAborted()
       const filePath = refField(fileRef, 'path')
       if (!filePath) continue
-      const record = await resolveMountableWorkspaceFile(
-        allFiles,
-        filePath,
-        workspaceId,
-        filePrincipal
-      )
+      const record = await resolveMountableWorkspaceFile(filePath, resolveReference)
       const mountPath = refField(fileRef, 'sandboxPath') ?? getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(
         sandboxFiles,

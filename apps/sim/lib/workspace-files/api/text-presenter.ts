@@ -1,4 +1,5 @@
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import type { ReadWorkspaceFileTextResult } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 /** The CLI and HTTP surface expose text metadata, never the private provenance sidecar. */
@@ -17,6 +18,7 @@ export function presentWorkspaceFileText({
       name: file.name,
       path: workspaceFileVfsPath(file),
       type: file.type,
+      ...workspaceFileRevisionField(file),
       text,
       truncated,
       degraded,

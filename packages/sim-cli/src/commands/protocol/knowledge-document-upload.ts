@@ -106,6 +106,7 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
             uploadToken,
             transfer,
             size,
+            completionStatuses: null,
           },
           path
         )

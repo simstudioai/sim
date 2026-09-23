@@ -21,9 +21,12 @@ interface MockFileViewerProps {
   contentSource?: FileContentSource
 }
 
-const { download, files, detail, viewer } = vi.hoisted(() => ({
+const { download, files, detail, inventory, viewer } = vi.hoisted(() => ({
   download: vi.fn(),
-  detail: vi.fn((): { data?: WorkspaceFileRecord; isFetching?: boolean } => ({})),
+  detail: vi.fn(
+    (): { data?: WorkspaceFileRecord | null; isFetching?: boolean; isSuccess?: boolean } => ({})
+  ),
+  inventory: vi.fn((): { data?: WorkspaceFileRecord[]; isPlaceholderData?: boolean } => ({})),
   viewer: vi.fn(),
   files: [] as WorkspaceFileRecord[],
 }))
@@ -31,8 +34,8 @@ const { download, files, detail, viewer } = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/lib/uploads/client/download', () => ({ triggerFileDownload: download }))
 vi.mock('@/hooks/queries/workspace-files', () => ({
-  useWorkspaceFiles: () => ({ data: files }),
-  useAddressedWorkspaceFileRecord: detail,
+  useWorkspaceFiles: inventory,
+  useWorkspaceFileRecord: detail,
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canEdit: true }),
@@ -115,6 +118,7 @@ describe('ResourceContent handoff', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     useTableViewPinStore.getState().reset()
     files.length = 0
+    inventory.mockReturnValue({ data: files })
     detail.mockReturnValue({})
     container = document.createElement('div')
     root = createRoot(container)
@@ -313,7 +317,8 @@ describe('ResourceContent handoff', () => {
           </>
         )
       )
-      expect(detail).toHaveBeenCalledWith('workspace-1', 'upload-1', { enabled: true })
+      expect(detail).toHaveBeenCalledWith('workspace-1', 'upload-1')
+      expect(inventory).toHaveBeenCalledWith('workspace-1', 'active', { enabled: false })
       expect(files).toEqual([])
       const props = viewer.mock.calls.at(-1)![0] as MockFileViewerProps
       expect(props).toMatchObject({ file, readOnly: true, canEdit: false, collaborative: false })
@@ -328,6 +333,33 @@ describe('ResourceContent handoff', () => {
     }
   )
 
+  it('resolves a replaced path only after the original file ID is confirmed missing', () => {
+    const replacement: WorkspaceFileRecord = {
+      id: 'replacement',
+      workspaceId: 'workspace-1',
+      name: 'notes.md',
+      key: 'new',
+      path: '/notes.md',
+      size: 5,
+      type: 'text/markdown',
+      uploadedBy: 'user-1',
+      uploadedAt: new Date(),
+    }
+    files.push({ ...replacement, id: 'missing' }, replacement)
+    detail.mockReturnValue({ data: null, isSuccess: true })
+    render({ type: 'file', id: 'missing', path: 'files/notes.md', title: 'Notes' })
+    expect(inventory).toHaveBeenCalledWith('workspace-1', 'active', { enabled: true })
+    expect(viewer).toHaveBeenCalledWith(expect.objectContaining({ file: replacement }))
+  })
+
+  it('does not use cached path metadata when the canonical lookup fails', () => {
+    files.push({ id: 'untrusted', name: 'notes.md' } as WorkspaceFileRecord)
+    detail.mockReturnValue({ isSuccess: false })
+    render({ type: 'file', id: 'denied', path: 'files/notes.md', title: 'Notes' })
+    expect(inventory).toHaveBeenCalledWith('workspace-1', 'active', { enabled: false })
+    expect(viewer).not.toHaveBeenCalled()
+  })
+
   it('shares the mounted streaming viewer with its download action and releases it on resource switch', async () => {
     const file: WorkspaceFileRecord = {
       id: 'file-1',
@@ -340,7 +372,7 @@ describe('ResourceContent handoff', () => {
       uploadedBy: 'user-1',
       uploadedAt: new Date('2026-01-01T00:00:00Z'),
     }
-    files.push(file)
+    detail.mockReturnValue({ data: file, isSuccess: true })
     const resource: MothershipResource = { type: 'file', id: file.id, title: file.name }
     const downloadSourceRef = { current: null as FileDownloadSource | null }
     const preview: FilePreviewSession = {

@@ -40,7 +40,7 @@ describe('useExtractWorkspaceFile reconciliation', () => {
     )
     mutation.onSettled(undefined, undefined, variables)
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(3)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(4)
   })
 
   it('invalidates file browsers after an API error response', () => {
@@ -50,6 +50,6 @@ describe('useExtractWorkspaceFile reconciliation', () => {
     mutation.onError(error, variables)
     mutation.onSettled(undefined, error, variables)
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(3)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(4)
   })
 })

@@ -85,7 +85,7 @@ const expectedFileRevisionSchema = z
   .min(1)
   .optional()
   .describe(
-    'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.'
+    'Revision from a file text read, Get File Metadata, or an earlier write; the request is refused with `409` when the content moved on.'
   )
 
 export const v2FileSchema = z
@@ -867,6 +867,9 @@ export const v2FileTextSchema = z
         'Canonical VFS path of the file that was read: `files/…`, or `uploads/<name>` for a Chat upload.'
       ),
     type: z.string().describe('Stored MIME type of the source file.'),
+    revision: writtenFileRevisionSchema.describe(
+      'Opaque revision of the source bytes read. Send as expectedRevision on a conditional edit. Absent for records without a content timestamp. Extracted or truncated text is not a full replacement of the source file.'
+    ),
     text: z.string().describe('Extracted text.'),
     truncated: z
       .boolean()
