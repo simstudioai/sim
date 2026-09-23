@@ -15,13 +15,12 @@ import {
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
-import { rewriteConnectorDocumentAcls } from '@/lib/knowledge/connectors/member-observations'
-import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import {
-  ACL_CHANGE_BATCH_SIZE,
-  ACL_WRITE_BATCH_SIZE,
-  SOURCE_CONTENT_ERROR,
-} from '@/lib/knowledge/connectors/sync-limits'
+  pagesByProjectionRows,
+  rewriteConnectorDocumentAcls,
+} from '@/lib/knowledge/connectors/member-observations'
+import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
+import { ACL_WRITE_BATCH_SIZE, SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
   type LeaseTransaction,
@@ -167,26 +166,41 @@ export async function persistDocumentAcls(
         unchanged ? stored : not(stored),
         evidenceGuard
       )
-    /** Refreshed first, so a row the change write below has just rewritten is not counted twice. */
-    for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
-      const rows = await transaction((tx) =>
-        tx
+    /**
+     * Each window's evidence refresh and its read of the documents whose ACL changes share one
+     * transaction; the refresh reports the documents it matched, so an unchanged crawl costs one
+     * transaction per window and the change pages below see only what actually changes. Refreshed
+     * first, so a row a change page then rewrites is never counted twice.
+     */
+    for (const window of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
+      const { refreshed, changed } = await transaction(async (tx) => {
+        const refreshed = await tx
           .update(document)
           .set({ aclVerifiedAt })
-          .where(target(batch, true))
-          .returning({ id: document.id })
-      )
-      updated += rows.length
-    }
-    for (const batch of chunkArray(externalIds, ACL_CHANGE_BATCH_SIZE)) {
-      const rows = await transaction((tx) =>
-        tx
-          .update(document)
-          .set({ acl, aclRequirements: requirements, aclVerifiedAt })
-          .where(target(batch, false))
-          .returning({ id: document.id })
-      )
-      updated += rows.length
+          .where(target(window, true))
+          .returning({ externalId: document.externalId })
+        const matched = new Set(refreshed.map((row) => row.externalId))
+        const remaining = window.filter((externalId) => !matched.has(externalId))
+        const changed =
+          remaining.length === 0
+            ? []
+            : await tx
+                .select({ id: document.id, chunkCount: document.chunkCount })
+                .from(document)
+                .where(target(remaining, false))
+        return { refreshed: refreshed.length, changed }
+      })
+      updated += refreshed
+      for (const page of pagesByProjectionRows(changed)) {
+        const rows = await transaction((tx) =>
+          tx
+            .update(document)
+            .set({ acl, aclRequirements: requirements, aclVerifiedAt })
+            .where(and(inArray(document.id, page), target(window, false)))
+            .returning({ id: document.id })
+        )
+        updated += rows.length
+      }
     }
   }
 
@@ -196,7 +210,7 @@ export async function persistDocumentAcls(
 /**
  * Revokes every grant on the documents `target` selects from `ids`, leaving each readable by
  * nobody with its permission evidence cleared. Only a document that still grants someone has
- * `acl` assigned, {@link ACL_CHANGE_BATCH_SIZE} at a time: the projection trigger fires on every
+ * `acl` assigned, in pages bounded by their chunks' projection rows: the projection trigger fires on every
  * assignment of `acl`, changed or not, and each document costs a rewrite of its chunks'
  * projection rows. A document already readable by nobody only has leftover evidence cleared,
  * which fires no fan-out. Each batch is its own `transaction`, so a lease lost between batches
@@ -208,27 +222,31 @@ export async function revokeDocumentAcls(
   target: (batch: string[]) => SQL | undefined
 ): Promise<void> {
   const grants = sql`cardinality(${document.acl}) > 0`
-  for (const batch of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
-    await transaction((tx) =>
-      tx
+  for (const window of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
+    const granting = await transaction(async (tx) => {
+      await tx
         .update(document)
         .set({ aclRequirements: [], aclVerifiedAt: null })
         .where(
           and(
-            target(batch),
+            target(window),
             not(grants),
             sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
           )
         )
-    )
-  }
-  for (const batch of chunkArray(ids, ACL_CHANGE_BATCH_SIZE)) {
-    await transaction((tx) =>
-      tx
-        .update(document)
-        .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-        .where(and(target(batch), grants))
-    )
+      return tx
+        .select({ id: document.id, chunkCount: document.chunkCount })
+        .from(document)
+        .where(and(target(window), grants))
+    })
+    for (const page of pagesByProjectionRows(granting)) {
+      await transaction((tx) =>
+        tx
+          .update(document)
+          .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+          .where(and(target(window), inArray(document.id, page), grants))
+      )
+    }
   }
 }
 

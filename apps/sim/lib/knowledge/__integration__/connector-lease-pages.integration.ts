@@ -64,6 +64,7 @@ import {
   stillHoldsMemberSyncLock,
   stillHoldsSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
+import * as syncPersistence from '@/lib/knowledge/connectors/sync-persistence'
 import {
   persistDocumentAcls,
   restoreWorkspaceDocumentAcls,
@@ -140,6 +141,8 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       mimeType: 'text/plain',
       processingStatus: 'completed',
       contentHash: 'fixture-content',
+      /** Ten chunks each, so a page of projection rows holds 25 documents. */
+      chunkCount: 10,
       acl,
     }))
     await db.insert(document).values(rows)
@@ -167,7 +170,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     const bounds = await db.execute<{ lock: string; statement: string }>(sql`
       SELECT DISTINCT lock_timeout AS lock, statement_timeout AS statement
       FROM lease_page_acl_writes WHERE connector_id = ${connectorId}`)
-    expect([...bounds]).toEqual([{ lock: '5s', statement: '30s' }])
+    expect([...bounds]).toEqual([{ lock: '15s', statement: '30s' }])
   }
 
   /** Takes the lease away once `held` pages have committed, as a reclaim between pages would. */
@@ -236,6 +239,134 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     })
   })
 
+  describe('fence-last pages', () => {
+    /**
+     * A processing commit holds a document row for its whole write. A page waiting on it must not
+     * hold the connector row meanwhile, or every heartbeat, edit and reclaim queues behind it.
+     */
+    it('waits on a locked document row without holding any lock on the connector table', async () => {
+      const [locked] = await seedDocuments(ids.connectorId, [alice()], 1)
+      let release!: () => void
+      let held!: () => void
+      const holding = new Promise<void>((resolve) => {
+        held = resolve
+      })
+      const holder = db.transaction(async (tx) => {
+        await tx
+          .select({ id: document.id })
+          .from(document)
+          .where(eq(document.id, locked.id))
+          .for('update')
+        held()
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+      })
+      await holding
+      const write = persistDocumentAcls(
+        ids.connectorId,
+        new Map([[locked.externalId, [bob()]]]),
+        leaseTransaction(ids.connectorId, adminLease())
+      )
+      try {
+        let waiter: number | undefined
+        for (let attempt = 0; attempt < 100 && waiter === undefined; attempt++) {
+          const [row] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query ILIKE 'update "document" set "acl"%'`)
+          waiter = row?.pid
+          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        expect(waiter).toBeDefined()
+        const connectorLocks = await db.execute<{ mode: string }>(sql`
+          SELECT mode FROM pg_locks
+          WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
+        expect([...connectorLocks]).toEqual([])
+      } finally {
+        release()
+        await holder
+      }
+      await expect(write).resolves.toEqual({ updated: 1, rejected: 0 })
+      expect((await storedAcls(ids.connectorId)).map((acl) => acl.join())).toEqual([bob()])
+    }, 30_000)
+
+    /** The member engine's ACL pages prove the lease last as well. */
+    it('holds no connector lock while a member ACL page waits on a locked document row', async () => {
+      const seeded = await seedDocuments(members.connectorId, [], 1)
+      const [member] = members.members
+      await recordMemberObservations(db, member.id, [seeded[0].id], members.runId)
+      await db
+        .update(knowledgeConnectorMember)
+        .set({ listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false } })
+        .where(eq(knowledgeConnectorMember.id, member.id))
+      let release!: () => void
+      let held!: () => void
+      const holding = new Promise<void>((resolve) => {
+        held = resolve
+      })
+      const holder = db.transaction(async (tx) => {
+        await tx
+          .select({ id: document.id })
+          .from(document)
+          .where(eq(document.id, seeded[0].id))
+          .for('update')
+        held()
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+      })
+      await holding
+      const rewrite = resumeMembershipRewrites({
+        connectorId: members.connectorId,
+        runId: members.runId,
+        deadlineAt: Date.now() + 60_000,
+        lease: createMemberSyncLease(members.connectorId, members.runId),
+      })
+      try {
+        let waiter: number | undefined
+        for (let attempt = 0; attempt < 200 && waiter === undefined; attempt++) {
+          const [row] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query ILIKE 'update "document" set "acl"%'`)
+          waiter = row?.pid
+          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        expect(waiter).toBeDefined()
+        const connectorLocks = await db.execute<{ mode: string }>(sql`
+          SELECT mode FROM pg_locks
+          WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
+        expect([...connectorLocks]).toEqual([])
+      } finally {
+        release()
+        await holder
+      }
+      await expect(rewrite).resolves.toBe(true)
+      expect((await storedAcls(members.connectorId)).map((acl) => acl.join())).toEqual([
+        member.subjectToken,
+      ])
+    }, 30_000)
+
+    /** One page is bounded by projection rows; a document larger than the cap still lands, alone. */
+    it('gives a document larger than one page of projection rows a page alone', async () => {
+      const seeded = await seedDocuments(ids.connectorId, [alice()], 3)
+      await db.update(document).set({ chunkCount: 1_000 }).where(eq(document.id, seeded[1].id))
+      await db
+        .update(document)
+        .set({ chunkCount: 200 })
+        .where(inArray(document.id, [seeded[0].id, seeded[2].id]))
+
+      await expect(
+        persistDocumentAcls(
+          ids.connectorId,
+          new Map(seeded.map((row) => [row.externalId, [bob()]])),
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toEqual({ updated: 3, rejected: 0 })
+
+      expect(await writesPerTransaction(ids.connectorId)).toEqual([1, 1, 1])
+    })
+  })
+
   describe('restoreWorkspaceDocumentAcls', () => {
     beforeEach(async () => {
       await db
@@ -269,10 +400,10 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       ).resolves.toBe(0)
     })
 
-    it('restores drift before a sync completes, outside the completion transaction', async () => {
+    it('finishes a pending rewrite before a sync completes, outside the completion transaction', async () => {
       await db
         .update(knowledgeConnector)
-        .set({ status: 'active', syncLockToken: null })
+        .set({ status: 'active', syncLockToken: null, accessRewritePending: true })
         .where(eq(knowledgeConnector.id, ids.connectorId))
       const seeded = await seedDocuments(ids.connectorId, [])
       await db
@@ -316,10 +447,56 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         .select({
           status: knowledgeConnector.status,
           syncLockToken: knowledgeConnector.syncLockToken,
+          accessRewritePending: knowledgeConnector.accessRewritePending,
         })
         .from(knowledgeConnector)
         .where(eq(knowledgeConnector.id, ids.connectorId))
-      expect(connector).toEqual({ status: 'active', syncLockToken: null })
+      expect(connector).toEqual({
+        status: 'active',
+        syncLockToken: null,
+        accessRewritePending: false,
+      })
+    })
+
+    /** Only a pending switch leaves workspace documents off the workspace ACL; a healthy sync never walks them. */
+    it('does not walk a workspace connector without a pending rewrite', async () => {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'active', syncLockToken: null, accessRewritePending: false })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      const seeded = await seedDocuments(ids.connectorId, ['ws'])
+      await db
+        .update(document)
+        .set({ sourceSeenAt: sql`now() + interval '1 day'`, storageKey: sql`'kb/fixture/' || id` })
+        .where(eq(document.connectorId, ids.connectorId))
+      provider.list.mockResolvedValue({
+        documents: seeded.map((row) => ({
+          externalId: row.externalId,
+          title: row.filename,
+          content: '',
+          contentDeferred: true,
+          contentHash: 'fixture-content',
+          mimeType: 'text/plain',
+        })),
+        hasMore: false,
+      })
+      const token = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockResolvedValue({ accessToken: 'fixture-token' } as never)
+      const restore = vi.spyOn(syncPersistence, 'restoreWorkspaceDocumentAcls')
+      try {
+        const result = await executeSync(ids.connectorId, {
+          billingAttribution: await resolveBillingAttribution({
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          }),
+        })
+        expect(result.error).toBeUndefined()
+        expect(restore).not.toHaveBeenCalled()
+      } finally {
+        token.mockRestore()
+        restore.mockRestore()
+      }
     })
 
     it('restores nothing once the connector has left workspace mode', async () => {

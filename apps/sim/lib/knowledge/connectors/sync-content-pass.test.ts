@@ -208,7 +208,12 @@ describe('completed listing removal counts', () => {
     ])
     queueTableRows(schemaMock.document, options.revoked ?? [])
     if (options.revoked?.length) {
-      /** Every revocation batch is its own lease-proving transaction: one evidence clear, then acl batches. */
+      /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
+      queueTableRows(
+        schemaMock.document,
+        options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
+      )
+      /** Every revocation page is its own lease-proving transaction: one evidence clear, then acl pages. */
       const batches = 1 + Math.ceil(options.revoked.length / 25)
       for (let batch = 0; batch < batches; batch++)
         queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
@@ -320,7 +325,7 @@ describe('completed listing removal counts', () => {
     expect(
       writes.map(
         ({ conditions }) =>
-          (conditions.find((node) => node.type === 'inArray')?.values as string[]).length
+          (conditions.filter((node) => node.type === 'inArray').at(-1)?.values as string[]).length
       )
     ).toEqual([25, 5])
     expect(writes.every(({ conditions }) => conditions.some(grantsSomeone))).toBe(true)
@@ -370,6 +375,9 @@ async function runPass(
   }
   queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
   queueTableRows(schemaMock.document, options.existing ? [options.existing] : [])
+  /** A permission-only page revokes a changed body first: its read of what still grants someone. */
+  if (options.permissionsOnly && options.existing && options.existing.contentHash === 'old-body')
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
   if (options.readCurrent) {
     queueTableRows(schemaMock.document, [{ fileUrl: options.existing?.fileUrl ?? '' }])
     if (

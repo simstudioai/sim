@@ -1320,17 +1320,17 @@ export async function executeSync(
       })
 
       /**
-       * Self-healing invariant of workspace mode: a mode switch back from
-       * members that was interrupted, or any other drift, leaves no document
-       * of this connector hidden from the workspace once a sync completes.
-       * Before the completion transaction, one short lease-proving transaction
-       * per page that also re-checks the mode, so a reclaimed run cannot
-       * rewrite a connector that has since changed mode, and a large restore
-       * never holds the connector row across its projection fan-out. Nothing
-       * can change the mode while this run holds its lease, and the completion
-       * write proves it still does.
+       * Finishes a switch into workspace mode that outgrew its request budget
+       * or was interrupted: every document of the connector becomes readable by
+       * the workspace before the completion write clears the pending flag. The
+       * flag is the only source of such drift: every other writer of a
+       * workspace-mode document's ACL writes the workspace ACL, and both the
+       * mode switch and an ACL-resetting edit set the flag before anything can
+       * hide a document. One short lease-proving transaction per page that also
+       * re-checks the mode, before the completion transaction, so a large
+       * restore never holds the connector row across its projection fan-out.
        */
-      if (accessMode === 'workspace') {
+      if (accessMode === 'workspace' && connector.accessRewritePending) {
         const restoredAcls = await restoreWorkspaceDocumentAcls(
           connectorId,
           leaseTransaction(connectorId, lease),

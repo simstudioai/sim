@@ -65,7 +65,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       connection: { search_path: schemaName },
     })
     await sql`CREATE TABLE document (
-      id text PRIMARY KEY, external_id text, connector_id text,
+      id text PRIMARY KEY, external_id text, connector_id text, chunk_count integer NOT NULL DEFAULT 1,
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
       acl_verified_at timestamp
     )`

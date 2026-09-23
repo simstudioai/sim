@@ -77,13 +77,22 @@ function losingLease(held: number): LeaseTransaction {
   }
 }
 
-/** Each `update(...).where(...)` chain ends in `returning()`; one row per changed document. */
-function queueUpdatedCounts(...counts: number[]) {
-  for (const count of counts) {
+/**
+ * Queues one ACL group's writes: the evidence refresh reports the external ids it matched, the
+ * same transaction then reads the documents whose ACL changes (only when some were not
+ * refreshed), and each change page reports the rows it wrote.
+ */
+function queueGroup(refreshed: string[], changed = 0, unrefreshed = changed > 0) {
+  dbChainMockFns.returning.mockResolvedValueOnce(refreshed.map((externalId) => ({ externalId })))
+  if (!unrefreshed) return
+  queueTableRows(
+    schemaMock.document,
+    Array.from({ length: changed }, (_unused, index) => ({ id: `doc-${index}`, chunkCount: 1 }))
+  )
+  if (changed > 0)
     dbChainMockFns.returning.mockResolvedValueOnce(
-      Array.from({ length: count }, (_unused, index) => ({ id: `doc-${index}` }))
+      Array.from({ length: changed }, (_unused, index) => ({ id: `doc-${index}` }))
     )
-  }
 }
 
 describe('persistDocumentAcls', () => {
@@ -99,7 +108,7 @@ describe('persistDocumentAcls', () => {
    * corpus every time somebody joined a group.
    */
   it('refreshes only access fields, so no document is re-embedded', async () => {
-    queueUpdatedCounts(0, 1)
+    queueGroup([], 1)
 
     await persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
 
@@ -120,7 +129,7 @@ describe('persistDocumentAcls', () => {
    * differs, so a document whose ACL did not change must only have its evidence refreshed.
    */
   it('refreshes the evidence of an unchanged ACL without assigning it', async () => {
-    queueUpdatedCounts(1, 0)
+    queueGroup(['file-1'])
 
     await expect(
       persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
@@ -135,7 +144,7 @@ describe('persistDocumentAcls', () => {
   })
 
   it('reports how many documents received current permission evidence', async () => {
-    queueUpdatedCounts(2)
+    queueGroup(['file-1', 'file-2'])
 
     await expect(
       persistDocumentAcls(
@@ -153,7 +162,8 @@ describe('persistDocumentAcls', () => {
    * keeps a crawl of thousands to a handful of statements.
    */
   it('writes one refresh and one change statement per distinct ACL, not per document', async () => {
-    queueUpdatedCounts(0, 2, 0, 1)
+    queueGroup([], 2)
+    queueGroup([], 1)
 
     await persistDocumentAcls(
       CONNECTOR,
@@ -184,7 +194,7 @@ describe('persistDocumentAcls', () => {
   })
 
   it('groups ACLs that differ only in order or duplication', async () => {
-    queueUpdatedCounts(2)
+    queueGroup([], 2)
 
     await persistDocumentAcls(
       CONNECTOR,
@@ -207,7 +217,7 @@ describe('persistDocumentAcls', () => {
 
   describe('an ACL we cannot store', () => {
     it('rejects workspace escape tokens even inside a source restriction', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
       const result = await persistDocumentAcls(
         CONNECTOR,
         new Map([['file-1', { acl: ['u:alice@corp.com'], requirements: [['ws']] }]])
@@ -221,7 +231,8 @@ describe('persistDocumentAcls', () => {
     })
 
     it('retains an empty restriction and separately persists different clauses', async () => {
-      queueUpdatedCounts(0, 1, 0, 1)
+      queueGroup([], 1)
+      queueGroup([], 1)
       await persistDocumentAcls(
         CONNECTOR,
         new Map([
@@ -249,7 +260,7 @@ describe('persistDocumentAcls', () => {
     })
 
     it('hides a document whose ACL carries a malformed token', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
 
       await expect(
         persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:NOT-FOLDED@corp.com']]]))
@@ -262,7 +273,7 @@ describe('persistDocumentAcls', () => {
     })
 
     it('hides a document whose ACL exceeds the ceiling', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
       const huge = Array.from({ length: MAX_ACL_TOKENS + 1 }, (_u, i) => `u:p${i}@corp.com`)
 
       await expect(persistDocumentAcls(CONNECTOR, new Map([['file-1', huge]]))).resolves.toEqual({
@@ -277,7 +288,7 @@ describe('persistDocumentAcls', () => {
     })
 
     it('stores an ACL exactly at the ceiling', async () => {
-      queueUpdatedCounts(1)
+      queueGroup(['file-1'])
       const atLimit = Array.from({ length: MAX_ACL_TOKENS }, (_u, i) => `u:p${i}@corp.com`)
 
       await expect(persistDocumentAcls(CONNECTOR, new Map([['file-1', atLimit]]))).resolves.toEqual(
@@ -286,7 +297,8 @@ describe('persistDocumentAcls', () => {
     })
 
     it('still writes the documents whose ACLs are fine', async () => {
-      queueUpdatedCounts(1, 1)
+      queueGroup(['file-1'])
+      queueGroup(['file-2'])
 
       await expect(
         persistDocumentAcls(
@@ -319,26 +331,81 @@ describe('persistDocumentAcls paging', () => {
     new Map(
       Array.from({ length: count }, (_unused, index) => [`file-${index}`, ['u:bob@corp.com']])
     )
+  /** The documents the window's read finds changed, each carrying `chunkCount` chunks. */
+  const queueChanged = (count: number, chunkCount: number) =>
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: count }, (_unused, index) => ({ id: `doc-${index}`, chunkCount }))
+    )
+  const assignedPages = () =>
+    dbChainMockFns.set.mock.calls
+      .map(([values], index) => ({
+        values,
+        order: dbChainMockFns.set.mock.invocationCallOrder[index],
+      }))
+      .filter(({ values }) => 'acl' in values)
+      .map(({ order }) => {
+        const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+          (whereOrder) => whereOrder > order
+        )
+        const ids = flattenMockConditions(dbChainMockFns.where.mock.calls[whereIndex]?.[0]).find(
+          (node) => node.type === 'inArray' && node.column === schemaMock.document.id
+        )?.values as string[]
+        return ids.length
+      })
 
-  /** One transaction per statement: a lease lock held across batches outlasted the statement timeout. */
-  it('writes every batch in a transaction of its own', async () => {
+  /** One transaction per page: a lease lock held across pages outlasted the statement timeout. */
+  it('writes every page in a transaction of its own, bounded by projection rows', async () => {
+    queueChanged(60, 10)
+
     await persistDocumentAcls(CONNECTOR, changedGroup(60), direct)
 
-    const assignments = dbChainMockFns.set.mock.calls.filter(([values]) => 'acl' in values)
-    expect(assignments).toHaveLength(3)
+    expect(assignedPages()).toEqual([25, 25, 10])
     expect(pages).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
   })
 
-  it('writes nothing further once the lease is lost between batches', async () => {
+  it('packs small documents into one page and gives a document above the cap a page alone', async () => {
+    queueTableRows(schemaMock.document, [
+      { id: 'small-1', chunkCount: 1 },
+      { id: 'huge', chunkCount: 1_000 },
+      { id: 'small-2', chunkCount: 1 },
+      { id: 'small-3', chunkCount: 0 },
+    ])
+
+    await persistDocumentAcls(CONNECTOR, changedGroup(4), direct)
+
+    expect(assignedPages()).toEqual([1, 1, 2])
+  })
+
+  /** An unchanged crawl costs the refresh alone: no change read, no change transaction. */
+  it('writes a window whose every ACL is unchanged in one transaction', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce(
+      Array.from({ length: 500 }, (_unused, index) => ({ externalId: `file-${index}` }))
+    )
+
+    await expect(persistDocumentAcls(CONNECTOR, changedGroup(500), direct)).resolves.toEqual({
+      updated: 500,
+      rejected: 0,
+    })
+
+    expect(pages).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing further once the lease is lost between pages', async () => {
+    queueChanged(60, 10)
+
     await expect(
       persistDocumentAcls(CONNECTOR, changedGroup(60), losingLease(2))
     ).rejects.toBeInstanceOf(SyncLockLostException)
 
-    /** The evidence refresh and the first change batch landed; the rest never ran. */
+    /** The evidence refresh and the first change page landed; the rest never ran. */
     expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
   })
 
-  it('bounds each batch in a transaction of its own by default', async () => {
+  it('bounds each page in a transaction of its own by default', async () => {
+    queueChanged(30, 10)
+
     await persistDocumentAcls(CONNECTOR, changedGroup(30))
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
@@ -365,19 +432,32 @@ describe('revokeDocumentAcls', () => {
   const grants = (node: Record<string, unknown>) =>
     sqlText(node)?.startsWith('cardinality(') && sqlText(node)?.endsWith(') > 0')
 
-  /** Every `where` condition, paired with the `set` of the same statement. */
+  /** Every `set`, paired with the `where` of the same statement. */
   function statements() {
-    return dbChainMockFns.set.mock.calls.map(([values], index) => ({
-      values,
-      conditions: flattenMockConditions(dbChainMockFns.where.mock.calls[index]?.[0]),
-    }))
+    return dbChainMockFns.set.mock.calls.map(([values], index) => {
+      const order = dbChainMockFns.set.mock.invocationCallOrder[index]
+      const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+        (whereOrder) => whereOrder > order
+      )
+      return {
+        values,
+        conditions: flattenMockConditions(dbChainMockFns.where.mock.calls[whereIndex]?.[0]),
+      }
+    })
   }
+  /** The documents the window's read finds still granting someone. */
+  const queueGranting = (count: number, chunkCount = 1) =>
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: count }, (_unused, index) => ({ id: `doc-${index}`, chunkCount }))
+    )
 
   /**
    * Assigning `acl` fires the projection fan-out whether or not the value changes, so a
    * document that already grants nobody must never be in an `acl` assignment.
    */
   it('assigns acl only to documents that still grant someone', async () => {
+    queueGranting(1)
     await revokeDocumentAcls(direct, ['a', 'b'], scope)
 
     const writes = statements().filter(({ values }) => 'acl' in values)
@@ -386,7 +466,15 @@ describe('revokeDocumentAcls', () => {
     expect(writes[0].conditions.some(grants)).toBe(true)
   })
 
+  it('assigns nothing when no document still grants someone', async () => {
+    await revokeDocumentAcls(direct, ['a', 'b'], scope)
+
+    expect(statements().filter(({ values }) => 'acl' in values)).toHaveLength(0)
+    expect(pages).toHaveBeenCalledOnce()
+  })
+
   it('clears leftover evidence on an already-empty ACL without assigning acl', async () => {
+    queueGranting(1)
     await revokeDocumentAcls(direct, ['a', 'b'], scope)
 
     const clears = statements().filter(({ values }) => !('acl' in values))
@@ -400,24 +488,25 @@ describe('revokeDocumentAcls', () => {
   })
 
   /** Each document in an `acl` assignment costs a rewrite of every one of its chunks' projection rows. */
-  it('assigns acl in batches of 25 and clears evidence in batches of 500', async () => {
+  it('assigns acl in pages bounded by projection rows and clears evidence per window', async () => {
     const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+    queueGranting(60, 10)
 
     await revokeDocumentAcls(direct, ids, scope)
 
-    const batchSizes = (writesAcl: boolean) =>
-      statements()
-        .filter(({ values }) => 'acl' in values === writesAcl)
-        .map(({ conditions }) => {
-          const inArray = conditions.find((node) => node.type === 'inArray')
-          return (inArray?.values as string[]).length
-        })
-    expect(batchSizes(true)).toEqual([25, 25, 10])
-    expect(batchSizes(false)).toEqual([60])
+    const pageSizes = statements()
+      .filter(({ values }) => 'acl' in values)
+      .map(({ conditions }) => {
+        const pageIds = conditions.filter((node) => node.type === 'inArray').at(-1)
+        return (pageIds?.values as string[]).length
+      })
+    expect(pageSizes).toEqual([25, 25, 10])
+    expect(statements().filter(({ values }) => !('acl' in values))).toHaveLength(1)
   })
 
-  it('runs every batch in a transaction of its own', async () => {
+  it('runs every write in a transaction of its own', async () => {
     const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+    queueGranting(60, 10)
 
     await revokeDocumentAcls(direct, ids, scope)
 
@@ -425,8 +514,9 @@ describe('revokeDocumentAcls', () => {
     expect(pages).toHaveBeenCalledTimes(4)
   })
 
-  it('stops writing at the first batch whose lease is gone', async () => {
+  it('stops writing at the first page whose lease is gone', async () => {
     const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+    queueGranting(60, 10)
 
     await expect(revokeDocumentAcls(losingLease(2), ids, scope)).rejects.toBeInstanceOf(
       SyncLockLostException

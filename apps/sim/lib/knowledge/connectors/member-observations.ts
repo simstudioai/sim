@@ -34,6 +34,7 @@ import {
   MEMBER_PURGE_MAX_PER_RUN,
   MEMBER_TOMBSTONE_PURGE_DAYS,
   MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN,
+  PROJECTION_ROW_BATCH_SIZE,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
   boundLeaseTransaction,
@@ -64,6 +65,8 @@ const OBSERVATION_BATCH_SIZE = 500
 const PURGE_CHUNK_SIZE = 25
 /** Members one scheduler tick will sweep; the rest wait for the next tick. */
 const STALE_MEMBER_SWEEP_LIMIT = 200
+/** Wall clock one sweep tick spends; the members it did not reach are still stale next tick. */
+const STALE_MEMBER_SWEEP_BUDGET_MS = 60_000
 
 /**
  * The subject-token aggregate that is a members-mode document's ACL. Ordered
@@ -342,17 +345,44 @@ interface ConnectorDocumentCursor {
 }
 
 /**
+ * Splits documents into ACL pages whose chunks stay within {@link PROJECTION_ROW_BATCH_SIZE}
+ * search projection rows per table, the rows an ACL assignment sends through the projection
+ * trigger. Every page holds at least one document, so one larger than the cap still makes progress
+ * alone. Documents keep their order.
+ */
+export function pagesByProjectionRows(
+  documents: readonly { id: string; chunkCount: number }[]
+): string[][] {
+  const pages: string[][] = []
+  let page: string[] = []
+  let rows = 0
+  for (const entry of documents) {
+    const cost = Math.max(0, entry.chunkCount)
+    if (page.length > 0 && rows + cost > PROJECTION_ROW_BATCH_SIZE) {
+      pages.push(page)
+      page = []
+      rows = 0
+    }
+    page.push(entry.id)
+    rows += cost
+  }
+  if (page.length > 0) pages.push(page)
+  return pages
+}
+
+/**
  * Rewrites the ACL of every document of the connector to `target`, clearing its permission
- * evidence, one short transaction per page. The documents are walked in keyset windows of
+ * evidence, one short transaction per page. The documents are walked once in keyset windows of
  * {@link ACL_WRITE_BATCH_SIZE} through `doc_connector_source_lookup_idx`, so no read revisits the
  * rows earlier pages fixed; every connector document carries an external id, since the sync's
- * inserts are the only writers of `connector_id`. Within a window, a document whose `acl` differs is
- * assigned it {@link ACL_CHANGE_BATCH_SIZE} at a time, each batch its own transaction, because each
- * assignment rewrites the document's search projection rows; one whose `acl` already matches only
- * has its evidence cleared, which fires no fan-out. Every write re-checks its row and `guard`, so a
- * page is idempotent and a crash resumes by rewriting what is still stale. A pass that wrote
- * anything is followed by another, so a document a concurrent writer changed behind the walk is
- * still reached. Returns the documents written and whether it finished before `deadlineAt`.
+ * inserts are the only writers of `connector_id`. Within a window, the documents whose `acl`
+ * differs are assigned it in pages bounded by {@link pagesByProjectionRows}, each its own
+ * transaction, because each assignment rewrites the document's search projection rows; those whose
+ * `acl` already matches only have their evidence cleared, which fires no fan-out. Every write
+ * re-checks its row and `guard`, so a page is idempotent and a crash resumes by rewriting what is
+ * still stale. Callers hold a lease that keeps every other ACL writer of the connector off it, or
+ * rewrite only toward what such a writer would also write. Returns the documents written and
+ * whether it finished before `deadlineAt`.
  */
 export async function rewriteConnectorDocumentAcls(input: {
   connectorId: string
@@ -371,81 +401,76 @@ export async function rewriteConnectorDocumentAcls(input: {
   const evidencePresent = sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
   const expired = () => input.deadlineAt !== undefined && Date.now() >= input.deadlineAt
   let rewritten = 0
+  let after: ConnectorDocumentCursor | undefined
   for (;;) {
-    let passWrote = false
-    let after: ConnectorDocumentCursor | undefined
-    for (;;) {
+    if (expired()) return { rewritten, finished: false }
+    await input.beforePage?.()
+    const window = await db
+      .select({
+        id: document.id,
+        externalId: document.externalId,
+        chunkCount: document.chunkCount,
+        aclDiffers: sql<boolean>`${aclDiffers}`,
+        evidencePresent: sql<boolean>`${evidencePresent}`,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          isNotNull(document.externalId),
+          after
+            ? sql`${document.externalId} >= ${after.externalId} AND (${document.externalId} > ${after.externalId} OR ${document.id} > ${after.id})`
+            : undefined,
+          guard
+        )
+      )
+      .orderBy(asc(document.externalId), asc(document.id))
+      .limit(ACL_WRITE_BATCH_SIZE)
+    const evidenceOnly = window
+      .filter((row) => !row.aclDiffers && row.evidencePresent)
+      .map((row) => row.id)
+    if (evidenceOnly.length > 0) {
+      if (expired()) return { rewritten, finished: false }
+      const rows = await transaction((tx) =>
+        tx
+          .update(document)
+          .set({ aclRequirements: [], aclVerifiedAt: null })
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              inArray(document.id, evidenceOnly),
+              not(aclDiffers),
+              evidencePresent,
+              guard
+            )
+          )
+          .returning({ id: document.id })
+      )
+      rewritten += rows.length
+    }
+    for (const page of pagesByProjectionRows(window.filter((row) => row.aclDiffers))) {
       if (expired()) return { rewritten, finished: false }
       await input.beforePage?.()
-      const window = await db
-        .select({
-          id: document.id,
-          externalId: document.externalId,
-          aclDiffers: sql<boolean>`${aclDiffers}`,
-          evidencePresent: sql<boolean>`${evidencePresent}`,
-        })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            isNotNull(document.externalId),
-            after
-              ? sql`${document.externalId} >= ${after.externalId} AND (${document.externalId} > ${after.externalId} OR ${document.id} > ${after.id})`
-              : undefined,
-            guard
+      const rows = await transaction((tx) =>
+        tx
+          .update(document)
+          .set({ acl: [...target], aclRequirements: [], aclVerifiedAt: null })
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              inArray(document.id, page),
+              aclDiffers,
+              guard
+            )
           )
-        )
-        .orderBy(asc(document.externalId), asc(document.id))
-        .limit(ACL_WRITE_BATCH_SIZE)
-      const evidenceOnly = window
-        .filter((row) => !row.aclDiffers && row.evidencePresent)
-        .map((row) => row.id)
-      if (evidenceOnly.length > 0) {
-        if (expired()) return { rewritten, finished: false }
-        const rows = await transaction((tx) =>
-          tx
-            .update(document)
-            .set({ aclRequirements: [], aclVerifiedAt: null })
-            .where(
-              and(
-                eq(document.connectorId, connectorId),
-                inArray(document.id, evidenceOnly),
-                not(aclDiffers),
-                evidencePresent,
-                guard
-              )
-            )
-            .returning({ id: document.id })
-        )
-        rewritten += rows.length
-        if (rows.length > 0) passWrote = true
-      }
-      const changed = window.filter((row) => row.aclDiffers).map((row) => row.id)
-      for (const batch of chunkArray(changed, ACL_CHANGE_BATCH_SIZE)) {
-        if (expired()) return { rewritten, finished: false }
-        await input.beforePage?.()
-        const rows = await transaction((tx) =>
-          tx
-            .update(document)
-            .set({ acl: [...target], aclRequirements: [], aclVerifiedAt: null })
-            .where(
-              and(
-                eq(document.connectorId, connectorId),
-                inArray(document.id, batch),
-                aclDiffers,
-                guard
-              )
-            )
-            .returning({ id: document.id })
-        )
-        rewritten += rows.length
-        if (rows.length > 0) passWrote = true
-      }
-      const last = window.at(-1)
-      if (window.length < ACL_WRITE_BATCH_SIZE || !last?.externalId) break
-      after = { externalId: last.externalId, id: last.id }
+          .returning({ id: document.id })
+      )
+      rewritten += rows.length
     }
-    if (!passWrote) return { rewritten, finished: true }
+    const last = window.at(-1)
+    if (window.length < ACL_WRITE_BATCH_SIZE || !last?.externalId)
+      return { rewritten, finished: true }
+    after = { externalId: last.externalId, id: last.id }
   }
 }
 
@@ -507,6 +532,39 @@ export async function materializeDocumentAcls(
       )
       .returning({ id: document.id })
     updated += rows.length
+  }
+  return updated
+}
+
+/**
+ * Rematerialises the ACLs of `documentIds` that differ from the observation graph, in pages bounded
+ * by {@link pagesByProjectionRows}, each its own `transaction`. The documents that differ are read
+ * first without a lock, {@link ACL_WRITE_BATCH_SIZE} at a time, so documents whose ACL already
+ * matches cost one read and no transaction; each page's write re-checks the difference. For pages
+ * whose observation writes have already committed.
+ */
+export async function rematerializeDocumentAcls(
+  connectorId: string,
+  documentIds: Iterable<string>,
+  transaction: LeaseTransaction,
+  beforePage?: () => Promise<void>
+): Promise<number> {
+  let updated = 0
+  for (const window of chunkArray([...new Set(documentIds)], ACL_WRITE_BATCH_SIZE)) {
+    const stale = await db
+      .select({ id: document.id, chunkCount: document.chunkCount })
+      .from(document)
+      .where(
+        and(
+          inArray(document.id, window),
+          eq(document.connectorId, connectorId),
+          sql`(${document.acl} IS DISTINCT FROM ${observedAcl()} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
+        )
+      )
+    for (const page of pagesByProjectionRows(stale)) {
+      await beforePage?.()
+      updated += await transaction((tx) => materializeDocumentAcls(connectorId, page, tx))
+    }
   }
   return updated
 }
@@ -900,69 +958,78 @@ async function sweepStaleMemberPage(
   documentsRematerialized: number
   docsTombstoned: number
 } | null> {
-  return db.transaction(async (tx) => {
-    await boundLeaseTransaction(tx)
-    const [connector] = await tx
-      .select({ id: knowledgeConnector.id })
-      .from(knowledgeConnector)
-      .where(
-        and(
-          eq(knowledgeConnector.id, member.connectorId),
-          eq(knowledgeConnector.accessMode, 'members'),
-          inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
-          ne(knowledgeConnector.memberSyncStatus, 'disabled'),
-          connectorIsLive()
-        )
-      )
-      .for('share')
-    if (!connector) return null
-    const [stale] = await tx
-      .select({ id: knowledgeConnectorMember.id })
-      .from(knowledgeConnectorMember)
-      .where(memberStillStale(member.id, memberCutoff))
-      .for('update')
-    if (!stale) return null
+  try {
+    return await db.transaction(async (tx) => {
+      await boundLeaseTransaction(tx)
+      const [stale] = await tx
+        .select({ id: knowledgeConnectorMember.id })
+        .from(knowledgeConnectorMember)
+        .where(memberStillStale(member.id, memberCutoff))
+        .for('update')
+      if (!stale) return null
 
-    const candidates = tx
-      .select({ documentId: knowledgeDocumentObservation.documentId })
-      .from(knowledgeDocumentObservation)
-      .where(eq(knowledgeDocumentObservation.memberId, member.id))
-      .limit(ACL_CHANGE_BATCH_SIZE)
-    const removed = await tx
-      .delete(knowledgeDocumentObservation)
-      .where(
-        and(
-          eq(knowledgeDocumentObservation.memberId, member.id),
-          inArray(knowledgeDocumentObservation.documentId, candidates)
+      const candidates = tx
+        .select({ documentId: knowledgeDocumentObservation.documentId })
+        .from(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.memberId, member.id))
+        .limit(ACL_CHANGE_BATCH_SIZE)
+      const removed = await tx
+        .delete(knowledgeDocumentObservation)
+        .where(
+          and(
+            eq(knowledgeDocumentObservation.memberId, member.id),
+            inArray(knowledgeDocumentObservation.documentId, candidates)
+          )
         )
-      )
-      .returning({ documentId: knowledgeDocumentObservation.documentId })
-    const documentIds = removed.map((row) => row.documentId)
-    const rematerialized = await materializeDocumentAcls(member.connectorId, documentIds, tx)
-    const tombstoned =
-      documentIds.length === 0
-        ? []
-        : await tx
-            .update(document)
-            .set({ deletedAt: now })
-            .where(
-              and(
-                inArray(document.id, documentIds),
-                eq(document.connectorId, member.connectorId),
-                eq(document.userExcluded, false),
-                isNull(document.archivedAt),
-                isNull(document.deletedAt),
-                hasNoObservation()
+        .returning({ documentId: knowledgeDocumentObservation.documentId })
+      const documentIds = removed.map((row) => row.documentId)
+      const rematerialized = await materializeDocumentAcls(member.connectorId, documentIds, tx)
+      const tombstoned =
+        documentIds.length === 0
+          ? []
+          : await tx
+              .update(document)
+              .set({ deletedAt: now })
+              .where(
+                and(
+                  inArray(document.id, documentIds),
+                  eq(document.connectorId, member.connectorId),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt),
+                  hasNoObservation()
+                )
               )
-            )
-            .returning({ id: document.id })
-    return {
-      observationsRemoved: documentIds.length,
-      documentsRematerialized: rematerialized,
-      docsTombstoned: tombstoned.length,
-    }
-  })
+              .returning({ id: document.id })
+      /** Last, so the connector row is never held while the page waits on document rows. */
+      const [connector] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, member.connectorId),
+            eq(knowledgeConnector.accessMode, 'members'),
+            inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+            ne(knowledgeConnector.memberSyncStatus, 'disabled'),
+            connectorIsLive()
+          )
+        )
+        .for('share')
+      if (!connector) throw new StaleSweepConnectorIneligible()
+      return {
+        observationsRemoved: documentIds.length,
+        documentsRematerialized: rematerialized,
+        docsTombstoned: tombstoned.length,
+      }
+    })
+  } catch (error) {
+    if (error instanceof StaleSweepConnectorIneligible) return null
+    throw error
+  }
 }
+
+/** Rolls a sweep page back when its connector no longer qualifies by the time the page commits. */
+class StaleSweepConnectorIneligible extends Error {}
 
 /**
  * Removes the observations of members whose crawls have stopped, so the
@@ -980,15 +1047,21 @@ async function sweepStaleMemberPage(
  * lists for them rebuilds their observations. Purging is left to a run holding
  * the lease.
  *
- * Each page of a member's sweep is one transaction that first shares the connector row
- * — which a member run holds `FOR UPDATE` while it writes and a mode switch
- * updates when it flips — and then locks the member row, which `claimNextMember`
- * skips while locked. Both are re-checked under those locks, so a run that
- * claimed the member after the selection, or a switch that left members mode,
- * makes the sweep skip rather than delete observations a run just wrote or
- * rewrite ACLs the switch just set.
+ * Each page of a member's sweep is one bounded transaction that first locks the
+ * member row, which `claimNextMember` skips while locked, and last shares the
+ * connector row, which a member run's page locks `FOR UPDATE` before it commits
+ * and a mode switch updates when it flips. Both are re-checked under those
+ * locks, so a run that claimed the member after the selection, or a switch that
+ * left members mode, rolls the page back rather than delete observations a run
+ * just wrote or rewrite ACLs the switch just set; the connector row is never
+ * held while the page waits on document rows. A page that hits a lock or
+ * statement bound is left for the next tick, and a tick stops after
+ * `STALE_MEMBER_SWEEP_BUDGET_MS`.
  */
-export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemberSweepResult> {
+export async function sweepStaleMemberObservations(
+  now: Date,
+  deadlineAt: number = Date.now() + STALE_MEMBER_SWEEP_BUDGET_MS
+): Promise<StaleMemberSweepResult> {
   const staleWindow = sql`GREATEST(
     ${MEMBER_OBSERVATION_STALE_AFTER_HOURS} * INTERVAL '1 hour',
     2 * ${knowledgeConnector.syncIntervalMinutes} * INTERVAL '1 minute'
@@ -1048,7 +1121,11 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
     documentsRematerialized: 0,
     docsTombstoned: 0,
   }
+  /** A connector whose page just waited out its bounds is busy; its other members wait a tick too. */
+  const deferredConnectors = new Set<string>()
   for (const member of staleMembers) {
+    if (Date.now() >= deadlineAt) break
+    if (deferredConnectors.has(member.connectorId)) continue
     const memberCutoff = new Date(now.getTime() - staleMemberWindowMs(member.syncIntervalMinutes))
     let sweptAny = false
     try {
@@ -1068,6 +1145,7 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
        */
       const code = getPostgresErrorCode(error)
       if (!code || !SWEEP_DEFERRABLE_CODES.has(code)) throw error
+      deferredConnectors.add(member.connectorId)
       logger.warn('Deferred a stale member sweep to the next tick', {
         connectorId: member.connectorId,
         memberId: member.id,

@@ -21,6 +21,8 @@ import { inArray } from 'drizzle-orm'
 import {
   applyMemberDocumentLifecycle,
   materializeDocumentAcls,
+  pagesByProjectionRows,
+  rematerializeDocumentAcls,
   removeUnseenMemberObservations,
   renewMemberObservationsInScopes,
   rewriteConnectorAcls,
@@ -31,7 +33,7 @@ import {
   MEMBER_OBSERVATION_STALE_AFTER_HOURS,
   MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN,
 } from '@/lib/knowledge/connectors/sync-limits'
-import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
+import { type LeaseTransaction, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
   ConnectorSyncDeletionGuardError,
   hardDeleteDocuments,
@@ -174,8 +176,12 @@ describe('sweepStaleMemberObservations', () => {
     })
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.for).toHaveBeenNthCalledWith(1, 'share')
-    expect(dbChainMockFns.for).toHaveBeenNthCalledWith(2, 'update')
+    /** The member row first, the connector row last: never held while documents are written. */
+    expect(dbChainMockFns.for).toHaveBeenNthCalledWith(1, 'update')
+    expect(dbChainMockFns.for).toHaveBeenNthCalledWith(2, 'share')
+    expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeGreaterThan(
+      dbChainMockFns.set.mock.invocationCallOrder.at(-1)!
+    )
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.knowledgeDocumentObservation)
     expect(dbChainMockFns.set).toHaveBeenLastCalledWith({ deletedAt: NOW })
   })
@@ -213,13 +219,15 @@ describe('sweepStaleMemberObservations', () => {
   it('defers a member whose page hits a lock timeout and still sweeps the next one', async () => {
     queueTableRows(schemaMock.knowledgeConnectorMember, [
       STALE_MEMBER,
+      /** Another member of the busy connector waits a tick rather than wait out the same lock. */
+      { ...STALE_MEMBER, id: 'm-3' },
       { ...STALE_MEMBER, id: 'm-2', connectorId: 'c-2' },
     ])
     dbChainMockFns.transaction.mockRejectedValueOnce(
       Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
     )
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-2' }])
     queueTableRows(schemaMock.knowledgeConnectorMember, [{ id: 'm-2' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-2' }])
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ documentId: 'd-1' }])
       .mockResolvedValueOnce([{ id: 'd-1' }])
@@ -262,16 +270,29 @@ describe('sweepStaleMemberObservations', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  /** A connector that left members mode after the selection no longer matches the shared lock's re-check. */
+  /** A connector that left members mode after the selection fails the last check and rolls the page back. */
   it('leaves a connector that left members mode after it was selected', async () => {
     queueTableRows(schemaMock.knowledgeConnectorMember, [STALE_MEMBER])
+    queueTableRows(schemaMock.knowledgeConnectorMember, [{ id: 'm-1' }])
     queueTableRows(schemaMock.knowledgeConnector, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ documentId: 'd-1' }])
 
-    await expect(sweepStaleMemberObservations(NOW)).resolves.toMatchObject({ members: 0 })
+    await expect(sweepStaleMemberObservations(NOW)).resolves.toMatchObject({
+      members: 0,
+      observationsRemoved: 0,
+    })
 
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
-    expect(dbChainMockFns.for).not.toHaveBeenCalledWith('update')
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.for).toHaveBeenLastCalledWith('share')
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
+
+  it('stops a tick at its wall-clock budget, leaving the rest for the next', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorMember, [STALE_MEMBER])
+
+    await expect(sweepStaleMemberObservations(NOW, Date.now() - 1)).resolves.toMatchObject({
+      members: 0,
+    })
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 })
 
@@ -301,15 +322,86 @@ describe('materializeDocumentAcls', () => {
   })
 })
 
+describe('pagesByProjectionRows', () => {
+  const doc = (id: string, chunkCount: number) => ({ id, chunkCount })
+
+  it('fills a page up to the projection row cap and keeps order', () => {
+    expect(
+      pagesByProjectionRows([doc('a', 100), doc('b', 150), doc('c', 1), doc('d', 249)])
+    ).toEqual([
+      ['a', 'b'],
+      ['c', 'd'],
+    ])
+  })
+
+  it('gives a document above the cap a page alone so it still makes progress', () => {
+    expect(pagesByProjectionRows([doc('a', 1), doc('huge', 5_000), doc('b', 1)])).toEqual([
+      ['a'],
+      ['huge'],
+      ['b'],
+    ])
+  })
+
+  it('starts with a page for a leading document above the cap, never an empty one', () => {
+    expect(pagesByProjectionRows([doc('huge', 5_000), doc('a', 1)])).toEqual([['huge'], ['a']])
+  })
+
+  it('returns no pages for no documents', () => {
+    expect(pagesByProjectionRows([])).toEqual([])
+  })
+})
+
+describe('rematerializeDocumentAcls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  const page = vi.fn()
+  const transaction: LeaseTransaction = (write) => {
+    page()
+    return write(db)
+  }
+
+  it('opens no transaction for documents whose ACL already matches their observers', async () => {
+    queueTableRows(schemaMock.document, [])
+
+    await expect(rematerializeDocumentAcls('c-1', ['d-1', 'd-2'], transaction)).resolves.toBe(0)
+
+    expect(page).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rematerialises only what differs, in pages bounded by projection rows', async () => {
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: 30 }, (_unused, index) => ({ id: `d-${index}`, chunkCount: 10 }))
+    )
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(Array.from({ length: 25 }, (_unused, index) => ({ id: `d-${index}` })))
+      .mockResolvedValueOnce(Array.from({ length: 5 }, (_unused, index) => ({ id: `e-${index}` })))
+
+    await expect(
+      rematerializeDocumentAcls(
+        'c-1',
+        Array.from({ length: 40 }, (_unused, index) => `d-${index}`),
+        transaction
+      )
+    ).resolves.toBe(30)
+
+    expect(page).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('rewriteConnectorAcls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  const stale = (id: string, aclDiffers = true, evidencePresent = false) => ({
+  const stale = (id: string, aclDiffers = true, evidencePresent = false, chunkCount = 10) => ({
     id,
     externalId: `ext-${id}`,
+    chunkCount,
     aclDiffers,
     evidencePresent,
   })
@@ -342,15 +434,38 @@ describe('rewriteConnectorAcls', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
   })
 
-  it('stops without writing once the lease is gone', async () => {
-    queueTableRows(schemaMock.document, [stale('d-1')])
+  /** The lease is the page's last statement: a lost lease rolls the page back and ends the rewrite. */
+  it('proves the lease after the page writes and stops once it is gone', async () => {
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: 60 }, (_unused, index) => stale(`d-${index}`))
+    )
     queueTableRows(schemaMock.knowledgeConnector, [])
 
     await expect(rewriteConnectorAcls('c-1', [], { lease: held })).rejects.toBeInstanceOf(
       SyncLockLostException
     )
 
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.update.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('gives a document larger than one page of projection rows a page alone', async () => {
+    queueTableRows(schemaMock.document, [
+      stale('d-small'),
+      stale('d-huge', true, false, 1_000),
+      stale('d-next'),
+    ])
+    for (let page = 0; page < 3; page++) {
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: `written-${page}` }])
+    }
+
+    await expect(rewriteConnectorAcls('c-1', [], { lease: held })).resolves.toBe(true)
+
+    expect(pageSizes()).toEqual([1, 1, 1])
   })
 
   /** Each assignment rewrites every projection row of its documents; one page per transaction. */
@@ -409,20 +524,6 @@ describe('rewriteConnectorAcls', () => {
     ).resolves.toBe(false)
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('walks again after a pass that wrote, so a row changed behind the walk is reached', async () => {
-    queueTableRows(schemaMock.document, [stale('d-1')])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'd-1' }])
-    queueTableRows(schemaMock.document, [stale('d-0')])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'd-0' }])
-    queueTableRows(schemaMock.document, [])
-
-    await expect(rewriteConnectorAcls('c-1', [], { lease: held })).resolves.toBe(true)
-
-    expect(assignedPages()).toHaveLength(2)
   })
 })
 

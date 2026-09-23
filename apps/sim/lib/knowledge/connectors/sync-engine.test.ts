@@ -3189,6 +3189,9 @@ describe('executeSync heartbeats during the listing phase', () => {
       primeSyncUpToListing()
       dbChainMockFns.returning.mockReset()
       dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+      /** No tombstone, then the stored document whose ACL the mirrored write changes. */
+      queueTableRows(schemaMock.document, [])
+      queueTableRows(schemaMock.document, [{ id: 'doc-1', chunkCount: 1 }])
       let permissionResult: { permissionsIncomplete: boolean } | undefined
       const pass = vi
         .spyOn(contentPass, 'runConnectorContentPass')
@@ -3216,11 +3219,13 @@ describe('executeSync heartbeats during the listing phase', () => {
     }
   )
 
-  it('proves the lease inside each bounded transaction that writes mirrored permissions', async () => {
+  it('proves the lease last inside each bounded transaction that writes mirrored permissions', async () => {
     const contentPass = await import('@/lib/knowledge/connectors/sync-content-pass')
     primeSyncUpToListing()
     dbChainMockFns.returning.mockReset()
     dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ id: 'doc-1', chunkCount: 1 }])
     const pass = vi
       .spyOn(contentPass, 'runConnectorContentPass')
       .mockImplementation(async (input) => {
@@ -3256,7 +3261,13 @@ describe('executeSync heartbeats during the listing phase', () => {
         }))
         .filter(({ mode }) => mode === 'share')
         .map(({ order }) => order)
-      expect(between(leaseChecks)).toBe(true)
+      /** Proved after the write and before the next transaction opens: the page's last statement. */
+      const closed = Math.min(
+        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order > written),
+        Number.POSITIVE_INFINITY
+      )
+      expect(leaseChecks.some((order) => order > written && order < closed)).toBe(true)
+      expect(between(leaseChecks)).toBe(false)
       const bounds = dbChainMockFns.execute.mock.calls
         .map((query: unknown[], index) => ({
           query,

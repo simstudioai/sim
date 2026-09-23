@@ -57,6 +57,7 @@ import {
   applyMemberDocumentLifecycle,
   materializeDocumentAcls,
   recordMemberObservations,
+  rematerializeDocumentAcls,
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
   renewMemberObservationsInScopes,
@@ -72,6 +73,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-deferral'
 import {
   ACL_CHANGE_BATCH_SIZE,
+  ACL_WRITE_BATCH_SIZE,
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
@@ -91,6 +93,7 @@ import {
   boundLeaseTransaction,
   createMemberSyncLease,
   holdsMemberSyncLockToken,
+  type LeaseTransaction,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   stillHoldsMemberSyncLock,
@@ -434,27 +437,32 @@ function createMemberTokenCache(input: {
 }
 
 /**
- * Runs `fn` in a transaction that first proves this run still holds the
- * connector's member lease, taking the connector row's lock so the scheduler
- * cannot reclaim the lease mid-transaction. A run that stalled past the lease
+ * Runs `fn` in a transaction whose last statement proves this run still holds
+ * the connector's member lease, taking the connector row's lock so the
+ * scheduler cannot reclaim the lease before the transaction commits; a lost
+ * lease rolls everything `fn` wrote back. Proving it last keeps the connector
+ * row unlocked while `fn` waits on document rows. A run that stalled past the lease
  * TTL and resumed after a replacement took over therefore never lands its
- * observations or ACLs over the replacement's; it ends as superseded. Bounded
- * like every connector-lease transaction, and callers keep the ACLs one call
- * writes to a page, so the connector row is never held across unbounded fan-out.
+ * observations or ACLs over the replacement's; it ends as superseded. A page
+ * that assigns ACLs passes `aclPage`: it writes at most one page, which fires
+ * the projection fan-out, so it takes the lock and statement bounds of every
+ * connector-lease ACL page. Other bodies keep the role's own timeouts.
  */
 async function withMemberLease<T>(
   run: Pick<MemberSyncRun, 'connectorId' | 'runId'>,
-  fn: (tx: DbOrTx) => Promise<T>
+  fn: (tx: DbOrTx) => Promise<T>,
+  options: { aclPage?: boolean } = {}
 ): Promise<T> {
   return db.transaction(async (tx) => {
-    await boundLeaseTransaction(tx)
+    if (options.aclPage) await boundLeaseTransaction(tx)
+    const written = await fn(tx)
     const [held] = await tx
       .select({ id: knowledgeConnector.id })
       .from(knowledgeConnector)
       .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
       .for('update')
     if (!held) throw new SyncLockLostException(run.connectorId)
-    return fn(tx)
+    return written
   })
 }
 
@@ -576,56 +584,62 @@ export async function resumeMembershipRewrites(
     if (!member) return true
     const checkpoint = membershipRewrite(member.checkpoint)
     if (!checkpoint) throw new Error('Invalid membership ACL checkpoint')
-    await withMemberLease(run, async (tx) => {
-      const documents = await tx
-        .select({ documentId: knowledgeDocumentObservation.documentId })
-        .from(knowledgeDocumentObservation)
-        .where(
-          and(
-            eq(knowledgeDocumentObservation.memberId, member.id),
-            checkpoint.cursor
-              ? gt(knowledgeDocumentObservation.documentId, checkpoint.cursor)
-              : undefined
+    await withMemberLease(
+      run,
+      async (tx) => {
+        const documents = await tx
+          .select({ documentId: knowledgeDocumentObservation.documentId })
+          .from(knowledgeDocumentObservation)
+          .where(
+            and(
+              eq(knowledgeDocumentObservation.memberId, member.id),
+              checkpoint.cursor
+                ? gt(knowledgeDocumentObservation.documentId, checkpoint.cursor)
+                : undefined
+            )
           )
-        )
-        .orderBy(asc(knowledgeDocumentObservation.documentId))
-        .limit(ACL_CHANGE_BATCH_SIZE)
-      await materializeDocumentAcls(
-        run.connectorId,
-        documents.map((row) => row.documentId),
-        tx
-      )
-      if (checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
-        const tombstoned = await tombstoneDocumentsObservedOnlyBy(
-          tx,
+          .orderBy(asc(knowledgeDocumentObservation.documentId))
+          .limit(ACL_CHANGE_BATCH_SIZE)
+        await materializeDocumentAcls(
           run.connectorId,
-          member.id,
-          documents.map((row) => row.documentId)
+          documents.map((row) => row.documentId),
+          tx
         )
-        if (run.result) run.result.docsTombstoned += tombstoned
-      }
-      if (!checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
-        const resurrected = await resurrectObservedDocuments(
-          tx,
-          run.connectorId,
-          documents.map((row) => row.documentId)
-        )
-        if (run.result) run.result.docsResurrected += resurrected
-      }
-      if (documents.length === 0 && checkpoint.removeMember) {
-        await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
-      } else {
-        await tx
-          .update(knowledgeConnectorMember)
-          .set({
-            listingCheckpoint:
-              documents.length === 0
-                ? null
-                : { ...checkpoint, cursor: documents.at(-1)!.documentId },
-          })
-          .where(eq(knowledgeConnectorMember.id, member.id))
-      }
-    })
+        if (checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+          const tombstoned = await tombstoneDocumentsObservedOnlyBy(
+            tx,
+            run.connectorId,
+            member.id,
+            documents.map((row) => row.documentId)
+          )
+          if (run.result) run.result.docsTombstoned += tombstoned
+        }
+        if (!checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+          const resurrected = await resurrectObservedDocuments(
+            tx,
+            run.connectorId,
+            documents.map((row) => row.documentId)
+          )
+          if (run.result) run.result.docsResurrected += resurrected
+        }
+        if (documents.length === 0 && checkpoint.removeMember) {
+          await tx
+            .delete(knowledgeConnectorMember)
+            .where(eq(knowledgeConnectorMember.id, member.id))
+        } else {
+          await tx
+            .update(knowledgeConnectorMember)
+            .set({
+              listingCheckpoint:
+                documents.length === 0
+                  ? null
+                  : { ...checkpoint, cursor: documents.at(-1)!.documentId },
+            })
+            .where(eq(knowledgeConnectorMember.id, member.id))
+        }
+      },
+      { aclPage: true }
+    )
   }
 }
 
@@ -1405,16 +1419,19 @@ async function applyMemberListing(
         break
       }
       await run.lease.beatIfDue()
-      const batch = await withMemberLease(run, (tx) =>
-        removeUnseenMemberObservations(
-          tx,
-          outcome.member.id,
-          outcome.observationRunId ?? run.runId,
-          async (removed) => {
-            await materializeDocumentAcls(run.connectorId, removed, tx)
-            for (const documentId of removed) run.unobservedDocumentIds.add(documentId)
-          }
-        )
+      const batch = await withMemberLease(
+        run,
+        (tx) =>
+          removeUnseenMemberObservations(
+            tx,
+            outcome.member.id,
+            outcome.observationRunId ?? run.runId,
+            async (removed) => {
+              await materializeDocumentAcls(run.connectorId, removed, tx)
+              for (const documentId of removed) run.unobservedDocumentIds.add(documentId)
+            }
+          ),
+        { aclPage: true }
       )
       run.result.observationsRemoved += batch.removed
       if (batch.finished) break
@@ -1573,18 +1590,19 @@ async function syncDedicatedMemberContent(input: {
     !pass.complete || pass.checkpoint.unsafe || pass.checkpoint.contentFailures
   if (pass.checkpoint.contentFailures) run.result.listingIncomplete = true
   const contentNotice = pass.holdNotice
-  await withMemberLease(run, async (tx) => {
-    const [{ count }] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(document)
-      .where(
-        and(
-          eq(document.connectorId, run.connectorId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
+  /** Counted before the lease transaction: a scan of the whole connector never holds its row. */
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, run.connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
       )
+    )
+  await withMemberLease(run, async (tx) => {
     const now = new Date()
     await tx.insert(knowledgeConnectorSyncLog).values({
       id: run.runId,
@@ -1825,19 +1843,20 @@ async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<bo
     })
     return false
   }
-  await withMemberLease(run, (tx) =>
-    tx
-      .update(knowledgeConnector)
-      .set({
-        memberSyncStatus: 'disabled',
-        lastMemberSyncError: reason,
-        nextMemberSyncAt: null,
-        memberSyncLockToken: null,
-        memberSyncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
-      .where(holdsMemberSyncLockToken(run.connectorId, run.runId))
-  )
+  /** One statement that both proves the lease and hands it back with the disabled flag. */
+  const disabled = await db
+    .update(knowledgeConnector)
+    .set({
+      memberSyncStatus: 'disabled',
+      lastMemberSyncError: reason,
+      nextMemberSyncAt: null,
+      memberSyncLockToken: null,
+      memberSyncLockLeaseAt: null,
+      updatedAt: new Date(),
+    })
+    .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+    .returning({ id: knowledgeConnector.id })
+  if (disabled.length === 0) throw new SyncLockLostException(run.connectorId)
   await failMemberSyncLog(run.runId, run.result, reason)
   logger.warn('Member sync disabled', { connectorId: run.connectorId, reason })
   return true
@@ -2102,6 +2121,8 @@ export async function executeMemberSync(
       }
 
       const credentialIdByMemberId = new Map<string, string>()
+      /** One bounded ACL page under this run's lease. */
+      const aclPage: LeaseTransaction = (fn) => withMemberLease(run, fn, { aclPage: true })
       const tokens = createMemberTokenCache({
         run,
         connectorConfig,
@@ -2138,12 +2159,15 @@ export async function executeMemberSync(
               ).values(),
             ]
             /**
-             * One lease transaction per page of documents, each observing and
-             * materialising its page together; the failure checkpoint lands with
-             * the first, since forcing a later relist is the conservative side.
+             * Observations and the read watermark land first, one lease transaction per
+             * {@link ACL_WRITE_BATCH_SIZE} documents (the failure checkpoint with the
+             * first, since forcing a later relist is the conservative side); only the
+             * documents whose ACL now differs are then rematerialised, in pages bounded
+             * by their projection rows. A crash in between leaves them hidden until the
+             * next run rematerialises every seen document, never shown too widely.
              */
             const pages =
-              documentIds.length > 0 ? chunkArray(documentIds, ACL_CHANGE_BATCH_SIZE) : [[]]
+              documentIds.length > 0 ? chunkArray(documentIds, ACL_WRITE_BATCH_SIZE) : [[]]
             for (const [index, page] of pages.entries()) {
               await withMemberLease(run, async (tx) => {
                 result.observationsAdded += await recordMemberObservations(
@@ -2152,7 +2176,6 @@ export async function executeMemberSync(
                   page,
                   checkpoint.generationId
                 )
-                await materializeDocumentAcls(connectorId, page, tx)
                 if (index === 0 && durableCheckpoint && checkpoint.contentFailures) {
                   await tx
                     .update(knowledgeConnectorMember)
@@ -2167,6 +2190,7 @@ export async function executeMemberSync(
                 }
               })
             }
+            await rematerializeDocumentAcls(connectorId, documentIds, aclPage, run.lease.beatIfDue)
             result.docsListed += attempted.length
           }
           if (!serviceContent) {
@@ -2339,10 +2363,7 @@ export async function executeMemberSync(
           await loadDocumentIdsByExternalId(connectorId, relevantIds),
           connector.syncIntervalMinutes
         )
-        for (const page of chunkArray([...affected], ACL_CHANGE_BATCH_SIZE)) {
-          await run.lease.beatIfDue()
-          await withMemberLease(run, (tx) => materializeDocumentAcls(connectorId, page, tx))
-        }
+        await rematerializeDocumentAcls(connectorId, affected, aclPage, run.lease.beatIfDue)
       }
 
       /** A service-owned corpus outlives its last observer; only the content pass removes it. */
