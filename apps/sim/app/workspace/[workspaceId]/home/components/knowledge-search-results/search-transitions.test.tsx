@@ -174,7 +174,7 @@ async function click(label: string) {
 
 async function complete(
   index: number,
-  { title = 'Release plan', partial = false, empty = false } = {}
+  { title = 'Release plan', partial = false, empty = false, count = 1 } = {}
 ) {
   await act(async () => {
     requests[index].resolve({
@@ -182,21 +182,22 @@ async function complete(
         query: requests[index].body.query,
         results: empty
           ? []
-          : [
-              {
-                documentId: title,
+          : Array.from({ length: count }, (_, n) => {
+              const name = n === 0 ? title : `${title} ${n + 1}`
+              return {
+                documentId: name,
                 knowledgeBaseId: 'index',
                 knowledgeBaseName: 'Search index',
-                documentName: title,
-                sourceUrl: 'https://example.com/release',
+                documentName: name,
+                sourceUrl: `https://example.com/release/${n}`,
                 connectorType: requests[index].body.filters?.source ?? 'slack',
                 sourceModifiedAt: null,
                 author: null,
                 content: 'launch details',
                 chunkIndex: 0,
                 similarity: 0.9,
-              },
-            ],
+              }
+            }),
         retrieval: {
           status: partial ? 'partial' : 'complete',
           timedOutLegs: partial ? ['vector'] : [],
@@ -283,6 +284,24 @@ describe('search refinement with the real query cache and URL state', () => {
     await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 10 })
     expect(requests[1].body.topK).toBe(10)
     expect(container.textContent).not.toContain('Release plan')
+  })
+
+  it('keeps the first page painted while Show more widens it, then while a filter narrows it', async () => {
+    await render()
+    await complete(0, { count: 20 })
+    await click('Show more')
+    expect(requests[1].body.topK).toBe(50)
+    expect(container.textContent).toContain('Updating results…')
+    expect(container.textContent).not.toContain('Searching…')
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(20)
+    await complete(1, { title: 'Wider plan', count: 50 })
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
+    await click('Gmail')
+    expect(requests[2].body).toMatchObject({ filters: { source: 'gmail' }, topK: 20 })
+    expect(container.textContent).toContain('Updating results…')
+    expect(container.textContent).not.toContain('Searching…')
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
+    expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Wider plan')
   })
 
   it('replaces filter URL state while preserving unrelated parameters', async () => {

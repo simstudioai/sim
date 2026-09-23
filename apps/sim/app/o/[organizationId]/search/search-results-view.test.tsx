@@ -145,7 +145,9 @@ describe('results-only search layout', () => {
     const filters = mocks.search.mock.calls.at(-1)![2]
     expect(filters.source).toBe('slack')
     expect(mocks.searchChange).toHaveBeenLastCalledWith({ scope, query: 'Orion', filters })
-    expect(mocks.search).toHaveBeenLastCalledWith(scope, 'Orion', filters, 20)
+    expect(mocks.search).toHaveBeenLastCalledWith(scope, 'Orion', filters, 20, {
+      retainAcrossLimits: true,
+    })
   })
   it('summarizes the selected document through Home without duplicating search state', async () => {
     await render('?q=Orion')
