@@ -15,8 +15,19 @@ type BrowserRequest = Pick<
   'url' | 'resourceType' | 'webContents' | 'method'
 >
 
+/**
+ * Chromium's bundled PDF viewer and the shared UI resources it loads. Both are packaged local
+ * resources rather than network requests, and Chromium never lets web content load them, so the
+ * network guard, which admits only http(s), would otherwise block every PDF from rendering.
+ */
+const PDF_VIEWER_RESOURCE_PREFIXES = [
+  'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/',
+  'chrome://resources/',
+] as const
+
 /** The same network guard applies to isolated and authenticated browser views. */
 export async function allowBrowserRequest(details: BrowserRequest): Promise<boolean> {
+  if (PDF_VIEWER_RESOURCE_PREFIXES.some((prefix) => details.url.startsWith(prefix))) return true
   if (
     details.resourceType === 'mainFrame' &&
     details.webContents &&

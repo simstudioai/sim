@@ -4,6 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+const { stageUploadFiles, saveDownloadToWorkspace } = vi.hoisted(() => ({
+  stageUploadFiles: vi.fn(),
+  saveDownloadToWorkspace: vi.fn(),
+}))
+vi.mock('@/main/browser-agent/file-transfer', () => ({
+  stageUploadFiles,
+  saveDownloadToWorkspace,
+  discardStagedUploads: vi.fn(async () => {}),
+}))
+
 import { BrowserWindow, Menu, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
@@ -1049,9 +1059,11 @@ describe('executeTool', () => {
     beforeMouse({}, { type: 'mouseDown' })
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://user-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://user-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.activeTab()?.view.webContents
     if (!popup) throw new Error('Expected user popup tab')
     expect(session.automationTab()?.view.webContents).toBe(source)
@@ -1065,9 +1077,11 @@ describe('executeTool', () => {
     session.setAutomationActive(true)
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://agent-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://agent-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.requireAutomationTab().view.webContents
     expect(session.activeTab()?.view.webContents).toBe(source)
     session.setAutomationActive(false)
@@ -2400,6 +2414,56 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it('repeats a keystroke with a trusted down/up pair per press', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'ArrowRight',
+      repeat: 3,
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { pressed: 'ArrowRight', repeat: 3 } })
+    const downs = cdpCalls(contents, 'Input.dispatchKeyEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'rawKeyDown'
+    )
+    expect(downs).toHaveLength(3)
+  })
+
+  it('rejects an out-of-range repeat before dispatch', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'Tab',
+      repeat: 51,
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('repeat must') })
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('stops repeating once focus reaches a password field', async () => {
+    const contents = await openPage()
+    let secrecyChecks = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      if (isPageCall(expression, 'activeElementSecrecy'))
+        return ++secrecyChecks > 1 ? 'secret' : 'safe'
+      if (isPageCall(expression, 'readActiveElementState')) return {}
+      return undefined
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'Tab',
+      repeat: 5,
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('1 of 5 times') })
+    const downs = cdpCalls(contents, 'Input.dispatchKeyEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'rawKeyDown'
+    )
+    expect(downs).toHaveLength(1)
+  })
+
   it('sends the keystroke when nothing sensitive is focused', async () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
@@ -3282,7 +3346,7 @@ describe('credential protection', () => {
     expect(first).toMatchObject({
       ok: true,
       result: {
-        notices: [expect.stringContaining('alert dialog ("Heads up") which was auto-dismissed')],
+        notices: [expect.stringContaining('alert dialog ("Heads up") which was dismissed')],
       },
     })
     expect(second).not.toMatchObject({ result: { notices: expect.anything() } })
@@ -3494,6 +3558,202 @@ describe('credential protection', () => {
       .filter(([, event]) => (event as { type?: string }).type === 'mousePressed')
       .map(([, event]) => (event as { clickCount?: number }).clickCount)
     expect(counts).toEqual([1, 2])
+  })
+
+  it('dispatches right-clicks and modifier clicks through the same trusted gesture', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'row "notes.pdf"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      button: 'right',
+      modifiers: ['Shift'],
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    const presses = cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'mousePressed'
+    )
+    expect(presses.map(([, event]) => event)).toEqual([
+      expect.objectContaining({ button: 'right', buttons: 2, modifiers: 8, clickCount: 1 }),
+    ])
+  })
+
+  it('rejects unknown click buttons and modifiers before dispatch', async () => {
+    const contents = await openPage()
+
+    const badButton = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      button: 'back',
+    })
+    const badModifier = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      modifiers: ['Hyper'],
+    })
+
+    expect(badButton).toMatchObject({ ok: false, error: expect.stringContaining('button must be') })
+    expect(badModifier).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Unrecognized modifier'),
+    })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it('answers a dialog opened by an action with that action dialog response only', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    const send = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = send.getMockImplementation()
+    send.mockImplementation(async (method, params, ...rest) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+      }
+      return dispatch?.(method, params, ...rest)
+    })
+
+    const accepted = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      dialog: { accept: true },
+    })
+    const dismissed = await driver.executeTool('chat-test', 'browser_click_at', { x: 10, y: 20 })
+    await driver.executeTool('chat-test', 'browser_list_tabs', {})
+
+    const answers = cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)
+    expect(answers).toEqual([{ accept: true }, { accept: false }])
+    expect(accepted).toMatchObject({ ok: true })
+    expect(dismissed).toMatchObject({ ok: true })
+  })
+
+  it('rejects a malformed dialog response before dispatch', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      dialog: { accept: 'yes' },
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('dialog must be') })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it('attaches staged files to the marked input through DOM.setFileInputFiles', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      markFileInput: { marked: true, multiple: true },
+      readMarkedFileInput: { files: [{ name: 'a.pdf', size: 3 }] },
+      readPageActionState: {},
+    })
+    stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method: string) =>
+      method === 'DOM.performSearch'
+        ? { searchId: 'search', resultCount: 1 }
+        : method === 'DOM.getSearchResults'
+          ? { nodeIds: [7] }
+          : {}
+    )
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_upload_file',
+      { elementId: 0, paths: ['files/a.pdf'] },
+      'call-upload'
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { uploaded: [{ name: 'a.pdf', size: 3 }], effectObserved: true },
+    })
+    expect(stageUploadFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'call-upload', paths: ['files/a.pdf'] })
+    )
+    expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toEqual([
+      ['DOM.setFileInputFiles', { files: ['/staged/a.pdf'], nodeId: 7 }],
+    ])
+  })
+
+  it('refuses several files for a single-file input before staging anything', async () => {
+    const contents = await openPage()
+    respondWith(contents, { markFileInput: { marked: true, multiple: false } })
+    stageUploadFiles.mockClear()
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_upload_file',
+      { elementId: 0, paths: ['files/a.pdf', 'files/b.pdf'] },
+      'call-single'
+    )
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('accepts one file') })
+    expect(stageUploadFiles).not.toHaveBeenCalled()
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'readMarkedFileInput'))
+    ).toBe(true)
+  })
+
+  it('validates upload paths before touching the page', async () => {
+    await openPage()
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_upload_file',
+      { elementId: 0, paths: [] },
+      'call-empty'
+    )
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('paths must list') })
+  })
+
+  it('saves only a completed download, bound to its tool call', async () => {
+    await openPage()
+    const completed = vi
+      .spyOn(session, 'completedBrowserDownload')
+      .mockReturnValueOnce({ filename: 'report.csv', savePath: '/downloads/report.csv' })
+      .mockReturnValueOnce(null)
+    saveDownloadToWorkspace.mockResolvedValue({
+      path: 'files/report.csv',
+      name: 'report.csv',
+      size: 8,
+    })
+
+    const saved = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd1' },
+      'call-save'
+    )
+    const missing = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd2' },
+      'call-save-2'
+    )
+
+    expect(saved).toMatchObject({ ok: true, result: { path: 'files/report.csv' } })
+    expect(saveDownloadToWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'call-save', filePath: '/downloads/report.csv' })
+    )
+    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining('not a completed') })
+    completed.mockRestore()
   })
 
   it('refuses a coordinate click on a file input', async () => {

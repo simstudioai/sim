@@ -35,6 +35,7 @@ export interface ToolCatalogEntry {
     | 'browser_press_key'
     | 'browser_read_text'
     | 'browser_reload'
+    | 'browser_save_download'
     | 'browser_screenshot'
     | 'browser_scroll'
     | 'browser_select_option'
@@ -42,6 +43,7 @@ export interface ToolCatalogEntry {
     | 'browser_snapshot'
     | 'browser_switch_tab'
     | 'browser_type'
+    | 'browser_upload_file'
     | 'browser_wait_for'
     | 'browser_zoom'
     | 'call_integration_tool'
@@ -177,6 +179,7 @@ export interface ToolCatalogEntry {
     | 'browser_press_key'
     | 'browser_read_text'
     | 'browser_reload'
+    | 'browser_save_download'
     | 'browser_screenshot'
     | 'browser_scroll'
     | 'browser_select_option'
@@ -184,6 +187,7 @@ export interface ToolCatalogEntry {
     | 'browser_snapshot'
     | 'browser_switch_tab'
     | 'browser_type'
+    | 'browser_upload_file'
     | 'browser_wait_for'
     | 'browser_zoom'
     | 'call_integration_tool'
@@ -397,10 +401,36 @@ export const BrowserClick: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      button: {
+        type: 'string',
+        description:
+          "Mouse button: left (default), right to open a page's own context menu, or middle.",
+        enum: ['left', 'right', 'middle'],
+      },
+      clickCount: {
+        type: 'number',
+        description:
+          '1 = single click (default), 2 = double-click (inline editing, opening items), 3 = triple-click (select a line).',
+      },
+      dialog: {
+        type: 'object',
+        description:
+          'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+        properties: {
+          accept: { type: 'boolean', description: 'true presses OK; false presses Cancel.' },
+        },
+        required: ['accept'],
+      },
       elementId: {
         type: 'number',
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+      },
+      modifiers: {
+        type: 'array',
+        description:
+          'Keys held during the click. Mod is Cmd on macOS and Control elsewhere: ["Mod"] adds or removes one item from a multi-selection, ["Shift"] selects a range.',
+        items: { type: 'string', enum: ['Shift', 'Alt', 'Control', 'Meta', 'Mod'] },
       },
       observe: {
         type: 'object',
@@ -480,7 +510,7 @@ export const BrowserClick: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       obstructedAfterNavigation: {
@@ -514,9 +544,31 @@ export const BrowserClickAt: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      button: {
+        type: 'string',
+        description:
+          "Mouse button: left (default), right to open a page's own context menu, or middle.",
+        enum: ['left', 'right', 'middle'],
+      },
       clickCount: {
         type: 'number',
-        description: '1 = single click (default), 2 = double-click, 3 = triple-click.',
+        description:
+          '1 = single click (default), 2 = double-click (inline editing, opening items), 3 = triple-click (select a line).',
+      },
+      dialog: {
+        type: 'object',
+        description:
+          'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+        properties: {
+          accept: { type: 'boolean', description: 'true presses OK; false presses Cancel.' },
+        },
+        required: ['accept'],
+      },
+      modifiers: {
+        type: 'array',
+        description:
+          'Keys held during the click. Mod is Cmd on macOS and Control elsewhere: ["Mod"] adds or removes one item from a multi-selection, ["Shift"] selects a range.',
+        items: { type: 'string', enum: ['Shift', 'Alt', 'Control', 'Meta', 'Mod'] },
       },
       x: {
         type: 'number',
@@ -607,7 +659,7 @@ export const BrowserClickAt: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -750,7 +802,7 @@ export const BrowserDrag: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -800,7 +852,7 @@ export const BrowserExtract: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       page: {
@@ -1030,7 +1082,7 @@ export const BrowserFind: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       query: { type: 'string', description: 'Literal query that was searched.' },
@@ -1082,6 +1134,18 @@ export const BrowserHover: ToolCatalogEntry = {
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
+      },
     },
     required: ['elementId'],
   },
@@ -1130,7 +1194,7 @@ export const BrowserHover: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -1224,7 +1288,7 @@ export const BrowserInsertText: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -1379,10 +1443,19 @@ export const BrowserPressKey: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      dialog: {
+        type: 'object',
+        description:
+          'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+        properties: {
+          accept: { type: 'boolean', description: 'true presses OK; false presses Cancel.' },
+        },
+        required: ['accept'],
+      },
       key: {
         type: 'string',
         description:
-          "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
+          "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Function keys F1–F12 and Insert are supported. Anything else — such as 'Return' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
       },
       observe: {
         type: 'object',
@@ -1395,6 +1468,11 @@ export const BrowserPressKey: ToolCatalogEntry = {
               'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
           },
         },
+      },
+      repeat: {
+        type: 'number',
+        description:
+          'Press the key this many times in a row (1 to 50, default 1), e.g. ArrowRight ×12 to move a slider or Tab ×3 to reach a field. Stops if focus reaches a password field.',
       },
     },
     required: ['key'],
@@ -1445,7 +1523,7 @@ export const BrowserPressKey: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -1508,7 +1586,7 @@ export const BrowserReadText: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       text: {
@@ -1542,13 +1620,49 @@ export const BrowserReload: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       title: { type: 'string', description: 'Top-page title when available.' },
       url: { type: 'string', description: 'Top-page URL.' },
     },
     required: ['url', 'title'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserSaveDownload: ToolCatalogEntry = {
+  id: 'browser_save_download',
+  name: 'browser_save_download',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      downloadId: {
+        type: 'string',
+        description: "The completed download's id from browser_list_downloads.",
+      },
+      name: {
+        type: 'string',
+        description:
+          "Optional workspace file name; defaults to the downloaded file's name. An existing name gets a numbered suffix.",
+      },
+    },
+    required: ['downloadId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      path: {
+        type: 'string',
+        description:
+          'Workspace path of the saved file, readable with read and attachable with browser_upload_file.',
+      },
+      size: { type: 'number' },
+    },
+    required: ['path', 'name'],
   },
   clientExecutable: true,
 }
@@ -1594,6 +1708,18 @@ export const BrowserScroll: ToolCatalogEntry = {
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
+      },
     },
     required: ['direction'],
   },
@@ -1631,7 +1757,7 @@ export const BrowserScroll: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       scrollHeight: { type: 'number', description: 'Region content height.' },
@@ -1710,7 +1836,7 @@ export const BrowserSelectOption: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       readback: {
@@ -1784,7 +1910,7 @@ export const BrowserSetChecked: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       refRecovered: {
@@ -1832,7 +1958,7 @@ export const BrowserSnapshot: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       outline: {
@@ -1889,6 +2015,15 @@ export const BrowserType: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      dialog: {
+        type: 'object',
+        description:
+          'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+        properties: {
+          accept: { type: 'boolean', description: 'true presses OK; false presses Cancel.' },
+        },
+        required: ['accept'],
+      },
       elementId: {
         type: 'number',
         description:
@@ -1960,7 +2095,7 @@ export const BrowserType: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       possibleEffectObserved: {
@@ -2016,6 +2151,55 @@ export const BrowserType: ToolCatalogEntry = {
       },
     },
     required: ['dispatched'],
+  },
+  clientExecutable: true,
+}
+
+export const BrowserUploadFile: ToolCatalogEntry = {
+  id: 'browser_upload_file',
+  name: 'browser_upload_file',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description:
+          'Element id of the file input, its label, or the upload button or drop zone around it, from the latest browser_snapshot.',
+      },
+      paths: {
+        type: 'array',
+        description:
+          "Files to attach, in order: files/… (workspace), uploads/… (this chat's uploads), or user-local/… (a shared local folder). More than one requires a multiple-file input. At most 10 files of 100 MB each.",
+        items: { type: 'string' },
+      },
+    },
+    required: ['elementId', 'paths'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      accept: {
+        type: 'string',
+        description: "The input's accept attribute, when it restricts file types.",
+      },
+      dialogs: { type: 'array', items: { type: 'string' } },
+      effectObserved: {
+        type: 'boolean',
+        description:
+          'True when the input holds every requested file. The page may still need its own submit or upload button pressed.',
+      },
+      uploaded: {
+        type: 'array',
+        description: 'The files the input now holds, read back from the page.',
+        items: {
+          type: 'object',
+          properties: { name: { type: 'string' }, size: { type: 'number' } },
+        },
+      },
+    },
+    required: ['uploaded', 'effectObserved'],
   },
   clientExecutable: true,
 }
@@ -2084,7 +2268,7 @@ export const BrowserWaitFor: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       waitedMs: {
@@ -2119,7 +2303,7 @@ export const BrowserZoom: ToolCatalogEntry = {
       notices: {
         type: 'array',
         description:
-          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
         items: { type: 'string' },
       },
       zoomPercent: { type: 'number', description: 'Settled tab zoom as a percentage.' },
@@ -7968,6 +8152,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserPressKey.id]: BrowserPressKey,
   [BrowserReadText.id]: BrowserReadText,
   [BrowserReload.id]: BrowserReload,
+  [BrowserSaveDownload.id]: BrowserSaveDownload,
   [BrowserScreenshot.id]: BrowserScreenshot,
   [BrowserScroll.id]: BrowserScroll,
   [BrowserSelectOption.id]: BrowserSelectOption,
@@ -7975,6 +8160,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserSnapshot.id]: BrowserSnapshot,
   [BrowserSwitchTab.id]: BrowserSwitchTab,
   [BrowserType.id]: BrowserType,
+  [BrowserUploadFile.id]: BrowserUploadFile,
   [BrowserWaitFor.id]: BrowserWaitFor,
   [BrowserZoom.id]: BrowserZoom,
   [CallIntegrationTool.id]: CallIntegrationTool,

@@ -25,11 +25,19 @@ export interface PageDialog {
   type: string
   message: string
   handled: boolean
+  accepted: boolean
+}
+
+/** How an agent action asked its JavaScript dialogs to be answered. Electron removes prompt(). */
+export interface DialogResponse {
+  accept: boolean
 }
 
 export interface CdpCallbacks {
-  /** A JS dialog was auto-handled; the driver surfaces it to the model. */
+  /** A JS dialog was handled; the driver surfaces it to the model. */
   onDialog: (dialog: PageDialog) => void
+  /** The running action's requested answer; dialogs are dismissed when it has none. */
+  dialogResponse: () => DialogResponse | null
 }
 
 /** Per-tab callbacks, so a background tab's events reach ITS driver, not the
@@ -182,34 +190,29 @@ function handleDebuggerEvent(
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
     const message = String(params.message ?? '').slice(0, 500)
-    // beforeunload is accepted (navigation proceeds); everything else is
-    // dismissed — the model reacts to the recorded message instead of a
-    // dialog that would block the page.
+    // Dialogs never stay open: beforeunload is accepted (navigation proceeds),
+    // and alert/confirm follow the running action's requested answer, defaulting
+    // to dismissal so an unexpected dialog can never block the page.
+    const accept = type === 'beforeunload' || callbacks?.dialogResponse()?.accept === true
+    const answer = { accept }
     void (async () => {
       let handled = false
       try {
-        await send(
-          contents,
-          'Page.handleJavaScriptDialog',
-          { accept: type === 'beforeunload' },
-          parentSessionId
-        )
+        await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
         handled = true
       } catch {
         // Some Chromium builds surface an OOPIF's tab-modal dialog on its
-        // flattened session but accept the dismissal only on the root target.
+        // flattened session but accept the answer only on the root target.
         if (parentSessionId) {
           try {
-            await send(contents, 'Page.handleJavaScriptDialog', {
-              accept: type === 'beforeunload',
-            })
+            await send(contents, 'Page.handleJavaScriptDialog', answer)
             handled = true
           } catch {}
         }
       }
-      if (handled) logger.info('Auto-handled page dialog', { type })
-      else logger.warn('Could not auto-handle page dialog', { type })
-      callbacks?.onDialog({ type, message, handled })
+      if (handled) logger.info('Handled page dialog', { type, accept })
+      else logger.warn('Could not handle page dialog', { type })
+      callbacks?.onDialog({ type, message, handled, accepted: handled && accept })
     })()
     return
   }
@@ -711,6 +714,43 @@ export async function captureScreenshot(
   }
 }
 
+/**
+ * Sets local files on the one file input carrying `marker`, searching the root target and then
+ * each out-of-process frame session. `DOM.setFileInputFiles` fires the input's own input and
+ * change events, so the page reacts exactly as it would to a user's file choice.
+ */
+export async function setMarkedFileInputFiles(
+  contents: WebContents,
+  marker: string,
+  files: readonly string[]
+): Promise<void> {
+  const sessions = [undefined, ...(childSessionsByContents.get(contents)?.values() ?? [])]
+  for (const sessionId of sessions) {
+    await send(contents, 'DOM.getDocument', { depth: 0 }, sessionId)
+    const { searchId, resultCount } = await send<{ searchId: string; resultCount: number }>(
+      contents,
+      'DOM.performSearch',
+      { query: `[data-sim-agent-upload="${marker}"]` },
+      sessionId
+    )
+    try {
+      if (resultCount === 0) continue
+      if (resultCount !== 1) throw new Error('More than one file input carries the upload marker')
+      const { nodeIds } = await send<{ nodeIds: number[] }>(
+        contents,
+        'DOM.getSearchResults',
+        { searchId, fromIndex: 0, toIndex: 1 },
+        sessionId
+      )
+      await send(contents, 'DOM.setFileInputFiles', { files, nodeId: nodeIds[0] }, sessionId)
+      return
+    } finally {
+      await send(contents, 'DOM.discardSearchResults', { searchId }, sessionId).catch(() => {})
+    }
+  }
+  throw new Error('The marked file input is no longer in the page')
+}
+
 /** One half of a trusted key press (`Input.dispatchKeyEvent` params). */
 export interface CdpKeyEvent {
   type: 'keyDown' | 'rawKeyDown' | 'keyUp'
@@ -742,14 +782,37 @@ export async function moveMouse(contents: WebContents, x: number, y: number): Pr
   })
 }
 
+/** One trusted click gesture: which button, how many presses, and held modifiers. */
+export interface PointerClick {
+  button: 'left' | 'right' | 'middle'
+  clickCount: 1 | 2 | 3
+  /** CDP modifier bitmask (Alt=1, Ctrl=2, Meta=4, Shift=8). */
+  modifiers: number
+}
+
+export const PRIMARY_CLICK: PointerClick = { button: 'left', clickCount: 1, modifiers: 0 }
+
+const BUTTON_MASKS: Record<PointerClick['button'], number> = { left: 1, right: 2, middle: 4 }
+const agentContextClicks = new WeakMap<WebContents, number>()
+const AGENT_CONTEXT_CLICK_WINDOW_MS = 1000
+
+/** True while a context menu event would be the echo of an agent right-click. */
+export function isAgentContextMenu(contents: WebContents): boolean {
+  const at = agentContextClicks.get(contents)
+  return at !== undefined && Date.now() - at < AGENT_CONTEXT_CLICK_WINDOW_MS
+}
+
 export async function clickAt(
   contents: WebContents,
   x: number,
   y: number,
   moveBeforePress = true,
-  clickCount = 1
+  click: PointerClick = PRIMARY_CLICK
 ): Promise<void> {
   if (moveBeforePress) await moveMouse(contents, x, y)
+  const { button, clickCount, modifiers } = click
+  const buttons = BUTTON_MASKS[button]
+  if (button === 'right') agentContextClicks.set(contents, Date.now())
   let pressed = false
   try {
     // Set before awaiting: CDP can deliver the press and then lose/reject the
@@ -763,16 +826,18 @@ export async function clickAt(
         type: 'mousePressed',
         x,
         y,
-        button: 'left',
-        buttons: 1,
+        button,
+        buttons,
+        modifiers,
         clickCount: count,
       })
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x,
         y,
-        button: 'left',
+        button,
         buttons: 0,
+        modifiers,
         clickCount: count,
       })
     }
@@ -786,8 +851,9 @@ export async function clickAt(
         type: 'mouseReleased',
         x,
         y,
-        button: 'left',
+        button,
         buttons: 0,
+        modifiers,
         clickCount: 1,
       }).catch(() => {})
     }

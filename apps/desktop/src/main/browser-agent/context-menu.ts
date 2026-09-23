@@ -17,6 +17,7 @@
 import { resolveDesktopZoom } from '@sim/desktop-bridge'
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
 import { clipboard, Menu } from 'electron'
+import { isAgentContextMenu } from '@/main/browser-agent/cdp'
 
 /**
  * Page-zoom ladder for the embedded browser, in Chromium's absolute zoom
@@ -178,9 +179,10 @@ export function buildAgentContextMenuTemplate(
   return template
 }
 
-/** Gives one agent tab its page menu. */
+/** Gives one agent tab its page menu; an agent right-click reaches only the page's own handlers. */
 export function attachAgentContextMenu(contents: WebContents, host: AgentContextMenuHost): void {
   contents.on('context-menu', (_event, params) => {
+    if (isAgentContextMenu(contents)) return
     const template = buildAgentContextMenuTemplate(
       params,
       {

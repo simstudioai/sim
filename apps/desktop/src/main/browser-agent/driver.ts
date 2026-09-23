@@ -20,6 +20,7 @@ import {
   BROWSER_DATA_KINDS,
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
   BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
+  BROWSER_UPLOAD_MAX_FILES,
   type BrowserDataKind,
   type BrowserKnownSessionsState,
   type BrowserPageState,
@@ -32,6 +33,7 @@ import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
@@ -39,10 +41,18 @@ import * as cdp from '@/main/browser-agent/cdp'
 import { steppedZoomFactor, zoomPercentOf } from '@/main/browser-agent/context-menu'
 import { ToolError } from '@/main/browser-agent/errors'
 import {
+  discardStagedUploads,
+  type LocalFileSource,
+  saveDownloadToWorkspace,
+  stageUploadFiles,
+} from '@/main/browser-agent/file-transfer'
+import {
+  cdpModifiers,
   comboTouchesClipboard,
   dispatchKeyCombo,
   KeyDispatchError,
   parseKeyCombo,
+  parseModifiers,
 } from '@/main/browser-agent/keyboard'
 import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
@@ -55,12 +65,14 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
+  markFileInput,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
   readFormFieldState,
+  readMarkedFileInput,
   readPageActionState,
   readPageText,
   readSelectElementState,
@@ -205,6 +217,9 @@ export interface DriverCallbacks {
 }
 
 let driverCallbacks: DriverCallbacks | null = null
+/** The app origin and authenticated session file transfers use; absent in headless tests. */
+let driverAppSession: session.BrowserAppSession | undefined
+let driverLocalFiles: LocalFileSource | undefined
 let knownSessions: BrowserKnownSessionRegistry | null = null
 /** Kept so teardown can force its erasures past the settings write debounce. */
 let configStore: ConfigStore | null = null
@@ -218,6 +233,8 @@ interface DriverScopeState {
   /** Unique state generation so teardown cannot suffer an epoch ABA race. */
   generation: number
   pendingNotices: string[]
+  /** Answer for JavaScript dialogs opened while the running action executes. */
+  dialogResponse: cdp.DialogResponse | null
   takeoverActive: boolean
   takeoverDone: boolean
   takeoverResponse: string | null
@@ -269,6 +286,7 @@ function createDriverScopeState(): DriverScopeState {
   return {
     generation: nextDriverScopeGeneration++,
     pendingNotices: [],
+    dialogResponse: null,
     takeoverActive: false,
     takeoverDone: false,
     takeoverResponse: null,
@@ -515,14 +533,18 @@ function instrumentTab(contents: WebContents): void {
     (...args: Args) =>
       session.withBrowserScope(scopeId, () => fn(...args))
 
-  const callbacks = {
+  const callbacks: cdp.CdpCallbacks = {
     onDialog: inScope((dialog: cdp.PageDialog) => {
       recordNotice(
-        dialog.handled
-          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
-          : `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be dismissed and may still be blocking the page.`
+        !dialog.handled
+          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be answered and may still be blocking the page.`
+          : dialog.accepted
+            ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was accepted as requested.`
+            : `The page showed a ${dialog.type} dialog ("${dialog.message}") which was dismissed. If the task needs it accepted, repeat the same action with dialog: {"accept": true}.`
       )
     }),
+    dialogResponse: () =>
+      session.withBrowserScope(scopeId, () => driverScopeState().dialogResponse),
   }
   void (async () => {
     let lastError: unknown
@@ -612,9 +634,13 @@ export function initDriver(
   config?: ConfigStore,
   persistence?: BrowserSessionPersistence,
   downloadSettings?: session.BrowserDownloadSettings,
-  appSession?: session.BrowserAppSession
+  appSession?: session.BrowserAppSession,
+  localFiles?: LocalFileSource
 ): void {
   driverCallbacks = callbacks
+  driverAppSession = appSession
+  driverLocalFiles = localFiles
+  void discardStagedUploads().catch(() => {})
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
   configStore = config ?? null
   // The rest of this module's state is per-session too. Left behind, a new
@@ -884,6 +910,7 @@ export function disposeBrowserScope(scopeId: string): void {
   const state = driverScopeStates.get(resolved)
   if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
+  void discardStagedUploads(resolved).catch(() => {})
   for (const [alias, target] of driverScopeAliases) {
     if (alias === resolved || resolveDriverScopeId(target) === resolved) {
       driverScopeAliases.delete(alias)
@@ -969,6 +996,7 @@ export async function clearBrowserProfile(
 export function closeBrowserSession(): void {
   retireAllDriverScopeStates()
   session.closeSession()
+  void discardStagedUploads().catch(() => {})
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -1003,7 +1031,9 @@ export function browserToolWatchdogMs(
     tool === 'browser_go_forward' ||
     tool === 'browser_reload' ||
     tool === 'browser_open_tab' ||
-    tool === 'browser_switch_tab'
+    tool === 'browser_switch_tab' ||
+    tool === 'browser_upload_file' ||
+    tool === 'browser_save_download'
   ) {
     return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
@@ -1024,6 +1054,82 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   const value = num(params, key)
   if (value === undefined) throw new ToolError(`Missing required numeric parameter "${key}"`)
   return value
+}
+
+const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle'])
+/** Enough to walk a slider or list by keyboard in one call without flooding the page. */
+const MAX_KEY_REPEAT = 50
+
+/** The optional click gesture shared by `browser_click` and `browser_click_at`. */
+function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
+  const button = str(params, 'button') ?? 'left'
+  if (!POINTER_BUTTONS.has(button)) throw new ToolError('button must be left, right, or middle.')
+  const clickCount = num(params, 'clickCount') ?? 1
+  if (clickCount !== 1 && clickCount !== 2 && clickCount !== 3) {
+    throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
+  }
+  const names = params.modifiers ?? []
+  if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
+    throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
+  }
+  return {
+    button: button as cdp.PointerClick['button'],
+    clickCount,
+    modifiers: cdpModifiers(parseModifiers(names)),
+  }
+}
+
+/** The exact client tool call executing now; the app binds file transfers to it. */
+function requireActiveToolCallId(): string {
+  const toolCallId = driverScopeState().activeToolCallId
+  if (!toolCallId) throw new ToolError('This browser action has no tool call to authorize it.')
+  return toolCallId
+}
+
+function uploadPaths(params: Record<string, unknown>): string[] {
+  const paths = params.paths
+  if (
+    !Array.isArray(paths) ||
+    paths.length === 0 ||
+    paths.length > BROWSER_UPLOAD_MAX_FILES ||
+    paths.some((path) => typeof path !== 'string' || path.trim() === '' || path.length > 1024)
+  ) {
+    throw new ToolError(
+      `paths must list 1 to ${BROWSER_UPLOAD_MAX_FILES} file paths (files/…, uploads/…, or user-local/…).`
+    )
+  }
+  return paths as string[]
+}
+
+function isPrimaryClick(click: cdp.PointerClick): boolean {
+  return click.button === 'left' && click.clickCount === 1 && click.modifiers === 0
+}
+
+const DIALOG_ANSWERING_TOOLS: ReadonlySet<BrowserToolName> = new Set([
+  'browser_click',
+  'browser_click_at',
+  'browser_press_key',
+  'browser_type',
+])
+
+/** The optional answer for JavaScript dialogs an action opens; absent means dismiss. */
+function dialogResponse(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): cdp.DialogResponse | null {
+  const value = params.dialog
+  if (value === undefined) return null
+  if (
+    !DIALOG_ANSWERING_TOOLS.has(tool) ||
+    !isRecordLike(value) ||
+    typeof value.accept !== 'boolean' ||
+    Object.keys(value).some((key) => key !== 'accept')
+  ) {
+    throw new ToolError(
+      'dialog must be {accept: boolean} on browser_click, browser_click_at, browser_press_key, or browser_type.'
+    )
+  }
+  return { accept: value.accept }
 }
 
 function browserElementStateMatches(
@@ -1224,6 +1330,9 @@ const PASSWORD_REFUSAL =
   'Refusing to act on a password field. Ask the user to enter their credentials in the visible browser, then take a fresh browser_snapshot.'
 
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
+const FILE_INPUT_REFUSAL =
+  'Clicking a file input opens a native file chooser the browser agent cannot complete. Use browser_upload_file with this element and the files to attach.'
+
 function unwrapPageResult(result: unknown): unknown {
   if (isRecordLike(result) && 'error' in result) {
     const code = (result as { error: string }).error
@@ -1240,8 +1349,16 @@ function unwrapPageResult(result: unknown): unknown {
       throw new ToolError(PASSWORD_REFUSAL)
     }
     if (code === 'file-input') {
+      throw new ToolError(FILE_INPUT_REFUSAL)
+    }
+    if (code === 'no-file-input') {
       throw new ToolError(
-        'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
+        'No file input belongs to that element. Target the file input, its label, or the upload button or drop zone that contains it.'
+      )
+    }
+    if (code === 'ambiguous-file-input') {
+      throw new ToolError(
+        'That element contains several file inputs. Target the specific upload control or its file input.'
       )
     }
     if (code === 'expired') {
@@ -2480,6 +2597,73 @@ async function executeToolInner(
       return session.getBrowserDownloadsState(session.getBrowserScopeId())
     }
 
+    case 'browser_save_download': {
+      const download = session.completedBrowserDownload(
+        session.getBrowserScopeId(),
+        requireStr(params, 'downloadId')
+      )
+      if (!download) {
+        throw new ToolError(
+          'That download is not a completed file. Check browser_list_downloads for its id and state.'
+        )
+      }
+      assertCurrentExecution()
+      return saveDownloadToWorkspace({
+        appSession: driverAppSession,
+        toolCallId: requireActiveToolCallId(),
+        filePath: download.savePath,
+        filename: download.filename,
+        signal,
+      })
+    }
+
+    case 'browser_upload_file': {
+      const contents = session.requireAutomationTab().view.webContents
+      const elementId = requireNum(params, 'elementId')
+      const paths = uploadPaths(params)
+      const target = pageTargetForElement(contents, elementId)
+      const marker = generateShortId()
+      assertCurrentExecution()
+      const marked = unwrapPageResult(
+        await execInPage(target, markFileInput, [elementId, marker], false, executionDeadline)
+      )
+      if (!isRecordLike(marked) || marked.marked !== true) {
+        throw new ToolError('Could not locate the file input for that element.')
+      }
+      try {
+        if (marked.multiple !== true && paths.length > 1) {
+          throw new ToolError('That file input accepts one file. Upload the files one at a time.')
+        }
+        const files = await stageUploadFiles({
+          scopeId: session.getBrowserScopeId(),
+          toolCallId: requireActiveToolCallId(),
+          paths,
+          appSession: driverAppSession,
+          localFiles: driverLocalFiles,
+          signal,
+        })
+        assertCurrentExecution()
+        assertActiveContents(contents)
+        await cdp.setMarkedFileInputFiles(contents, marker, files)
+      } catch (error) {
+        // Reading back also clears the marker, so a failed upload leaves the page as it was.
+        await execInPage(target, readMarkedFileInput, [marker]).catch(() => null)
+        throw error
+      }
+      const readback = unwrapPageResult(
+        await execInPage(target, readMarkedFileInput, [marker], false, executionDeadline)
+      )
+      const uploaded = isRecordLike(readback) && Array.isArray(readback.files) ? readback.files : []
+      await sleep(150)
+      const afterPage = await pageActionState(contents)
+      return {
+        uploaded,
+        effectObserved: uploaded.length === paths.length,
+        ...(typeof marked.accept === 'string' ? { accept: marked.accept } : {}),
+        dialogs: Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : [],
+      }
+    }
+
     case 'browser_wait_for': {
       const text = str(params, 'text')
       const urlContains = str(params, 'urlContains')
@@ -2803,6 +2987,7 @@ async function executeToolInner(
       const clickedTab = session.requireAutomationTab()
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
+      const click = pointerClick(params)
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let trusted = false
@@ -2961,7 +3146,7 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false)
+          await cdp.clickAt(contents, x, y, false, click)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -3001,7 +3186,7 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false)
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -3016,6 +3201,11 @@ async function executeToolInner(
             )
           }
         } else {
+          if (!isPrimaryClick(click)) {
+            throw new ToolError(
+              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, or modifiers.'
+            )
+          }
           const activationKey = prepared.activationKey
           if (prepared.focusSucceeded === true && typeof activationKey === 'string') {
             // Observation probes above give the app time to open a modal, move a
@@ -3717,6 +3907,10 @@ async function executeToolInner(
     case 'browser_press_key': {
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
+      const repeat = num(params, 'repeat') ?? 1
+      if (!Number.isInteger(repeat) || repeat < 1 || repeat > MAX_KEY_REPEAT) {
+        throw new ToolError(`repeat must be a whole number from 1 to ${MAX_KEY_REPEAT}.`)
+      }
       const contents = session.requireAutomationTab().view.webContents
       const pressedNavigationEpoch = navigationEpoch(contents)
       let target: PageExecutionTarget = focusedPageTarget(contents)
@@ -3775,12 +3969,28 @@ async function executeToolInner(
       }
       let trusted = true
       let fallbackState: Record<string, unknown> = {}
+      let pressesDispatched = 0
       try {
-        assertCurrentExecution()
-        assertActiveContents(contents, pressedNavigationEpoch)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
-        await dispatchKeyCombo(contents, combo)
+        for (; pressesDispatched < repeat; pressesDispatched++) {
+          // A repeated key must never carry on into a credential field focus has reached.
+          if (
+            pressesDispatched > 0 &&
+            (await execInPage(target, activeElementSecrecy, []).catch(() => 'opaque')) === 'secret'
+          ) {
+            throw new ToolError(PASSWORD_REFUSAL)
+          }
+          assertCurrentExecution()
+          assertActiveContents(contents, pressedNavigationEpoch)
+          assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
+          await dispatchKeyCombo(contents, combo)
+        }
       } catch (error) {
+        if (pressesDispatched > 0) {
+          throw new ToolError(
+            `Pressed ${requestedKey} ${pressesDispatched} of ${repeat} times before the page stopped accepting it (${getErrorMessage(error)}). Inspect the page before continuing.`
+          )
+        }
+        if (error instanceof ToolError) throw error
         if (error instanceof KeyDispatchError && error.keyDownDispatched) {
           throw new ToolError(
             'The key-down may have reached the page but dispatch did not complete. The keystroke was not retried to avoid a duplicate action; inspect the page before continuing.'
@@ -3880,6 +4090,7 @@ async function executeToolInner(
       return {
         ...fallbackState,
         pressed: requestedKey,
+        ...(repeat > 1 ? { repeat: trusted ? repeat : 1 } : {}),
         primaryModifier: process.platform === 'darwin' ? 'Cmd' : 'Control',
         trusted,
         ...state,
@@ -4271,10 +4482,7 @@ async function executeToolInner(
       const contents = clickedTab.view.webContents
       const x = requireNum(params, 'x')
       const y = requireNum(params, 'y')
-      const clickCount = num(params, 'clickCount') ?? 1
-      if (![1, 2, 3].includes(clickCount)) {
-        throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
-      }
+      const click = pointerClick(params)
       const clickNavigationEpoch = navigationEpoch(contents)
       const urlAtDispatch = contents.getURL()
       assertCurrentExecution()
@@ -4288,16 +4496,14 @@ async function executeToolInner(
         )
       }
       if (pointTarget.fileInput === true) {
-        throw new ToolError(
-          'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
-        )
+        throw new ToolError(FILE_INPUT_REFUSAL)
       }
       const beforePage = await pageActionState(contents, true)
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
       try {
-        await cdp.clickAt(contents, x, y, true, clickCount)
+        await cdp.clickAt(contents, x, y, true, click)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,
@@ -4347,7 +4553,7 @@ async function executeToolInner(
         trusted: true,
         activation: 'native-pointer',
         clickedAt: { x, y },
-        clickCount,
+        clickCount: click.clickCount,
         target: pointTarget.element,
         targetCursor: pointTarget.cursor,
         effectObserved,
@@ -4732,6 +4938,7 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
+          state.dialogResponse = dialogResponse(tool, params)
           const executionEpoch = ++state.toolExecutionEpoch
           const watchdogMs = browserToolWatchdogMs(tool, params)
           const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
@@ -4788,6 +4995,7 @@ export async function executeTool(
           })
           return result
         } finally {
+          state.dialogResponse = null
           executionController.abort()
           if (keepHiddenPageActive && !state.disposed) {
             session.setAutomationActive(false)

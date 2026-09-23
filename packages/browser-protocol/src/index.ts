@@ -32,6 +32,7 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_list_tabs',
   'browser_list_sessions',
   'browser_list_downloads',
+  'browser_save_download',
   'browser_wait_for',
   'browser_snapshot',
   'browser_find',
@@ -47,6 +48,7 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_scroll',
   'browser_select_option',
   'browser_set_checked',
+  'browser_upload_file',
   'browser_hover',
   'browser_drag',
   'browser_zoom',
@@ -77,6 +79,16 @@ export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
   BROWSER_RENDERER_TRANSPORT_GRACE_MS
 
 /**
+ * The desktop exchanges browser-agent file bytes with the app here: POST streams a file named by
+ * a claimed `browser_upload_file` call, PUT stores a completed download for `browser_save_download`.
+ */
+export const BROWSER_FILE_TRANSFER_PATH = '/api/desktop/tool/file'
+/** Per-file byte ceiling for browser uploads and saved downloads, enforced on both sides. */
+export const BROWSER_FILE_TRANSFER_MAX_BYTES = 100 * 1024 * 1024
+/** Files one `browser_upload_file` call may attach. */
+export const BROWSER_UPLOAD_MAX_FILES = 10
+
+/**
  * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
  * the renderer and desktop main process.
  */
@@ -104,6 +116,8 @@ export function browserToolRendererTimeoutMs(
     case 'browser_reload':
     case 'browser_open_tab':
     case 'browser_switch_tab':
+    case 'browser_upload_file':
+    case 'browser_save_download':
       return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
     case 'browser_wait_for':
       return (

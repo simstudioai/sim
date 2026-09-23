@@ -492,6 +492,32 @@ describe('LocalFilesystemService', () => {
     expect(escaped).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
   })
 
+  it('resolves a granted file for upload and refuses escapes, directories, and oversize files', async () => {
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+    const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+    await writeFile(join(outside, 'secret.txt'), 'secret')
+    await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
+
+    await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)).resolves.toEqual({
+      path: await realpath(join(root, 'README.md')),
+      name: 'README.md',
+      size: 24,
+    })
+    await expect(
+      service.resolveGrantedFile(`${vfsRoot}/secret-link.txt`, 1024)
+    ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
+    await expect(service.resolveGrantedFile(`${vfsRoot}/src`, 1024)).rejects.toMatchObject({
+      code: 'NOT_A_FILE',
+    })
+    await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 4)).rejects.toMatchObject({
+      code: 'FILE_TOO_LARGE',
+    })
+    await expect(
+      service.resolveGrantedFile('user-local/Other--missing/README.md', 1024)
+    ).rejects.toMatchObject({ code: 'MOUNT_NOT_FOUND' })
+  })
+
   it('rejects lexical traversal before URL normalization can reinterpret it', async () => {
     const granted = await mount(service)
     const traversal = await service.handle({

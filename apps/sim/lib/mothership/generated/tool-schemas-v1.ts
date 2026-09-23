@@ -85,10 +85,42 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        button: {
+          type: 'string',
+          description:
+            "Mouse button: left (default), right to open a page's own context menu, or middle.",
+          enum: ['left', 'right', 'middle'],
+        },
+        clickCount: {
+          type: 'number',
+          description:
+            '1 = single click (default), 2 = double-click (inline editing, opening items), 3 = triple-click (select a line).',
+        },
+        dialog: {
+          type: 'object',
+          description:
+            'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+          properties: {
+            accept: {
+              type: 'boolean',
+              description: 'true presses OK; false presses Cancel.',
+            },
+          },
+          required: ['accept'],
+        },
         elementId: {
           type: 'number',
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        },
+        modifiers: {
+          type: 'array',
+          description:
+            'Keys held during the click. Mod is Cmd on macOS and Control elsewhere: ["Mod"] adds or removes one item from a multi-selection, ["Shift"] selects a range.',
+          items: {
+            type: 'string',
+            enum: ['Shift', 'Alt', 'Control', 'Meta', 'Mod'],
+          },
         },
         observe: {
           type: 'object',
@@ -200,7 +232,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -230,9 +262,37 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        button: {
+          type: 'string',
+          description:
+            "Mouse button: left (default), right to open a page's own context menu, or middle.",
+          enum: ['left', 'right', 'middle'],
+        },
         clickCount: {
           type: 'number',
-          description: '1 = single click (default), 2 = double-click, 3 = triple-click.',
+          description:
+            '1 = single click (default), 2 = double-click (inline editing, opening items), 3 = triple-click (select a line).',
+        },
+        dialog: {
+          type: 'object',
+          description:
+            'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+          properties: {
+            accept: {
+              type: 'boolean',
+              description: 'true presses OK; false presses Cancel.',
+            },
+          },
+          required: ['accept'],
+        },
+        modifiers: {
+          type: 'array',
+          description:
+            'Keys held during the click. Mod is Cmd on macOS and Control elsewhere: ["Mod"] adds or removes one item from a multi-selection, ["Shift"] selects a range.',
+          items: {
+            type: 'string',
+            enum: ['Shift', 'Alt', 'Control', 'Meta', 'Mod'],
+          },
         },
         x: {
           type: 'number',
@@ -352,7 +412,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -522,7 +582,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -580,7 +640,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -845,7 +905,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -900,6 +960,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'number',
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
         },
       },
       required: ['elementId'],
@@ -973,7 +1045,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1090,7 +1162,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1239,10 +1311,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        dialog: {
+          type: 'object',
+          description:
+            'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+          properties: {
+            accept: {
+              type: 'boolean',
+              description: 'true presses OK; false presses Cancel.',
+            },
+          },
+          required: ['accept'],
+        },
         key: {
           type: 'string',
           description:
-            "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
+            "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Function keys F1–F12 and Insert are supported. Anything else — such as 'Return' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
         },
         observe: {
           type: 'object',
@@ -1255,6 +1339,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
             },
           },
+        },
+        repeat: {
+          type: 'number',
+          description:
+            'Press the key this many times in a row (1 to 50, default 1), e.g. ArrowRight ×12 to move a slider or Tab ×3 to reach a field. Stops if focus reaches a password field.',
         },
       },
       required: ['key'],
@@ -1331,7 +1420,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1402,7 +1491,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1442,7 +1531,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1457,6 +1546,40 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['url', 'title'],
+    },
+  },
+  browser_save_download: {
+    parameters: {
+      type: 'object',
+      properties: {
+        downloadId: {
+          type: 'string',
+          description: "The completed download's id from browser_list_downloads.",
+        },
+        name: {
+          type: 'string',
+          description:
+            "Optional workspace file name; defaults to the downloaded file's name. An existing name gets a numbered suffix.",
+        },
+      },
+      required: ['downloadId'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Workspace path of the saved file, readable with read and attachable with browser_upload_file.',
+        },
+        size: {
+          type: 'number',
+        },
+      },
+      required: ['path', 'name'],
     },
   },
   browser_screenshot: {
@@ -1490,6 +1613,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'number',
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
         },
       },
       required: ['direction'],
@@ -1531,7 +1666,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1629,7 +1764,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1732,7 +1867,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1776,7 +1911,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -1842,6 +1977,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        dialog: {
+          type: 'object',
+          description:
+            'How to answer a JavaScript alert or confirm dialog that this action opens. Without it such dialogs are dismissed (Cancel) and reported in notices. When the task requires the dialog accepted, repeat the same action with {accept: true}.',
+          properties: {
+            accept: {
+              type: 'boolean',
+              description: 'true presses OK; false presses Cancel.',
+            },
+          },
+          required: ['accept'],
+        },
         elementId: {
           type: 'number',
           description:
@@ -1940,7 +2087,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -2004,6 +2151,63 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['dispatched'],
+    },
+  },
+  browser_upload_file: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description:
+            'Element id of the file input, its label, or the upload button or drop zone around it, from the latest browser_snapshot.',
+        },
+        paths: {
+          type: 'array',
+          description:
+            "Files to attach, in order: files/… (workspace), uploads/… (this chat's uploads), or user-local/… (a shared local folder). More than one requires a multiple-file input. At most 10 files of 100 MB each.",
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['elementId', 'paths'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        accept: {
+          type: 'string',
+          description: "The input's accept attribute, when it restricts file types.",
+        },
+        dialogs: {
+          type: 'array',
+          items: {
+            type: 'string',
+          },
+        },
+        effectObserved: {
+          type: 'boolean',
+          description:
+            'True when the input holds every requested file. The page may still need its own submit or upload button pressed.',
+        },
+        uploaded: {
+          type: 'array',
+          description: 'The files the input now holds, read back from the page.',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+              },
+              size: {
+                type: 'number',
+              },
+            },
+          },
+        },
+      },
+      required: ['uploaded', 'effectObserved'],
     },
   },
   browser_wait_for: {
@@ -2077,7 +2281,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },
@@ -2111,7 +2315,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         notices: {
           type: 'array',
           description:
-            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+            'JavaScript alert/confirm dialogs handled since the previous successful browser result, and whether each was accepted or dismissed.',
           items: {
             type: 'string',
           },

@@ -495,18 +495,7 @@ export class LocalFilesystemService {
       return false
     }
     const args = authorization.args
-
-    const expectedUriForPath = (path: unknown): string | null => {
-      if (typeof path !== 'string') return null
-      for (const mount of this.mounts.values()) {
-        const root = mountVfsRoot(mount)
-        if (path === root) return mount.uri
-        if (path.startsWith(`${root}/`)) {
-          return `${mount.uri}${path.slice(root.length + 1)}`
-        }
-      }
-      return null
-    }
+    const expectedUriForPath = (path: unknown): string | null => this.uriForVfsPath(path)
 
     switch (authorization.toolName) {
       case 'read': {
@@ -793,6 +782,47 @@ export class LocalFilesystemService {
     const { mount } = this.parseUri(uri)
     shell.showItemInFolder(mount.rootPath)
     return { revealed: true }
+  }
+
+  /**
+   * Resolves a granted `user-local/…` file the browser agent attaches to a page. It applies the
+   * same VFS mapping and realpath containment as reads and returns the real path for the caller
+   * to copy before use, so a later symlink swap cannot redirect the upload.
+   */
+  async resolveGrantedFile(
+    vfsPath: string,
+    maxBytes: number
+  ): Promise<{ path: string; name: string; size: number }> {
+    const uri = this.uriForVfsPath(vfsPath)
+    if (!uri) {
+      throw new LocalFilesystemError(
+        'MOUNT_NOT_FOUND',
+        'That local folder is not shared with Sim. Ask the user to select it again.'
+      )
+    }
+    const resolved = await this.resolveUri(uri)
+    const metadata = await stat(resolved.realPath)
+    if (!metadata.isFile()) {
+      throw new LocalFilesystemError('NOT_A_FILE', 'The local path is not a file.')
+    }
+    if (metadata.size > maxBytes) {
+      throw new LocalFilesystemError(
+        'FILE_TOO_LARGE',
+        `The local file exceeds the ${Math.floor(maxBytes / 1024 / 1024)} MB upload limit.`
+      )
+    }
+    return { path: resolved.realPath, name: basename(resolved.realPath), size: metadata.size }
+  }
+
+  /** Maps a `user-local/<name>--<id>/…` VFS path onto its granted mount's localfs URI. */
+  private uriForVfsPath(path: unknown): string | null {
+    if (typeof path !== 'string') return null
+    for (const mount of this.mounts.values()) {
+      const root = mountVfsRoot(mount)
+      if (path === root) return mount.uri
+      if (path.startsWith(`${root}/`)) return `${mount.uri}${path.slice(root.length + 1)}`
+    }
+    return null
   }
 
   private parseUri(uri: string): { mount: GrantedMount; relativePath: string } {

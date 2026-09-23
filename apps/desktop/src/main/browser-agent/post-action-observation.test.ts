@@ -19,6 +19,19 @@ describe('post-action observation', () => {
     }
   })
 
+  it('observes after scrolling and hovering, which reveal new content', async () => {
+    for (const tool of ['browser_scroll', 'browser_hover'] as const) {
+      const result = await withPostActionObservation(
+        tool,
+        { direction: 'down', observe: {} },
+        async () => ({ movedBy: 400 }),
+        async () => ({ outline: '- row "Next" [ref=9]' }),
+        vi.fn()
+      )
+      expect(result).toMatchObject({ observation: { ok: true } })
+    }
+  })
+
   it('keeps standalone actions unchanged and does not capture unrequested state', async () => {
     const result = { dispatched: true, effectObserved: false }
     const observe = vi.fn()

@@ -11,11 +11,13 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
+  markFileInput,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
+  readMarkedFileInput,
   readPageActionState,
   readPageText,
   readSelectElementState,
@@ -806,15 +808,55 @@ describe('collectSnapshot', () => {
     }
   })
 
-  it('marks file inputs unsupported and refuses to open a native chooser', () => {
+  it('labels file inputs and refuses to open a native chooser', () => {
     document.body.innerHTML = '<input type="file" aria-label="Upload receipt" />'
     visible(document.querySelector('input') as HTMLInputElement)
     const outline = outlineOf(collectSnapshot())
     const ref = refFor(outline, 'Upload receipt')
 
     expect(outline).toContain('file-input "Upload receipt"')
-    expect(outline).toContain('upload-unsupported')
     expect(clickElement(ref)).toEqual({ error: 'file-input' })
+  })
+
+  it('marks the file input behind a drop zone, label, or the input itself', () => {
+    document.body.innerHTML = `<div id="zone">Drop files<input type="file" id="hidden" multiple hidden accept=".png"></div>
+      <label id="label" for="labelled">Resume</label><input type="file" id="labelled">
+      <section id="two"><input type="file"><input type="file"></section>`
+    register(
+      document.getElementById('zone') as HTMLElement,
+      document.getElementById('label') as HTMLElement,
+      document.getElementById('labelled') as HTMLElement,
+      document.getElementById('two') as HTMLElement
+    )
+
+    expect(markFileInput(0, 'm0')).toEqual({ marked: true, multiple: true, accept: '.png' })
+    expect(document.getElementById('hidden')?.getAttribute('data-sim-agent-upload')).toBe('m0')
+    expect(markFileInput(1, 'm1')).toMatchObject({ marked: true, multiple: false })
+    expect(document.getElementById('labelled')?.getAttribute('data-sim-agent-upload')).toBe('m1')
+    expect(markFileInput(2, 'm2')).toMatchObject({ marked: true })
+    expect(markFileInput(3, 'm3')).toEqual({ error: 'ambiguous-file-input', count: 2 })
+  })
+
+  it('reports an element with no nearby file input', () => {
+    document.body.innerHTML =
+      '<main><div><div><div><button id="b">Upload</button></div></div></div></main>'
+    register(document.getElementById('b') as HTMLElement)
+
+    expect(markFileInput(0, 'm')).toEqual({ error: 'no-file-input' })
+  })
+
+  it('reads back and clears the marked input, including inside open shadow roots', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const input = document.createElement('input')
+    input.type = 'file'
+    host.attachShadow({ mode: 'open' }).append(input)
+    register(host)
+
+    expect(markFileInput(0, 'shadow')).toMatchObject({ marked: true })
+    expect(readMarkedFileInput('shadow')).toEqual({ files: [] })
+    expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
+    expect(readMarkedFileInput('shadow')).toEqual({ error: 'stale' })
   })
 
   it('sets a complete multiple selection atomically and can clear it', () => {

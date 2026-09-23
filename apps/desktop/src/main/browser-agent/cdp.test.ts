@@ -59,7 +59,7 @@ describe('browser-agent CDP instrumentation', () => {
   it('leaves file chooser dialogs native so users can upload files', async () => {
     const contents = new WebContentsView().webContents
 
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
 
     expect(contents.debugger.sendCommand).toHaveBeenCalledWith('Page.enable', undefined)
     expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
@@ -79,10 +79,12 @@ describe('browser-agent CDP instrumentation', () => {
       return Promise.resolve({})
     })
 
-    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).rejects.toThrow(
-      'setup acknowledgement lost'
-    )
-    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).resolves.toBeUndefined()
+    await expect(
+      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    ).rejects.toThrow('setup acknowledgement lost')
+    await expect(
+      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    ).resolves.toBeUndefined()
 
     expect(autoAttachAttempts).toBe(2)
   })
@@ -90,7 +92,7 @@ describe('browser-agent CDP instrumentation', () => {
   it('dismisses an OOPIF dialog on the flattened child session', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -112,13 +114,18 @@ describe('browser-agent CDP instrumentation', () => {
       { accept: false },
       'child-session'
     )
-    expect(onDialog).toHaveBeenCalledWith({ type: 'alert', message: 'Hello', handled: true })
+    expect(onDialog).toHaveBeenCalledWith({
+      type: 'alert',
+      message: 'Hello',
+      handled: true,
+      accepted: false,
+    })
   })
 
   it('accepts an OOPIF beforeunload dialog on the flattened child session', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -144,13 +151,43 @@ describe('browser-agent CDP instrumentation', () => {
       type: 'beforeunload',
       message: 'Leave this page?',
       handled: true,
+      accepted: true,
+    })
+  })
+
+  it('answers dialogs with the running action requested response', async () => {
+    const contents = new WebContentsView().webContents
+    const onDialog = vi.fn()
+    const dialogResponse = vi.fn(() => ({ accept: true }))
+    await ensureInstrumented(contents, { onDialog, dialogResponse })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+
+    listener?.({}, 'Page.javascriptDialogOpening', { type: 'alert', message: 'Saved' })
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalledTimes(1))
+    listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalledTimes(2))
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls).toEqual([
+      ['Page.handleJavaScriptDialog', { accept: true }],
+      ['Page.handleJavaScriptDialog', { accept: true }],
+    ])
+    expect(onDialog).toHaveBeenLastCalledWith({
+      type: 'confirm',
+      message: 'Delete?',
+      handled: true,
+      accepted: true,
     })
   })
 
   it('reports an OOPIF dialog as unhandled when child and root commands fail', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -176,6 +213,7 @@ describe('browser-agent CDP instrumentation', () => {
       type: 'confirm',
       message: 'Continue?',
       handled: false,
+      accepted: false,
     })
   })
 
@@ -194,6 +232,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 240,
           button: 'left',
           buttons: 1,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -205,6 +244,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 240,
           button: 'left',
           buttons: 0,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -229,6 +269,7 @@ describe('browser-agent CDP instrumentation', () => {
         y: 24,
         button: 'left',
         buttons: 0,
+        modifiers: 0,
         clickCount: 1,
       },
     ])
@@ -253,6 +294,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 48,
           button: 'left',
           buttons: 1,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -264,6 +306,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 48,
           button: 'left',
           buttons: 0,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -316,7 +359,7 @@ describe('browser-agent CDP instrumentation', () => {
     async (treeKind) => {
       const contents = new WebContentsView().webContents
       const { child, frameTree } = createOopifFrameFixture()
-      await ensureInstrumented(contents, { onDialog: vi.fn() })
+      await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
       const listener = vi
         .mocked(contents.debugger.on)
         .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -419,7 +462,7 @@ describe('browser-agent CDP instrumentation', () => {
   it('falls back to the root target when OOPIF isolated-world creation fails', async () => {
     const contents = new WebContentsView().webContents
     const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as

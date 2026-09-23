@@ -52,13 +52,27 @@ const CLICK_FIXTURE = `<!doctype html><title>Click fixture</title>
  });
 </script>`
 
+const CAPABILITIES_FIXTURE = `<!doctype html><title>Capabilities fixture</title>
+<button id="delete" onclick="document.body.dataset.deleted = confirm('Delete the report?')">Delete report</button>
+<div id="row" oncontextmenu="event.preventDefault(); document.body.dataset.menu = event.button + ':' + event.shiftKey">Report row</div>
+<div id="zone" role="button" aria-label="Attach receipt">Drop a receipt<input id="receipt" type="file" hidden onchange="this.files[0].text().then(text => document.body.dataset.upload = this.files[0].name + ':' + text)"></div>
+<button onclick="window.open(new URLSearchParams(location.search).get('popup'), 'auth', 'width=400,height=400')">Connect</button>
+<script>addEventListener('message', (event) => { document.body.dataset.connected = event.data })</script>`
+
+const POPUP_FIXTURE = `<!doctype html><title>Authorize fixture</title>
+<button onclick="window.opener.postMessage('granted', '*'); window.close()">Allow</button>`
+
 test.describe('browser tools', () => {
   const calls = new Map<
     string,
     { chatId: string; toolName: BrowserToolName | 'terminal'; args: Record<string, unknown> }
   >()
+  const claimed = new Map<string, { args: Record<string, unknown> }>()
   let server: Server
+  let popupServer: Server
   let origin: string
+  let site: string
+  let popupOrigin: string
   let app: ElectronApplication
   let window: Page
   let callCount = 0
@@ -109,11 +123,32 @@ test.describe('browser tools', () => {
         )
         return
       }
+      if (path === '/api/desktop/tool/file') {
+        let body = ''
+        for await (const chunk of request) body += chunk.toString()
+        const { toolCallId, index } = JSON.parse(body)
+        const reference = claimed.get(toolCallId)?.args.paths
+        const found = Array.isArray(reference) && reference[index] === 'files/receipt.txt'
+        response.writeHead(found ? 200 : 404, {
+          'Content-Type': found ? 'application/octet-stream' : 'application/json',
+          ...(found ? { 'Content-Disposition': 'attachment; filename="receipt.txt"' } : {}),
+        })
+        response.end(found ? 'receipt-bytes' : JSON.stringify({ error: 'File not found' }))
+        return
+      }
+      if (path === '/doc.pdf') {
+        response.writeHead(200, { 'Content-Type': 'application/pdf' })
+        response.end(
+          '%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n'
+        )
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
         const authorization = calls.get(JSON.parse(body).toolCallId)
         calls.delete(JSON.parse(body).toolCallId)
+        if (authorization) claimed.set(JSON.parse(body).toolCallId, authorization)
         response.writeHead(authorization ? 200 : 403, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify(authorization ?? {}))
         return
@@ -127,15 +162,27 @@ test.describe('browser tools', () => {
       response.end(
         path === '/click'
           ? CLICK_FIXTURE
-          : path === '/form'
-            ? FORM
-            : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
+          : path === '/capabilities'
+            ? CAPABILITIES_FIXTURE
+            : path === '/form'
+              ? FORM
+              : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
       )
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
     origin = `http://127.0.0.1:${address.port}`
+    /** Pages outside the app origin browse in the agent partition, like any third-party site. */
+    site = origin.replace('127.0.0.1', 'localhost')
+    popupServer = createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.end(POPUP_FIXTURE)
+    })
+    await new Promise<void>((resolve) => popupServer.listen(0, '127.0.0.1', resolve))
+    const popupAddress = popupServer.address()
+    if (!popupAddress || typeof popupAddress === 'string') throw new Error('Missing popup address')
+    popupOrigin = `http://localhost:${popupAddress.port}`
   })
 
   test.beforeEach(async () => {
@@ -148,6 +195,11 @@ test.describe('browser tools', () => {
         SIM_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'sim-browser-tools-e2e-')),
       },
     })
+    // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own CDP
+    // dialog handling decides their outcome exactly as it does in production.
+    const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
+    app.context().pages().forEach(leaveDialogsToDesktop)
+    app.context().on('page', leaveDialogsToDesktop)
     window = await app.firstWindow()
     await app.evaluate(({ app, BrowserWindow }) => {
       const host = BrowserWindow.getAllWindows()[0]
@@ -176,12 +228,15 @@ test.describe('browser tools', () => {
   test.afterEach(async () => {
     await app?.close()
     calls.clear()
+    claimed.clear()
   })
 
   test.afterAll(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve()))
-    )
+    for (const listener of [server, popupServer]) {
+      await new Promise<void>((resolve, reject) =>
+        listener.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
   })
 
   async function execute(tool: BrowserToolName, args: Record<string, unknown>) {
@@ -210,6 +265,109 @@ test.describe('browser tools', () => {
       return Number(match[1])
     }
   }
+
+  async function openCapabilities() {
+    const url = `${site}/capabilities?popup=${encodeURIComponent(`${popupOrigin}/authorize`)}`
+    const response = await execute('browser_open_url', { url })
+    expect(response.ok, response.error).toBe(true)
+    const outline = (response.result as { snapshot: { outline: string } }).snapshot.outline
+    const ref = (name: string) => {
+      const match = outline
+        .split('\n')
+        .find((line) => line.includes(`"${name}"`) && /\[ref=\d+\]/.test(line))
+        ?.match(/\[ref=(\d+)\]/)
+      if (!match) throw new Error(`No reference for ${name}: ${outline}`)
+      return Number(match[1])
+    }
+    const dataset = () =>
+      app.evaluate(
+        ({ webContents }, url) =>
+          webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+            ?.executeJavaScript('({ ...document.body.dataset })'),
+        url
+      )
+    return { ref, dataset }
+  }
+
+  test('answers confirm dialogs only when the action asks and right-clicks reach the page', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    const dismissed = await execute('browser_click', { elementId: ref('Delete report') })
+    expect(JSON.stringify(dismissed.result)).toContain('which was dismissed')
+    expect(await dataset()).toMatchObject({ deleted: 'false' })
+
+    const accepted = await execute('browser_click', {
+      elementId: ref('Delete report'),
+      dialog: { accept: true },
+    })
+    expect(JSON.stringify(accepted.result)).toContain('accepted as requested')
+    expect(await dataset()).toMatchObject({ deleted: 'true' })
+
+    const menu = await execute('browser_click', {
+      elementId: ref('Report row'),
+      button: 'right',
+      modifiers: ['Shift'],
+    })
+    expect(menu.ok, menu.error).toBe(true)
+    expect(await dataset()).toMatchObject({ menu: '2:true' })
+  })
+
+  test('uploads a workspace file into the hidden input behind a drop zone', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    const upload = await execute('browser_upload_file', {
+      elementId: ref('Attach receipt'),
+      paths: ['files/receipt.txt'],
+    })
+
+    expect(upload.ok, upload.error).toBe(true)
+    expect(upload.result).toMatchObject({
+      uploaded: [{ name: 'receipt.txt', size: 13 }],
+      effectObserved: true,
+    })
+    await expect.poll(dataset).toMatchObject({ upload: 'receipt.txt:receipt-bytes' })
+  })
+
+  test('keeps window.opener for page popups and returns to the opener when they close', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    expect((await execute('browser_click', { elementId: ref('Connect') })).ok).toBe(true)
+    const popup = await execute('browser_snapshot', {})
+    const allow = (popup.result as { outline: string }).outline.match(
+      /button "Allow" \[ref=(\d+)\]/
+    )?.[1]
+    expect(allow, JSON.stringify(popup.result)).toBeTruthy()
+    expect((await execute('browser_click', { elementId: Number(allow) })).ok).toBe(true)
+
+    await expect.poll(dataset).toMatchObject({ connected: 'granted' })
+    await expect
+      .poll(
+        async () => ((await execute('browser_list_tabs', {})).result as { tabs: unknown[] }).tabs
+      )
+      .toHaveLength(1)
+  })
+
+  test('renders PDFs in the built-in viewer', async () => {
+    const response = await execute('browser_open_url', { url: `${site}/doc.pdf` })
+    expect(response.ok, response.error).toBe(true)
+
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents
+              .getAllWebContents()
+              .find((contents) => contents.getURL() === url)
+              ?.mainFrame.framesInSubtree.some((frame) =>
+                frame.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')
+              ),
+          `${site}/doc.pdf`
+        )
+      )
+      .toBe(true)
+  })
 
   test('shares desktop authentication for private HTML previews and deployed chats', async () => {
     for (const path of ['/private-preview', '/private-chat']) {

@@ -8,6 +8,8 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_type',
   'browser_press_key',
   'browser_fill_form',
+  'browser_scroll',
+  'browser_hover',
 ])
 
 /** Validate before dispatch; an observation failure must never invite replay of a completed action. */

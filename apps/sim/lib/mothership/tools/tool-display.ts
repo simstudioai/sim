@@ -662,6 +662,8 @@ const TOOL_TITLES: Record<string, string> = {
   browser_list_tabs: 'Listing tabs',
   browser_list_sessions: 'Checking signed-in sites',
   browser_list_downloads: 'Checking downloads',
+  browser_save_download: 'Saving download to files',
+  browser_upload_file: 'Uploading file',
   browser_snapshot: 'Scanning page',
   browser_find: 'Finding page element',
   browser_read_text: 'Reading page',

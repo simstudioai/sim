@@ -46,6 +46,7 @@ const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserTo
   'browser_list_tabs',
   'browser_list_sessions',
   'browser_list_downloads',
+  'browser_save_download',
 ])
 
 /**
@@ -66,6 +67,7 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_list_tabs: true,
   browser_list_sessions: true,
   browser_list_downloads: true,
+  browser_save_download: false,
   browser_wait_for: true,
   browser_snapshot: true,
   browser_find: true,
@@ -81,6 +83,7 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_scroll: false,
   browser_select_option: false,
   browser_set_checked: false,
+  browser_upload_file: false,
   browser_hover: false,
   browser_drag: false,
   browser_zoom: false,

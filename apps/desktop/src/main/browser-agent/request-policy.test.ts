@@ -20,6 +20,23 @@ describe('authenticated browser request policy', () => {
     guards.isBlockedSubresourceUrl.mockResolvedValue(false)
   })
 
+  it('admits only the built-in PDF viewer and its packaged resources outside http(s)', async () => {
+    const contents = new WebContentsView().webContents
+    guards.checkAgentUrl.mockResolvedValue({ ok: false })
+    guards.isBlockedSubresourceUrl.mockResolvedValue(true)
+    const request = (url: string, resourceType: 'subFrame' | 'script') =>
+      allowBrowserRequest({ webContents: contents, url, method: 'GET', resourceType })
+
+    expect(
+      await request('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html', 'subFrame')
+    ).toBe(true)
+    expect(await request('chrome://resources/js/assert.js', 'script')).toBe(true)
+    expect(
+      await request('chrome-extension://aaaabbbbccccddddeeeeffffgggghhhh/x.js', 'script')
+    ).toBe(false)
+    expect(await request('chrome://settings/', 'subFrame')).toBe(false)
+  })
+
   it('confines the shared session to the exact configured origin', async () => {
     const contents = new WebContentsView().webContents
     registerAgentWebContents(contents, 'https://www.dev.sim.ai')

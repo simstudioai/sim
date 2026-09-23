@@ -50,6 +50,13 @@ const NAMED_KEYS: Record<string, KeyDescriptor> = {
   '=': { key: '=', code: 'Equal', keyCode: 187 },
   '`': { key: '`', code: 'Backquote', keyCode: 192 },
   plus: { key: '+', code: 'Equal', keyCode: 187 },
+  insert: { key: 'Insert', code: 'Insert', keyCode: 45 },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `f${index + 1}`,
+      { key: `F${index + 1}`, code: `F${index + 1}`, keyCode: 112 + index },
+    ])
+  ),
 }
 
 const SHIFTED_CHARACTERS: Record<string, string> = {
@@ -93,12 +100,14 @@ const BASE_FOR_SHIFTED_CHARACTER: Record<string, string> = Object.fromEntries(
   Object.entries(SHIFTED_CHARACTERS).map(([base, shifted]) => [shifted, base])
 )
 
-export interface ParsedCombo extends KeyDescriptor {
+export interface KeyModifiers {
   ctrl: boolean
   meta: boolean
   shift: boolean
   alt: boolean
 }
+
+export interface ParsedCombo extends KeyDescriptor, KeyModifiers {}
 
 export class KeyDispatchError extends Error {
   constructor(
@@ -132,24 +141,8 @@ export function parseKeyCombo(
             .map((part) => part.trim())
             .filter(Boolean)
   if (parts.length === 0) throw new ToolError(`Unrecognized key: "${combo}"`)
-  const modifiers = { ctrl: false, meta: false, shift: false, alt: false }
+  const modifiers = parseModifiers(parts.slice(0, -1), platform)
   const keyPart = parts[parts.length - 1]
-  for (const part of parts.slice(0, -1)) {
-    const lower = part.toLowerCase()
-    if (lower === 'control' || lower === 'ctrl') modifiers.ctrl = true
-    else if (lower === 'meta' || lower === 'cmd' || lower === 'command') modifiers.meta = true
-    else if (
-      lower === 'mod' ||
-      lower === 'primary' ||
-      lower === 'controlormeta' ||
-      lower === 'commandorcontrol'
-    ) {
-      if (platform === 'darwin') modifiers.meta = true
-      else modifiers.ctrl = true
-    } else if (lower === 'shift') modifiers.shift = true
-    else if (lower === 'alt' || lower === 'option') modifiers.alt = true
-    else throw new ToolError(`Unrecognized modifier: "${part}"`)
-  }
   const named = NAMED_KEYS[keyPart.toLowerCase()]
   if (named) {
     const key = modifiers.shift ? (SHIFTED_CHARACTERS[named.key] ?? named.key) : named.key
@@ -175,9 +168,42 @@ export function parseKeyCombo(
   throw new ToolError(`Unrecognized key: "${keyPart}"`)
 }
 
+/**
+ * Parses modifier names ("Shift", "Cmd", "Mod", …). `Mod` is the platform's primary
+ * shortcut modifier: Meta on macOS, Control elsewhere.
+ */
+export function parseModifiers(
+  names: readonly string[],
+  platform: NodeJS.Platform = process.platform
+): KeyModifiers {
+  const modifiers = { ctrl: false, meta: false, shift: false, alt: false }
+  for (const name of names) {
+    const lower = name.trim().toLowerCase()
+    if (lower === 'control' || lower === 'ctrl') modifiers.ctrl = true
+    else if (lower === 'meta' || lower === 'cmd' || lower === 'command') modifiers.meta = true
+    else if (
+      lower === 'mod' ||
+      lower === 'primary' ||
+      lower === 'controlormeta' ||
+      lower === 'commandorcontrol'
+    ) {
+      if (platform === 'darwin') modifiers.meta = true
+      else modifiers.ctrl = true
+    } else if (lower === 'shift') modifiers.shift = true
+    else if (lower === 'alt' || lower === 'option') modifiers.alt = true
+    else throw new ToolError(`Unrecognized modifier: "${name}"`)
+  }
+  return modifiers
+}
+
 /** CDP `Input` modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8. */
-function cdpModifiers(combo: ParsedCombo): number {
-  return (combo.alt ? 1 : 0) | (combo.ctrl ? 2 : 0) | (combo.meta ? 4 : 0) | (combo.shift ? 8 : 0)
+export function cdpModifiers(modifiers: KeyModifiers): number {
+  return (
+    (modifiers.alt ? 1 : 0) |
+    (modifiers.ctrl ? 2 : 0) |
+    (modifiers.meta ? 4 : 0) |
+    (modifiers.shift ? 8 : 0)
+  )
 }
 
 /**

@@ -34,6 +34,12 @@ function setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { configurable: true, value: platform })
 }
 
+type PopupHandler = (details: { url: string }) => {
+  action: string
+  outlivesOpener?: boolean
+  createWindow?: (options: Record<string, unknown>) => unknown
+}
+
 interface MockView {
   webContents: {
     session: {
@@ -2667,19 +2673,56 @@ describe('browser-agent session', () => {
     expect(contents.session.setPermissionRequestHandler).toHaveBeenCalled()
     expect(contents.session.setPermissionCheckHandler).toHaveBeenCalled()
 
-    const openHandler = contents.setWindowOpenHandler.mock.calls[0][0] as (details: {
-      url: string
-    }) => { action: string }
-    expect(openHandler({ url: 'https://example.com/popup' })).toEqual({ action: 'deny' })
+    const openHandler = contents.setWindowOpenHandler.mock.calls[0][0] as PopupHandler
+    const popup = openHandler({ url: 'https://example.com/popup' })
+    expect(popup).toMatchObject({ action: 'allow', outlivesOpener: true })
+    const adopted = popup.createWindow?.({ webContents: {} as never })
     expect(session.listTabs()).toHaveLength(2)
     const popupContents = (session.activeTab()?.view as unknown as MockView | undefined)
       ?.webContents
-    expect(popupContents?.loadURL).toHaveBeenCalledWith('https://example.com/popup')
+    expect(adopted).toBe(popupContents)
+    // Chromium already navigates an adopted popup, which is what keeps window.opener.
+    expect(popupContents?.loadURL).not.toHaveBeenCalled()
     expect(contents.loadURL).not.toHaveBeenCalledWith('https://example.com/popup')
     // Non-http(s) popups are denied without navigating anywhere.
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('returns agent work to the opener when an adopted popup closes itself', () => {
+    const opener = session.ensureTab()
+    session.setAutomationActive(true)
+    const source = (opener.view as unknown as MockView).webContents
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+    openWindow({ url: 'https://accounts.example/authorize' }).createWindow?.({
+      webContents: {},
+    })
+    const popup = session.automationTab()
+    expect(popup).not.toBe(opener)
+    const popupView = popup?.view as unknown as { webContents?: MockView['webContents'] }
+    const destroyed = popupView.webContents?.on.mock.calls.find(
+      ([event]) => event === 'destroyed'
+    )?.[1] as (() => void) | undefined
+
+    // Electron drops a view's contents once the page closes itself.
+    popupView.webContents = undefined
+    destroyed?.()
+
+    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([opener.id])
+    expect(session.automationTab()).toBe(opener)
+  })
+
+  it('opens a background-disposition popup by URL and keeps cross-scheme popups denied', () => {
+    const source = (session.ensureTab().view as unknown as MockView).webContents
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+
+    openWindow({ url: 'https://example.com/later' }).createWindow?.({})
+    const popup = (session.activeTab()?.view as unknown as MockView).webContents
+    expect(popup).not.toBe(source)
+    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later')
+    expect(openWindow({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+    expect(session.listTabs()).toHaveLength(2)
   })
 
   it('opens agent working tabs behind the visible page', () => {
@@ -2705,10 +2748,8 @@ describe('browser-agent session', () => {
     onTabCreated.mockClear()
     session.setAutomationActive(true)
 
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
-      url: string
-    }) => { action: string }
-    openWindow({ url: 'https://agent-popup.example/' })
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
+    openWindow({ url: 'https://agent-popup.example/' }).createWindow?.({})
     const agentPopup = session.automationTab()
     expect(agentPopup).not.toBeNull()
     expect(session.activeTab()).toBe(sourceTab)
@@ -2742,12 +2783,10 @@ describe('browser-agent session', () => {
   it('lets internal page popups navigate after the network check', async () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const source = (session.ensureTab().view as unknown as MockView).webContents
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
-      url: string
-    }) => { action: string }
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
     const destination = 'http://127.0.0.1:4099/private?token=secret'
 
-    openWindow({ url: destination })
+    openWindow({ url: destination }).createWindow?.({})
     const popup = (session.activeTab()?.view as unknown as MockView).webContents
     const request = beginMainFrameRequest(popup, destination)
 
