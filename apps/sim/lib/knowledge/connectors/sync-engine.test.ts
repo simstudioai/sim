@@ -1105,7 +1105,7 @@ describe('executeSync deferred hydration rate limits', () => {
 describe('executeSync database failures', () => {
   const NOW = new Date('2026-08-29T03:00:00.000Z')
 
-  async function failSyncWith(error: Error) {
+  async function failSyncWith(error: Error, consecutiveFailures?: number) {
     const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
     const connector = {
       id: 'c-1',
@@ -1120,7 +1120,7 @@ describe('executeSync database failures', () => {
       status: 'active',
       lastSyncAt: null,
       lastSyncDocCount: null,
-      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      consecutiveFailures: consecutiveFailures ?? MAX_CONSECUTIVE_FAILURES - 1,
       syncLockToken: null,
     }
     queueTableRows(schemaMock.knowledgeConnector, [connector])
@@ -1169,6 +1169,26 @@ describe('executeSync database failures', () => {
       consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
     })
     expect((terminal?.nextSyncAt as Date).getTime()).toBeGreaterThan(NOW.getTime())
+  })
+
+  it('backs a repeated database failure off by the streak in the run log', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
+      { status: 'failed' },
+      { status: 'failed' },
+      { status: 'completed' },
+    ])
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    const { terminal } = await failSyncWith(timeout, 0)
+
+    /** Two failed runs before this one: the third rung, with the breaker still at zero. */
+    const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
+    expect(delay).toBeGreaterThanOrEqual(90 * 60 * 1000)
+    expect(delay).toBeLessThanOrEqual(91 * 60 * 1000)
+    expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
   })
 
   it('still disables at the breaker for a failure the database did not cause', async () => {
@@ -2102,11 +2122,11 @@ describe('buildSyncDatabaseRetryUpdate', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
   const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
-  it('reschedules without advancing the auto-disable counter', async () => {
+  it('keeps the error visible without advancing the auto-disable counter', async () => {
     const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
     const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
 
-    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout')
+    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
     expect(update).toMatchObject({
       status: 'error',
       lastSyncError: 'db timeout',
@@ -2117,15 +2137,35 @@ describe('buildSyncDatabaseRetryUpdate', () => {
     })
   })
 
-  it('waits the ladder rung for the failures already counted, plus bounded jitter', async () => {
+  it('climbs the failure ladder with the failed-run streak, up to its ceiling', async () => {
     const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const first = buildSyncDatabaseRetryUpdate(now, null, 'db timeout').nextSyncAt.getTime()
-    expect(first).toBeGreaterThanOrEqual(minutesAfter(30))
-    expect(first).toBeLessThanOrEqual(minutesAfter(31))
-    const later = buildSyncDatabaseRetryUpdate(now, 2, 'db timeout').nextSyncAt.getTime()
-    expect(later).toBeGreaterThanOrEqual(minutesAfter(90))
-    expect(later).toBeLessThanOrEqual(minutesAfter(91))
+    const at = (streak: number) =>
+      buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', streak).nextSyncAt.getTime()
+    expect(at(1)).toBeGreaterThanOrEqual(minutesAfter(30))
+    expect(at(1)).toBeLessThanOrEqual(minutesAfter(31))
+    expect(at(10)).toBeGreaterThanOrEqual(minutesAfter(300))
+    expect(at(10)).toBeLessThanOrEqual(minutesAfter(301))
+    expect(at(500)).toBeLessThanOrEqual(minutesAfter(24 * 60 + 1))
+  })
+
+  it('leaves a later source failure to be judged on source failures alone', async () => {
+    const { buildSyncDatabaseRetryUpdate, buildSyncFailureUpdate } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    let failures = 1
+    for (let streak = 2; streak <= 30; streak++) {
+      failures = buildSyncDatabaseRetryUpdate(
+        now,
+        failures,
+        'db timeout',
+        streak
+      ).consecutiveFailures
+    }
+    const sourceFailure = buildSyncFailureUpdate(now, failures, 'source broke')
+    expect(sourceFailure.status).toBe('error')
+    expect(sourceFailure.consecutiveFailures).toBe(2)
   })
 })
 

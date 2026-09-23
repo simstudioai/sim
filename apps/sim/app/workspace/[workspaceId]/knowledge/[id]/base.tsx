@@ -49,6 +49,7 @@ import {
   KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
 } from '@/lib/knowledge/constants'
 import {
+  canRetryDocumentProcessing,
   type DocumentSortField,
   getDocumentIndexingStatus,
   type SortOrder,
@@ -1569,7 +1570,7 @@ export function KnowledgeBase({
         }
         onRetry={
           contextMenuDocument &&
-          getDocumentIndexingStatus(contextMenuDocument) === 'failed' &&
+          canRetryDocumentProcessing(contextMenuDocument) &&
           selectedDocumentCount === 1 &&
           userPermissions.canEdit
             ? () => handleRetryDocument(contextMenuDocument.id)

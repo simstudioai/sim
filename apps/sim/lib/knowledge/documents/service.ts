@@ -1403,6 +1403,14 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly onClaimed?: () => void
 }
 
+/**
+ * Processes documents in this process when no Trigger.dev worker can take them.
+ *
+ * Deliberately supplies no `scheduleDatabaseRetry`: nothing here can durably wait out a slow
+ * database window, since an in-memory timer dies with the process and would leave the document
+ * `pending` with no run behind it. A transient database failure is therefore recorded `failed`,
+ * which the document's Retry action and the retry API both accept.
+ */
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string,
@@ -2763,6 +2771,8 @@ export async function getDocuments(
         characterCount: document.characterCount,
         processingStatus: document.processingStatus,
         processingOutcome: documentProcessingOutcomeSelection(),
+        processingQueuedAt: document.processingQueuedAt,
+        processingDeferredUntil: document.processingDeferredUntil,
         processingStartedAt: document.processingStartedAt,
         processingCompletedAt: document.processingCompletedAt,
         processingError: document.processingError,
@@ -2879,6 +2889,8 @@ export async function getDocuments(
       characterCount: doc.characterCount,
       processingStatus: doc.processingStatus as DocumentProcessingStatus,
       processingOutcome: doc.processingOutcome,
+      processingQueuedAt: doc.processingQueuedAt,
+      processingDeferredUntil: doc.processingDeferredUntil,
       processingStartedAt: doc.processingStartedAt,
       processingCompletedAt: doc.processingCompletedAt,
       processingError: doc.processingError,

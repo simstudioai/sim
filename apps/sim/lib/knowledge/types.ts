@@ -148,6 +148,8 @@ export interface DocumentData {
   characterCount: number
   processingStatus: DocumentProcessingStatus
   processingOutcome?: DocumentProcessingOutcome
+  processingQueuedAt?: string | null
+  processingDeferredUntil?: string | null
   processingStartedAt?: string | null
   processingCompletedAt?: string | null
   processingError?: string | null

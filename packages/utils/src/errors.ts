@@ -65,8 +65,8 @@ export function getPostgresCancellationReason(
 /**
  * How a failed database operation should be treated by a background job.
  *
- * - `capacity`: the database had no room for the work right now (statement, lock, or
- *   idle-in-transaction timeout; too many connections). Waiting out the slow window helps.
+ * - `capacity`: the database had no room for the work right now (a statement, lock, transaction,
+ *   or idle-in-transaction timeout; too many connections). Waiting out the slow window helps.
  * - `conflict`: the transaction lost to a concurrent one (deadlock, serialization failure).
  *   Running it again from the start succeeds.
  * - `connection`: the connection to the database failed or was closed under the query.
@@ -77,7 +77,8 @@ export type DatabaseFailureClass = 'capacity' | 'conflict' | 'connection' | 'per
 
 export type TransientDatabaseFailureClass = Exclude<DatabaseFailureClass, 'permanent'>
 
-const CAPACITY_CODES = new Set(['55P03', '25P04', '53300'])
+/** 57014 is handled apart; `25P04` is `transaction_timeout`, `25P03` `idle_in_transaction_session_timeout`. */
+const CAPACITY_CODES = new Set(['55P03', '25P03', '25P04', '53300'])
 const CONFLICT_CODES = new Set(['40P01', '40001'])
 
 /**
@@ -94,8 +95,19 @@ const DATABASE_CONNECTION_CODES = new Set([
   '57P03',
 ])
 
-/** Socket failures any client can raise; they count only when a database query carried them. */
-const SOCKET_CONNECTION_CODES = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT'])
+/**
+ * Socket and name-resolution failures any client can raise; they count only when a database query
+ * carried them.
+ */
+const SOCKET_CONNECTION_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+])
 
 const CONNECTION_EXCEPTION_SQLSTATE = /^08[0-9A-Z]{3}$/
 

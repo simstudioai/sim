@@ -13,6 +13,7 @@ import {
   internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
+  toInternalKnowledgeDocument,
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 
@@ -130,6 +131,30 @@ describe('internal Knowledge execution attribution', () => {
     await expect(
       resolveInternalKnowledgeBillingAttribution(request(), principal, 'workspace-2')
     ).rejects.toThrow('does not match the authenticated request scope')
+  })
+})
+
+describe('toInternalKnowledgeDocument', () => {
+  it('presents when a deferred retry is due, so the Retry action can match the API', () => {
+    const deferredUntil = new Date('2026-09-01T12:00:00.000Z')
+    const presented = toInternalKnowledgeDocument({
+      id: 'doc-1',
+      knowledgeBaseId: 'kb-1',
+      filename: 'a.txt',
+      fileUrl: 'https://example.com/a.txt',
+      fileSize: 1,
+      mimeType: 'text/plain',
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      processingStatus: 'pending',
+      enabled: true,
+      uploadedAt: new Date('2026-08-01T00:00:00.000Z'),
+      processingQueuedAt: new Date('2026-08-01T00:00:00.000Z'),
+      processingDeferredUntil: deferredUntil,
+    })
+    expect(presented.processingDeferredUntil).toBe(deferredUntil.toISOString())
+    expect(presented.processingQueuedAt).toBe('2026-08-01T00:00:00.000Z')
   })
 })
 

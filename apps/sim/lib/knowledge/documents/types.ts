@@ -107,6 +107,33 @@ export function getDocumentIndexingStatus(document: {
 }
 
 /**
+ * Whether a user may retry a document's processing: it failed, or it is `pending` behind a
+ * dispatch or a deferred retry that is more than {@link QUEUED_DISPATCH_GRACE_MS} past due, the
+ * same cutoff the retry API applies before it replaces a queued generation. The API still makes
+ * the final call; this only decides whether to offer the action.
+ */
+export function canRetryDocumentProcessing(
+  document: {
+    processingStatus: string
+    processingOutcome?: DocumentProcessingOutcome
+    processingQueuedAt?: Date | string | null
+    processingDeferredUntil?: Date | string | null
+    uploadedAt: Date | string
+  },
+  now: number = Date.now()
+): boolean {
+  const status = getDocumentIndexingStatus(document)
+  if (status === 'failed') return true
+  if (status !== 'pending') return false
+  const cutoff = now - QUEUED_DISPATCH_GRACE_MS
+  const queuedAt = new Date(document.processingQueuedAt ?? document.uploadedAt).getTime()
+  const deferredUntil = document.processingDeferredUntil
+    ? new Date(document.processingDeferredUntil).getTime()
+    : null
+  return queuedAt < cutoff && (deferredUntil === null || deferredUntil < cutoff)
+}
+
+/**
  * Narrows a stored `processing_status` onto the union.
  *
  * The column is `text`, so every read arrives as `string` no matter how the

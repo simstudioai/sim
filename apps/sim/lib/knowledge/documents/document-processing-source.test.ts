@@ -1797,6 +1797,38 @@ describe('in-process quota continuation dispatch', () => {
     expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private-')
   })
 
+  it('records a transient database failure as failed in-process, with no retry to wait for', async () => {
+    mockGenerateEmbeddings.mockRejectedValue(
+      new DrizzleQueryError(
+        'insert private-query',
+        ['private-parameter'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+    )
+
+    await processDocumentsWithQueue(
+      [queuedDocument],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'interactive'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ processingStatus: 'failed', processingDeferredUntil: null })
+    )
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        ([value]) =>
+          (value as Record<string, unknown>).processingStatus === 'pending' &&
+          (value as Record<string, unknown>).processingDeferredUntil instanceof Date
+      )
+    ).toBe(false)
+  })
+
   it('resumes an OCR-throttled regular KB from the durable outbox to a completed index', async () => {
     mockProcessDocument.mockRejectedValueOnce(
       new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })

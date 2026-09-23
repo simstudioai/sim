@@ -49,6 +49,10 @@ import {
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import {
+  countFailedRunStreak,
+  databaseRetryDelayMs,
+} from '@/lib/knowledge/connectors/sync-database-retry'
+import {
   deferConnectorSync,
   getConnectorSyncDeferral,
 } from '@/lib/knowledge/connectors/sync-deferral'
@@ -720,24 +724,23 @@ export function buildSyncCapacityUpdate(
  * lock, or transaction timeout, a deadlock, or a dropped connection.
  *
  * A slow database window says nothing about the connector, so, like throttling, it must not
- * consume the breaker that disables connectors after persistent failures. The retry waits the
- * failure ladder's rung for the failures already counted, which it never advances, plus jitter so
- * connectors failed by the same window do not return together.
+ * consume the breaker that disables connectors after persistent failures: the counter keeps the
+ * source failures already counted, and a later source failure is judged on those alone. The retry
+ * still climbs the failure ladder by the run's failed-run streak (see
+ * {@link countFailedRunStreak}), so a statement too heavy for its budget backs off to the ladder's
+ * ceiling instead of re-crawling the source every half hour.
  */
 export function buildSyncDatabaseRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
-  errorMessage: string
+  errorMessage: string,
+  failedRunStreak: number
 ) {
-  const failures = previousFailures ?? 0
-  const backoffMs = connectorFailureBackoffMinutes(failures + 1) * 60 * 1000
-  const jitterMs = randomInt(0, RATE_LIMIT_RETRY_JITTER_MAX_MS + 1)
-
   return {
     status: 'error' as const,
     lastSyncError: errorMessage,
-    nextSyncAt: new Date(now.getTime() + backoffMs + jitterMs),
-    consecutiveFailures: failures,
+    nextSyncAt: new Date(now.getTime() + databaseRetryDelayMs(failedRunStreak, previousFailures)),
+    consecutiveFailures: previousFailures ?? 0,
     syncLockToken: null,
     syncLockLeaseAt: null,
     updatedAt: now,
@@ -1565,14 +1568,17 @@ export async function executeSync(
       try {
         await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
 
+        const databaseFailure =
+          !(error instanceof ConnectorSyncCapacityError) && getTransientDatabaseFailure(error)
         const failureUpdate =
           error instanceof ConnectorSyncCapacityError
             ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-            : getTransientDatabaseFailure(error)
+            : databaseFailure
               ? buildSyncDatabaseRetryUpdate(
                   new Date(),
                   connector.consecutiveFailures,
-                  errorMessage
+                  errorMessage,
+                  await countFailedRunStreak('content', connectorId, syncLogId)
                 )
               : rateLimited
                 ? buildSyncRateLimitUpdate(

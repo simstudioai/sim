@@ -327,9 +327,10 @@ export const processDocument = task({
   machine: 'medium-2x',
   retry: {
     /**
-     * The ceiling for database retries; `catchError` stops other failures at
-     * `KB_CONFIG_MAX_ATTEMPTS`. An out-of-memory kill never reaches `catchError`,
-     * so it may use the full ceiling.
+     * The ceiling for thrown errors: database retries use all of it, and
+     * `catchError` stops every other thrown error at `KB_CONFIG_MAX_ATTEMPTS`.
+     * A crashed or timed-out run is not retried; an out-of-memory kill is
+     * retried once, on the `outOfMemory` machine below.
      */
     maxAttempts: backgroundRetryAttemptCeiling(DOCUMENT_PROCESSING_RETRY_POLICY),
     factor: envNumber(env.KB_CONFIG_RETRY_FACTOR, 2),

@@ -82,7 +82,8 @@ describe('classifyDatabaseFailure', () => {
   it.each([
     ['57014', 'canceling statement due to statement timeout', 'capacity'],
     ['55P03', 'canceling statement due to lock timeout', 'capacity'],
-    ['25P04', 'terminating connection due to idle-in-transaction timeout', 'capacity'],
+    ['25P03', 'terminating connection due to idle-in-transaction timeout', 'capacity'],
+    ['25P04', 'terminating connection due to transaction timeout', 'capacity'],
     ['53300', 'sorry, too many clients already', 'capacity'],
     ['40P01', 'deadlock detected', 'conflict'],
     ['40001', 'could not serialize access due to concurrent update', 'conflict'],
@@ -98,6 +99,10 @@ describe('classifyDatabaseFailure', () => {
     ['ECONNRESET', 'read ECONNRESET', 'connection'],
     ['EPIPE', 'write EPIPE', 'connection'],
     ['ETIMEDOUT', 'connect ETIMEDOUT', 'connection'],
+    ['ECONNREFUSED', 'connect ECONNREFUSED', 'connection'],
+    ['EHOSTUNREACH', 'connect EHOSTUNREACH', 'connection'],
+    ['ENOTFOUND', 'getaddrinfo ENOTFOUND', 'connection'],
+    ['EAI_AGAIN', 'getaddrinfo EAI_AGAIN', 'connection'],
   ])('classifies %s through a query wrapper', (code, message, expected) => {
     const wrapped = failedQuery(code, message)
     expect(classifyDatabaseFailure(wrapped)).toBe(expected)
@@ -119,8 +124,16 @@ describe('classifyDatabaseFailure', () => {
     expect(classifyDatabaseFailure(failedQuery(code))).toBe('permanent')
   })
 
-  it('treats a socket error with no database query in its chain as permanent', () => {
-    const download = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+  it.each([
+    'ECONNRESET',
+    'EPIPE',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+  ])('treats %s with no database query in its chain as permanent', (code) => {
+    const download = Object.assign(new Error(`socket ${code}`), { code })
     expect(classifyDatabaseFailure(download)).toBe('permanent')
     expect(classifyDatabaseFailure(new Error('fetch failed', { cause: download }))).toBe(
       'permanent'
