@@ -68,9 +68,9 @@ vi.mock('@/lib/folders/queries', () => ({
 import {
   abortInternalUploadSession,
   completeInternalUploadSession,
+  issueInternalUploadPartUrls,
   completeWorkspaceFileUploadOperation,
   createWorkspaceFileUploadOperation,
-  issueInternalUploadPartUrls,
   readWorkspaceUploadSession,
 } from '@/lib/uploads/upload-session/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
