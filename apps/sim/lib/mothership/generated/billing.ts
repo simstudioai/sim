@@ -33,12 +33,36 @@ export const BillingCallbackBody = z
   });
 export type BillingCallbackBody = z.infer<typeof BillingCallbackBody>;
 
-export const BillingCallbackHeaders = z.object({
-  [BillingProtocolHeaders.protocol]: z.enum(Object.values(BillingProtocol)).optional(),
-  [BillingProtocolHeaders.requestId]: z.string().uuid().optional(),
-  [BillingProtocolHeaders.attribution]: z.string().max(8192).optional(),
-  [BillingProtocolHeaders.accountDecision]: z.string().max(2048).optional(),
-});
+export const BillingCallbackHeaders = z
+  .object({
+    [BillingProtocolHeaders.protocol]: z.enum(Object.values(BillingProtocol)).optional(),
+    [BillingProtocolHeaders.requestId]: z.string().uuid().optional(),
+    [BillingProtocolHeaders.attribution]: z.string().min(1).max(8192).optional(),
+    [BillingProtocolHeaders.accountDecision]: z.string().min(1).max(2048).optional(),
+  })
+  .superRefine((headers, context) => {
+    const protocol = headers[BillingProtocolHeaders.protocol];
+    const requestId = headers[BillingProtocolHeaders.requestId];
+    const attribution = headers[BillingProtocolHeaders.attribution];
+    const decision = headers[BillingProtocolHeaders.accountDecision];
+    let valid = false;
+    switch (protocol) {
+      case undefined:
+        valid = !requestId && !attribution && !decision;
+        break;
+      case BillingProtocol.attributed:
+        valid = Boolean(requestId && attribution && !decision);
+        break;
+      case BillingProtocol.direct:
+        valid = Boolean(requestId && decision && !attribution);
+        break;
+      case BillingProtocol.previous:
+        valid = Boolean(attribution && !requestId && !decision);
+        break;
+    }
+    if (!valid)
+      context.addIssue({ code: "custom", message: "Incomplete or conflicting billing protocol headers" });
+  });
 
 export const BillingCallbackResult = z.object({
   success: z.boolean(),
