@@ -4,6 +4,7 @@
 
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getMothershipChatResponseSchema } from '@/lib/api/contracts/mothership-chats'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 const { queryClient, suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
@@ -162,6 +163,77 @@ describe('tasks query boundary parsing', () => {
         previewSessions: [],
         status: 'active',
       },
+    })
+  })
+
+  describe.each(['primary', 'fallback'] as const)('%s history endpoint', (endpoint) => {
+    it.each(getMothershipChatResponseSchema.shape.chat.shape.mode.options)(
+      'reopens a saved %s transcript without sending a new message',
+      async (mode) => {
+        const messages = [
+          {
+            id: 'user-1',
+            role: 'user',
+            content: 'Investigate incidents',
+            timestamp: '2026-09-23T00:19:00Z',
+            requestMode: mode,
+          },
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            content: 'Saved investigation',
+            timestamp: '2026-09-23T00:36:00Z',
+            requestMode: mode,
+          },
+        ]
+        if (endpoint === 'fallback') {
+          vi.mocked(fetch).mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+        }
+        vi.mocked(fetch).mockResolvedValueOnce(
+          jsonResponse({
+            success: true,
+            chat: {
+              id: 'chat-plan',
+              mode,
+              title: 'Incident triage',
+              messages,
+              activeStreamId: null,
+              resources: [],
+            },
+          })
+        )
+
+        const history = await fetchMothershipChatHistory('chat-plan')
+
+        expect(history.mode).toBe(mode)
+        expect(history.messages).toEqual(
+          messages.map((message) => expect.objectContaining(message))
+        )
+        expect(fetch).toHaveBeenCalledTimes(endpoint === 'fallback' ? 2 : 1)
+        expect(
+          vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')
+        ).toBe(true)
+      }
+    )
+
+    it('rejects an unknown conversation mode', async () => {
+      if (endpoint === 'fallback') {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          chat: {
+            id: 'chat-invalid',
+            mode: 'unknown',
+            title: null,
+            messages: [],
+            activeStreamId: null,
+            resources: [],
+          },
+        })
+      )
+      await expect(fetchMothershipChatHistory('chat-invalid')).rejects.toThrow()
     })
   })
 

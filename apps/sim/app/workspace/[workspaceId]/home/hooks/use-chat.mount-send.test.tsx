@@ -477,6 +477,66 @@ async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void>
 }
 
 describe('useChat remount send recovery', () => {
+  it('hydrates a saved Plan conversation on a cold mount without posting', async () => {
+    const messages = [
+      {
+        id: 'user-plan',
+        role: 'user',
+        content: 'Investigate incidents',
+        requestMode: 'plan',
+        timestamp: '2026-09-23T00:19:00Z',
+      },
+      {
+        id: 'assistant-plan',
+        role: 'assistant',
+        content: 'Saved investigation',
+        requestMode: 'plan',
+        timestamp: '2026-09-23T00:36:00Z',
+      },
+    ]
+    mockRequestJson.mockResolvedValue({
+      success: true,
+      chat: {
+        id: 'chat-plan',
+        mode: 'plan',
+        title: 'Incident triage',
+        messages,
+        activeStreamId: null,
+        resources: [],
+      },
+    })
+    const { getResult } = renderUseChatInChat('chat-plan')
+    await waitFor(() => !getResult().isChatHistoryPending)
+    expect(getResult().messages.map(({ id, content }) => ({ id, content }))).toEqual(
+      messages.map(({ id, content }) => ({ id, content }))
+    )
+    expect(getResult().error).toBeNull()
+    expect(state.postBodies).toHaveLength(0)
+  })
+
+  it('exposes a history load failure and clears it after a successful retry', async () => {
+    mockRequestJson.mockRejectedValue(new Error('History request failed'))
+    const { getResult } = renderUseChatInChat('chat-unavailable')
+    await waitFor(() => !getResult().isChatHistoryPending)
+    expect(getResult().error).toBe('Failed to load chat history. Refresh to try again.')
+    mockRequestJson.mockResolvedValue({
+      success: true,
+      chat: {
+        id: 'chat-unavailable',
+        mode: 'plan',
+        title: null,
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      },
+    })
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: mothershipChatKeys.detail('chat-unavailable') })
+    })
+    await waitFor(() => getResult().error === null)
+    expect(state.postBodies).toHaveLength(0)
+  })
+
   it.each([
     ['agent', 'assistant'],
     ['assistant', 'agent'],

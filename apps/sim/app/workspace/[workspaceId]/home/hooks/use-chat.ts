@@ -1238,8 +1238,11 @@ export function useChat(
     [flushPendingResources, queryClient, workspaceId, organizationId, scopeKey]
   )
 
-  const { data: chatHistory, isPending: isChatHistoryPending } =
-    useMothershipChatHistory(resolvedChatId)
+  const {
+    data: chatHistory,
+    isPending: isChatHistoryPending,
+    error: chatHistoryError,
+  } = useMothershipChatHistory(resolvedChatId)
   const requestModeRef = useRef<ChatRequestMode>(
     options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   )
@@ -4912,7 +4915,8 @@ export function useChat(
     isChatHistoryPending,
     isSending,
     isReconnecting,
-    error,
+    error:
+      error ?? (chatHistoryError ? 'Failed to load chat history. Refresh to try again.' : null),
     resolvedChatId,
     desktopScopeId,
     sendMessage,

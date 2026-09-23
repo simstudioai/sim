@@ -14,6 +14,7 @@ import {
   deleteMothershipChatContract,
   forkMothershipChatContract,
   getMothershipChatContract,
+  getMothershipChatResponseSchema,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
@@ -181,14 +182,11 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     `${chatContext}.activeStreamId must be a string or null`
   )
 
-  assertValid(
-    chat.mode === 'agent' || chat.mode === 'assistant',
-    `${chatContext}.mode must be agent or assistant`
-  )
+  const mode = getMothershipChatResponseSchema.shape.chat.shape.mode.parse(chat.mode)
 
   return {
     id: chat.id,
-    mode: chat.mode,
+    mode,
     title: chat.title,
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
