@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/storage'
 import {
   continueOutboxHandler,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxHandler,
 } from '@/lib/core/outbox/service'
@@ -29,6 +30,8 @@ const DOCUMENT_BATCH_SIZE = 100
 const PROJECTION_ROW_BATCH_SIZE = 250
 const MAX_BATCHES_PER_RUN = 4
 const RUN_BUDGET_MS = 30_000
+/** How often a detachment paused on a deleted knowledge base checks for its restore or purge. */
+const DELETED_BASE_RECHECK_MS = 60 * 60 * 1000
 
 const detachmentPayloadSchema = z
   .object({
@@ -118,9 +121,8 @@ export type DetachReservationSettlement = 'overdrawn' | 'remaining'
  * an overdrawn reservation settled afterwards would re-add bytes the floor discarded: `overdrawn`
  * settles those before the documents go, which only charges bytes the released documents already
  * hold. A positive reservation still pays for documents that remain until they are deleted, so
- * `remaining` settles it afterwards. The detach job is left running in between: each page it
- * releases moves bytes from the reservation to a standalone document in one transaction, and a
- * base restored before the purge completes resumes its detach unchanged.
+ * `remaining` settles it afterwards. No detach page interleaves: a detach job releases nothing while its
+ * base is deleted, and a base restored before the purge completes resumes its detach unchanged.
  */
 export async function settleDetachedConnectorReservations(
   knowledgeBaseIds: string[],
@@ -223,7 +225,7 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
     : undefined
 
   let storageNotification: { context: StorageBillingContext; updatedUsage: number } | undefined
-  let outcome: 'progress' | 'complete' | 'obsolete' = 'progress'
+  let outcome: 'progress' | 'complete' | 'obsolete' | 'paused' = 'progress'
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN && outcome === 'progress'; batch++) {
     context.signal.throwIfAborted()
     outcome = await db.transaction(async (tx) => {
@@ -231,7 +233,7 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
       await tx.execute(sql`SET LOCAL statement_timeout = '30s'`)
       /** Match source writes and document deletion: parent KB, connector, then documents. */
       const [lockedOwner] = await tx
-        .select({ workspaceId: knowledgeBase.workspaceId })
+        .select({ workspaceId: knowledgeBase.workspaceId, deletedAt: knowledgeBase.deletedAt })
         .from(knowledgeBase)
         .where(eq(knowledgeBase.id, payload.knowledgeBaseId))
         .for('share')
@@ -240,6 +242,13 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
       if (lockedOwner.workspaceId !== owner.workspaceId) {
         throw new Error('Knowledge base workspace changed during connector detachment')
       }
+      /**
+       * A deleted base releases nothing: its documents stay archived and attached, and the
+       * reservation keeps paying for them, until a restore resumes the release or the purge
+       * settles it. Checked under the base's share lock, so no page releases once the deletion
+       * commits, and none can interleave with the purge's settlement and document deletion.
+       */
+      if (lockedOwner.deletedAt) return 'paused'
       const [connector] = await tx
         .select({
           detachedAt: knowledgeConnector.detachedAt,
@@ -346,6 +355,17 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
     )
   }
   if (outcome === 'obsolete') return
+  if (outcome === 'paused') {
+    /**
+     * Waiting spends no attempt: the event still reaches a terminal state, since either a
+     * restore resumes the release or the purge removes the base and the next run completes.
+     */
+    return deferOutboxHandler(
+      'Connector detachment waits while its knowledge base is deleted',
+      DELETED_BASE_RECHECK_MS,
+      false
+    )
+  }
   if (outcome === 'complete') {
     if (payload.credentialAccess) {
       context.signal.throwIfAborted()

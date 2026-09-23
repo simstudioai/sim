@@ -271,6 +271,50 @@ describe('purging a knowledge base with a source still being detached', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 
+  it('pauses the release while the base is deleted and resumes it after a restore', async () => {
+    const ids = await seed()
+    const rows = Array.from({ length: SOURCE_DOCUMENTS }, (_, index) =>
+      sourceDocument(ids, (index % 7) + 1)
+    )
+    const keptBytes = rows.reduce((total, row) => total + row.fileSize, 0)
+    await db.insert(document).values(rows)
+    await disconnect(ids)
+    const releasedDocuments = async () => {
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(document)
+        .where(and(eq(document.knowledgeBaseId, ids.knowledgeBaseId), isNull(document.connectorId)))
+      return row.count
+    }
+
+    await db
+      .update(knowledgeBase)
+      .set({ deletedAt: new Date() })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    expect(await runDetachOnce(ids)).toBe('pending')
+    expect(await releasedDocuments()).toBe(0)
+    expect(await reservation(ids)).toBe(keptBytes)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+
+    await db
+      .update(knowledgeBase)
+      .set({ deletedAt: null })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    /** The paused event rechecks an hour later; the worker would pick it up then. */
+    await db
+      .update(outboxEvent)
+      .set({ availableAt: new Date() })
+      .where(
+        and(
+          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_DETACH_EVENT),
+          sql`${outboxEvent.payload}->>'connectorId' = ${ids.connectorId}`
+        )
+      )
+    expect(await runDetachOnce(ids)).toBe('pending')
+    expect(await releasedDocuments()).toBeGreaterThan(0)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+  })
+
   it('zeroes a refunded reservation so a detach run that still reaches the source refunds nothing', async () => {
     const ids = await seed()
     await manualDocument(ids, 29)

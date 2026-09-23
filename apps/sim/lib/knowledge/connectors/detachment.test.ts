@@ -211,6 +211,17 @@ describe('connector detachment', () => {
     expect(mocks.revoke).not.toHaveBeenCalled()
   })
 
+  it('releases nothing and spends no attempt while the knowledge base is deleted', async () => {
+    queueTableRows(knowledgeBase, [{ ...owner, deletedAt: new Date('2026-09-20T00:00:00.000Z') }])
+
+    const result = await detachKnowledgeConnector(payload, context())
+
+    expect(result).toMatchObject({ outcome: 'deferred', consumeAttempt: false })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.decrementStorage).not.toHaveBeenCalled()
+    expect(mocks.revoke).not.toHaveBeenCalled()
+  })
+
   it('stops when the knowledge base is gone', async () => {
     resetDbChainMock()
     await detachKnowledgeConnector(payload, context())
