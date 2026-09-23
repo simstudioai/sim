@@ -17,7 +17,6 @@ import {
   MAX_CUSTOM_RANGE_DAYS,
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   ManageCreditsModal,
@@ -29,8 +28,9 @@ import { serializeAuditLogFilters } from '@/ee/audit-logs/search-params'
 import { ActivityPanel } from '@/ee/organization-usage/components/activity-panel'
 import { OrganizationActivityOverview } from '@/ee/organization-usage/components/activity-summary'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
-import { UsageSourceMix } from '@/ee/organization-usage/components/usage-source-mix'
-import { UsageSummary } from '@/ee/organization-usage/components/usage-summary'
+import { UsageCredits } from '@/ee/organization-usage/components/usage-credits'
+import { UsageMemberAvatar } from '@/ee/organization-usage/components/usage-member-avatar'
+import { UsageTopCards } from '@/ee/organization-usage/components/usage-top-cards'
 import {
   COLLAPSED_ROW_COUNT,
   EXPANDED_ROW_COUNT,
@@ -43,10 +43,9 @@ import {
 } from '@/ee/organization-usage/constants'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import { serializeOrganizationUsageParams } from '@/ee/organization-usage/search-params'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
 import {
   useOrganizationUsageBreakdown,
-  useOrganizationUsageSummary,
+  useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 
 const TABS = USAGE_TAB_ORDER.map((tab) => ({ value: tab, label: USAGE_TAB_LABELS[tab] }))
@@ -103,7 +102,7 @@ export function UsageMonitoring({
   /** Member credit caps are enforced only on hosted deployments. */
   const canManageCredits = tab === 'member' && hosted
 
-  const summary = useOrganizationUsageSummary(organizationId, window, { enabled: isOverview })
+  const overview = useOrganizationUsageOverview(organizationId, window, { enabled: isOverview })
   /** Use the full workspace page to resolve IDs selected from an expanded list. */
   const workspaceList = useOrganizationUsageBreakdown(organizationId, window, 'workspace', {
     enabled: isWorkspaceSelected,
@@ -117,12 +116,12 @@ export function UsageMonitoring({
   const isWorkspaceDetail =
     isWorkspaceSelected && (workspaceList.isLoading || workspaceName !== undefined)
 
-  const dimension: UsageBreakdownDimension =
-    isOverview || tab === 'activity'
-      ? 'source'
-      : isWorkspaceDetail
-        ? 'workflow'
-        : (tab as UsageBreakdownDimension)
+  /** Overview and Activity draw no ranked list of their own; the value is never fetched. */
+  const dimension: UsageBreakdownDimension = isWorkspaceDetail
+    ? 'workflow'
+    : isOverview || tab === 'activity'
+      ? 'member'
+      : (tab as UsageBreakdownDimension)
 
   /**
    * Per breakdown, not per page: the drill-down shows two lists at once, so opening
@@ -138,22 +137,13 @@ export function UsageMonitoring({
       : undefined
 
   const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
-    enabled: tab !== 'activity',
+    enabled: !isOverview && tab !== 'activity',
     limit: rowLimitFor(dimension),
     ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
   })
-  const workspaceSources = useOrganizationUsageBreakdown(organizationId, window, 'source', {
-    enabled: isWorkspaceDetail,
-    limit: rowLimitFor('source'),
-    ...(workspace ? { workspaceId: workspace } : {}),
-  })
-
-  const workspaceSummary = useOrganizationUsageSummary(organizationId, window, {
+  const workspaceOverview = useOrganizationUsageOverview(organizationId, window, {
     enabled: isWorkspaceDetail,
     ...(workspace ? { workspaceId: workspace } : {}),
-  })
-  const billing = useOrganizationBilling(organizationId, {
-    enabled: isOverview && preset === 'current-period',
   })
 
   /** Audit logs have a separate deployment flag and incompatible period presets. */
@@ -253,25 +243,16 @@ export function UsageMonitoring({
             : []
         }
       >
-        {/** Organization allowances do not apply to a single workspace. */}
+        {/** The server withholds the organization allowance from a single workspace. */}
         <SettingsSection label={periodLabel}>
-          <UsageSummary
-            summary={workspaceSummary.data}
-            isLoading={workspaceSummary.isLoading}
-            isError={workspaceSummary.isError}
-            isPlaceholderData={workspaceSummary.isPlaceholderData}
+          <UsageCredits
+            overview={workspaceOverview.data}
+            isLoading={workspaceOverview.isLoading}
+            isError={workspaceOverview.isError}
+            isPlaceholderData={workspaceOverview.isPlaceholderData}
+            onRetry={() => void workspaceOverview.refetch()}
           />
         </SettingsSection>
-        <UsageSection dimension='source' unit='credits'>
-          <UsageConsumers
-            dimension='source'
-            breakdown={workspaceSources.data}
-            isLoading={workspaceSources.isLoading}
-            isError={workspaceSources.isError}
-            isPlaceholderData={workspaceSources.isPlaceholderData}
-            onExpandOther={expandOtherFor('source')}
-          />
-        </UsageSection>
         <UsageSection dimension='workflow' unit='credits'>
           <UsageConsumers
             dimension='workflow'
@@ -357,28 +338,27 @@ export function UsageMonitoring({
 
         {isOverview ? (
           <>
-            {/** Compare the allowance only with its billing period. */}
             <SettingsSection label={periodLabel}>
-              <UsageSummary
-                summary={summary.data}
-                limitCredits={
-                  preset === 'current-period' && billing.data?.data?.totalUsageLimit != null
-                    ? dollarsToCredits(billing.data.data.totalUsageLimit)
-                    : null
-                }
-                isLoading={summary.isLoading}
-                isError={summary.isError}
-                isPlaceholderData={summary.isPlaceholderData}
+              <UsageCredits
+                overview={overview.data}
+                isLoading={overview.isLoading}
+                isError={overview.isError}
+                isPlaceholderData={overview.isPlaceholderData}
+                onRetry={() => void overview.refetch()}
               />
             </SettingsSection>
+            <UsageTopCards
+              organizationId={organizationId}
+              window={window}
+              overview={overview.data}
+              isOverviewLoading={overview.isLoading}
+              isOverviewError={overview.isError}
+              isOverviewPlaceholderData={overview.isPlaceholderData}
+              onViewAll={(target) =>
+                void setState({ tab: target, workspace: null, expanded: null, activityPage: 0 })
+              }
+            />
             <OrganizationActivityOverview organizationId={organizationId} window={window} />
-            <UsageSection dimension='source' unit='credits'>
-              <UsageSourceMix
-                breakdown={breakdown.data}
-                isLoading={breakdown.isLoading}
-                isError={breakdown.isError}
-              />
-            </UsageSection>
           </>
         ) : tab === 'activity' ? (
           <ActivityPanel organizationId={organizationId} />
@@ -396,6 +376,11 @@ export function UsageMonitoring({
                     /** Push detail navigation so Back returns to this list. */
                     onSelectRow: (row) =>
                       void setState({ workspace: row.id, expanded: null }, { history: 'push' }),
+                  }
+                : {})}
+              {...(tab === 'member'
+                ? {
+                    renderLeading: (row) => <UsageMemberAvatar id={row.id} name={row.label} />,
                   }
                 : {})}
               {...(canManageCredits

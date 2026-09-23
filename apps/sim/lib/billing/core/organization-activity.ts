@@ -46,3 +46,45 @@ export function activityMetrics(row?: ActivityAggregate): ActivityMetrics {
     averageDurationMs: row?.averageDurationMs == null ? null : Number(row.averageDurationMs),
   }
 }
+
+export interface ActivityStretch {
+  workflowRuns: number
+  completed: number
+  failed: number
+  /** Duration is summed, not averaged, so days combine into an exact mean. */
+  durationSum: number
+  durationCount: number
+  chatRuns: number
+  /** Ids rather than a count: a member active on two days is still one member. */
+  chatMembers: string[]
+  /** Runs not yet finished. A stretch holding any can still change, so it is never cached. */
+  inFlight: number
+}
+
+export const EMPTY_ACTIVITY_STRETCH: ActivityStretch = {
+  workflowRuns: 0,
+  completed: 0,
+  failed: 0,
+  durationSum: 0,
+  durationCount: 0,
+  chatRuns: 0,
+  chatMembers: [],
+  inFlight: 0,
+}
+
+/** Several stretches of activity as one; members are unioned, never double-counted. */
+export function combineActivity(stretches: Iterable<ActivityStretch>): ActivityStretch {
+  const total = { ...EMPTY_ACTIVITY_STRETCH }
+  const members = new Set<string>()
+  for (const stretch of stretches) {
+    total.workflowRuns += stretch.workflowRuns
+    total.completed += stretch.completed
+    total.failed += stretch.failed
+    total.durationSum += stretch.durationSum
+    total.durationCount += stretch.durationCount
+    total.chatRuns += stretch.chatRuns
+    total.inFlight += stretch.inFlight
+    for (const member of stretch.chatMembers) members.add(member)
+  }
+  return { ...total, chatMembers: [...members] }
+}

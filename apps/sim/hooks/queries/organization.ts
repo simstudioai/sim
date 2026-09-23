@@ -41,6 +41,7 @@ import { client } from '@/lib/auth/auth-client'
 import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
+import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
@@ -338,6 +339,10 @@ export function useUpdateOrganizationUsageLimit() {
       })
       queryClient.invalidateQueries({
         queryKey: organizationKeys.subscription(variables.organizationId),
+      })
+      /** The Insights headline states the same allowance. */
+      queryClient.invalidateQueries({
+        queryKey: organizationUsageKeys.overviews(variables.organizationId),
       })
     },
   })

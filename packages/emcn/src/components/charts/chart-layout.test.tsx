@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import { BarChart, CHART_PADDING, ChartFrame, DonutChart, LineChart, RadarChart } from '@sim/emcn'
+import { BarChart, CHART_PADDING, ChartFrame, LineChart, RadarChart } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -264,36 +264,6 @@ describe('Dashboard chart states', () => {
     expect(container.querySelector('path[stroke="green"]')).toBeNull()
   })
 
-  it('previews, pins, and clears a distribution without changing its proportions', () => {
-    const segments = [
-      { label: 'Completed', value: 90, color: 'blue' },
-      { label: 'Failed', value: 10, color: 'red' },
-    ]
-    mountAtWidth(400, <DonutChart label='Outcomes' segments={segments} />)
-    const failed = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Highlight Failed: 10"]'
-    )!
-    const completedArc = container.querySelector('circle[stroke="blue"]')!
-    act(() => failed.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })))
-    expect(completedArc.getAttribute('opacity')).toBe('0.2')
-    expect(completedArc.getAttribute('stroke-dasharray')).toBe('90 10')
-    act(() => failed.click())
-    act(() => failed.dispatchEvent(new MouseEvent('mouseout', { bubbles: true })))
-    expect(failed.getAttribute('aria-pressed')).toBe('true')
-    expect(completedArc.getAttribute('opacity')).toBe('0.2')
-    act(() => failed.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    expect(failed.getAttribute('aria-pressed')).toBe('false')
-    expect(completedArc.getAttribute('opacity')).toBe('1')
-    act(() => failed.focus())
-    expect(completedArc.getAttribute('opacity')).toBe('0.2')
-    act(() => failed.blur())
-    expect(completedArc.getAttribute('opacity')).toBe('1')
-    act(() => failed.click())
-    act(() => root.render(<DonutChart label='Outcomes' segments={segments.slice(0, 1)} />))
-    expect(completedArc.getAttribute('opacity')).toBe('1')
-    expect(container.querySelector('text')?.textContent).toBe('90')
-  })
-
   it.each([1, 2])('labels short daily series with calendar dates (%s buckets)', (count) => {
     const svg = mountAtWidth(
       400,
@@ -311,9 +281,7 @@ describe('Dashboard chart states', () => {
   })
 
   it('reserves the same chart frame for loading, errors, and data', () => {
-    const content = (
-      <DonutChart label='Outcomes' segments={[{ label: 'Completed', value: 5, color: 'blue' }]} />
-    )
+    const content = <p data-chart-content>Completed</p>
     mountAtWidth(
       320,
       <ChartFrame title='Outcomes' height={160} loading>
@@ -322,7 +290,7 @@ describe('Dashboard chart states', () => {
     )
     expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('true')
     expect(container.querySelector('svg')?.getAttribute('height')).toBe('160')
-    expect(container.querySelector('circle')).toBeNull()
+    expect(container.querySelector('[data-chart-content]')).toBeNull()
     act(() =>
       root.render(
         <ChartFrame title='Outcomes' height={160} error='Unavailable'>
@@ -340,10 +308,7 @@ describe('Dashboard chart states', () => {
       )
     )
     expect(container.querySelector('svg')?.getAttribute('height')).toBe('160')
-    expect(container.textContent).toContain('Completed')
-    expect(
-      container.querySelector('circle[stroke-dasharray]')?.getAttribute('stroke-dasharray')
-    ).toBe('100 0')
+    expect(container.querySelector('[data-chart-content]')?.textContent).toBe('Completed')
   })
 
   it('recovers when a selected line series disappears during refresh', () => {
@@ -372,5 +337,119 @@ describe('Dashboard chart states', () => {
     )
     expect(container.textContent).toContain('Runs')
     expect(container.querySelector('table')?.textContent).toContain('10')
+  })
+})
+
+describe('BarChart stacked mode', () => {
+  const buckets = dailySeries(3, 0).map((point) => point.timestamp)
+  const layer = (id: string, color: string, values: number[]) => ({
+    id,
+    label: id,
+    color,
+    data: buckets.map((timestamp, index) => ({ timestamp, value: values[index] ?? 0 })),
+  })
+
+  /** Segment rects are the filled ones; tracks are painted with the border token. */
+  function segments(svg: SVGSVGElement) {
+    return [...svg.querySelectorAll('rect')].filter(
+      (rect) => rect.getAttribute('fill') !== 'var(--border)'
+    )
+  }
+
+  it('draws one segment per nonzero layer, bottom layer lowest', () => {
+    const svg = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        unit='credits'
+        height={200}
+        series={[layer('a', 'red', [30, 0, 10]), layer('b', 'blue', [10, 5, 0])]}
+      />
+    )
+    const drawn = segments(svg)
+    expect(drawn.map((rect) => rect.getAttribute('fill'))).toEqual(['red', 'blue', 'blue', 'red'])
+    const [firstA, firstB] = drawn
+    expect(Number(firstA.getAttribute('y'))).toBeGreaterThan(Number(firstB.getAttribute('y')))
+  })
+
+  it('stacks each column to the height a single bar of its total would reach', () => {
+    const stacked = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        height={200}
+        series={[layer('a', 'red', [30, 20, 10]), layer('b', 'blue', [10, 20, 0])]}
+      />
+    )
+    const stackedTops = segments(stacked)
+      .filter((rect) => rect.getAttribute('fill') === 'blue')
+      .map((rect) => Number(rect.getAttribute('y')))
+    act(() => root.unmount())
+    container.remove()
+
+    const single = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        height={200}
+        color='green'
+        data={buckets.map((timestamp, index) => ({ timestamp, value: [40, 40, 10][index] ?? 0 }))}
+      />
+    )
+    const singleTops = segments(single).map((rect) => Number(rect.getAttribute('y')))
+    expect(stackedTops[0]).toBeCloseTo(singleTops[0] ?? Number.NaN, 5)
+    expect(stackedTops[1]).toBeCloseTo(singleTops[1] ?? Number.NaN, 5)
+  })
+
+  it('dims every layer but the highlighted one', () => {
+    const svg = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        height={200}
+        highlightedSeriesId='b'
+        series={[layer('a', 'red', [30, 20, 10]), layer('b', 'blue', [10, 20, 5])]}
+      />
+    )
+    for (const rect of segments(svg)) {
+      const expected = rect.getAttribute('fill') === 'blue' ? '1' : '0.2'
+      expect(rect.getAttribute('opacity')).toBe(expected)
+    }
+  })
+
+  it('exposes every layer in the accessible data table', () => {
+    mountAtWidth(
+      680,
+      <BarChart
+        label='Credits'
+        height={200}
+        series={[layer('Workflow', 'red', [1, 2, 3]), layer('Sim Chat', 'blue', [4, 5, 6])]}
+      />
+    )
+    const headers = [...container.querySelectorAll('thead th')].map((th) => th.textContent)
+    expect(headers).toEqual(['Date', 'Workflow', 'Sim Chat'])
+  })
+})
+
+describe('BarChart tooltip', () => {
+  it('shows a calendar bucket as its date and a credit value in full', () => {
+    const svg = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        unit='credits'
+        xAxisFormat='date'
+        timeZone='UTC'
+        height={200}
+        data={dailySeries(3, 12_345)}
+        color='blue'
+      />
+    )
+    act(() => {
+      svg.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 60, clientY: 80 }))
+    })
+    expect(container.textContent).toContain('JAN 1')
+    expect(container.textContent).not.toContain('12:00 AM')
+    expect(container.textContent).toContain('12,345')
   })
 })

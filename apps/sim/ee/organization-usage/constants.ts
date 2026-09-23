@@ -2,6 +2,7 @@ import type { ComboboxOption } from '@sim/emcn'
 import {
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
+  type OrganizationUsageSource,
   USAGE_WINDOW_PRESETS,
   type UsageBreakdownDimension,
   type UsageWindowPreset,
@@ -93,3 +94,41 @@ export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 
 export const DEFAULT_USAGE_PRESET = '30d' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
+
+/** Sim Chat's color, shared by its credit layer and the chat-runs chart. */
+export const USAGE_CHAT_COLOR = 'var(--badge-orange-text)'
+
+/**
+ * The credit chart's layers, bottom-up. Each one owns a fixed color, so a layer keeps
+ * its color when a quieter period drops its neighbours — color follows the source,
+ * never its rank.
+ *
+ * Five hues plus a neutral `Other`: the palette is validated for adjacent-pair
+ * separation (including color-vision deficiency) in exactly this order, so reorder
+ * or extend it only by re-running that validation. A sixth distinct source belongs
+ * in `Other`, not in a generated hue.
+ */
+export const USAGE_SOURCE_CATEGORIES = [
+  { id: 'workflow', label: 'Workflows', color: 'var(--brand-blue)' },
+  { id: 'chat', label: 'Sim Chat', color: USAGE_CHAT_COLOR },
+  { id: 'agent', label: 'Agent block', color: 'var(--badge-purple-text)' },
+  { id: 'knowledge', label: 'Knowledge Base', color: 'var(--badge-amber-text)' },
+  { id: 'enrichment', label: 'Enrichment', color: 'var(--badge-pink-text)' },
+  { id: 'other', label: 'Other', color: 'var(--text-muted)' },
+] as const
+
+export type UsageSourceCategoryId = (typeof USAGE_SOURCE_CATEGORIES)[number]['id']
+
+/** Total over the ledger's sources, so a new source cannot ship without a layer. */
+export const USAGE_SOURCE_CATEGORY: Record<OrganizationUsageSource, UsageSourceCategoryId> = {
+  workflow: 'workflow',
+  'sim-chat': 'chat',
+  mcp_copilot: 'chat',
+  mothership_block: 'agent',
+  'knowledge-base': 'knowledge',
+  enrichment: 'enrichment',
+  wand: 'other',
+  'voice-input': 'other',
+  'voice-output': 'other',
+  'api-tool': 'other',
+}

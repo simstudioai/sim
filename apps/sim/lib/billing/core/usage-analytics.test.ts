@@ -9,12 +9,16 @@ import {
   foldUsageBreakdown,
   MAX_CUSTOM_RANGE_DAYS,
   mergeRowsByKey,
+  resolveComparisonWindow,
   resolvePreviousPeriod,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
+  sumUsageDays,
+  USAGE_SETTLE_MS,
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
   usageWindowLedgerFilter,
+  usageWindowSegments,
 } from '@/lib/billing/core/usage-analytics'
 
 const ENTITY = { type: 'organization', id: 'org-1' } as const
@@ -565,5 +569,139 @@ describe('mergeRowsByKey', () => {
       0
     )
     expect(after).toBeCloseTo(before, 8)
+  })
+})
+
+describe('usageWindowSegments', () => {
+  const range = (from: string, to: string) =>
+    ({ kind: 'range', from: new Date(from), to: new Date(to) }) as const
+
+  it('keeps settled whole days whole and cuts everything else at the hour', () => {
+    const segments = usageWindowSegments(
+      range('2026-03-01T22:00:00.000Z', '2026-03-04T02:30:00.000Z'),
+      'UTC',
+      { now: new Date('2026-03-04T02:30:00.000Z') }
+    )
+    expect(segments.map(({ key, settled }) => [key, settled])).toEqual([
+      ['2026-03-01T22', true],
+      ['2026-03-01T23', true],
+      ['2026-03-02', true],
+      // Ended at midnight, less than the settle lag ago: still open, so cut at hours.
+      ...Array.from({ length: 24 }, (_, hour) => [
+        `2026-03-03T${String(hour).padStart(2, '0')}`,
+        hour <= 22,
+      ]),
+      ['2026-03-04T00', false],
+      ['2026-03-04T01', false],
+      ['2026-03-04T02', false],
+    ])
+    expect(segments.at(-1)?.to.toISOString()).toBe('2026-03-04T02:30:00.000Z')
+  })
+
+  it('tiles the window with no gap or overlap', () => {
+    const window = range('2026-03-01T05:17:00.000Z', '2026-03-05T11:42:00.000Z')
+    const segments = usageWindowSegments(window, 'Asia/Kolkata', {
+      now: new Date('2026-03-05T12:00:00Z'),
+    })
+    expect(segments[0]?.from).toEqual(window.from)
+    expect(segments.at(-1)?.to).toEqual(window.to)
+    for (let index = 1; index < segments.length; index++) {
+      expect(segments[index]?.from).toEqual(segments[index - 1]?.to)
+    }
+  })
+
+  it('settles an hour only once the lag after it has passed', () => {
+    const window = range('2026-03-01T00:00:00.000Z', '2026-03-01T01:00:00.000Z')
+    const hourEnd = new Date('2026-03-01T01:00:00.000Z').getTime()
+    const settledAt = (now: number) =>
+      usageWindowSegments(window, 'UTC', { now: new Date(now) })[0]?.settled
+    expect(settledAt(hourEnd + USAGE_SETTLE_MS - 1)).toBe(false)
+    expect(settledAt(hourEnd + USAGE_SETTLE_MS)).toBe(true)
+  })
+
+  it('settles a DST day only whole, since its hour labels are ambiguous', () => {
+    const window = range('2026-11-01T07:00:00.000Z', '2026-11-02T08:00:00.000Z')
+    const during = usageWindowSegments(window, 'America/Los_Angeles', {
+      now: new Date('2026-11-01T20:00:00Z'),
+    })
+    expect(during.every((segment) => segment.key.includes('T') && !segment.settled)).toBe(true)
+
+    const after = usageWindowSegments(window, 'America/Los_Angeles', {
+      now: new Date('2026-11-03T00:00:00Z'),
+    })
+    expect(after.map(({ key, settled }) => [key, settled])).toEqual([['2026-11-01', true]])
+  })
+
+  it('gives a settled spring-forward day its 23 hours as one segment', () => {
+    const segments = usageWindowSegments(
+      range('2026-03-08T08:00:00.000Z', '2026-03-10T07:00:00.000Z'),
+      'America/Los_Angeles',
+      { now: new Date('2026-04-01T00:00:00.000Z') }
+    )
+    expect(segments.map(({ key }) => key)).toEqual(['2026-03-08', '2026-03-09'])
+    expect(segments[0]?.to.getTime() - (segments[0]?.from.getTime() ?? 0)).toBe(23 * 3_600_000)
+  })
+})
+
+describe('sumUsageDays', () => {
+  const days: [string, { key: string; cost: number; events: number }[]][] = [
+    [
+      '2026-01-01',
+      [
+        { key: 'a', cost: 1, events: 1 },
+        { key: 'byok', cost: 0, events: 4 },
+      ],
+    ],
+    [
+      '2026-01-02',
+      [
+        { key: 'a', cost: 0.5, events: 2 },
+        { key: 'byok', cost: 0, events: 1 },
+      ],
+    ],
+  ]
+
+  it('sums each key across days', () => {
+    expect(sumUsageDays(days, { billedOnly: false })).toEqual([
+      { key: 'a', cost: 1.5, events: 3 },
+      { key: 'byok', cost: 0, events: 5 },
+    ])
+  })
+
+  it('drops a group only when its whole window is unbilled', () => {
+    expect(sumUsageDays(days, { billedOnly: true }).map((row) => row.key)).toEqual(['a'])
+  })
+})
+
+describe('resolveComparisonWindow', () => {
+  it('compares a rolling range with the same span just before it', () => {
+    const window = {
+      kind: 'range',
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: new Date('2026-08-31T00:00:00.000Z'),
+    } as const
+    expect(resolveComparisonWindow('30d', window, period())).toEqual({
+      kind: 'range',
+      from: new Date('2026-07-02T00:00:00.000Z'),
+      to: new Date('2026-08-01T00:00:00.000Z'),
+    })
+  })
+
+  it('offers no comparison it cannot state exactly', () => {
+    const current = { kind: 'period', period: period() } as const
+    expect(resolveComparisonWindow('current-period', current, period())).toBeNull()
+    expect(resolveComparisonWindow('previous-period', current, period())).toBeNull()
+  })
+})
+
+describe('rolling windows', () => {
+  it('start on the hour, so their first hour can be cached', () => {
+    const now = new Date('2026-09-22T19:47:13.500Z')
+    const window = resolveUsageAnalyticsWindow({ preset: '30d', period: period(), now })
+    expect(window).toEqual({
+      kind: 'range',
+      from: new Date('2026-08-23T19:00:00.000Z'),
+      to: now,
+    })
   })
 })

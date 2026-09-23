@@ -1,11 +1,44 @@
 'use client'
 
 import { useMemo } from 'react'
-import { BarChart, ChartFrame, DashboardMetric, DonutChart, formatChartLatency } from '@sim/emcn'
+import {
+  BarChart,
+  type BarChartSeries,
+  ChartFrame,
+  ChartLegend,
+  type ChartLegendItem,
+  DashboardMetric,
+  formatChartLatency,
+} from '@sim/emcn'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { USAGE_CHAT_COLOR } from '@/ee/organization-usage/constants'
+import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
+
+const CHART_HEIGHT = 180
+
+/**
+ * Outcome layers, bottom-up. Failed is the status red and sits on the stack where a
+ * spike reads at a glance; Other (cancelled, paused, unfinished) stays neutral.
+ */
+const OUTCOMES = [
+  { id: 'completed', label: 'Completed', color: 'var(--brand-blue)' },
+  { id: 'failed', label: 'Failed', color: 'var(--text-error)' },
+  { id: 'other', label: 'Other', color: 'var(--text-muted)' },
+] as const
+
+const OUTCOME_LEGEND: ChartLegendItem[] = [...OUTCOMES]
+const OUTCOME_IDS = OUTCOMES.map((outcome) => outcome.id)
+
+type ActivityPoint = OrganizationActivitySummary['series'][number]
+
+const OUTCOME_VALUE: Record<(typeof OUTCOMES)[number]['id'], (point: ActivityPoint) => number> = {
+  completed: (point) => point.completed,
+  failed: (point) => point.failed,
+  other: (point) => Math.max(0, point.workflowRuns - point.completed - point.failed),
+}
 
 interface ActivitySummaryProps {
   summary?: OrganizationActivitySummary
@@ -24,30 +57,26 @@ export function formatFailureRate(rate: number | null): string {
 }
 
 export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySummaryProps) {
-  const workflowSeries = useMemo(
+  const highlight = useLegendHighlight(OUTCOME_IDS)
+
+  const outcomeSeries = useMemo<BarChartSeries[]>(
     () =>
-      summary?.series.map((point) => ({
-        timestamp: point.timestamp,
-        value: point.workflowRuns,
-      })) ?? [],
+      OUTCOMES.map((outcome) => ({
+        ...outcome,
+        data: (summary?.series ?? []).map((point) => ({
+          timestamp: point.timestamp,
+          value: OUTCOME_VALUE[outcome.id](point),
+        })),
+      })),
     [summary?.series]
   )
+
   const chatSeries = useMemo(
     () =>
-      summary?.series.map((point) => ({
-        timestamp: point.timestamp,
-        value: point.chatRuns,
-      })) ?? [],
+      summary?.series.map((point) => ({ timestamp: point.timestamp, value: point.chatRuns })) ?? [],
     [summary?.series]
   )
-  const failureSeries = useMemo(
-    () =>
-      summary?.series.map((point) => ({
-        timestamp: point.timestamp,
-        value: point.failed,
-      })) ?? [],
-    [summary?.series]
-  )
+
   const totals = summary?.totals
   const metrics = [
     {
@@ -81,16 +110,8 @@ export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySu
       description: 'Completed and failed workflows with a recorded duration.',
     },
   ]
-  const outcomes = [
-    { label: 'Completed', value: totals?.completed ?? 0, color: 'var(--indicator-seat-filled)' },
-    { label: 'Failed', value: totals?.failed ?? 0, color: 'var(--text-error)' },
-    {
-      label: 'Other',
-      value: totals ? totals.workflowRuns - totals.completed - totals.failed : 0,
-      color: 'var(--text-muted)',
-    },
-  ]
   const chartState = { loading, error: error ? "Couldn't load activity." : undefined, onRetry }
+
   return (
     <div className='flex flex-col gap-5'>
       <div className='grid grid-cols-[repeat(auto-fit,minmax(min(120px,100%),1fr))] gap-4'>
@@ -104,40 +125,31 @@ export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySu
         ))}
       </div>
       <div className='grid grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] gap-6'>
-        <ChartFrame title='Workflow runs' height={160} {...chartState}>
+        <div className='flex min-w-0 flex-col gap-2'>
+          <ChartFrame
+            title='Workflow runs'
+            description='Other includes cancelled, paused, and unfinished runs.'
+            height={CHART_HEIGHT}
+            {...chartState}
+          >
+            <BarChart
+              label=''
+              xAxisFormat='date'
+              height={CHART_HEIGHT}
+              series={outcomeSeries}
+              highlightedSeriesId={highlight.highlightedId}
+            />
+          </ChartFrame>
+          <ChartLegend layout='row' items={OUTCOME_LEGEND} {...highlight.legendProps} />
+        </div>
+        <ChartFrame title='Chat runs' height={CHART_HEIGHT} {...chartState}>
           <BarChart
-            xAxisFormat='date'
-            data={workflowSeries}
             label=''
-            color='var(--indicator-seat-filled)'
-            height={160}
-          />
-        </ChartFrame>
-        <ChartFrame title='Chat runs' height={160} {...chartState}>
-          <BarChart
             xAxisFormat='date'
+            height={CHART_HEIGHT}
             data={chatSeries}
-            label=''
-            color='var(--indicator-seat-filled)'
-            height={160}
+            color={USAGE_CHAT_COLOR}
           />
-        </ChartFrame>
-        <ChartFrame title='Failed runs' height={160} {...chartState}>
-          <BarChart
-            xAxisFormat='date'
-            data={failureSeries}
-            label=''
-            color='var(--text-error)'
-            height={160}
-          />
-        </ChartFrame>
-        <ChartFrame
-          title='Workflow outcomes'
-          description='Other includes cancelled, paused, and unfinished runs.'
-          height={160}
-          {...chartState}
-        >
-          <DonutChart segments={outcomes} label='Workflow outcomes' />
         </ChartFrame>
       </div>
     </div>

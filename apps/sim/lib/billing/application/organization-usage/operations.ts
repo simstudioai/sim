@@ -54,6 +54,14 @@ export const organizationUsageOperations = {
     ...BASE,
   }),
   /**
+   * permission-group-exempt: the Insights overview reads the same pooled ledger as the summary, governed by organization billing-admin authority
+   */
+  readOverview: defineOrganizationOperation({
+    id: 'organization_usage.overview.read',
+    capability: 'none',
+    ...BASE,
+  }),
+  /**
    * permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
    */
   readSummary: defineOrganizationOperation({
