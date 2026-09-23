@@ -86,6 +86,41 @@ const ACTION_FIELD: Record<string, string> = {
   [MARKET]: 'md_action',
 }
 
+const SHARED_FIELDS = ['provider', 'task_id', 'apiKey'] as const
+
+/**
+ * Sub-blocks each operation owns. Values of the other operations stay stored on the block after
+ * switching, so only these are folded and every other API field is cleared explicitly.
+ */
+const OPERATION_FIELDS: Record<string, readonly string[]> = {
+  [PEOPLE]: [
+    'ps_action',
+    'job_titles',
+    'seniorities',
+    'locations',
+    'company_domain',
+    'ps_keywords',
+    'full_name',
+    'email',
+    'linkedin_url',
+    'limit',
+  ],
+  [COMPANY]: ['ci_action', 'domain', 'ci_query', 'country', 'limit'],
+  [SEO]: ['seo_action', 'seo_keywords', 'domain', 'country', 'limit'],
+  [WEB]: ['wr_action', 'query', 'url', 'country', 'language', 'limit'],
+  [SOCIAL]: ['sr_platform', 'sr_mode', 'sr_query', 'sr_url', 'handle'],
+  [MARKET]: ['md_action', 'address', 'city', 'state', 'zip', 'symbol', 'limit'],
+}
+
+/** Every API field any operation can send; cleared before the selected operation's fields are folded. */
+const ALL_PARAM_NAMES = Array.from(
+  new Set(
+    Object.values(OPERATION_FIELDS)
+      .flat()
+      .map((id) => (Object.values(ACTION_FIELD).includes(id) ? 'action' : (ID_TO_PARAM[id] ?? id)))
+  )
+)
+
 export const GlasserBlock: BlockConfig<GlasserResponse> = {
   type: 'glasser',
   name: 'Glasser',
@@ -618,17 +653,15 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const { operation, ...rest } = params
-        const result: Record<string, unknown> = {}
+        const operation = String(params.operation ?? PEOPLE)
         const actionField = ACTION_FIELD[operation]
+        const result: Record<string, unknown> = {}
+        for (const name of ALL_PARAM_NAMES) result[name] = undefined
 
-        for (const [key, value] of Object.entries(rest)) {
+        for (const id of [...(OPERATION_FIELDS[operation] ?? []), ...SHARED_FIELDS]) {
+          const value = params[id]
           if (value === undefined || value === null || value === '') continue
-          if (Object.values(ACTION_FIELD).includes(key)) {
-            if (key === actionField) result.action = value
-            continue
-          }
-          const paramName = ID_TO_PARAM[key] ?? key
+          const paramName = id === actionField ? 'action' : (ID_TO_PARAM[id] ?? id)
           if (paramName === 'limit') {
             result.limit = Number(value)
           } else if (Array.isArray(value)) {

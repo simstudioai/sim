@@ -205,41 +205,76 @@ describe('glasser polling', () => {
 
 describe('glasser block params', () => {
   const toParams = GlasserBlock.tools.config!.params!
+  /** Keys the fold sends; cleared keys carry `undefined` so stale stored values cannot leak through the merge. */
+  const sent = (result: Record<string, unknown>) =>
+    Object.fromEntries(Object.entries(result).filter(([, value]) => value !== undefined))
 
   it('routes the operation to its tool and folds the action field', () => {
     expect(GlasserBlock.tools.config!.tool!({ operation: 'glasser_seo_research' })).toBe(
       'glasser_seo_research'
     )
     expect(
-      toParams({
-        operation: 'glasser_seo_research',
-        seo_action: 'keyword_ideas',
-        seo_keywords: 'ai agents',
-        ci_action: 'enrich',
-        limit: '10',
-        apiKey: 'k',
-      })
+      sent(
+        toParams({
+          operation: 'glasser_seo_research',
+          seo_action: 'keyword_ideas',
+          seo_keywords: 'ai agents',
+          ci_action: 'enrich',
+          limit: '10',
+          apiKey: 'k',
+        })
+      )
     ).toStrictEqual({ action: 'keyword_ideas', keywords: 'ai agents', limit: 10, apiKey: 'k' })
   })
 
   it('joins multi-select values and maps platform and mode for social', () => {
     expect(
-      toParams({
-        operation: 'glasser_people_search',
-        ps_action: 'search',
-        seniorities: ['vp', 'c_suite'],
-        job_titles: '',
-        apiKey: 'k',
-      })
+      sent(
+        toParams({
+          operation: 'glasser_people_search',
+          ps_action: 'search',
+          seniorities: ['vp', 'c_suite'],
+          job_titles: '',
+          apiKey: 'k',
+        })
+      )
     ).toStrictEqual({ action: 'search', seniorities: 'vp,c_suite', apiKey: 'k' })
     expect(
-      toParams({
-        operation: 'glasser_social_research',
-        sr_platform: 'x',
-        sr_mode: 'feed',
-        handle: 'sim',
-        apiKey: 'k',
-      })
+      sent(
+        toParams({
+          operation: 'glasser_social_research',
+          sr_platform: 'x',
+          sr_mode: 'feed',
+          handle: 'sim',
+          apiKey: 'k',
+        })
+      )
     ).toStrictEqual({ platform: 'x', mode: 'feed', handle: 'sim', apiKey: 'k' })
+  })
+
+  it('drops values stored by a previously selected operation and clears their API fields', () => {
+    const result = toParams({
+      operation: 'glasser_social_research',
+      sr_platform: 'reddit',
+      sr_mode: 'post',
+      sr_url: 'https://reddit.com/r/rust/comments/1',
+      wr_action: 'scrape',
+      query: 'stale web query',
+      url: 'https://stale.example',
+      domain: 'stale.example',
+      limit: '5',
+      apiKey: 'k',
+    })
+
+    expect(sent(result)).toStrictEqual({
+      platform: 'reddit',
+      mode: 'post',
+      url: 'https://reddit.com/r/rust/comments/1',
+      apiKey: 'k',
+    })
+    expect(result).toHaveProperty('query', undefined)
+    expect(result).toHaveProperty('domain', undefined)
+    expect(result).toHaveProperty('action', undefined)
+    expect(result).toHaveProperty('limit', undefined)
   })
 })
