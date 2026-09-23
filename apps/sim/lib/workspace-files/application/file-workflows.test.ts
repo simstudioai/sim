@@ -31,6 +31,13 @@ vi.mock('@/lib/public-shares/share-manager', () => ({
   getShareForResource: mocks.shareForResource,
 }))
 vi.mock('@/lib/workspace-files/workflows/execute', () => ({ accessFileWorkflow: mocks.access }))
+vi.mock('@/lib/workspace-files/workflows/input', () => ({
+  prepareFileWorkflowInput: async () => ({
+    input: {},
+    inputHash: 'empty-input',
+    deploymentVersionId: 'deployment-1',
+  }),
+}))
 
 import { authorizeFileWorkflowConfiguration } from '@/lib/workspace-files/application/file-workflow-policy'
 import {

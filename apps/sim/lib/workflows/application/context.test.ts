@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { db } from '@sim/db'
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -61,7 +63,7 @@ describe('workflow application contexts', () => {
         assertedWorkspaceId: 'workspace-1',
       })
     ).resolves.toEqual({ ...workspace, workflowId: 'workflow-1', workflow })
-    expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1', db)
   })
 
   it('conceals an asserted workspace mismatch before loading workspace policy', async () => {

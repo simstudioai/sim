@@ -53,6 +53,7 @@ export async function authorizeFileWorkflowConfiguration(args: {
   contentType: string
   workflowIds: string[]
   publishing: boolean
+  executor?: DbOrTx
 }) {
   const parsed = fileWorkflowIdsSchema.safeParse(args.workflowIds)
   if (!parsed.success)
@@ -63,15 +64,18 @@ export async function authorizeFileWorkflowConfiguration(args: {
   if (args.workflowIds.length && !isWorkflowHtml(args.contentType))
     throw new OrchestrationError('validation', 'Only HTML documents can call workflows')
   for (const workflowId of args.workflowIds) {
-    const context = await resolveActiveWorkflowApplicationContext({
-      workflowId,
-      assertedWorkspaceId: args.workspaceId,
-    })
+    const context = await resolveActiveWorkflowApplicationContext(
+      {
+        workflowId,
+        assertedWorkspaceId: args.workspaceId,
+      },
+      args.executor
+    )
     await authorizeWorkspaceOperation(
       args.principal,
       args.publishing ? fileOperations.publishWorkflows : workflowOperations.execute,
       { ...context, fileId: args.fileId },
-      { delegation: workspaceFileDelegationPolicy }
+      { delegation: workspaceFileDelegationPolicy, executor: args.executor }
     )
     if (!context.workflow.isDeployed)
       throw new OrchestrationError('validation', 'File workflows must be deployed')

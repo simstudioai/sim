@@ -3,6 +3,7 @@ import { workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 
 export interface ActiveWorkspaceApplicationContext extends WorkspaceAuthorizationContext {
   billedAccountUserId: string
@@ -11,9 +12,10 @@ export interface ActiveWorkspaceApplicationContext extends WorkspaceAuthorizatio
 /** Loads canonical workspace state required by application authorization. */
 export async function loadWorkspaceApplicationContext(
   workspaceId: string,
-  options: { includeArchived?: boolean } = {}
+  options: { includeArchived?: boolean } = {},
+  executor: DbOrTx = db
 ): Promise<ActiveWorkspaceApplicationContext | null> {
-  const [row] = await db
+  const [row] = await executor
     .select({
       id: workspace.id,
       organizationId: workspace.organizationId,
@@ -40,9 +42,10 @@ export async function loadWorkspaceApplicationContext(
 
 /** Loads active canonical workspace state required by application authorization. */
 export async function loadActiveWorkspaceApplicationContext(
-  workspaceId: string
+  workspaceId: string,
+  executor: DbOrTx = db
 ): Promise<ActiveWorkspaceApplicationContext | null> {
-  return loadWorkspaceApplicationContext(workspaceId)
+  return loadWorkspaceApplicationContext(workspaceId, {}, executor)
 }
 
 /**

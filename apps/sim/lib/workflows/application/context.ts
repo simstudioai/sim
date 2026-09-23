@@ -9,6 +9,7 @@ import {
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
@@ -35,11 +36,14 @@ export interface ActiveWorkflowDeploymentVersionApplicationContext
   deploymentVersionId: string
 }
 
-export async function resolveActiveWorkflowApplicationContext(input: {
-  workflowId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveWorkflowApplicationContext> {
-  const [canonicalWorkflow] = await db
+export async function resolveActiveWorkflowApplicationContext(
+  input: {
+    workflowId: string
+    assertedWorkspaceId?: string
+  },
+  executor: DbOrTx = db
+): Promise<ActiveWorkflowApplicationContext> {
+  const [canonicalWorkflow] = await executor
     .select({
       workflowId: workflow.id,
       workflow,
@@ -57,7 +61,8 @@ export async function resolveActiveWorkflowApplicationContext(input: {
     throw new OrchestrationError('not_found', 'Workflow not found')
   }
   const workspaceContext = await loadActiveWorkspaceApplicationContext(
-    canonicalWorkflow.workspaceId
+    canonicalWorkflow.workspaceId,
+    executor
   )
   if (!workspaceContext) throw new OrchestrationError('not_found', 'Workflow not found')
   return { ...workspaceContext, ...canonicalWorkflow, workspaceId: workspaceContext.workspaceId }

@@ -134,9 +134,10 @@ export class PublicApiNotAllowedError extends Error {
 export async function validatePublicFileSharing(
   userId: string,
   workspaceId: string,
-  authType?: ShareAuthType
+  authType?: ShareAuthType,
+  executor?: DbOrTx
 ): Promise<void> {
-  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined, executor)
   if (!config) {
     return
   }

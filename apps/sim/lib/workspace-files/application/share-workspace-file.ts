@@ -128,7 +128,8 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
           await validatePublicFileSharing(
             userId,
             context.workspaceId,
-            input.authType ?? existingShare?.authType ?? 'public'
+            input.authType ?? existingShare?.authType ?? 'public',
+            tx
           )
         }
         if (input.isActive)
@@ -139,6 +140,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
             contentType: file.contentType,
             workflowIds: file.workflowIds,
             publishing: true,
+            executor: tx,
           })
         return upsertFileShare(
           {

@@ -32,6 +32,7 @@ export const updateWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase(
         contentType: file.contentType,
         workflowIds: input.workflowIds,
         publishing: await hasActiveFileShare(context.fileId, tx),
+        executor: tx,
       })
       await tx
         .update(workspaceFiles)
