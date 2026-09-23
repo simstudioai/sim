@@ -684,6 +684,34 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
   })
 
+  it('reports an unconfirmed upload without claiming completion or changing its native result', async () => {
+    const toolCallId = nextToolCallId()
+    const result = {
+      outcomeUnknown: true,
+      doNotRetry: true,
+      error: 'This browser action was cancelled.',
+      note: 'The action may already have run. Inspect the page before repeating it.',
+    }
+    mockExecuteBrowserTool.mockResolvedValue(result)
+    const params = { elementId: 4, paths: ['files/receipt.txt'] }
+
+    executeBrowserToolOnClient(toolCallId, 'browser_upload_file', params, CHAT_SCOPE)
+    await flush()
+
+    expect(mockReportCompletion.mock.calls).toEqual([
+      [
+        toolCallId,
+        'error',
+        'Browser action outcome is unconfirmed; inspect the page before repeating it.',
+        result,
+      ],
+    ])
+    expect(mockReportCompletion.mock.calls[0]?.[3]).toBe(result)
+    executeBrowserToolOnClient(toolCallId, 'browser_upload_file', params, CHAT_SCOPE)
+    await flush()
+    expect(mockExecuteBrowserTool).toHaveBeenCalledTimes(1)
+  })
+
   it('uses unload-safe delivery without reporting a successful action as failed', async () => {
     mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
     mockReportCompletion.mockRejectedValue(new Error('confirmation unavailable'))

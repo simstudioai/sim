@@ -437,6 +437,102 @@ test.describe('browser tools', () => {
     })
   })
 
+  test('reports an unconfirmed upload when cancelled before Chromium acknowledgement arrives', async () => {
+    const { elementId, evaluate } = await openUploadTarget('root')
+    await app.evaluate(({ webContents }, site) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL() === `${site}/upload-target?shadow=0&steal=0`)
+      if (!contents) throw new Error('Missing upload acknowledgement fixture')
+      const original = contents.debugger.sendCommand
+      let release = () => {}
+      const acknowledgement = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const state = {
+        count: 0,
+        applied: false,
+        release,
+        restore: () => {
+          contents.debugger.sendCommand = original
+        },
+      }
+      const globals = globalThis as typeof globalThis & { heldUploadAcknowledgement?: typeof state }
+      globals.heldUploadAcknowledgement = state
+      contents.debugger.sendCommand = async (method, params, sessionId) => {
+        if (method !== 'DOM.setFileInputFiles') {
+          return original.call(contents.debugger, method, params, sessionId)
+        }
+        state.count++
+        const result = await original.call(contents.debugger, method, params, sessionId)
+        state.applied = true
+        await acknowledgement
+        return result
+      }
+    }, site)
+    const pending = execute('browser_upload_file', { elementId, paths: ['files/receipt.txt'] })
+    const toolCallId = `browser-fixture-${callCount}`
+    try {
+      await expect
+        .poll(() => evaluate('window.uploadTestState()'))
+        .toEqual({
+          original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+          decoy: [],
+          currentCount: 1,
+        })
+      await expect
+        .poll(() =>
+          app.evaluate(
+            () =>
+              (
+                globalThis as typeof globalThis & {
+                  heldUploadAcknowledgement?: { applied: boolean }
+                }
+              ).heldUploadAcknowledgement?.applied
+          )
+        )
+        .toBe(true)
+      await window.evaluate(
+        async ({ toolCallId, scope }) => {
+          const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+          if (!api.browserAgent.cancelTool) throw new Error('Browser cancellation is unavailable')
+          await api.browserAgent.cancelTool(toolCallId, scope)
+        },
+        { toolCallId, scope: SCOPE }
+      )
+
+      const upload = await pending
+      expect(upload.ok, JSON.stringify(upload)).toBe(true)
+      expect(upload.result).toMatchObject({
+        outcomeUnknown: true,
+        doNotRetry: true,
+        note: expect.stringContaining('Inspect the page'),
+      })
+      expect(upload.result).not.toHaveProperty('dispatched', true)
+      expect((await execute('browser_list_tabs', {})).ok).toBe(true)
+      expect(
+        await app.evaluate(
+          () =>
+            (
+              globalThis as typeof globalThis & {
+                heldUploadAcknowledgement?: { count: number }
+              }
+            ).heldUploadAcknowledgement?.count
+        )
+      ).toBe(1)
+    } finally {
+      await app.evaluate(() => {
+        const globals = globalThis as typeof globalThis & {
+          heldUploadAcknowledgement?: { release: () => void; restore: () => void }
+        }
+        globals.heldUploadAcknowledgement?.release()
+        globals.heldUploadAcknowledgement?.restore()
+        globals.heldUploadAcknowledgement = undefined
+      })
+      await pending
+    }
+  })
+
   for (const mutation of ['replace', 'disable', 'navigate-frame'] as const) {
     test(`refuses uploads when the target changes during staging: ${mutation}`, async () => {
       const { elementId, evaluate } = await openUploadTarget(

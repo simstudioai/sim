@@ -3835,7 +3835,7 @@ describe('credential protection', () => {
     })
 
     it.each(['staging', 'attachment'])(
-      'releases the pinned input after %s fails',
+      'releases the pinned input after %s fails before dispatch',
       async (failure) => {
         const contents = await openPage()
         const input = { objectId: 'isolated-input', multiple: false }
@@ -3855,7 +3855,7 @@ describe('credential protection', () => {
           'call-failed'
         )
 
-        expect(result).toMatchObject({
+        expect(result).toEqual({
           ok: false,
           error: expect.stringContaining(`${failure} failed`),
         })
@@ -3935,8 +3935,8 @@ describe('credential protection', () => {
           await expect(pending).resolves.toMatchObject({
             ok: true,
             result: {
-              dispatched: true,
-              observation: { ok: false, doNotRetry: true },
+              outcomeUnknown: true,
+              doNotRetry: true,
             },
           })
           await expect(
@@ -3971,8 +3971,9 @@ describe('credential protection', () => {
         )
         const setFiles = vi
           .spyOn(cdp, 'setFileInputFiles')
-          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatched) => {
-            onDispatched?.()
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatch) => {
+            onDispatch?.('pending')
+            onDispatch?.('acknowledged')
             return readback
           })
         const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
@@ -4019,6 +4020,98 @@ describe('credential protection', () => {
         }
         expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
         expect(setFiles).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'reports an unconfirmed upload when its acknowledgment is %s without replaying it or affecting queued work',
+      async (stop) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        let acknowledgeUpload: () => void = () => {}
+        const acknowledgment = new Promise<void>((resolve) => {
+          acknowledgeUpload = resolve
+        })
+        let appliedUploads = 0
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatch) => {
+            onDispatch?.('pending')
+            appliedUploads++
+            await acknowledgment
+            onDispatch?.('acknowledged')
+            return { files: [{ name: 'a.pdf', size: 3 }] }
+          })
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        let releaseSnapshot: (value: unknown) => void = () => {}
+        const snapshot = new Promise<unknown>((resolve) => {
+          releaseSnapshot = resolve
+        })
+        let snapshotStarted = false
+        vi.mocked(contents.executeJavaScript).mockImplementation((expression) => {
+          if (isPageCall(expression, 'collectSnapshot')) {
+            snapshotStarted = true
+            return snapshot
+          }
+          return Promise.resolve({})
+        })
+
+        vi.useFakeTimers()
+        try {
+          const timersBefore = vi.getTimerCount()
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'unconfirmed-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(appliedUploads).toBe(1)
+          const queued = driver.executeTool('chat-test', 'browser_snapshot', {}, 'next-snapshot')
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'unconfirmed-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          const result = await pending
+          expect(result).toMatchObject({
+            ok: true,
+            result: {
+              outcomeUnknown: true,
+              doNotRetry: true,
+              error: expect.any(String),
+              note: expect.stringContaining('The action may already have run'),
+            },
+          })
+          expect(result.result).not.toHaveProperty('dispatched')
+          await vi.advanceTimersByTimeAsync(0)
+          expect(snapshotStarted).toBe(true)
+          expect(release).not.toHaveBeenCalled()
+
+          acknowledgeUpload()
+          await vi.advanceTimersByTimeAsync(200)
+          expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
+          expect(appliedUploads).toBe(1)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(result.result).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
+          expect(result.result).not.toHaveProperty('dispatched')
+
+          driver.cancelTool('chat-test', 'next-snapshot')
+          await expect(queued).resolves.toEqual({
+            ok: false,
+            error: expect.stringContaining('cancelled'),
+          })
+          expect(vi.getTimerCount()).toBe(timersBefore)
+        } finally {
+          acknowledgeUpload()
+          releaseSnapshot({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
       }
     )
   })

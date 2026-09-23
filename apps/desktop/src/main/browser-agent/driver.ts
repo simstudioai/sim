@@ -137,6 +137,8 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 
 type PageExecutionTarget = WebContents | WebFrameMain
 
+type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
+
 type FormField =
   | { elementId: number; kind: 'text'; text: string }
   | { elementId: number; kind: 'select'; value: string }
@@ -2453,7 +2455,7 @@ async function executeToolInner(
   executionDeadline: number | undefined,
   invocationEpoch: number,
   signal?: AbortSignal,
-  onActionCompleted?: (result: unknown) => void
+  onActionOutcome?: (outcome: BrowserActionOutcome) => void
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2635,8 +2637,10 @@ async function executeToolInner(
         })
         assertCurrentExecution()
         assertActiveContents(contents)
-        attachment = await cdp.setFileInputFiles(contents, input, files, signal, () => {
-          onActionCompleted?.({ dispatched: true })
+        attachment = await cdp.setFileInputFiles(contents, input, files, signal, (status) => {
+          onActionOutcome?.(
+            status === 'pending' ? { status } : { status, result: { dispatched: true } }
+          )
         })
       } finally {
         await cdp.releaseFileInput(contents, input)
@@ -4948,7 +4952,7 @@ export async function executeTool(
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
           }
-          let completedAction: { result: unknown } | undefined
+          let actionOutcome: BrowserActionOutcome | undefined
           const execution = withPostActionObservation(
             tool,
             params,
@@ -4960,11 +4964,11 @@ export async function executeTool(
                 executionDeadline,
                 invocationEpoch,
                 executionController.signal,
-                (result) => {
-                  completedAction = { result }
+                (outcome) => {
+                  actionOutcome = outcome
                 }
               )
-              if (params.observe !== undefined) completedAction = { result }
+              if (params.observe !== undefined) actionOutcome = { status: 'acknowledged', result }
               return result
             },
             (query) =>
@@ -4998,9 +5002,17 @@ export async function executeTool(
           try {
             observedResult = await guardedExecution
           } catch (error) {
-            if (!completedAction) throw error
+            if (!actionOutcome) throw error
             invalidateSnapshot(state)
-            observedResult = withFailedPostActionObservation(completedAction.result, error)
+            observedResult =
+              actionOutcome.status === 'pending'
+                ? {
+                    outcomeUnknown: true,
+                    doNotRetry: true,
+                    error: getErrorMessage(error),
+                    note: 'The action may already have run. Inspect the page before repeating it.',
+                  }
+                : withFailedPostActionObservation(actionOutcome.result, error)
           }
           const result = withNotices(observedResult)
           logger.info('Browser tool completed', {

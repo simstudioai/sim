@@ -935,22 +935,26 @@ async function doExecuteBrowserTool(
     }
     nativeActionPending = false
     if (cancelled) return
+    const outcomeUnknown = isRecordLike(result) && result.outcomeUnknown === true
     const effectUnconfirmed = isRecordLike(result) && result.effectObserved === false
     const formStopped =
       toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
     reportTerminalCompletion(
       {
-        status: formStopped
-          ? ASYNC_TOOL_CONFIRMATION_STATUS.error
-          : ASYNC_TOOL_CONFIRMATION_STATUS.success,
+        status:
+          outcomeUnknown || formStopped
+            ? ASYNC_TOOL_CONFIRMATION_STATUS.error
+            : ASYNC_TOOL_CONFIRMATION_STATUS.success,
         message: formStopped
           ? 'Form filling stopped; inspect the partial result'
-          : effectUnconfirmed
-            ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
-            : 'Browser action completed',
+          : outcomeUnknown
+            ? 'Browser action outcome is unconfirmed; inspect the page before repeating it.'
+            : effectUnconfirmed
+              ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
+              : 'Browser action completed',
         data: sanitizeBrowserToolResultForModel(toolName, result),
       },
-      'Failed to report successful browser tool completion'
+      'Failed to report browser tool completion'
     )
   } finally {
     abortSignal?.removeEventListener('abort', onAbort)

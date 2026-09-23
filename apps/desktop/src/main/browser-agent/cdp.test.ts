@@ -692,10 +692,18 @@ describe('browser-agent file input handles', () => {
     if (change === 'document-closed') document.defaultView = null
     if (change === 'type') input.type = 'text'
     if (change === 'multiple') input.multiple = false
+    const onDispatch = vi.fn()
     try {
       await expect(
-        setFileInputFiles(contents, handle, ['/staged/a.pdf', '/staged/b.pdf'])
+        setFileInputFiles(
+          contents,
+          handle,
+          ['/staged/a.pdf', '/staged/b.pdf'],
+          undefined,
+          onDispatch
+        )
       ).rejects.toThrow(/upload input|upload target/)
+      expect(onDispatch).not.toHaveBeenCalled()
       expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
     } finally {
       await releaseFileInput(contents, handle)
@@ -737,14 +745,14 @@ describe('browser-agent file input handles', () => {
     const { contents, frame, behavior, send } = await fileInputFixture()
     const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
     const controller = new AbortController()
-    const onDispatched = vi.fn()
+    const onDispatch = vi.fn()
     behavior.afterInputValidation = () => controller.abort()
     try {
       await expect(
-        setFileInputFiles(contents, handle, ['/staged/a.pdf'], controller.signal, onDispatched)
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], controller.signal, onDispatch)
       ).rejects.toThrow()
       expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
-      expect(onDispatched).not.toHaveBeenCalled()
+      expect(onDispatch).not.toHaveBeenCalled()
     } finally {
       await releaseFileInput(contents, handle)
     }
@@ -755,12 +763,12 @@ describe('browser-agent file input handles', () => {
     const { contents, frame, behavior, send } = await fileInputFixture(true)
     const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
     behavior.rejectSet = true
-    const onDispatched = vi.fn()
+    const onDispatch = vi.fn()
     try {
       await expect(
-        setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatched)
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatch)
       ).rejects.toThrow('disappeared')
-      expect(onDispatched).toHaveBeenCalledTimes(1)
+      expect(onDispatch.mock.calls).toEqual([['pending']])
     } finally {
       await releaseFileInput(contents, handle)
     }
@@ -791,7 +799,7 @@ describe('browser-agent file input handles', () => {
     }
   })
 
-  it('reports dispatch before acknowledgement so interruption cannot invite a retry', async () => {
+  it('reports pending dispatch while acknowledgement is held, then acknowledges before readback', async () => {
     const { contents, frame, behavior, send } = await fileInputFixture()
     const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
     let acknowledge: () => void = () => {}
@@ -804,19 +812,19 @@ describe('browser-agent file input handles', () => {
     })
     behavior.beforeSet = () => acknowledgement
     behavior.beforeReadback = () => readback
-    const onDispatched = vi.fn()
-    const pending = setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatched)
+    const onDispatch = vi.fn()
+    const pending = setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatch)
     try {
       await vi.waitFor(() =>
         expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(true)
       )
-      expect(onDispatched).toHaveBeenCalledTimes(1)
+      expect(onDispatch.mock.calls).toEqual([['pending']])
       acknowledge()
-      await vi.waitFor(() => expect(onDispatched).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(onDispatch.mock.calls).toEqual([['pending'], ['acknowledged']]))
       expect(send.mock.calls.some(([method]) => method === 'Runtime.releaseObject')).toBe(false)
       releaseReadback()
       await expect(pending).resolves.toEqual({ files: [{ name: 'a.pdf', size: 12 }] })
-      expect(onDispatched).toHaveBeenCalledTimes(1)
+      expect(onDispatch.mock.calls).toEqual([['pending'], ['acknowledged']])
     } finally {
       acknowledge()
       releaseReadback()

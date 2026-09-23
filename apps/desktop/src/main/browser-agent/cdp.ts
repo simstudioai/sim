@@ -868,29 +868,29 @@ export async function releaseFileInput(
 }
 
 /**
- * Sets files on the captured input in its original CDP session, then reads that exact input.
- * Marks dispatch before awaiting acknowledgement: cancellation cannot retract the command.
+ * Reports assignment dispatch and acknowledgement separately before reading the captured input.
+ * Stopping a wait cannot revoke a CDP command, so its outcome becomes uncertain before the send.
  */
 export async function setFileInputFiles(
   contents: WebContents,
   handle: FileInputHandle,
   files: readonly string[],
   signal?: AbortSignal,
-  onDispatched?: () => void
+  onDispatch?: (status: 'pending' | 'acknowledged') => void
 ): Promise<{ files: Array<{ name: string; size: number }> } | { readbackError: string }> {
   signal?.throwIfAborted()
   const input = await callFileInput(contents, handle, 'input', files.length)
   if (!input.objectId) throw new Error('Chromium did not retain the upload input node')
   try {
     signal?.throwIfAborted()
-    const assignment = send(
+    onDispatch?.('pending')
+    await send(
       contents,
       'DOM.setFileInputFiles',
       { files, objectId: input.objectId },
       handle.sessionId
     )
-    onDispatched?.()
-    await assignment
+    onDispatch?.('acknowledged')
     try {
       const { value } = await callFileInput(contents, handle, 'files')
       if (!isRecordLike(value) || !Array.isArray(value.files)) {
