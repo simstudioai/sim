@@ -93,6 +93,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   generic_webhook: 'Webhook Trigger',
   github_v2: 'GitHub',
   gitlab: 'GitLab',
+  glasser: 'Glasser',
   gmail_v2: 'Gmail',
   gong: 'Gong',
   google_ads: 'Google Ads',

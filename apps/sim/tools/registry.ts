@@ -1784,6 +1784,14 @@ import {
   gitlabUpdateUserTool,
 } from '@/tools/gitlab'
 import {
+  glasserCompanyIntelligenceTool,
+  glasserMarketDataTool,
+  glasserPeopleSearchTool,
+  glasserSeoResearchTool,
+  glasserSocialResearchTool,
+  glasserWebResearchTool,
+} from '@/tools/glasser'
+import {
   gmailAddLabelTool,
   gmailAddLabelV2Tool,
   gmailArchiveTool,
@@ -7694,6 +7702,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
   onepassword_update_item: onepasswordUpdateItemTool,
   onepassword_delete_item: onepasswordDeleteItemTool,
   onepassword_resolve_secret: onepasswordResolveSecretTool,
+  glasser_company_intelligence: glasserCompanyIntelligenceTool,
+  glasser_market_data: glasserMarketDataTool,
+  glasser_people_search: glasserPeopleSearchTool,
+  glasser_seo_research: glasserSeoResearchTool,
+  glasser_social_research: glasserSocialResearchTool,
+  glasser_web_research: glasserWebResearchTool,
   gmail_send: gmailSendTool,
   gmail_send_v2: gmailSendV2Tool,
   gmail_read: gmailReadTool,
