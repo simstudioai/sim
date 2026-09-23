@@ -89,7 +89,7 @@ describe('dev deployment independence', () => {
     const result = promote()
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(
-      'PROMOTE trigger.dev@4.5.12 promote 20260922.1 --env preview --branch dev-sim'
+      'PROMOTE trigger.dev@4.5.16 promote 20260922.1 --env preview --branch dev-sim'
     )
   })
 
