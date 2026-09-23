@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
@@ -13,9 +13,11 @@ export async function drainConnectorEvent(connectorId: string, eventType: string
     .where(
       and(
         eq(outboxEvent.eventType, eventType),
+        eq(outboxEvent.status, 'pending'),
         sql`${outboxEvent.payload}->>'connectorId' = ${connectorId}`
       )
     )
+    .orderBy(asc(outboxEvent.availableAt), asc(outboxEvent.id))
     .limit(1)
   expect(job).toBeDefined()
   let status = await processOutboxEventById(job.id, knowledgeDocumentProcessingOutboxHandlers)

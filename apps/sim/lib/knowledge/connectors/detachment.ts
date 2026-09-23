@@ -6,7 +6,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/storage'
 import {
   continueOutboxHandler,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxHandler,
 } from '@/lib/core/outbox/service'
@@ -29,6 +30,8 @@ const DOCUMENT_BATCH_SIZE = 100
 const PROJECTION_ROW_BATCH_SIZE = 250
 const MAX_BATCHES_PER_RUN = 4
 const RUN_BUDGET_MS = 30_000
+/** How often a detachment paused on a deleted knowledge base checks for its restore or purge. */
+const DELETED_BASE_RECHECK_MS = 60 * 60 * 1000
 
 const detachmentPayloadSchema = z
   .object({
@@ -78,6 +81,118 @@ export function keptDocumentBytes() {
 const SEARCH_PROJECTIONS = [embeddingSearch, embeddingKeywordTin] as const
 
 /**
+ * Settles what is left of a detached connector's reservation: an unreleased remainder is refunded,
+ * and an overdraft, released bytes beyond what removal charged, is charged as already admitted.
+ * Returns the payer's updated usage when it grew, for a storage-limit notification after commit.
+ */
+async function settleDetachReservationInTx(
+  tx: DbOrTx,
+  storageContext: StorageBillingContext,
+  reservedBytes: number
+): Promise<number | undefined> {
+  if (reservedBytes > 0) {
+    await decrementStorageUsageForBillingContextInTx(tx, storageContext, reservedBytes)
+    return undefined
+  }
+  if (reservedBytes < 0) {
+    return incrementAdmittedStorageUsageForBillingContextInTx(tx, storageContext, -reservedBytes)
+  }
+  return undefined
+}
+
+/**
+ * Which detach reservations a purge settles at each of its two points.
+ * `overdrawn` settles only negative reservations and runs before the documents are deleted;
+ * `remaining` settles whatever is left and runs after them.
+ */
+export type DetachReservationSettlement = 'overdrawn' | 'remaining'
+
+/**
+ * Settles the reservations of detached connectors on knowledge bases being hard-deleted.
+ *
+ * Purging a base cascades its connectors away, and with them the reservation a detached connector
+ * still holds for documents it never released; its pending detach job then finds no base and
+ * settles nothing. So the purge settles them itself, locking each base's detached connectors in
+ * the detach job's order (base, then connector), settling their net reservation exactly as the
+ * job's final transaction would, and zeroing it in the same transaction so nothing settles twice.
+ *
+ * The ledger must match the base's documents after every step, since document deletion can fail
+ * partway and be retried. Deleting a released document decrements usage with a floor at zero, so
+ * an overdrawn reservation settled afterwards would re-add bytes the floor discarded: `overdrawn`
+ * settles those before the documents go, which only charges bytes the released documents already
+ * hold. A positive reservation still pays for documents that remain until they are deleted, so
+ * `remaining` settles it afterwards. No detach page interleaves: a detach job releases nothing while its
+ * base is deleted, and a base restored before the purge completes resumes its detach unchanged.
+ */
+export async function settleDetachedConnectorReservations(
+  knowledgeBaseIds: string[],
+  settlement: DetachReservationSettlement
+): Promise<void> {
+  for (const knowledgeBaseId of knowledgeBaseIds) {
+    const [owner] = await db
+      .select({ workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+    if (!owner?.workspaceId) continue
+    const storageContext = await resolveStorageBillingContext(owner.workspaceId)
+
+    const updatedUsage = await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+      await tx.execute(sql`SET LOCAL statement_timeout = '30s'`)
+      const [lockedOwner] = await tx
+        .select({ workspaceId: knowledgeBase.workspaceId })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+        .for('share')
+        .limit(1)
+      if (!lockedOwner) return undefined
+      if (lockedOwner.workspaceId !== owner.workspaceId) {
+        throw new Error('Knowledge base workspace changed during detach reservation settlement')
+      }
+      const reserved = await tx
+        .select({
+          id: knowledgeConnector.id,
+          reservedBytes: knowledgeConnector.detachReservedBytes,
+        })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+            isNotNull(knowledgeConnector.detachedAt),
+            settlement === 'overdrawn'
+              ? lt(knowledgeConnector.detachReservedBytes, 0)
+              : ne(knowledgeConnector.detachReservedBytes, 0)
+          )
+        )
+        .orderBy(asc(knowledgeConnector.id))
+        .for('update')
+      if (reserved.length === 0) return undefined
+
+      /**
+       * One net settlement per base: the ledger lands where settling each connector in turn would
+       * leave it, and the notifier sees that final balance rather than one from mid-sequence.
+       */
+      const netReservedBytes = reserved.reduce((sum, connector) => sum + connector.reservedBytes, 0)
+      const grownUsage = await settleDetachReservationInTx(tx, storageContext, netReservedBytes)
+      await tx
+        .update(knowledgeConnector)
+        .set({ detachReservedBytes: 0 })
+        .where(
+          inArray(
+            knowledgeConnector.id,
+            reserved.map(({ id }) => id)
+          )
+        )
+      return grownUsage
+    })
+    if (updatedUsage !== undefined) {
+      await maybeNotifyStorageLimitForBillingContext(storageContext, updatedUsage)
+    }
+  }
+}
+
+/**
  * Releases a detached connector's documents as standalone entries, then deletes the connector.
  *
  * Nulling a document's `connector_id` fires the projection trigger, which rewrites every enabled
@@ -110,7 +225,7 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
     : undefined
 
   let storageNotification: { context: StorageBillingContext; updatedUsage: number } | undefined
-  let outcome: 'progress' | 'complete' | 'obsolete' = 'progress'
+  let outcome: 'progress' | 'complete' | 'obsolete' | 'paused' = 'progress'
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN && outcome === 'progress'; batch++) {
     context.signal.throwIfAborted()
     outcome = await db.transaction(async (tx) => {
@@ -118,7 +233,7 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
       await tx.execute(sql`SET LOCAL statement_timeout = '30s'`)
       /** Match source writes and document deletion: parent KB, connector, then documents. */
       const [lockedOwner] = await tx
-        .select({ workspaceId: knowledgeBase.workspaceId })
+        .select({ workspaceId: knowledgeBase.workspaceId, deletedAt: knowledgeBase.deletedAt })
         .from(knowledgeBase)
         .where(eq(knowledgeBase.id, payload.knowledgeBaseId))
         .for('share')
@@ -127,6 +242,13 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
       if (lockedOwner.workspaceId !== owner.workspaceId) {
         throw new Error('Knowledge base workspace changed during connector detachment')
       }
+      /**
+       * A deleted base releases nothing: its documents stay archived and attached, and the
+       * reservation keeps paying for them, until a restore resumes the release or the purge
+       * settles it. Checked under the base's share lock, so no page releases once the deletion
+       * commits, and none can interleave with the purge's settlement and document deletion.
+       */
+      if (lockedOwner.deletedAt) return 'paused'
       const [connector] = await tx
         .select({
           detachedAt: knowledgeConnector.detachedAt,
@@ -165,21 +287,13 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
           context.signal
         )
         if (drained === 'complete' && storageContext) {
-          if (connector.reservedBytes > 0) {
-            await decrementStorageUsageForBillingContextInTx(
-              tx,
-              storageContext,
-              connector.reservedBytes
-            )
-          } else if (connector.reservedBytes < 0) {
-            const updatedUsage = await incrementAdmittedStorageUsageForBillingContextInTx(
-              tx,
-              storageContext,
-              -connector.reservedBytes
-            )
-            if (updatedUsage !== undefined) {
-              storageNotification = { context: storageContext, updatedUsage }
-            }
+          const updatedUsage = await settleDetachReservationInTx(
+            tx,
+            storageContext,
+            connector.reservedBytes
+          )
+          if (updatedUsage !== undefined) {
+            storageNotification = { context: storageContext, updatedUsage }
           }
         }
         return drained
@@ -241,6 +355,17 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
     )
   }
   if (outcome === 'obsolete') return
+  if (outcome === 'paused') {
+    /**
+     * Waiting spends no attempt: the event still reaches a terminal state, since either a
+     * restore resumes the release or the purge removes the base and the next run completes.
+     */
+    return deferOutboxHandler(
+      'Connector detachment waits while its knowledge base is deleted',
+      DELETED_BASE_RECHECK_MS,
+      false
+    )
+  }
   if (outcome === 'complete') {
     if (payload.credentialAccess) {
       context.signal.throwIfAborted()

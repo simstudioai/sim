@@ -278,6 +278,7 @@ jobs:
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/knowledge/__integration__/unfilled-projection-source.integration.ts
+          lib/knowledge/__integration__/purged-detach-reservation.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
