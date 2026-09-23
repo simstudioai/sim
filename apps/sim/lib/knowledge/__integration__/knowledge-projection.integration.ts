@@ -418,6 +418,7 @@ afterAll(async () => {
  * so no synchronous trigger would write the Tin row.
  */
 beforeEach(async () => {
+  requestKnowledgeProjection.mockClear()
   await db.delete(embedding).where(eq(embedding.documentId, documentId))
   await db
     .update(document)
@@ -666,7 +667,7 @@ describe('the projector', () => {
       } finally {
         enabledFlags.delete('knowledge-async-projection')
       }
-      expect(requestKnowledgeProjection).toHaveBeenCalled()
+      expect(requestKnowledgeProjection).toHaveBeenCalledOnce()
       expect(await markOf()).toMatchObject({ content: false })
       expect((await rowAcl(embeddingSearch))?.acl).toEqual(
         flagOn ? aclOf('alice', 'bob') : aclOf('bob')
