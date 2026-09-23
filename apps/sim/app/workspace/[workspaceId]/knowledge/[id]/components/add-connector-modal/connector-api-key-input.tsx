@@ -6,6 +6,10 @@ import {
   checkEnvVarTrigger,
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+
+const NO_ENV_VARS = new Set<string>()
 
 interface ConnectorApiKeyInputProps {
   value: string
@@ -21,8 +25,11 @@ export function ConnectorApiKeyInput({
   workspaceId,
 }: ConnectorApiKeyInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const [isFocused, setIsFocused] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
   const [showSecrets, setShowSecrets] = useState(false)
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId, { enabled: isFocused })
   const trigger = checkEnvVarTrigger(value, cursorPosition)
   const visible = showSecrets && trigger.show
 
@@ -39,11 +46,34 @@ export function ConnectorApiKeyInput({
         onSelect={(event) => {
           setCursorPosition(event.currentTarget.selectionStart ?? value.length)
         }}
-        inputClassName={
-          value.trimStart().startsWith('{{') ? 'text-[var(--brand-secondary)]' : undefined
-        }
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onScroll={(event) => {
+          if (overlayRef.current) {
+            overlayRef.current.style.transform = `translateX(-${event.currentTarget.scrollLeft}px)`
+          }
+        }}
+        inputClassName={isFocused ? 'text-transparent caret-[var(--text-primary)]' : undefined}
         placeholder={placeholder}
       />
+      {isFocused && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 text-[var(--text-body)] text-sm'
+        >
+          <div
+            ref={(element) => {
+              overlayRef.current = element
+              if (element) {
+                element.style.transform = `translateX(-${inputRef.current?.scrollLeft ?? 0}px)`
+              }
+            }}
+            className='whitespace-pre'
+          >
+            {formatDisplayText(value, { availableEnvVars: availableEnvVars ?? NO_ENV_VARS })}
+          </div>
+        </div>
+      )}
       {visible && (
         <EnvVarDropdown
           visible

@@ -905,7 +905,7 @@ describe('Search setup options', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(document.body.textContent).toContain('GITLAB_PAT')
-    expect(input.className).toContain('text-[var(--brand-secondary)]')
+    expect(document.querySelector('span[class="text-[var(--brand-secondary)]"]')).toBeNull()
     await act(async () => {
       input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
       input.setSelectionRange(0, 0)
@@ -922,7 +922,9 @@ describe('Search setup options', () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     expect(input.value).toBe('{{GITLAB_PAT}}')
-    expect(input.className).toContain('text-[var(--brand-secondary)]')
+    expect(document.querySelector('span[class="text-[var(--brand-secondary)]"]')).toHaveTextContent(
+      '{{GITLAB_PAT}}'
+    )
     expect(mocks.create).not.toHaveBeenCalled()
     await act(async () => button('Connect & Sync').click())
     expect(mocks.create).toHaveBeenCalledWith(
@@ -930,6 +932,32 @@ describe('Search setup options', () => {
       expect.any(Object)
     )
   })
+
+  it.each(['{{', '{{MISSING_SECRET}}', 'literal-pat'])(
+    'does not highlight unresolved or literal API-key text: %s',
+    async (value) => {
+      await render({
+        initialConnectorType: 'gitlab',
+        initialAccessMode: 'workspace',
+        isSearchIndex: false,
+      })
+      const input = document.querySelector<HTMLInputElement>(
+        'input[placeholder="Enter your GitLab PAT"]'
+      )!
+      await act(async () => input.focus())
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          value
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      expect(document.querySelector('span[class="text-[var(--brand-secondary)]"]')).toBeNull()
+      await act(async () => input.blur())
+      expect(input.value).toBe('•'.repeat(value.length))
+      expect(document.body.textContent).not.toContain(value)
+    }
+  )
 
   it('keeps administrator-required fields in the primary form even if metadata marks them optional', async () => {
     mocks.credentials = [{ id: 'service', name: 'Indexing account', type: 'service_account' }]

@@ -6,6 +6,11 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/hooks/queries/environment', () => ({
+  usePersonalEnvironment: () => ({ data: {} }),
+  useWorkspaceEnvironment: () => ({ data: { workspace: {}, personal: {} } }),
+}))
+
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
   hasMaxAccess: true,
