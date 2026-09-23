@@ -1393,6 +1393,12 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly scheduleProviderContinuation?: (
     error: ProviderCapacityDeferredError
   ) => Promise<DocumentProcessingContinuation>
+  /**
+   * Schedules the next attempt after a transient database failure and returns when it runs, or
+   * null when this failure is not retried that way. A scheduled document is left `pending` until
+   * then instead of `failed`, so a slow database window does not read as a bad document.
+   */
+  readonly scheduleDatabaseRetry?: (error: unknown) => Date | null
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
 }
@@ -2175,10 +2181,13 @@ export async function processDocumentAsync(
         recordedError = continuationError
       }
     }
-    const deferredUntil = continuation?.deferredUntil ?? null
+    const databaseRetryAt = continuation?.deferredUntil
+      ? null
+      : (attemptContext?.scheduleDatabaseRetry?.(recordedError) ?? null)
+    const deferredUntil = continuation?.deferredUntil ?? databaseRetryAt
     const providerContinuationExhausted =
       recordedError instanceof ProviderCapacityContinuationExhaustedError
-    const quotaContinuationFailed = quotaContinuationAttempted && !deferredUntil
+    const quotaContinuationFailed = quotaContinuationAttempted && !continuation?.deferredUntil
     const failureDiagnostic = getConnectorFailureDiagnostic(recordedError)
     const errorMessage = byokCredentialRejected
       ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE

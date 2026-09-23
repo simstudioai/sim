@@ -3,10 +3,12 @@
  */
 
 import {
+  classifyDatabaseFailure,
   describeError,
   findCause,
   getPostgresCancellationReason,
   getPostgresErrorCode,
+  getTransientDatabaseFailure,
   toError,
 } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
@@ -63,6 +65,88 @@ describe('getPostgresCancellationReason', () => {
     }
     expect(getPostgresErrorCode(error)).toBe('23505')
     expect(getPostgresCancellationReason(error)).toBeUndefined()
+  })
+})
+
+/** The driver error postgres.js throws, wrapped the way Drizzle wraps a failed query. */
+function failedQuery(code: string, message = 'private driver detail'): Error {
+  const driver = Object.assign(new Error(message), { code })
+  return Object.assign(new Error('Failed query: private SQL\nparams: private'), {
+    query: 'private SQL',
+    params: ['private'],
+    cause: driver,
+  })
+}
+
+describe('classifyDatabaseFailure', () => {
+  it.each([
+    ['57014', 'canceling statement due to statement timeout', 'capacity'],
+    ['55P03', 'canceling statement due to lock timeout', 'capacity'],
+    ['25P04', 'terminating connection due to idle-in-transaction timeout', 'capacity'],
+    ['53300', 'sorry, too many clients already', 'capacity'],
+    ['40P01', 'deadlock detected', 'conflict'],
+    ['40001', 'could not serialize access due to concurrent update', 'conflict'],
+    ['08000', 'connection exception', 'connection'],
+    ['08006', 'connection failure', 'connection'],
+    ['08P01', 'protocol violation', 'connection'],
+    ['57P01', 'terminating connection due to administrator command', 'connection'],
+    ['57P03', 'the database system is starting up', 'connection'],
+    ['CONNECTION_CLOSED', 'write CONNECTION_CLOSED', 'connection'],
+    ['CONNECTION_DESTROYED', 'write CONNECTION_DESTROYED', 'connection'],
+    ['CONNECTION_ENDED', 'write CONNECTION_ENDED', 'connection'],
+    ['CONNECT_TIMEOUT', 'write CONNECT_TIMEOUT', 'connection'],
+    ['ECONNRESET', 'read ECONNRESET', 'connection'],
+    ['EPIPE', 'write EPIPE', 'connection'],
+    ['ETIMEDOUT', 'connect ETIMEDOUT', 'connection'],
+  ])('classifies %s through a query wrapper', (code, message, expected) => {
+    const wrapped = failedQuery(code, message)
+    expect(classifyDatabaseFailure(wrapped)).toBe(expected)
+    expect(classifyDatabaseFailure(new Error('task wrapper', { cause: wrapped }))).toBe(expected)
+    expect(getTransientDatabaseFailure(wrapped)).toBe(expected)
+  })
+
+  it('treats an explicit cancellation as permanent although it shares the timeout SQLSTATE', () => {
+    const cancelled = failedQuery('57014', 'canceling statement due to user request')
+    expect(classifyDatabaseFailure(cancelled)).toBe('permanent')
+    expect(getTransientDatabaseFailure(cancelled)).toBeUndefined()
+  })
+
+  it('does not read a timeout into a 57014 with an unrecognized message', () => {
+    expect(classifyDatabaseFailure(failedQuery('57014', 'private-value'))).toBe('permanent')
+  })
+
+  it.each(['23505', '42P01', '22P02', 'XX000'])('treats %s as permanent', (code) => {
+    expect(classifyDatabaseFailure(failedQuery(code))).toBe('permanent')
+  })
+
+  it('treats a socket error with no database query in its chain as permanent', () => {
+    const download = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    expect(classifyDatabaseFailure(download)).toBe('permanent')
+    expect(classifyDatabaseFailure(new Error('fetch failed', { cause: download }))).toBe(
+      'permanent'
+    )
+  })
+
+  it('counts a socket error the driver raised with its query attached', () => {
+    const driver = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+      query: 'private SQL',
+    })
+    expect(classifyDatabaseFailure(driver)).toBe('connection')
+  })
+
+  it('treats failures without a code as permanent', () => {
+    expect(classifyDatabaseFailure(new Error('boom'))).toBe('permanent')
+    expect(classifyDatabaseFailure('boom')).toBe('permanent')
+    expect(classifyDatabaseFailure(undefined)).toBe('permanent')
+  })
+
+  it('classifies by the first code in the chain', () => {
+    const outer = Object.assign(new Error('unique'), {
+      code: '23505',
+      cause: failedQuery('40P01', 'deadlock detected'),
+    })
+    expect(classifyDatabaseFailure(outer)).toBe('permanent')
   })
 })
 

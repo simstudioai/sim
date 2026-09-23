@@ -1102,6 +1102,85 @@ describe('executeSync deferred hydration rate limits', () => {
   })
 })
 
+describe('executeSync database failures', () => {
+  const NOW = new Date('2026-08-29T03:00:00.000Z')
+
+  async function failSyncWith(error: Error) {
+    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
+    const connector = {
+      id: 'c-1',
+      knowledgeBaseId: 'kb-1',
+      connectorType: 'paged',
+      credentialId: null,
+      encryptedApiKey: null,
+      sourceConfig: {},
+      syncMode: 'full',
+      syncIntervalMinutes: 1440,
+      accessMode: 'workspace',
+      status: 'active',
+      lastSyncAt: null,
+      lastSyncDocCount: null,
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      syncLockToken: null,
+    }
+    queueTableRows(schemaMock.knowledgeConnector, [connector])
+    for (let i = 0; i < 20; i++)
+      queueTableRows(schemaMock.knowledgeConnector, [
+        { id: 'c-1', connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
+      ])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    for (let i = 0; i < 5; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    for (let i = 0; i < 4; i++) queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }]).mockResolvedValueOnce([connector])
+    mockListDocuments.mockRejectedValueOnce(error)
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+    const terminal = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => 'consecutiveFailures' in value)
+    return { result, terminal, MAX_CONSECUTIVE_FAILURES }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not disable a connector one failure from the breaker over a database timeout', async () => {
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    const { result, terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(timeout)
+
+    expect(result.error).toBe('Database request failed (SQLSTATE 57014).')
+    expect(terminal).toMatchObject({
+      status: 'error',
+      lastSyncError: 'Database request failed (SQLSTATE 57014).',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+    })
+    expect((terminal?.nextSyncAt as Date).getTime()).toBeGreaterThan(NOW.getTime())
+  })
+
+  it('still disables at the breaker for a failure the database did not cause', async () => {
+    const { terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(new Error('source broke'))
+
+    expect(terminal).toMatchObject({
+      status: 'disabled',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+    })
+  })
+})
+
 describe('previous complete listing evidence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -2016,6 +2095,37 @@ describe('buildSyncCapacityUpdate', () => {
       syncLockLeaseAt: null,
       updatedAt: now,
     })
+  })
+})
+
+describe('buildSyncDatabaseRetryUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+  const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
+
+  it('reschedules without advancing the auto-disable counter', async () => {
+    const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
+
+    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout')
+    expect(update).toMatchObject({
+      status: 'error',
+      lastSyncError: 'db timeout',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: now,
+    })
+  })
+
+  it('waits the ladder rung for the failures already counted, plus bounded jitter', async () => {
+    const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const first = buildSyncDatabaseRetryUpdate(now, null, 'db timeout').nextSyncAt.getTime()
+    expect(first).toBeGreaterThanOrEqual(minutesAfter(30))
+    expect(first).toBeLessThanOrEqual(minutesAfter(31))
+    const later = buildSyncDatabaseRetryUpdate(now, 2, 'db timeout').nextSyncAt.getTime()
+    expect(later).toBeGreaterThanOrEqual(minutesAfter(90))
+    expect(later).toBeLessThanOrEqual(minutesAfter(91))
   })
 })
 
@@ -2985,8 +3095,9 @@ describe('executeSync heartbeats during the listing phase', () => {
       })
       expect(mockListDocuments).not.toHaveBeenCalled()
       expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private')
+      /** A database timeout is not the connector's failure, so it leaves the breaker alone. */
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'error', consecutiveFailures: 1 })
+        expect.objectContaining({ status: 'error', consecutiveFailures: 0 })
       )
     }
   )

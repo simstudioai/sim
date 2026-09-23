@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage, getTransientDatabaseFailure, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -712,6 +712,35 @@ export function buildSyncCapacityUpdate(
   return {
     ...buildSyncUnscheduledUpdate(now, errorMessage),
     consecutiveFailures: previousFailures ?? 0,
+  }
+}
+
+/**
+ * The connector row written after the database, not the source, failed the run: a statement,
+ * lock, or transaction timeout, a deadlock, or a dropped connection.
+ *
+ * A slow database window says nothing about the connector, so, like throttling, it must not
+ * consume the breaker that disables connectors after persistent failures. The retry waits the
+ * failure ladder's rung for the failures already counted, which it never advances, plus jitter so
+ * connectors failed by the same window do not return together.
+ */
+export function buildSyncDatabaseRetryUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string
+) {
+  const failures = previousFailures ?? 0
+  const backoffMs = connectorFailureBackoffMinutes(failures + 1) * 60 * 1000
+  const jitterMs = randomInt(0, RATE_LIMIT_RETRY_JITTER_MAX_MS + 1)
+
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: new Date(now.getTime() + backoffMs + jitterMs),
+    consecutiveFailures: failures,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
   }
 }
 
@@ -1539,19 +1568,25 @@ export async function executeSync(
         const failureUpdate =
           error instanceof ConnectorSyncCapacityError
             ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-            : rateLimited
-              ? buildSyncRateLimitUpdate(
+            : getTransientDatabaseFailure(error)
+              ? buildSyncDatabaseRetryUpdate(
                   new Date(),
                   connector.consecutiveFailures,
-                  errorMessage,
-                  retryAfterMs
+                  errorMessage
                 )
-              : buildSyncFailureUpdate(
-                  new Date(),
-                  connector.consecutiveFailures,
-                  errorMessage,
-                  retryAfterMs
-                )
+              : rateLimited
+                ? buildSyncRateLimitUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
+                : buildSyncFailureUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
 
         if (failureUpdate.status === 'disabled') {
           logger.warn('Connector disabled after repeated failures', {

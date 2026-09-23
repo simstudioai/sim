@@ -63,6 +63,86 @@ export function getPostgresCancellationReason(
 }
 
 /**
+ * How a failed database operation should be treated by a background job.
+ *
+ * - `capacity`: the database had no room for the work right now (statement, lock, or
+ *   idle-in-transaction timeout; too many connections). Waiting out the slow window helps.
+ * - `conflict`: the transaction lost to a concurrent one (deadlock, serialization failure).
+ *   Running it again from the start succeeds.
+ * - `connection`: the connection to the database failed or was closed under the query.
+ * - `permanent`: anything else, including failures that did not come from the database at all.
+ *   Whether to retry it is the caller's ordinary policy, not this classification's.
+ */
+export type DatabaseFailureClass = 'capacity' | 'conflict' | 'connection' | 'permanent'
+
+export type TransientDatabaseFailureClass = Exclude<DatabaseFailureClass, 'permanent'>
+
+const CAPACITY_CODES = new Set(['55P03', '25P04', '53300'])
+const CONFLICT_CODES = new Set(['40P01', '40001'])
+
+/**
+ * postgres.js reports a lost connection with its own codes; `57P01`–`57P03` are the server
+ * shutting down or not yet accepting connections, as during a restart or failover.
+ */
+const DATABASE_CONNECTION_CODES = new Set([
+  'CONNECTION_CLOSED',
+  'CONNECTION_DESTROYED',
+  'CONNECTION_ENDED',
+  'CONNECT_TIMEOUT',
+  '57P01',
+  '57P02',
+  '57P03',
+])
+
+/** Socket failures any client can raise; they count only when a database query carried them. */
+const SOCKET_CONNECTION_CODES = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT'])
+
+const CONNECTION_EXCEPTION_SQLSTATE = /^08[0-9A-Z]{3}$/
+
+/**
+ * Classifies a failure by the SQLSTATE or driver code in its `cause` chain.
+ *
+ * `57014` is both a statement timeout and an explicit cancellation, and only the message tells
+ * them apart: an explicit cancellation was asked for, so it is `permanent`. A socket error such as
+ * `ECONNRESET` is a database connection failure only when a query is in the chain (Drizzle's
+ * wrapper and the driver's own error both carry the SQL); a file download or provider call raising
+ * the same code is not the database's to retry.
+ */
+export function classifyDatabaseFailure(error: unknown): DatabaseFailureClass {
+  const code = getPostgresErrorCode(error)
+  if (!code) return 'permanent'
+  if (code === '57014') {
+    return getPostgresCancellationReason(error) === 'statement_timeout' ? 'capacity' : 'permanent'
+  }
+  if (CAPACITY_CODES.has(code)) return 'capacity'
+  if (CONFLICT_CODES.has(code)) return 'conflict'
+  if (CONNECTION_EXCEPTION_SQLSTATE.test(code) || DATABASE_CONNECTION_CODES.has(code)) {
+    return 'connection'
+  }
+  if (SOCKET_CONNECTION_CODES.has(code) && carriesDatabaseQuery(error)) return 'connection'
+  return 'permanent'
+}
+
+/** The transient class of a database failure, or `undefined` when it is not one. */
+export function getTransientDatabaseFailure(
+  error: unknown
+): TransientDatabaseFailureClass | undefined {
+  const failureClass = classifyDatabaseFailure(error)
+  return failureClass === 'permanent' ? undefined : failureClass
+}
+
+function carriesDatabaseQuery(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if ('query' in current && typeof current.query === 'string') return true
+    current = current.cause
+  }
+  return false
+}
+
+/**
  * Returns the name of the PostgreSQL constraint that triggered the error (e.g. the unique index
  * name on a `23505`), when present on a thrown value. Mirrors the field populated by the
  * `postgres` / `pg` drivers, walking `cause` chains the same way as `getPostgresErrorCode`.

@@ -747,6 +747,77 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('failed')).toBeDefined()
   })
 
+  describe('a transient database failure', () => {
+    const databaseError = () =>
+      new DrizzleQueryError(
+        'insert private SQL',
+        ['private bound content'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+
+    async function failWith(error: Error, scheduleDatabaseRetry: (error: unknown) => Date | null) {
+      armProviderSource()
+      mockProcessDocument.mockRejectedValueOnce(error)
+      return processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        BILLING_ATTRIBUTION,
+        'pass-1',
+        {
+          chargedAtDispatch: true,
+          processingQueueToken: 'pass-1',
+          processingQueuedAt: new Date(),
+          scheduleDatabaseRetry,
+        }
+      ).catch((caught: unknown) => caught)
+    }
+
+    it('leaves the document pending until its scheduled retry instead of failed', async () => {
+      const error = databaseError()
+      const retryAt = new Date(Date.now() + 120_000)
+      const schedule = vi.fn().mockReturnValue(retryAt)
+
+      expect(await failWith(error, schedule)).toBe(error)
+
+      expect(schedule).toHaveBeenCalledWith(error)
+      const pending = dbChainMockFns.set.mock.calls.find(
+        ([value]) => value.processingDeferredUntil === retryAt
+      )?.[0]
+      expect(pending).toMatchObject({
+        processingStatus: 'pending',
+        processingError: null,
+        processingDeferredUntil: retryAt,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+      })
+      /** The same run retries, so its queue generation and retry budget stay as they are. */
+      expect(pending).not.toHaveProperty('processingQueueToken')
+      expect(pending).not.toHaveProperty('processingQueuedAt')
+      expect(pending).not.toHaveProperty('processingAttempts')
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
+      ).toBe(false)
+      expect(guardForStatusWrite('pending')).toBeDefined()
+    })
+
+    it('records the failure once no retry is scheduled', async () => {
+      const error = databaseError()
+      expect(await failWith(error, () => null)).toBe(error)
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          processingStatus: 'failed',
+          processingError: 'Database request failed (SQLSTATE 57014).',
+          processingDeferredUntil: null,
+        })
+      )
+    })
+  })
+
   it('records the failed embedding batch without exposing SQL, content or vectors', async () => {
     armProviderSource()
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'document-1' }])

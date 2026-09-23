@@ -46,6 +46,9 @@ import { MAX_PROVIDER_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/pr
 import { MAX_QUOTA_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-quota-continuation'
 import type { DocumentProcessingAttemptContext } from '@/lib/knowledge/documents/service'
 import {
+  DOCUMENT_PROCESSING_RETRY_POLICY,
+  DocumentProcessingDatabaseRetryError,
+  getDocumentProcessingRetry,
   resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
 } from '@/background/knowledge-processing'
@@ -607,8 +610,81 @@ describe('knowledge processing worker', () => {
     )
     expect(failure).toBeInstanceOf(Error)
     expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
-    expect(failure).not.toHaveProperty('cause')
+    /** Trigger records only the name, message and stack; the cause stays for classification. */
+    expect((failure as Error).cause).toBe(error)
+    expect((failure as Error).stack).not.toContain('private')
     expect(JSON.stringify(failure)).not.toContain('private')
+  })
+
+  describe('transient database failures', () => {
+    const MINUTE = 60 * 1000
+    const statementTimeout = () =>
+      new DrizzleQueryError(
+        'insert private SQL',
+        ['private bound content'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+
+    /** A service failure that asks the worker whether to schedule a database retry, as the service does. */
+    function failProcessingWith(error: Error): { scheduled: Array<Date | null> } {
+      const scheduled: Array<Date | null> = []
+      mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
+        const context = args[6] as DocumentProcessingAttemptContext
+        scheduled.push(context.scheduleDatabaseRetry?.(error) ?? null)
+        throw error
+      })
+      return { scheduled }
+    }
+
+    it('schedules a minute-scale retry and hands Trigger the same time the document records', async () => {
+      const error = statementTimeout()
+      const { scheduled } = failProcessingWith(error)
+      const startedAt = Date.now()
+
+      const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD, 1).catch(
+        (caught: unknown) => caught
+      )
+
+      expect(failure).toBeInstanceOf(DocumentProcessingDatabaseRetryError)
+      expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
+      expect((failure as Error).cause).toBe(error)
+      expect((failure as Error).stack).not.toContain('private')
+      const retryAt = scheduled[0]
+      expect(retryAt).toBeInstanceOf(Date)
+      expect(retryAt!.getTime() - startedAt).toBeGreaterThanOrEqual(2 * MINUTE * 0.8)
+      expect(retryAt!.getTime() - startedAt).toBeLessThanOrEqual(2 * MINUTE * 1.2 + 1000)
+      expect(getDocumentProcessingRetry(failure, 1)).toEqual({ retryAt })
+    })
+
+    it('records the failure and stops once the database attempts are spent', async () => {
+      const error = statementTimeout()
+      const { scheduled } = failProcessingWith(error)
+      const lastAttempt = DOCUMENT_PROCESSING_RETRY_POLICY.database.maxAttempts
+
+      const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD, lastAttempt).catch(
+        (caught: unknown) => caught
+      )
+
+      expect(scheduled).toEqual([null])
+      expect(failure).not.toBeInstanceOf(DocumentProcessingDatabaseRetryError)
+      expect((failure as Error).cause).toBe(error)
+      expect(getDocumentProcessingRetry(failure, lastAttempt)).toEqual({ skipRetrying: true })
+    })
+
+    it('leaves other failures on the task retry settings and attempt count', async () => {
+      const error = new Error('Storage request timed out')
+      const { scheduled } = failProcessingWith(error)
+
+      await expect(runDocumentProcessing(WORKSPACE_PAYLOAD, 1)).rejects.toBe(error)
+
+      expect(scheduled).toEqual([null])
+      expect(getDocumentProcessingRetry(error, 1)).toBeUndefined()
+      expect(
+        getDocumentProcessingRetry(error, DOCUMENT_PROCESSING_RETRY_POLICY.maxAttempts)
+      ).toEqual({ skipRetrying: true })
+    })
   })
 
   it('retries failed provider continuation dispatch instead of reporting a successful deferral', async () => {
@@ -748,6 +824,28 @@ describe('knowledge-process-document task configuration', () => {
     const { processDocument } = await import('@/background/knowledge-processing')
 
     expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
+  })
+
+  it('declares enough attempts for database retries and routes failures through catchError', async () => {
+    const { processDocument } = await import('@/background/knowledge-processing')
+
+    expect(processDocument.retry?.maxAttempts).toBe(
+      Math.max(
+        DOCUMENT_PROCESSING_RETRY_POLICY.maxAttempts,
+        DOCUMENT_PROCESSING_RETRY_POLICY.database.maxAttempts
+      )
+    )
+    const retryAt = new Date('2026-01-01T00:02:00.000Z')
+    const scheduled = new DocumentProcessingDatabaseRetryError(
+      'Database request failed.',
+      retryAt,
+      {
+        cause: new Error('private'),
+      }
+    )
+    await expect(
+      processDocument.catchError?.({ error: scheduled, ctx: { attempt: { number: 1 } } } as never)
+    ).resolves.toEqual({ retryAt })
   })
 
   it('backs durable quota continuations off to a bounded polling interval', () => {
