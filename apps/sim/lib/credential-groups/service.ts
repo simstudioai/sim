@@ -465,6 +465,29 @@ export async function updateCredentialGroup(
       .for('update')
     if (!existing) return null
 
+    if (body.apiKeyOptions !== undefined) {
+      const expected = body.expectedApiKeyOptions
+      if (!expected)
+        throw new OrchestrationError(
+          'validation',
+          'API key updates require the original API key request list'
+        )
+      if (
+        expected.length !== existing.apiKeyOptions.length ||
+        !expected.every((option, index) => {
+          const current = existing.apiKeyOptions[index]
+          return (
+            option.id === current.id &&
+            option.name === current.name &&
+            option.description === current.description
+          )
+        })
+      )
+        throw new OrchestrationError(
+          'conflict',
+          'API key requests changed. Refresh them and try again.'
+        )
+    }
     const existingApiKeyIds = new Set(existing.apiKeyOptions.map((option) => option.id))
     const nextApiKeyOptions = body.apiKeyOptions?.map((option) => {
       if (option.id && !existingApiKeyIds.has(option.id))

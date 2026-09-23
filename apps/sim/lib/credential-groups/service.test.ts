@@ -292,6 +292,7 @@ describe('API key request definitions', () => {
   })
   it('preserves stable IDs when names change without removing submitted credentials', async () => {
     await updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+      expectedApiKeyOptions: original.apiKeyOptions,
       apiKeyOptions: [
         { id: 'key-option', name: 'Research API key', description: 'Your own account' },
       ],
@@ -308,6 +309,7 @@ describe('API key request definitions', () => {
   it('rejects a stale or foreign option ID before writing', async () => {
     await expect(
       updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+        expectedApiKeyOptions: original.apiKeyOptions,
         apiKeyOptions: [{ id: 'other-group-option', name: 'Exa', description: null }],
       })
     ).rejects.toThrow('no longer exists')
@@ -315,9 +317,41 @@ describe('API key request definitions', () => {
   })
   it('removes the encrypted submissions when their request is removed', async () => {
     await updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+      expectedApiKeyOptions: original.apiKeyOptions,
       apiKeyOptions: [],
     })
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ apiKeyOptions: [] }))
+  })
+  it.each([
+    { expectedApiKeyOptions: [] },
+    { expectedApiKeyOptions: [{ ...original.apiKeyOptions[0], name: 'Previous name' }] },
+    {
+      expectedApiKeyOptions: [
+        { ...original.apiKeyOptions[0], description: 'Previous description' },
+      ],
+    },
+  ])(
+    'rejects a stale admin snapshot without changing definitions or deleting submissions',
+    async ({ expectedApiKeyOptions }) => {
+      await expect(
+        updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+          expectedApiKeyOptions,
+          apiKeyOptions: [],
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    }
+  )
+  it('refuses an API key edit without its original snapshot', async () => {
+    await expect(
+      updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+        apiKeyOptions: [],
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 })

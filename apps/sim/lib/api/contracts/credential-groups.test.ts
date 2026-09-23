@@ -337,18 +337,27 @@ describe('credential group contracts', () => {
 })
 
 describe('named API key requests', () => {
+  it.each([{ apiKeyOptions: [] }, { expectedApiKeyOptions: [] }])(
+    'requires a paired API key update and original snapshot',
+    (body) => {
+      expect(updateCredentialGroupBodySchema.safeParse(body).success).toBe(false)
+    }
+  )
   it.each(['Exa API key', 'EXA_API_KEY'])(
     'accepts a human-readable name or identifier: %s',
     (name) => {
       expect(
-        updateCredentialGroupBodySchema.parse({ apiKeyOptions: [{ name, description: null }] })
-          .apiKeyOptions
+        updateCredentialGroupBodySchema.parse({
+          expectedApiKeyOptions: [],
+          apiKeyOptions: [{ name, description: null }],
+        }).apiKeyOptions
       ).toEqual([{ name, description: null }])
     }
   )
   it('rejects values and ownership overrides in administrator definitions', () => {
     expect(
       updateCredentialGroupBodySchema.safeParse({
+        expectedApiKeyOptions: [],
         apiKeyOptions: [{ name: 'Exa', description: null, value: 'secret-value' }],
       }).success
     ).toBe(false)
@@ -356,6 +365,7 @@ describe('named API key requests', () => {
   it('rejects duplicate names after normalization and more than 50 requests', () => {
     expect(
       updateCredentialGroupBodySchema.safeParse({
+        expectedApiKeyOptions: [],
         apiKeyOptions: [
           { name: 'Exa', description: null },
           { name: ' EXA ', description: null },
@@ -364,6 +374,7 @@ describe('named API key requests', () => {
     ).toBe(false)
     expect(
       updateCredentialGroupBodySchema.safeParse({
+        expectedApiKeyOptions: [],
         apiKeyOptions: Array.from({ length: 51 }, (_, index) => ({
           name: `Key ${index}`,
           description: null,

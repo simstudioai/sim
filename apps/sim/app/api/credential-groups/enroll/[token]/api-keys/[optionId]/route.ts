@@ -48,7 +48,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit,
   operation: credentialGroupEnrollmentOperations.saveApiKey,
   errorPolicy: credentialGroupEnrollmentErrorPolicy,
-  parseOptions: { maxBodyBytes: 8192 },
+  parseOptions: { maxBodyBytes: 32 * 1024 },
   mapInput: ({ params, body }) => ({ optionId: params.optionId, value: body.value }),
   useCase: savePublicCredentialGroupApiKey,
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },

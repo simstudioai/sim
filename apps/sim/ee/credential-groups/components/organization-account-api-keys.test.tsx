@@ -68,7 +68,10 @@ it('requests only a name and description from the administrator', async () => {
     {
       organizationId: 'org-1',
       groupId: 'group-1',
-      update: { apiKeyOptions: [{ name: 'Exa API key', description: null }] },
+      update: {
+        expectedApiKeyOptions: [],
+        apiKeyOptions: [{ name: 'Exa API key', description: null }],
+      },
     },
     expect.anything()
   )
@@ -102,7 +105,11 @@ it('does not remove keys on an unfocused Enter and uses current query metadata',
   expect(mocks.update).not.toHaveBeenCalled()
   await act(async () => button('Remove').click())
   expect(mocks.update).toHaveBeenCalledWith(
-    { organizationId: 'org-1', groupId: 'group-1', update: { apiKeyOptions: [] } },
+    {
+      organizationId: 'org-1',
+      groupId: 'group-1',
+      update: { expectedApiKeyOptions: [option], apiKeyOptions: [] },
+    },
     expect.anything()
   )
 })

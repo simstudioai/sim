@@ -561,4 +561,19 @@ describe('public API key submission', () => {
     expect(mocks.saveApiKey).not.toHaveBeenCalled()
     expect(mocks.deleteApiKey).not.toHaveBeenCalled()
   })
+  it('preserves the documented fail-fast post-commit trigger delivery behavior', async () => {
+    mocks.fireTrigger.mockRejectedValue(new Error('Event delivery failed'))
+    await expect(
+      savePublicCredentialGroupApiKey.execute({
+        principal,
+        input: { optionId: 'key-option', value: 'fixture-secret' },
+      })
+    ).rejects.toThrow('Event delivery failed')
+    expect(mocks.saveApiKey).toHaveBeenCalledTimes(1)
+    expect(mocks.saveApiKey.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fireTrigger.mock.invocationCallOrder[0]
+    )
+    expect(mocks.deleteApiKey).not.toHaveBeenCalled()
+    expect(mocks.completeEnrollment).not.toHaveBeenCalled()
+  })
 })

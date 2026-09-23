@@ -9,6 +9,7 @@ import { CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT } from '@/lib/credential-groups/a
 import {
   credentialGroupApiKeyOptionInputSchema,
   credentialGroupApiKeyOptionsInputSchema,
+  credentialGroupApiKeyOptionsSnapshotSchema,
   credentialGroupApiKeyValueSchema,
 } from '@/lib/credential-groups/api-key-validation'
 import {
@@ -347,9 +348,17 @@ export const updateCredentialGroupBodySchema = z
       .optional(),
     status: credentialGroupStatusSchema.optional(),
     apiKeyOptions: credentialGroupApiKeyOptionsInputSchema.optional(),
+    expectedApiKeyOptions: credentialGroupApiKeyOptionsSnapshotSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
+    if ((body.apiKeyOptions === undefined) !== (body.expectedApiKeyOptions === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['expectedApiKeyOptions'],
+        message: 'API key updates require the original API key request list',
+      })
+    }
     if (Object.keys(body).length === 0) {
       ctx.addIssue({ code: 'custom', message: 'At least one field must be updated' })
     }

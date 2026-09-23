@@ -57,4 +57,14 @@ it('requires an explicit key credential reference when retrieving a key', () => 
       apiKeyCredentialId: '<ListKeys.apiKeys[0].credentialId>',
     }).missingRequiredFields
   ).toEqual([])
+  const emailInput = CredentialBlock.subBlocks.find((field) => field.id === 'email')!
+  expect(emailInput.condition).toMatchObject({ field: 'operation' })
+  expect(emailInput.condition).toHaveProperty(
+    'value',
+    expect.not.arrayContaining([params.operation])
+  )
+  expect(CredentialBlock.outputs.email.condition).toMatchObject({
+    field: 'operation',
+    value: expect.arrayContaining([params.operation]),
+  })
 })

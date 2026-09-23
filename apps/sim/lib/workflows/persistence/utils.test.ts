@@ -350,6 +350,51 @@ describe('Database Helpers', () => {
   })
 
   describe('loadWorkflowFromNormalizedTables', () => {
+    it.each(['00000000-0000-4000-8000-000000000001', '<ListKeys.apiKeys[0].credentialId>'])(
+      'preserves API key references without treating them as legacy account IDs: %s',
+      async (value) => {
+        queueLoadFixtures({
+          blocks: [
+            toDbBlock(
+              createBlock({
+                id: 'key-block',
+                type: 'credential',
+                subBlocks: {
+                  apiKeyCredentialId: { id: 'apiKeyCredentialId', type: 'short-input', value },
+                },
+              }),
+              mockWorkflowId
+            ),
+          ],
+        })
+        const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+        expect(loaded?.blocks['key-block'].subBlocks.apiKeyCredentialId.value).toBe(value)
+        expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
+        expect(dbHelpers.CREDENTIAL_SUBBLOCK_IDS.has('apiKeyCredentialId')).toBe(true)
+      }
+    )
+    it('migrates a legacy OAuth account ID without rewriting an identical API key credential ID', async () => {
+      const value = '00000000-0000-4000-8000-000000000001'
+      queueLoadFixtures({
+        blocks: [
+          toDbBlock(
+            createBlock({
+              id: 'key-block',
+              type: 'credential',
+              subBlocks: {
+                manualCredential: { id: 'manualCredential', type: 'short-input', value },
+                apiKeyCredentialId: { id: 'apiKeyCredentialId', type: 'short-input', value },
+              },
+            }),
+            mockWorkflowId
+          ),
+        ],
+      })
+      queueTableRows(schemaMock.credential, [{ id: 'cred_oauth', accountId: value }])
+      const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+      expect(loaded?.blocks['key-block'].subBlocks.manualCredential.value).toBe('cred_oauth')
+      expect(loaded?.blocks['key-block'].subBlocks.apiKeyCredentialId.value).toBe(value)
+    })
     it.each(['for', 'forEach', 'while', 'doWhile'] as const)(
       'preserves valid block counts and expressions for %s loops even when subflow counts differ',
       async (loopType) => {

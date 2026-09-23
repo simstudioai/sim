@@ -108,6 +108,7 @@ interface ApiKeyOptionModalProps extends OrganizationAccountApiKeysProps {
 
 function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOptionModalProps) {
   const option = editor.kind === 'add' ? undefined : editor.option
+  const [initialOptions] = useState(() => group.apiKeyOptions)
   const [name, setName] = useState(option?.name ?? '')
   const [description, setDescription] = useState(option?.description ?? '')
   const update = useUpdateOrganizationAccounts()
@@ -119,7 +120,7 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
       : 'Add API key request'
   const save = () => {
     if (update.isPending) return
-    const others = group.apiKeyOptions.filter((item) => item.id !== option?.id)
+    const others = initialOptions.filter((item) => item.id !== option?.id)
     const definition = {
       ...(option ? { id: option.id } : {}),
       name,
@@ -130,11 +131,12 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
         organizationId,
         groupId: group.id,
         update: {
+          expectedApiKeyOptions: initialOptions,
           apiKeyOptions: removing
             ? others
             : option
-              ? group.apiKeyOptions.map((item) => (item.id === option.id ? definition : item))
-              : [...group.apiKeyOptions, definition],
+              ? initialOptions.map((item) => (item.id === option.id ? definition : item))
+              : [...initialOptions, definition],
         },
       },
       { onSuccess: onClose }

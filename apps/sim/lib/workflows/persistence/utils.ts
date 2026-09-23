@@ -445,13 +445,17 @@ export function migrateAgentBlocksToMessagesFormat(
   )
 }
 
-export const CREDENTIAL_SUBBLOCK_IDS = new Set([
+const LEGACY_CREDENTIAL_SUBBLOCK_IDS = new Set([
   'credential',
   'manualCredential',
-  'apiKeyCredentialId',
   'triggerCredentials',
   'customBotCredential',
   'manualBotCredential',
+])
+
+export const CREDENTIAL_SUBBLOCK_IDS = new Set([
+  ...LEGACY_CREDENTIAL_SUBBLOCK_IDS,
+  'apiKeyCredentialId',
 ])
 
 async function migrateCredentialIds(
@@ -466,7 +470,7 @@ async function migrateCredentialIds(
       if (!subBlock || typeof subBlock !== 'object') continue
       const value = (subBlock as { value?: unknown }).value
       if (
-        CREDENTIAL_SUBBLOCK_IDS.has(subBlockId) &&
+        LEGACY_CREDENTIAL_SUBBLOCK_IDS.has(subBlockId) &&
         typeof value === 'string' &&
         value &&
         !value.startsWith('cred_')
@@ -511,7 +515,7 @@ async function migrateCredentialIds(
       const newSubBlocks = { ...block.subBlocks }
 
       for (const [subBlockId, subBlock] of Object.entries(newSubBlocks)) {
-        if (CREDENTIAL_SUBBLOCK_IDS.has(subBlockId) && typeof subBlock.value === 'string') {
+        if (LEGACY_CREDENTIAL_SUBBLOCK_IDS.has(subBlockId) && typeof subBlock.value === 'string') {
           const newId = accountToCredential.get(subBlock.value)
           if (newId) {
             newSubBlocks[subBlockId] = { ...subBlock, value: newId }

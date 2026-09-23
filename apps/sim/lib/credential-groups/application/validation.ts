@@ -1,6 +1,9 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupApiKeyOptionsInputSchema } from '@/lib/credential-groups/api-key-validation'
+import {
+  credentialGroupApiKeyOptionsInputSchema,
+  credentialGroupApiKeyOptionsSnapshotSchema,
+} from '@/lib/credential-groups/api-key-validation'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   isCredentialGroupProvider,
@@ -79,6 +82,17 @@ export function validateUpdateCredentialGroupInput(
     throw new OrchestrationError('validation', 'At least one field must be updated')
   }
   if (input.options) validateOptions(input.options)
+  if ((input.apiKeyOptions === undefined) !== (input.expectedApiKeyOptions === undefined))
+    throw new OrchestrationError(
+      'validation',
+      'API key updates require the original API key request list'
+    )
+  const expectedApiKeyOptions =
+    input.expectedApiKeyOptions === undefined
+      ? undefined
+      : credentialGroupApiKeyOptionsSnapshotSchema.safeParse(input.expectedApiKeyOptions)
+  if (expectedApiKeyOptions && !expectedApiKeyOptions.success)
+    throw new OrchestrationError('validation', expectedApiKeyOptions.error.issues[0].message)
   const apiKeyOptions =
     input.apiKeyOptions === undefined
       ? undefined
@@ -88,6 +102,9 @@ export function validateUpdateCredentialGroupInput(
   return {
     ...(input.options ? { options: input.options.map(normalizeOption) } : {}),
     ...(apiKeyOptions?.success ? { apiKeyOptions: apiKeyOptions.data } : {}),
+    ...(expectedApiKeyOptions?.success
+      ? { expectedApiKeyOptions: expectedApiKeyOptions.data }
+      : {}),
     ...(input.status ? { status: input.status } : {}),
   }
 }

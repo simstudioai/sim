@@ -48,6 +48,10 @@ export const credentialGroupApiKeyOptionsInputSchema = z
     }
   })
 
+export const credentialGroupApiKeyOptionsSnapshotSchema = z
+  .array(credentialGroupApiKeyOptionInputSchema.required({ id: true }))
+  .max(CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT)
+
 export const credentialGroupApiKeyValueSchema = z
   .string()
   .min(CREDENTIAL_GROUP_API_KEY_MIN_LENGTH, 'API key must contain at least 8 characters')

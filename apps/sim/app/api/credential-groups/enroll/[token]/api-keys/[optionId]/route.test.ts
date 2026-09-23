@@ -115,3 +115,21 @@ it('disconnects only through the authenticated enrollment use case', async () =>
     request: expect.any(NextRequest),
   })
 })
+
+it.each([JSON.stringify({ value: '密'.repeat(4096) }), `{"value":"${'\\u0061'.repeat(4096)}"}`])(
+  'accepts the maximum key length even when JSON requires more than 8 KiB',
+  async (body) => {
+    expect(new TextEncoder().encode(body).length).toBeGreaterThan(8192)
+    const response = await PUT(request(body), params)
+    expect(response.status).toBe(200)
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { optionId, value: JSON.parse(body).value } })
+    )
+  }
+)
+
+it('refuses oversized encoded bodies before invoking the use case', async () => {
+  const response = await PUT(request(' '.repeat(32 * 1024 + 1)), params)
+  expect(response.status).toBe(413)
+  expect(mocks.save).not.toHaveBeenCalled()
+})

@@ -618,57 +618,60 @@ describe('completeCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('completes when the recipient skips every optional account', async () => {
-    queueTableRows(schemaMock.credentialGroupEnrollment, [
-      {
-        enrollment: { ...ENROLLMENT, status: 'invited' },
-        groupId: 'group-1',
-        groupName: 'Group',
-        groupStatus: 'active',
-        options: [
-          {
-            id: 'option-1',
-            provider: 'gmail',
-            label: 'Gmail',
-            required: true,
-            status: 'active',
-          },
-        ],
-        workspaceId: 'workspace-1',
-        workspaceName: 'Workspace',
-        workspaceOwnerId: 'owner-1',
-        inviterName: 'Inviter',
-      },
-    ])
-    queueTableRows(schemaMock.credentialGroupEnrollment, [
-      {
-        status: 'invited',
-        invitationTokenHash: ENROLLMENT.invitationTokenHash,
-        invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
-      },
-    ])
-    queueTableRows(schemaMock.credentialGroup, [
-      {
-        status: 'active',
-        options: [
-          {
-            id: 'option-1',
-            provider: 'gmail',
-            label: 'Gmail',
-            required: true,
-            status: 'active',
-          },
-        ],
-      },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: ENROLLMENT.id }])
+  it.each(['oauth', 'api_key'])(
+    'completes on explicit Submit even when optional %s contributions are skipped',
+    async (kind) => {
+      const options =
+        kind === 'oauth'
+          ? [
+              {
+                id: 'option-1',
+                provider: 'gmail',
+                label: 'Gmail',
+                required: true,
+                status: 'active',
+              },
+            ]
+          : []
+      const apiKeyOptions =
+        kind === 'api_key' ? [{ id: 'key-option', name: 'Exa API key', description: null }] : []
+      queueTableRows(schemaMock.credentialGroupEnrollment, [
+        {
+          enrollment: { ...ENROLLMENT, status: 'invited' },
+          groupId: 'group-1',
+          groupName: 'Group',
+          groupStatus: 'active',
+          options,
+          apiKeyOptions,
+          workspaceId: 'workspace-1',
+          workspaceName: 'Workspace',
+          workspaceOwnerId: 'owner-1',
+          inviterName: 'Inviter',
+        },
+      ])
+      queueTableRows(schemaMock.credentialGroupEnrollment, [
+        {
+          status: 'invited',
+          invitationTokenHash: ENROLLMENT.invitationTokenHash,
+          invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
+        },
+      ])
+      queueTableRows(schemaMock.credentialGroup, [
+        {
+          status: 'active',
+          options,
+          apiKeyOptions,
+        },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ENROLLMENT.id }])
 
-    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(true)
+      await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(true)
 
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
-    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
-    expect(adapter.getPolicy).not.toHaveBeenCalled()
-  })
+      expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+      expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
+      expect(adapter.getPolicy).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('enrollment context for session-authorized or consumed-attempt OAuth', () => {

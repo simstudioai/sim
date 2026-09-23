@@ -20,12 +20,18 @@ Disconnect revokes the local grant and invalidates pending invitation-based auth
 | --- | --- | --- |
 | Select Credential | Workspace OAuth credential | Existing credential reference |
 | List Credentials | Optional workspace provider filter | Existing reference list |
-| Find Organization Account | Email and OAuth provider | Exactly one reference, otherwise an error |
-| List Organization Accounts | Optional email/providers, limit/cursor | Bounded reference page |
-| Find Organization MCP Connection | Email and MCP provider | Exactly one personal MCP reference, otherwise an error |
-| List Organization MCP Connections | Optional email/provider, limit/cursor | Bounded MCP reference page |
+| Find Credential Group Account | Email and OAuth provider | Exactly one reference, otherwise an error |
+| List Credential Group Accounts | Optional email/providers, limit/cursor | Bounded reference page |
+| Find Credential Group MCP Connection | Email and MCP provider | Exactly one personal MCP reference, otherwise an error |
+| List Credential Group MCP Connections | Optional email/provider, limit/cursor | Bounded MCP reference page |
+| List Credential Group API Keys | Optional key name/email, limit/cursor | Bounded metadata-only reference page |
+| Get Credential Group API Key | Explicit API-key credential ID | Resolved key with secret provenance and enrollment metadata |
 
-MCP `credentialId` identifies the person’s connection (`mcp-cg-…`) and is used to select the connection in the MCP block. `mcpServerId` identifies shared configuration and does not grant access to a person’s token. The block never returns secrets or invitation links. Org operations are hidden in ineligible workspaces; saved invalid configurations fail during execution.
+MCP `credentialId` identifies the person’s connection (`mcp-cg-…`) and is used to select the connection in the MCP block. `mcpServerId` identifies shared configuration and does not grant access to a person’s token. OAuth/MCP operations and API-key listing return references only. API-key retrieval registers secret provenance before returning the resolved value. No operation returns invitation links. Org operations are hidden in ineligible workspaces; saved invalid configurations fail during execution.
+
+Admins define API-key names and optional descriptions; contributors supply their own encrypted values. API-key definition edits carry the original definition list, which is compared under the group row lock; a stale edit fails with a conflict before changing requests or deleting submissions. Disconnecting an API key deletes its encrypted credential row.
+
+All contributions remain optional, including API keys. Connecting a key moves an invited enrollment to `in_progress`; the separate Submit action marks the form `completed`, including when the invitee skips all contributions. Saving a key does not implicitly submit the form. Active keys are usable from both `in_progress` and `completed` enrollments.
 
 Credential trigger mode supports `credential_added`, `credential_reconnected`, and `form_submitted`. Events go to opted-in, currently deployed Credential triggers in allowed workspaces. Legacy Credential Group blocks are hidden and fail with an explicit replacement instruction; they are not automatically rebound.
 

@@ -136,6 +136,20 @@ describe('personal organization contributions', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.invite).not.toHaveBeenCalled()
   })
+  it('deletes a contributed API key and invalidates pending invitation attempts', async () => {
+    const apiKey = { ...row, type: 'managed_api_key' }
+    queueTableRows(schemaMock.credential, [apiKey])
+    queueTableRows(schemaMock.credential, [apiKey])
+    await disconnectPersonalOrganizationAccount.execute({ principal, input })
+    expect(mocks.lock).toHaveBeenCalledWith(expect.anything(), row.enrollmentId)
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.id, input.credentialId)
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.credential)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ invitationTokenHash: expect.any(String) })
+    )
+    expect(mocks.evict).not.toHaveBeenCalled()
+  })
 })
 
 it('lets a contributor discover and reconnect an API key without selecting an OAuth provider', async () => {

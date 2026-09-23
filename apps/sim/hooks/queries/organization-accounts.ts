@@ -174,6 +174,12 @@ export function useUpdateOrganizationAccounts() {
         params: { id: organizationId, groupId },
         body: update,
       }),
+    onError: (_, { organizationId, update }) =>
+      update.apiKeyOptions === undefined
+        ? undefined
+        : queryClient.invalidateQueries({
+            queryKey: organizationAccountsKeys.detail(organizationId),
+          }),
     onSuccess: (_, { organizationId }) =>
       Promise.all([
         queryClient.invalidateQueries({

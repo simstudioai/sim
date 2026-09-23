@@ -32,6 +32,7 @@ export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id
 export interface UpdateCredentialGroupInput {
   options?: CredentialGroupOptionUpdateInput[]
   apiKeyOptions?: CredentialGroupApiKeyOptionInput[]
+  expectedApiKeyOptions?: CredentialGroupApiKeyOption[]
   status?: 'active' | 'disabled'
 }
 

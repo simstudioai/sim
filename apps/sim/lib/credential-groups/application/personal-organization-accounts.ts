@@ -199,10 +199,14 @@ export const disconnectPersonalOrganizationAccount = defineAuthorizedCredentialU
       const [current] = await ownAccounts(principal.userId, input, tx)
       if (!current || current.enrollmentId !== account.enrollmentId)
         throw new OrchestrationError('not_found', 'Connected account not found')
-      await tx
-        .update(credential)
-        .set({ managedOauthStatus: 'revoked', revokedAt: new Date(), updatedAt: new Date() })
-        .where(eq(credential.id, current.credentialId))
+      if (current.type === 'managed_api_key') {
+        await tx.delete(credential).where(eq(credential.id, current.credentialId))
+      } else {
+        await tx
+          .update(credential)
+          .set({ managedOauthStatus: 'revoked', revokedAt: new Date(), updatedAt: new Date() })
+          .where(eq(credential.id, current.credentialId))
+      }
       await tx
         .update(credentialGroupEnrollment)
         .set({ invitationTokenHash: sha256Hex(generateId()), updatedAt: new Date() })
