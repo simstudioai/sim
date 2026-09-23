@@ -1,5 +1,5 @@
 {
-  "id": "3e02e7a3-f684-4e08-9aa8-077709382f30",
+  "id": "1b36c568-2a4b-457f-92ed-589172b161ad",
   "prevId": "374a8a56-d71f-40d8-8c3c-3086281b56fc",
   "version": "7",
   "dialect": "postgresql",
@@ -10165,6 +10165,10 @@
         "kcmsl_status_check": {
           "name": "kcmsl_status_check",
           "value": "\"knowledge_connector_member_sync_log\".\"status\" IN ('started', 'partial', 'completed', 'failed')"
+        },
+        "kcmsl_database_failure_class_check": {
+          "name": "kcmsl_database_failure_class_check",
+          "value": "\"knowledge_connector_member_sync_log\".\"database_failure_class\" IN ('capacity', 'conflict', 'connection')"
         }
       },
       "isRLSEnabled": false
@@ -10675,7 +10679,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "kcsl_database_failure_class_check": {
+          "name": "kcsl_database_failure_class_check",
+          "value": "\"knowledge_connector_sync_log\".\"database_failure_class\" IN ('capacity', 'conflict', 'connection')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.knowledge_document_observation": {

@@ -1,2 +1,4 @@
 ALTER TABLE "knowledge_connector_member_sync_log" ADD COLUMN "database_failure_class" text;--> statement-breakpoint
-ALTER TABLE "knowledge_connector_sync_log" ADD COLUMN "database_failure_class" text;
+ALTER TABLE "knowledge_connector_sync_log" ADD COLUMN "database_failure_class" text;--> statement-breakpoint
+ALTER TABLE "knowledge_connector_member_sync_log" ADD CONSTRAINT "kcmsl_database_failure_class_check" CHECK ("knowledge_connector_member_sync_log"."database_failure_class" IN ('capacity', 'conflict', 'connection')) NOT VALID;--> statement-breakpoint
+ALTER TABLE "knowledge_connector_sync_log" ADD CONSTRAINT "kcsl_database_failure_class_check" CHECK ("knowledge_connector_sync_log"."database_failure_class" IN ('capacity', 'conflict', 'connection')) NOT VALID;

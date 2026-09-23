@@ -6481,6 +6481,10 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
       'kcmsl_status_check',
       sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
     ),
+    databaseFailureClassCheck: check(
+      'kcmsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
+    ),
   })
 )
 
@@ -6532,6 +6536,10 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    databaseFailureClassCheck: check(
+      'kcsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
+    ),
   })
 )
 
