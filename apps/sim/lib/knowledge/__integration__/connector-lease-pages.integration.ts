@@ -683,8 +683,8 @@ describe('connector lease ACL pages in PostgreSQL', () => {
             deadlineAt: clock + 1_000,
             beforePage: async () => {
               pages += 1
-              /** The window read, then the first page: the budget passes during that page. */
-              if (pages === 2) clock += 2_000
+              /** The window read and the first page run; the budget passes before the next window. */
+              if (pages === 3) clock += 2_000
             },
           }
         )
