@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { INTERNAL_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
+import { BILLING_USAGE_LOG_SOURCES, INTERNAL_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isValidTimezone } from '@/lib/core/utils/timezone'
 
 /**
@@ -200,7 +200,6 @@ export const organizationUsageSummaryResponseSchema = z.object({
     .array(usageSeriesPointSchema)
     .describe('Chronological usage buckets, including buckets with no usage.'),
 })
-export type OrganizationUsageSummary = z.output<typeof organizationUsageSummaryResponseSchema>
 
 export const organizationUsageBreakdownRowSchema = z.object({
   id: z.string().describe('Group identifier; an empty ID represents unattributed usage.'),
@@ -247,6 +246,39 @@ export const organizationUsageBreakdownResponseSchema = z.object({
 })
 export type OrganizationUsageBreakdown = z.output<typeof organizationUsageBreakdownResponseSchema>
 
+/** Rows on each overview card; the matching tab holds the full ranking. */
+export const ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT = 5
+
+const billingUsageLogSourceSchema = z.enum(BILLING_USAGE_LOG_SOURCES)
+export type OrganizationUsageSource = z.output<typeof billingUsageLogSourceSchema>
+
+export const organizationUsageOverviewResponseSchema = organizationUsageSummaryResponseSchema
+  .omit({ series: true })
+  .extend({
+    /**
+     * The allowance, only for the whole organization over its current period — the
+     * one window it is measured against. Null elsewhere rather than a misleading ratio.
+     */
+    limitCredits: z.number().int().nonnegative().nullable(),
+    series: z
+      .array(
+        usageSeriesPointSchema.omit({ events: true }).extend({
+          sources: z
+            .partialRecord(billingUsageLogSourceSchema, z.number().int().positive())
+            .describe('Credits per source in this bucket; sources with none are omitted.'),
+        })
+      )
+      .max(1000)
+      .describe('Chronological buckets, including buckets with no usage.'),
+    /** The Members tab's ranking, cut to the card, with each member's avatar. */
+    members: organizationUsageBreakdownResponseSchema.extend({
+      rows: z
+        .array(organizationUsageBreakdownRowSchema.extend({ image: z.string().nullable() }))
+        .max(ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT),
+    }),
+  })
+export type OrganizationUsageOverview = z.output<typeof organizationUsageOverviewResponseSchema>
+
 export const organizationUsageEventSchema = z.object({
   id: z.string().describe('Unique usage-ledger event identifier.'),
   createdAt: z.string(),
@@ -265,12 +297,12 @@ export const organizationUsageEventsResponseSchema = z.object({
 })
 export type OrganizationUsageEventPage = z.output<typeof organizationUsageEventsResponseSchema>
 
-export const getOrganizationUsageSummaryContract = defineRouteContract({
+export const getOrganizationUsageOverviewContract = defineRouteContract({
   method: 'GET',
-  path: '/api/organizations/[id]/usage/summary',
+  path: '/api/organizations/[id]/usage/overview',
   params: z.object({ id: organizationIdSchema }),
   query: organizationUsageSummaryQuerySchema,
-  response: { mode: 'json', schema: organizationUsageSummaryResponseSchema },
+  response: { mode: 'json', schema: organizationUsageOverviewResponseSchema },
 })
 
 export const getOrganizationUsageBreakdownContract = defineRouteContract({

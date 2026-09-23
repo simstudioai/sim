@@ -11,14 +11,18 @@ export function formatChartTimestamp(timestamp?: string, timeZone?: string): str
   if (!timestamp) return ''
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
-  if (timeZone) {
-    const day = date.toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' })
-    const time = date.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' })
-    return `${day.toUpperCase()} ${time}`
-  }
-  const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  return `${day.toUpperCase()} ${time}`
+  const time = date.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' })
+  return `${formatChartDate(timestamp, timeZone)} ${time}`
+}
+
+/** The tooltip's header line for a calendar bucket: `MAR 4`. Empty for an unparseable timestamp. */
+export function formatChartDate(timestamp?: string, timeZone?: string): string {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return date
+    .toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' })
+    .toUpperCase()
 }
 
 /** Compact axis magnitude — `1.2k`, `3.4m`. */

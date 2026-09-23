@@ -1,13 +1,25 @@
-import { formatChartTimestamp } from '@sim/emcn'
+import { memo } from 'react'
+import { formatChartDate, formatChartTimestamp } from '@sim/emcn'
 
 interface ChartDataTableProps {
   label: string
   series: { id: string; label: string; data: { timestamp: string; value: number }[] }[]
   timeZone?: string
+  /** `date` for calendar buckets, whose time of day means nothing. */
+  xAxisFormat?: 'auto' | 'date'
 }
 
-/** Exposes exact chart values without requiring pointer interaction. */
-export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps) {
+/**
+ * Exposes exact chart values without requiring pointer interaction. Memoized: the
+ * chart around it re-renders on every pointer move, and its cells never change then.
+ */
+export const ChartDataTable = memo(function ChartDataTable({
+  label,
+  series,
+  timeZone,
+  xAxisFormat,
+}: ChartDataTableProps) {
+  const formatRow = xAxisFormat === 'date' ? formatChartDate : formatChartTimestamp
   const values = series.map(
     (item) => new Map(item.data.map((point) => [point.timestamp, point.value]))
   )
@@ -30,7 +42,7 @@ export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps)
       <tbody>
         {timestamps.map((timestamp) => (
           <tr key={timestamp}>
-            <th scope='row'>{formatChartTimestamp(timestamp, timeZone)}</th>
+            <th scope='row'>{formatRow(timestamp, timeZone)}</th>
             {series.map((item, index) => (
               <td key={item.id}>
                 {values[index]
@@ -43,4 +55,4 @@ export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps)
       </tbody>
     </table>
   )
-}
+})
