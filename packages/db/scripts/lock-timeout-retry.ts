@@ -15,13 +15,16 @@ export interface LockTimeoutRetryAttempt {
 
 export interface LockTimeoutRetryOptions {
   /**
-   * Total wall-clock time, measured from the first attempt, during which a lock
-   * timeout is retried. A retry whose delay would end past the budget is not
-   * started; the last lock timeout is thrown instead.
+   * Time, measured on a monotonic clock from the first attempt, within which
+   * attempts may start. No attempt starts once the budget has elapsed, whether
+   * the backoff delay would end past it or a timer resolved late; the last lock
+   * timeout is thrown instead. An attempt that starts in time can still run for
+   * up to one `lock_timeout` past the budget.
    */
   budgetMs: number
   backoff: { baseMs: number; maxMs: number }
   onRetry?: (attempt: LockTimeoutRetryAttempt) => void
+  /** Monotonic milliseconds; defaults to `performance.now`, immune to wall-clock corrections. */
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }
@@ -43,7 +46,7 @@ export async function retryOnLockTimeout<T>(
   attempt: (attemptNumber: number) => Promise<T>,
   options: LockTimeoutRetryOptions
 ): Promise<T> {
-  const now = options.now ?? Date.now
+  const now = options.now ?? (() => performance.now())
   const sleep = options.sleep ?? defaultSleep
   const startedAt = now()
   for (let attemptNumber = 1; ; attemptNumber++) {
@@ -61,6 +64,7 @@ export async function retryOnLockTimeout<T>(
         budgetMs: options.budgetMs,
       })
       await sleep(delayMs)
+      if (now() - startedAt >= options.budgetMs) throw error
     }
   }
 }

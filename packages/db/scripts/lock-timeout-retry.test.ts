@@ -44,10 +44,12 @@ describe('retryOnLockTimeout', () => {
     expect(clock.sleep).toHaveBeenCalledTimes(19)
   })
 
-  it('throws the last lock timeout once the next retry would end past the budget', async () => {
+  it('starts no attempt after the budget and throws the last lock timeout', async () => {
     const clock = fakeClock()
     const onRetry = vi.fn()
+    const startedAt: number[] = []
     const attempt = vi.fn(async () => {
+      startedAt.push(clock.now())
       clock.advance(5_000)
       throw pgError('55P03')
     })
@@ -62,11 +64,31 @@ describe('retryOnLockTimeout', () => {
       })
     ).rejects.toMatchObject({ code: '55P03' })
 
-    expect(clock.now()).toBeLessThan(2 * 60_000)
-    for (const [{ elapsedMs, delayMs }] of onRetry.mock.calls) {
-      expect(elapsedMs + delayMs).toBeLessThan(2 * 60_000)
-    }
+    for (const start of startedAt) expect(start).toBeLessThan(2 * 60_000)
+    /** The last attempt may run one lock timeout past the budget, never more. */
+    expect(clock.now()).toBeLessThan(2 * 60_000 + 5_000)
     expect(attempt).toHaveBeenCalledTimes(onRetry.mock.calls.length + 1)
+  })
+
+  it('does not start an attempt when a timer resolves after the budget', async () => {
+    let nowMs = 0
+    const attempt = vi.fn(async () => {
+      nowMs += 1_000
+      throw pgError('55P03')
+    })
+
+    await expect(
+      retryOnLockTimeout(attempt, {
+        budgetMs: 60_000,
+        backoff: BACKOFF,
+        now: () => nowMs,
+        /** The process stalls: the timer fires long after its delay. */
+        sleep: async () => {
+          nowMs += 120_000
+        },
+      })
+    ).rejects.toMatchObject({ code: '55P03' })
+    expect(attempt).toHaveBeenCalledOnce()
   })
 
   it('finds a lock timeout wrapped in a cause chain', async () => {
