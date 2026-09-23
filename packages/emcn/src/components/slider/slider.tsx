@@ -33,7 +33,7 @@ const Slider = React.forwardRef<React.ElementRef<typeof SliderPrimitive.Root>, S
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         className={cn(
-          'relative block size-[14px] cursor-pointer rounded-full bg-[var(--text-primary)] shadow-xs transition-colors before:absolute before:inset-[-15px] before:content-[""] focus-visible:outline-hidden',
+          'relative block size-[14px] cursor-pointer rounded-full bg-[var(--text-primary)] shadow-xs transition-colors before:absolute before:inset-[-15px] before:content-[""]',
           mutedFocusRingClass
         )}
       />
