@@ -1,5 +1,6 @@
 /**
- * The user agent the browser resource presents to sites.
+ * The user agent the whole desktop process presents: the embedded browser and
+ * the app's own windows alike (desktop identity travels in `X-Sim-Client-Info`).
  *
  * Electron's default string carries two tokens no browser sends —
  * `Sim/<version>` and `Electron/<version>`. Chromium's own token sits right
@@ -38,9 +39,11 @@ export function stockChromeUserAgent(defaultUserAgent: string): string {
 }
 
 /**
- * Derived from the string Electron would otherwise have sent, so the reported
- * Chromium version tracks whatever Chromium the app actually ships.
+ * Sets the stock Chrome identity as `app.userAgentFallback` before any session
+ * exists. Session and per-tab overrides miss some request paths (a cross-origin
+ * challenge frame still sends the process default), and a site that sees two
+ * user agents in one challenge rejects it as a spoof. Idempotent.
  */
-export function browserUserAgent(): string {
-  return stockChromeUserAgent(app.userAgentFallback)
+export function installBrowserUserAgent(): void {
+  app.userAgentFallback = stockChromeUserAgent(app.userAgentFallback)
 }
