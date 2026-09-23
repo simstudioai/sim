@@ -329,12 +329,8 @@ export function Versions({
                   <Tooltip.Trigger asChild>
                     <Button
                       aria-label={v.description ? 'Edit description' : 'Add description'}
-                      variant='ghost'
-                      iconPadding='sm'
-                      className={cn(
-                        !v.description &&
-                          'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
-                      )}
+                      variant={v.description ? 'ghost' : 'ghost-secondary'}
+                      size='inline'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleOpenDescriptionModal(v.version)
@@ -359,7 +355,7 @@ export function Versions({
                     <Button
                       aria-label='Version actions'
                       variant='ghost'
-                      iconPadding='sm'
+                      size='inline'
                       disabled={isPromotingVersion}
                       onClick={(e) => e.stopPropagation()}
                     >
