@@ -3010,7 +3010,7 @@ describe('executeSync heartbeats during the listing phase', () => {
   )
 
   /** A revoked grant recorded against the credential's account. */
-  const INVALID_GRANT = { errorCode: 'invalid_grant', providerId: 'google-drive' }
+  const INVALID_GRANT = { errorCode: 'invalid_grant', providerId: 'google-drive' } as const
 
   /** A locked OAuth connector whose token resolution the test controls. */
   function primeOAuthRunUpToToken() {
