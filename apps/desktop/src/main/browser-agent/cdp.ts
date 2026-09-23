@@ -867,7 +867,10 @@ export async function releaseFileInput(
   await releaseRemoteObject(contents, handle.objectId, handle.sessionId)
 }
 
-/** Sets files on the captured input in its original CDP session, then reads that exact input. */
+/**
+ * Sets files on the captured input in its original CDP session, then reads that exact input.
+ * Marks dispatch before awaiting acknowledgement: cancellation cannot retract the command.
+ */
 export async function setFileInputFiles(
   contents: WebContents,
   handle: FileInputHandle,
@@ -880,13 +883,14 @@ export async function setFileInputFiles(
   if (!input.objectId) throw new Error('Chromium did not retain the upload input node')
   try {
     signal?.throwIfAborted()
-    await send(
+    const assignment = send(
       contents,
       'DOM.setFileInputFiles',
       { files, objectId: input.objectId },
       handle.sessionId
     )
     onDispatched?.()
+    await assignment
     try {
       const { value } = await callFileInput(contents, handle, 'files')
       if (!isRecordLike(value) || !Array.isArray(value.files)) {

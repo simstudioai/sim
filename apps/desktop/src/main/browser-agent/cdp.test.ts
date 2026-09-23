@@ -760,7 +760,7 @@ describe('browser-agent file input handles', () => {
       await expect(
         setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatched)
       ).rejects.toThrow('disappeared')
-      expect(onDispatched).not.toHaveBeenCalled()
+      expect(onDispatched).toHaveBeenCalledTimes(1)
     } finally {
       await releaseFileInput(contents, handle)
     }
@@ -791,7 +791,7 @@ describe('browser-agent file input handles', () => {
     }
   })
 
-  it('reports dispatch only after acknowledgement and before a pending readback', async () => {
+  it('reports dispatch before acknowledgement so interruption cannot invite a retry', async () => {
     const { contents, frame, behavior, send } = await fileInputFixture()
     const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
     let acknowledge: () => void = () => {}
@@ -810,7 +810,7 @@ describe('browser-agent file input handles', () => {
       await vi.waitFor(() =>
         expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(true)
       )
-      expect(onDispatched).not.toHaveBeenCalled()
+      expect(onDispatched).toHaveBeenCalledTimes(1)
       acknowledge()
       await vi.waitFor(() => expect(onDispatched).toHaveBeenCalledTimes(1))
       expect(send.mock.calls.some(([method]) => method === 'Runtime.releaseObject')).toBe(false)

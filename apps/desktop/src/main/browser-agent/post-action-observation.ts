@@ -12,13 +12,13 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_hover',
 ])
 
-/** Keeps a completed action available when its optional observation fails or is interrupted. */
+/** Preserves a dispatched action when its acknowledgement or observation is interrupted. */
 export function withFailedPostActionObservation(result: unknown, error: unknown): unknown {
   const observation = {
     ok: false,
     error: getErrorMessage(error),
     doNotRetry: true,
-    note: 'The action already ran. Inspect its result; do not repeat it just because observation failed.',
+    note: 'The action was dispatched. Inspect its result; do not repeat it just because confirmation failed.',
   }
   return isRecordLike(result) ? { ...result, observation } : { result, observation }
 }

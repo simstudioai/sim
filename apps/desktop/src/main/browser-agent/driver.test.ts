@@ -2524,7 +2524,7 @@ describe('credential protection', () => {
             observation: {
               ok: false,
               doNotRetry: true,
-              note: expect.stringContaining('The action already ran'),
+              note: expect.stringContaining('The action was dispatched'),
             },
           },
         })
@@ -3893,6 +3893,69 @@ describe('credential protection', () => {
     })
 
     it.each(['cancelled', 'timed out'] as const)(
+      'does not retry a dispatched upload when acknowledgement is %s',
+      async (stop) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        let acknowledge: () => void = () => {}
+        const acknowledgement = new Promise<void>((resolve) => {
+          acknowledge = resolve
+        })
+        const send = vi.mocked(contents.debugger.sendCommand)
+        send.mockImplementation(async (method, params) => {
+          if (method === 'Runtime.callFunctionOn') {
+            const mode = (params?.arguments as Array<{ value: string }>)[0].value
+            return mode === 'input'
+              ? { result: { objectId: 'original-input' } }
+              : { result: { value: { files: [{ name: 'a.pdf', size: 3 }] } } }
+          }
+          if (method === 'DOM.setFileInputFiles') await acknowledgement
+          return {}
+        })
+        vi.useFakeTimers()
+        try {
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'unacknowledged-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toHaveLength(1)
+          expect(cdpCalls(contents, 'Runtime.releaseObject')).toHaveLength(0)
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'unacknowledged-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          await expect(pending).resolves.toMatchObject({
+            ok: true,
+            result: {
+              dispatched: true,
+              observation: { ok: false, doNotRetry: true },
+            },
+          })
+          await expect(
+            driver.executeTool('chat-test', 'browser_list_tabs', {}, 'after-unacknowledged-upload')
+          ).resolves.toMatchObject({ ok: true })
+        } finally {
+          acknowledge()
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+        expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toHaveLength(1)
+        expect(cdpCalls(contents, 'Runtime.releaseObject').map(([, params]) => params)).toEqual([
+          { objectId: 'original-input' },
+          { objectId: 'isolated-input' },
+        ])
+      }
+    )
+
+    it.each(['cancelled', 'timed out'] as const)(
       'retains an acknowledged upload when readback is %s and releases its handle when readback settles',
       async (stop) => {
         const contents = await openPage()
@@ -3941,7 +4004,7 @@ describe('credential protection', () => {
               observation: {
                 ok: false,
                 doNotRetry: true,
-                note: expect.stringContaining('The action already ran'),
+                note: expect.stringContaining('The action was dispatched'),
               },
             },
           })
