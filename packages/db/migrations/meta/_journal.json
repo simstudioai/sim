@@ -2661,6 +2661,13 @@
       "when": 1790187690218,
       "tag": "0380_mothership_staging_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1790197970553,
+      "tag": "0381_browser_download_save_claim",
+      "breakpoints": true
     }
   ]
 }

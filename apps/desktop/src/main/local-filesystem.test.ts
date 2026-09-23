@@ -1,9 +1,23 @@
-import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises'
+import {
+  type FileHandle,
+  mkdir,
+  mkdtemp,
+  open,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, open: vi.fn(actual.open) }
+})
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
 import {
@@ -499,11 +513,13 @@ describe('LocalFilesystemService', () => {
     await writeFile(join(outside, 'secret.txt'), 'secret')
     await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
 
-    await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)).resolves.toEqual({
-      path: await realpath(join(root, 'README.md')),
-      name: 'README.md',
-      size: 24,
-    })
+    const file = await service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)
+    try {
+      expect(file).toMatchObject({ name: 'README.md', size: 24 })
+      await expect(file.handle.readFile('utf8')).resolves.toBe('hello world\nsecond line\n')
+    } finally {
+      await file.handle.close()
+    }
     await expect(
       service.resolveGrantedFile(`${vfsRoot}/secret-link.txt`, 1024)
     ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
@@ -517,6 +533,82 @@ describe('LocalFilesystemService', () => {
       service.resolveGrantedFile('user-local/Other--missing/README.md', 1024)
     ).rejects.toMatchObject({ code: 'MOUNT_NOT_FOUND' })
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'resolves a listed POSIX file with a literal backslash for upload',
+    async () => {
+      const name = 'report\\draft.txt'
+      await writeFile(join(root, name), 'draft')
+      const granted = await mount(service)
+      const listing = dataOf(await service.handle({ operation: 'list', uri: granted.uri }))
+      const entry = 'entries' in listing && listing.entries.find((item) => item.name === name)
+      expect(entry).toMatchObject({ name, uri: `${granted.uri}report%5Cdraft.txt` })
+      if (!entry) throw new Error('Expected the backslash file in the directory listing')
+      const vfsPath = `user-local/${encodeURIComponent(granted.name)}--${granted.id}/${new URL(entry.uri).pathname.slice(1)}`
+
+      const file = await service.resolveGrantedFile(vfsPath, 1024)
+      try {
+        expect(file).toMatchObject({ name, size: 5 })
+        await expect(file.handle.readFile('utf8')).resolves.toBe('draft')
+      } finally {
+        await file.handle.close()
+      }
+    }
+  )
+
+  it.each(['..', '%2e%2e', 'src%2F..%2FREADME.md', 'README.md%00'])(
+    'rejects unsafe upload path segment %s',
+    async (segment) => {
+      const granted = await mount(service)
+      const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+
+      await expect(service.resolveGrantedFile(`${vfsRoot}/${segment}`, 1024)).rejects.toMatchObject(
+        {
+          code: expect.stringMatching(/^(ACCESS_DENIED|INVALID_URI)$/),
+        }
+      )
+    }
+  )
+
+  it.each([false, true])(
+    'closes a file opened through a swapped ancestor (ancestor restored: %s)',
+    async (restoreAncestor) => {
+      const granted = await mount(service)
+      const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+      const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+      await writeFile(join(outside, 'index.ts'), 'outside secret')
+      const sourceDirectory = join(root, 'src')
+      const originalDirectory = join(root, 'original-src')
+      const openFile = vi.mocked(open).getMockImplementation()
+      if (!openFile) throw new Error('Expected the original file-open implementation')
+      let opened: FileHandle | undefined
+      const openSpy = vi
+        .mocked(open)
+        .mockClear()
+        .mockImplementationOnce(async (...args) => {
+          await rename(sourceDirectory, originalDirectory)
+          await symlink(outside, sourceDirectory)
+          opened = await openFile(...args)
+          if (restoreAncestor) {
+            await rm(sourceDirectory)
+            await rename(originalDirectory, sourceDirectory)
+          }
+          return opened
+        })
+
+      try {
+        await expect(
+          service.resolveGrantedFile(`${vfsRoot}/src/index.ts`, 1024)
+        ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
+        expect(openSpy).toHaveBeenCalledTimes(1)
+        expect(opened?.fd).toBe(-1)
+      } finally {
+        openSpy.mockReset().mockImplementation(openFile)
+        await opened?.close()
+        await rm(outside, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('rejects lexical traversal before URL normalization can reinterpret it', async () => {
     const granted = await mount(service)

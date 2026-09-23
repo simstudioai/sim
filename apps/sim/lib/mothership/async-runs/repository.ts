@@ -39,6 +39,7 @@ import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
   type AsyncTerminalStatus,
+  DESKTOP_TOOL_CLAIM_OWNER,
   EXECUTABLE_TOOL_PERMISSION_DECISIONS,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -1281,6 +1282,37 @@ export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: s
         )
         .returning()
       return row ?? null
+    }
+  )
+}
+
+/**
+ * Consumes the single file write of a claimed browser download. The admission remains set even if
+ * storage or response delivery fails: neither failure proves that the file was not committed.
+ * Native completion still owns the call's status, result, and claim fields.
+ */
+export async function claimBrowserDownloadSave(toolCallId: string): Promise<boolean> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    { [TraceAttr.ToolCallId]: toolCallId },
+    async () => {
+      const now = new Date()
+      const [claimed] = await db
+        .update(copilotAsyncToolCalls)
+        .set({ browserDownloadStartedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.toolName, 'browser_save_download'),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+            eq(copilotAsyncToolCalls.claimedBy, DESKTOP_TOOL_CLAIM_OWNER.browser),
+            isNull(copilotAsyncToolCalls.browserDownloadStartedAt)
+          )
+        )
+        .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+      return Boolean(claimed)
     }
   )
 }

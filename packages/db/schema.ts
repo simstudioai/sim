@@ -4237,6 +4237,8 @@ export const copilotAsyncToolCalls = pgTable(
     permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
+    /** One-use download-save admission; never released after an uncertain storage outcome. */
+    browserDownloadStartedAt: timestamp('browser_download_started_at'),
     /** Separate from the model-facing terminal result, which can precede cleanup. */
     executionStartedAt: timestamp('execution_started_at'),
     executionSettledAt: timestamp('execution_settled_at'),

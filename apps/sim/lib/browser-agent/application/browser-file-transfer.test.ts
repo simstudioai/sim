@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   fetchBuffer: vi.fn(),
   loadWorkspace: vi.fn(),
   createFile: vi.fn(),
+  claimDownload: vi.fn(),
   resolvePermission: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -26,6 +27,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getAsyncToolCall: mocks.getAsyncToolCall,
   getRunSegment: mocks.getRunSegment,
+  claimBrowserDownloadSave: mocks.claimDownload,
 }))
 vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
   resolveReferencedWorkspaceFileContext: mocks.resolveReference,
@@ -73,6 +75,7 @@ describe('browser file transfer use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.claimDownload.mockResolvedValue(true)
     mocks.getRunSegment.mockResolvedValue({
       id: 'run-1',
       userId: 'user-1',
@@ -170,6 +173,62 @@ describe('browser file transfer use cases', () => {
       })
     )
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
+  })
+
+  it('consumes one download save before any overlapping request can create another file', async () => {
+    mocks.getAsyncToolCall.mockResolvedValue(
+      claimedCall('browser_save_download', { downloadId: 'd1' })
+    )
+    mocks.claimDownload.mockResolvedValueOnce(true).mockResolvedValue(false)
+    let finishSave!: (value: { file: typeof file }) => void
+    mocks.createFile.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishSave = resolve
+      })
+    )
+    const input = { toolCallId: 'call-1', name: 'report.csv', content: Buffer.from('a,b') }
+    const first = saveBrowserDownload.execute({ principal, input })
+    await vi.waitFor(() => expect(mocks.createFile).toHaveBeenCalledOnce())
+    await expect(saveBrowserDownload.execute({ principal, input })).rejects.toMatchObject({
+      code: 'conflict',
+    })
+    finishSave({ file })
+    await first
+    await expect(saveBrowserDownload.execute({ principal, input })).rejects.toMatchObject({
+      code: 'conflict',
+    })
+    expect(mocks.createFile).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+  })
+
+  it('does not repeat a save after an uncertain storage failure', async () => {
+    mocks.getAsyncToolCall.mockResolvedValue(
+      claimedCall('browser_save_download', { downloadId: 'd1' })
+    )
+    mocks.claimDownload.mockResolvedValueOnce(true).mockResolvedValue(false)
+    mocks.createFile.mockRejectedValueOnce(new Error('Response lost after persistence'))
+    const input = { toolCallId: 'call-1', name: 'report.csv', content: Buffer.from('a,b') }
+    await expect(saveBrowserDownload.execute({ principal, input })).rejects.toThrow('Response lost')
+    await expect(saveBrowserDownload.execute({ principal, input })).rejects.toMatchObject({
+      code: 'conflict',
+    })
+    expect(mocks.createFile).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('does not consume a save before workspace authorization succeeds', async () => {
+    mocks.getAsyncToolCall.mockResolvedValue(
+      claimedCall('browser_save_download', { downloadId: 'd1' })
+    )
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      saveBrowserDownload.execute({
+        principal,
+        input: { toolCallId: 'call-1', name: 'report.csv', content: Buffer.from('a,b') },
+      })
+    ).rejects.toThrow()
+    expect(mocks.claimDownload).not.toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
   })
 
   it('falls back to the downloaded file name and never saves for an upload call', async () => {

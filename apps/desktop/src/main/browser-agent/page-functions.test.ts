@@ -845,6 +845,40 @@ describe('collectSnapshot', () => {
     expect(markFileInput(0, 'm')).toEqual({ error: 'no-file-input' })
   })
 
+  it.each([
+    ['disabled input', '<input type="file" disabled>'],
+    ['disabled fieldset', '<fieldset disabled><input type="file"></fieldset>'],
+    [
+      'second legend of a disabled fieldset',
+      '<fieldset disabled><legend>First</legend><legend><input type="file"></legend></fieldset>',
+    ],
+    [
+      'enabled fieldset within a disabled fieldset',
+      '<fieldset disabled><fieldset><input type="file"></fieldset></fieldset>',
+    ],
+    [
+      'disabled fieldset within an exempt legend',
+      '<fieldset disabled><legend><fieldset disabled><input type="file"></fieldset></legend></fieldset>',
+    ],
+  ])('refuses to mark an upload in a %s', (_label, html) => {
+    document.body.innerHTML = html
+    const input = document.querySelector('input') as HTMLInputElement
+    register(input)
+
+    expect(runSerialized(markFileInput, [0, 'disabled-upload'])).toEqual({ error: 'disabled' })
+    expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
+  })
+
+  it('allows the first legend exemption in a disabled fieldset', () => {
+    document.body.innerHTML =
+      '<fieldset disabled><legend><label for="upload">Upload</label><input id="upload" type="file"></legend></fieldset>'
+    const input = document.querySelector('input') as HTMLInputElement
+    register(document.querySelector('label') as HTMLLabelElement)
+
+    expect(runSerialized(markFileInput, [0, 'legend-upload'])).toMatchObject({ marked: true })
+    expect(input.getAttribute('data-sim-agent-upload')).toBe('legend-upload')
+  })
+
   it('reads back and clears the marked input, including inside open shadow roots', () => {
     const host = document.createElement('div')
     document.body.append(host)

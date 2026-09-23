@@ -17,8 +17,31 @@ describe('authenticated browser request policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     guards.checkAgentUrl.mockResolvedValue({ ok: true })
+    guards.isBlockedRequestUrl.mockReturnValue(false)
     guards.isBlockedSubresourceUrl.mockResolvedValue(false)
+    guards.subresourceNeedsResolution.mockReturnValue(true)
   })
+
+  it.each(['script', 'font', 'image', 'xhr'] as const)(
+    'rejects unsupported schemes before the %s host guard',
+    async (resourceType) => {
+      guards.subresourceNeedsResolution.mockReturnValue(resourceType !== 'font')
+      for (const url of [
+        'file:///etc/passwd',
+        'chrome://settings/',
+        'chrome-extension://aaaabbbbccccddddeeeeffffgggghhhh/x.js',
+        'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai.evil.test/x.js',
+        'chrome://resources.evil.test/x.js',
+        'javascript:alert(1)',
+        'ftp://example.com/file',
+        'not a url',
+      ]) {
+        expect(await allowBrowserRequest({ url, method: 'GET', resourceType }), url).toBe(false)
+      }
+      expect(guards.isBlockedRequestUrl).not.toHaveBeenCalled()
+      expect(guards.isBlockedSubresourceUrl).not.toHaveBeenCalled()
+    }
+  )
 
   it('admits only the built-in PDF viewer and its packaged resources outside http(s)', async () => {
     const contents = new WebContentsView().webContents

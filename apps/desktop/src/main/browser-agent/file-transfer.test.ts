@@ -1,5 +1,5 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { open, rename, rm, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { BROWSER_FILE_TRANSFER_MAX_BYTES } from '@sim/browser-protocol'
@@ -13,6 +13,7 @@ import {
   saveDownloadToWorkspace,
   stageUploadFiles,
 } from '@/main/browser-agent/file-transfer'
+import { LocalFilesystemService } from '@/main/local-filesystem'
 
 let temp: string
 const signal = new AbortController().signal
@@ -47,7 +48,11 @@ describe('stageUploadFiles', () => {
       paths: ['files/Q3 plan.pdf', 'user-local/Docs--m1/granted.txt'],
       appSession: appSession(fetch),
       localFiles: {
-        resolveGrantedFile: vi.fn(async () => ({ path: local, name: 'granted.txt', size: 11 })),
+        resolveGrantedFile: vi.fn(async () => ({
+          handle: await open(local, 'r'),
+          name: 'granted.txt',
+          size: 11,
+        })),
       },
       signal,
     })
@@ -115,6 +120,120 @@ describe('stageUploadFiles', () => {
       })
     ).rejects.toThrow(/upload limit/)
   })
+
+  it('bounds a local file that grows after validation and discards every staged file', async () => {
+    const local = join(temp, 'growing.bin')
+    writeFileSync(local, 'initial')
+    const handle = await open(local, 'r')
+    const size = (await handle.stat()).size
+    await truncate(local, BROWSER_FILE_TRANSFER_MAX_BYTES + 1)
+
+    try {
+      await expect(
+        stageUploadFiles({
+          scopeId: 'chat-growing',
+          toolCallId: 'call-growing',
+          paths: ['files/first.txt', 'user-local/Docs--m1/growing.bin'],
+          appSession: appSession(async () => new Response('already staged')),
+          localFiles: {
+            resolveGrantedFile: async () => ({ handle, name: 'growing.bin', size }),
+          },
+          signal,
+        })
+      ).rejects.toThrow(/upload limit/)
+      expect(existsSync(join(temp, 'sim-browser-uploads/chat-growing/call-growing'))).toBe(false)
+      expect(handle.fd).toBe(-1)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('copies the pinned local file when its path is replaced after validation', async () => {
+    const local = join(temp, 'granted.txt')
+    writeFileSync(local, 'granted bytes')
+    const handle = await open(local, 'r')
+    await rename(local, join(temp, 'original.txt'))
+    writeFileSync(local, 'replacement bytes')
+
+    try {
+      const [staged] = await stageUploadFiles({
+        scopeId: 'chat-pinned',
+        toolCallId: 'call-pinned',
+        paths: ['user-local/Docs--m1/granted.txt'],
+        appSession: undefined,
+        localFiles: {
+          resolveGrantedFile: async () => ({ handle, name: 'granted.txt', size: 13 }),
+        },
+        signal,
+      })
+
+      expect(readFileSync(staged, 'utf8')).toBe('granted bytes')
+      expect(handle.fd).toBe(-1)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('closes a local handle and discards staging when the upload is cancelled', async () => {
+    const local = join(temp, 'cancelled.txt')
+    writeFileSync(local, 'local bytes')
+    const handle = await open(local, 'r')
+    const controller = new AbortController()
+    controller.abort()
+
+    try {
+      await expect(
+        stageUploadFiles({
+          scopeId: 'chat-cancelled',
+          toolCallId: 'call-cancelled',
+          paths: ['user-local/Docs--m1/cancelled.txt'],
+          appSession: undefined,
+          localFiles: {
+            resolveGrantedFile: async () => ({ handle, name: 'cancelled.txt', size: 11 }),
+          },
+          signal: controller.signal,
+        })
+      ).rejects.toThrow(/aborted/)
+      expect(handle.fd).toBe(-1)
+      expect(existsSync(join(temp, 'sim-browser-uploads/chat-cancelled/call-cancelled'))).toBe(
+        false
+      )
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'preserves a granted POSIX backslash filename when staging',
+    async () => {
+      const name = 'report\\draft.txt'
+      writeFileSync(join(temp, name), 'draft bytes')
+      const localFiles = new LocalFilesystemService({ chooseDirectory: async () => temp })
+      const grant = await localFiles.handle({ operation: 'mount_directory' })
+      if (!grant.ok || !('mount' in grant.data) || !grant.data.mount) {
+        throw new Error('Expected a granted directory')
+      }
+      const mount = grant.data.mount
+
+      try {
+        const [staged] = await stageUploadFiles({
+          scopeId: 'chat-backslash',
+          toolCallId: 'call-backslash',
+          paths: [
+            `user-local/${encodeURIComponent(mount.name)}--${mount.id}/${encodeURIComponent(name)}`,
+          ],
+          appSession: undefined,
+          localFiles,
+          signal,
+        })
+
+        expect(staged).toBe(join(temp, 'sim-browser-uploads/chat-backslash/call-backslash/0', name))
+        expect(readFileSync(staged, 'utf8')).toBe('draft bytes')
+      } finally {
+        localFiles.close()
+      }
+    }
+  )
 
   it('requires a granted-folder source for user-local paths', async () => {
     await expect(

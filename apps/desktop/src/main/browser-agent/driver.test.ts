@@ -2474,6 +2474,75 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it.each(['cancelled', 'timed out'] as const)(
+    'retains a completed action when its observation is %s',
+    async (stop) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        activeElementSecrecy: 'safe',
+        readActiveElementState: {},
+        readPageActionState: {},
+      })
+      const pageCall = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      let releaseObservation: (value: unknown) => void = () => {}
+      const observation = new Promise<unknown>((resolve) => {
+        releaseObservation = resolve
+      })
+      let observing = false
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression, ...args) => {
+        if (isPageCall(expression, 'collectSnapshot')) {
+          observing = true
+          return observation
+        }
+        return pageCall?.(expression, ...args) ?? Promise.resolve(undefined)
+      })
+      vi.useFakeTimers()
+      try {
+        const timersBefore = vi.getTimerCount()
+        const pending = driver.executeTool(
+          'chat-test',
+          'browser_press_key',
+          { key: 'a', observe: {} },
+          'observed-action'
+        )
+        await vi.advanceTimersByTimeAsync(200)
+        expect(observing).toBe(true)
+
+        if (stop === 'cancelled') driver.cancelTool('chat-test', 'observed-action')
+        else
+          await vi.advanceTimersByTimeAsync(driver.browserToolWatchdogMs('browser_press_key', {})!)
+
+        await expect(pending).resolves.toMatchObject({
+          ok: true,
+          result: {
+            pressed: 'a',
+            trusted: true,
+            observation: {
+              ok: false,
+              doNotRetry: true,
+              note: expect.stringContaining('The action already ran'),
+            },
+          },
+        })
+        await expect(
+          driver.executeTool('chat-test', 'browser_list_tabs', {})
+        ).resolves.toMatchObject({
+          ok: true,
+        })
+        expect(vi.getTimerCount()).toBe(timersBefore)
+        expect(
+          cdpCalls(contents, 'Input.dispatchKeyEvent').filter(([, event]) =>
+            ['keyDown', 'rawKeyDown'].includes((event as { type: string }).type)
+          )
+        ).toHaveLength(1)
+      } finally {
+        releaseObservation({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('reports when a platform-mismatched shortcut produces no observable effect', async () => {
     const contents = await openPage()
     respondWith(contents, {
@@ -3639,6 +3708,47 @@ describe('credential protection', () => {
     expect(answers).toEqual([{ accept: true }, { accept: false }])
     expect(accepted).toMatchObject({ ok: true })
     expect(dismissed).toMatchObject({ ok: true })
+  })
+
+  it('dismisses background tab dialogs while the action target accepts its dialog', async () => {
+    const background = await openPage()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireAutomationTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/target')
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const listeners = [background, contents].map(
+      (tab) =>
+        vi.mocked(tab.debugger.on).mock.calls.find(([event]) => event === 'message')?.[1] as
+          | ((event: unknown, method: string, params: unknown) => void)
+          | undefined
+    )
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        for (const listener of listeners) {
+          listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+        }
+      }
+      return {}
+    })
+
+    await expect(
+      driver.executeTool('chat-test', 'browser_click_at', {
+        x: 10,
+        y: 20,
+        dialog: { accept: true },
+      })
+    ).resolves.toMatchObject({ ok: true })
+
+    expect(cdpCalls(background, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual(
+      [{ accept: false }]
+    )
+    expect(cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual([
+      { accept: true },
+    ])
   })
 
   it('rejects a malformed dialog response before dispatch', async () => {

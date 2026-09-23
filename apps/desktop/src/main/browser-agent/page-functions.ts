@@ -3341,7 +3341,7 @@ export function markFileInput(id: number, marker: string): unknown {
     scope = scope.parentElement ?? (root instanceof ShadowRoot ? root.host : null)
   }
   if (!input) return { error: 'no-file-input' }
-  if (input.disabled) return { error: 'disabled' }
+  if (input.matches(':disabled')) return { error: 'disabled' }
   input.setAttribute('data-sim-agent-upload', marker)
   return { marked: true, multiple: input.multiple, accept: input.accept || undefined }
 }

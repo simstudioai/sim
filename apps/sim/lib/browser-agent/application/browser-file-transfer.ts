@@ -3,7 +3,11 @@ import { BROWSER_FILE_TRANSFER_MAX_BYTES } from '@sim/browser-protocol'
 import { toRecord } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ASYNC_TOOL_STATUS, DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
-import { getAsyncToolCall, getRunSegment } from '@/lib/mothership/async-runs/repository'
+import {
+  claimBrowserDownloadSave,
+  getAsyncToolCall,
+  getRunSegment,
+} from '@/lib/mothership/async-runs/repository'
 import {
   fetchWorkspaceFileBuffer,
   loadActiveWorkspaceContext,
@@ -132,8 +136,14 @@ export const saveBrowserDownload = defineAuthorizedWorkspaceFileUseCase({
           : input.name,
     }
   },
-  execute: ({ principal, input, context }) =>
-    createAuthorizedWorkspaceFile({
+  async execute({ principal, input, context }) {
+    if (!(await claimBrowserDownloadSave(input.toolCallId))) {
+      throw new OrchestrationError(
+        'conflict',
+        'This download save has already started or is no longer active. It may already have created a file; inspect workspace files before trying another save.'
+      )
+    }
+    return createAuthorizedWorkspaceFile({
       principal,
       input: {
         workspaceId: context.workspaceId,
@@ -143,6 +153,7 @@ export const saveBrowserDownload = defineAuthorizedWorkspaceFileUseCase({
       },
       content: input.content,
       workspace: context,
-    }),
+    })
+  },
   projectAudit: ({ result }) => projectCreateWorkspaceFileAudit(result),
 })

@@ -239,14 +239,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Verify durable provenance, concurrent memory writes, and attachment replay
+      - name: Verify durable provenance, concurrent memory writes, and browser download admission
         working-directory: apps/sim
         env:
+          BROWSER_FILE_TRANSFER_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           TABLE_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           MEMORY_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           AGENT_MEMORY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
         run: >-
           bunx vitest run
+          lib/mothership/async-runs/browser-download-claim.postgres.test.ts
           lib/table/rows/secret-provenance.postgres.test.ts
           lib/memory/message-provenance.postgres.test.ts
           lib/memory/conversation-store.postgres.test.ts

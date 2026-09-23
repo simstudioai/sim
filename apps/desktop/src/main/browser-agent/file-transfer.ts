@@ -2,13 +2,14 @@
  * Moves browser-agent files between the Sim app and this machine.
  *
  * Uploads are staged into a private temporary directory before a page sees them: workspace files
- * stream from the app for the exact claimed tool call, and granted local files are copied after
- * their containment check, so neither the app nor a later symlink swap can change what a page
- * receives. Chromium reads a chosen file lazily, so staged copies live until their browser scope
- * is disposed. Saved downloads travel the other way, bound to their own claimed tool call.
+ * stream from the app for the exact claimed tool call, and granted local files stream from a
+ * pinned handle after their containment check. Both streams enforce the upload byte limit, and
+ * later path replacements cannot redirect a local copy. Chromium reads a chosen file lazily, so
+ * staged copies live until their browser scope is disposed. Saved downloads travel the other way,
+ * bound to their own claimed tool call.
  */
 import { createWriteStream, openAsBlob } from 'node:fs'
-import { copyFile, mkdir, rm } from 'node:fs/promises'
+import { type FileHandle, mkdir, rm } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -18,12 +19,12 @@ import { app } from 'electron'
 import { ToolError } from '@/main/browser-agent/errors'
 import type { BrowserAppSession } from '@/main/browser-agent/session'
 
-/** Granted local folders, as exposed by the desktop's local filesystem service. */
+/** Granted local folders; the caller owns and must close each returned file handle. */
 export interface LocalFileSource {
   resolveGrantedFile(
     vfsPath: string,
     maxBytes: number
-  ): Promise<{ path: string; name: string; size: number }>
+  ): Promise<{ handle: FileHandle; name: string; size: number }>
 }
 
 const LOCAL_PATH_PREFIX = 'user-local/'
@@ -40,7 +41,7 @@ function directoryName(value: string): string {
 
 /** A file name that cannot leave the staging directory. */
 function stagedFileName(name: string): string {
-  const base = basename(name.replaceAll('\\', '/'))
+  const base = basename(name)
     .replace(/[\x00-\x1f\x7f]/g, '')
     .trim()
   return base && base !== '.' && base !== '..' ? base.slice(0, 200) : 'upload'
@@ -130,14 +131,23 @@ export async function stageUploadFiles({
   const staged: string[] = []
   for (const [index, path] of paths.entries()) {
     const fileDirectory = join(directory, String(index))
-    await mkdir(fileDirectory, { recursive: true })
     try {
+      await mkdir(fileDirectory, { recursive: true })
       if (path.startsWith(LOCAL_PATH_PREFIX)) {
         if (!localFiles) throw new ToolError('Local folders are unavailable in this desktop app.')
         const local = await localFiles.resolveGrantedFile(path, BROWSER_FILE_TRANSFER_MAX_BYTES)
-        const destination = join(fileDirectory, stagedFileName(local.name))
-        await copyFile(local.path, destination)
-        staged.push(destination)
+        try {
+          const destination = join(fileDirectory, stagedFileName(local.name))
+          await pipeline(
+            local.handle.createReadStream({ autoClose: false }),
+            limitBytes(BROWSER_FILE_TRANSFER_MAX_BYTES),
+            createWriteStream(destination, { flags: 'wx' }),
+            { signal }
+          )
+          staged.push(destination)
+        } finally {
+          await local.handle.close()
+        }
       } else {
         if (!appSession) throw new ToolError('Workspace files are unavailable in this desktop app.')
         staged.push(await stageWorkspaceFile(appSession, toolCallId, index, fileDirectory, signal))

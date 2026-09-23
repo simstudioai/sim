@@ -12,6 +12,17 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_hover',
 ])
 
+/** Keeps a completed action available when its optional observation fails or is interrupted. */
+export function withFailedPostActionObservation(result: unknown, error: unknown): unknown {
+  const observation = {
+    ok: false,
+    error: getErrorMessage(error),
+    doNotRetry: true,
+    note: 'The action already ran. Inspect its result; do not repeat it just because observation failed.',
+  }
+  return isRecordLike(result) ? { ...result, observation } : { result, observation }
+}
+
 /** Validate before dispatch; an observation failure must never invite replay of a completed action. */
 export async function withPostActionObservation(
   tool: BrowserToolName,
@@ -38,18 +49,14 @@ export async function withPostActionObservation(
   const query = typeof request.query === 'string' ? request.query : undefined
   const { observe: _observe, ...actionParams } = params
   const result = await action(actionParams)
-  assertCurrent()
   let observation: unknown
   try {
-    observation = { ok: true, result: await observe(query) }
-  } catch (error) {
     assertCurrent()
-    observation = {
-      ok: false,
-      error: getErrorMessage(error),
-      note: 'The action already ran. Inspect its result; do not repeat it just because observation failed.',
-    }
+    const observed = await observe(query)
+    assertCurrent()
+    observation = { ok: true, result: observed }
+  } catch (error) {
+    return withFailedPostActionObservation(result, error)
   }
-  assertCurrent()
   return isRecordLike(result) ? { ...result, observation } : { result, observation }
 }

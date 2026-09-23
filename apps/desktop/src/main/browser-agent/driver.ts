@@ -82,7 +82,10 @@ import {
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
-import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
+import {
+  withFailedPostActionObservation,
+  withPostActionObservation,
+} from '@/main/browser-agent/post-action-observation'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
@@ -233,8 +236,8 @@ interface DriverScopeState {
   /** Unique state generation so teardown cannot suffer an epoch ABA race. */
   generation: number
   pendingNotices: string[]
-  /** Answer for JavaScript dialogs opened while the running action executes. */
-  dialogResponse: cdp.DialogResponse | null
+  /** Answer for JavaScript dialogs from the running action's target tab only. */
+  dialogResponse: { contents: WebContents; response: cdp.DialogResponse } | null
   takeoverActive: boolean
   takeoverDone: boolean
   takeoverResponse: string | null
@@ -544,7 +547,10 @@ function instrumentTab(contents: WebContents): void {
       )
     }),
     dialogResponse: () =>
-      session.withBrowserScope(scopeId, () => driverScopeState().dialogResponse),
+      session.withBrowserScope(scopeId, () => {
+        const requested = driverScopeState().dialogResponse
+        return requested?.contents === contents ? requested.response : null
+      }),
   }
   void (async () => {
     let lastError: unknown
@@ -4938,7 +4944,10 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
-          state.dialogResponse = dialogResponse(tool, params)
+          const response = dialogResponse(tool, params)
+          state.dialogResponse = response
+            ? { contents: session.requireAutomationTab().view.webContents, response }
+            : null
           const executionEpoch = ++state.toolExecutionEpoch
           const watchdogMs = browserToolWatchdogMs(tool, params)
           const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
@@ -4947,18 +4956,22 @@ export async function executeTool(
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
           }
+          let completedAction: { result: unknown } | undefined
           const execution = withPostActionObservation(
             tool,
             params,
-            (actionParams) =>
-              executeToolInner(
+            async (actionParams) => {
+              const result = await executeToolInner(
                 tool,
                 actionParams,
                 assertCurrentExecution,
                 executionDeadline,
                 invocationEpoch,
                 executionController.signal
-              ),
+              )
+              if (params.observe !== undefined) completedAction = { result }
+              return result
+            },
             (query) =>
               executeToolInner(
                 query === undefined ? 'browser_snapshot' : 'browser_find',
@@ -4970,10 +4983,11 @@ export async function executeTool(
               ),
             assertCurrentExecution
           )
+          const cancellableExecution = Promise.race([execution, cancellation])
           const guardedExecution =
             watchdogMs === null
-              ? execution
-              : raceAgainstWatchdog(execution, watchdogMs, () => {
+              ? cancellableExecution
+              : raceAgainstWatchdog(cancellableExecution, watchdogMs, () => {
                   executionController.abort()
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                   if (
@@ -4985,7 +4999,15 @@ export async function executeTool(
                     invalidateSnapshot(state)
                   }
                 })
-          const result = withNotices(await Promise.race([guardedExecution, cancellation]))
+          let observedResult: unknown
+          try {
+            observedResult = await guardedExecution
+          } catch (error) {
+            if (!completedAction) throw error
+            invalidateSnapshot(state)
+            observedResult = withFailedPostActionObservation(completedAction.result, error)
+          }
+          const result = withNotices(observedResult)
           logger.info('Browser tool completed', {
             tool,
             toolCallId,

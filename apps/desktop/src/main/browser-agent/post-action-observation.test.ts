@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { withPostActionObservation } from './post-action-observation'
+import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
 
 describe('post-action observation', () => {
   it('validates observation arguments before dispatching input', async () => {
@@ -86,7 +86,7 @@ describe('post-action observation', () => {
     })
   })
 
-  it('never observes after failed actions or expired executions', async () => {
+  it('never observes after failed actions', async () => {
     const observe = vi.fn()
     await expect(
       withPostActionObservation(
@@ -99,6 +99,11 @@ describe('post-action observation', () => {
         vi.fn()
       )
     ).rejects.toThrow('Ref expired')
+    expect(observe).not.toHaveBeenCalled()
+  })
+
+  it('preserves completed actions when execution expires before observation', async () => {
+    const observe = vi.fn()
     await expect(
       withPostActionObservation(
         'browser_type',
@@ -109,7 +114,39 @@ describe('post-action observation', () => {
           throw new Error('Cancelled')
         }
       )
-    ).rejects.toThrow('Cancelled')
+    ).resolves.toMatchObject({
+      typed: true,
+      observation: { ok: false, error: 'Cancelled', doNotRetry: true },
+    })
     expect(observe).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'preserves completed actions when execution expires during observation (observation fails: %s)',
+    async (fails) => {
+      let expired = false
+      await expect(
+        withPostActionObservation(
+          'browser_click',
+          { observe: {} },
+          async () => ({ dispatched: true }),
+          async () => {
+            expired = true
+            if (fails) throw new Error('Page changed')
+            return { outline: 'Stale snapshot' }
+          },
+          () => {
+            if (expired) throw new Error('Cancelled')
+          }
+        )
+      ).resolves.toMatchObject({
+        dispatched: true,
+        observation: {
+          ok: false,
+          error: fails ? 'Page changed' : 'Cancelled',
+          doNotRetry: true,
+        },
+      })
+    }
+  )
 })

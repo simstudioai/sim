@@ -25,6 +25,16 @@ const PDF_VIEWER_RESOURCE_PREFIXES = [
   'chrome://resources/',
 ] as const
 
+/** Web subresources include WebSocket connections and page-created data/blob assets. */
+const SUBRESOURCE_PROTOCOLS: ReadonlySet<string> = new Set([
+  'http:',
+  'https:',
+  'ws:',
+  'wss:',
+  'data:',
+  'blob:',
+])
+
 /** The same network guard applies to isolated and authenticated browser views. */
 export async function allowBrowserRequest(details: BrowserRequest): Promise<boolean> {
   if (PDF_VIEWER_RESOURCE_PREFIXES.some((prefix) => details.url.startsWith(prefix))) return true
@@ -40,6 +50,11 @@ export async function allowBrowserRequest(details: BrowserRequest): Promise<bool
   }
   if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
     return (await checkAgentUrl(details.url)).ok
+  }
+  try {
+    if (!SUBRESOURCE_PROTOCOLS.has(new URL(details.url).protocol)) return false
+  } catch {
+    return false
   }
   return subresourceNeedsResolution(details.resourceType)
     ? !(await isBlockedSubresourceUrl(details.url))

@@ -796,10 +796,18 @@ const BUTTON_MASKS: Record<PointerClick['button'], number> = { left: 1, right: 2
 const agentContextClicks = new WeakMap<WebContents, number>()
 const AGENT_CONTEXT_CLICK_WINDOW_MS = 1000
 
-/** True while a context menu event would be the echo of an agent right-click. */
-export function isAgentContextMenu(contents: WebContents): boolean {
+/** Consumes the single context menu echo expected from an agent right-click. */
+export function consumeAgentContextMenu(contents: WebContents): boolean {
   const at = agentContextClicks.get(contents)
-  return at !== undefined && Date.now() - at < AGENT_CONTEXT_CLICK_WINDOW_MS
+  agentContextClicks.delete(contents)
+  if (at === undefined) return false
+  const elapsed = Date.now() - at
+  return elapsed >= 0 && elapsed < AGENT_CONTEXT_CLICK_WINDOW_MS
+}
+
+/** A real user gesture supersedes an agent click whose page prevented its native menu. */
+export function clearAgentContextMenu(contents: WebContents): void {
+  agentContextClicks.delete(contents)
 }
 
 export async function clickAt(
@@ -812,7 +820,6 @@ export async function clickAt(
   if (moveBeforePress) await moveMouse(contents, x, y)
   const { button, clickCount, modifiers } = click
   const buttons = BUTTON_MASKS[button]
-  if (button === 'right') agentContextClicks.set(contents, Date.now())
   let pressed = false
   try {
     // Set before awaiting: CDP can deliver the press and then lose/reject the
@@ -822,6 +829,7 @@ export async function clickAt(
     // A multi-click is a sequence of press/release pairs with an increasing
     // clickCount — Blink synthesizes dblclick from the pair whose count is 2.
     for (let count = 1; count <= clickCount; count++) {
+      if (button === 'right') agentContextClicks.set(contents, Date.now())
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x,

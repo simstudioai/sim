@@ -1,5 +1,5 @@
-import type { Dirent } from 'node:fs'
-import { lstat, opendir, readFile, realpath, stat } from 'node:fs/promises'
+import { constants, type Dirent } from 'node:fs'
+import { type FileHandle, lstat, open, opendir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -786,13 +786,16 @@ export class LocalFilesystemService {
 
   /**
    * Resolves a granted `user-local/…` file the browser agent attaches to a page. It applies the
-   * same VFS mapping and realpath containment as reads and returns the real path for the caller
-   * to copy before use, so a later symlink swap cannot redirect the upload.
+   * same VFS mapping and realpath containment as reads and returns an open handle so later path
+   * replacements cannot redirect the upload. The caller owns and must close the handle, and must
+   * enforce the byte limit while reading because the file can grow after its initial size check.
+   * Rechecks containment and identity after opening; Node's path-based lookups cannot make
+   * ancestor resolution atomic.
    */
   async resolveGrantedFile(
     vfsPath: string,
     maxBytes: number
-  ): Promise<{ path: string; name: string; size: number }> {
+  ): Promise<{ handle: FileHandle; name: string; size: number }> {
     const uri = this.uriForVfsPath(vfsPath)
     if (!uri) {
       throw new LocalFilesystemError(
@@ -801,17 +804,39 @@ export class LocalFilesystemService {
       )
     }
     const resolved = await this.resolveUri(uri)
-    const metadata = await stat(resolved.realPath)
-    if (!metadata.isFile()) {
-      throw new LocalFilesystemError('NOT_A_FILE', 'The local path is not a file.')
+    const handle = await open(
+      resolved.realPath,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+    )
+    try {
+      const metadata = await handle.stat()
+      if (!metadata.isFile()) {
+        throw new LocalFilesystemError('NOT_A_FILE', 'The local path is not a file.')
+      }
+      const verified = await this.resolveUri(uri)
+      const currentMetadata = await lstat(verified.realPath)
+      if (
+        verified.realPath !== resolved.realPath ||
+        !currentMetadata.isFile() ||
+        metadata.dev !== currentMetadata.dev ||
+        metadata.ino !== currentMetadata.ino
+      ) {
+        throw new LocalFilesystemError(
+          'ACCESS_DENIED',
+          'The local file changed while it was being opened. Try again.'
+        )
+      }
+      if (metadata.size > maxBytes) {
+        throw new LocalFilesystemError(
+          'FILE_TOO_LARGE',
+          `The local file exceeds the ${Math.floor(maxBytes / 1024 / 1024)} MB upload limit.`
+        )
+      }
+      return { handle, name: basename(resolved.realPath), size: metadata.size }
+    } catch (error) {
+      await handle.close()
+      throw error
     }
-    if (metadata.size > maxBytes) {
-      throw new LocalFilesystemError(
-        'FILE_TOO_LARGE',
-        `The local file exceeds the ${Math.floor(maxBytes / 1024 / 1024)} MB upload limit.`
-      )
-    }
-    return { path: resolved.realPath, name: basename(resolved.realPath), size: metadata.size }
   }
 
   /** Maps a `user-local/<name>--<id>/…` VFS path onto its granted mount's localfs URI. */
@@ -884,7 +909,7 @@ export class LocalFilesystemService {
         decoded === '.' ||
         decoded === '..' ||
         decoded.includes('/') ||
-        decoded.includes('\\') ||
+        (sep === '\\' && decoded.includes('\\')) ||
         decoded.includes('\0')
       ) {
         throw new LocalFilesystemError('INVALID_URI', 'The localfs URI is invalid.')
