@@ -119,7 +119,7 @@ export function CreateWorkflowMcpServerModal({
               value={formData.isPublic ? 'public' : 'private'}
               onValueChange={(value) => setFormData({ ...formData, isPublic: value === 'public' })}
             >
-              <ChipButtonGroupItem value='private'>API Key</ChipButtonGroupItem>
+              <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
               <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
             </ChipButtonGroup>
             {formData.isPublic && (

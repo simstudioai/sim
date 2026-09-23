@@ -487,7 +487,7 @@ function ServerDetailView({
                   <SettingsField label='Server Name'>{server.name}</SettingsField>
                   <SettingsField label='Transport'>Streamable-HTTP</SettingsField>
                   <SettingsField label='Access'>
-                    {server.isPublic ? 'Public' : 'API Key'}
+                    {server.isPublic ? 'Public' : 'Private'}
                   </SettingsField>
                 </div>
 
@@ -855,13 +855,13 @@ function ServerDetailView({
                   value={editServerIsPublic ? 'public' : 'private'}
                   onValueChange={(value) => setEditServerIsPublic(value === 'public')}
                 >
-                  <ChipButtonGroupItem value='private'>API Key</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
                   <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
                 </ChipButtonGroup>
                 <p className='text-[var(--text-muted)] text-caption'>
                   {editServerIsPublic
                     ? 'Anyone with the URL can call this server without authentication'
-                    : 'Requests must include your Sim API key in the X-API-Key header'}
+                    : 'Clients sign in with OAuth, or send a Sim API key in the X-API-Key header'}
                 </p>
               </div>
             </ChipModalField>

@@ -16,7 +16,8 @@ interface OAuthResourceIssuance {
 
 /**
  * An RFC 8707 audience this deployment issues tokens for. `api` is the Sim MCP
- * server, which serves the Sim API; `search` is an organization's Search server.
+ * server, which serves the Sim API, or a workspace's workflow MCP server;
+ * `search` is an organization's Search server.
  */
 export interface OAuthResource {
   kind: OAuthResourceKind
@@ -25,6 +26,7 @@ export interface OAuthResource {
 
 const issuance = new AsyncLocalStorage<OAuthResourceIssuance>()
 const SEARCH_RESOURCE_PATH = /^\/api\/mcp\/search\/organizations\/[A-Za-z0-9_-]{1,128}$/
+const WORKFLOW_MCP_RESOURCE_PATH = /^\/api\/mcp\/serve\/[A-Za-z0-9_-]{1,128}$/
 
 export class InvalidOAuthResourceError extends Error {
   constructor() {
@@ -33,7 +35,10 @@ export class InvalidOAuthResourceError extends Error {
   }
 }
 
-/** Accepts only this deployment's canonical Sim MCP URL and its organization Search endpoints. */
+/**
+ * Accepts only this deployment's canonical Sim MCP URL, its organization Search
+ * endpoints, and its workflow MCP server endpoints.
+ */
 export function parseOAuthResource(value: string | null): OAuthResource | null {
   if (value === null) return null
   if (value === getSimMcpUrl()) return { kind: 'api', url: value }
@@ -46,12 +51,13 @@ export function parseOAuthResource(value: string | null): OAuthResource | null {
     url.username ||
     url.password ||
     url.search ||
-    url.hash ||
-    !SEARCH_RESOURCE_PATH.test(url.pathname)
+    url.hash
   ) {
     throw new InvalidOAuthResourceError()
   }
-  return { kind: 'search', url: value }
+  if (SEARCH_RESOURCE_PATH.test(url.pathname)) return { kind: 'search', url: value }
+  if (WORKFLOW_MCP_RESOURCE_PATH.test(url.pathname)) return { kind: 'api', url: value }
+  throw new InvalidOAuthResourceError()
 }
 
 /**
