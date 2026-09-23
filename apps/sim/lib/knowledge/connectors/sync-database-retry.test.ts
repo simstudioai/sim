@@ -21,6 +21,8 @@ import {
   DATABASE_FAILURE_ALERT_STREAK,
   DATABASE_RETRY_AFTER_PROGRESS_MS,
   databaseRetryDelayMs,
+  RUN_HISTORY_LOCK_TIMEOUT_MS,
+  RUN_HISTORY_STATEMENT_TIMEOUT_MS,
   resolveDatabaseRetryDelayMs,
 } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
@@ -40,6 +42,7 @@ const memberRun = (status: string, writes: Record<string, number> = {}) => ({
   membersCompleted: 0,
   docsAdded: 0,
   docsUpdated: 0,
+  docsPurged: 0,
   ...writes,
 })
 
@@ -99,6 +102,7 @@ describe('countZeroProgressFailedRuns', () => {
     ['completed a member', { membersCompleted: 1 }],
     ['added documents', { docsAdded: 3 }],
     ['updated documents', { docsUpdated: 1 }],
+    ['purged documents', { docsPurged: 4 }],
   ])('ends a members-mode streak at a failed run that %s', async (_label, writes) => {
     queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
       memberRun('failed'),
@@ -124,6 +128,35 @@ describe('countZeroProgressFailedRuns', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(
       CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES / 30 - 1
     )
+  })
+
+  it('bounds the history read with its own statement and lock timeouts', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [])
+    await countZeroProgressFailedRuns('content', 'c-1', 'run-1')
+    const bound = dbChainMockFns.execute.mock.calls[0]?.[0] as {
+      toSQL: () => { sql: string; params: unknown[] }
+    }
+    const { sql, params } = bound.toSQL()
+    expect(sql).toContain("set_config('statement_timeout'")
+    expect(sql).toContain("set_config('lock_timeout'")
+    expect(params).toEqual([
+      String(RUN_HISTORY_STATEMENT_TIMEOUT_MS),
+      String(RUN_HISTORY_LOCK_TIMEOUT_MS),
+    ])
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('falls back to this run alone when the history read times out', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
+      contentRun('failed'),
+      contentRun('failed'),
+    ])
+    dbChainMockFns.limit.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(1)
   })
 
   it('falls back to this run alone when the history cannot be read', async () => {

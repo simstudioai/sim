@@ -49,6 +49,7 @@ import {
   DOCUMENT_PROCESSING_RETRY_POLICY,
   DocumentProcessingDatabaseRetryError,
   getDocumentProcessingRetry,
+  processDocument,
   resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
 } from '@/background/knowledge-processing'
@@ -821,14 +822,10 @@ describe('knowledge-process-document task configuration', () => {
    * `attempt_count = 1`, so each was left `failed` having never been retried.
    */
   it('escalates to a larger machine on an out-of-memory kill', async () => {
-    const { processDocument } = await import('@/background/knowledge-processing')
-
     expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
   })
 
   it('declares enough attempts for database retries and routes failures through catchError', async () => {
-    const { processDocument } = await import('@/background/knowledge-processing')
-
     expect(processDocument.retry?.maxAttempts).toBe(
       Math.max(
         DOCUMENT_PROCESSING_RETRY_POLICY.maxAttempts,

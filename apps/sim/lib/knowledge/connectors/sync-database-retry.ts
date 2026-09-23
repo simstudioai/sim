@@ -3,7 +3,8 @@ import { knowledgeConnectorMemberSyncLog, knowledgeConnectorSyncLog } from '@sim
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
@@ -33,6 +34,14 @@ const LADDER_RUNGS = Math.ceil(
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES / CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES
 )
 
+/**
+ * Limits on the run-history read. It runs on the failure path, usually while the database is the
+ * thing failing, so it must give up fast rather than queue behind the slow window; a read that
+ * times out falls back to counting this run alone.
+ */
+export const RUN_HISTORY_STATEMENT_TIMEOUT_MS = 2_000
+export const RUN_HISTORY_LOCK_TIMEOUT_MS = 500
+
 /** Which run log a sync writes: the content sync's, or the members-mode run's. */
 export type SyncRunLogKind = 'content' | 'member'
 
@@ -43,6 +52,7 @@ interface LoggedRun {
 
 /** Earlier runs of this connector, newest first, and whether each one moved the sync forward. */
 async function readEarlierRuns(
+  tx: DbTransaction,
   kind: SyncRunLogKind,
   connectorId: string,
   runId: string,
@@ -50,7 +60,7 @@ async function readEarlierRuns(
 ): Promise<LoggedRun[]> {
   if (kind === 'content') {
     const log = knowledgeConnectorSyncLog
-    const rows = await db
+    const rows = await tx
       .select({
         status: log.status,
         docsAdded: log.docsAdded,
@@ -67,12 +77,13 @@ async function readEarlierRuns(
     }))
   }
   const log = knowledgeConnectorMemberSyncLog
-  const rows = await db
+  const rows = await tx
     .select({
       status: log.status,
       membersCompleted: log.membersCompleted,
       docsAdded: log.docsAdded,
       docsUpdated: log.docsUpdated,
+      docsPurged: log.docsPurged,
     })
     .from(log)
     .where(and(eq(log.connectorId, connectorId), ne(log.id, runId)))
@@ -80,7 +91,7 @@ async function readEarlierRuns(
     .limit(limit)
   return rows.map((row) => ({
     status: row.status,
-    progressed: row.membersCompleted + row.docsAdded + row.docsUpdated > 0,
+    progressed: row.membersCompleted + row.docsAdded + row.docsUpdated + row.docsPurged > 0,
   }))
 }
 
@@ -93,9 +104,11 @@ async function readEarlierRuns(
  * cannot spend the breaker that disables connectors for persistent source failures. The run log
  * already records every attempt and what it wrote, so it measures the streak instead: a statement
  * that fails every run without progress still backs off rung by rung, while a run that added,
- * updated, or deleted documents (or, in members mode, completed a member) before failing ends it.
- * The read uses the log's `(connector_id, started_at DESC)` index. If it fails too, the streak
- * counts only this run and the caller's own floor applies.
+ * updated, or deleted documents (in members mode, purged by the document lifecycle and logged as
+ * `docs_purged`), or completed a member, before failing ends it.
+ * The read uses the log's `(connector_id, started_at DESC)` index and is bounded by
+ * {@link RUN_HISTORY_STATEMENT_TIMEOUT_MS}. If it fails or times out, the streak counts only this
+ * run and the caller's own floor applies.
  */
 export async function countZeroProgressFailedRuns(
   kind: SyncRunLogKind,
@@ -103,7 +116,12 @@ export async function countZeroProgressFailedRuns(
   runId: string
 ): Promise<number> {
   try {
-    const earlier = await readEarlierRuns(kind, connectorId, runId, LADDER_RUNGS - 1)
+    const earlier = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('statement_timeout', ${String(RUN_HISTORY_STATEMENT_TIMEOUT_MS)}, true), set_config('lock_timeout', ${String(RUN_HISTORY_LOCK_TIMEOUT_MS)}, true)`
+      )
+      return readEarlierRuns(tx, kind, connectorId, runId, LADDER_RUNGS - 1)
+    })
     const streakEnd = earlier.findIndex((run) => run.status !== 'failed' || run.progressed)
     return 1 + (streakEnd === -1 ? earlier.length : streakEnd)
   } catch (error) {

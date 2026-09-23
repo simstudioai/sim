@@ -171,6 +171,70 @@ describe('classifyDatabaseFailure', () => {
     expect(getTransientDatabaseFailure(client)).toBeUndefined()
   })
 
+  /** A connection error as postgres.js builds one (`Errors.connection` in its source). */
+  function driverConnectionError(code: string): Error {
+    return Object.assign(new Error(`write ${code} localhost:5432`), {
+      code,
+      errno: code,
+      address: 'localhost',
+      port: 5432,
+    })
+  }
+
+  it.each(['CONNECTION_CLOSED', 'CONNECTION_DESTROYED', 'CONNECTION_ENDED', 'CONNECT_TIMEOUT'])(
+    'reads a bare driver-built %s as a connection failure, as a lost transaction raises it',
+    (code) => {
+      expect(classifyDatabaseFailure(driverConnectionError(code))).toBe('connection')
+    }
+  )
+
+  it.each([
+    ['only the code', (code: string) => Object.assign(new Error('socket closed'), { code })],
+    [
+      'a different message',
+      (code: string) => Object.assign(driverConnectionError(code), { message: 'socket closed' }),
+    ],
+    [
+      'no errno',
+      (code: string) =>
+        Object.assign(new Error(`write ${code} localhost:5432`), { code, address: 'localhost' }),
+    ],
+    [
+      'no address',
+      (code: string) =>
+        Object.assign(new Error(`write ${code} localhost:5432`), { code, errno: code }),
+    ],
+  ])('does not read a CONNECTION_CLOSED error with %s as a database failure', (_label, build) => {
+    const foreign = build('CONNECTION_CLOSED')
+    expect(classifyDatabaseFailure(foreign)).toBe('permanent')
+    expect(classifyDatabaseFailure(new Error('provider request failed', { cause: foreign }))).toBe(
+      'permanent'
+    )
+  })
+
+  it('reads a foreign CONNECTION_CLOSED under a database query error as a connection failure', () => {
+    const foreign = Object.assign(new Error('socket closed'), { code: 'CONNECTION_CLOSED' })
+    const wrapped = Object.assign(new Error('Failed query: private SQL\nparams: '), {
+      query: 'private SQL',
+      params: [],
+      cause: foreign,
+    })
+    expect(classifyDatabaseFailure(wrapped)).toBe('connection')
+  })
+
+  it('reads a refused connection the driver took a query for, before it built the query', () => {
+    const refused = Object.defineProperties(
+      Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }),
+      {
+        query: { value: undefined, enumerable: false },
+        parameters: { value: undefined, enumerable: false },
+        args: { value: [], enumerable: false },
+        types: { value: undefined, enumerable: false },
+      }
+    )
+    expect(classifyDatabaseFailure(refused)).toBe('connection')
+  })
+
   it('treats failures without a code as permanent', () => {
     expect(classifyDatabaseFailure(new Error('boom'))).toBe('permanent')
     expect(classifyDatabaseFailure('boom')).toBe('permanent')

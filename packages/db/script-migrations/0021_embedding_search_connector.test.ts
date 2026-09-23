@@ -20,8 +20,19 @@ const SERVER_MESSAGES: Record<string, string> = {
   '40P01': 'deadlock detected',
 }
 
-/** A driver error carrying a SQLSTATE, the shape `postgres` throws: the server's message as is. */
+/**
+ * The error `postgres` throws for `code`: a SQLSTATE carries the server's message as is, and a
+ * lost connection is the driver's own connection error (`write <code> <host:port>`).
+ */
 function postgresError(code: string, message = SERVER_MESSAGES[code] ?? 'failed'): Error {
+  if (code.startsWith('CONNECTION_')) {
+    return Object.assign(new Error(`write ${code} localhost:5432`), {
+      code,
+      errno: code,
+      address: 'localhost',
+      port: 5432,
+    })
+  }
   return Object.assign(new Error(message), { code })
 }
 

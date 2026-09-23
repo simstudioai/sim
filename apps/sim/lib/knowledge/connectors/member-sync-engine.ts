@@ -351,6 +351,14 @@ export function buildMemberSyncDatabaseRetryUpdate(
 }
 
 /**
+ * Whether a members-mode run moved the sync forward: it completed a member, or wrote documents.
+ * `docsDeleted` holds the document lifecycle's purges, which the run log records as `docs_purged`.
+ */
+export function memberRunMadeProgress(result: MemberSyncResult): boolean {
+  return result.membersCompleted + result.docsAdded + result.docsUpdated + result.docsDeleted > 0
+}
+
+/**
  * The connector row a failed members-mode run writes. A deterministic capacity rejection waits for
  * an operator, a transient database failure retries without touching the breaker, and anything
  * else climbs the ladder toward auto-disable.
@@ -2502,7 +2510,7 @@ export async function executeMemberSync(
           previousFailures: connector.memberSyncConsecutiveFailures,
           errorMessage,
           retryAfterMs,
-          madeProgress: result.membersCompleted + result.docsAdded + result.docsUpdated > 0,
+          madeProgress: memberRunMadeProgress(result),
         })
         const written = await db
           .update(knowledgeConnector)

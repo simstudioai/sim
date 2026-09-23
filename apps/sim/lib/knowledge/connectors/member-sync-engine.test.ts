@@ -25,8 +25,10 @@ import {
   buildMemberSyncDatabaseRetryUpdate,
   buildMemberSyncFailureUpdate,
   deriveMemberActive,
+  type MemberSyncResult,
   memberFailureBackoffMs,
   memberNextAttemptAt,
+  memberRunMadeProgress,
   nextMemberSyncTime,
   resolveMemberSyncFailureUpdate,
   shouldListFully,
@@ -282,6 +284,28 @@ describe('member sync engine decisions', () => {
       expect(
         buildMemberSyncDatabaseRetryUpdate(now, 0, 'db timeout', 120 * 60 * 1000).nextMemberSyncAt
       ).toEqual(new Date(minutesAfter(120)))
+    })
+  })
+
+  describe('memberRunMadeProgress', () => {
+    const idle = {
+      membersCompleted: 0,
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+    } as MemberSyncResult
+
+    it('reports no progress for a run that wrote nothing', () => {
+      expect(memberRunMadeProgress(idle)).toBe(false)
+    })
+
+    it.each([
+      ['completed a member', { membersCompleted: 1 }],
+      ['added documents', { docsAdded: 2 }],
+      ['updated documents', { docsUpdated: 1 }],
+      ['purged documents in the lifecycle pass', { docsDeleted: 3 }],
+    ])('reports progress for a run that %s', (_label, writes) => {
+      expect(memberRunMadeProgress({ ...idle, ...writes })).toBe(true)
     })
   })
 
