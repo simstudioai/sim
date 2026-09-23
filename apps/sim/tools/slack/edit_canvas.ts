@@ -1,4 +1,7 @@
+import { z } from 'zod'
+import { readSlackResponse } from '@/tools/slack/api'
 import type { SlackEditCanvasParams, SlackEditCanvasResponse } from '@/tools/slack/types'
+import { requireSlackString } from '@/tools/slack/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCanvasResponse> = {
@@ -56,7 +59,7 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Section ID to target (required for insert_after, insert_before, replace, and delete)',
+        'Section ID to target (required for insert_after, insert_before, and delete; omit for replace to replace the whole canvas)',
     },
     title: {
       type: 'string',
@@ -74,6 +77,24 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
       Authorization: `Bearer ${params.accessToken || params.botToken}`,
     }),
     body: (params: SlackEditCanvasParams) => {
+      z.enum([
+        'insert_at_start',
+        'insert_at_end',
+        'insert_after',
+        'insert_before',
+        'replace',
+        'delete',
+        'rename',
+      ]).parse(params.operation)
+      requireSlackString(params.canvasId, 'Canvas ID')
+      if (['insert_after', 'insert_before', 'delete'].includes(params.operation)) {
+        requireSlackString(params.sectionId, 'Section ID')
+      }
+      if (params.operation === 'rename') {
+        requireSlackString(params.title, 'New canvas title')
+      } else if (params.operation !== 'delete') {
+        z.string().min(1, 'Markdown content is required').max(1048576).parse(params.content)
+      }
       const change: Record<string, unknown> = {
         operation: params.operation,
       }
@@ -102,11 +123,7 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.ok) {
-      throw new Error(data.error || 'Failed to edit canvas')
-    }
+    await readSlackResponse(response)
 
     return {
       success: true,

@@ -43,6 +43,7 @@ import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -196,6 +197,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  slack_lists_items_list: slackListsItemsListTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -3140,6 +3142,61 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  it.each(['oauth', 'managed_oauth', undefined])(
+    'rejects %s credentials for Slack Lists before calling Slack',
+    async (credentialType) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'native-token',
+        credentialType,
+      })
+
+      const result = await executeTool('slack_lists_items_list', {
+        credential: 'native-credential',
+        credentialType: 'service_account',
+        listId: 'F123',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('requires a service-account credential'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
+
+  it('executes Slack Lists with a resolved custom bot credential', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'custom-bot-token',
+      credentialType: 'service_account',
+    })
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: () => 'application/json',
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({ ok: true, items: [] }),
+      json: async () => ({ ok: true, items: [] }),
+    })
+
+    const result = await executeTool('slack_lists_items_list', {
+      credential: 'custom-bot-credential',
+      listId: 'F123',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { items: [], list: null, nextCursor: '' },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://slack.com/api/slackLists.items.list',
+      '93.184.216.34',
+      expect.anything()
+    )
   })
 
   it('accepts credential-group provenance only from credential resolution', async () => {

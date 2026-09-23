@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-23",
   "integrations": [
     {
       "type": "onepassword",
@@ -22690,6 +22690,73 @@
         },
         "aiDisclaimer": "A paid Slack plan is required to use Sim's AI agent in Slack's app container. Other Sim features continue to work on free Slack plans. Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
+    },
+    {
+      "type": "slack_canvas",
+      "slug": "slack-canvas",
+      "name": "Slack Canvas",
+      "description": "Create, edit, find, and delete Slack canvases",
+      "longDescription": "Create collaborative Slack documents, edit Markdown, find section IDs, and manage channel canvases. Get Canvas Metadata and List Canvases return file metadata, not document contents. Uses the same Slack account or custom bot credentials and tools as the Slack block.",
+      "bgColor": "#611f69",
+      "iconName": "SlackIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/slack_canvas",
+      "operations": [],
+      "operationCount": 0,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "slack",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["note-taking", "automation"]
+    },
+    {
+      "type": "slack_lists",
+      "slug": "slack-lists",
+      "name": "Slack Lists",
+      "description": "Create Lists and read, create, update, or delete rows in Slack",
+      "longDescription": "Manage project trackers and tasks in Slack Lists. Start with List Items to read rows and the column schema, then use real column IDs and Slack typed cell values to write rows. Lists require a paid Slack plan, lists:read/lists:write scopes, and a custom Slack bot with access to the List. Native Sim Slack connections are not supported. Use a List ID from its Slack URL; this block does not enumerate workspace Lists.",
+      "bgColor": "#4A154B",
+      "iconName": "SlackIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/slack_lists",
+      "operations": [
+        {
+          "name": "List Items",
+          "description": "Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination."
+        },
+        {
+          "name": "Get Item",
+          "description": "Read a Slack List row and its parent List column schema."
+        },
+        {
+          "name": "Create Item",
+          "description": "Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text."
+        },
+        {
+          "name": "Update Items",
+          "description": "Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox."
+        },
+        {
+          "name": "Delete Item",
+          "description": "Delete a row from an existing Slack List."
+        },
+        {
+          "name": "Create List",
+          "description": "Create a Slack List with an optional column schema. Requires a paid Slack plan."
+        },
+        {
+          "name": "Rename List",
+          "description": "Rename an existing Slack List."
+        }
+      ],
+      "operationCount": 7,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "slack",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "automation"]
     },
     {
       "type": "smartlead",

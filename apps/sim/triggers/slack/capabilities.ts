@@ -128,6 +128,25 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: ['team_join'],
   },
   {
+    id: 'action_lists',
+    label: 'Manage Lists',
+    description:
+      'Read Lists and column schemas; create, update, and delete rows. Requires a paid Slack plan.',
+    defaultChecked: false,
+    group: 'action',
+    scopes: ['lists:read', 'lists:write'],
+    events: [],
+  },
+  {
+    id: 'action_canvases',
+    label: 'Manage canvases',
+    description: 'Create and edit canvases, read metadata, find sections, and delete canvases.',
+    defaultChecked: false,
+    group: 'action',
+    scopes: ['canvases:read', 'canvases:write', 'files:read'],
+    events: [],
+  },
+  {
     id: 'action_add_reaction',
     label: 'Add reactions',
     description: 'Let the bot add emoji reactions to messages.',

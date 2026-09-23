@@ -3,7 +3,7 @@ import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
@@ -1243,7 +1243,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'Insert at End', id: 'insert_at_end' },
         { label: 'Insert After Section', id: 'insert_after' },
         { label: 'Insert Before Section', id: 'insert_before' },
-        { label: 'Replace Section', id: 'replace' },
+        { label: 'Replace Canvas or Section', id: 'replace' },
         { label: 'Delete Section', id: 'delete' },
         { label: 'Rename Canvas', id: 'rename' },
       ],
@@ -1273,7 +1273,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'sectionId',
       title: 'Section ID',
       type: 'short-input',
-      placeholder: 'Section ID to target',
+      placeholder: 'Section ID (leave empty to replace the entire canvas)',
       condition: {
         field: 'operation',
         value: 'edit_canvas',
@@ -1282,7 +1282,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           value: ['insert_after', 'insert_before', 'replace', 'delete'],
         },
       },
-      required: true,
+      required: { field: 'canvasOperation', value: ['insert_after', 'insert_before', 'delete'] },
     },
     {
       id: 'canvasTitle',
@@ -2226,18 +2226,14 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'list_canvases':
-            if (canvasListCount) {
-              const parsedCount = Number.parseInt(canvasListCount, 10)
-              if (!Number.isNaN(parsedCount) && parsedCount > 0) {
-                baseParams.count = parsedCount
-              }
-            }
-            if (canvasListPage) {
-              const parsedPage = Number.parseInt(canvasListPage, 10)
-              if (!Number.isNaN(parsedPage) && parsedPage > 0) {
-                baseParams.page = parsedPage
-              }
-            }
+            baseParams.count = parseOptionalNumberInput(canvasListCount, 'Canvas Limit', {
+              integer: true,
+              min: 1,
+            })
+            baseParams.page = parseOptionalNumberInput(canvasListPage, 'Canvas Page', {
+              integer: true,
+              min: 1,
+            })
             if (canvasListUser) {
               baseParams.user = String(canvasListUser).trim()
             }

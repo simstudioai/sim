@@ -11,6 +11,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
+For focused document and task workflows, use the [Slack Canvas](/integrations/slack_canvas) and [Slack Lists](/integrations/slack_lists) blocks. Canvas operations remain available here with their existing IDs.
+
 Use [Slack](https://www.slack.com/) to send and manage messages, work with canvases, and inspect channels and users. Custom bots also support Agent Sessions and streamed trigger responses.
 
 ## Stream Trigger Responses
@@ -1337,7 +1339,7 @@ Edit an existing Slack canvas by inserting, replacing, or deleting content
 | `canvasId` | string | Yes | Canvas ID to edit \(e.g., F1234ABCD\) |
 | `operation` | string | Yes | Edit operation: insert_at_start, insert_at_end, insert_after, insert_before, replace, delete, or rename |
 | `content` | string | No | Markdown content for the operation \(required for insert/replace operations\) |
-| `sectionId` | string | No | Section ID to target \(required for insert_after, insert_before, replace, and delete\) |
+| `sectionId` | string | No | Section ID to target \(required for insert_after, insert_before, and delete; omit for replace to replace the whole canvas\) |
 | `title` | string | No | New title for the canvas \(only used with rename operation\) |
 
 #### Output

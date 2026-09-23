@@ -1,0 +1,302 @@
+---
+title: Slack Lists
+description: Create Lists and read, create, update, or delete rows in Slack
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="slack_lists"
+  color="#4A154B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## Connect a custom Slack bot
+
+Slack Lists supports **custom Slack bots only**. Select a reusable bot in **Custom Slack Bot**, or choose **Set up a custom bot**. Native Sim Slack connections are not supported. Lists requires a paid Slack plan and access to the target List for the selected bot.
+
+The custom app needs `lists:read` for List Items and Get Item, and `lists:write` for writes. Enable **Manage Lists** in the custom app setup manifest. For an existing bot, add these scopes to its Slack app, reinstall it, and update its stored credential in Sim. This integration does not add scopes to the native Sim Slack app.
+
+## Read the schema before writing rows
+
+1. Copy the `F…` List ID from the Slack List URL, or use `listId` returned by Create List.
+2. Run **List Items** with **Include List Schema** enabled (the default). The `list.schema` output contains each column's `id`, `name`, `type`, and type-specific `options`. This works even when the List has no rows. **Get Item** also returns the parent schema. Create List may return `schema`; if Slack omits it, use List Items.
+3. Use those real `Col…` IDs as `column_id`. Use the `Rec…` IDs returned by List Items or Create Item as `row_id` for updates. Select values must match the column's configured choice values.
+
+For **Create Item**, provide **Initial Fields** as a JSON array. For example, replace the placeholder column IDs below with IDs from your List:
+
+```json
+[
+  {
+    "column_id": "ColTitle",
+    "rich_text": [{
+      "type": "rich_text",
+      "elements": [{
+        "type": "rich_text_section",
+        "elements": [{ "type": "text", "text": "Review the proposal" }]
+      }]
+    }]
+  },
+  { "column_id": "ColDueDate", "date": ["2026-10-01"] },
+  { "column_id": "ColDone", "checkbox": false }
+]
+```
+
+For **Update Items**, each object in **Cells** also needs `row_id`. A single call can update cells in multiple rows. Text writes require `rich_text`; the `text` and legacy `value` properties in responses are not write inputs. Checkboxes use a boolean, while number, date, select, user, channel, attachment, email, phone, rating, timestamp, message, link, and reference values use arrays. Message values are URLs. Link objects use `original_url`, `display_as_url`, and `display_name`, which differ from response keys. Empty arrays clear array-valued cells; `false` clears a checkbox.
+
+## Pagination and limits
+
+List Items returns one page, defaulting to a requested size of 100. Pass `nextCursor` into the next call's **Cursor** until it is empty, even if a page contains fewer rows than requested. Use a Loop block for full traversal. **Archived Rows** selects archived rows instead of active rows. Disable **Include List Schema** on later pages when the schema is already known.
+
+The integration supports creating and renaming Lists, plus reading, creating, updating, and deleting rows. It does not enumerate all workspace Lists, change an existing List's column definitions, manage access, or delete an entire List. Share the List in Slack before running tools against another user's List.
+
+Slack currently assigns Tier 2 (20+ requests/minute) to list creation/renaming and row reads/deletion, and Tier 3 (50+ requests/minute) to row creation/updates. The tools surface Slack failures, including rate limits and missing scopes; they do not automatically replay writes.
+
+See Slack's [Lists API](https://docs.slack.dev/surfaces/lists/), [typed field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/), and [pagination](https://docs.slack.dev/reference/methods/slackLists.items.list/).
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Manage project trackers and tasks in Slack Lists. Start with List Items to read rows and the column schema, then use real column IDs and Slack typed cell values to write rows. Lists require a paid Slack plan, lists:read/lists:write scopes, and a custom Slack bot with access to the List. Native Sim Slack connections are not supported. Use a List ID from its Slack URL; this block does not enumerate workspace Lists.
+
+
+
+## Actions
+
+### Slack Lists Create List
+
+Create a Slack List with an optional column schema. Requires a paid Slack plan.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the new List |
+| `schema` | json | No | Column definitions with key, name, type, and optional is_primary_column/options. Read returned column IDs before writing rows. |
+| `description` | string | No | Plain text description, encoded as Slack rich text |
+| `todoMode` | boolean | No | Add task tracking fields for completion, assignee, and due date |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listId` | string | Created Slack List ID |
+| `schema` | array | Column schema with IDs; null if Slack omitted it |
+|   ↳ `id` | string | Column ID |
+|   ↳ `key` | string | Column key |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Slack column type |
+|   ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|   ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+
+### Slack Lists Rename List
+
+Rename an existing Slack List.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `name` | string | Yes | New name for the List |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Lists List Items
+
+Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `limit` | number | No | Maximum rows in this page \(positive integer; defaults to 100\) |
+| `cursor` | string | No | Continuation cursor from the previous response |
+| `archived` | boolean | No | Return archived rows instead of active rows |
+| `includeList` | boolean | No | Include List title and schema \(defaults to true\); schema IDs are required to write cells |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Rows in this page |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+| `list` | object | Parent List \(id, title, schema\); null if not included |
+|   ↳ `id` | string | List ID |
+|   ↳ `title` | string | List title |
+|   ↳ `schema` | array | Column schema: use id as column_id when writing cells |
+|     ↳ `id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Slack column type |
+|     ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+| `nextCursor` | string | Next page cursor; empty when there are no more rows |
+
+### Slack Lists Get Item
+
+Read a Slack List row and its parent List column schema.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `itemId` | string | Yes | Row ID returned by List Items or Create Item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Slack List row |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+| `list` | object | Parent List title and column schema |
+|   ↳ `id` | string | List ID |
+|   ↳ `title` | string | List title |
+|   ↳ `schema` | array | Column schema: use id as column_id when writing cells |
+|     ↳ `id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Slack column type |
+|     ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+
+### Slack Lists Create Item
+
+Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `initialFields` | json | No | Array of typed fields, each with column_id and exactly one value such as rich_text, number, select, date, user, or checkbox. Use schema IDs from List Items \(includeList=true\). |
+| `parentItemId` | string | No | Parent row ID when creating a subtask |
+| `duplicatedItemId` | string | No | Existing row ID to duplicate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Slack List row |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+
+### Slack Lists Update Items
+
+Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `cells` | json | Yes | Nonempty array of cells with row_id, column_id and a typed value \(e.g. \{"row_id":"Rec...","column_id":"Col...","checkbox":true\}\). Text uses rich_text blocks. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Lists Delete Item
+
+Delete a row from an existing Slack List.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `itemId` | string | Yes | Row ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+

@@ -4765,6 +4765,15 @@ import {
   slackUpdateViewTool,
 } from '@/tools/slack'
 import {
+  slackListsCreateTool,
+  slackListsItemsCreateTool,
+  slackListsItemsDeleteTool,
+  slackListsItemsInfoTool,
+  slackListsItemsListTool,
+  slackListsItemsUpdateTool,
+  slackListsUpdateTool,
+} from '@/tools/slack_lists'
+import {
   smartleadAddEmailAccountsToCampaignTool,
   smartleadAddLeadsToCampaignTool,
   smartleadCreateCampaignTool,
@@ -7281,6 +7290,13 @@ export const tools: Record<string, ExecutableToolConfig> = {
   slack_set_suggested_prompts_v2: slackSetSuggestedPromptsV2Tool,
   slack_set_agent_session_status_v2: slackSetAgentSessionStatusV2Tool,
   slack_rename_agent_session_v2: slackRenameAgentSessionV2Tool,
+  slack_lists_create: slackListsCreateTool,
+  slack_lists_update: slackListsUpdateTool,
+  slack_lists_items_list: slackListsItemsListTool,
+  slack_lists_items_info: slackListsItemsInfoTool,
+  slack_lists_items_create: slackListsItemsCreateTool,
+  slack_lists_items_update: slackListsItemsUpdateTool,
+  slack_lists_items_delete: slackListsItemsDeleteTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_ephemeral_message: slackEphemeralMessageTool,

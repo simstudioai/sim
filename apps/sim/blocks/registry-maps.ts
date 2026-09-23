@@ -312,6 +312,8 @@ import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/blocks/blocks/slack'
+import { SlackCanvasBlock, SlackCanvasBlockMeta } from '@/blocks/blocks/slack_canvas'
+import { SlackListsBlock, SlackListsBlockMeta } from '@/blocks/blocks/slack_lists'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
@@ -671,6 +673,8 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   similarweb: SimilarwebBlock,
   sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
+  slack_canvas: SlackCanvasBlock,
+  slack_lists: SlackListsBlock,
   slack_v2: SlackV2Block,
   smartlead: SmartleadBlock,
   smtp: SmtpBlock,
@@ -990,6 +994,8 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  slack_canvas: SlackCanvasBlockMeta,
+  slack_lists: SlackListsBlockMeta,
   slack_v2: SlackV2BlockMeta,
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
