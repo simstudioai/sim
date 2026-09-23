@@ -30,6 +30,19 @@ afterEach(() => {
 })
 
 describe('ChipInput', () => {
+  it.each([undefined, 'lg'] as const)(
+    'emits a single height for size %s without forwarding it to the native field',
+    (size) => {
+      const input = mount(<ChipInput size={size} disabled aria-label='Search' />)
+      const heights = input.parentElement?.className
+        .split(' ')
+        .filter((token) => token.startsWith('h-'))
+      expect(heights).toEqual([size === 'lg' ? 'h-9' : 'h-[30px]'])
+      expect(input.hasAttribute('size')).toBe(false)
+      expect(input.disabled).toBe(true)
+    }
+  )
+
   it('keeps the focused input mounted when custom leading content changes', () => {
     const input = mount()
     const render = (color: string) => (
@@ -76,7 +89,7 @@ describe('chip form controls', () => {
           error
           aria-invalid
           aria-describedby='error'
-          className='h-[34px]'
+          size='lg'
         />
         <p id='error'>Enter a work email</p>
         <ChipTextarea
@@ -93,7 +106,7 @@ describe('chip form controls', () => {
     expect(input.labels?.[0].textContent).toBe('Work email')
     expect(input.getAttribute('aria-describedby')).toBe('error')
     expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(input.parentElement?.className).toContain('h-[34px]')
+    expect(input.parentElement?.className).toContain('h-9')
     expect(input.parentElement?.className).toContain('border-[var(--text-error)]')
     expect(textareaRef.current?.rows).toBe(3)
     expect(textareaRef.current?.className).toContain('min-h-[80px]')

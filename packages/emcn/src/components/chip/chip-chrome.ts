@@ -51,6 +51,10 @@ export const chipContentGap = 'gap-1.5'
 
 /** Standard chip height, also shared by combobox fields. */
 export const chipHeightClass = 'h-[30px]'
+/** Shared control heights. Large controls follow the auth spacing scale. */
+export const chipSizeClasses = { md: chipHeightClass, lg: 'h-9' } as const
+/** Chip content geometry without height or radius, for sized controls. */
+export const chipContentGeometryClass = `items-center ${chipContentGap} px-2 text-left text-sm`
 
 /**
  * Chip pill geometry minus its corner radius — height, centering, gap, padding,
@@ -58,7 +62,7 @@ export const chipHeightClass = 'h-[30px]'
  * (non-`cn`) consumer never emits two competing radii; everything else reads
  * {@link chipGeometryClass}, which adds the default radius back.
  */
-export const chipGeometryUnroundedClass = `${chipHeightClass} items-center ${chipContentGap} px-2 text-left text-sm`
+export const chipGeometryUnroundedClass = `${chipHeightClass} ${chipContentGeometryClass}`
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this

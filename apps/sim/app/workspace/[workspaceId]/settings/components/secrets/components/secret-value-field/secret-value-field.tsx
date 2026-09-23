@@ -11,7 +11,7 @@ const VIEWER_MASK_LENGTH = 10
 
 type SecretValueFieldProps = Omit<
   ComponentProps<'input'>,
-  'type' | 'value' | 'onChange' | 'readOnly' | 'style'
+  'type' | 'value' | 'onChange' | 'readOnly' | 'style' | 'size'
 > & {
   /** The chip owns field styling; callers use className for layout. */
   style?: never

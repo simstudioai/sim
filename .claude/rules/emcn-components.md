@@ -70,3 +70,7 @@ geometry only; colour, radius and SVG stroke continue to come from the selected
 Use `shape='round'` for circular actions, or omit it to retain the current radius.
 `size='inline'` is a 20px-high action with caption typography and compact horizontal
 padding. Prefer these supported props to size, padding and radius overrides.
+
+### Chip sizing and centered actions
+
+`Chip`, `ChipLink`, and `ChipInput` retain their default 30px height. Use `size="lg"` for the existing auth-scale 36px controls; the larger size follows the root font size. `Chip` and `ChipLink` accept `align="center"` to center their icon/label group, including full-width form actions. Long labels still shrink and retain their overflow treatment. Avoid descendant flex overrides to center chip labels. The default geometry exports remain unchanged for static consumers.
