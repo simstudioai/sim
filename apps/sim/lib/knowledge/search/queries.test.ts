@@ -1613,7 +1613,7 @@ describe('permitted-document planner', () => {
       expect(JSON.stringify(dbChainMockFns.where.mock.calls)).not.toContain('@@')
     })
 
-    it('decides a row the backfill has not reached on its document while the fill runs', async () => {
+    it('decides a row the fill has not reached on its document while the fill runs', async () => {
       tinPages.push({
         ranked: 1,
         candidates: [{ id: 'a', documentId: 'doc-a', connectorId: 'src-a' }],
@@ -1632,8 +1632,10 @@ describe('permitted-document planner', () => {
         },
       })
       const statement = JSON.stringify(tinStatements()[0])
-      /** A row the backfill has not filled (`acl IS NULL`) is decided on its document instead. */
-      expect(statement).toContain('IS NULL AND EXISTS (')
+      /** A row the fill has not reached (`acl IS NULL`), or a marked document's row, is decided on its document. */
+      expect(statement).toContain(' IS NULL OR ')
+      expect(statement).toContain('knowledgeProjectionDirty.documentId')
+      expect(statement).toContain('EXISTS (')
       expect(statement).toContain('ranked_tin_chunks.document_id')
     })
 

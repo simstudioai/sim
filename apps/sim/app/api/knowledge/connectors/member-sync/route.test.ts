@@ -101,6 +101,21 @@ describe('member sync scheduler owner routing', () => {
     ).toBe(true)
   })
 
+  it('still dispatches due connectors when the stale observation sweep fails', async () => {
+    mocks.sweep.mockRejectedValue(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'workspace-source', workspaceId: 'workspace-a', organizationId: null },
+    ])
+    const response = await GET(createMockRequest('GET'))
+    expect(response.status).toBe(200)
+    expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith(
+      'workspace-source',
+      expect.objectContaining({ requireRunnable: true })
+    )
+  })
+
   it('preserves workspace dispatch and refuses absent or ambiguous ownership', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { id: 'missing', workspaceId: null, organizationId: null },

@@ -155,3 +155,34 @@ export const SOURCE_PERMISSION_ERROR =
 /** Source downloads are retried by connector listing, never by parsing the retained file again. */
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
+
+/**
+ * Documents whose permission evidence is refreshed per statement. Documents are
+ * grouped by identical ACL first — files under one folder overwhelmingly share
+ * theirs — so a crawl of thousands usually resolves to a handful of statements.
+ * A refresh never assigns `acl`, so it fires no projection fan-out.
+ */
+export const ACL_WRITE_BATCH_SIZE = 500
+
+/**
+ * How long a connector-lease ACL page waits on any lock before it fails. The
+ * connector row is locked last, so the wait is on document rows, which a
+ * processing commit may hold for its whole embedding write.
+ */
+export const LEASE_PAGE_LOCK_TIMEOUT_MS = 15_000
+
+/** The longest one statement of a connector-lease ACL page may run. */
+export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
+
+/**
+ * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
+ * document trigger that copies it onto every chunk's search projection rows, and
+ * each of those rows is re-inserted into the vector index, so one statement costs
+ * the chunks of every document in it rather than the documents. Kept small so a
+ * page of changed documents cannot outrun the statement timeout; with
+ * `knowledge-async-projection` on, the trigger only marks the documents and the bound is the
+ * cleanup boundary noted at `pagesByProjectionRows` in `member-observations.ts`. Also the page
+ * of the transactions that remove observations and rematerialise the ACLs they
+ * decide together, which must commit as one and so cannot be split by rows.
+ */
+export const ACL_CHANGE_BATCH_SIZE = 25

@@ -4,9 +4,7 @@ import { createLogger } from '@sim/logger'
 import { apiClientManager, ListRunResponseItem, type RunStatus } from '@trigger.dev/core/v3'
 import { zodfetchCursorPage } from '@trigger.dev/core/v3/zodfetch'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
-import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import type { DbTransaction } from '@/lib/db/types'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
@@ -180,7 +178,7 @@ export async function inspectDocumentProcessingLiveness<T extends DocumentProces
             states.set(candidate.id, 'live')
             continue
           }
-          if (!(isInsideTriggerRun() || (isTriggerDevEnabled && env.TRIGGER_SECRET_KEY))) {
+          if (!isTriggerAvailable()) {
             states.set(candidate.id, 'abandoned')
             continue
           }

@@ -7,6 +7,7 @@ import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migr
 import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
 import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
 import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
+import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -49,6 +50,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   projectionSourceAclBackfillMigration,
   /** 0023 stops document ACL changes from writing chunks the 0022 backfill has not filled. */
   projectionAclSkipUnfilledMigration,
+  /** 0024 marks changed documents for the knowledge projector and lets writers defer to it. */
+  knowledgeProjectionAsyncMigration,
 ]
 
 /**

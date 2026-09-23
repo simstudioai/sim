@@ -27,8 +27,10 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   resolveSourceMetadataFields: mocks.sourceMetadata,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: mocks.triggerAvailable,
   processDocumentsWithQueue: mocks.dispatch,
+}))
+vi.mock('@/lib/core/config/trigger-availability', () => ({
+  isTriggerAvailable: mocks.triggerAvailable,
 }))
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'

@@ -102,6 +102,7 @@ jobs:
           bunx vitest run
           scripts/retired-columns.postgres.test.ts
           scripts/connector-sync-schedule-precision.postgres.test.ts
+          scripts/database-failure-classification.postgres.test.ts
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
@@ -267,6 +268,7 @@ jobs:
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
           lib/knowledge/__integration__/embedding-insert-batches.integration.ts
+          lib/knowledge/__integration__/processing-lock-scope.integration.ts
           lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
           lib/knowledge/__integration__/connector-deferral.integration.ts
           lib/knowledge/__integration__/stored-document-recovery.integration.ts
@@ -275,10 +277,13 @@ jobs:
           lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/member-scope-renewal.integration.ts
           lib/knowledge/__integration__/member-document-lifecycle.integration.ts
+          lib/knowledge/__integration__/connector-lease-pages.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/knowledge/__integration__/gitlab-workspace.integration.ts
           lib/knowledge/__integration__/unfilled-projection-source.integration.ts
+          lib/knowledge/__integration__/knowledge-projection.integration.ts
+          lib/knowledge/__integration__/async-projection-processing.integration.ts
           lib/knowledge/__integration__/purged-detach-reservation.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts

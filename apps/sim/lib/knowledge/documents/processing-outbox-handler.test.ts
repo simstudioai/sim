@@ -15,8 +15,8 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   getKnowledgeDocument: mocks.getKnowledgeDocument,
   processDocumentsWithQueue: mocks.processDocumentsWithQueue,
   processDocumentAsync: mocks.processDocumentAsync,
-  isTriggerAvailable: () => false,
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => false }))
 
 vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
   reclaimStaleDocumentProcessingClaim: mocks.reclaimStaleDocumentProcessingClaim,

@@ -3596,8 +3596,8 @@ export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
  * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
  * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
  * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. Access never enters the row, so ACL
- * changes never rewrite it. Script migration `0019_tin_keyword_projection` installs the extension,
+ * the index and stems exactly as the GIN projection does. The row mirrors its document's source
+ * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
  * the index, and the embedding and knowledge base triggers that own these rows, and only where
  * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
  */
@@ -3625,9 +3625,10 @@ export const embeddingKeywordTin = pgTable(
 )
 
 /**
- * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
- * from content prevents candidate scans from fetching full-precision TOAST values.
- * The embedding write trigger owns this projection; application writers only change embedding.
+ * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
+ * candidate scans from fetching full-precision TOAST values. Application writers only change
+ * `embedding`: its trigger writes this projection in the writer's transaction, or, for a writer that
+ * deferred it, the knowledge projector writes it after the commit (see {@link knowledgeProjectionDirty}).
  */
 export const embeddingSearch = pgTable(
   'embedding_search',
@@ -3689,6 +3690,35 @@ export const embeddingSearch = pgTable(
       'embedding_search_width_check',
       sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
     ),
+  })
+)
+
+/**
+ * Documents whose search projection rows may lag their source rows. The `document` and `embedding`
+ * triggers mark a document here whenever they change what its projection rows carry, in the
+ * writer's transaction; the projector rewrites the rows and then removes the mark, but only on the
+ * generation it read, so a change made while it ran leaves the mark in place. Search decides a
+ * marked document's rows on the document itself, so a mark never widens what a reader sees.
+ *
+ * A side table rather than a column on `document`: a mark is written by the writer that already
+ * holds the document row, but clearing it would otherwise take that row again, and readers probe
+ * this small table instead of joining `document` per ranked row.
+ */
+export const knowledgeProjectionDirty = pgTable(
+  'knowledge_projection_dirty',
+  {
+    documentId: text('document_id')
+      .primaryKey()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    /** Bumped by every mark; the projector removes the row only on the generation it read. */
+    generation: bigint('generation', { mode: 'number' }).notNull().default(1),
+    /** Whether chunk content changed, not only the document's source or ACL. */
+    content: boolean('content').notNull().default(false),
+    markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    /** The projector claims the oldest marks first. */
+    markedAtIdx: index('knowledge_projection_dirty_marked_at_idx').on(table.markedAt),
   })
 )
 
@@ -6431,6 +6461,12 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsPurged: integer('docs_purged').notNull().default(0),
     credentialsAudited: integer('credentials_audited').notNull().default(0),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcmsl_connector_started_at_idx').on(
@@ -6444,6 +6480,10 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     statusCheck: check(
       'kcmsl_status_check',
       sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
+    ),
+    databaseFailureClassCheck: check(
+      'kcmsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
     ),
   })
 )
@@ -6470,6 +6510,12 @@ export const knowledgeConnectorSyncLog = pgTable(
     /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
     listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
@@ -6490,6 +6536,10 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    databaseFailureClassCheck: check(
+      'kcsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
+    ),
   })
 )
 

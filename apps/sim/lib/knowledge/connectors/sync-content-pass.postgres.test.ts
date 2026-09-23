@@ -18,9 +18,9 @@ vi.mock('@sim/db', () => ({
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: hardDelete,
-  isTriggerAvailable: () => true,
   processDocumentsWithQueue: vi.fn(),
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
 vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: vi.fn() }))
@@ -32,6 +32,7 @@ const schema = await import('@sim/db/schema')
 const { beginListingCheckpoint } = await import('@/lib/knowledge/connectors/listing-checkpoint')
 const { runConnectorContentPass } = await import('@/lib/knowledge/connectors/sync-content-pass')
 const { revokeDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
+const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 const { confluenceConnector } = await import('@/connectors/confluence/confluence')
 
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
@@ -156,7 +157,7 @@ describe.runIf(Boolean(databaseUrl))('completed listing reconciliation in Postgr
     holder.db = drizzle(sql, { schema })
     await sql`CREATE TABLE knowledge_connector (id text PRIMARY KEY)`
     await sql`CREATE TABLE document (
-      id text PRIMARY KEY, external_id text, connector_id text,
+      id text PRIMARY KEY, external_id text, connector_id text, chunk_count integer NOT NULL DEFAULT 1,
       user_excluded boolean NOT NULL DEFAULT false, archived_at timestamp, deleted_at timestamp,
       source_seen_at timestamp,
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
@@ -274,8 +275,10 @@ describe.runIf(Boolean(databaseUrl))('completed listing reconciliation in Postgr
     await sql`UPDATE document SET acl_requirements = '[[], ["g:confluence:tenant:space"]]'
       WHERE id = 'stale-evidence'`
 
-    await revokeDocumentAcls(holder.db as never, ['stale-evidence', 'granted'], (batch) =>
-      inArray(schema.document.id, batch)
+    await revokeDocumentAcls(
+      leaseTransaction(CONNECTOR, undefined, holder.db as never),
+      ['stale-evidence', 'granted'],
+      (batch) => inArray(schema.document.id, batch)
     )
 
     expect(await fannedOut()).toEqual(['granted'])

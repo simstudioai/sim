@@ -7,9 +7,10 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import type { ActivityDimension, ActivitySort } from '@/lib/billing/core/organization-activity'
 import {
   readActivityBreakdown,
-  readActivitySummary,
+  readActivityDays,
   readActivityWorkspace,
 } from '@/lib/billing/core/organization-activity-queries'
+import { summarizeActivityDays } from '@/lib/billing/core/organization-activity-summary'
 import {
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
@@ -58,15 +59,10 @@ export const getOrganizationActivitySummary = defineAuthorizedOrganizationUsageU
   async execute({ input, context }) {
     const { window, workspace, scope } = await resolveActivityScope(input, context)
     const bucket = resolveUsageBucket(window)
-    const result = await readActivitySummary(scope, bucket, input.timezone)
-    const byTimestamp = new Map(result.series.map((point) => [point.timestamp, point]))
+    const days = await readActivityDays(scope, input.timezone)
     return {
       workspace,
-      totals: result.totals,
-      series: usageBucketTimestamps(window, bucket, input.timezone).map(
-        (timestamp) =>
-          byTimestamp.get(timestamp) ?? { timestamp, workflowRuns: 0, chatRuns: 0, failed: 0 }
-      ),
+      ...summarizeActivityDays(days, usageBucketTimestamps(window, bucket, input.timezone), bucket),
     }
   },
 })

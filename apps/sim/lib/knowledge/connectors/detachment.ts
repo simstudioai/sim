@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { PROJECTION_ROW_BATCH_SIZE } from '@sim/db/knowledge-projection'
 import {
   document,
   embeddingKeywordTin,
@@ -27,7 +28,6 @@ import { revokeKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connec
 
 export const KNOWLEDGE_CONNECTOR_DETACH_EVENT = 'knowledge.connector.detach'
 const DOCUMENT_BATCH_SIZE = 100
-const PROJECTION_ROW_BATCH_SIZE = 250
 const MAX_BATCHES_PER_RUN = 4
 const RUN_BUDGET_MS = 30_000
 /** How often a detachment paused on a deleted knowledge base checks for its restore or purge. */

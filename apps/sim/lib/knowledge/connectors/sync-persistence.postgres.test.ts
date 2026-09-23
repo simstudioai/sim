@@ -17,6 +17,7 @@ vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 const { drizzle } = await import('drizzle-orm/postgres-js')
 const schema = await import('@sim/db/schema')
 const { persistDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
+const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
 
@@ -43,8 +44,10 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       SELECT id, acl FROM embedding_search
       UNION ALL SELECT id, acl FROM embedding_keyword_tin ORDER BY id`
 
-  const persist = (acls: Map<string, string[]>) =>
-    persistDocumentAcls('admin', acls, drizzle(sql, { schema }))
+  /** Bounded page transactions on this schema's connection; these fixtures hold no lease. */
+  const pages = () => leaseTransaction('admin', undefined, drizzle(sql, { schema }))
+
+  const persist = (acls: Map<string, string[]>) => persistDocumentAcls('admin', acls, pages())
 
   beforeAll(async () => {
     const url = new URL(databaseUrl!)
@@ -62,7 +65,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       connection: { search_path: schemaName },
     })
     await sql`CREATE TABLE document (
-      id text PRIMARY KEY, external_id text, connector_id text,
+      id text PRIMARY KEY, external_id text, connector_id text, chunk_count integer NOT NULL DEFAULT 1,
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
       acl_verified_at timestamp
     )`
@@ -147,7 +150,7 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
     await persistDocumentAcls(
       'admin',
       new Map([['file-same', { acl: [ALICE], requirements: [['g:confluence:tenant:space']] }]]),
-      drizzle(sql, { schema })
+      pages()
     )
 
     const [stored] = await sql<{ requirements: string[][] }[]>`
@@ -227,15 +230,10 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
       await sql`UPDATE document SET acl_verified_at = ${verifiedAt}::timestamptz AT TIME ZONE 'UTC'
         WHERE id = 'doc-same'`
 
-      const result = await persistDocumentAcls(
-        'admin',
-        new Map([['file-same', []]]),
-        drizzle(sql, { schema }),
-        {
-          unresolvedExternalIds: new Set(['file-same']),
-          generationStartedAt,
-        }
-      )
+      const result = await persistDocumentAcls('admin', new Map([['file-same', []]]), pages(), {
+        unresolvedExternalIds: new Set(['file-same']),
+        generationStartedAt,
+      })
 
       expect(result).toEqual({ updated: preserved ? 0 : 1, rejected: 0 })
       const [stored] = await sql<{ acl: string[]; verified: boolean }[]>`

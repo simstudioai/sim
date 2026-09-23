@@ -6,7 +6,12 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getTransientDatabaseFailure,
+  type TransientDatabaseFailureClass,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -48,6 +53,7 @@ import {
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -68,6 +74,7 @@ import {
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
+  leaseTransaction,
   RUNNABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   type SyncRunLease,
@@ -186,12 +193,13 @@ async function applySourceMirroredAcls(input: {
    */
   const unlisted = hideUnlistedDocuments(acls, input.ownedExternalIds)
 
-  const written = input.lease
-    ? await db.transaction(async (tx) => {
-        await assertSyncLeaseHeldInTx(tx, connectorId, input.lease!)
-        return persistDocumentAcls(connectorId, acls, tx, evidence)
-      })
-    : await persistDocumentAcls(connectorId, acls, db, evidence)
+  /** One short transaction per batch, each proving the lease, rather than one across all of them. */
+  const written = await persistDocumentAcls(
+    connectorId,
+    acls,
+    leaseTransaction(connectorId, input.lease),
+    evidence
+  )
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
     listed,
@@ -227,6 +235,8 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
 interface CompleteSyncLogOptions {
   /** Recorded on the row when the run is being closed as `failed`. */
   errorMessage?: string
+  /** Recorded on a `failed` row when a transient database failure ended the run. */
+  databaseFailureClass?: TransientDatabaseFailureClass
   /**
    * Connector whose sync lock this run must still hold for the close to land.
    *
@@ -289,7 +299,7 @@ export async function completeSyncLog(
   result: SyncResult,
   options: CompleteSyncLogOptions = {}
 ): Promise<boolean> {
-  const { errorMessage, requireSyncLockOn } = options
+  const { errorMessage, databaseFailureClass, requireSyncLockOn } = options
 
   const closed = await db
     .update(knowledgeConnectorSyncLog)
@@ -297,6 +307,7 @@ export async function completeSyncLog(
       status,
       completedAt: new Date(),
       ...(errorMessage != null && { errorMessage }),
+      ...(databaseFailureClass && { databaseFailureClass }),
       docsAdded: result.docsAdded,
       docsUpdated: result.docsUpdated,
       docsDeleted: result.docsDeleted,
@@ -387,7 +398,9 @@ export async function completeSuccessfulSync(
   result: SyncResult,
   reconciliationHoldNotice: string | null,
   contentPass?: ContentPassOutcome,
-  directoryNotice: string | null = null
+  directoryNotice: string | null = null,
+  /** A pending ACL rewrite this run began but did not finish: the flag stays and the next run resumes it. */
+  accessRewriteUnfinished = false
 ): Promise<boolean> {
   const processingDispatchFailed = result.processingDispatch.failed > 0
   const contentNotice =
@@ -448,21 +461,6 @@ export async function completeSuccessfulSync(
         .for('update')
       if (!lockedConnector) throw new SyncCompletionOwnershipLost()
 
-      /**
-       * Self-healing invariant of workspace mode: a mode switch back from
-       * members that was interrupted, or any other drift, leaves no document
-       * of this connector hidden from the workspace once a sync completes.
-       * Inside the completion transaction, after the lock is proven held, so a
-       * reclaimed run cannot rewrite a connector that has since changed mode.
-       */
-      const restoredAcls = await restoreWorkspaceDocumentAcls(tx, connectorId)
-      if (restoredAcls > 0) {
-        logger.warn('Restored workspace access on connector documents that had drifted', {
-          connectorId,
-          restoredAcls,
-        })
-      }
-
       const now = new Date()
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
@@ -470,6 +468,7 @@ export async function completeSuccessfulSync(
           status:
             directoryNotice ||
             processingDispatchFailed ||
+            accessRewriteUnfinished ||
             (contentPass && isContentPassIncomplete(contentPass))
               ? 'partial'
               : 'completed',
@@ -508,16 +507,23 @@ export async function completeSuccessfulSync(
           ...buildSyncSuccessUpdate(
             now,
             actualDocCount,
-            contentPass && !contentPass.complete
-              ? contentPass.checkpoint.resumeAt
-                ? new Date(contentPass.checkpoint.resumeAt)
-                : now
-              : calculateNextSyncTime(syncIntervalMinutes),
+            accessRewriteUnfinished
+              ? now
+              : contentPass && !contentPass.complete
+                ? contentPass.checkpoint.resumeAt
+                  ? new Date(contentPass.checkpoint.resumeAt)
+                  : now
+                : calculateNextSyncTime(syncIntervalMinutes),
             completionNotice,
-            result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
+            result.docsFailed === 0 &&
+              !accessRewriteUnfinished &&
+              (!contentPass || !isContentPassIncomplete(contentPass))
           ),
-          /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
-          accessRewritePending: false,
+          /**
+           * Restored before completion under this run's lease, or hidden by the admin pass before
+           * the ACLs it wrote; cleared only once that walk reached the end of the connector.
+           */
+          ...(accessRewriteUnfinished ? {} : { accessRewritePending: false }),
           ...(contentPass?.complete ? { listingCheckpoint: null } : {}),
           ...(contentPass && !isContentPassIncomplete(contentPass) && result.docsFailed === 0
             ? { lastSyncAt: new Date(contentPass.checkpoint.startedAt) }
@@ -712,6 +718,34 @@ export function buildSyncCapacityUpdate(
   return {
     ...buildSyncUnscheduledUpdate(now, errorMessage),
     consecutiveFailures: previousFailures ?? 0,
+  }
+}
+
+/**
+ * The connector row written after the database, not the source, failed the run: a statement,
+ * lock, or transaction timeout, a deadlock, or a dropped connection.
+ *
+ * A slow database window says nothing about the connector, so, like throttling, it must not
+ * consume the breaker that disables connectors after persistent failures: the counter keeps the
+ * source failures already counted, and a later source failure is judged on those alone. The retry
+ * still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
+ * made progress, and otherwise up the failure ladder, so a statement too heavy for its budget backs
+ * off to the ladder's ceiling instead of re-crawling the source every half hour.
+ */
+export function buildSyncDatabaseRetryUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string,
+  retryDelayMs: number
+) {
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: new Date(now.getTime() + retryDelayMs),
+    consecutiveFailures: previousFailures ?? 0,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
   }
 }
 
@@ -1058,6 +1092,9 @@ export async function executeSync(
     const mirrored = mirrorsSourceAcls(connector.accessMode)
     const sourceConfig = connector.sourceConfig as Record<string, unknown>
     const syncStartedAt = new Date()
+    /** One budget for every page walker of the run, ending before the worker's own limit. */
+    const runDeadlineAt =
+      syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000
     const lease = createContentSyncLease(connectorId, syncLogId)
     await db.insert(knowledgeConnectorSyncLog).values({
       id: syncLogId,
@@ -1217,10 +1254,29 @@ export async function executeSync(
          * is safe to do last; hiding is not.
          */
         if (connector.accessRewritePending) {
-          await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
+          const hidden = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
             beforeBatch: lease.beatIfDue,
             lease,
+            deadlineAt: runDeadlineAt,
           })
+          if (!hidden) {
+            /** Nothing is listed while documents are still readable; the next run resumes the walk. */
+            const landed = await completeSuccessfulSync(
+              connectorId,
+              connector.knowledgeBaseId,
+              syncLogId,
+              effectiveConnectorSyncIntervalMinutes(
+                connector.accessMode,
+                connector.syncIntervalMinutes
+              ),
+              result,
+              null,
+              undefined,
+              null,
+              true
+            )
+            return landed ? result : markSyncSuperseded(result)
+          }
         }
         /**
          * Started before the listing and awaited before the ACLs are written: a
@@ -1280,7 +1336,7 @@ export async function executeSync(
           accessMode: connector.accessMode,
         }),
         fullSync: options.fullSync,
-        deadlineAt: syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000,
+        deadlineAt: runDeadlineAt,
         onPage: mirrored
           ? async (externalDocs, generationStartedAt) => {
               await directoryRefreshed
@@ -1332,6 +1388,34 @@ export async function executeSync(
         lease,
       })
 
+      /**
+       * Finishes a switch into workspace mode that outgrew its request budget
+       * or was interrupted: every document of the connector becomes readable by
+       * the workspace before the completion write clears the pending flag. The
+       * flag is the only source of such drift: every other writer of a
+       * workspace-mode document's ACL writes the workspace ACL, and both the
+       * mode switch and an ACL-resetting edit set the flag before anything can
+       * hide a document. One short lease-proving transaction per page that also
+       * re-checks the mode, before the completion transaction, so a large
+       * restore never holds the connector row across its projection fan-out.
+       */
+      let accessRewriteUnfinished = false
+      if (accessMode === 'workspace' && connector.accessRewritePending) {
+        const restore = await restoreWorkspaceDocumentAcls(
+          connectorId,
+          leaseTransaction(connectorId, lease),
+          { beforePage: lease.beatIfDue, deadlineAt: runDeadlineAt }
+        )
+        accessRewriteUnfinished = !restore.finished
+        if (restore.restored > 0) {
+          logger.warn('Restored workspace access on connector documents that had drifted', {
+            connectorId,
+            restoredAcls: restore.restored,
+            finished: restore.finished,
+          })
+        }
+      }
+
       const completionLanded = await completeSuccessfulSync(
         connectorId,
         connector.knowledgeBaseId,
@@ -1340,7 +1424,8 @@ export async function executeSync(
         result,
         reconciliationHoldNotice,
         contentPass,
-        directoryNotice
+        directoryNotice,
+        accessRewriteUnfinished
       )
 
       if (!completionLanded) {
@@ -1534,24 +1619,43 @@ export async function executeSync(
       })
 
       try {
-        await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
-
+        const databaseFailure =
+          error instanceof ConnectorSyncCapacityError
+            ? undefined
+            : getTransientDatabaseFailure(error)
+        await completeSyncLog(syncLogId, 'failed', result, {
+          errorMessage,
+          databaseFailureClass: databaseFailure,
+        })
         const failureUpdate =
           error instanceof ConnectorSyncCapacityError
             ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-            : rateLimited
-              ? buildSyncRateLimitUpdate(
+            : databaseFailure
+              ? buildSyncDatabaseRetryUpdate(
                   new Date(),
                   connector.consecutiveFailures,
                   errorMessage,
-                  retryAfterMs
+                  await resolveDatabaseRetryDelayMs({
+                    kind: 'content',
+                    connectorId,
+                    runId: syncLogId,
+                    previousFailures: connector.consecutiveFailures,
+                    madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
+                  })
                 )
-              : buildSyncFailureUpdate(
-                  new Date(),
-                  connector.consecutiveFailures,
-                  errorMessage,
-                  retryAfterMs
-                )
+              : rateLimited
+                ? buildSyncRateLimitUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
+                : buildSyncFailureUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
 
         if (failureUpdate.status === 'disabled') {
           logger.warn('Connector disabled after repeated failures', {

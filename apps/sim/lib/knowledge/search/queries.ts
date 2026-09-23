@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { SOURCE_ACL_PROJECTIONS, type SourceAclProjection } from '@sim/db/knowledge-projection'
 import {
   document,
   embedding,
@@ -7,14 +8,11 @@ import {
   embeddingSearch,
   knowledgeConnector,
 } from '@sim/db/schema'
-import {
-  PROJECTION_SOURCE_ACL_TABLES,
-  type ProjectionSourceAclTable,
-} from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, gte, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { LRUCache } from 'lru-cache'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { resolveSearchAccessPlan } from '@/lib/knowledge/access/connector-eligibility'
@@ -24,6 +22,8 @@ import {
   knowledgeCandidateAccessConditionForConnectors,
   knowledgeMetadataCandidateAccessCondition,
   projectionCandidateAccessCondition,
+  projectionDecidedOnDocument,
+  projectionPending,
   restrictSearchAccessPlan,
   type SearchAccessPlan,
   textArrayLiteral,
@@ -96,8 +96,8 @@ const ON_ROW_WALK_SCAN_TUPLES = 100_000
 
 /**
  * How far a walk may go when readability is on the row: the on-row cap, unless the walk still
- * has to ask the document about tuples — a tag or date filter, or rows the backfill has not
- * filled yet — in which case such a tuple costs what it did before the columns were mirrored,
+ * has to ask the document about tuples — a tag or date filter, or rows the source and ACL fill
+ * has not reached yet — in which case such a tuple costs what it did before the columns were mirrored,
  * and the default cap keeps a walk through a mostly-excluded neighbourhood at a short answer
  * rather than a missed deadline.
  */
@@ -114,7 +114,7 @@ function onRowWalkScanTuples(
 const PROJECTION_FILLED_TTL_MS = 60_000
 
 /**
- * Whether the ranking projection still holds rows the backfill has not filled. Read off the
+ * Whether the ranking projection still holds rows the source and ACL fill has not reached. Read off the
  * unfilled-rows index in milliseconds and remembered briefly: the answer only ever changes once.
  *
  * The read asks for the last unfilled row by id, not whether one exists: an `EXISTS` drops its
@@ -124,11 +124,11 @@ const PROJECTION_FILLED_TTL_MS = 60_000
  * last entry is the row the fill reaches last.
  */
 const projectionFilled = new LRUCache<
-  ProjectionSourceAclTable,
+  SourceAclProjection,
   boolean,
   { budget: SearchBudget | undefined; stage: SearchStage }
 >({
-  max: PROJECTION_SOURCE_ACL_TABLES.length,
+  max: SOURCE_ACL_PROJECTIONS.length,
   ttl: PROJECTION_FILLED_TTL_MS,
   /**
    * The read that misses the cache is the search's own, under its budget like every other read
@@ -154,7 +154,7 @@ const projectionFilled = new LRUCache<
 
 /** Whether every row of the projection carries its mirrored source and ACL; unknown counts as not yet. */
 async function isProjectionFilled(
-  projection: ProjectionSourceAclTable,
+  projection: SourceAclProjection,
   stage: SearchStage,
   budget: SearchBudget | undefined
 ): Promise<boolean> {
@@ -672,10 +672,44 @@ type SearchReadCandidate = {
 }
 
 /**
+ * A candidate's source: the row's, unless the row's document is marked for the projector, whose
+ * source may have moved since the row was written — then the document's, read for that row only.
+ */
+function projectionCandidateSource(projection: {
+  connectorId: AnyPgColumn | SQL
+  documentId: AnyPgColumn | SQL
+}): SQL {
+  return sql`CASE WHEN ${projectionPending(projection.documentId)}
+    THEN (SELECT ${document.connectorId} FROM ${document} WHERE ${document.id} = ${projection.documentId})
+    ELSE ${projection.connectorId} END`
+}
+
+/**
  * The same identities read off a projection row in raw SQL: the aliases are what
  * `SearchReadCandidate` deserializes, so every walk reads them from one place.
  */
-const PROJECTION_CANDIDATE_COLUMNS = sql`${embeddingSearch.id} AS id, ${embeddingSearch.documentId} AS "documentId", ${embeddingSearch.connectorId} AS "connectorId"`
+const PROJECTION_CANDIDATE_COLUMNS = sql`${embeddingSearch.id} AS id, ${embeddingSearch.documentId} AS "documentId", ${projectionCandidateSource(embeddingSearch)} AS "connectorId"`
+
+/**
+ * Keeps the rows of sources the caller turned out not to hold out of a ranking decided on the
+ * row. A row decided on its document — not yet filled, or its document marked for the projector,
+ * so its own source may be stale — asks the document instead.
+ */
+function excludeSearchSourcesOnRow(
+  projection: {
+    connectorId: AnyPgColumn | SQL
+    acl: AnyPgColumn | SQL
+    documentId: AnyPgColumn | SQL
+  },
+  filled: boolean,
+  excludedSources: readonly string[]
+): SQL | undefined {
+  if (!excludedSources.length) return undefined
+  const excluded = textArrayLiteral([...excludedSources])
+  const decided = projectionDecidedOnDocument(projection, filled)
+  return sql`((${decided} AND NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${projection.documentId} AND ${document.connectorId} = ANY(${excluded})))
+    OR (NOT ${decided} AND (${projection.connectorId} IS NULL OR NOT (${projection.connectorId} = ANY(${excluded}))))) /* excluded sources */`
+}
 
 /** Only opaque identifiers leave candidate ranking; content stays behind the full read predicate. */
 const SEARCH_READ_CANDIDATE_FIELDS = {
@@ -1782,14 +1816,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         /**
          * A source the caller turned out not to hold is left out where the pool is built: the
          * pool is the page's order now, so a denied source's chunks would otherwise keep their
-         * slots. The row's mirrored source decides it once the fill is complete; until then a row
-         * the fill has not reached carries no source, so its document is asked instead.
+         * slots. The row's mirrored source decides it, unless the row is decided on its document.
          */
-        const excludedOnRow = excludedSources.length
-          ? filled
-            ? sql`(${embeddingSearch.connectorId} IS NULL OR NOT (${embeddingSearch.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))) /* excluded sources */`
-            : sql`NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ${embeddingSearch.documentId} AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])})) /* excluded sources */`
-          : undefined
+        const excludedOnRow = excludeSearchSourcesOnRow(embeddingSearch, filled, excludedSources)
         annotateSearchDiagnostics({
           vectorRanking: 'projection-walk',
           vectorCandidateLimit: candidateLimit,
@@ -2158,31 +2187,22 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
             params.budget
           )
         : false
+    /** The ranked CTE's mirrored columns, which the on-row predicates read. */
+    const rankedTinRow = {
+      connectorId: sql`ranked_tin_chunks.connector_id`,
+      acl: sql`ranked_tin_chunks.acl`,
+      documentId: sql`ranked_tin_chunks.document_id`,
+    }
     /** The projection predicate over the ranked CTE's mirrored columns, plus any excluded source. */
     const onRowKeywordVisibility = (excludedSources: readonly string[]) =>
       and(
-        projectionCandidateAccessCondition(
-          {
-            connectorId: sql`ranked_tin_chunks.connector_id`,
-            acl: sql`ranked_tin_chunks.acl`,
-            documentId: sql`ranked_tin_chunks.document_id`,
-          },
-          access,
-          accessPlan!,
-          { filled: tinFilled }
-        ),
+        projectionCandidateAccessCondition(rankedTinRow, access, accessPlan!, {
+          filled: tinFilled,
+        }),
         dateFilterCondition(params.filters)
           ? sql`EXISTS (SELECT 1 FROM ${document} WHERE ${and(sql`${document.id} = ranked_tin_chunks.document_id`, dateFilterCondition(params.filters))})`
           : undefined,
-        /**
-         * A filled row's mirrored source decides it; a row the fill has not reached carries no
-         * source, so only its document is asked, as the vector leg does.
-         */
-        excludedSources.length
-          ? tinFilled
-            ? sql`(ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))`
-            : sql`((ranked_tin_chunks.acl IS NOT NULL AND (ranked_tin_chunks.connector_id IS NULL OR NOT (ranked_tin_chunks.connector_id = ANY(${textArrayLiteral([...excludedSources])})))) OR (ranked_tin_chunks.acl IS NULL AND NOT EXISTS (SELECT 1 FROM ${document} WHERE ${document.id} = ranked_tin_chunks.document_id AND ${document.connectorId} = ANY(${textArrayLiteral([...excludedSources])}))))`
-          : undefined
+        excludeSearchSourcesOnRow(rankedTinRow, tinFilled, excludedSources)
       )
     const documentConditions = (excludedSources: readonly string[]) =>
       and(
@@ -2196,16 +2216,13 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       )
     /**
      * A page read on the row takes each candidate's source from the row, which is what decides
-     * whether its live source proof is asked for. A row the fill has not reached carries no
-     * source, so until the fill is complete the page's own unfilled rows take it from their
-     * document: one primary-key read per row of the page, after its limit, never per ranked row.
+     * whether its live source proof is asked for. A row decided on its document — not yet filled,
+     * or its document marked for the projector — takes it from the document: one primary-key read
+     * per such row of the page, after its limit, never per ranked row.
      */
-    const onRowPage = (ranked: SQL) =>
-      tinFilled
-        ? ranked
-        : sql`
+    const onRowPage = (ranked: SQL) => sql`
               SELECT paged.id, paged."documentId",
-                CASE WHEN paged.unfilled
+                CASE WHEN paged.decided_on_document
                   THEN (SELECT ${document.connectorId} FROM ${document} WHERE ${document.id} = paged."documentId")
                   ELSE paged."connectorId"
                 END AS "connectorId",
@@ -2265,9 +2282,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
                     onRowPage(
                       sql`
               SELECT ranked_tin_chunks.id, ranked_tin_chunks.document_id AS "documentId",
-                ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank${
-                  tinFilled ? sql`` : sql`, ranked_tin_chunks.acl IS NULL AS unfilled`
-                }
+                ranked_tin_chunks.connector_id AS "connectorId", ranked_tin_chunks.keyword_rank,
+                ${projectionDecidedOnDocument(rankedTinRow, tinFilled)} AS decided_on_document
               FROM ranked_tin_chunks /* on-row visibility */
               WHERE ranked_tin_chunks.enabled AND ${onRowKeywordVisibility(excludedSources)}
               ORDER BY ranked_tin_chunks.keyword_rank DESC, ranked_tin_chunks.id

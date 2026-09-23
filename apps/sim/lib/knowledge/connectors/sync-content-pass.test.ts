@@ -43,9 +43,9 @@ const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: mocks.hardDelete,
-  isTriggerAvailable: () => true,
   processDocumentsWithQueue: mocks.dispatch,
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mocks.upload } }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mocks.deleteFile }))
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -208,7 +208,18 @@ describe('completed listing removal counts', () => {
     ])
     queueTableRows(schemaMock.document, options.revoked ?? [])
     if (options.revoked?.length) {
-      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+      /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
+      const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
+      queueTableRows(schemaMock.document, granting)
+      /** Each revocation page plans from an unlocked read, then locks and rereads its chunks. */
+      for (let offset = 0; offset < granting.length; offset += 25) {
+        queueTableRows(schemaMock.document, granting.slice(offset, offset + 25))
+        queueTableRows(schemaMock.document, granting.slice(offset, offset + 25))
+      }
+      /** Every revocation page is its own lease-proving transaction: one evidence clear, then acl pages. */
+      const batches = 1 + Math.ceil(options.revoked.length / 25)
+      for (let batch = 0; batch < batches; batch++)
+        queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
       queueTableRows(schemaMock.document, [])
     }
     if (!options.fullSync) {
@@ -317,11 +328,16 @@ describe('completed listing removal counts', () => {
     expect(
       writes.map(
         ({ conditions }) =>
-          (conditions.find((node) => node.type === 'inArray')?.values as string[]).length
+          (conditions.filter((node) => node.type === 'inArray').at(-1)?.values as string[]).length
       )
     ).toEqual([25, 5])
     expect(writes.every(({ conditions }) => conditions.some(grantsSomeone))).toBe(true)
     expect(result.docsDeleted).toBe(0)
+    /** One lease-proving, bounded transaction per revocation batch, never one across the page. */
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for.mock.calls.filter(([mode]) => mode === 'share')).toHaveLength(3)
+    /** Each acl page locks its own documents first, and only those. */
+    expect(dbChainMockFns.for.mock.calls.filter(([mode]) => mode === 'update')).toHaveLength(2)
   })
 
   it('does not report a full-sync removal when the guarded delete removed no live rows', async () => {
@@ -364,6 +380,13 @@ async function runPass(
   }
   queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
   queueTableRows(schemaMock.document, options.existing ? [options.existing] : [])
+  /** A permission-only page revokes a changed body first: its read of what still grants someone. */
+  if (options.permissionsOnly && options.existing && options.existing.contentHash === 'old-body') {
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
+    /** The revocation page plans from an unlocked read, then locks and rereads its chunks. */
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
+  }
   if (options.readCurrent) {
     queueTableRows(schemaMock.document, [{ fileUrl: options.existing?.fileUrl ?? '' }])
     if (
@@ -828,6 +851,19 @@ describe('permission refresh through the shared content pass', () => {
     const revocations = aclAssignments().filter(({ values }) => values.acl.length === 0)
     expect(revocations).toHaveLength(1)
     expect(revocations[0].conditions.some(grantsSomeone)).toBe(true)
+    /** The evidence clear and the revocation are separate lease transactions, never one across both. */
+    const setOrder = (matches: (values: Record<string, unknown>) => boolean) =>
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.findIndex(([values]) => matches(values))
+      ]
+    const cleared = setOrder((values) => !('acl' in values) && 'aclRequirements' in values)
+    const revoked = setOrder((values) => Array.isArray(values.acl) && values.acl.length === 0)
+    expect(cleared).toBeLessThan(revoked)
+    expect(
+      dbChainMockFns.transaction.mock.invocationCallOrder.some(
+        (order) => order > cleared && order < revoked
+      )
+    ).toBe(true)
   })
 
   it('never renews a changed body after its hydration fails', async () => {

@@ -308,7 +308,7 @@
       }
     },
     "app/workspace/[workspaceId]/knowledge/page.tsx": {
-      "modules": 2389,
+      "modules": 2439,
       "gateways": {
         "apps/sim/triggers/registry.ts": 485,
         "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 408,

@@ -1,5 +1,6 @@
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
   type OutboxHandler,
   type OutboxHandlerRegistry,
@@ -15,6 +16,7 @@ import {
   detachKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
 } from '@/lib/knowledge/connectors/detachment'
+import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
@@ -34,6 +36,7 @@ import {
   KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
 } from '@/lib/knowledge/documents/processing-outbox-event'
@@ -54,7 +57,6 @@ import {
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
 import {
   getKnowledgeDocument,
-  isTriggerAvailable,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,
@@ -243,6 +245,7 @@ export const knowledgeDocumentProcessingOutboxHandlers = {
   [KNOWLEDGE_CONNECTOR_DETACH_EVENT]: detachKnowledgeConnector,
   [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
+  [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
   [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
     processKnowledgeDocument,
