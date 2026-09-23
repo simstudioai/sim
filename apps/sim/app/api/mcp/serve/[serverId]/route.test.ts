@@ -296,6 +296,29 @@ describe('MCP Serve Route', () => {
       expect(mockExecuteWorkflowService).not.toHaveBeenCalled()
     })
 
+    it('refuses a token without api:read before serving tool metadata', async () => {
+      dbChainMockFns.limit.mockResolvedValueOnce([PRIVATE_SERVER])
+      mockVerifyOAuthAccessToken.mockResolvedValueOnce({
+        ...OAUTH_WRITE_PRINCIPAL,
+        scopes: ['offline_access'],
+      })
+
+      const response = await POST(
+        new NextRequest(SERVER_RESOURCE, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer sim_oat_offline' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+        }),
+        { params: Promise.resolve({ serverId: 'server-1' }) }
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.get('www-authenticate')).toBe(
+        `Bearer error="insufficient_scope", resource_metadata="${SERVER_RESOURCE_METADATA}", scope="api:read"`
+      )
+      expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+    })
+
     it('lets a read-only token initialize the session', async () => {
       dbChainMockFns.limit.mockResolvedValueOnce([PRIVATE_SERVER])
       mockVerifyOAuthAccessToken.mockResolvedValueOnce({

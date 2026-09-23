@@ -46,7 +46,9 @@ import {
 } from '@/lib/auth/oauth-access-token'
 import {
   OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_API_READ_SCOPE,
   OAUTH_API_WRITE_SCOPE,
+  type OAuthApiScope,
   oauthScopeSatisfies,
 } from '@/lib/auth/oauth-provider'
 import {
@@ -478,14 +480,33 @@ function unauthorizedResponse(serverId: string, invalidToken = false): NextRespo
 }
 
 /**
+ * A 403 whose `insufficient_scope` challenge lets an OAuth client step up to
+ * exactly the scope the request needed.
+ */
+function insufficientScopeResponse(
+  serverId: string,
+  scope: OAuthApiScope,
+  body: unknown
+): NextResponse {
+  return withWorkflowMcpAuthChallenge(
+    NextResponse.json(body, {
+      status: 403,
+      headers: { 'WWW-Authenticate': `Bearer error="insufficient_scope", scope="${scope}"` },
+    }),
+    serverId
+  )
+}
+
+/**
  * Authenticates a Sim OAuth access token bound to this server's URL; any other
  * credential goes through hybrid auth. An API key wins when both are sent, as
- * on the other MCP servers.
+ * on the other MCP servers. Every method reads the server's tools, so a token
+ * needs at least `api:read` (`api:write` implies it).
  */
 async function authenticateMcpServeRequest(
   request: NextRequest,
   serverId: string
-): Promise<AuthResult | 'invalid_token'> {
+): Promise<AuthResult | 'invalid_token' | 'insufficient_scope'> {
   const bearer = parseBearerToken(request.headers)
   if (!bearer?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX) || request.headers.has('x-api-key')) {
     return checkHybridAuth(request, { requireWorkflowId: false })
@@ -494,6 +515,7 @@ async function authenticateMcpServeRequest(
     const principal = await verifyOAuthAccessToken(bearer, {
       resource: buildWorkflowMcpServerUrl(serverId),
     })
+    if (!oauthScopeSatisfies(principal.scopes, OAUTH_API_READ_SCOPE)) return 'insufficient_scope'
     return { success: true, userId: principal.userId, principal }
   } catch (error) {
     if (!(error instanceof InvalidOAuthAccessTokenError)) throw error
@@ -514,6 +536,13 @@ async function authorizeMcpServeRequest(
 
   const auth = await authenticateMcpServeRequest(request, server.id)
   if (auth === 'invalid_token') return { response: unauthorizedResponse(server.id, true) }
+  if (auth === 'insufficient_scope') {
+    return {
+      response: insufficientScopeResponse(server.id, OAUTH_API_READ_SCOPE, {
+        error: `This server requires the ${OAUTH_API_READ_SCOPE} scope`,
+      }),
+    }
+  }
   if (!auth.success || !auth.userId) {
     return { response: unauthorizedResponse(server.id) }
   }
@@ -558,10 +587,7 @@ async function authorizeMcpServeRequest(
   }
 }
 
-/**
- * Calling a tool runs a workflow, so an OAuth token needs `api:write`. The
- * `insufficient_scope` challenge lets the client step up to exactly that scope.
- */
+/** Calling a tool runs a workflow, so an OAuth token needs `api:write`. */
 function insufficientToolCallScopeResponse(
   id: RequestId,
   serverId: string,
@@ -570,21 +596,14 @@ function insufficientToolCallScopeResponse(
   const principal = executeAuthContext?.principal
   if (principal?.kind !== 'oauth_access_token') return null
   if (oauthScopeSatisfies(principal.scopes, OAUTH_API_WRITE_SCOPE)) return null
-  return withWorkflowMcpAuthChallenge(
-    NextResponse.json(
-      createError(
-        id,
-        ErrorCode.InvalidRequest,
-        `Calling tools requires the ${OAUTH_API_WRITE_SCOPE} scope`
-      ),
-      {
-        status: 403,
-        headers: {
-          'WWW-Authenticate': `Bearer error="insufficient_scope", scope="${OAUTH_API_WRITE_SCOPE}"`,
-        },
-      }
-    ),
-    serverId
+  return insufficientScopeResponse(
+    serverId,
+    OAUTH_API_WRITE_SCOPE,
+    createError(
+      id,
+      ErrorCode.InvalidRequest,
+      `Calling tools requires the ${OAUTH_API_WRITE_SCOPE} scope`
+    )
   )
 }
 
