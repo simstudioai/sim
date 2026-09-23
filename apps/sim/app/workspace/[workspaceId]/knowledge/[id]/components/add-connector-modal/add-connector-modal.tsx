@@ -38,6 +38,7 @@ import {
   useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { ConnectorApiKeyInput } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/connector-api-key-input'
 import {
   derivedAclCapFieldIds,
   isConnectorFieldRequired,
@@ -167,7 +168,6 @@ export function AddConnectorModal({
   const gitlabPermissions = useGitLabPermissionForm()
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [useApiKey, setUseApiKey] = useState(!isSearchIndex)
-  const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
   useOAuthReturnForKBConnectors(
@@ -502,7 +502,6 @@ export function AddConnectorModal({
     })
     setApiKeyValue('')
     setUseApiKey(!isSearchIndex)
-    setApiKeyFocused(false)
     setDisabledTagIds(new Set())
     setShowMetadata(false)
     setCanonicalModes({})
@@ -734,13 +733,10 @@ export function AddConnectorModal({
                   )}
                   {isApiKeyMode ? (
                     <ChipModalField type='custom' title={apiKeyConfig?.label || 'API Key'}>
-                      <ChipInput
-                        type={apiKeyFocused ? 'text' : 'password'}
-                        autoComplete='new-password'
+                      <ConnectorApiKeyInput
                         value={apiKeyValue}
-                        onChange={(e) => setApiKeyValue(e.target.value)}
-                        onFocus={() => setApiKeyFocused(true)}
-                        onBlur={() => setApiKeyFocused(false)}
+                        onChange={setApiKeyValue}
+                        workspaceId={owner.workspaceId}
                         placeholder={apiKeyConfig?.placeholder || 'Enter API key'}
                       />
                     </ChipModalField>

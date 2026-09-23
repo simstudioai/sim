@@ -43,6 +43,14 @@ const mocks = vi.hoisted(() => ({
     | 'ready',
 }))
 
+vi.mock('@/hooks/queries/environment', () => ({
+  usePersonalEnvironment: () => ({ data: {} }),
+  useWorkspaceEnvironment: () => ({ data: { workspace: { GITLAB_PAT: '***' }, personal: {} } }),
+}))
+vi.mock('@/hooks/use-settings-navigation', () => ({
+  useSettingsNavigation: () => ({ navigateToSettings: vi.fn() }),
+}))
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
   usePathname: () => '/o/org-1/settings/integrations',
@@ -790,6 +798,7 @@ describe('Search setup options', () => {
         initialAccessMode: connectorType === 'gitlab' ? 'admin' : 'members',
       })
 
+      if (connectorType === 'gitlab') expect(document.body.textContent).not.toContain('Sync using')
       const primaryFields = configFieldsProps()
       for (const fieldId of primary) expect(fieldVisible(primaryFields, fieldId)).toBe(true)
       for (const fieldId of optional) expect(fieldVisible(primaryFields, fieldId)).toBe(false)
@@ -834,19 +843,78 @@ describe('Search setup options', () => {
     }
   )
 
-  it('uses GitLab service-account access and token tabs without an access selector in regular KBs', async () => {
+  it.each(['fixture-pat', '{{GITLAB_PAT}}'])(
+    'connects a regular GitLab KB with %s and workspace access',
+    async (apiKey) => {
+      mocks.memberAccess = false
+      mocks.mirroredAccess = false
+      const sourceConfig = { host: 'gitlab.example.com', project: 'group/project' }
+      mocks.resolveSourceConfig.mockReturnValue(sourceConfig)
+      await render({
+        initialConnectorType: 'gitlab',
+        initialAccessMode: 'workspace',
+        isSearchIndex: false,
+      })
+      expect(document.body.textContent).not.toContain('Administrator token')
+      expect(document.body.textContent).not.toContain('Non-admin token')
+      expect(document.body.textContent).not.toContain('User mapping')
+      expect(document.body.textContent).not.toContain('Project permissions')
+      expect(document.body.textContent).not.toContain('Connection method')
+      expect(document.body.textContent).toContain('Sync Frequency')
+      const input = document.querySelector<HTMLInputElement>(
+        'input[placeholder="Enter your GitLab PAT"]'
+      )!
+      await act(async () => input.focus())
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          apiKey
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => button('Connect & Sync').click())
+      expect(mocks.create).toHaveBeenCalledWith(
+        {
+          knowledgeBaseId: 'kb-search',
+          connectorType: 'gitlab',
+          apiKey,
+          sourceConfig,
+          syncIntervalMinutes: 1440,
+          accessMode: 'workspace',
+        },
+        expect.any(Object)
+      )
+    }
+  )
+
+  it('selects a saved secret with the shared picker without submitting on Enter', async () => {
     await render({
       initialConnectorType: 'gitlab',
       initialAccessMode: 'workspace',
       isSearchIndex: false,
     })
-    expect(document.body.textContent).toContain('Administrator token')
-    expect(document.body.textContent).toContain('Non-admin token')
-    expect(document.body.textContent).not.toContain('Connection method')
-    expect(button('More options')).toHaveAttribute('aria-expanded', 'false')
-    expect(document.body.textContent).not.toContain('Sync Frequency')
-    await act(async () => button('More options').click())
-    expect(document.body.textContent).toContain('Sync Frequency')
+    const input = document.querySelector<HTMLInputElement>(
+      'input[placeholder="Enter your GitLab PAT"]'
+    )!
+    await act(async () => input.focus())
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        '{{GIT'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(document.body.textContent).toContain('GITLAB_PAT')
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(input.value).toBe('{{GITLAB_PAT}}')
+    expect(mocks.create).not.toHaveBeenCalled()
+    await act(async () => button('Connect & Sync').click())
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: '{{GITLAB_PAT}}', accessMode: 'workspace' }),
+      expect.any(Object)
+    )
   })
 
   it('keeps administrator-required fields in the primary form even if metadata marks them optional', async () => {

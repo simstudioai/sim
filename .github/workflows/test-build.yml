@@ -277,6 +277,7 @@ jobs:
           lib/knowledge/__integration__/member-document-lifecycle.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
+          lib/knowledge/__integration__/gitlab-workspace.integration.ts
           lib/knowledge/__integration__/unfilled-projection-source.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
