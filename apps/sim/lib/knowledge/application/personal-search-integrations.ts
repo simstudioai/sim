@@ -4,6 +4,7 @@ import { credentialGroup, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { readSearchConnectionCompletion } from '@/lib/credential-groups/search-connection-completion'
 import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
@@ -20,7 +21,6 @@ import { listConfiguredSearchProviderTypes } from '@/lib/knowledge/application/s
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
-import { providerIdsForService } from '@/lib/oauth/utils'
 import { getConnectorAccessAvailability, SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { findSharedSlackSearchInstallation } from '@/lib/slack-search/shared-app'
@@ -64,8 +64,8 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
           })
         : []
       const connections = (group?.options ?? []).flatMap((option) => {
-        const connector = SEARCH_CONNECTORS.find((entry) =>
-          providerIdsForService(entry.providerId).includes(option.provider)
+        const connector = SEARCH_CONNECTORS.find(
+          (entry) => findCredentialGroupProviderFromProviderId(entry.providerId) === option.provider
         )
         if (
           !connector ||

@@ -24,8 +24,6 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
   readSearchConnectionCompletion: m.completion,
 }))
-vi.mock('@/lib/oauth/utils', () => ({ providerIdsForService: (id: string) => [id] }))
-
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: m.authorize,
 }))
@@ -54,7 +52,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 vi.mock('@/lib/sim-search/connectors', () => ({
   SEARCH_CONNECTORS: ['gmail', 'slack', 'notion'].map((type) => ({
     type,
-    providerId: type,
+    providerId: type === 'gmail' ? 'google-email' : type,
     meta: { name: type },
     setupFields: [],
   })),
@@ -71,7 +69,7 @@ const principal = { kind: 'session', userId: 'person', sessionId: 'session' } as
 const input = { organizationId: 'org' }
 const target = {
   type: 'link',
-  provider: 'gmail',
+  provider: 'google-email',
   connectorType: 'gmail',
   connectorId: 'source',
 } as const
@@ -236,6 +234,42 @@ describe('live Search connection controls', () => {
     expect(m.accounts).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org', userId: 'person' })
     )
+  })
+
+  it('offers Gmail when its Credential Group provider differs from its OAuth provider ID', async () => {
+    m.group.mockResolvedValue({
+      id: 'group',
+      status: 'active',
+      options: [
+        { id: 'gmail-option', provider: 'gmail', status: 'active', configurationStatus: 'ready' },
+      ],
+    })
+    m.accounts.mockResolvedValue([
+      {
+        optionId: 'gmail-option',
+        credentialId: 'my-gmail',
+        displayName: 'me@example.com',
+        status: 'active',
+      },
+    ])
+
+    const result = await listPersonalSearchIntegrations.execute({ principal, input })
+    const addTarget = {
+      type: 'link',
+      provider: 'gmail',
+      connectorType: 'gmail',
+      connectionMode: 'live',
+      optionId: 'gmail-option',
+    }
+    expect(result.available).toEqual([{ name: 'gmail', description: '', target: addTarget }])
+    expect(result.connections[0].accounts).toEqual([
+      {
+        credentialId: 'my-gmail',
+        displayName: 'me@example.com',
+        status: 'connected',
+        action: { ...addTarget, credentialId: 'my-gmail' },
+      },
+    ])
   })
 
   it('keeps adding an account distinct from reconnecting an owned account', async () => {

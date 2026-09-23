@@ -59,7 +59,7 @@ describe('executeOAuthGetAuthLink', () => {
     async (mode) => {
       const target = {
         type: 'link',
-        provider: 'google-email',
+        provider: mode === 'live' ? 'gmail' : 'google-email',
         connectorType: 'gmail',
         ...(mode === 'live'
           ? { connectionMode: 'live', optionId: 'option' }
