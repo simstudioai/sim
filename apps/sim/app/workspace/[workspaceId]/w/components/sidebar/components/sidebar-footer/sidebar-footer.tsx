@@ -292,7 +292,7 @@ export function SidebarFooter({
               onSelect={handleUpdateSelect}
               disabled={updateState.status === 'downloading'}
             >
-              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-[3px]' />
+              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-sm' />
               {desktopUpdateActionLabel(updateState)}
             </DropdownMenuItem>
             <DropdownMenuSeparator />

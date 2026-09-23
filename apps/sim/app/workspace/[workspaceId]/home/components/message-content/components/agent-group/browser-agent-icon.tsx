@@ -127,7 +127,7 @@ function BrowserAgentFavicon({ url, canLoad }: BrowserAgentFaviconProps) {
           referrerPolicy='no-referrer'
           alt=''
           className={cn(
-            'size-full rounded-[3px]',
+            'size-full rounded-sm',
             status !== 'loaded' && 'pointer-events-none absolute opacity-0'
           )}
           onLoad={() => setStatus('loaded')}

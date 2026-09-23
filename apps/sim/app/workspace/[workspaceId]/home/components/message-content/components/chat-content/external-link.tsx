@@ -71,7 +71,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
           <img
             src={faviconUrl(hostname, 32)}
             alt=''
-            className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-[3px]'
+            className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-sm'
             onError={hideBrokenFavicon}
           />
           <span className='underline decoration-[color:var(--text-muted)] underline-offset-4 transition-colors group-hover:decoration-[color:var(--text-primary)]'>

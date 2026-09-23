@@ -334,7 +334,7 @@ const MARKDOWN_COMPONENTS = {
           className={cn(
             'text-[var(--text-primary)]',
             kind
-              ? 'not-prose inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
+              ? 'not-prose inline-flex items-baseline gap-1 rounded-sm bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
               : 'underline decoration-dashed underline-offset-4'
           )}
           onClick={(e) => {
@@ -415,7 +415,7 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono font-normal text-[var(--text-primary)] not-italic before:content-none after:content-none'>
+      <code className='whitespace-normal rounded-sm bg-[var(--surface-5)] px-1.5 py-0.5 font-mono font-normal text-[var(--text-primary)] not-italic before:content-none after:content-none'>
         {children}
       </code>
     )

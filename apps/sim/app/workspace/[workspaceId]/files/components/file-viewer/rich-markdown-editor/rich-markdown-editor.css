@@ -28,7 +28,7 @@
 .rich-markdown-nodes img {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: var(--border-width) solid var(--border);
 }
 
@@ -37,7 +37,7 @@
 .rich-markdown-nodes .ProseMirror-selectednode {
   outline: 2px solid var(--brand-secondary);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* An image is its own framed element; ring the image itself so the indicator hugs the picture
@@ -226,7 +226,7 @@
   height: 16px;
   margin: 0;
   border: var(--border-width) solid var(--border-1);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
 }
@@ -258,7 +258,7 @@
   font-family: var(--font-martian-mono, ui-monospace, monospace);
   font-size: 0.875em;
   background: var(--surface-5);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.125rem 0.375rem;
 }
 
@@ -279,7 +279,7 @@
 .rich-markdown-prose pre,
 .rich-markdown-prose .mermaid-diagram-frame {
   background: var(--surface-5);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 1rem;
   overflow-x: auto;
 }
@@ -341,12 +341,12 @@
 }
 
 .rich-markdown-nodes .raw-markdown-block {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 0.75rem 1rem;
 }
 
 .rich-markdown-nodes .raw-markdown-inline {
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.0625rem 0.3rem;
 }
 
@@ -373,7 +373,7 @@
 .rich-markdown-nodes img.rich-leaf-in-selection {
   outline: 2px solid var(--selection-bg);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* Borders, padding, typography, and header fill come from document-table.css — the chrome shared
@@ -442,7 +442,7 @@
 .rich-markdown-nodes mark {
   background-color: color-mix(in srgb, var(--color-amber-400) 40%, transparent);
   color: inherit;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   padding: 0 0.1em;
   margin: 0 -0.1em;
   box-decoration-break: clone;
@@ -513,7 +513,7 @@
   left: -1px;
   width: 8px;
   height: 5px;
-  border-radius: 2px 2px 2px 0;
+  border-radius: var(--radius-xs) var(--radius-xs) var(--radius-xs) 0;
   background-color: var(--caret-color);
   transition: opacity 0.2s ease;
 }
@@ -551,7 +551,7 @@
   max-width: 10rem;
   overflow: hidden;
   padding: 0.1rem 0.35rem;
-  border-radius: 2px 2px 2px 0;
+  border-radius: var(--radius-xs) var(--radius-xs) var(--radius-xs) 0;
   /* 11px = the `text-xs` the canvas/tables presence tags use, for pixel parity. */
   font-size: 11px;
   font-weight: 500;
@@ -576,13 +576,13 @@
 .rich-markdown-nodes .collaboration-carets__caret--flip .collaboration-carets__label {
   left: auto;
   right: -1px;
-  border-radius: 2px 2px 0 2px;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 var(--radius-xs);
 }
 
 /* Remote text selection: a rounded translucent tint of the collaborator's identity
  * color (the alpha fill is set inline by selectionRender). */
 .rich-markdown-nodes .collaboration-carets__selection {
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   pointer-events: none;
 }
 
@@ -591,7 +591,7 @@
 .rich-markdown-nodes .rich-find-match {
   background-color: var(--highlight-match-bg);
   color: var(--highlight-match-text);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 /* The active hit is a stronger fill of the same hue, never a ring: an outline drawn
