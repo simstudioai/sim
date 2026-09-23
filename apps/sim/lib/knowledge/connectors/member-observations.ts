@@ -6,7 +6,7 @@ import {
   knowledgeDocumentObservation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import {
   and,
@@ -236,9 +236,10 @@ export async function renewMemberObservationsInScopes(input: {
 /**
  * Removes every observation of one member that this run did not re-assert.
  * Only called after a full, complete, non-suspect listing: absence from any
- * other kind of listing says nothing about access. One page of
- * {@link ACL_CHANGE_BATCH_SIZE} per call, because `onRemoved` rematerialises
- * the page's ACLs in the caller's lease transaction.
+ * other kind of listing says nothing about access. One page per call, of at
+ * most {@link ACL_CHANGE_BATCH_SIZE} documents and one page of projection rows
+ * ({@link lockProjectionPage}), because `onRemoved` rematerialises the page's
+ * ACLs in the caller's lease transaction.
  */
 export async function removeUnseenMemberObservations(
   executor: DbOrTx,
@@ -250,17 +251,27 @@ export async function removeUnseenMemberObservations(
     eq(knowledgeDocumentObservation.memberId, memberId),
     ne(knowledgeDocumentObservation.runId, runId)
   )
-  const candidates = executor
+  const candidates = await executor
     .select({ documentId: knowledgeDocumentObservation.documentId })
     .from(knowledgeDocumentObservation)
     .where(unseen)
     .limit(ACL_CHANGE_BATCH_SIZE)
-  const removed = await executor
-    .delete(knowledgeDocumentObservation)
-    .where(and(unseen, inArray(knowledgeDocumentObservation.documentId, candidates)))
-    .returning({ documentId: knowledgeDocumentObservation.documentId })
+  const { page, rest } = await lockProjectionPage(
+    executor,
+    candidates.map((row) => row.documentId)
+  )
+  const removed =
+    page.length === 0
+      ? []
+      : await executor
+          .delete(knowledgeDocumentObservation)
+          .where(and(unseen, inArray(knowledgeDocumentObservation.documentId, page)))
+          .returning({ documentId: knowledgeDocumentObservation.documentId })
   if (removed.length > 0) await onRemoved(removed.map((row) => row.documentId))
-  return { removed: removed.length, finished: removed.length < ACL_CHANGE_BATCH_SIZE }
+  return {
+    removed: removed.length,
+    finished: candidates.length < ACL_CHANGE_BATCH_SIZE && rest.length === 0,
+  }
 }
 
 /**
@@ -371,6 +382,59 @@ export function pagesByProjectionRows(
 }
 
 /**
+ * Locks `documentIds` (in id order, so pages never deadlock one another) and splits off the leading
+ * page, in the order given, whose chunks as committed now fit {@link PROJECTION_ROW_BATCH_SIZE};
+ * the rest wait for a later page. A chunk count read
+ * earlier without a lock can be stale: a processing commit holds its document's row while it
+ * replaces the chunks and sets `chunk_count`, so locking first either waits for that commit and
+ * reads its count, or makes it wait until this page commits, when the rows it inserts copy the new
+ * ACL. The rows are the ones the page's write locks anyway. An id with no document row costs
+ * nothing.
+ */
+export async function lockProjectionPage(
+  tx: DbOrTx,
+  documentIds: readonly string[]
+): Promise<{ page: string[]; rest: string[] }> {
+  if (documentIds.length === 0) return { page: [], rest: [] }
+  const locked = await tx
+    .select({ id: document.id, chunkCount: document.chunkCount })
+    .from(document)
+    .where(inArray(document.id, [...documentIds]))
+    .orderBy(asc(document.id))
+    .for('update')
+  const chunks = new Map(locked.map((row) => [row.id, row.chunkCount]))
+  const ordered = [...new Set(documentIds)].map((id) => ({ id, chunkCount: chunks.get(id) ?? 0 }))
+  const [page = []] = pagesByProjectionRows(ordered)
+  const taken = new Set(page)
+  return { page, rest: ordered.map(({ id }) => id).filter((id) => !taken.has(id)) }
+}
+
+/**
+ * Writes `documentIds` one page per `transaction`, each page sized by the chunk counts it reads
+ * under {@link lockProjectionPage}; whatever no longer fits waits for the next page. Returns the
+ * rows `write` reports.
+ */
+export async function writeProjectionPages(
+  documentIds: readonly string[],
+  transaction: LeaseTransaction,
+  write: (tx: DbOrTx, page: string[]) => Promise<number>,
+  beforePage?: () => Promise<void>
+): Promise<number> {
+  let pending = [...documentIds]
+  let written = 0
+  while (pending.length > 0) {
+    await beforePage?.()
+    const { rows, rest } = await transaction(async (tx) => {
+      const { page, rest } = await lockProjectionPage(tx, pending)
+      return { rows: page.length > 0 ? await write(tx, page) : 0, rest }
+    })
+    written += rows
+    pending = rest
+  }
+  return written
+}
+
+/**
  * Rewrites the ACL of every document of the connector to `target`, clearing its permission
  * evidence, one short transaction per page. The documents are walked once in keyset windows of
  * {@link ACL_WRITE_BATCH_SIZE} through `doc_connector_source_lookup_idx`, so no read revisits the
@@ -450,22 +514,26 @@ export async function rewriteConnectorDocumentAcls(input: {
     }
     for (const page of pagesByProjectionRows(window.filter((row) => row.aclDiffers))) {
       if (expired()) return { rewritten, finished: false }
-      await input.beforePage?.()
-      const rows = await transaction((tx) =>
-        tx
-          .update(document)
-          .set({ acl: [...target], aclRequirements: [], aclVerifiedAt: null })
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              inArray(document.id, page),
-              aclDiffers,
-              guard
-            )
-          )
-          .returning({ id: document.id })
+      rewritten += await writeProjectionPages(
+        page,
+        transaction,
+        async (tx, locked) =>
+          (
+            await tx
+              .update(document)
+              .set({ acl: [...target], aclRequirements: [], aclVerifiedAt: null })
+              .where(
+                and(
+                  eq(document.connectorId, connectorId),
+                  inArray(document.id, locked),
+                  aclDiffers,
+                  guard
+                )
+              )
+              .returning({ id: document.id })
+          ).length,
+        input.beforePage
       )
-      rewritten += rows.length
     }
     const last = window.at(-1)
     if (window.length < ACL_WRITE_BATCH_SIZE || !last?.externalId)
@@ -562,8 +630,12 @@ export async function rematerializeDocumentAcls(
         )
       )
     for (const page of pagesByProjectionRows(stale)) {
-      await beforePage?.()
-      updated += await transaction((tx) => materializeDocumentAcls(connectorId, page, tx))
+      updated += await writeProjectionPages(
+        page,
+        transaction,
+        (tx, locked) => materializeDocumentAcls(connectorId, locked, tx),
+        beforePage
+      )
     }
   }
   return updated
@@ -932,9 +1004,6 @@ function memberStillStale(memberId: string, cutoff: Date) {
   )
 }
 
-/** Lock, statement-timeout and serialization failures a sweep page defers instead of failing the tick. */
-const SWEEP_DEFERRABLE_CODES = new Set(['55P03', '57014', '40P01', '40001'])
-
 /**
  * Stale-member observations one sweep tick removes per member: the same
  * {@link OBSERVATION_BATCH_SIZE} as before, now in pages of
@@ -957,6 +1026,8 @@ async function sweepStaleMemberPage(
   observationsRemoved: number
   documentsRematerialized: number
   docsTombstoned: number
+  /** Whether the member still had observations past this page. */
+  more: boolean
 } | null> {
   try {
     return await db.transaction(async (tx) => {
@@ -968,20 +1039,27 @@ async function sweepStaleMemberPage(
         .for('update')
       if (!stale) return null
 
-      const candidates = tx
+      const candidates = await tx
         .select({ documentId: knowledgeDocumentObservation.documentId })
         .from(knowledgeDocumentObservation)
         .where(eq(knowledgeDocumentObservation.memberId, member.id))
         .limit(ACL_CHANGE_BATCH_SIZE)
-      const removed = await tx
-        .delete(knowledgeDocumentObservation)
-        .where(
-          and(
-            eq(knowledgeDocumentObservation.memberId, member.id),
-            inArray(knowledgeDocumentObservation.documentId, candidates)
-          )
-        )
-        .returning({ documentId: knowledgeDocumentObservation.documentId })
+      const { page, rest } = await lockProjectionPage(
+        tx,
+        candidates.map((row) => row.documentId)
+      )
+      const removed =
+        page.length === 0
+          ? []
+          : await tx
+              .delete(knowledgeDocumentObservation)
+              .where(
+                and(
+                  eq(knowledgeDocumentObservation.memberId, member.id),
+                  inArray(knowledgeDocumentObservation.documentId, page)
+                )
+              )
+              .returning({ documentId: knowledgeDocumentObservation.documentId })
       const documentIds = removed.map((row) => row.documentId)
       const rematerialized = await materializeDocumentAcls(member.connectorId, documentIds, tx)
       const tombstoned =
@@ -1020,6 +1098,7 @@ async function sweepStaleMemberPage(
         observationsRemoved: documentIds.length,
         documentsRematerialized: rematerialized,
         docsTombstoned: tombstoned.length,
+        more: candidates.length === ACL_CHANGE_BATCH_SIZE || rest.length > 0,
       }
     })
   } catch (error) {
@@ -1130,26 +1209,29 @@ export async function sweepStaleMemberObservations(
     let sweptAny = false
     try {
       for (let page = 0; page < STALE_MEMBER_PAGES_PER_TICK; page++) {
+        /** Checked before every page, so one large member cannot run a tick past its budget. */
+        if (Date.now() >= deadlineAt) break
         const swept = await sweepStaleMemberPage(member, memberCutoff, now)
         if (!swept) break
         sweptAny = true
         result.observationsRemoved += swept.observationsRemoved
         result.documentsRematerialized += swept.documentsRematerialized
         result.docsTombstoned += swept.docsTombstoned
-        if (swept.observationsRemoved < ACL_CHANGE_BATCH_SIZE) break
+        if (!swept.more) break
       }
     } catch (error) {
       /**
        * A connector whose member run holds its row, or whose page outruns the bounds, is left
        * for the next tick: its committed pages stand, and the other members are still swept.
        */
-      const code = getPostgresErrorCode(error)
-      if (!code || !SWEEP_DEFERRABLE_CODES.has(code)) throw error
+      const failure = getTransientDatabaseFailure(error)
+      if (!failure) throw error
       deferredConnectors.add(member.connectorId)
       logger.warn('Deferred a stale member sweep to the next tick', {
         connectorId: member.connectorId,
         memberId: member.id,
-        code,
+        failure,
+        code: getPostgresErrorCode(error),
       })
     }
     if (sweptAny) result.members += 1

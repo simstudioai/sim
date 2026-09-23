@@ -55,6 +55,7 @@ import {
 } from '@/lib/knowledge/connectors/member-access'
 import {
   applyMemberDocumentLifecycle,
+  lockProjectionPage,
   materializeDocumentAcls,
   recordMemberObservations,
   rematerializeDocumentAcls,
@@ -682,25 +683,34 @@ export async function resumeMembershipRewrites(
           )
           .orderBy(asc(knowledgeDocumentObservation.documentId))
           .limit(ACL_CHANGE_BATCH_SIZE)
+        /**
+         * The page is the leading documents whose chunks fit one page of projection rows, so the
+         * cursor only ever passes documents whose ACLs this transaction rewrote.
+         */
+        const { page } = await lockProjectionPage(
+          tx,
+          documents.map((row) => row.documentId)
+        )
+        const pageDocuments = documents.slice(0, page.length)
         await materializeDocumentAcls(
           run.connectorId,
-          documents.map((row) => row.documentId),
+          pageDocuments.map((row) => row.documentId),
           tx
         )
-        if (checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        if (checkpoint.removeMember && run.tombstonesUnobserved && pageDocuments.length > 0) {
           const tombstoned = await tombstoneDocumentsObservedOnlyBy(
             tx,
             run.connectorId,
             member.id,
-            documents.map((row) => row.documentId)
+            pageDocuments.map((row) => row.documentId)
           )
           if (run.result) run.result.docsTombstoned += tombstoned
         }
-        if (!checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        if (!checkpoint.removeMember && run.tombstonesUnobserved && pageDocuments.length > 0) {
           const resurrected = await resurrectObservedDocuments(
             tx,
             run.connectorId,
-            documents.map((row) => row.documentId)
+            pageDocuments.map((row) => row.documentId)
           )
           if (run.result) run.result.docsResurrected += resurrected
         }
@@ -715,7 +725,7 @@ export async function resumeMembershipRewrites(
               listingCheckpoint:
                 documents.length === 0
                   ? null
-                  : { ...checkpoint, cursor: documents.at(-1)!.documentId },
+                  : { ...checkpoint, cursor: pageDocuments.at(-1)!.documentId },
             })
             .where(eq(knowledgeConnectorMember.id, member.id))
         }

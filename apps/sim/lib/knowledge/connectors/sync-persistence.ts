@@ -18,6 +18,7 @@ import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/conn
 import {
   pagesByProjectionRows,
   rewriteConnectorDocumentAcls,
+  writeProjectionPages,
 } from '@/lib/knowledge/connectors/member-observations'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { ACL_WRITE_BATCH_SIZE, SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
@@ -192,14 +193,18 @@ export async function persistDocumentAcls(
       })
       updated += refreshed
       for (const page of pagesByProjectionRows(changed)) {
-        const rows = await transaction((tx) =>
-          tx
-            .update(document)
-            .set({ acl, aclRequirements: requirements, aclVerifiedAt })
-            .where(and(inArray(document.id, page), target(window, false)))
-            .returning({ id: document.id })
+        updated += await writeProjectionPages(
+          page,
+          transaction,
+          async (tx, locked) =>
+            (
+              await tx
+                .update(document)
+                .set({ acl, aclRequirements: requirements, aclVerifiedAt })
+                .where(and(inArray(document.id, locked), target(window, false)))
+                .returning({ id: document.id })
+            ).length
         )
-        updated += rows.length
       }
     }
   }
@@ -240,12 +245,13 @@ export async function revokeDocumentAcls(
         .where(and(target(window), grants))
     })
     for (const page of pagesByProjectionRows(granting)) {
-      await transaction((tx) =>
-        tx
+      await writeProjectionPages(page, transaction, async (tx, locked) => {
+        await tx
           .update(document)
           .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-          .where(and(target(window), inArray(document.id, page), grants))
-      )
+          .where(and(target(window), inArray(document.id, locked), grants))
+        return 0
+      })
     }
   }
 }

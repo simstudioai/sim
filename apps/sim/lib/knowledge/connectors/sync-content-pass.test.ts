@@ -209,10 +209,11 @@ describe('completed listing removal counts', () => {
     queueTableRows(schemaMock.document, options.revoked ?? [])
     if (options.revoked?.length) {
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
-      queueTableRows(
-        schemaMock.document,
-        options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
-      )
+      const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
+      queueTableRows(schemaMock.document, granting)
+      /** Each revocation page locks its documents and rereads their chunks before writing. */
+      for (let offset = 0; offset < granting.length; offset += 25)
+        queueTableRows(schemaMock.document, granting.slice(offset, offset + 25))
       /** Every revocation page is its own lease-proving transaction: one evidence clear, then acl pages. */
       const batches = 1 + Math.ceil(options.revoked.length / 25)
       for (let batch = 0; batch < batches; batch++)
@@ -332,7 +333,9 @@ describe('completed listing removal counts', () => {
     expect(result.docsDeleted).toBe(0)
     /** One lease-proving, bounded transaction per revocation batch, never one across the page. */
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for.mock.calls.filter(([mode]) => mode === 'share')).toHaveLength(3)
+    /** Each acl page locks its own documents first, and only those. */
+    expect(dbChainMockFns.for.mock.calls.filter(([mode]) => mode === 'update')).toHaveLength(2)
   })
 
   it('does not report a full-sync removal when the guarded delete removed no live rows', async () => {
@@ -376,8 +379,11 @@ async function runPass(
   queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
   queueTableRows(schemaMock.document, options.existing ? [options.existing] : [])
   /** A permission-only page revokes a changed body first: its read of what still grants someone. */
-  if (options.permissionsOnly && options.existing && options.existing.contentHash === 'old-body')
+  if (options.permissionsOnly && options.existing && options.existing.contentHash === 'old-body') {
     queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
+    /** The revocation page locks the document and rereads its chunks before writing. */
+    queueTableRows(schemaMock.document, [{ id: options.existing.id, chunkCount: 1 }])
+  }
   if (options.readCurrent) {
     queueTableRows(schemaMock.document, [{ fileUrl: options.existing?.fileUrl ?? '' }])
     if (

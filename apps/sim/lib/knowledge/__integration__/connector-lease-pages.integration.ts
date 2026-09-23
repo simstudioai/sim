@@ -273,7 +273,9 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         for (let attempt = 0; attempt < 100 && waiter === undefined; attempt++) {
           const [row] = await db.execute<{ pid: number }>(sql`
             SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND query ILIKE 'update "document" set "acl"%'`)
+            WHERE wait_event_type = 'Lock' AND datname = current_database()
+              AND (query ILIKE 'update "document" set "acl"%'
+                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
           waiter = row?.pid
           if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
         }
@@ -289,6 +291,63 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       await expect(write).resolves.toEqual({ updated: 1, rejected: 0 })
       expect((await storedAcls(ids.connectorId)).map((acl) => acl.join())).toEqual([bob()])
     }, 30_000)
+
+    /**
+     * Pages are sized from a read taken without a lock; a reprocess can change a document's chunks
+     * before the page writes. The page locks its documents and rereads their counts, so what it
+     * writes still fits one page of projection rows.
+     */
+    it('resizes a page whose documents gained chunks after it was planned', async () => {
+      const seeded = await seedDocuments(ids.connectorId, [alice()], 3)
+      const reprocess = losingAfter(1, leaseTransaction(ids.connectorId, adminLease()), () =>
+        db
+          .update(document)
+          .set({ chunkCount: 1_000 })
+          .where(eq(document.connectorId, ids.connectorId))
+      )
+
+      await expect(
+        persistDocumentAcls(
+          ids.connectorId,
+          new Map(seeded.map((row) => [row.externalId, [bob()]])),
+          reprocess
+        )
+      ).resolves.toEqual({ updated: 3, rejected: 0 })
+
+      expect(await writesPerTransaction(ids.connectorId)).toEqual([1, 1, 1])
+    })
+
+    /** Observation changes that must commit with their ACLs are paged by projection rows too. */
+    it('rewrites a membership page by projection rows, a large document alone', async () => {
+      const seeded = await seedDocuments(members.connectorId, [], 3)
+      const [member] = members.members
+      await recordMemberObservations(
+        db,
+        member.id,
+        seeded.map((row) => row.id),
+        members.runId
+      )
+      const huge = [...seeded].sort((a, b) => (a.id < b.id ? -1 : 1))[1]
+      await db.update(document).set({ chunkCount: 1_000 }).where(eq(document.id, huge.id))
+      await db
+        .update(knowledgeConnectorMember)
+        .set({ listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false } })
+        .where(eq(knowledgeConnectorMember.id, member.id))
+
+      await expect(
+        resumeMembershipRewrites({
+          connectorId: members.connectorId,
+          runId: members.runId,
+          deadlineAt: Date.now() + 60_000,
+          lease: createMemberSyncLease(members.connectorId, members.runId),
+        })
+      ).resolves.toBe(true)
+
+      expect(await writesPerTransaction(members.connectorId)).toEqual([1, 1, 1])
+      expect(
+        (await storedAcls(members.connectorId)).every((acl) => acl.join() === member.subjectToken)
+      ).toBe(true)
+    })
 
     /** The member engine's ACL pages prove the lease last as well. */
     it('holds no connector lock while a member ACL page waits on a locked document row', async () => {
@@ -327,7 +386,9 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         for (let attempt = 0; attempt < 200 && waiter === undefined; attempt++) {
           const [row] = await db.execute<{ pid: number }>(sql`
             SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND query ILIKE 'update "document" set "acl"%'`)
+            WHERE wait_event_type = 'Lock' AND datname = current_database()
+              AND (query ILIKE 'update "document" set "acl"%'
+                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
           waiter = row?.pid
           if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
         }

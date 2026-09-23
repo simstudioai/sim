@@ -85,10 +85,13 @@ function losingLease(held: number): LeaseTransaction {
 function queueGroup(refreshed: string[], changed = 0, unrefreshed = changed > 0) {
   dbChainMockFns.returning.mockResolvedValueOnce(refreshed.map((externalId) => ({ externalId })))
   if (!unrefreshed) return
-  queueTableRows(
-    schemaMock.document,
-    Array.from({ length: changed }, (_unused, index) => ({ id: `doc-${index}`, chunkCount: 1 }))
-  )
+  const rows = Array.from({ length: changed }, (_unused, index) => ({
+    id: `doc-${index}`,
+    chunkCount: 1,
+  }))
+  queueTableRows(schemaMock.document, rows)
+  /** The change page locks its documents and rereads their chunk counts before writing. */
+  if (changed > 0) queueTableRows(schemaMock.document, rows)
   if (changed > 0)
     dbChainMockFns.returning.mockResolvedValueOnce(
       Array.from({ length: changed }, (_unused, index) => ({ id: `doc-${index}` }))
