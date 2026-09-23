@@ -75,12 +75,15 @@ function getLogger(options: ExecutionMaterializationContext): Logger {
   return options.logger ?? logger
 }
 
-export function assertDurableLargeValueSize(size: number): void {
-  if (size > MAX_DURABLE_LARGE_VALUE_BYTES) {
+export function assertDurableLargeValueSize(
+  size: number,
+  limitBytes = MAX_DURABLE_LARGE_VALUE_BYTES
+): void {
+  if (size > limitBytes) {
     throw new ExecutionResourceLimitError({
       resource: 'execution_payload_bytes',
       attemptedBytes: size,
-      limitBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
+      limitBytes,
     })
   }
 }

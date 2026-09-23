@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_TRACE_ARCHIVE_BYTES,
+} from '@/lib/execution/payloads/limits'
 
 const {
   mockPrimaryRead,
@@ -362,13 +365,58 @@ describe('trace backfill', () => {
       {
         ...candidate,
         executionData: null,
-        payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES + 1,
+        payloadBytes: MAX_TRACE_ARCHIVE_BYTES + 1,
       },
     ])
-    await expect(backfillTraceStorage(options)).rejects.toThrow('backfill limit')
+    await expect(backfillTraceStorage(options)).rejects.toThrow('trace archive limit')
     expect(mockDataRead).toHaveBeenCalledTimes(2)
     expect(mockExternalize).not.toHaveBeenCalled()
     expect(mockTransaction).not.toHaveBeenCalled()
+  })
+
+  it.each([MAX_DURABLE_LARGE_VALUE_BYTES + 1, MAX_TRACE_ARCHIVE_BYTES])(
+    'uploads and commits a %i-byte archive without skipping it',
+    async (payloadBytes) => {
+      const large = { ...candidate, payloadBytes }
+      mockDataRead
+        .mockResolvedValueOnce([candidateMetadata])
+        .mockResolvedValueOnce([large])
+        .mockResolvedValueOnce([large])
+
+      await expect(backfillTraceStorage(options)).resolves.toEqual({ migrated: 1 })
+      expect(mockExternalize).toHaveBeenCalledOnce()
+      expect(mockUpdate).toHaveBeenCalledOnce()
+      expect(mockReplaceReferences).toHaveBeenCalledOnce()
+      expect(mockInfo).toHaveBeenCalledWith(
+        'Backfill checkpoint',
+        expect.objectContaining(candidateMetadata)
+      )
+    }
+  )
+
+  it('requires enough byte budget before fetching a larger archive and preserves the checkpoint', async () => {
+    const cursor = {
+      version: 1 as const,
+      order: options.order,
+      before: options.before,
+      startedAt: '2025-01-01T00:00:00.123456Z',
+      id: 'previous-log',
+    }
+    mockDataRead
+      .mockResolvedValueOnce([candidateMetadata])
+      .mockResolvedValueOnce([
+        { id: candidate.id, payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES + 1 },
+      ])
+
+    await expect(backfillTraceStorage({ ...options, maxInFlightMiB: 64, cursor })).rejects.toThrow(
+      'increase the byte budget'
+    )
+    expect(mockDataRead).toHaveBeenCalledTimes(2)
+    expect(mockExternalize).not.toHaveBeenCalled()
+    expect(mockTransaction).not.toHaveBeenCalled()
+    const checkpoints = mockInfo.mock.calls.filter(([message]) => message === 'Backfill checkpoint')
+    expect(checkpoints.length).toBeGreaterThan(0)
+    expect(checkpoints.every(([, value]) => value.id === cursor.id)).toBe(true)
   })
 
   it('fails before uploading when the payload grows past its reserved capacity', async () => {

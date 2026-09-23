@@ -2,7 +2,11 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import { MAX_TRACE_ARCHIVE_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  materializeLargeValueRef,
+  storeExecutionTraceArchive,
+} from '@/lib/execution/payloads/store'
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -254,15 +258,12 @@ export async function externalizeExecutionData(
     const json = JSON.stringify(executionData)
     const size = Buffer.byteLength(json, 'utf8')
 
-    // storeLargeValue persists to the execution bucket with a conforming key and
-    // registers owner + dependency closure (trace -> nested span large values),
-    // so GC keeps nested children alive while this run's log row exists.
-    const ref = await storeLargeValue(executionData, json, size, {
+    /** Register the archive owner and dependencies so nested span values survive with the log. */
+    const ref = await storeExecutionTraceArchive(executionData, json, size, {
       workspaceId,
       workflowId,
       executionId,
       userId,
-      requireDurable: true,
     })
 
     const { preview: _preview, ...slimRef } = ref
@@ -316,7 +317,7 @@ export async function materializeExecutionData(
       workspaceId: context.workspaceId,
       workflowId,
       executionId: context.executionId,
-      maxBytes: ref.size,
+      maxBytes: Math.min(ref.size, MAX_TRACE_ARCHIVE_BYTES),
       // Read-only: the value is already referenced by its own execution; don't
       // re-register (or fail) on every view/export.
       trackReference: false,
