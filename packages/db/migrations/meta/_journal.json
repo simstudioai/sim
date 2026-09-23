@@ -2640,6 +2640,13 @@
       "when": 1790119588517,
       "tag": "0377_member_tombstone_cursor",
       "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1790147511551,
+      "tag": "0378_knowledge_projection_dirty",
+      "breakpoints": true
     }
   ]
 }

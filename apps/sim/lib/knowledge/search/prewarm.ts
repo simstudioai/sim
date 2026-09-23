@@ -1,4 +1,4 @@
-import { PROJECTION_SOURCE_ACL_TABLES } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { SOURCE_ACL_PROJECTIONS } from '@sim/db/knowledge-projection'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
@@ -143,7 +143,7 @@ async function rankingRelations(session: PrewarmSession): Promise<string[]> {
           AND am.amname = ANY($2::text[])
         )
      ORDER BY c.relkind = 'r' DESC, pg_relation_size(c.oid)`,
-    [toArrayLiteral(PROJECTION_SOURCE_ACL_TABLES), toArrayLiteral(RANKING_ACCESS_METHODS)]
+    [toArrayLiteral(SOURCE_ACL_PROJECTIONS), toArrayLiteral(RANKING_ACCESS_METHODS)]
   )
   return Array.from(rows, (row) => String(row.relation))
 }

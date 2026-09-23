@@ -605,6 +605,9 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
      */
     await connection.unsafe(`CREATE TABLE IF NOT EXISTS embedding_search(
       id text PRIMARY KEY, document_id text, connector_id text, acl text[])`)
+    await connection.unsafe(
+      'CREATE TABLE IF NOT EXISTS knowledge_projection_dirty(document_id text PRIMARY KEY)'
+    )
     await connection.unsafe('DELETE FROM embedding_search')
     await connection.unsafe(
       "INSERT INTO embedding_search SELECT id || '-chunk', id, connector_id, acl FROM document"

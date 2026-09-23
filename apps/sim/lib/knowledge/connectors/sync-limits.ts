@@ -165,14 +165,6 @@ export const SOURCE_CONTENT_ERROR =
 export const ACL_WRITE_BATCH_SIZE = 500
 
 /**
- * Search projection rows one statement rewrites per projection table: a page of
- * detachment releases, and the most chunk rows a page of ACL assignments may
- * send through the projection trigger. A page always holds at least one
- * document, so a document larger than this still makes progress alone.
- */
-export const PROJECTION_ROW_BATCH_SIZE = 250
-
-/**
  * How long a connector-lease ACL page waits on any lock before it fails. The
  * connector row is locked last, so the wait is on document rows, which a
  * processing commit may hold for its whole embedding write.
@@ -187,7 +179,9 @@ export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
  * document trigger that copies it onto every chunk's search projection rows, and
  * each of those rows is re-inserted into the vector index, so one statement costs
  * the chunks of every document in it rather than the documents. Kept small so a
- * page of changed documents cannot outrun the statement timeout. Also the page
+ * page of changed documents cannot outrun the statement timeout; with
+ * `knowledge-async-projection` on, the trigger only marks the documents and the bound is the
+ * cleanup boundary noted at `pagesByProjectionRows` in `member-observations.ts`. Also the page
  * of the transactions that remove observations and rematerialise the ACLs they
  * decide together, which must commit as one and so cannot be split by rows.
  */

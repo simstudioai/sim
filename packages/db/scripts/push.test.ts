@@ -18,9 +18,10 @@ describe('pushCommands', () => {
 
   it('rebuilds the projections a push drops, since their indexes and triggers are not in the schema', () => {
     const scripts = pushCommands([]).map((command) => command.at(-1))
-    expect(scripts.slice(-2)).toEqual([
+    expect(scripts.slice(-3)).toEqual([
       './script-migrations/0019_tin_keyword_projection.ts',
       './script-migrations/0021_embedding_search_connector.ts',
+      './script-migrations/0024_knowledge_projection_async.ts',
     ])
   })
 })

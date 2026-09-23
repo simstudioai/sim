@@ -91,8 +91,8 @@ import {
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
+  aclPageTransaction,
   assertSyncLeaseHeldInTx,
-  boundLeaseTransaction,
   createMemberSyncLease,
   holdsMemberSyncLockToken,
   type LeaseTransaction,
@@ -536,8 +536,7 @@ async function withMemberLease<T>(
   fn: (tx: DbOrTx) => Promise<T>,
   options: { aclPage?: boolean } = {}
 ): Promise<T> {
-  return db.transaction(async (tx) => {
-    if (options.aclPage) await boundLeaseTransaction(tx)
+  const body = async (tx: DbOrTx) => {
     const written = await fn(tx)
     const [held] = await tx
       .select({ id: knowledgeConnector.id })
@@ -546,7 +545,8 @@ async function withMemberLease<T>(
       .for('update')
     if (!held) throw new SyncLockLostException(run.connectorId)
     return written
-  })
+  }
+  return options.aclPage ? aclPageTransaction(body) : db.transaction(body)
 }
 
 async function acquireMemberSyncLock(
