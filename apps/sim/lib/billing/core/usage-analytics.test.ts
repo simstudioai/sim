@@ -307,6 +307,40 @@ describe('resolveUsageAnalyticsWindow', () => {
     }
   })
 
+  it('keeps the viewer timezone when a partial custom range falls back to the current period', () => {
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'custom',
+      period: period({
+        source: 'default',
+        start: new Date(0),
+        end: new Date(Date.UTC(9999, 11, 31)),
+      }),
+      customStart: new Date('2026-08-04'),
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    })
+    expect(window.kind === 'range' && window.from).toEqual(new Date('2026-07-21T12:30:00.000Z'))
+  })
+
+  it('ends an unbounded previous period where the current one starts, on the viewer hour', () => {
+    const unbounded = period({
+      source: 'default',
+      start: new Date(0),
+      end: new Date(Date.UTC(9999, 11, 31)),
+    })
+    const args = {
+      period: unbounded,
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    }
+    const current = resolveUsageAnalyticsWindow({ ...args, preset: 'current-period' })
+    const previous = resolveUsageAnalyticsWindow({ ...args, preset: 'previous-period' })
+    expect(current.kind === 'range' && previous.kind === 'range').toBe(true)
+    if (current.kind !== 'range' || previous.kind !== 'range') return
+    expect(previous.to).toEqual(current.from)
+    expect(previous.from).toEqual(new Date('2026-06-21T12:30:00.000Z'))
+  })
+
   it('steps an unbounded period back by the display window, not by its own length', () => {
     const window = resolveUsageAnalyticsWindow({
       preset: 'previous-period',
