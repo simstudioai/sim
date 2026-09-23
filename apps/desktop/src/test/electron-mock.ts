@@ -35,6 +35,11 @@ export const app = {
   dock: { downloadFinished: vi.fn() },
 }
 
+/** Squirrel.Mac's native updater; tests replay its events through `on` calls. */
+export const autoUpdater = {
+  on: vi.fn(),
+}
+
 export const crashReporter = {
   start: vi.fn(),
 }

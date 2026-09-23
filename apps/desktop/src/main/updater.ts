@@ -3,7 +3,7 @@ import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow } from 'electron'
-import { app, net } from 'electron'
+import { app, net, autoUpdater as squirrelUpdater } from 'electron'
 import { showShellDialog } from '@/main/dialogs'
 import { isSafeExternalUrl, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -394,6 +394,14 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     autoUpdater.logger = null
     let installInFlight = false
     let installConfirmationInFlight = false
+    /**
+     * True once Squirrel.Mac holds a verified bundle it will install on exit.
+     * It keeps that bundle through any later failed check, download, or
+     * restage, so only a failure before staging or during relaunch leaves
+     * nothing installable.
+     */
+    let squirrelStaged = false
+    let relaunchRequested = false
 
     /**
      * Squirrel installs whatever it has staged when the process exits, so a
@@ -411,6 +419,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
             return
           }
           deps.setRelaunchPending?.(true)
+          relaunchRequested = true
           autoUpdater.quitAndInstall()
         })
         .catch((error) => {
@@ -468,6 +477,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
      * non-null value means a newer build is replacing the staged one.
      */
     let acceptedUpdateVersion: string | null = null
+    /** A downloaded replacement that becomes `ready` once Squirrel stages it. */
+    let pendingReplacementVersion: string | null = null
 
     /**
      * A staged (`ready`) or offered (`available`) update keeps being re-checked
@@ -476,6 +487,14 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
      * restart and immediately offers the next one.
      */
     const isRefreshingOffer = () => state.status === 'ready' || state.status === 'available'
+
+    const canRefreshStagedUpdate = () =>
+      squirrelStaged &&
+      autoDownloadEnabled &&
+      !installInFlight &&
+      !installConfirmationInFlight &&
+      acceptedUpdateVersion === null &&
+      pendingReplacementVersion === null
 
     const finishProbe = (probeId: number) => {
       if (activeProbeId !== probeId) return
@@ -504,8 +523,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (checkId === null) return
       finishUpdaterCheck(checkId)
       if (updaterRequestId === checkId) updaterRequestId = null
-      // A staged bundle is already armed in Squirrel and cannot be withdrawn.
-      if (state.status === 'ready') return
+      // The library keeps the last validated offer when nothing newer exists,
+      // and a staged bundle is already armed in Squirrel.
+      if (isRefreshingOffer()) return
       setState({ status: 'idle' })
     })
 
@@ -519,29 +539,34 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         !originFeedConfigured ||
         (info.files.length > 0 &&
           info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel)))
-      if (state.status === 'ready' || state.status === 'available') {
-        const offeredVersion = state.version ?? currentVersion
+      const validCandidate =
+        validOriginAssets && isValidUpdateCandidate(info.version, currentVersion)
+      if (state.status === 'ready') {
+        // Only a strictly newer validated release replaces the staged one; the
+        // download reuses the update info this check just stored.
+        const stagedVersion = state.version ?? currentVersion
         if (
-          !validOriginAssets ||
-          !isValidUpdateCandidate(info.version, currentVersion) ||
-          !isNewerVersion(info.version, offeredVersion)
+          !validCandidate ||
+          !autoDownloadEnabled ||
+          !isNewerVersion(info.version, stagedVersion)
         ) {
           return
         }
-        if (state.status === 'ready') {
-          if (!autoDownloadEnabled) return
-          acceptedUpdateVersion = info.version
-          deps.events.record('update_check', { available: info.version, replacing: offeredVersion })
-          void autoUpdater.downloadUpdate().catch((error) => {
-            if (acceptedUpdateVersion === info.version) acceptedUpdateVersion = null
-            logger.warn('Replacement update download failed; keeping the staged update', {
-              message: getErrorMessage(error, 'unknown'),
-            })
+        acceptedUpdateVersion = info.version
+        deps.events.record('update_check', { available: info.version, replacing: stagedVersion })
+        void autoUpdater.downloadUpdate().catch((error) => {
+          logger.warn('Replacement update download failed; keeping the staged update', {
+            message: getErrorMessage(error, 'unknown'),
           })
-          return
-        }
+        })
+        return
       }
-      if (!isValidUpdateCandidate(info.version, currentVersion) || !validOriginAssets) {
+      if (state.status === 'available' && validCandidate && state.version === info.version) {
+        return
+      }
+      // A blocked candidate also replaces the library's pending update info, so
+      // an `available` offer from an earlier check is no longer safe to download.
+      if (!validCandidate) {
         acceptedUpdateVersion = null
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', {
@@ -578,9 +603,13 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     autoUpdater.on('update-downloaded', (info) => {
       if (state.status === 'ready') {
         if (acceptedUpdateVersion !== info.version) return
-      } else if (state.status !== 'downloading') {
+        acceptedUpdateVersion = null
+        // electron-updater hands the file to Squirrel after this event; the
+        // staged update switches over when Squirrel reports it staged.
+        pendingReplacementVersion = info.version
         return
       }
+      if (state.status !== 'downloading') return
       if (
         acceptedUpdateVersion !== info.version ||
         !isValidUpdateCandidate(info.version, currentVersion)
@@ -597,28 +626,45 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       setState({ status: 'ready', version: info.version })
     })
 
+    squirrelUpdater.on('update-downloaded', () => {
+      squirrelStaged = true
+      const version = pendingReplacementVersion
+      if (version === null || state.status !== 'ready') return
+      pendingReplacementVersion = null
+      deps.events.record('update_downloaded', { version })
+      setState({ status: 'ready', version })
+    })
+
     autoUpdater.on('error', (error) => {
       const checkId = activeUpdaterCheckId
       if (checkId !== null) {
         finishUpdaterCheck(checkId)
         if (updaterRequestId === checkId) updaterRequestId = null
-        if (isRefreshingOffer() && !installInFlight) {
-          logger.warn('Background update re-check failed; keeping the current update', {
-            message: getErrorMessage(error, 'unknown'),
-          })
-          return
-        }
-      } else if (state.status === 'ready' && acceptedUpdateVersion !== null && !installInFlight) {
+      }
+      const message = getErrorMessage(error, 'unknown')
+      if (state.status === 'ready' && squirrelStaged && !relaunchRequested) {
         acceptedUpdateVersion = null
-        deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
+        pendingReplacementVersion = null
+        logger.warn('Update refresh failed; keeping the staged update', { message })
         return
-      } else if (state.status !== 'downloading' && state.status !== 'ready' && !installInFlight) {
+      }
+      if (state.status === 'available') {
+        logger.warn('Update re-check failed; keeping the offered update', { message })
+        return
+      }
+      if (
+        checkId === null &&
+        state.status !== 'downloading' &&
+        state.status !== 'ready' &&
+        !installInFlight
+      ) {
         return
       }
       installInFlight = false
+      relaunchRequested = false
       deps.setRelaunchPending?.(false)
       autoUpdater.autoInstallOnAppQuit = false
-      deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
+      deps.events.record('update_error', { message })
       setState({ status: 'error', version: state.version })
     })
 
@@ -719,15 +765,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           return
         }
         if (isRefreshingOffer()) {
-          const replacementInFlight = state.status === 'ready' && acceptedUpdateVersion !== null
-          if (
-            interactive ||
-            installInFlight ||
-            installConfirmationInFlight ||
-            replacementInFlight
-          ) {
-            return
-          }
+          if (interactive) return
+          if (state.status === 'ready' && !canRefreshStagedUpdate()) return
         }
         if (interactive) {
           setState({ status: 'checking' })
