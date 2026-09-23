@@ -42,6 +42,12 @@ function boundedInteger(value: unknown, fallback: number, max: number): number {
   return value
 }
 
+function assertImportPath(root: string, candidate: string): void {
+  const rel = relative(root, candidate)
+  if (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`))
+    throw new Error('The file is outside this import source.')
+}
+
 async function inspect(path: string, args: Record<string, unknown>): Promise<DesktopLocalFileRead> {
   const info = await stat(path)
   if (info.isDirectory()) {
@@ -135,14 +141,26 @@ async function inspect(path: string, args: Record<string, unknown>): Promise<Des
         representation: 'binary',
         note: 'Binary content cannot be decoded as text. Import this file into Workspace Files for document extraction.',
       }
+    /** Retain partial characters for the next page; preserving BOM keeps byte offsets exact. */
+    let text: string
+    try {
+      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes, {
+        stream: offset + bytesRead < info.size,
+      })
+    } catch {
+      throw new Error('Text reads require valid UTF-8 and an offset at a character boundary.')
+    }
+    const textBytes = Buffer.byteLength(text)
+    if (bytesRead > 0 && textBytes === 0)
+      throw new Error('The read limit must fit at least one complete UTF-8 character.')
     return {
       kind: 'read',
       path,
       representation: 'text',
-      text: bytes.toString('utf8'),
+      text,
       offset,
-      nextOffset: offset + bytesRead,
-      truncated: offset + bytesRead < info.size,
+      nextOffset: offset + textBytes,
+      truncated: offset + textBytes < info.size,
     }
   } finally {
     await file.close()
@@ -154,6 +172,7 @@ async function manifest(
   args: Record<string, unknown>
 ): Promise<DesktopLocalFileManifest> {
   if (typeof args.targetWorkspaceId !== 'string') throw new Error('A target workspace is required.')
+  const root = await realpath(path)
   const entries: DesktopLocalFileEntry[] = []
   async function walk(current: string, ancestors: ReadonlySet<string>): Promise<void> {
     if (entries.length >= MAX_ENTRIES)
@@ -161,6 +180,7 @@ async function manifest(
         'The directory exceeds 1,000 entries. Import smaller subdirectories separately.'
       )
     const canonical = await realpath(current)
+    assertImportPath(root, canonical)
     const info = await stat(canonical)
     if (!info.isDirectory() && !info.isFile())
       throw new Error(`Cannot import special filesystem entry: ${current}`)
@@ -211,11 +231,12 @@ export async function executeLocalFileRequest(
     )
       throw new Error('Invalid file chunk request.')
     const child = resolve(path, request.relativePath)
-    const rel = relative(path, child)
-    if (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`))
-      throw new Error('The file is outside this import source.')
+    assertImportPath(path, child)
+    const root = await realpath(path)
+    const canonical = await realpath(child)
+    assertImportPath(root, canonical)
     const offset = boundedInteger(request.offset, 0, Number.MAX_SAFE_INTEGER)
-    const file = await open(child, 'r')
+    const file = await open(canonical, 'r')
     try {
       const info = await file.stat()
       if (!info.isFile() || revision(info) !== request.revision)
