@@ -548,6 +548,67 @@ describe('the projector', () => {
     expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('alice'))
   })
 
+  it('keeps the mark when a synchronous ACL change commits under a page that then writes stale values', async () => {
+    /** A pending revocation of Bob: the rows still name both until a pass. */
+    await write('async', (tx) =>
+      tx
+        .update(document)
+        .set({ acl: aclOf('alice') })
+        .where(eq(document.id, documentId))
+    )
+    const before = await markOf()
+    const [{ pid }] = await projector<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+    /**
+     * A synchronous writer revokes Alice too and holds its transaction open: its fan-out has
+     * locked the projection rows and its mark bump is not yet visible.
+     */
+    const writer = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let locked: () => void = () => {}
+    const fannedOut = new Promise<void>((resolve) => {
+      locked = resolve
+    })
+    try {
+      const writing = writer.begin(async (tx) => {
+        await tx`UPDATE document SET acl = ${aclOf('bob')} WHERE id = ${documentId}`
+        locked()
+        await held
+      })
+      await fannedOut
+      /**
+       * The pass reads the committed document, Alice alone, and its page blocks on the rows the
+       * writer holds. Once the writer commits, the page rewrites those rows from what it read.
+       */
+      const pass = project()
+      await vi.waitFor(async () => {
+        const [activity] = await db.execute<{ waiting: boolean }>(
+          sql`SELECT wait_event_type = 'Lock' AS waiting FROM pg_stat_activity WHERE pid = ${pid}`
+        )
+        expect(activity?.waiting).toBe(true)
+      })
+      release()
+      await writing
+      await pass
+    } finally {
+      release()
+      await writer.end()
+    }
+    /** The page wrote the value it read over the writer's newer one. */
+    expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('alice'))
+    /** The writer's bump is what the pass could not settle over: the rows stay decided on the document. */
+    expect((await markOf())?.generation).toBe((before?.generation ?? 0) + 1)
+    expect(await admitted()).toEqual({ vector: [], keyword: [] })
+    expect(await vectorIds()).toEqual([])
+    await project()
+    expect(await markOf()).toBeUndefined()
+    expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('bob'))
+    expect((await rowAcl(embeddingKeywordTin))?.acl).toEqual(aclOf('bob'))
+    expect(await admitted()).toEqual({ vector: [], keyword: [] })
+  })
+
   it('passes over a document deleted while it is being projected', async () => {
     const doomed = generateId()
     await db.insert(document).values({

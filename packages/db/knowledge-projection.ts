@@ -60,18 +60,18 @@ const SOURCE_VECTOR_WIDTHS = [1536, 384, 768, 1024, 3072] as const
 const widthColumn = (name: string, width: number) => (width === 1536 ? name : `${name}_${width}`)
 
 /** The halfvec columns of `embedding_search`, in width order. */
-export const SEARCH_VECTOR_COLUMNS = SEARCH_VECTOR_WIDTHS.map((width) =>
-  widthColumn('vector', width)
-)
+const SEARCH_VECTOR_COLUMNS = SEARCH_VECTOR_WIDTHS.map((width) => widthColumn('vector', width))
 
 /** The bit columns of `embedding_search`, whose width check requires exactly one. */
 const SEARCH_BINARY_COLUMNS = ['"binary"', 'binary_384', 'binary_768', 'binary_1024', 'binary_3072']
 
 /**
  * The halfvec projections of an embedding row, in {@link SEARCH_VECTOR_COLUMNS} order. Shortening
- * is valid only for the two OpenAI models trained for prefix retrieval.
+ * is valid only for the two OpenAI models trained for prefix retrieval. These and the bit
+ * projections match what `sync_embedding_search()` from `0016_backfill_search_vectors` writes, so
+ * a pass over rows a synchronous writer wrote finds nothing to rewrite.
  */
-export function searchVectorProjections(prefix: string, shortened: string): string {
+function searchVectorProjections(prefix: string, shortened: string): string {
   return SEARCH_VECTOR_WIDTHS.map((width) =>
     width === 512
       ? `CASE WHEN ${shortened} THEN subvector(coalesce(${SOURCE_VECTOR_WIDTHS.map((size) => `${prefix}.${widthColumn('embedding', size)}`).join(', ')}), 1, 512)::halfvec(512) END`
@@ -80,14 +80,14 @@ export function searchVectorProjections(prefix: string, shortened: string): stri
 }
 
 /** The bit projections of an embedding row, in {@link SEARCH_BINARY_COLUMNS} order. */
-export function searchBinaryProjections(prefix: string): string {
+function searchBinaryProjections(prefix: string): string {
   return `binary_quantize(${prefix}.embedding)::bit(1536), binary_quantize(${prefix}.embedding_384)::bit(384),
     binary_quantize(${prefix}.embedding_768)::bit(768), binary_quantize(${prefix}.embedding_1024)::bit(1024),
     binary_quantize(${prefix}.embedding_3072)::bit(3072)`
 }
 
 /** Whether a knowledge base's model is shortened for the 512 projection, for an embedding row. */
-export function searchVectorShortened(model: string, prefix: string): string {
+function searchVectorShortened(model: string, prefix: string): string {
   return `${model} IN ${SHORTENED_EMBEDDING_MODELS} AND ${prefix}.embedding_384 IS NULL`
 }
 

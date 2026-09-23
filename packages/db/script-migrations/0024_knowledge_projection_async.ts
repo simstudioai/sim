@@ -1,13 +1,8 @@
-import { KNOWLEDGE_PROJECTION_DEFERRED } from '@sim/db/knowledge-projection'
 import {
-  installSearchKeywordTrigger,
-  installSearchVectorTrigger,
-} from '@sim/db/script-migrations/0016_backfill_search_vectors'
-import { installTinKeywordTrigger } from '@sim/db/script-migrations/0019_tin_keyword_projection'
-import {
-  installProjectionSourceAclSetTriggers,
-  projectionSourceAclFanOut,
-} from '@sim/db/script-migrations/0021_embedding_search_connector'
+  KNOWLEDGE_PROJECTION_DEFERRED,
+  SOURCE_ACL_PROJECTIONS,
+  SYNCHRONOUS_PROJECTION_WHEN,
+} from '@sim/db/knowledge-projection'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
@@ -54,6 +49,22 @@ async function installMarkFunctions(tx: Sql | TransactionSql): Promise<void> {
 }
 
 /**
+ * The document trigger's fan-out, as `0021_embedding_search_connector` wrote it: copies a
+ * document's source and ACL onto its enabled chunks, leaving a chunk the source and ACL fill has not
+ * reached with a NULL ACL unless the document moved. Expects `moved` in scope.
+ */
+const SOURCE_ACL_FAN_OUT = SOURCE_ACL_PROJECTIONS.map(
+  (projection) => `
+      UPDATE ${projection}
+      SET connector_id = NEW.connector_id, acl = CASE WHEN acl IS NULL THEN NULL ELSE NEW.acl END
+      WHERE document_id = NEW.id AND enabled
+        AND CASE WHEN acl IS NULL
+          THEN moved AND connector_id IS DISTINCT FROM NEW.connector_id
+          ELSE connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl
+        END;`
+).join('')
+
+/**
  * The document trigger's body once documents are marked: a document whose source or ACL changed
  * is marked, whatever the writer's mode, and a writer that did not defer its projection still fans
  * the new values out to its enabled chunks in its own statement, as every writer before the
@@ -72,7 +83,7 @@ async function installDocumentMarking(tx: Sql | TransactionSql): Promise<void> {
       END IF;
       IF ${KNOWLEDGE_PROJECTION_DEFERRED} THEN
         RETURN NEW;
-      END IF;${projectionSourceAclFanOut()}
+      END IF;${SOURCE_ACL_FAN_OUT}
       RETURN NEW;
     END;
     $$`)
@@ -119,6 +130,34 @@ async function installMarkTriggers(tx: TransactionSql): Promise<void> {
     EXECUTE FUNCTION mark_updated_embedding_projection()`)
 }
 
+/**
+ * The triggers that write projection rows in the writer's transaction, re-created with the guard
+ * that skips them for a writer that deferred its projection. Their functions are the ones
+ * `0016_backfill_search_vectors`, `0019_tin_keyword_projection` and
+ * `0021_embedding_search_connector` installed, and their events are the same; only the `WHEN` is
+ * new. The Tin trigger is re-created only where `0019` installed it.
+ */
+async function installGuardedProjectionTriggers(tx: TransactionSql): Promise<void> {
+  const guard = `FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN})`
+  await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync
+    AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled,
+      embedding, embedding_384, embedding_768, embedding_1024, embedding_3072 ON embedding
+    ${guard} EXECUTE FUNCTION sync_embedding_search()`)
+  await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_search_sync
+    AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
+    ${guard} EXECUTE FUNCTION sync_embedding_keyword_search()`)
+  if (await tinTriggerInstalled(tx)) {
+    await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_tin_sync
+      AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
+      ${guard} EXECUTE FUNCTION sync_embedding_keyword_tin()`)
+  }
+  for (const projection of SOURCE_ACL_PROJECTIONS) {
+    await tx.unsafe(`CREATE OR REPLACE TRIGGER ${projection}_source_acl_set
+      BEFORE INSERT OR UPDATE OF document_id, enabled ON ${projection}
+      ${guard} EXECUTE FUNCTION set_projection_source_acl()`)
+  }
+}
+
 /** Whether the Tin projection's embedding trigger exists here: `0019` installs it only where `tin` does. */
 async function tinTriggerInstalled(tx: TransactionSql): Promise<boolean> {
   const [row] = await tx<Array<{ installed: boolean }>>`
@@ -154,11 +193,8 @@ export async function installKnowledgeProjectionAsync(sql: Sql): Promise<void> {
         await tx.unsafe(`SET LOCAL lock_timeout = '${TRIGGER_LOCK_TIMEOUT}'`)
         await installMarkFunctions(tx)
         await installDocumentMarking(tx)
-        await installSearchVectorTrigger(tx)
-        await installSearchKeywordTrigger(tx)
-        if (await tinTriggerInstalled(tx)) await installTinKeywordTrigger(tx)
+        await installGuardedProjectionTriggers(tx)
         await installMarkTriggers(tx)
-        await installProjectionSourceAclSetTriggers(tx)
       }),
     {
       budgetMs: TRIGGER_LOCK_RETRY_BUDGET_MS,

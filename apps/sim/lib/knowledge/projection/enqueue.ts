@@ -3,8 +3,10 @@ import { SOURCE_ACL_PROJECTIONS } from '@sim/db/knowledge-projection'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
+import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 
 const logger = createLogger('KnowledgeProjectionEnqueue')
 
@@ -31,24 +33,26 @@ const PROMPT_REQUEST_INTERVAL_MS = 5_000
 
 let lastPromptAt = 0
 
-/** The inline pass in flight when no Trigger.dev worker is configured, and whether another is owed. */
-let inlinePass: Promise<void> | undefined
+/** Whether an inline pass is running when no Trigger.dev worker is configured, and whether another is owed. */
+let inlineRunning = false
 let inlinePassOwed = false
 
 /**
  * Starts a pass in this process without waiting for it: at most one runs at a time, a request while
  * one runs is folded into a single pass after it, and a failed pass is logged without dropping one
- * owed after it. The
- * pass module loads on first use. For deployments without a Trigger.dev worker, whose sweep and
- * writes run passes here, as their document processing does.
+ * owed after it. The loop reads the owed flag and clears the running flag in the same synchronous
+ * step, so a request can never land between the two and be dropped. The pass module loads on first
+ * use. For deployments without a Trigger.dev worker, whose sweep and writes run passes here, as
+ * their document processing does.
  */
 function runInline(): void {
-  if (inlinePass) {
+  if (inlineRunning) {
     inlinePassOwed = true
     return
   }
-  inlinePass = (async () => {
-    do {
+  inlineRunning = true
+  void (async () => {
+    for (;;) {
       inlinePassOwed = false
       try {
         const { runKnowledgeProjectionPass } = await import('@/lib/knowledge/projection/run')
@@ -56,10 +60,21 @@ function runInline(): void {
       } catch (error) {
         logger.error('Inline knowledge projection pass failed', { error: getErrorMessage(error) })
       }
-    } while (inlinePassOwed)
-  })().finally(() => {
-    inlinePass = undefined
-  })
+      if (!inlinePassOwed) {
+        inlineRunning = false
+        return
+      }
+    }
+  })()
+}
+
+/**
+ * Whether passes run on Trigger.dev, by the rule document processing dispatches with: inside a
+ * Trigger.dev run always, and otherwise only where Trigger.dev is enabled and the secret key the
+ * SDK authenticates with is set.
+ */
+function projectsOnTrigger(): boolean {
+  return isInsideTriggerRun() || Boolean(isTriggerDevEnabled && env.TRIGGER_SECRET_KEY)
 }
 
 /**
@@ -70,7 +85,7 @@ function runInline(): void {
  * leaves the marks to the sweep, which keeps enqueueing a pass every minute until one runs.
  */
 export async function requestKnowledgeProjection(): Promise<void> {
-  if (!isTriggerDevEnabled) {
+  if (!projectsOnTrigger()) {
     runInline()
     return
   }
@@ -125,7 +140,7 @@ export async function enqueueKnowledgeProjectionSweep(): Promise<KnowledgeProjec
   if (!(await hasKnowledgeProjectionWork())) {
     return { triggered: false, backend: null, jobId: null }
   }
-  if (!isTriggerDevEnabled) {
+  if (!projectsOnTrigger()) {
     runInline()
     return { triggered: true, backend: 'inline', jobId: null }
   }

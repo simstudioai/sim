@@ -1,8 +1,7 @@
-import { SYNCHRONOUS_PROJECTION_WHEN } from '@sim/db/knowledge-projection'
 import { EMBEDDING_KEYWORD_TIN_INDEX } from '@sim/db/schema'
 import { type ScriptMigration, ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
-import postgres, { type Sql, type TransactionSql } from 'postgres'
+import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('TinKeywordProjection')
 const BATCH_SIZE = 500
@@ -37,16 +36,6 @@ async function createTinExtension(sql: Sql): Promise<boolean> {
 async function tinAvailable(sql: Sql): Promise<boolean> {
   const rows = await sql`SELECT 1 FROM pg_available_extensions WHERE name = 'tin'`
   return rows.length > 0
-}
-
-/**
- * The Tin projection's embedding trigger, skipped by a writer that declared the asynchronous
- * projection mode; see `0024_knowledge_projection_async`.
- */
-export async function installTinKeywordTrigger(tx: TransactionSql): Promise<void> {
-  await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_tin_sync
-    AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
-    FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN}) EXECUTE FUNCTION sync_embedding_keyword_tin()`)
 }
 
 /**
@@ -108,7 +97,9 @@ export async function installProjection(sql: Sql): Promise<void> {
         RETURN NEW;
       END;
       $$`)
-    await installTinKeywordTrigger(tx)
+    await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_tin_sync
+      AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
+      FOR EACH ROW EXECUTE FUNCTION sync_embedding_keyword_tin()`)
     await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_knowledge_base_keyword_tin()
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN

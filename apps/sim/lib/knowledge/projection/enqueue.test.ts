@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   trigger: vi.fn(),
   execute: vi.fn(),
   isFeatureEnabled: vi.fn(),
+  env: { TRIGGER_SECRET_KEY: 'fixture-key' as string | undefined },
+  insideRun: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ db: { execute: mocks.execute } }))
@@ -17,6 +19,8 @@ vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.isFe
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mocks.trigger } }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mocks.resolveRegion }))
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
+vi.mock('@/lib/core/config/env', () => ({ env: mocks.env }))
+vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: mocks.insideRun }))
 vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: mocks.runPass }))
 
 import {
@@ -33,6 +37,8 @@ describe('knowledge projection enqueue', () => {
     mocks.trigger.mockResolvedValue({ id: 'run-1' })
     mocks.execute.mockResolvedValue([{ pending: true }])
     mocks.isFeatureEnabled.mockResolvedValue(false)
+    mocks.env.TRIGGER_SECRET_KEY = 'fixture-key'
+    mocks.insideRun.mockReturnValue(false)
   })
 
   afterEach(() => {
@@ -88,6 +94,26 @@ describe('knowledge projection enqueue', () => {
     vi.advanceTimersByTime(5_000)
     await requestKnowledgeProjection()
     expect(mocks.trigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs the pass in this process where Trigger.dev is enabled without its secret key', async () => {
+    mocks.env.TRIGGER_SECRET_KEY = undefined
+    mocks.runPass.mockResolvedValue(undefined)
+    await expect(enqueueKnowledgeProjectionSweep()).resolves.toEqual({
+      triggered: true,
+      backend: 'inline',
+      jobId: null,
+    })
+    expect(mocks.trigger).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(mocks.runPass).toHaveBeenCalledTimes(1))
+  })
+
+  it('enqueues from inside a Trigger.dev run whatever the environment holds', async () => {
+    mocks.env.TRIGGER_SECRET_KEY = undefined
+    mocks.insideRun.mockReturnValue(true)
+    await expect(enqueueKnowledgeProjectionSweep()).resolves.toMatchObject({
+      backend: 'trigger-dev',
+    })
   })
 
   it('never fails the write that asked when the request is refused', async () => {

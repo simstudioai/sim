@@ -106,10 +106,12 @@ export async function runKnowledgeProjectionPass(options: {
         result.deferred = round.reduce((most, progress) => Math.max(most, progress.deferred), 0)
         break
       }
-      if (fillCursor === null) break
+      /** The fill starts only inside the budget, and what it marks is left for a round to settle. */
+      if (fillCursor === null || Date.now() >= deadline) break
       const fill = await markUnfilledProjectionDocuments(sessions[0], fillCursor)
       result.filled += fill.marked
       fillCursor = fill.cursor
+      if (fill.marked > 0) result.remaining = true
       if (fill.marked === 0 && fillCursor === null) break
     }
     logger.info('Knowledge projection pass finished', result)

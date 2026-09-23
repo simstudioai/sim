@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   runProjection: vi.fn(),
@@ -103,6 +103,40 @@ describe('runKnowledgeProjectionPass', () => {
     expect(mocks.markUnfilled).toHaveBeenNthCalledWith(2, expect.anything(), {
       projection: 0,
       afterId: 'row-2',
+    })
+  })
+
+  describe('at the budget', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      mocks.isFeatureEnabled.mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('does not start the fill once the budget is spent', async () => {
+      mocks.runProjection.mockImplementation(async () => {
+        vi.advanceTimersByTime(60_001)
+        return drained
+      })
+      await expect(runKnowledgeProjectionPass({ budgetMs: 60_000 })).resolves.toMatchObject({
+        remaining: false,
+        filled: 0,
+      })
+      expect(mocks.markUnfilled).not.toHaveBeenCalled()
+    })
+
+    it('reports documents the fill marked but no round settled as remaining', async () => {
+      mocks.markUnfilled.mockImplementation(async () => {
+        vi.advanceTimersByTime(60_001)
+        return { marked: 2, cursor: { projection: 0, afterId: 'row-2' } }
+      })
+      await expect(runKnowledgeProjectionPass({ budgetMs: 60_000 })).resolves.toMatchObject({
+        remaining: true,
+        filled: 2,
+      })
     })
   })
 
