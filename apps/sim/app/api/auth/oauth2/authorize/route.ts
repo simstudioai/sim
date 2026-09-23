@@ -135,7 +135,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return invalidRequest(
         resource.kind === 'search'
           ? searchScopeRequired
-          : 'The Sim MCP server requires the api:read or api:write scope.'
+          : 'This MCP server requires the api:read or api:write scope.'
       )
     }
     if (
