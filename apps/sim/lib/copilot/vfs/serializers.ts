@@ -452,8 +452,9 @@ export function serializeConnectorOverview(connectors: SerializableConnectorConf
     '|------|------|---------------|-----------------|',
     ...rows,
     '',
-    'To add a connector, the user must have an OAuth credential for that provider.',
-    'Check `environment/credentials.json` for available credential IDs.',
+    'For OAuth connectors, pass a credentialId from `environment/credentials.json`.',
+    'For API-key connectors, pass apiKey as a `{{SECRET_NAME}}` reference or a raw key. Do not require an OAuth credential.',
+    'For connectors supporting both, choose one authentication method from the connector schema.',
   ].join('\n')
 }
 

@@ -3,14 +3,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  MAX_SANDBOX_CLI_TOOLS,
-  SANDBOX_CLI_TOOLS,
-  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
-} from '@/lib/execution/remote-sandbox/cli-tools'
-import type { BlockConfig } from '@/blocks/types'
-import { hostedKeyEnabledWhen } from '@/tools/hosting'
-import type { ToolConfig } from '@/tools/types'
-import {
   buildOrganizationReadme,
   serializeAccessControl,
   serializeAccountBilling,
@@ -20,6 +12,8 @@ import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
   serializeConnectedAccounts,
+  serializeConnectorOverview,
+  serializeConnectorSchema,
   serializeConnectors,
   serializeCredentials,
   serializeDeployments,
@@ -36,7 +30,16 @@ import {
   serializeTableMeta,
   serializeWorkflowMeta,
   serializeWorkspaceForks,
-} from './serializers'
+} from '@/lib/copilot/vfs/serializers'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import type { BlockConfig } from '@/blocks/types'
+import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import { hostedKeyEnabledWhen } from '@/tools/hosting'
+import type { ToolConfig } from '@/tools/types'
 
 function hostedTool(id: string, conditional = false): ToolConfig {
   return {
@@ -616,6 +619,23 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
     )
     expect(json[0].description).toBe('Stripe live key for billing')
     expect(json[1]).not.toHaveProperty('description')
+  })
+})
+
+describe('connector setup guidance', () => {
+  it('describes GitLab PAT setup without requiring an OAuth credential or administrator fields', () => {
+    const schema = JSON.parse(serializeConnectorSchema(gitlabConnectorMeta))
+    expect(schema.auth.mode).toBe('apiKey')
+    expect(schema.configFields.filter((field: { required?: boolean }) => field.required)).toEqual([
+      expect.objectContaining({ id: 'project' }),
+    ])
+
+    const overview = serializeConnectorOverview([gitlabConnectorMeta])
+    expect(overview).toContain(
+      'For API-key connectors, pass apiKey as a `{{SECRET_NAME}}` reference'
+    )
+    expect(overview).toContain('For OAuth connectors, pass a credentialId')
+    expect(overview).not.toContain('the user must have an OAuth credential')
   })
 })
 
