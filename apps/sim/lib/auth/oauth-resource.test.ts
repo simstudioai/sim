@@ -17,6 +17,7 @@ import {
 const resource = 'https://sim.example/api/mcp/search/organizations/org-one'
 const simMcpResource = 'https://sim.example/api/mcp'
 const otherResource = 'https://sim.example/api/mcp/search/organizations/org-two'
+const workflowMcpResource = 'https://sim.example/api/mcp/serve/server-one'
 const scopes = ['search:read', 'offline_access']
 
 describe('OAuth resource binding', () => {
@@ -24,6 +25,13 @@ describe('OAuth resource binding', () => {
     expect(parseOAuthResource(resource)).toEqual({ kind: 'search', url: resource })
     expect(parseOAuthResource(simMcpResource)).toEqual({ kind: 'api', url: simMcpResource })
     expect(parseOAuthResource(null)).toBeNull()
+  })
+
+  it('accepts exact workflow MCP server endpoints as Sim API audiences', () => {
+    expect(parseOAuthResource(workflowMcpResource)).toEqual({
+      kind: 'api',
+      url: workflowMcpResource,
+    })
   })
 
   it.each([
@@ -44,6 +52,13 @@ describe('OAuth resource binding', () => {
     'https://sim.example/api/mcp/',
     'https://sim.example/api/mcp?workspaceId=ws-1',
     'https://attacker.example/api/mcp',
+    'https://sim.example/api/mcp/serve',
+    'https://sim.example/api/mcp/serve/',
+    'https://sim.example/api/mcp/serve/server-one/',
+    'https://sim.example/api/mcp/serve/server-one?x=1',
+    'https://sim.example/api/mcp/serve/a/../server-one',
+    'https://sim.example/api/mcp/serve/server%2Done',
+    'https://attacker.example/api/mcp/serve/server-one',
   ])('rejects noncanonical or unsupported resources: %s', (value) => {
     expect(() => parseOAuthResource(value)).toThrow(InvalidOAuthResourceError)
   })
