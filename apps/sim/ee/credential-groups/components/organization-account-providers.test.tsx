@@ -65,6 +65,7 @@ const group: NonNullable<OrganizationAccountsSettings['credentialGroup']> = {
   name: 'Connected accounts',
   description: null,
   options: [],
+  apiKeyOptions: [],
   mcpServers: [],
   status: 'active',
   createdAt: '2026-09-07T00:00:00Z',

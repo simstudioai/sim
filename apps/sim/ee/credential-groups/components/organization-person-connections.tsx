@@ -44,6 +44,14 @@ export function OrganizationPersonConnections({ person }: OrganizationPersonConn
     })
   const accounts = [
     ...connections,
+    ...person.apiKeyConnections
+      .filter((connection) => connection.status === 'active')
+      .map((connection) => ({
+        key: `api-key:${connection.optionId}`,
+        name: connection.name,
+        count: 1,
+        icon: undefined,
+      })),
     ...person.mcpConnections
       .filter((connection) => connection.status === 'active')
       .map((connection) => ({

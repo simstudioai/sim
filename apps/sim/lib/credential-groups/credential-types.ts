@@ -12,11 +12,13 @@ export type OrganizationCredentialType =
   | `oauth:${(typeof CREDENTIAL_GROUP_PROVIDER_IDS)[number]}`
   | `mcp:${(typeof MANAGED_MCP_CONNECTOR_IDS)[number]}`
   | 'personal_token:gitlab'
+  | 'api_key'
 
 export const ORGANIZATION_CREDENTIAL_TYPES: readonly OrganizationCredentialType[] = [
   ...CREDENTIAL_GROUP_PROVIDER_IDS.map((provider) => `oauth:${provider}` as const),
   ...MANAGED_MCP_CONNECTOR_IDS.map((provider) => `mcp:${provider}` as const),
   'personal_token:gitlab',
+  'api_key',
 ]
 
 export function isOrganizationCredentialType(value: string): value is OrganizationCredentialType {
@@ -38,5 +40,6 @@ export function getOrganizationCredentialTypeCatalog() {
       label: MANAGED_MCP_CONNECTORS[provider].name,
     })),
     { id: 'personal_token:gitlab' as const, label: 'GitLab' },
+    { id: 'api_key' as const, label: 'API keys' },
   ].sort((left, right) => left.label.localeCompare(right.label))
 }

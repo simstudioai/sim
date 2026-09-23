@@ -123,6 +123,7 @@ describe('focused public enrollment projection', () => {
         groupName: 'Accounts',
         groupStatus: 'active',
         options,
+        apiKeyOptions: [],
         workspaceId: identity.workspaceId,
         workspaceName: 'Workspace',
         workspaceOwnerId: 'owner',
@@ -172,7 +173,9 @@ describe('listCredentialGroupEnrollments', () => {
 
   it('returns bounded provider summaries instead of materializing every credential', async () => {
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ options: [{ id: 'option-1', status: 'active' }] }])
+      .mockResolvedValueOnce([
+        { apiKeyOptions: [], options: [{ id: 'option-1', status: 'active' }] },
+      ])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
       .mockResolvedValueOnce([
         {
@@ -200,7 +203,7 @@ describe('listCredentialGroupEnrollments', () => {
 
   it('includes personal GitLab accounts in an enrollment with no OAuth options', async () => {
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
       .mockResolvedValueOnce([
         { enrollmentId: ENROLLMENT.id, providerId: 'gitlab', status: 'active', count: 2 },
@@ -214,7 +217,9 @@ describe('listCredentialGroupEnrollments', () => {
 
   it('fails fast when a managed credential uses an unsupported provider', async () => {
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ options: [{ id: 'option-1', status: 'active' }] }])
+      .mockResolvedValueOnce([
+        { apiKeyOptions: [], options: [{ id: 'option-1', status: 'active' }] },
+      ])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
       .mockResolvedValueOnce([
         {
@@ -232,7 +237,9 @@ describe('listCredentialGroupEnrollments', () => {
 
   it('rejects connection summaries beyond the bounded provider-state cardinality', async () => {
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ options: [{ id: 'option-1', status: 'active' }] }])
+      .mockResolvedValueOnce([
+        { apiKeyOptions: [], options: [{ id: 'option-1', status: 'active' }] },
+      ])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
       .mockResolvedValueOnce(
         Array.from({ length: MAX_CONNECTION_SUMMARIES + 1 }, (_, index) => ({
@@ -284,10 +291,10 @@ describe('listCredentialGroupEnrollments', () => {
       invitedAt: new Date('2026-08-10T12:00:00.000Z'),
     }
     dbChainMockFns.limit
-      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
       .mockResolvedValueOnce([{ enrollment: remainingEnrollment }])
       .mockResolvedValueOnce([])
 
@@ -316,7 +323,9 @@ describe('listCredentialGroupEnrollments', () => {
   })
 
   it('filters email in SQL before the bounded page and preserves exact-email compatibility', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }]).mockResolvedValueOnce([])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
+      .mockResolvedValueOnce([])
     const result = await listCredentialGroupEnrollments(
       { kind: 'organization', organizationId: 'org-1' },
       'group-1',
@@ -339,13 +348,15 @@ describe('listCredentialGroupEnrollments', () => {
       })
     ).rejects.toMatchObject({ status: 400 })
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }]).mockResolvedValueOnce([])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
+      .mockResolvedValueOnce([])
     await listCredentialGroupEnrollments('workspace-1', 'group-1', 50, undefined, { search: '   ' })
     expect(ilike).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed enrollment cursor', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ apiKeyOptions: [], options: [] }])
 
     await expect(
       listCredentialGroupEnrollments('workspace-1', 'group-1', 50, 'not-a-cursor')

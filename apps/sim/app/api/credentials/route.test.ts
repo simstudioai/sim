@@ -66,6 +66,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/credentials/access', () => ({
+  MANAGED_CREDENTIAL_TYPES: ['managed_oauth', 'managed_mcp', 'managed_api_key'],
   canUseCredential: (access: { member: unknown; isAdmin: boolean; hasWorkspaceAccess: boolean }) =>
     access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
   getCredentialActorContext: mockGetCredentialActorContext,

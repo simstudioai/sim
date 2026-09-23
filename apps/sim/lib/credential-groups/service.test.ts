@@ -75,6 +75,7 @@ describe('Credential Group service', () => {
           workspaceId: 'workspace-1',
           name: 'Members',
           description: null,
+          apiKeyOptions: [],
           options: [
             {
               id: 'option-1',
@@ -123,6 +124,7 @@ describe('Credential Group service', () => {
       publicId: 'public-1',
       name: 'Support accounts',
       description: null,
+      apiKeyOptions: [],
       options: [option],
       encryptedProviderConfiguration: null,
       status: 'active' as const,
@@ -177,6 +179,7 @@ describe('Credential Group service', () => {
       publicId: 'public-1',
       name: 'Support accounts',
       description: null,
+      apiKeyOptions: [],
       options: [],
       encryptedProviderConfiguration: null,
       status: 'active' as const,
@@ -227,6 +230,7 @@ describe('Credential Group service', () => {
         publicId: 'public-1',
         name: 'Support accounts',
         description: null,
+        apiKeyOptions: [],
         options: [],
         encryptedProviderConfiguration: null,
         status: 'active',
@@ -248,6 +252,7 @@ describe('Credential Group service', () => {
         workspaceId: 'workspace-1',
         name: 'Existing accounts',
         description: null,
+        apiKeyOptions: [],
         options: [],
         encryptedProviderConfiguration: null,
         status: 'active',
@@ -261,5 +266,58 @@ describe('Credential Group service', () => {
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('API key request definitions', () => {
+  const original = {
+    id: 'group-1',
+    workspaceId: null,
+    organizationId: 'org-1',
+    name: 'Credential Group',
+    description: null,
+    options: [],
+    apiKeyOptions: [{ id: 'key-option', name: 'Exa', description: null }],
+    mcpServers: [],
+    status: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockConfiguration.mockResolvedValue({})
+    queueTableRows(schemaMock.credentialGroup, [original])
+    dbChainMockFns.returning.mockResolvedValueOnce([original])
+  })
+  it('preserves stable IDs when names change without removing submitted credentials', async () => {
+    await updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+      apiKeyOptions: [
+        { id: 'key-option', name: 'Research API key', description: 'Your own account' },
+      ],
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyOptions: [
+          { id: 'key-option', name: 'Research API key', description: 'Your own account' },
+        ],
+      })
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+  it('rejects a stale or foreign option ID before writing', async () => {
+    await expect(
+      updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+        apiKeyOptions: [{ id: 'other-group-option', name: 'Exa', description: null }],
+      })
+    ).rejects.toThrow('no longer exists')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+  it('removes the encrypted submissions when their request is removed', async () => {
+    await updateCredentialGroup({ kind: 'organization', organizationId: 'org-1' }, 'group-1', {
+      apiKeyOptions: [],
+    })
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ apiKeyOptions: [] }))
   })
 })

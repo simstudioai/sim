@@ -3,7 +3,11 @@ import { credential, credentialMember, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, notInArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/credentials/access'
+import {
+  isSharedCredentialType,
+  MANAGED_CREDENTIAL_TYPES,
+  requireOrdinaryCredentialType,
+} from '@/lib/credentials/access'
 import type { CredentialRow } from '@/lib/credentials/queries'
 import {
   getUserEntityPermissions,
@@ -228,7 +232,7 @@ export async function listCredentialMembershipsForUser(userId: string) {
     .where(
       and(
         eq(credentialMember.userId, userId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES])
       )
     )
   return rows.flatMap((row) =>

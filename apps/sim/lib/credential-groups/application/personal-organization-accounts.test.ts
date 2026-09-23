@@ -137,3 +137,31 @@ describe('personal organization contributions', () => {
     expect(mocks.invite).not.toHaveBeenCalled()
   })
 })
+
+it('lets a contributor discover and reconnect an API key without selecting an OAuth provider', async () => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+  const apiKey = {
+    ...row,
+    type: 'managed_api_key',
+    optionId: 'api-key-option',
+    displayName: 'Old name',
+    apiKeyOptions: [{ id: 'api-key-option', name: 'Exa API key', description: null }],
+    mcpProvider: null,
+  }
+  queueTableRows(schemaMock.credential, [apiKey])
+  const result = await listPersonalOrganizationAccounts.execute({ principal, input: {} })
+  expect(result.accounts[0]).toMatchObject({
+    kind: 'api_key',
+    providerId: 'api_key',
+    displayName: 'Exa API key',
+  })
+  mocks.available.mockResolvedValue(true)
+  mocks.invite.mockResolvedValue({
+    invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+  })
+  queueTableRows(schemaMock.credential, [apiKey])
+  expect(await reconnectPersonalOrganizationAccount.execute({ principal, input })).toEqual({
+    invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+  })
+})

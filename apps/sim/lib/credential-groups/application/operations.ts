@@ -112,6 +112,24 @@ export const credentialGroupOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
+  // permission-group-exempt: executor discovery is governed by the group's current workspace access policy
+  listApiKeys: defineWorkspaceOperation({
+    id: 'credential_groups.api_keys.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
+  // permission-group-exempt: executor secret retrieval is governed by the group's current workspace access policy
+  getApiKey: defineWorkspaceOperation({
+    id: 'credential_groups.api_keys.get',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
   // permission-group-exempt: read by the executor to resolve an enrolled person's MCP connection; use is enforced by the Credential Group policy
   listMcpConnections: defineWorkspaceOperation({
     id: 'credential_groups.mcp_connections.list',

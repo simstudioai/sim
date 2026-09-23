@@ -28,6 +28,7 @@ describe('listVisibleWorkspaceCredentials', () => {
     expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
       'managed_oauth',
       'managed_mcp',
+      'managed_api_key',
     ])
   })
 
@@ -164,6 +165,7 @@ describe('ordinary credential lookups', () => {
     expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
       'managed_oauth',
       'managed_mcp',
+      'managed_api_key',
     ])
   })
 })

@@ -17,11 +17,15 @@ type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
 
 export type CredentialType = (typeof credentialTypeEnum.enumValues)[number]
-export type ManagedCredentialType = Extract<CredentialType, 'managed_oauth' | 'managed_mcp'>
+export type ManagedCredentialType = Extract<
+  CredentialType,
+  'managed_oauth' | 'managed_mcp' | 'managed_api_key'
+>
 
 export const MANAGED_CREDENTIAL_TYPES: readonly ManagedCredentialType[] = [
   'managed_oauth',
   'managed_mcp',
+  'managed_api_key',
 ]
 
 export function isManagedCredentialType(type: CredentialType): type is ManagedCredentialType {

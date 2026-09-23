@@ -1,4 +1,8 @@
 import { omit } from '@sim/utils/object'
+import {
+  getCredentialGroupApiKey,
+  listCredentialGroupApiKeys,
+} from '@/lib/credential-groups/application/api-keys'
 import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/application/authorization'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
@@ -76,6 +80,41 @@ export class CredentialBlockHandler implements BlockHandler {
     })
     const operation = parseOptionalString(inputs.operation, 'Operation') ?? 'select'
     switch (operation) {
+      case 'list_credential_group_api_keys': {
+        return listCredentialGroupApiKeys.execute({
+          principal,
+          input: {
+            workspaceId: ctx.workspaceId,
+            keyName: parseOptionalString(inputs.keyName, 'Key name'),
+            email: parseOptionalString(inputs.email, 'Email'),
+            limit: parseLimit(inputs.limit),
+            cursor: parseOptionalString(inputs.cursor, 'Cursor'),
+          },
+        })
+      }
+      case 'get_credential_group_api_key': {
+        const registry = ctx.resolvedSecretTraceRegistry
+        if (!registry || !registry.isComplete())
+          throw new Error('API key retrieval requires complete secret provenance')
+        const resolved = await getCredentialGroupApiKey.execute({
+          principal,
+          input: {
+            workspaceId: ctx.workspaceId,
+            credentialId: requireString(inputs.apiKeyCredentialId, 'API Key Credential ID'),
+          },
+        })
+        const imported = await registry.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            entries: [{ encryptedValue: resolved.encryptedValue }],
+          },
+          { trusted: true, anonymous: true, origin: 'credential.getCredentialGroupApiKey' }
+        )
+        if (!imported || !registry.isComplete())
+          throw new Error('API key could not be registered for secret redaction')
+        return omit(resolved, ['encryptedValue'])
+      }
       case 'select': {
         const credentials = await resolveWorkflowCredentials.execute({
           principal,

@@ -9,6 +9,7 @@ import {
   resourceScopeFromOwner,
   sameResourceScope,
 } from '@/lib/core/resource-scope'
+import { deleteEnrollmentApiKey, saveEnrollmentApiKey } from '@/lib/credential-groups/api-keys'
 import { credentialGroupEnrollmentOperations } from '@/lib/credential-groups/application/enrollment-operations'
 import {
   bindCredentialGroupEnrollmentUser,
@@ -176,6 +177,51 @@ export const completePublicCredentialGroupEnrollment =
       return { completed: completion?.completed ?? null }
     },
   })
+
+export const savePublicCredentialGroupApiKey = defineAuthorizedCredentialGroupEnrollmentUseCase({
+  operation: credentialGroupEnrollmentOperations.saveApiKey,
+  resolveContext: ({
+    principal,
+  }: {
+    principal: CredentialGroupEnrollmentPrincipal
+    input: { optionId: string; value: string }
+  }) => resolvePublicEnrollmentContext(principal),
+  async execute({ context, input }) {
+    const saved = await saveEnrollmentApiKey(context, input.optionId, input.value)
+    if (context.organizationId)
+      await fireCredentialGroupTrigger({
+        event: saved.created ? 'credential_added' : 'credential_reconnected',
+        organizationId: context.organizationId,
+        credentialGroupId: context.credentialGroupId,
+        credentialGroupName: context.enrollment.credentialGroupName,
+        enrollmentId: context.enrollmentId,
+        email: context.email,
+        enrollmentStatus: saved.enrollmentStatus,
+        credential: {
+          credentialId: saved.credentialId,
+          credentialGroupOptionId: saved.optionId,
+          provider: 'api_key',
+          providerId: 'api_key',
+          displayName: saved.name,
+        },
+      })
+    return { connected: true as const }
+  },
+})
+
+export const deletePublicCredentialGroupApiKey = defineAuthorizedCredentialGroupEnrollmentUseCase({
+  operation: credentialGroupEnrollmentOperations.deleteApiKey,
+  resolveContext: ({
+    principal,
+  }: {
+    principal: CredentialGroupEnrollmentPrincipal
+    input: { optionId: string }
+  }) => resolvePublicEnrollmentContext(principal),
+  async execute({ context, input }) {
+    await deleteEnrollmentApiKey(context, input.optionId)
+    return { connected: false as const }
+  },
+})
 
 interface PublicCredentialGroupOAuthInput {
   invitationToken: string

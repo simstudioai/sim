@@ -39,7 +39,7 @@ interface CredentialGroupTriggerCredential {
   credentialId: string
   credentialGroupOptionId: string | null
   mcpServerId?: string
-  provider: CredentialGroupProvider | ManagedMcpConnectorId
+  provider: CredentialGroupProvider | ManagedMcpConnectorId | 'api_key'
   providerId: string
   displayName: string
 }
@@ -65,7 +65,7 @@ export interface CredentialGroupTriggerPayload {
   credentialId: string | null
   credentialGroupOptionId: string | null
   mcpServerId: string | null
-  provider: CredentialGroupProvider | ManagedMcpConnectorId | null
+  provider: CredentialGroupProvider | ManagedMcpConnectorId | 'api_key' | null
   providerId: string | null
   displayName: string | null
 }
@@ -132,7 +132,9 @@ export async function fireCredentialGroupTrigger(
       ? undefined
       : event.credential.mcpServerId
         ? `mcp:${getManagedMcpConnector(event.credential.provider).id}`
-        : organizationOAuthCredentialType(event.credential.providerId)
+        : event.credential.provider === 'api_key'
+          ? 'api_key'
+          : organizationOAuthCredentialType(event.credential.providerId)
   const allowedWorkspaceIds = listOrganizationAccountWorkspaceIds(policy.document).filter((id) =>
     organizationAccountPolicyAllowsWorkspace(policy.document, id, credentialType)
   )

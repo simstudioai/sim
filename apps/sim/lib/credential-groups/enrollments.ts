@@ -38,6 +38,7 @@ import {
 import { credentialGroupScope } from '@/lib/credential-groups/scope'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import type {
+  CredentialGroupEnrollmentApiKeyConnection,
   CredentialGroupEnrollmentConnection,
   CredentialGroupEnrollmentDetail,
   CredentialGroupEnrollmentMcpConnection,
@@ -93,6 +94,12 @@ interface IssuedInvitation {
 }
 
 export interface PublicCredentialGroupEnrollment {
+  apiKeyOptions: Array<{
+    id: string
+    name: string
+    description: string | null
+    connected: boolean
+  }>
   /** Null when the invitation was issued by a workflow or a since-deleted user. */
   inviterName: string | null
   workspaceName: string
@@ -262,6 +269,7 @@ async function loadLiveEnrollmentRow(scope: SQL | undefined) {
       groupName: credentialGroup.name,
       groupStatus: credentialGroup.status,
       options: credentialGroup.options,
+      apiKeyOptions: credentialGroup.apiKeyOptions,
       workspaceId: credentialGroup.workspaceId,
       organizationId: credentialGroup.organizationId,
       organizationName: organization.name,
@@ -698,7 +706,7 @@ export async function listCredentialGroupEnrollments(
     throw new CredentialGroupEnrollmentError('People search must be at most 320 characters', 400)
   }
   const [group] = await db
-    .select({ options: credentialGroup.options })
+    .select({ options: credentialGroup.options, apiKeyOptions: credentialGroup.apiKeyOptions })
     .from(credentialGroup)
     .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
     .limit(1)
@@ -823,6 +831,44 @@ export async function listCredentialGroupEnrollments(
   if (mcpConnectionRows.length > mcpConnectionSummaryLimit) {
     throw new Error('Managed MCP connection summaries exceed the linked server limit')
   }
+  const apiKeyOptions = filters.optionId ? [] : group.apiKeyOptions
+  const apiKeySummaryLimit = enrollmentIds.length * apiKeyOptions.length
+  const apiKeyRows =
+    apiKeySummaryLimit === 0
+      ? []
+      : await db
+          .select({
+            enrollmentId: credential.credentialGroupEnrollmentId,
+            optionId: credential.credentialGroupOptionId,
+            status: credential.managedOauthStatus,
+          })
+          .from(credential)
+          .where(
+            and(
+              resourceScopeCondition(credential, scope),
+              eq(credential.type, 'managed_api_key'),
+              inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
+              inArray(
+                credential.credentialGroupOptionId,
+                apiKeyOptions.map((option) => option.id)
+              )
+            )
+          )
+          .limit(apiKeySummaryLimit + 1)
+  if (apiKeyRows.length > apiKeySummaryLimit)
+    throw new Error('API key connection summaries exceed the request limit')
+  const apiKeysByEnrollment = new Map<string, CredentialGroupEnrollmentApiKeyConnection[]>()
+  for (const row of apiKeyRows) {
+    const option = apiKeyOptions.find((option) => option.id === row.optionId)
+    if (!row.enrollmentId || !option) throw new Error('API key connection source is missing')
+    const current = apiKeysByEnrollment.get(row.enrollmentId) ?? []
+    current.push({
+      optionId: option.id,
+      name: option.name,
+      status: toCredentialGroupConnectionStatus(row.status),
+    })
+    apiKeysByEnrollment.set(row.enrollmentId, current)
+  }
   const connectionsByEnrollment = new Map<string, CredentialGroupEnrollmentConnection[]>()
   for (const connection of connectionRows) {
     if (!connection.enrollmentId) {
@@ -860,6 +906,7 @@ export async function listCredentialGroupEnrollments(
   return {
     enrollments: pageRows.map(({ enrollment }) => ({
       ...toCredentialGroupEnrollment(enrollment),
+      apiKeyConnections: apiKeysByEnrollment.get(enrollment.id) ?? [],
       connections: connectionsByEnrollment.get(enrollment.id) ?? [],
       mcpConnections: mcpConnectionsByEnrollment.get(enrollment.id) ?? [],
     })),
@@ -1138,7 +1185,7 @@ async function buildPublicCredentialGroupEnrollment(
   row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
   projection?: { optionId: string }
 ): Promise<PublicCredentialGroupEnrollment> {
-  const [connectionRows, linkedMcpServers, mcpConnectionRows] = await Promise.all([
+  const [connectionRows, linkedMcpServers, mcpConnectionRows, apiKeyRows] = await Promise.all([
     db
       .select({
         optionId: credential.credentialGroupOptionId,
@@ -1189,6 +1236,17 @@ async function buildPublicCredentialGroupEnrollment(
           eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
         )
       ),
+    db
+      .select({ optionId: credential.credentialGroupOptionId })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'managed_api_key'),
+          eq(credential.credentialGroupEnrollmentId, row.enrollment.id),
+          eq(credential.managedOauthStatus, 'active'),
+          isNull(credential.revokedAt)
+        )
+      ),
   ])
   const mcpConnectionByServerId = new Map(
     mcpConnectionRows.map((connection) => {
@@ -1206,6 +1264,10 @@ async function buildPublicCredentialGroupEnrollment(
     inviterName: row.inviterName,
     workspaceName: row.workspaceName,
     credentialGroupName: row.groupName,
+    apiKeyOptions: (projection ? [] : row.apiKeyOptions).map((option) => ({
+      ...option,
+      connected: apiKeyRows.some((key) => key.optionId === option.id),
+    })),
     options: await Promise.all(
       options.map(async (option) => {
         if (!isCredentialGroupProvider(option.provider)) {

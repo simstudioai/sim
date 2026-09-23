@@ -5,6 +5,12 @@ import {
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT } from '@/lib/credential-groups/api-key-constants'
+import {
+  credentialGroupApiKeyOptionInputSchema,
+  credentialGroupApiKeyOptionsInputSchema,
+  credentialGroupApiKeyValueSchema,
+} from '@/lib/credential-groups/api-key-validation'
 import {
   CREDENTIAL_GROUP_MCP_SERVER_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
@@ -94,6 +100,9 @@ export const credentialGroupSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   options: z.array(credentialGroupOptionSchema).max(CREDENTIAL_GROUP_PROVIDER_IDS.length),
+  apiKeyOptions: z
+    .array(credentialGroupApiKeyOptionInputSchema.required({ id: true }))
+    .max(CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT),
   mcpServers: z.array(credentialGroupMcpServerSchema).max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
   status: credentialGroupStatusSchema,
   createdAt: z.string(),
@@ -134,10 +143,19 @@ export const credentialGroupEnrollmentMcpConnectionSchema = z.object({
   status: z.enum(['active', 'needs_reauth', 'revoked']),
 })
 
+export const credentialGroupEnrollmentApiKeyConnectionSchema = z.object({
+  optionId: z.string().uuid(),
+  name: credentialGroupApiKeyOptionInputSchema.shape.name,
+  status: z.enum(['active', 'needs_reauth', 'revoked']),
+})
+
 export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSchema.extend({
   connections: z
     .array(credentialGroupEnrollmentConnectionSchema)
     .max((CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3),
+  apiKeyConnections: z
+    .array(credentialGroupEnrollmentApiKeyConnectionSchema)
+    .max(CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT),
   mcpConnections: z
     .array(credentialGroupEnrollmentMcpConnectionSchema)
     .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
@@ -148,6 +166,9 @@ export type CredentialGroupEnrollmentConnection = z.output<
 >
 export type CredentialGroupEnrollmentMcpConnection = z.output<
   typeof credentialGroupEnrollmentMcpConnectionSchema
+>
+export type CredentialGroupEnrollmentApiKeyConnection = z.output<
+  typeof credentialGroupEnrollmentApiKeyConnectionSchema
 >
 export type CredentialGroupEnrollmentDetail = z.output<typeof credentialGroupEnrollmentDetailSchema>
 
@@ -325,6 +346,7 @@ export const updateCredentialGroupBodySchema = z
       .max(CREDENTIAL_GROUP_PROVIDER_IDS.length)
       .optional(),
     status: credentialGroupStatusSchema.optional(),
+    apiKeyOptions: credentialGroupApiKeyOptionsInputSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -588,6 +610,30 @@ export const completeCredentialGroupEnrollmentContract = defineRouteContract({
   params: publicCredentialGroupEnrollmentParamsSchema,
   response: { mode: 'empty' },
 })
+
+export const saveCredentialGroupApiKeyBodySchema = z
+  .object({ value: credentialGroupApiKeyValueSchema })
+  .strict()
+
+export const saveCredentialGroupApiKeyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/credential-groups/enroll/[token]/api-keys/[optionId]',
+  params: startCredentialGroupOAuthParamsSchema,
+  body: saveCredentialGroupApiKeyBodySchema,
+  response: { mode: 'json', schema: z.object({ connected: z.literal(true) }) },
+})
+
+export const deleteCredentialGroupApiKeyContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/credential-groups/enroll/[token]/api-keys/[optionId]',
+  params: startCredentialGroupOAuthParamsSchema,
+  response: { mode: 'json', schema: z.object({ connected: z.literal(false) }) },
+})
+
+export type SaveCredentialGroupApiKeyBody = z.input<typeof saveCredentialGroupApiKeyBodySchema>
+export type CredentialGroupApiKeyOption = z.output<
+  typeof credentialGroupSchema
+>['apiKeyOptions'][number]
 
 export const credentialGroupOAuthCallbackContract = defineRouteContract({
   method: 'GET',

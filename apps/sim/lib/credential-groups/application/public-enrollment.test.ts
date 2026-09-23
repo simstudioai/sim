@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   bind: vi.fn(),
+  saveApiKey: vi.fn(),
+  deleteApiKey: vi.fn(),
   memberAccess: vi.fn(),
   searchAvailable: vi.fn(),
   completeEnrollment: vi.fn(),
@@ -27,6 +29,11 @@ vi.mock('@/lib/organizations/settings-access', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: mocks.searchAvailable,
+}))
+
+vi.mock('@/lib/credential-groups/api-keys', () => ({
+  saveEnrollmentApiKey: mocks.saveApiKey,
+  deleteEnrollmentApiKey: mocks.deleteApiKey,
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
@@ -57,7 +64,9 @@ import {
   completePublicCredentialGroupEnrollment,
   completePublicCredentialGroupMcpOAuth,
   completePublicCredentialGroupOAuth,
+  deletePublicCredentialGroupApiKey,
   readPublicCredentialGroupEnrollment,
+  savePublicCredentialGroupApiKey,
   startPublicCredentialGroupMcpOAuth,
   startPublicCredentialGroupOAuth,
 } from '@/lib/credential-groups/application/public-enrollment'
@@ -485,5 +494,71 @@ describe('public Credential Group enrollment application operations', () => {
       })
     ).rejects.toThrow('invitation was revoked')
     expect(mocks.completeMcpOAuth).not.toHaveBeenCalled()
+  })
+})
+
+describe('public API key submission', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    mocks.bind.mockResolvedValue(undefined)
+    mocks.getEnrollment.mockResolvedValue({
+      credentialGroupName: 'Credential Group',
+      status: 'invited',
+      options: [],
+      apiKeyOptions: [],
+    })
+    mocks.saveApiKey.mockResolvedValue({
+      created: true,
+      credentialId: 'key-1',
+      optionId: 'key-option',
+      name: 'Exa API key',
+      enrollmentStatus: 'in_progress',
+    })
+  })
+  it('binds the verified invitee before saving, and emits only metadata', async () => {
+    expect(
+      await savePublicCredentialGroupApiKey.execute({
+        principal,
+        input: { optionId: 'key-option', value: 'fixture-secret' },
+      })
+    ).toEqual({ connected: true })
+    expect(mocks.bind).toHaveBeenCalledWith(identity, principal.userId)
+    expect(mocks.bind.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.saveApiKey.mock.invocationCallOrder[0]
+    )
+    expect(mocks.saveApiKey).toHaveBeenCalledWith(
+      expect.objectContaining(identity),
+      'key-option',
+      'fixture-secret'
+    )
+    expect(mocks.fireTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'credential_added',
+        credential: {
+          credentialId: 'key-1',
+          credentialGroupOptionId: 'key-option',
+          provider: 'api_key',
+          providerId: 'api_key',
+          displayName: 'Exa API key',
+        },
+      })
+    )
+    expect(JSON.stringify(mocks.fireTrigger.mock.calls)).not.toContain('fixture-secret')
+  })
+  it.each(['save', 'delete'])('refuses %s when invitation binding fails', async (operation) => {
+    mocks.bind.mockRejectedValue(new Error('Wrong verified invitee'))
+    const run =
+      operation === 'save'
+        ? savePublicCredentialGroupApiKey.execute({
+            principal,
+            input: { optionId: 'key-option', value: 'fixture-secret' },
+          })
+        : deletePublicCredentialGroupApiKey.execute({
+            principal,
+            input: { optionId: 'key-option' },
+          })
+    await expect(run).rejects.toThrow('Wrong verified invitee')
+    expect(mocks.saveApiKey).not.toHaveBeenCalled()
+    expect(mocks.deleteApiKey).not.toHaveBeenCalled()
   })
 })

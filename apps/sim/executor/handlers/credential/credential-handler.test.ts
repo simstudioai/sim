@@ -5,6 +5,9 @@ import type { SerializedBlock } from '@/serializer/types'
 
 const mocks = vi.hoisted(() => ({
   principal: vi.fn(),
+  listKeys: vi.fn(),
+  getKey: vi.fn(),
+  decrypt: vi.fn(),
   oauth: vi.fn(),
   mcp: vi.fn(),
   workspace: vi.fn(),
@@ -22,7 +25,15 @@ vi.mock('@/lib/credentials/application/resolve-workflow-credentials', () => ({
   resolveWorkflowCredentials: { execute: mocks.workspace },
 }))
 
+vi.mock('@/lib/credential-groups/application/api-keys', () => ({
+  listCredentialGroupApiKeys: { execute: mocks.listKeys },
+  getCredentialGroupApiKey: { execute: mocks.getKey },
+}))
+vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
+
 import { CredentialBlockHandler } from '@/executor/handlers/credential/credential-handler'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const ctx = {
   workspaceId: 'child-workspace',
@@ -228,5 +239,102 @@ describe('Credential organization operations', () => {
       })
     ).rejects.toThrow('authenticated workflow execution')
     expect(mocks.principal).not.toHaveBeenCalled()
+  })
+})
+
+describe('Credential API key operations', () => {
+  const metadata = {
+    credentialId: 'key-1',
+    optionId: 'option-1',
+    name: 'Exa API key',
+    email: 'contributor@example.com',
+  }
+  const secret = 'test-provider-api-key'
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.principal.mockResolvedValue({ delegationId: 'current-run' })
+    mocks.getKey.mockResolvedValue({ ...metadata, encryptedValue: 'ciphertext', apiKey: secret })
+    mocks.decrypt.mockResolvedValue({ decrypted: secret })
+  })
+  it('lists IDs and metadata using dynamic filters without resolving a secret', async () => {
+    const page = { apiKeys: [metadata], count: 1, hasMore: false, nextCursor: null }
+    mocks.listKeys.mockResolvedValue(page)
+    expect(
+      await handler.execute(ctx, block, {
+        operation: 'list_credential_group_api_keys',
+        keyName: 'Exa API key',
+        email: 'contributor@example.com',
+        limit: '25',
+      })
+    ).toEqual(page)
+    expect(mocks.listKeys).toHaveBeenCalledWith({
+      principal: { delegationId: 'current-run' },
+      input: {
+        workspaceId: 'child-workspace',
+        keyName: 'Exa API key',
+        email: 'contributor@example.com',
+        limit: 25,
+        cursor: undefined,
+      },
+    })
+    expect(mocks.getKey).not.toHaveBeenCalled()
+    expect(mocks.decrypt).not.toHaveBeenCalled()
+  })
+  it('registers anonymous encrypted provenance before returning a usable key', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const result = await handler.execute({ ...ctx, resolvedSecretTraceRegistry: registry }, block, {
+      operation: 'get_credential_group_api_key',
+      apiKeyCredentialId: 'key-1',
+    })
+    expect(result).toEqual({ ...metadata, apiKey: secret })
+    expect(result).not.toHaveProperty('encryptedValue')
+    expect(
+      projectResolvedSecretModelContent({ authorization: `Bearer ${secret}` }, registry)
+    ).toEqual({ safe: true, value: { authorization: 'Bearer [REDACTED_SECRET]' } })
+    const provenance = registry.exportCommittedProvenanceForValue(result)
+    expect(provenance).toMatchObject({
+      complete: true,
+      entries: [{ encryptedValue: 'ciphertext' }],
+    })
+    expect(JSON.stringify(provenance)).not.toContain(secret)
+    const downstream = new ResolvedSecretTraceRegistry()
+    await downstream.importProvenance(provenance, { trusted: true })
+    expect(projectResolvedSecretModelContent(secret, downstream)).toEqual({
+      safe: true,
+      value: '[REDACTED_SECRET]',
+    })
+  })
+  it('fails before retrieval without complete provenance or an explicit credential ID', async () => {
+    await expect(
+      handler.execute(ctx, block, {
+        operation: 'get_credential_group_api_key',
+        apiKeyCredentialId: 'key-1',
+      })
+    ).rejects.toThrow('complete secret provenance')
+    const registry = new ResolvedSecretTraceRegistry()
+    await expect(
+      handler.execute({ ...ctx, resolvedSecretTraceRegistry: registry }, block, {
+        operation: 'get_credential_group_api_key',
+      })
+    ).rejects.toThrow('Credential ID is required')
+    registry.markIncomplete('unspecified')
+    await expect(
+      handler.execute({ ...ctx, resolvedSecretTraceRegistry: registry }, block, {
+        operation: 'get_credential_group_api_key',
+        apiKeyCredentialId: 'key-1',
+      })
+    ).rejects.toThrow('complete secret provenance')
+    expect(mocks.getKey).not.toHaveBeenCalled()
+  })
+  it('does not release the key if provenance decryption fails', async () => {
+    mocks.decrypt.mockRejectedValue(new Error('Cannot decrypt'))
+    const registry = new ResolvedSecretTraceRegistry()
+    await expect(
+      handler.execute({ ...ctx, resolvedSecretTraceRegistry: registry }, block, {
+        operation: 'get_credential_group_api_key',
+        apiKeyCredentialId: 'key-1',
+      })
+    ).rejects.toThrow('registered for secret redaction')
+    expect(registry.isComplete()).toBe(false)
   })
 })

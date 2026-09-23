@@ -91,6 +91,7 @@ beforeEach(() => {
     workspaceName: 'Company',
     credentialGroupName: 'Accounts',
     status: 'in_progress',
+    apiKeyOptions: [],
     options: [
       {
         id: 'site-one',

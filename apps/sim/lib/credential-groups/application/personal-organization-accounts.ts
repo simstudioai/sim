@@ -65,6 +65,7 @@ function ownAccounts(
       organizationId: organization.id,
       organizationName: organization.name,
       groupId: credentialGroup.id,
+      apiKeyOptions: credentialGroup.apiKeyOptions,
       groupStatus: credentialGroup.status,
       enrollmentId: credentialGroupEnrollment.id,
       enrollmentStatus: credentialGroupEnrollment.status,
@@ -84,7 +85,7 @@ function ownAccounts(
         eq(credentialGroupEnrollment.userId, userId),
         sameResourceScopeCondition(credential, credentialGroup),
         isNotNull(credential.organizationId),
-        inArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        inArray(credential.type, ['managed_oauth', 'managed_mcp', 'managed_api_key']),
         input.credentialId ? eq(credential.id, input.credentialId) : undefined,
         input.cursor ? gt(credential.id, input.cursor) : undefined
       )
@@ -100,14 +101,28 @@ export const listPersonalOrganizationAccounts = defineAuthorizedCredentialUserUs
     const page = rows.slice(0, 50)
     return {
       accounts: page.map((row) => {
-        const providerId = row.type === 'managed_mcp' ? row.mcpProvider : row.providerId
-        if (!providerId || !row.status)
+        const providerId =
+          row.type === 'managed_api_key'
+            ? 'api_key'
+            : row.type === 'managed_mcp'
+              ? row.mcpProvider
+              : row.providerId
+        const displayName =
+          row.type === 'managed_api_key'
+            ? row.apiKeyOptions.find((option) => option.id === row.optionId)?.name
+            : row.displayName
+        if (!providerId || !row.status || !displayName)
           throw new Error('Organization account identity is incomplete')
         return {
           credentialId: row.credentialId,
-          displayName: row.displayName,
+          displayName,
           providerId,
-          kind: row.type === 'managed_mcp' ? ('mcp' as const) : ('oauth' as const),
+          kind:
+            row.type === 'managed_api_key'
+              ? ('api_key' as const)
+              : row.type === 'managed_mcp'
+                ? ('mcp' as const)
+                : ('oauth' as const),
           status: row.status,
           organizationId: row.organizationId,
           organizationName: row.organizationName,
@@ -149,7 +164,7 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
       userId: principal.userId,
     })
     const url = new URL(invitationLink)
-    if (account.optionId) {
+    if (account.type === 'managed_oauth' && account.optionId) {
       url.searchParams.set('optionId', account.optionId)
       url.searchParams.set('returnTo', 'accounts')
     }

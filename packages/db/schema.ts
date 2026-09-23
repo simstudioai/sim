@@ -5170,6 +5170,7 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
   'managed_oauth',
   'managed_mcp',
+  'managed_api_key',
   'env_workspace',
   'env_personal',
   'service_account',
@@ -5223,6 +5224,7 @@ export const credential = pgTable(
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
     /** Encrypted provider token bound immutably to createdBy, providerSubjectId, and providerTenantId. */
     encryptedPersonalToken: text('encrypted_personal_token'),
+    encryptedApiKey: text('encrypted_api_key'),
     authorizationAppId: text('authorization_app_id'),
     credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
       (): AnyPgColumn => credentialGroupEnrollment.id,
@@ -5259,7 +5261,7 @@ export const credential = pgTable(
     organizationIdIdx: index('credential_organization_id_idx').on(table.organizationId),
     organizationTypeCheck: check(
       'credential_organization_type_check',
-      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'managed_mcp', 'service_account', 'personal_token')`
+      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'managed_mcp', 'managed_api_key', 'service_account', 'personal_token')`
     ),
     organizationAccountUnique: uniqueIndex('credential_organization_account_unique')
       .on(table.organizationId, table.accountId)
@@ -5288,6 +5290,29 @@ export const credential = pgTable(
     managedMcpEnrollmentServerUnique: uniqueIndex('credential_managed_mcp_enrollment_server_unique')
       .on(table.credentialGroupEnrollmentId, table.mcpServerId)
       .where(sql`${table.type} = 'managed_mcp'`),
+    managedApiKeyEnrollmentOptionUnique: uniqueIndex('credential_managed_api_key_option_unique')
+      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+      .where(sql`${table.type} = 'managed_api_key'`),
+    /** contract-pending(after named API keys are fully deployed): validate credential_managed_api_key_source_check and the widened credential_organization_type_check separately to avoid scanning credential during rollout. */
+    managedApiKeySourceConstraint: check(
+      'credential_managed_api_key_source_check',
+      sql`(type::text <> 'managed_api_key') OR (
+        credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NOT NULL
+        AND encrypted_api_key IS NOT NULL
+        AND created_by IS NOT NULL
+        AND granted_at IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND account_id IS NULL
+        AND provider_id IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND encrypted_oauth_token_set IS NULL
+        AND encrypted_personal_token IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND unredacted = false
+      )`
+    ),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -5397,6 +5422,12 @@ export const credential = pgTable(
 
 export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
 
+export interface CredentialGroupApiKeyOptionConfig {
+  id: string
+  name: string
+  description: string | null
+}
+
 export interface CredentialGroupOptionConfig {
   id: string
   provider: string
@@ -5423,6 +5454,10 @@ export const credentialGroup = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     options: jsonb('options').$type<CredentialGroupOptionConfig[]>().notNull(),
+    apiKeyOptions: jsonb('api_key_options')
+      .$type<CredentialGroupApiKeyOptionConfig[]>()
+      .notNull()
+      .default([]),
     encryptedProviderConfiguration: text('encrypted_provider_configuration'),
     status: credentialGroupStatusEnum('status').notNull().default('active'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),

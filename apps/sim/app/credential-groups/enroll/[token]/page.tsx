@@ -18,6 +18,7 @@ import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
+import { CredentialGroupApiKeyInput } from '@/app/credential-groups/enroll/[token]/api-key-input'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
 import {
@@ -309,6 +310,13 @@ export default async function CredentialGroupEnrollmentPage({
               })}
           </div>
         </SettingsSection>
+        {!focused && enrollment.apiKeyOptions.length > 0 && (
+          <SettingsSection label='API keys'>
+            {enrollment.apiKeyOptions.map((option) => (
+              <CredentialGroupApiKeyInput key={option.id} token={token} option={option} />
+            ))}
+          </SettingsSection>
+        )}
         {focused ? (
           <div className='mt-6 flex justify-end'>
             <ChipLink href={returnHref} variant={focusedConnected ? 'primary' : undefined}>

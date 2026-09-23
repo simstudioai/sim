@@ -153,6 +153,7 @@ async function toCredentialGroup(
     ...(row.organizationId ? { organizationId: row.organizationId } : {}),
     name: row.name,
     description: row.description,
+    apiKeyOptions: row.apiKeyOptions,
     options: row.options.map((option) => {
       if (!isCredentialGroupProvider(option.provider)) {
         throw new Error(`Unsupported Credential Group provider: ${option.provider}`)
@@ -464,6 +465,18 @@ export async function updateCredentialGroup(
       .for('update')
     if (!existing) return null
 
+    const existingApiKeyIds = new Set(existing.apiKeyOptions.map((option) => option.id))
+    const nextApiKeyOptions = body.apiKeyOptions?.map((option) => {
+      if (option.id && !existingApiKeyIds.has(option.id))
+        throw new OrchestrationError('validation', 'API key option no longer exists')
+      return { ...option, id: option.id ?? generateId() }
+    })
+    const removedApiKeyIds = nextApiKeyOptions
+      ? existing.apiKeyOptions
+          .filter((option) => !nextApiKeyOptions.some((next) => next.id === option.id))
+          .map((option) => option.id)
+      : []
+
     if (body.options !== undefined) {
       const keptOptionIds = new Set(body.options.map((option) => option.id))
       await refuseIfServingMemberConnectors(
@@ -501,6 +514,7 @@ export async function updateCredentialGroup(
       .update(credentialGroup)
       .set({
         ...(body.options !== undefined ? { options: nextOptions } : {}),
+        ...(nextApiKeyOptions ? { apiKeyOptions: nextApiKeyOptions } : {}),
         ...(body.options !== undefined ? { encryptedProviderConfiguration } : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
         updatedAt: new Date(),
@@ -509,6 +523,24 @@ export async function updateCredentialGroup(
       .returning()
 
     if (!updated) throw new Error('Credential group update returned no row')
+    if (removedApiKeyIds.length > 0) {
+      await tx
+        .delete(credential)
+        .where(
+          and(
+            resourceScopeCondition(credential, scope),
+            eq(credential.type, 'managed_api_key'),
+            inArray(credential.credentialGroupOptionId, removedApiKeyIds),
+            inArray(
+              credential.credentialGroupEnrollmentId,
+              tx
+                .select({ id: credentialGroupEnrollment.id })
+                .from(credentialGroupEnrollment)
+                .where(eq(credentialGroupEnrollment.credentialGroupId, groupId))
+            )
+          )
+        )
+    }
     if (invalidatedOptionIds.length > 0) {
       const enrollmentIds = tx
         .select({ id: credentialGroupEnrollment.id })

@@ -1,5 +1,6 @@
 import { McpIcon } from '@/components/icons'
 import type {
+  CredentialGroupEnrollmentApiKeyConnection,
   CredentialGroupEnrollmentConnection,
   CredentialGroupEnrollmentMcpConnection,
 } from '@/lib/api/contracts/credential-groups'
@@ -8,6 +9,7 @@ import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 
 interface EnrollmentConnectionsProps {
   connections: CredentialGroupEnrollmentConnection[]
+  apiKeyConnections: CredentialGroupEnrollmentApiKeyConnection[]
   mcpConnections: CredentialGroupEnrollmentMcpConnection[]
 }
 
@@ -29,11 +31,17 @@ function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
   return <ProviderIcon className='size-[14px]' aria-hidden />
 }
 
-export function EnrollmentConnections({ connections, mcpConnections }: EnrollmentConnectionsProps) {
+export function EnrollmentConnections({
+  connections,
+  mcpConnections,
+  apiKeyConnections,
+}: EnrollmentConnectionsProps) {
   const connected = connections.filter((connection) => connection.status === 'active')
   const connectedMcp = mcpConnections.filter((connection) => connection.status === 'active')
   const count =
-    connected.reduce((total, connection) => total + connection.count, 0) + connectedMcp.length
+    connected.reduce((total, connection) => total + connection.count, 0) +
+    connectedMcp.length +
+    apiKeyConnections.filter((connection) => connection.status === 'active').length
   const providers = [...new Set(connected.map((connection) => connection.provider))]
 
   return (

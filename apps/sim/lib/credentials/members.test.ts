@@ -18,6 +18,7 @@ describe('listCredentialMembershipsForUser', () => {
     expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
       'managed_oauth',
       'managed_mcp',
+      'managed_api_key',
     ])
   })
 })

@@ -319,7 +319,7 @@ export const personalOrganizationAccountSchema = z.object({
   credentialId: z.string().min(1).max(128),
   displayName: z.string(),
   providerId: z.string().min(1),
-  kind: z.enum(['oauth', 'mcp']),
+  kind: z.enum(['oauth', 'mcp', 'api_key']),
   status: z.enum(['active', 'needs_reauth', 'revoked']),
   organizationId: organizationIdSchema,
   organizationName: z.string(),

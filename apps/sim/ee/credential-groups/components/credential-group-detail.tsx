@@ -290,6 +290,7 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
                             <EnrollmentConnections
                               connections={enrollment.connections}
                               mcpConnections={enrollment.mcpConnections}
+                              apiKeyConnections={enrollment.apiKeyConnections}
                             />
                           }
                           trailing={

@@ -164,6 +164,7 @@ describe('credential group contracts', () => {
       id: 'group-1',
       workspaceId: 'workspace-1',
       description: null,
+      apiKeyOptions: [],
       options: [
         {
           id: 'option-1',
@@ -226,6 +227,7 @@ describe('credential group contracts', () => {
       createdAt: '2026-08-11T12:00:00.000Z',
       updatedAt: '2026-08-11T12:05:00.000Z',
       connections: [{ provider: 'gmail', status: 'active', count: 2 }],
+      apiKeyConnections: [],
       mcpConnections: [{ mcpServerId: 'mcp-server-1', name: 'Fireflies', status: 'active' }],
     })
 
@@ -331,5 +333,42 @@ describe('credential group contracts', () => {
     })
 
     expect(parsed.success).toBe(false)
+  })
+})
+
+describe('named API key requests', () => {
+  it.each(['Exa API key', 'EXA_API_KEY'])(
+    'accepts a human-readable name or identifier: %s',
+    (name) => {
+      expect(
+        updateCredentialGroupBodySchema.parse({ apiKeyOptions: [{ name, description: null }] })
+          .apiKeyOptions
+      ).toEqual([{ name, description: null }])
+    }
+  )
+  it('rejects values and ownership overrides in administrator definitions', () => {
+    expect(
+      updateCredentialGroupBodySchema.safeParse({
+        apiKeyOptions: [{ name: 'Exa', description: null, value: 'secret-value' }],
+      }).success
+    ).toBe(false)
+  })
+  it('rejects duplicate names after normalization and more than 50 requests', () => {
+    expect(
+      updateCredentialGroupBodySchema.safeParse({
+        apiKeyOptions: [
+          { name: 'Exa', description: null },
+          { name: ' EXA ', description: null },
+        ],
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupBodySchema.safeParse({
+        apiKeyOptions: Array.from({ length: 51 }, (_, index) => ({
+          name: `Key ${index}`,
+          description: null,
+        })),
+      }).success
+    ).toBe(false)
   })
 })

@@ -15,6 +15,18 @@ function defineCredentialGroupEnrollmentOperation<const Id extends string>(
 }
 
 export const credentialGroupEnrollmentOperations = {
+  // permission-group-exempt: verified invitation authority permits only the recipient's own API-key submission
+  saveApiKey: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.api_key.save',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
+  // permission-group-exempt: verified invitation authority permits only the recipient's own API-key removal
+  deleteApiKey: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.api_key.delete',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
   // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
   read: defineCredentialGroupEnrollmentOperation({
     id: 'credential_groups.enrollment.read',

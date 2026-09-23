@@ -57,7 +57,7 @@ For Search-enabled organizations, open **Settings → Integrations → People**.
 
 Invitees can contribute accounts without joining your organization. The invitation grants access to their connection form; it does not grant access to your workspaces or workflows.
 
-Use the invitation email in workflow lookups. For example, if you invite `alex@example.com`, **Find Organization Account** with that email and **Gmail** finds Alex's active Gmail contribution.
+Use the invitation email in workflow lookups. For example, if you invite `alex@example.com`, **Find Credential Group Account** with that email and **Gmail** finds Alex's active Gmail contribution.
 
 #### How the email is associated with a Sim user
 
@@ -83,16 +83,24 @@ Removing a workspace stops subsequent use of the pool. It does not recall provid
 
 Use the **Credential** block's organization operations in an allowed workspace:
 
-- **Find Organization Account** selects an OAuth account by invitation email and provider.
-- **List Organization Accounts** returns a page of OAuth accounts, optionally filtered by email and providers.
-- **Find Organization MCP Connection** selects a person's managed MCP connection by invitation email and MCP provider.
-- **List Organization MCP Connections** returns a page of managed MCP connections, optionally filtered by email and provider.
+- **Find Credential Group Account** selects an OAuth account by invitation email and provider.
+- **List Credential Group Accounts** returns a page of OAuth accounts, optionally filtered by email and providers.
+- **Find Credential Group MCP Connection** selects a person's managed MCP connection by invitation email and MCP provider.
+- **List Credential Group MCP Connections** returns a page of managed MCP connections, optionally filtered by email and provider.
 
 The organization is determined by the workflow's workspace. You do not enter a credential group ID or organization ID in the block.
 
 The outputs are account references, without tokens. Use an OAuth `credentialId` in the corresponding integration block's credential field. For managed MCP, `credentialId` identifies the person's connection; `mcpServerId` identifies shared configuration and cannot select that person's authorization by itself.
 
 See the [Credential block reference](/workflows/blocks/credential#organization-accounts) for inputs, outputs, pagination, and connection-event triggers.
+
+## Named API keys
+
+In the Credential Group's **Integrations** tab, select **Add API key**. Enter a name and an optional description explaining where invitees can get the key. The administrator defines the request; each invited person enters their own secret value in the connection form. A name such as `EXA_API_KEY` is permitted but does not create an environment variable.
+
+Allow **API keys** for the workspaces that should use these contributions. In a workflow, **List Credential Group API Keys** returns submitted key IDs and metadata. Pass a selected ID into **Get Credential Group API Key**, then reference its `apiKey` output directly in the downstream block. See the [named API key example](/workflows/blocks/credential#named-api-keys).
+
+People can replace or disconnect their key from their connection form. Renaming a request preserves the submissions and IDs. Removing a request deletes every submitted key for that request. Names and connection status are visible in management views; saved values are not returned to those views.
 
 ## Reconnect or stop sharing
 

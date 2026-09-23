@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/list-query'
 import {
   isSharedCredentialType,
+  MANAGED_CREDENTIAL_TYPES,
   type OrdinaryCredentialType,
   requireOrdinaryCredentialType,
   SHARED_CREDENTIAL_TYPES,
@@ -153,7 +154,7 @@ export async function listVisibleWorkspaceCredentials(params: {
 
   const whereClauses = [
     visibleCredentialScope(workspaceId, userId),
-    notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+    notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES]),
     isNotNull(credential.createdBy),
     or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, userId)),
   ]
@@ -347,7 +348,7 @@ export async function getWorkspaceCredential(params: {
               )
             : undefined
         ),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES])
       )
     )
     .limit(1)
@@ -373,7 +374,7 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.id, params.credentialId),
         visibleCredentialScope(params.workspaceId, params.userId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES]),
         params.userId
           ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
           : sql`${credential.type} <> 'personal_token'`
@@ -389,7 +390,7 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.accountId, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES]),
         params.userId
           ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
           : sql`${credential.type} <> 'personal_token'`
@@ -409,7 +410,7 @@ export async function getCredentialById(credentialId: string): Promise<Credentia
     .where(
       and(
         eq(credential.id, credentialId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, [...MANAGED_CREDENTIAL_TYPES])
       )
     )
     .limit(1)

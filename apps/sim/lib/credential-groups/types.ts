@@ -1,6 +1,18 @@
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 
+export interface CredentialGroupApiKeyOption {
+  id: string
+  name: string
+  description: string | null
+}
+
+export interface CredentialGroupApiKeyOptionInput {
+  id?: string
+  name: string
+  description: string | null
+}
+
 interface CredentialGroupOptionInputBase {
   label: string
   required: boolean
@@ -19,6 +31,7 @@ export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id
 
 export interface UpdateCredentialGroupInput {
   options?: CredentialGroupOptionUpdateInput[]
+  apiKeyOptions?: CredentialGroupApiKeyOptionInput[]
   status?: 'active' | 'disabled'
 }
 
@@ -56,6 +69,7 @@ export interface CredentialGroupRecord {
   name: string
   description: string | null
   options: CredentialGroupOption[]
+  apiKeyOptions: CredentialGroupApiKeyOption[]
   mcpServers: CredentialGroupMcpServer[]
   status: 'active' | 'disabled'
   createdAt: string
@@ -96,9 +110,16 @@ export interface CredentialGroupEnrollmentMcpConnection {
   status: 'active' | 'needs_reauth' | 'revoked'
 }
 
+export interface CredentialGroupEnrollmentApiKeyConnection {
+  optionId: string
+  name: string
+  status: 'active' | 'needs_reauth' | 'revoked'
+}
+
 export interface CredentialGroupEnrollmentDetail extends CredentialGroupEnrollmentRecord {
   connections: CredentialGroupEnrollmentConnection[]
   mcpConnections: CredentialGroupEnrollmentMcpConnection[]
+  apiKeyConnections: CredentialGroupEnrollmentApiKeyConnection[]
 }
 
 export interface InviteCredentialGroupEnrollmentsInput {

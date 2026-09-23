@@ -2654,6 +2654,13 @@
       "when": 1790180334617,
       "tag": "0379_sync_log_database_failure_class",
       "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1790184364415,
+      "tag": "0380_credential_group_api_keys",
+      "breakpoints": true
     }
   ]
 }

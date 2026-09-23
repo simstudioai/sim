@@ -137,6 +137,39 @@ describe('Credential Group trigger delivery', () => {
     expect(mocks.processEvent).toHaveBeenCalledOnce()
   })
 
+  it('delivers API key metadata only to workspaces allowed to use API keys', async () => {
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        { workspaceId: 'workspace-1', access: { mode: 'selected', credentialTypes: ['api_key'] } },
+        {
+          workspaceId: 'workspace-2',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ]),
+    })
+    mocks.fetchSubscriptions.mockResolvedValue([subscription({ workflowId: 'allowed' })])
+    await fireCredentialGroupTrigger({
+      ...EVENT,
+      credential: {
+        ...EVENT.credential,
+        provider: 'api_key',
+        providerId: 'api_key',
+        displayName: 'Exa API key',
+      },
+    })
+    expect(mocks.fetchSubscriptions).toHaveBeenCalledWith('org-1', ['workspace-1'])
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+      'api_key'
+    )
+    expect(mocks.processEvent.mock.calls[0][2]).toMatchObject({
+      provider: 'api_key',
+      credentialId: 'credential-1',
+      displayName: 'Exa API key',
+    })
+    expect(mocks.processEvent.mock.calls[0][2]).not.toHaveProperty('apiKey')
+  })
+
   it('does not scan subscriptions when no workspace has access', async () => {
     mocks.requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy('group-1', []),

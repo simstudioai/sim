@@ -1,5 +1,6 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { credentialGroupApiKeyOptionsInputSchema } from '@/lib/credential-groups/api-key-validation'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   isCredentialGroupProvider,
@@ -70,12 +71,23 @@ function normalizeOption<T extends CredentialGroupOptionInput | CredentialGroupO
 export function validateUpdateCredentialGroupInput(
   input: UpdateCredentialGroupInput
 ): UpdateCredentialGroupInput {
-  if (input.options === undefined && input.status === undefined) {
+  if (
+    input.options === undefined &&
+    input.status === undefined &&
+    input.apiKeyOptions === undefined
+  ) {
     throw new OrchestrationError('validation', 'At least one field must be updated')
   }
   if (input.options) validateOptions(input.options)
+  const apiKeyOptions =
+    input.apiKeyOptions === undefined
+      ? undefined
+      : credentialGroupApiKeyOptionsInputSchema.safeParse(input.apiKeyOptions)
+  if (apiKeyOptions && !apiKeyOptions.success)
+    throw new OrchestrationError('validation', apiKeyOptions.error.issues[0].message)
   return {
     ...(input.options ? { options: input.options.map(normalizeOption) } : {}),
+    ...(apiKeyOptions?.success ? { apiKeyOptions: apiKeyOptions.data } : {}),
     ...(input.status ? { status: input.status } : {}),
   }
 }

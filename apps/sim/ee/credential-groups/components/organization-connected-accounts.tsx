@@ -6,6 +6,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { OrganizationAccountApiKeys } from '@/ee/credential-groups/components/organization-account-api-keys'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
 import { OrganizationAccountWorkspaceAccess } from '@/ee/credential-groups/components/organization-account-workspace-access'
@@ -76,11 +77,14 @@ export function OrganizationConnectedAccounts({
         />
       </div>
       {tab === 'providers' && (
-        <OrganizationAccountProviders
-          organizationId={organizationId}
-          group={group}
-          availableProviders={accounts.data.availableProviders}
-        />
+        <>
+          <OrganizationAccountProviders
+            organizationId={organizationId}
+            group={group}
+            availableProviders={accounts.data.availableProviders}
+          />
+          <OrganizationAccountApiKeys organizationId={organizationId} group={group} />
+        </>
       )}
       {tab === 'people' && <OrganizationAccountPeople organizationId={organizationId} />}
       {tab === 'workspace-access' && (
