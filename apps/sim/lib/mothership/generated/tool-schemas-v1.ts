@@ -81,6 +81,101 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  browser_batch: {
+    parameters: {
+      type: 'object',
+      properties: {
+        actions: {
+          type: 'array',
+          description:
+            "Ordered list of 2–8 actions. Each names one action tool and gives exactly that tool's parameters in args, without observe.",
+          items: {
+            type: 'object',
+            properties: {
+              args: {
+                type: 'object',
+                description:
+                  'That tool\'s own parameters, for example {"elementId": 12} for browser_click or {"key": "Enter"} for browser_press_key.',
+              },
+              tool: {
+                type: 'string',
+                description: 'The action tool to run.',
+                enum: [
+                  'browser_click',
+                  'browser_click_at',
+                  'browser_type',
+                  'browser_insert_text',
+                  'browser_press_key',
+                  'browser_scroll',
+                  'browser_select_option',
+                  'browser_set_checked',
+                  'browser_hover',
+                ],
+              },
+            },
+            required: ['tool', 'args'],
+          },
+        },
+        observe: {
+          type: 'object',
+          description:
+            'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+            },
+          },
+        },
+      },
+      required: ['actions'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        completed: {
+          type: 'boolean',
+          description: 'True when every action ran and succeeded.',
+        },
+        completedCount: {
+          type: 'number',
+          description: 'Number of actions that ran and succeeded, from the start of the list.',
+        },
+        error: {
+          type: 'string',
+          description:
+            'Why the batch stopped early. Earlier actions already took effect; do not repeat them.',
+        },
+        results: {
+          type: 'array',
+          description: 'Results of the actions that ran, in order.',
+          items: {
+            type: 'object',
+            properties: {
+              index: {
+                type: 'number',
+              },
+              result: {
+                type: 'object',
+                description: "The action tool's own result.",
+              },
+              tool: {
+                type: 'string',
+              },
+            },
+            required: ['index', 'tool', 'result'],
+          },
+        },
+        stoppedIndex: {
+          type: 'number',
+          description:
+            'Zero-based index of the first action that did not run or failed, when the batch stopped early.',
+        },
+      },
+      required: ['completed', 'completedCount', 'results'],
+    },
+  },
   browser_click: {
     parameters: {
       type: 'object',

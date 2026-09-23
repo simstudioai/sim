@@ -43,6 +43,7 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_click_at',
   'browser_type',
   'browser_fill_form',
+  'browser_batch',
   'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
@@ -118,6 +119,7 @@ export function browserToolRendererTimeoutMs(
     case 'browser_switch_tab':
     case 'browser_upload_file':
     case 'browser_save_download':
+    case 'browser_batch':
       return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
     case 'browser_wait_for':
       return (

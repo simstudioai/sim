@@ -10,6 +10,7 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_fill_form',
   'browser_scroll',
   'browser_hover',
+  'browser_batch',
 ])
 
 /** Preserves a dispatched action when its acknowledgement or observation is interrupted. */

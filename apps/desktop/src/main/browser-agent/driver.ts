@@ -144,6 +144,53 @@ type FormField =
   | { elementId: number; kind: 'select'; value: string }
   | { elementId: number; kind: 'checked'; checked: boolean }
 
+const MAX_BATCH_ACTIONS = 8
+/** Single-page interactions a batch may run; navigation, observation, and file tools stay separate. */
+const BATCH_ACTION_TOOLS: ReadonlySet<BrowserToolName> = new Set([
+  'browser_click',
+  'browser_click_at',
+  'browser_type',
+  'browser_insert_text',
+  'browser_press_key',
+  'browser_scroll',
+  'browser_select_option',
+  'browser_set_checked',
+  'browser_hover',
+])
+
+interface BatchAction {
+  tool: BrowserToolName
+  args: Record<string, unknown>
+}
+
+function isBatchActionTool(value: unknown): value is BrowserToolName {
+  return BATCH_ACTION_TOOLS.has(value as BrowserToolName)
+}
+
+function parseBatchActions(params: Record<string, unknown>): BatchAction[] {
+  if (Object.keys(params).some((key) => key !== 'actions')) {
+    throw new ToolError('A batch accepts only actions; pass observe on the batch itself.')
+  }
+  if (
+    !Array.isArray(params.actions) ||
+    params.actions.length < 2 ||
+    params.actions.length > MAX_BATCH_ACTIONS
+  ) {
+    throw new ToolError(`A batch requires between 2 and ${MAX_BATCH_ACTIONS} actions.`)
+  }
+  return params.actions.map((action, index): BatchAction => {
+    if (!isRecordLike(action) || !isBatchActionTool(action.tool) || !isRecordLike(action.args)) {
+      throw new ToolError(
+        `Batch action ${index} must be {tool, args} with tool one of ${[...BATCH_ACTION_TOOLS].join(', ')}.`
+      )
+    }
+    if ('observe' in action.args) {
+      throw new ToolError(`Batch action ${index} cannot observe; pass observe on the batch itself.`)
+    }
+    return { tool: action.tool, args: action.args }
+  })
+}
+
 function parseFormFields(params: Record<string, unknown>): FormField[] {
   if (Object.keys(params).some((key) => key !== 'fields')) {
     throw new ToolError('Form filling accepts only fields; submitting is not supported.')
@@ -1046,7 +1093,8 @@ export function browserToolWatchdogMs(
     tool === 'browser_open_tab' ||
     tool === 'browser_switch_tab' ||
     tool === 'browser_upload_file' ||
-    tool === 'browser_save_download'
+    tool === 'browser_save_download' ||
+    tool === 'browser_batch'
   ) {
     return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
@@ -3387,6 +3435,64 @@ async function executeToolInner(
           : {}),
         ...(notes.length > 0 ? { note: notes.join(' ') } : {}),
       }
+    }
+
+    case 'browser_batch': {
+      const actions = parseBatchActions(params)
+      const results: { index: number; tool: BrowserToolName; result: unknown }[] = []
+      const stopped = (
+        stoppedIndex: number,
+        stoppedBy: 'failure' | 'page-change',
+        error: string
+      ) => ({
+        completed: false,
+        completedCount: results.length,
+        stoppedIndex,
+        stoppedBy,
+        error,
+        results,
+      })
+      for (const [index, action] of actions.entries()) {
+        let tab: ReturnType<typeof session.requireAutomationTab>
+        let epoch: number
+        let snapshotValid: boolean
+        let result: unknown
+        // Once an action has run, a cancelled or timed-out batch must not read as never started.
+        if (index > 0) onActionOutcome?.({ status: 'pending' })
+        try {
+          tab = session.requireAutomationTab()
+          epoch = navigationEpoch(tab.view.webContents)
+          snapshotValid = driverScopeState().snapshotTabId === tab.id
+          result = await executeToolInner(
+            action.tool,
+            action.args,
+            assertCurrentExecution,
+            executionDeadline,
+            invocationEpoch,
+            signal
+          )
+        } catch (error) {
+          return stopped(
+            index,
+            'failure',
+            `Action ${index} (${action.tool}) failed: ${getErrorMessage(error)} Earlier actions already took effect.`
+          )
+        }
+        results.push({ index, tool: action.tool, result })
+        if (index === actions.length - 1) break
+        if (
+          session.automationTab()?.id !== tab.id ||
+          navigationEpoch(tab.view.webContents) !== epoch ||
+          (snapshotValid && driverScopeState().snapshotTabId !== tab.id)
+        ) {
+          return stopped(
+            index + 1,
+            'page-change',
+            `Action ${index} (${action.tool}) changed the page, so the remaining actions did not run. Inspect the page before continuing.`
+          )
+        }
+      }
+      return { completed: true, completedCount: results.length, results }
     }
 
     case 'browser_fill_form': {

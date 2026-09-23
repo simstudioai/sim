@@ -110,6 +110,41 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockExecuteBrowserTool).toHaveBeenCalledTimes(1)
   })
 
+  it('reports a batch as failed only when one of its actions failed', async () => {
+    const actions = [
+      { tool: 'browser_click', args: { elementId: 1 } },
+      { tool: 'browser_click', args: { elementId: 2 } },
+    ]
+    const partial = {
+      completed: false,
+      completedCount: 1,
+      stoppedIndex: 1,
+      results: [{ index: 0, tool: 'browser_click', result: { dispatched: true } }],
+    }
+    const failed = { ...partial, stoppedBy: 'failure', error: 'Action 1 failed' }
+    const pageChanged = { ...partial, stoppedBy: 'page-change', error: 'Action 0 changed the page' }
+    const failedCallId = nextToolCallId()
+    const changedCallId = nextToolCallId()
+
+    mockExecuteBrowserTool.mockResolvedValueOnce(failed).mockResolvedValueOnce(pageChanged)
+    executeBrowserToolOnClient(failedCallId, 'browser_batch', { actions }, CHAT_SCOPE)
+    executeBrowserToolOnClient(changedCallId, 'browser_batch', { actions }, CHAT_SCOPE)
+    await flush()
+
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      failedCallId,
+      'error',
+      'A batched browser action failed; inspect the partial result',
+      failed
+    )
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      changedCallId,
+      'success',
+      'Browser action completed',
+      pageChanged
+    )
+  })
+
   it('preserves every executed completion when a guard result arrives at retention capacity', async () => {
     const replayClaim = vi
       .spyOn(BrowserToolReplayLedger.prototype, 'claim')
