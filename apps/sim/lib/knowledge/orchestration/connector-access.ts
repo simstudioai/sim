@@ -24,6 +24,7 @@ import {
 } from '@/lib/knowledge/connectors/member-access'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type ConnectorMembersBinding,
   type ConnectorWithoutSecret,
@@ -31,6 +32,7 @@ import {
   type KnowledgeConnectorRow,
   lockCredentialGroupOption,
   performUpdateKnowledgeConnector,
+  withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
 import {
   classifyKnowledgeFailure,
@@ -140,8 +142,7 @@ async function acquireSwitchLease(
         inArray(knowledgeConnector.memberSyncStatus, ['idle', 'error', 'disabled']),
         isNull(knowledgeConnector.syncLockToken),
         isNull(knowledgeConnector.memberSyncLockToken),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
+        connectorIsLive()
       )
     )
     .returning()
@@ -280,13 +281,13 @@ export async function performUpdateKnowledgeConnectorAccess(
         .returning()
       if (!updated) return fail('Connector changed; retry the request', 'conflict')
       logger.info(`[${requestId}] Re-enabled member sync on connector ${connectorId}`)
-      const { encryptedApiKey: _secret, ...connector } = updated
+      const connector = withoutSecret(updated)
       if (updated.status !== 'paused') {
         await dispatchMemberSyncBestEffort(connectorId, params, requestId, now)
       }
       return { success: true, connector, changed: true }
     }
-    const { encryptedApiKey: _secret, ...connector } = existing
+    const connector = withoutSecret(existing)
     return { success: true, connector, changed: false }
   }
 
@@ -384,7 +385,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         logger.info(`[${requestId}] Switched connector ${connectorId} to members mode`, {
           rewritten,
         })
-        const { encryptedApiKey: _secret, ...connector } = updated
+        const connector = withoutSecret(updated)
         if (previousStatus !== 'paused') {
           await dispatchMemberSyncBestEffort(connectorId, params, requestId, flippedAt)
         }
@@ -512,7 +513,7 @@ export async function performUpdateKnowledgeConnectorAccess(
     logger.info(`[${requestId}] Switched connector ${connectorId} to ${target.accessMode} mode`, {
       rewritten,
     })
-    const { encryptedApiKey: _secret, ...connector } = updated
+    const connector = withoutSecret(updated)
     if (previousStatus !== 'paused') {
       /** The dispatch asserts the schedule the flip wrote, not a later clock read. */
       await dispatchContentSyncBestEffort(connectorId, params, requestId, flippedAt)

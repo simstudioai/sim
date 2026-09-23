@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import type { DbOrTx } from '@/lib/db/types'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   CAPABILITY_RULES,
@@ -427,7 +428,8 @@ const INVITATIONS_RULE = CAPABILITY_RULES['invitations.send']
 /** permission-group-enforced: invitations.send — organization-scoped, so it resolves the default group rather than a workspace one */
 export async function validateInvitationsAllowed(
   userId: string | undefined,
-  scope: string | { workspaceId?: string; organizationId?: string } = {}
+  scope: string | { workspaceId?: string; organizationId?: string } = {},
+  executor?: DbOrTx
 ): Promise<void> {
   if (isInvitationsDisabled) {
     logger.warn('Invitations blocked by feature flag')
@@ -442,7 +444,9 @@ export async function validateInvitationsAllowed(
     typeof scope === 'string' ? { workspaceId: scope, organizationId: undefined } : scope
 
   if (workspaceId) {
-    const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+    const config = executor
+      ? await getUserPermissionConfig(userId, workspaceId, executor)
+      : await resolvePermissionGroupConfig(userId, workspaceId, undefined)
     if (config && INVITATIONS_RULE.deniedBy(config)) {
       logger.warn('Invitations blocked by permission group', { userId, workspaceId })
       throw new InvitationsNotAllowedError()
@@ -451,7 +455,9 @@ export async function validateInvitationsAllowed(
   }
 
   if (organizationId) {
-    const config = await getUserPermissionConfigForOrganization(organizationId)
+    const config = executor
+      ? await getUserPermissionConfigForOrganization(organizationId, executor)
+      : await getUserPermissionConfigForOrganization(organizationId)
     if (config && INVITATIONS_RULE.deniedBy(config)) {
       logger.warn('Invitations blocked by permission group (organization-wide)', {
         userId,

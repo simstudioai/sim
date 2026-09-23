@@ -4,18 +4,19 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { listPermissionGroupWorkspaces } from '@/lib/permission-groups/application/management'
-import { permissionGroupManagementOperations } from '@/lib/permission-groups/application/management-operations'
-import { permissionGroupErrorPolicy } from '@/app/api/organizations/[id]/permission-groups/utils'
+import { internalPermissionGroupErrorPolicy } from '@/lib/api/server/routes/permission-groups'
+import { permissionGroupOperations } from '@/lib/permission-groups/application/operations'
+import { listPermissionGroupWorkspaces } from '@/lib/permission-groups/application/use-cases'
 
 export const GET = defineInternalJsonRoute({
   contract: listOrganizationWorkspacesContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.listWorkspaces,
+  operation: permissionGroupOperations.listWorkspaces,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Internal server error'),
+  errorPolicy: internalPermissionGroupErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id }),
   useCase: listPermissionGroupWorkspaces,
+  present: ({ data }) => ({ workspaces: data }),
 })

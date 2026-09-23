@@ -13,10 +13,7 @@ import {
 } from '@sim/emcn'
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
-import {
-  useCancelAccessRequest,
-  useMyAccessRequests,
-} from '@/ee/access-requests/hooks/access-requests'
+import { useCancelAccessRequest, useMyAccessRequests } from '@/hooks/queries/access-requests'
 
 interface MyAccessRequestDetailsProps {
   scope: AccessRequestScope
@@ -29,6 +26,8 @@ export function MyAccessRequestDetails({ scope, requestId, onClose }: MyAccessRe
   const cancelRequest = useCancelAccessRequest()
   const request = details.isSuccess ? details.data.requests[0] : undefined
   const title = request ? `${request.targetLabel} request` : 'Access request'
+
+  if (details.isSuccess && !request) return null
 
   return (
     <ChipModal
@@ -50,11 +49,6 @@ export function MyAccessRequestDetails({ scope, requestId, onClose }: MyAccessRe
             <p className='text-[var(--text-error)] text-sm'>{details.error.message}</p>
             <Chip onClick={() => void details.refetch()}>Try again</Chip>
           </ChipModalField>
-        )}
-        {details.isSuccess && !request && (
-          <p className='px-2 text-[var(--text-muted)] text-sm'>
-            This request is no longer available.
-          </p>
         )}
         {request && (
           <>

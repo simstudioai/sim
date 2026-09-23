@@ -20,6 +20,7 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   'audit-logs': 'audit-log',
   credentials: 'credential',
   'custom-tools': 'custom-tool',
+  'permission-groups': 'permission-group',
   files: 'file',
   knowledge: 'kb',
   logs: 'log',

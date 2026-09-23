@@ -52,6 +52,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
       'organization',
       'usage',
       'access-control',
+      'requests',
       'audit-logs',
       'sso',
       'security',
@@ -114,6 +115,21 @@ describe('WorkspaceSettingsSectionPage', () => {
     expect(mockSectionPrefetch).not.toHaveBeenCalled()
   })
 
+  it('keeps Requests in the current workspace when the organization surface is enabled', async () => {
+    mockGetHostContext.mockResolvedValue({
+      hostOrganizationId: 'org-target',
+      features: { organizationSearch: true },
+    })
+
+    expect(await WorkspaceSettingsSectionPage(pageProps('requests'))).toBeTruthy()
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(mockAuthorizeSection).toHaveBeenCalledWith({
+      workspaceId: 'workspace-b',
+      userId: 'viewer-a',
+      section: 'requests',
+    })
+  })
+
   it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
     'keeps %s in the workspace outside the organization rollout',
     async (section) => {
@@ -131,6 +147,36 @@ describe('WorkspaceSettingsSectionPage', () => {
         userId: 'viewer-a',
         section,
       })
+    }
+  )
+
+  it.each([
+    { organizationSearch: false, destination: '/workspace/workspace-b/settings/requests' },
+    { organizationSearch: true, destination: '/workspace/workspace-b/settings/requests' },
+  ])(
+    'moves saved request review tabs to the canonical destination with org rollout=$organizationSearch',
+    async ({ organizationSearch, destination }) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch },
+      })
+      await expect(
+        WorkspaceSettingsSectionPage({
+          ...pageProps('access-control'),
+          searchParams: Promise.resolve({
+            'access-view': 'requests',
+            'request-id': 'selected',
+            'request-status': 'all',
+            'group-id': 'old-group',
+          }),
+        })
+      ).rejects.toThrow(`NEXT_REDIRECT:${destination}?request-id=selected&request-status=all`)
+      expect(mockAuthorizeSection).toHaveBeenCalledWith({
+        workspaceId: 'workspace-b',
+        userId: 'viewer-a',
+        section: 'requests',
+      })
+      expect(mockSectionPrefetch).not.toHaveBeenCalled()
     }
   )
 

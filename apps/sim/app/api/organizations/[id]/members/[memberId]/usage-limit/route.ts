@@ -4,43 +4,45 @@ import {
 } from '@/lib/api/contracts/organization'
 import {
   defineInternalJsonRoute,
-  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalMemberUsageLimitErrorPolicy } from '@/lib/api/server/routes/member-usage-limits'
+import { memberUsageLimitOperations } from '@/lib/billing/application/member-usage-limits/operations'
 import {
-  memberUsageLimitOperations,
-  readMemberUsageLimit,
+  getOrganizationMemberUsageLimit,
   requireHostedMemberUsageLimits,
-  updateMemberUsageLimit,
-} from '@/lib/billing/application/member-usage-limits'
+  updateOrganizationMemberUsageLimit,
+} from '@/lib/billing/application/member-usage-limits/use-cases'
 
-const rateLimit = internalRateLimits.none({
-  reason: 'Preserve existing hosted member-cap settings admission',
-})
 export const GET = defineInternalJsonRoute({
   contract: getOrganizationMemberUsageLimitContract,
-  auth: internalSessionAuth,
   operation: memberUsageLimitOperations.read,
-  rateLimit,
-  errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: async () => requireHostedMemberUsageLimits(),
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve the existing authenticated organization admin read.',
+  }),
+  beforeParse: requireHostedMemberUsageLimits,
+  errorPolicy: internalMemberUsageLimitErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id, userId: params.memberId }),
-  useCase: readMemberUsageLimit,
+  useCase: getOrganizationMemberUsageLimit,
   present: (data) => ({ success: true, data }),
 })
+
 export const PUT = defineInternalJsonRoute({
   contract: updateOrganizationMemberUsageLimitContract,
-  auth: internalSessionAuth,
   operation: memberUsageLimitOperations.update,
-  rateLimit,
-  errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: async () => requireHostedMemberUsageLimits(),
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve the existing authenticated organization admin mutation.',
+  }),
+  beforeParse: requireHostedMemberUsageLimits,
+  errorPolicy: internalMemberUsageLimitErrorPolicy,
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     userId: params.memberId,
     creditLimit: body.creditLimit,
   }),
-  useCase: updateMemberUsageLimit,
+  useCase: updateOrganizationMemberUsageLimit,
   present: (data) => ({ success: true, message: 'Member credit limit updated successfully', data }),
 })

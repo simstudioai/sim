@@ -58,6 +58,7 @@ Other connectors use **API keys** or **personal access tokens** instead. The set
 | **Fireflies** | Generate from the Integrations page in your Fireflies account |
 | **Typeform** | Personal access token from your Typeform account settings |
 | **Azure DevOps** | Personal access token with Wiki (Read), Work Items (Read), and Code (Read) scopes |
+| **GitLab** | Personal access token with `read_api` scope and access to the selected project |
 | **YouTube** | YouTube Data API key from the Google Cloud Console |
 | **Amazon S3** | Secret Access Key (the Access Key ID, region, and bucket are entered as config fields) |
 | **Sentry** | Auth token with `project:read` and `event:read` scopes |
@@ -67,9 +68,13 @@ Other connectors use **API keys** or **personal access tokens** instead. The set
 | **Databricks** | Personal access token from your workspace's user settings (the workspace host is entered as a config field) |
 | **Workday Help** | Register an API client for integrations in your tenant, then enter the client secret and refresh token together as `clientSecret:refreshToken` (the client ID, tenant host, and tenant name are entered as config fields) |
 
+Enter an API key directly, or type `{{` to select an accessible personal or workspace secret. Sim resolves the secret when you connect and stores an encrypted copy of the token. Later changes to the secret do not automatically update the connector.
+
 <Callout type="info">
   If you rotate an API key in the external service, update it in Sim as well — OAuth tokens refresh automatically, but API keys do not.
 </Callout>
+
+For GitLab in a regular knowledge base, a project-readable PAT is enough. Imported content uses the knowledge base's access rules; it does not mirror each person's GitLab permissions. The administrator-token and non-admin CSV setup paths apply when using [GitLab source permissions](/search/gitlab).
 
 </Step>
 <Step>
@@ -80,6 +85,7 @@ Each connector has source-specific fields that control what gets synced. Example
 
 - **Notion** — sync an entire workspace, a specific database, or a single page tree
 - **GitHub** — specify a repository, branch, and optional file extension filter
+- **GitLab** — specify a project path or ID and your instance host (leave blank for GitLab.com), then choose repository files, wiki pages, issues, or merge requests. Each connector syncs one project; submodules need their own connectors.
 - **Confluence** — enter your Atlassian domain and choose spaces, or **All** for all spaces accessible at each sync. Optionally filter by content type or label. PDF, Word (`.docx`, Word 97–2003 `.doc`), Excel (`.xlsx`), and PowerPoint (`.pptx`) attachments on matching pages and blog posts are included as separate documents.
 - **Azure DevOps** — choose what to sync (wiki pages, work items, repository files, or all), with optional work item type/state filters, a custom WIQL query, and repository/branch/path filters
 - **Amazon S3** — point at a bucket with an optional key prefix and a customizable file extension allowlist; S3-compatible stores (Cloudflare R2, MinIO) are supported via a custom endpoint

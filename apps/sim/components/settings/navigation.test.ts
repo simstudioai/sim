@@ -97,6 +97,7 @@ describe('settings navigation boundaries', () => {
       'desktop',
       'browser',
       'terminal',
+      'requests',
       'access-control',
       'audit-logs',
       'forks',
@@ -145,6 +146,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'requests',
       'self-host',
     ])
   })
@@ -333,6 +335,7 @@ describe('settings navigation boundaries', () => {
 
   it('maps every workspace projection from its unified section', () => {
     expect(UNIFIED_TO_WORKSPACE_SECTION).toEqual({
+      requests: 'requests',
       teammates: 'teammates',
       secrets: 'secrets',
       byok: 'byok',
@@ -500,12 +503,52 @@ describe('settings navigation boundaries', () => {
     expect(isOrganizationSettingsSectionAvailable('members', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('recently-deleted', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('billing', hostedFree)).toBe(true)
+    expect(isOrganizationSettingsSectionAvailable('requests', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('sso', hostedFree)).toBe(false)
     expect(
       isOrganizationSettingsSectionAvailable('sso', {
         ...hostedFree,
         hasEnterprisePlan: true,
       })
+    ).toBe(true)
+  })
+
+  it('allows member requests while reserving management for organization admins', () => {
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('view')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: false,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('unavailable')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('manage')
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, SELF_HOSTED)
+      )
+    ).toBe(true)
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, {
+          ...SELF_HOSTED,
+          features: { ...SELF_HOSTED.features, accessControl: true },
+        })
+      )
     ).toBe(true)
   })
 
@@ -523,9 +566,10 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'requests',
         'self-host',
       ],
-      mutable: [],
+      mutable: ['requests'],
     },
     {
       permission: 'write' as const,
@@ -540,9 +584,17 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'requests',
         'self-host',
       ],
-      mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
+      mutable: [
+        'secrets',
+        'custom-tools',
+        'mcp',
+        'workflow-mcp-servers',
+        'recently-deleted',
+        'requests',
+      ],
     },
     {
       permission: 'admin' as const,
@@ -585,6 +637,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'requests',
       'self-host',
     ])
   })

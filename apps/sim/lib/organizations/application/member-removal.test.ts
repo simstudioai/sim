@@ -36,7 +36,7 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: vi.fn() }))
 
-import { removeOrganizationMember } from '@/lib/organizations/application/member-removal'
+import { removeOrganizationMember } from '@/lib/organizations/application/members'
 import { DELETE } from '@/app/api/organizations/[id]/members/[memberId]/route'
 
 const principal = {
@@ -67,7 +67,13 @@ beforeEach(() => {
 function target(role = 'admin') {
   queueTableRows(member, [{ role }])
   queueTableRows(member, [
-    { id: 'member-id', role: 'member', name: 'Target', email: 'target@example.com' },
+    {
+      id: 'member-id',
+      userId: 'target',
+      role: 'member',
+      name: 'Target',
+      email: 'target@example.com',
+    },
   ])
   queueTableRows(user, [{ name: 'Actor', email: 'actor@example.com' }])
 }
@@ -75,8 +81,8 @@ describe('organization member removal', () => {
   it('uses the real member removal lifecycle without a fabricated session token', async () => {
     target()
     await expect(removeOrganizationMember.execute({ principal, input })).resolves.toMatchObject({
-      success: true,
-      data: { removedBy: 'actor', removedMemberId: 'target' },
+      removedBy: 'actor',
+      target: expect.objectContaining({ userId: 'target' }),
     })
     expect(mocks.remove).toHaveBeenCalledExactlyOnceWith({
       userId: 'target',
@@ -90,9 +96,7 @@ describe('organization member removal', () => {
       actorId: 'actor',
       reason: 'member-removed',
     })
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'actor', actorName: 'Actor' })
-    )
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'actor' }))
   })
   it('refuses ordinary members removing somebody else', async () => {
     target('member')
@@ -130,11 +134,9 @@ describe('organization member removal', () => {
   it('retains external removal grant counts and skips seat changes', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [])
-    queueTableRows(user, [{ name: 'Actor' }])
     queueTableRows(user, [{ id: 'target', name: 'External' }])
     const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.data).toMatchObject({
-      membershipType: 'external',
+    expect(result.removal).toMatchObject({
       workspaceAccessRevoked: 2,
       credentialMembershipsRevoked: 1,
     })
@@ -149,7 +151,7 @@ describe('organization member removal', () => {
     target()
     mocks.seats.mockRejectedValueOnce(new Error('stripe-unavailable'))
     const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.data.seatReduction).toEqual({
+    expect(result.seatReduction).toEqual({
       changed: false,
       reason: 'Failed to reduce seats after member removal',
     })

@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { resolveAccessRequestBodySchema } from '@/lib/api/contracts/access-requests'
+import { v2ResolveAccessRequestBodySchema } from '@/lib/api/contracts/v2/access-requests'
 import { v2KnowledgeSearchBodySchema } from '@/lib/api/contracts/v2/knowledge'
 import { v2CreateSkillBodySchema } from '@/lib/api/contracts/v2/skills'
 import { v2CreateWorkflowBodySchema } from '@/lib/api/contracts/v2/workflows'
@@ -15,6 +17,42 @@ function messageAt(
 ) {
   return result.error?.issues.find((issue) => issue.path[0] === field)?.message
 }
+
+describe.each([
+  ['internal', resolveAccessRequestBodySchema],
+  ['v2', v2ResolveAccessRequestBodySchema],
+] as const)('%s access request decisions name missing required fields', (_surface, schema) => {
+  it.each([
+    [
+      'apply',
+      'expectedFingerprint',
+      'expectedFingerprint is required; preview the request before applying it',
+    ],
+    ['decline', 'reason', 'reason is required when declining a request'],
+  ] as const)('names the missing field for %s', (action, field, message) => {
+    expect(messageAt(schema.safeParse({ action }), field)).toBe(message)
+    expect(messageAt(schema.safeParse({ action, [field]: 123 }), field)).toBe(
+      'Invalid input: expected string, received number'
+    )
+  })
+
+  it('preserves decision validation and trimming', () => {
+    expect(schema.safeParse({ action: 'apply', expectedFingerprint: '' }).success).toBe(false)
+    expect(
+      schema.safeParse({ action: 'apply', expectedFingerprint: 'x'.repeat(129) }).success
+    ).toBe(false)
+    expect(schema.safeParse({ action: 'decline', reason: '   ' }).success).toBe(false)
+    expect(schema.safeParse({ action: 'decline', reason: 'x'.repeat(1001) }).success).toBe(false)
+    expect(schema.parse({ action: 'apply', expectedFingerprint: 'reviewed' })).toEqual({
+      action: 'apply',
+      expectedFingerprint: 'reviewed',
+    })
+    expect(schema.parse({ action: 'decline', reason: ' Not needed ' })).toEqual({
+      action: 'decline',
+      reason: 'Not needed',
+    })
+  })
+})
 
 /**
  * A required field that is *omitted* and one that is *wrong-typed* are different

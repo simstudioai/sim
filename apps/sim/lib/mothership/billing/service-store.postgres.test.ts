@@ -49,13 +49,22 @@ describe.skipIf(!state.url)('service receipts in SQL', () => {
   beforeAll(async () => {
     const client = state.client!
     await client.unsafe(`CREATE SCHEMA "${state.schema}"`)
-    for (const name of ['0376_icy_carnage.sql', '0377_closed_union_jack.sql']) {
-      const migration = readFileSync(
-        new URL(`../../../../../packages/db/migrations/${name}`, import.meta.url),
-        'utf8'
-      )
-      await client.unsafe(migration)
-    }
+    const migration = readFileSync(
+      new URL(
+        '../../../../../packages/db/migrations/0380_mothership_staging_merge.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+    const table = migration.match(
+      /CREATE TABLE IF NOT EXISTS "copilot_service_usage" \([\s\S]*?\n\);/
+    )?.[0]
+    const index = migration.match(
+      /CREATE INDEX CONCURRENTLY IF NOT EXISTS "copilot_service_usage_pending_idx"[^;]+;/
+    )?.[0]
+    if (!table || !index) throw new Error('Service usage migration was not found')
+    await client.unsafe(table)
+    await client.unsafe(index)
   })
   afterAll(async () => {
     await state.client?.unsafe(`DROP SCHEMA IF EXISTS "${state.schema}" CASCADE`)

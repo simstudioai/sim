@@ -33,7 +33,7 @@ interface EnvVarDropdownProps {
   /** Callback when the dropdown should close */
   onClose?: () => void
   /** Custom styles for positioning */
-  style?: React.CSSProperties
+  style?: Pick<React.CSSProperties, 'top' | 'left' | 'zIndex'>
   /** Workspace ID for loading workspace-specific environment variables */
   workspaceId?: string
   /** Maximum height for the dropdown */
@@ -286,7 +286,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         <div
           className={cn('pointer-events-none', className)}
           style={{
-            ...style,
+            zIndex: style?.zIndex,
             position: inputElement ? 'fixed' : 'absolute',
             top: inputElement ? `${caretViewport.top}px` : style?.top,
             left: inputElement ? `${caretViewport.left}px` : style?.left,

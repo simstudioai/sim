@@ -9,12 +9,12 @@ import {
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import {
   type AdmissionErrorDescriptor,
   getReservationDenialDescriptor,
@@ -574,8 +574,8 @@ export async function preprocessExecution(
     let snapshot: UsageSnapshot | null = null
     try {
       const usageCheck = await withDatabaseReadRetry(
-        () => checkAttributedUsageLimits(billingAttribution),
-        { label: 'checkAttributedUsageLimits' }
+        () => checkExecutionUsageLimits(billingAttribution),
+        { label: 'checkExecutionUsageLimits' }
       )
       snapshot = usageCheck.payerUsage
         ? {

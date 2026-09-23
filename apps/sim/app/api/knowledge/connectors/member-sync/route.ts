@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, knowledgeConnectorMemberSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -158,9 +159,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.warn(`[${requestId}] Closed ${closedLogs.length} orphaned member sync log(s)`)
     }
 
-    const sweep = await sweepStaleMemberObservations(now)
-    if (sweep.members > 0) {
-      logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+    /** Observation hygiene never holds back dispatch; an unfinished sweep resumes next tick. */
+    try {
+      const sweep = await sweepStaleMemberObservations(now)
+      if (sweep.members > 0) {
+        logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Stale member observation sweep failed`, {
+        error: getErrorMessage(error),
+      })
     }
 
     const dueConnectors = await db

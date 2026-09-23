@@ -13,8 +13,10 @@ const { checkAttributedUsageLimitsMock, reserveExecutionSlotMock, resolveBilling
   }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: checkAttributedUsageLimitsMock,
   resolveBillingAttribution: resolveBillingAttributionMock,
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: checkAttributedUsageLimitsMock,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({

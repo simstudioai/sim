@@ -222,12 +222,12 @@ describe('Slack empty threads through sync jobs, indexing and search', () => {
     const restored = await vectors()
     incomplete = true
     replyText = ''
-    await expect(sync()).rejects.toThrow('1 source failures')
+    await expect(sync()).resolves.toMatchObject({ outcome: 'partial', docsFailed: 1 })
     expect(await vectors()).toEqual(restored)
     expect((await row()).storageKey).not.toBeNull()
     incomplete = false
     missingRoot = true
-    await expect(sync()).rejects.toThrow('1 source failures')
+    await expect(sync()).resolves.toMatchObject({ outcome: 'partial', docsFailed: 1 })
     expect(await vectors()).toEqual(restored)
   }, 60000)
 })

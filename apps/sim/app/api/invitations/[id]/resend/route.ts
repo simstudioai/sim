@@ -4,23 +4,19 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import {
-  invitationManagementOperations,
-  resendInvitation,
-} from '@/lib/invitations/application/manage-invitation'
-import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
+import { internalOrganizationErrorPolicy } from '@/lib/api/server/routes/organizations'
+import { resendInvitation } from '@/lib/invitations/application/mutations'
+import { invitationOperations } from '@/lib/invitations/application/operations'
 
 export const POST = defineInternalJsonRoute({
   contract: resendInvitationContract,
   auth: internalSessionAuth,
-  operation: invitationManagementOperations.resend,
+  operation: invitationOperations.resend,
   rateLimit: internalRateLimits.none({
-    reason: 'Preserves the existing authenticated invitation resend policy',
+    reason: 'Preserve existing invitation management admission',
   }),
-  errorPolicy: {
-    ...invitationManagementErrorPolicy,
-    unhandled: () => ({ status: 500, body: { error: 'Failed to resend invitation' } }),
-  },
+  errorPolicy: internalOrganizationErrorPolicy,
   mapInput: ({ params }) => ({ invitationId: params.id }),
   useCase: resendInvitation,
+  present: () => ({ success: true }),
 })

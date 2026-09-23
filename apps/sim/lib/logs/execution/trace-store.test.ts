@@ -3,13 +3,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { decryptSecretMock, materializeLargeValueRefMock, storeLargeValueMock, mockLogger } =
-  vi.hoisted(() => ({
-    decryptSecretMock: vi.fn(),
-    materializeLargeValueRefMock: vi.fn(),
-    storeLargeValueMock: vi.fn(),
-    mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  }))
+const {
+  decryptSecretMock,
+  materializeLargeValueRefMock,
+  storeExecutionTraceArchiveMock,
+  mockLogger,
+} = vi.hoisted(() => ({
+  decryptSecretMock: vi.fn(),
+  materializeLargeValueRefMock: vi.fn(),
+  storeExecutionTraceArchiveMock: vi.fn(),
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => mockLogger,
@@ -21,7 +25,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 
 vi.mock('@/lib/execution/payloads/store', () => ({
   materializeLargeValueRef: materializeLargeValueRefMock,
-  storeLargeValue: storeLargeValueMock,
+  storeExecutionTraceArchive: storeExecutionTraceArchiveMock,
 }))
 
 import {
@@ -54,7 +58,7 @@ describe('execution data storage', () => {
   it('propagates the original storage failure for strict backfills', async () => {
     const cause = new Error('column "size_bytes" does not exist')
     const error = new Error('Failed query', { cause })
-    storeLargeValueMock.mockRejectedValueOnce(error)
+    storeExecutionTraceArchiveMock.mockRejectedValueOnce(error)
 
     await expect(
       externalizeExecutionData({ traceSpans: [] }, CONTEXT, { throwOnError: true })
@@ -70,12 +74,12 @@ describe('execution data storage', () => {
         { throwOnError: true }
       )
     ).rejects.toThrow('Trace storage requires workspaceId, workflowId, and userId')
-    expect(storeLargeValueMock).not.toHaveBeenCalled()
+    expect(storeExecutionTraceArchiveMock).not.toHaveBeenCalled()
   })
 
   it('preserves inline completion data and logs the underlying database error', async () => {
     const data = { traceSpans: [] }
-    storeLargeValueMock.mockRejectedValueOnce(
+    storeExecutionTraceArchiveMock.mockRejectedValueOnce(
       new Error('Failed query\nparams: private-payload', {
         cause: new Error('permission denied for table workspace_files'),
       })
@@ -100,7 +104,7 @@ describe('execution data storage', () => {
       executionId: 'execution-1',
       preview: { unsafe: 'must-not-remain-inline' },
     } as const
-    storeLargeValueMock.mockResolvedValue(ref)
+    storeExecutionTraceArchiveMock.mockResolvedValue(ref)
     materializeLargeValueRefMock.mockRejectedValue(new Error('object unavailable'))
 
     const slim = await externalizeExecutionData(

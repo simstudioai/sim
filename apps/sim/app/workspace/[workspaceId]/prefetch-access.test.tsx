@@ -53,7 +53,7 @@ import { PermissionAccessBoundary } from '@/ee/access-requests/components/permis
 import {
   accessRequestKeys,
   workspaceFeatureDiscoveryQuery,
-} from '@/ee/access-requests/hooks/access-request-keys'
+} from '@/hooks/queries/utils/access-request-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 
 const principal = { kind: 'session', userId: 'viewer', sessionId: 'session' } as const

@@ -1616,7 +1616,7 @@ describe('permitted-document planner', () => {
       expect(JSON.stringify(dbChainMockFns.where.mock.calls)).not.toContain('@@')
     })
 
-    it('decides a row the backfill has not reached on its document while the fill runs', async () => {
+    it('decides a row the fill has not reached on its document while the fill runs', async () => {
       tinPages.push({
         ranked: 1,
         candidates: [{ id: 'a', documentId: 'doc-a', connectorId: 'src-a' }],
@@ -1635,8 +1635,10 @@ describe('permitted-document planner', () => {
         },
       })
       const statement = JSON.stringify(tinStatements()[0])
-      /** A row the backfill has not filled (`acl IS NULL`) is decided on its document instead. */
-      expect(statement).toContain('IS NULL AND EXISTS (')
+      /** A row the fill has not reached (`acl IS NULL`), or a marked document's row, is decided on its document. */
+      expect(statement).toContain(' IS NULL OR ')
+      expect(statement).toContain('knowledgeProjectionDirty.documentId')
+      expect(statement).toContain('EXISTS (')
       expect(statement).toContain('ranked_tin_chunks.document_id')
     })
 
@@ -2823,6 +2825,24 @@ describe('filters on a resolved scope', () => {
       .filter((query) => query.sql.includes('hnsw.max_scan_tuples'))
       .map((query) => query.params.find((param) => param === '20000' || param === '100000'))
     expect(caps.at(-1)).toBe('20000')
+  })
+
+  it('looks for an unfilled row through the ordered, capped read the partial index serves', async () => {
+    traversedRows = [{ id: 'a' }]
+    rerankRows = [hit('a', 'src-a')]
+    queueTableRows(schemaMock.embedding, rerankRows)
+    await handleVectorOnlySearch({
+      ...params,
+      permitted: { kind: 'unbounded', broad: true },
+      accessPlan: plan(),
+    })
+    const probes = statements().filter((query) => query.sql.includes('AS unfilled'))
+    expect(probes).toHaveLength(1)
+    /** An `EXISTS` drops its order and limit, and the planner then takes a sequential scan. */
+    expect(probes[0].sql).not.toContain('EXISTS')
+    expect(probes[0].sql.replace(/\s+/g, ' ')).toContain(
+      'SELECT ( SELECT ? FROM ? WHERE ? IS NULL ORDER BY ? DESC LIMIT 1 ) IS NOT NULL AS unfilled'
+    )
   })
 
   it('tests the date through the document inside an on-row walk when the filtered set is unbounded', async () => {

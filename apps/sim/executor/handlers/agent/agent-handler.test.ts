@@ -333,6 +333,125 @@ describe('AgentBlockHandler', () => {
     resetDbChainMock()
   })
 
+  describe('native evaluation models', () => {
+    const questions = { passed: { type: 'noul', instructions: 'Did the task succeed?' } }
+    const inputs: AgentInputs = {
+      model: 'jev-1.13.0',
+      apiKey: 'test-key',
+      evaluationState: 'Task complete',
+      evaluationQuestions: questions,
+    }
+
+    it('uses the provider path with native inputs and exposes structured answers', async () => {
+      mockGetProviderFromModel.mockReturnValue('typesafe')
+      const answers = { passed: { type: 'noul', noul: 0.98 } }
+      mockExecuteProviderRequest.mockResolvedValue({
+        content: JSON.stringify(answers),
+        answers,
+        model: inputs.model,
+        tokens: { input: 20, output: 5, total: 25 },
+      })
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+      expect(mockValidateModelProvider).toHaveBeenCalledWith(
+        mockContext.userId,
+        mockContext.workspaceId,
+        inputs.model,
+        mockContext
+      )
+      expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+        'typesafe',
+        expect.objectContaining({
+          model: inputs.model,
+          apiKey: 'test-key',
+          evaluation: { state: 'Task complete', questions },
+          context: undefined,
+          systemPrompt: undefined,
+          tools: [],
+        }),
+        expect.anything()
+      )
+      expect(result).toMatchObject({
+        answers,
+        content: JSON.stringify(answers),
+        tokens: { total: 25 },
+      })
+    })
+
+    it('ignores saved chat settings after switching the model to Jev', async () => {
+      mockGetProviderFromModel.mockReturnValue('typesafe')
+      await handler.execute(mockContext, mockBlock, {
+        ...inputs,
+        messages: [{ role: 'user', content: 'Old conversation' }],
+        systemPrompt: 'Old prompt',
+        tools: [{ type: 'custom-tool', title: 'Stale tool' }],
+        skills: [{ skillId: 'stale-skill' }],
+        responseFormat: '{invalid stale JSON',
+        memoryType: 'conversation',
+        conversationId: 'stale-conversation',
+        temperature: 0.5,
+        maxTokens: 100,
+        files: [{ name: 'old.png' }],
+        fallbackModels: [{ model: 'gpt-4o' }],
+      })
+      const request = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(request).toMatchObject({
+        evaluation: { state: 'Task complete', questions },
+        tools: [],
+        context: undefined,
+        temperature: undefined,
+        maxTokens: undefined,
+      })
+      expect(request.messages ?? []).toEqual([])
+      expect(mockOpenAgentTurnSession).not.toHaveBeenCalled()
+      expect(mockExecuteProviderRequest).toHaveBeenCalledOnce()
+    })
+
+    it('removes saved evaluation inputs when switching back to a chat model', async () => {
+      await handler.execute(mockContext, mockBlock, {
+        ...inputs,
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+      expect(mockExecuteProviderRequest.mock.calls[0][1].evaluation).toBeUndefined()
+    })
+
+    it.each(['evaluationState', 'evaluationQuestions'] as const)(
+      'projects secrets in %s before the provider boundary',
+      async (field) => {
+        const registry = new ResolvedSecretTraceRegistry([
+          { name: 'PRIVATE_TEXT', plaintext: 'private value', encryptedValue: 'encrypted' },
+        ])
+        const path = field === 'evaluationState' ? [field] : [field, 'passed', 'instructions']
+        registry.recordResolvedAtInputPath('PRIVATE_TEXT', 'private value', path)
+        registry.recordResolvedInputProjection(path, 'private value', '{{PRIVATE_TEXT}}')
+        mockContext.resolvedSecretTraceRegistry = registry
+        mockGetProviderFromModel.mockReturnValue('typesafe')
+        await handler.execute(mockContext, mockBlock, {
+          ...inputs,
+          [field]:
+            field === 'evaluationState'
+              ? 'private value'
+              : { passed: { type: 'noul', instructions: 'private value' } },
+        })
+        const request = mockExecuteProviderRequest.mock.calls[0][1]
+        expect(JSON.stringify(request.evaluation)).not.toContain('private value')
+        expect(JSON.stringify(request.evaluation)).toContain('{{PRIVATE_TEXT}}')
+        expect(request.apiKey).toBe('test-key')
+      }
+    )
+
+    it('refuses an evaluation model as a conversational fallback before executing the primary', async () => {
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'Hello' }],
+          fallbackModels: [{ model: 'jev-latest' }],
+        })
+      ).rejects.toThrow('Evaluation models cannot serve as chat fallbacks')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+  })
+
   describe('canHandle', () => {
     it('should return true for blocks with metadata id "agent"', () => {
       expect(handler.canHandle(mockBlock)).toBe(true)

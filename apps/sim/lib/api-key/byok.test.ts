@@ -59,6 +59,7 @@ vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: { getState: vi.fn() },
 }))
 
+import { byokProviderIdSchema } from '@/lib/api/contracts/byok-keys'
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -549,6 +550,89 @@ describe('getApiKeyWithBYOK provider classification', () => {
       await getApiKeyWithBYOK('bedrock', 'BEDROCK/MyInferenceProfile', uniqueWorkspaceId())
     ).toEqual({ apiKey: 'placeholder', isBYOK: false })
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+})
+
+describe('getApiKeyWithBYOK for TypeSafe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsHosted.value = true
+    mockGetHostedModels.mockReturnValue(['jev-latest', 'jev-1.13.0', 'jev-preview'])
+    mockGetRotatingApiKey.mockReturnValue('hosted-typesafe-key')
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+    mockIsOrganizationBYOKEntitled.mockResolvedValue(true)
+  })
+
+  it('accepts TypeSafe in workspace and organization BYOK contracts', () => {
+    expect(byokProviderIdSchema.parse('typesafe')).toBe('typesafe')
+  })
+
+  it.each(['jev-latest', 'jev-1.13.0', 'jev-preview'])(
+    'resolves the platform pool when %s has no BYOK key',
+    async (model) => {
+      await expect(getApiKeyWithBYOK('typesafe', model, uniqueWorkspaceId())).resolves.toEqual({
+        apiKey: 'hosted-typesafe-key',
+        isBYOK: false,
+      })
+      expect(mockGetRotatingApiKey).toHaveBeenCalledWith('typesafe')
+    }
+  )
+
+  it('prefers the workspace pool without selecting a hosted key', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('workspace-key')])
+    await expect(getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId())).resolves.toEqual(
+      {
+        apiKey: 'decrypted-workspace-key',
+        isBYOK: true,
+        scope: 'workspace',
+      }
+    )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
+  })
+
+  it('inherits an entitled organization pool before using hosted credits', async () => {
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(uniqueOrganizationId(), 'organization-key')])
+    await expect(getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId())).resolves.toEqual(
+      {
+        apiKey: 'decrypted-organization-key',
+        isBYOK: true,
+        scope: 'organization',
+      }
+    )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing hosted credentials instead of making an unauthenticated request', async () => {
+    mockGetRotatingApiKey.mockImplementation(() => {
+      throw new Error('No configured key')
+    })
+    await expect(getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId())).rejects.toThrow(
+      'No API key available for typesafe jev-latest'
+    )
+  })
+
+  it('never gives the hosted key to an unlisted model', async () => {
+    await expect(getApiKeyWithBYOK('typesafe', 'jev-custom', uniqueWorkspaceId())).rejects.toThrow(
+      'API key is required'
+    )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it('requires caller credentials on self-hosted deployments', async () => {
+    mockIsHosted.value = false
+    await expect(
+      getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId(), 'caller-key')
+    ).resolves.toEqual({ apiKey: 'caller-key', isBYOK: false })
+    await expect(getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId())).rejects.toThrow(
+      'API key is required'
+    )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
   })
 })
 

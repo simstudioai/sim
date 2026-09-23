@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { workspacePermissionSchema, workspaceSchema } from '@/lib/api/contracts/workspaces'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 
 export { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
@@ -84,23 +84,54 @@ export const batchWorkspaceInvitationBodySchema = z
   })
 
 export const batchInvitationResultSchema = z.object({
-  success: z.boolean(),
-  /** Emails that received a pending invitation. */
-  successful: z.array(z.string()),
-  /** Emails that were existing organization members and got access immediately. */
-  added: z.array(z.string()),
-  failed: z.array(z.object({ email: z.string(), error: z.string() })),
-  invitations: z.array(
-    z.object({
-      id: z.string(),
-      email: z.string(),
-      workspaceIds: z.array(z.string()),
-      permission: workspacePermissionSchema,
-      membershipIntent: z.enum(['internal', 'external']),
-      instantAdd: z.boolean().optional(),
-      outcome: z.enum(['added', 'updated', 'unchanged']).optional(),
-    })
-  ),
+  success: z
+    .boolean()
+    .describe(
+      'Whether every recipient succeeded. Inspect failed even when the HTTP response is successful.'
+    ),
+  successful: z.array(z.string()).describe('Email addresses that received a pending invitation.'),
+  added: z
+    .array(z.string())
+    .describe('Existing organization members granted workspace access immediately.'),
+  failed: z
+    .array(
+      z.object({
+        email: z.string().describe('Recipient whose operation failed.'),
+        error: z.string().describe('Reason the invitation or access grant could not be completed.'),
+      })
+    )
+    .describe(
+      'Failures for individual recipients. Earlier successful recipients remain committed.'
+    ),
+  invitations: z
+    .array(
+      z.object({
+        id: z
+          .string()
+          .describe(
+            'Invitation identifier, or direct-grant result identifier when instantAdd is true.'
+          ),
+        email: z.string().describe('Recipient email address.'),
+        workspaceIds: z
+          .array(z.string())
+          .describe('Workspaces included in this invitation or direct grant.'),
+        permission: workspacePermissionSchema.describe('Workspace permission offered or granted.'),
+        membershipIntent: z
+          .enum(['internal', 'external'])
+          .describe(
+            'Whether the recipient joins the organization or receives only workspace access.'
+          ),
+        instantAdd: z
+          .boolean()
+          .optional()
+          .describe('Whether access was granted immediately without a pending invitation.'),
+        outcome: z
+          .enum(['added', 'updated', 'unchanged'])
+          .optional()
+          .describe('Result when reconciling access for an existing user.'),
+      })
+    )
+    .describe('Invitation and immediate-access results for successful recipients.'),
 })
 
 export const removeWorkspaceMemberBodySchema = z.object({
@@ -163,6 +194,7 @@ export const invitationDetailsSchema = z.object({
     z.object({
       workspaceId: z.string(),
       workspaceName: z.string().nullable(),
+      workspaceLogoUrl: workspaceSchema.shape.logoUrl,
       permission: workspacePermissionSchema,
     })
   ),

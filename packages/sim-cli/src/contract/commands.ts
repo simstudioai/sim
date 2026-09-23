@@ -1,5 +1,25 @@
 import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 
+const ORGANIZATION_FLAG = {
+  organizationId: { name: 'organization', describe: 'Organization identifier' },
+} as const
+const PERMISSION_GROUP_MEMBER_FLAGS = {
+  ...ORGANIZATION_FLAG,
+  groupId: { name: 'group', describe: 'Permission group identifier' },
+} as const
+
+const DEFAULT_FLAG = {
+  isDefault: { name: 'default', boolean: true, negatable: true },
+} as const
+
+const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
+  { header: 'id' },
+  { header: 'target', path: 'targetLabel' },
+  { header: 'status' },
+  { header: 'requester', path: 'requester.email' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+]
+
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
@@ -935,6 +955,239 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'description' },
       { header: 'built-in', path: 'readOnly', format: 'bool' },
     ],
+  },
+  discoverWorkspaceAccessRequests: {
+    command: 'workspaces access-requests discover',
+    profileWorkspacePath: true,
+    columns: [
+      { header: 'label' },
+      { header: 'target' },
+      { header: 'state' },
+      { header: 'pending', path: 'pendingRequestId' },
+    ],
+  },
+  listMyWorkspaceAccessRequests: {
+    command: 'workspaces access-requests mine',
+    profileWorkspacePath: true,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  createWorkspaceAccessRequest: {
+    command: 'workspaces access-requests create',
+    profileWorkspacePath: true,
+  },
+  cancelWorkspaceAccessRequest: {
+    command: 'workspaces access-requests cancel',
+    profileWorkspacePath: true,
+  },
+  discoverOrganizationAccessRequests: {
+    command: 'organizations access-requests discover',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'label' },
+      { header: 'target' },
+      { header: 'state' },
+      { header: 'pending', path: 'pendingRequestId' },
+    ],
+  },
+  listMyOrganizationAccessRequests: {
+    command: 'organizations access-requests mine',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  createOrganizationAccessRequest: {
+    command: 'organizations access-requests create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  cancelOrganizationAccessRequest: {
+    command: 'organizations access-requests cancel',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationAccessRequests: {
+    command: 'organizations access-requests list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  previewOrganizationAccessRequest: {
+    command: 'organizations access-requests preview',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  resolveOrganizationAccessRequest: {
+    command: 'organizations access-requests resolve',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationAccessRequestSettings: {
+    command: 'organizations access-requests settings get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateOrganizationAccessRequestSettings: {
+    command: 'organizations access-requests settings update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  createWorkspaceInvitations: {
+    command: 'workspaces invitations create',
+    profileWorkspacePath: true,
+    flags: { emails: { list: true } },
+  },
+  getWorkspacePermissionConfig: {
+    command: 'workspaces permission-config',
+    profileWorkspacePath: true,
+  },
+  listOrganizationInvitationWorkspaces: {
+    command: 'organizations invitations workspaces',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'permission' },
+      { header: 'archived', path: 'archivedAt', format: 'timestamp' },
+    ],
+  },
+  getOrganizationMemberUsageLimit: {
+    command: 'organizations members usage-limit get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateOrganizationMemberUsageLimit: {
+    command: 'organizations members usage-limit update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationUsageSummary: {
+    command: 'organizations usage summary',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationUsageBreakdown: {
+    command: 'organizations usage breakdown',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationUsageEvents: {
+    command: 'organizations usage events',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizations: {
+    command: 'organizations list',
+    columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
+  },
+  getOrganization: { command: 'organizations get' },
+  listOrganizationWorkspaces: {
+    command: 'organizations workspaces',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'name' }],
+  },
+  listOrganizationMembers: {
+    command: 'organizations members list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name' },
+      { header: 'email' },
+      { header: 'role' },
+    ],
+  },
+  updateOrganizationMember: {
+    command: 'organizations members update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationMember: {
+    command: 'organizations members remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This removes the member, revokes their organization workspace access, and ends their sessions.',
+  },
+  listOrganizationInvitations: {
+    command: 'organizations invitations list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'email' },
+      { header: 'role' },
+      { header: 'membership', path: 'membershipIntent' },
+      { header: 'status' },
+      { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    ],
+  },
+  createOrganizationInvitation: {
+    command: 'organizations invitations create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationInvitation: {
+    command: 'organizations invitations get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  resendOrganizationInvitation: {
+    command: 'organizations invitations resend',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  revokeOrganizationInvitation: {
+    command: 'organizations invitations revoke',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This cancels the invitation and all its workspace grants, preventing acceptance.',
+  },
+  updateTableView: {
+    flags: { isDefault: { ...DEFAULT_FLAG.isDefault, renamedFrom: ['is-default'] } },
+  },
+  listPermissionGroups: {
+    command: 'permission-groups list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'default', path: 'isDefault', format: 'bool' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  getPermissionGroup: {
+    command: 'permission-groups get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  createPermissionGroup: {
+    command: 'permission-groups create',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
+  },
+  updatePermissionGroup: {
+    command: 'permission-groups update',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
+  },
+  deletePermissionGroup: {
+    command: 'permission-groups delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This permanently deletes the permission group and its member assignments.',
+  },
+  listPermissionGroupMembers: {
+    command: 'permission-groups members list',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+    ],
+  },
+  addPermissionGroupMember: {
+    command: 'permission-groups members add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    flags: { userId: { name: 'user' } },
+  },
+  removePermissionGroupMember: {
+    command: 'permission-groups members remove',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    confirm:
+      'This removes the member assignment and changes which permission groups apply to the user.',
+  },
+  bulkAddPermissionGroupMembers: {
+    command: 'permission-groups members batch-add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    flags: {
+      userIds: {
+        name: 'user',
+        list: true,
+        describe: 'User IDs to add; cannot be combined with --all-members',
+      },
+      addAllOrganizationMembers: {
+        name: 'all-members',
+        boolean: true,
+        describe: 'Add every current organization member; cannot be combined with --user',
+      },
+    },
   },
   listCustomTools: {
     columns: [

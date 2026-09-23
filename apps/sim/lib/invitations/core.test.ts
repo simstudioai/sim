@@ -90,6 +90,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 import {
   acceptInvitation,
+  getInvitationById,
   rejectInvitation,
   resolveInvitationAdmissionOrganizationId,
   revokeInvitationAsAdmin,
@@ -127,6 +128,39 @@ function executedSqlContaining(substring: string): boolean {
 }
 
 afterAll(resetEnvFlagsMock)
+
+describe('invitation workspace identity', () => {
+  it('hydrates uploaded logos and workspaces without a logo in the grant query', async () => {
+    resetDbChainMock()
+    queueWhereResponses([
+      [{ id: 'invitation', organizationId: null, inviterId: 'inviter' }],
+      [
+        {
+          id: 'grant-one',
+          workspaceId: 'one',
+          workspaceName: 'Design',
+          workspaceLogoUrl: 'https://example.com/design.png',
+          permission: 'read',
+        },
+        {
+          id: 'grant-two',
+          workspaceId: 'two',
+          workspaceName: 'Engineering',
+          workspaceLogoUrl: null,
+          permission: 'write',
+        },
+      ],
+      [{ name: 'Inviter', email: 'inviter@example.com' }],
+    ])
+
+    const result = await getInvitationById('invitation')
+
+    expect(result?.grants.map((grant) => grant.workspaceLogoUrl)).toEqual([
+      'https://example.com/design.png',
+      null,
+    ])
+  })
+})
 
 describe('acceptInvitation', () => {
   beforeEach(() => {
@@ -2211,6 +2245,36 @@ describe('locked invitation mutations', () => {
       dbChainMockFns.set.mock.invocationCallOrder[0]
     )
   })
+
+  it.each([undefined, 'workspace-1'])(
+    'DELETE refuses expiry while waiting for authority locks (scope %s)',
+    async (workspaceId) => {
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+      try {
+        queueWhereResponses([
+          ...invitationHydrationRows(),
+          ...invitationHydrationRows(),
+          [{ id: 'member-1', role: 'admin' }],
+        ])
+        dbChainMockFns.for.mockImplementationOnce(() => {
+          clock.mockReturnValue(now + 120_000)
+          return dbChainMock
+        })
+        await expect(
+          revokeInvitationAsAdmin({
+            actorId: 'admin-1',
+            invitationId: 'inv-1',
+            workspaceId,
+          })
+        ).resolves.toEqual({ success: false, kind: 'not-pending' })
+        expect(dbChainMockFns.set).not.toHaveBeenCalled()
+        expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+      } finally {
+        clock.mockRestore()
+      }
+    }
+  )
 
   it('PATCH role update observes an organization-admin demotion before mutating', async () => {
     queueWhereResponses([

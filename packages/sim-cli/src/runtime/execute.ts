@@ -101,7 +101,7 @@ export function runFailureMessage(operation: V2OperationName, payload: unknown):
  * `sim tables batch-delete --table-ids '["tbl_typo"]'` indistinguishable from a
  * real deletion in a CI step.
  *
- * Only a total miss fails. A partial success still exits `0`: the payload names
+ * Most checks fail only a total miss. A partial success still exits `0`: the payload names
  * every item that did not make it, and failing the process there would break
  * every caller that legitimately sweeps a list containing already-gone items.
  */
@@ -119,6 +119,12 @@ type BulkOutcomeCheck = (
 ) => string | null
 
 export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkOutcomeCheck>>> = {
+  /** Invitation batches explicitly promise success only when every recipient succeeds. */
+  createWorkspaceInvitations: (payload) => {
+    const failed = lengthOf(payload.failed)
+    if (failed === 0 && payload.success !== false) return null
+    return `${failed > 0 ? `Invitation batch failed for ${failed} ${failed === 1 ? 'recipient' : 'recipients'}.` : 'Invitation batch failed.'} Successful results remain committed; inspect failed recipients before retrying.`
+  },
   bulkDeleteFiles: (payload, body) => {
     if (countOf((payload.deletedItems as { files?: unknown } | undefined)?.files) > 0) return null
     const requested = lengthOf(body?.fileIds)

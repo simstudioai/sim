@@ -59,8 +59,10 @@ vi.mock('@/enrichments/run', () => ({
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: vi.fn((value) => value),
-  checkAttributedUsageLimits: mocks.checkAttributedUsageLimits,
   toBillingContext: vi.fn(() => ({})),
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: mocks.checkAttributedUsageLimits,
 }))
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   createExactEmptyTableRowSecretProvenance: vi.fn(() => undefined),

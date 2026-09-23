@@ -110,12 +110,13 @@ async function selectSettings() {
 }
 
 describe('OrganizationFooter settings navigation', () => {
-  it('keeps only Settings and Sign out in the organization profile menu', async () => {
+  it('offers personal request history in the organization profile menu', async () => {
     await openProfileMenu()
     expect(
       [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
     ).toEqual(['Settings', 'Sign out'])
     expect(document.querySelector('[role="separator"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('My access requests')
   })
 
   it('navigates immediately when settings are clean', async () => {

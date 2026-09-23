@@ -174,6 +174,35 @@ describe('organization settings authorization', () => {
     expect(mocks.enterprise).not.toHaveBeenCalled()
   })
 
+  it('keeps request review independent of the Enterprise plan and Search rollout', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    mocks.governance.mockResolvedValue(false)
+    mocks.search.mockResolvedValue(false)
+
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'admin',
+        section: 'requests',
+      })
+    ).resolves.toBe(true)
+    expect(mocks.canOpen).toHaveBeenCalledWith('target', 'admin', 'requests')
+    expect(mocks.enterprise).not.toHaveBeenCalled()
+    expect(mocks.governance).not.toHaveBeenCalled()
+    expect(mocks.search).not.toHaveBeenCalled()
+  })
+
+  it('rejects request review when target organization authority is absent', async () => {
+    mocks.canOpen.mockResolvedValue(false)
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'member',
+        section: 'requests',
+      })
+    ).resolves.toBe(false)
+  })
+
   it('applies enterprise entitlement only after role authorization', async () => {
     mocks.enterprise.mockResolvedValue(false)
     expect(

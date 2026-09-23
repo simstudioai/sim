@@ -261,6 +261,9 @@ export const env = createEnv({
     KIMI_API_KEY_1:                        z.string().min(1).optional(),           // Primary Kimi (Moonshot AI) API key for load balancing
     KIMI_API_KEY_2:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
     KIMI_API_KEY_3:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
+    TYPESAFE_API_KEY_1:                    z.string().min(1).optional(),
+    TYPESAFE_API_KEY_2:                    z.string().min(1).optional(),
+    TYPESAFE_API_KEY_3:                    z.string().min(1).optional(),
     XAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary xAI API key for load balancing
     XAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
     XAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
@@ -461,6 +464,7 @@ export const env = createEnv({
     KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the interactive lane
     KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT:  z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the connector-backfill lane
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    KB_CONFIG_PROJECTION_CONCURRENCY:      z.number().optional().default(8),       // Most documents one knowledge projector pass projects at once, each on its own connection
     /** Deployment operating budgets shared by every caller using the same provider credential. */
     KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
     KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
@@ -635,6 +639,8 @@ export const env = createEnv({
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
     KNOWLEDGE_TIN_KEYWORD:                z.boolean().optional(),                 // Rank large-scope keyword retrieval through the Tin text index where it exists
+    KNOWLEDGE_ASYNC_PROJECTION:           z.boolean().optional(),                 // Knowledge writers leave search projection rows to the background projector
+    KNOWLEDGE_PROJECTION_FILL:            z.boolean().optional(),                 // The knowledge projector fills projection rows written before they carried a source and ACL
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

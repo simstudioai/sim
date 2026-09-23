@@ -336,10 +336,11 @@ export function isOrganizationWorkspace(
  * keep their access — this policy only governs *new* invitations.
  */
 export async function getWorkspaceInvitePolicy(
-  workspaceState: WorkspaceOwnershipState
+  workspaceState: WorkspaceOwnershipState,
+  executor: DbOrTx = db
 ): Promise<WorkspaceInvitePolicy> {
   const billedPlanCategory = isBillingEnabled
-    ? await resolveBilledPlanCategory(workspaceState)
+    ? await resolveBilledPlanCategory(workspaceState, executor)
     : 'free'
   return evaluateWorkspaceInvitePolicy(workspaceState, { billedPlanCategory })
 }
@@ -412,15 +413,16 @@ function blockInvite(organizationId: string | null): WorkspaceInvitePolicy {
 }
 
 async function resolveBilledPlanCategory(
-  workspaceState: WorkspaceOwnershipState
+  workspaceState: WorkspaceOwnershipState,
+  executor: DbOrTx
 ): Promise<PlanCategory> {
   if (
     workspaceState.workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
     workspaceState.organizationId
   ) {
-    return getInvitePlanCategoryForOrganization(workspaceState.organizationId)
+    return getInvitePlanCategoryForOrganization(workspaceState.organizationId, executor)
   }
-  return getInvitePlanCategoryForUser(workspaceState.billedAccountUserId)
+  return getInvitePlanCategoryForUser(workspaceState.billedAccountUserId, executor)
 }
 
 /**
@@ -430,10 +432,11 @@ async function resolveBilledPlanCategory(
  * blocked consistently with accept-time provisioning.
  */
 export async function getInvitePlanCategoryForOrganization(
-  organizationId: string
+  organizationId: string,
+  executor: DbOrTx = db
 ): Promise<PlanCategory> {
   try {
-    const orgSub = await getOrganizationSubscription(organizationId)
+    const orgSub = await getOrganizationSubscription(organizationId, { executor })
     if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return 'free'
     return getPlanType(orgSub.plan)
   } catch (error) {

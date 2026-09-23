@@ -564,19 +564,19 @@ export const Code = memo(function Code({
       const newVisualLineHeights: number[] = []
 
       const tempContainer = document.createElement('div')
-      tempContainer.style.cssText = `
-        position: absolute;
-        visibility: hidden;
-        height: auto;
-        width: ${preElement.clientWidth}px;
-        font-family: ${window.getComputedStyle(preElement).fontFamily};
-        font-size: ${window.getComputedStyle(preElement).fontSize};
-        line-height: ${LINE_HEIGHT_PX}px;
-        padding: 8px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        box-sizing: border-box;
-      `
+      Object.assign(tempContainer.style, {
+        position: 'absolute',
+        visibility: 'hidden',
+        height: 'auto',
+        width: `${preElement.clientWidth}px`,
+        fontFamily: window.getComputedStyle(preElement).fontFamily,
+        fontSize: window.getComputedStyle(preElement).fontSize,
+        lineHeight: `${LINE_HEIGHT_PX}px`,
+        padding: '8px',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        boxSizing: 'border-box',
+      })
       document.body.appendChild(tempContainer)
 
       lines.forEach((line: string) => {

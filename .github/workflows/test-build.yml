@@ -108,6 +108,7 @@ jobs:
           bunx vitest run
           scripts/retired-columns.postgres.test.ts
           scripts/connector-sync-schedule-precision.postgres.test.ts
+          scripts/database-failure-classification.postgres.test.ts
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
@@ -133,7 +134,18 @@ jobs:
           lib/billing/core/usage-log.postgres.test.ts
           lib/billing/core/organization-activity.postgres.test.ts
           lib/billing/core/usage-analytics-queries.postgres.test.ts
+          lib/billing/core/organization-usage-pagination.postgres.test.ts
+          lib/billing/organizations/member-limits.postgres.test.ts
+          lib/workspaces/organization-workspaces.postgres.test.ts
           lib/billing/calculations/usage-reservation.test.ts
+
+      - name: Verify access request flows, pagination, and impact in PostgreSQL
+        working-directory: apps/sim
+        env:
+          ACCESS_REQUESTS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_access_requests_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql.unsafe("CREATE DATABASE sim_access_requests_test"); await sql.end()'
+          bunx vitest run ee/access-requests/lib/repository.postgres.test.ts ee/access-requests/lib/impact.postgres.test.ts ee/access-requests/lib/application/flow.postgres.test.ts
 
       - name: Verify fork previews ignore execution file history in PostgreSQL
         working-directory: apps/sim
@@ -263,14 +275,23 @@ jobs:
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
           lib/knowledge/__integration__/embedding-insert-batches.integration.ts
+          lib/knowledge/__integration__/processing-lock-scope.integration.ts
           lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
           lib/knowledge/__integration__/connector-deferral.integration.ts
           lib/knowledge/__integration__/stored-document-recovery.integration.ts
           lib/knowledge/__integration__/connector-partition-work.integration.ts
+          lib/knowledge/__integration__/user-document-visibility.integration.ts
           lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/member-scope-renewal.integration.ts
+          lib/knowledge/__integration__/member-document-lifecycle.integration.ts
+          lib/knowledge/__integration__/connector-lease-pages.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
+          lib/knowledge/__integration__/gitlab-workspace.integration.ts
+          lib/knowledge/__integration__/unfilled-projection-source.integration.ts
+          lib/knowledge/__integration__/knowledge-projection.integration.ts
+          lib/knowledge/__integration__/async-projection-processing.integration.ts
+          lib/knowledge/__integration__/purged-detach-reservation.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
@@ -293,7 +314,17 @@ jobs:
           bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
           bunx vitest run \
             lib/knowledge/access/predicate.postgres.test.ts \
-            lib/knowledge/connectors/external-directory.postgres.test.ts
+            lib/knowledge/connectors/external-directory.postgres.test.ts \
+            lib/knowledge/connectors/sync-persistence.postgres.test.ts \
+            lib/knowledge/connectors/sync-content-pass.postgres.test.ts
+
+      - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
+        working-directory: packages/db
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); const [row] = await sql`SELECT 1 FROM pg_database WHERE datname = ${"sim_acl_test"}`; if (!row) await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
+          bunx vitest run script-migrations/0021_embedding_search_connector.postgres.test.ts
 
   test-build:
     name: Lint and Test

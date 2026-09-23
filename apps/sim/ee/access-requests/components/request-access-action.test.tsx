@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
   usePathname: () => '/workspace/workspace',
 }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   useCreateAccessRequest: () => ({ mutate: mocks.create, isPending: false, error: null }),
   useDiscoverAccessRequests: mocks.discovery,
 }))
@@ -118,7 +118,7 @@ describe('request form lifecycle', () => {
     expect(document.querySelector('textarea')).toBeNull()
     clickDialogButton('View request')
     expect(mocks.push).toHaveBeenCalledWith(
-      '/workspace/workspace/access-requests?requestId=pending%2Frequest'
+      '/workspace/workspace/settings/requests?view=requests&requestId=pending%2Frequest'
     )
     expect(mocks.create).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
@@ -149,7 +149,7 @@ describe('request form lifecycle', () => {
     })
     clickDialogButton('View request')
     expect(mocks.push).toHaveBeenCalledWith(
-      '/access-requests?requestId=limit-request&organizationId=organization'
+      '/access-requests?view=requests&requestId=limit-request&organizationId=organization'
     )
     expect(mocks.create).not.toHaveBeenCalled()
   })

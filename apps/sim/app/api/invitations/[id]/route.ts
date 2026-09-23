@@ -13,20 +13,18 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalOrganizationErrorPolicy } from '@/lib/api/server/routes/organizations'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  cancelInvitation,
-  invitationManagementOperations,
-} from '@/lib/invitations/application/manage-invitation'
+import { revokeInvitation } from '@/lib/invitations/application/mutations'
+import { invitationOperations } from '@/lib/invitations/application/operations'
 import {
   getInvitationById,
   getInvitationJoinPreview,
   isInvitationExpired,
   updateInvitation,
 } from '@/lib/invitations/core'
-import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationsAPI')
@@ -106,6 +104,7 @@ export const GET = withRouteHandler(
           grants: inv.grants.map((grant) => ({
             workspaceId: grant.workspaceId,
             workspaceName: grant.workspaceName,
+            workspaceLogoUrl: grant.workspaceLogoUrl,
             permission: grant.permission,
           })),
         },
@@ -203,17 +202,12 @@ export const PATCH = withRouteHandler(
 export const DELETE = defineInternalJsonRoute({
   contract: cancelInvitationContract,
   auth: internalSessionAuth,
-  operation: invitationManagementOperations.cancel,
+  operation: invitationOperations.revoke,
   rateLimit: internalRateLimits.none({
-    reason: 'Preserves the existing authenticated invitation cancellation policy',
+    reason: 'Preserve existing invitation management admission',
   }),
-  errorPolicy: {
-    ...invitationManagementErrorPolicy,
-    unhandled: () => ({ status: 500, body: { error: 'Failed to cancel invitation' } }),
-  },
-  mapInput: ({ params, query }) => ({
-    invitationId: params.id,
-    ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
-  }),
-  useCase: cancelInvitation,
+  errorPolicy: internalOrganizationErrorPolicy,
+  mapInput: ({ params, query }) => ({ invitationId: params.id, workspaceId: query.workspaceId }),
+  useCase: revokeInvitation,
+  present: (result) => ({ success: true, invitationCancelled: result.invitationCancelled }),
 })

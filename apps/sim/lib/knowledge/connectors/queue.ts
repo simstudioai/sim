@@ -12,6 +12,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
   isContentEngineAccessMode,
@@ -19,8 +20,11 @@ import {
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
-import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
-import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
+import {
+  buildSyncUnscheduledUpdate,
+  connectorIsLive,
+  LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 
 const logger = createLogger('ConnectorSyncQueue')
 
@@ -204,12 +208,14 @@ async function describeUnacceptedSync(connectorId: string): Promise<string> {
       status: knowledgeConnector.status,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
+      detachedAt: knowledgeConnector.detachedAt,
     })
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connectorId))
     .limit(1)
 
   if (!row) return 'Connector no longer exists'
+  if (row.detachedAt) return 'Connector has been removed'
   if (row.archivedAt || row.deletedAt) return 'Connector has been archived or deleted'
   if (row.status !== 'syncing' && !isLockableConnectorStatus(row.status)) {
     return `Connector is ${row.status} and cannot start a sync`
@@ -309,6 +315,7 @@ export async function dispatchSync(
       connectorAccessMode: knowledgeConnector.accessMode,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
+      connectorDetachedAt: knowledgeConnector.detachedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
@@ -335,27 +342,13 @@ export async function dispatchSync(
     })
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        nextSyncAt: null,
-        lastSyncError: 'Knowledge base deleted',
-        /**
-         * Clears the lock alongside the status.
-         *
-         * This write runs BEFORE the lock is taken, but it is unconditional on
-         * status, so it can land on a row a previous run left `syncing` — a run
-         * that may still be alive. Flipping status without releasing the token
-         * left a row that was neither locked nor reclaimable: the reaper only
-         * looks at `syncing` rows, and the old run's terminal write could still
-         * match its own token and resurrect a state for a knowledge base that no
-         * longer exists. Releasing both makes the transition terminal.
-         */
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
+      .set(buildSyncUnscheduledUpdate(new Date(), 'Knowledge base deleted'))
       .where(eq(knowledgeConnector.id, connectorId))
     return { queued: false, reason: 'Knowledge base has been deleted' }
+  }
+  if (row.connectorDetachedAt) {
+    logger.warn('Skipping sync dispatch: connector has been removed', { connectorId, requestId })
+    return { queued: false, reason: 'Connector has been removed' }
   }
   if (row.connectorArchivedAt || row.connectorDeletedAt) {
     logger.warn('Skipping sync dispatch: connector is archived or deleted', {

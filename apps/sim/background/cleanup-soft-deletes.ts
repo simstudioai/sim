@@ -40,6 +40,7 @@ import {
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
 import { deduplicateFolderName } from '@/lib/folders/naming'
+import { settleDetachedConnectorReservations } from '@/lib/knowledge/connectors/detachment'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
@@ -445,11 +446,17 @@ async function cleanupExpiredKnowledgeBases(
       isNotNull(knowledgeBase.deletedAt),
       lt(knowledgeBase.deletedAt, retentionDate)
     ),
-    onBatch: (rows: { id: string }[]) =>
-      hardDeleteKnowledgeBaseDocuments(
-        rows.map(({ id }) => id),
-        label
-      ),
+    /**
+     * The bases' DELETE cascades their connectors away, so a detached connector's reservation is
+     * settled here: an overdrawn one before the documents (their deletion floors usage at zero),
+     * the rest after them, so a deletion that fails partway leaves every step's ledger consistent.
+     */
+    onBatch: async (rows: { id: string }[]) => {
+      const knowledgeBaseIds = rows.map(({ id }) => id)
+      await settleDetachedConnectorReservations(knowledgeBaseIds, 'overdrawn')
+      await hardDeleteKnowledgeBaseDocuments(knowledgeBaseIds, label)
+      await settleDetachedConnectorReservations(knowledgeBaseIds, 'remaining')
+    },
   }
   return scope.kind === 'workspace'
     ? chunkedBatchDelete({ ...options, workspaceIds: scope.ids })

@@ -200,6 +200,27 @@ describe('workspace SettingsSidebar organization rollout', () => {
 
     expect(workspaceLink('connected-accounts')).toBeNull()
     expect(workspaceLink('organization')).toBeNull()
+    expect(workspaceLink('requests')).toBeNull()
+  })
+
+  it.each(['member', 'external'] as const)(
+    'offers own requests to a workspace user who is an org %s',
+    (role) => {
+      hostContext = makeHostContext(role, false)
+      renderSidebar()
+      expect(workspaceLink('requests')).toHaveTextContent('Requests')
+    }
+  )
+
+  it.each([true, false])('keeps Requests accessible to org admins with hosted=%s', (hosted) => {
+    hostContext.deployment = {
+      ...deployment,
+      hosted,
+      features: { ...deployment.features, accessControl: false },
+    }
+    hostContext.ownerBilling = { ...hostContext.ownerBilling, plan: 'free', isEnterprise: false }
+    renderSidebar()
+    expect(workspaceLink('requests')).toHaveTextContent('Requests')
   })
 
   it.each([false, undefined])(
@@ -213,6 +234,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(workspaceLink('usage')).toHaveTextContent('Insights')
       expect(workspaceLink('sso')).toHaveTextContent('Single sign-on')
       expect(workspaceLink('connected-accounts')).toHaveTextContent('Credential Groups')
+      expect(workspaceLink('requests')).toHaveTextContent('Requests')
       expect(container.querySelector('a[href^="/o/"]')).toBeNull()
       expectWorkspaceLinks()
     }

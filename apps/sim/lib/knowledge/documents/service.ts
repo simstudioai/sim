@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import {
   document,
   documentSecretProvenance,
@@ -51,8 +52,9 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
-import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { getCostMultiplier } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
@@ -104,7 +106,10 @@ import {
 } from '@/lib/knowledge/documents/processing-claim'
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
-import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
+import {
+  enqueueDeferredRetryCheck,
+  enqueueKnowledgeDocumentProcessing,
+} from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -161,6 +166,7 @@ import {
 } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
@@ -179,6 +185,7 @@ import {
   parseNumberValue,
   uncompilableTagFilterError,
   validateTagValue,
+  validateTagValueLength,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
@@ -211,6 +218,27 @@ export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
     super('forbidden', 'Document file is not owned by this knowledge base')
     this.name = 'KnowledgeBaseFileOwnershipError'
   }
+}
+
+/**
+ * Rolls back a processing pass whose completion write matched no row: the
+ * document, its connector, or its knowledge base stopped being active before
+ * the completion write, so none of the pass's output may commit.
+ */
+class SupersededProcessingOutput extends Error {
+  constructor() {
+    super('Document processing output was superseded before commit')
+    this.name = 'SupersededProcessingOutput'
+  }
+}
+
+/** The document's knowledge base has not been deleted. */
+function knowledgeBaseIsActive() {
+  return sql`EXISTS (
+    SELECT 1 FROM ${knowledgeBase}
+    WHERE ${knowledgeBase.id} = ${document.knowledgeBaseId}
+      AND ${knowledgeBase.deletedAt} IS NULL
+  )`
 }
 
 /** Internal KB uploads require the workspace's trusted file binding; external ingestion URLs do not. */
@@ -552,7 +580,9 @@ function resolveDocumentTags(
 
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const actualFieldType = existingDef.fieldType || fieldType
-    const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
+    const validationError =
+      validateTagValueLength(tagName, String(rawValue)) ??
+      validateTagValue(tagName, String(rawValue), actualFieldType)
     if (validationError) {
       typeErrors.push(validationError)
     }
@@ -1390,10 +1420,24 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly scheduleProviderContinuation?: (
     error: ProviderCapacityDeferredError
   ) => Promise<DocumentProcessingContinuation>
+  /**
+   * Schedules the next attempt after a transient database failure and returns when it runs, or
+   * null when this failure is not retried that way. A scheduled document is left `pending` until
+   * then instead of `failed`, so a slow database window does not read as a bad document.
+   */
+  readonly scheduleDatabaseRetry?: (error: unknown) => Date | null
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
 }
 
+/**
+ * Processes documents in this process when no Trigger.dev worker can take them.
+ *
+ * Deliberately supplies no `scheduleDatabaseRetry`: nothing here can durably wait out a slow
+ * database window, since an in-memory timer dies with the process and would leave the document
+ * `pending` with no run behind it. A transient database failure is therefore recorded `failed`,
+ * which the document's Retry action and the retry API both accept.
+ */
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string,
@@ -1949,114 +1993,154 @@ export async function processDocumentAsync(
               }))
 
               signal.throwIfAborted()
-              processingCommitted = await db.transaction(async (tx) => {
-                signal.throwIfAborted()
-                const activeDocument = await tx
-                  .select({ id: document.id })
-                  .from(document)
-                  .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-                  .where(
-                    and(
-                      eq(document.id, documentId),
-                      eq(document.processingStatus, 'processing'),
-                      eq(document.processingStartedAt, processingStartedAt),
-                      ...queueGenerationConditions(attemptContext),
-                      eq(document.userExcluded, false),
-                      isNull(document.archivedAt),
-                      isNull(document.deletedAt),
-                      documentConnectorIsActive(),
-                      isNull(knowledgeBase.deletedAt)
-                    )
+              /**
+               * Skips the index writes when the connector or knowledge base went
+               * inactive after the claim. As its own autocommit statement it
+               * releases its locks immediately; the completion write inside the
+               * transaction stays the authoritative check.
+               */
+              const [sourceActive] = await db
+                .select({ id: document.id })
+                .from(document)
+                .where(
+                  and(
+                    eq(document.id, documentId),
+                    documentConnectorIsActive(),
+                    knowledgeBaseIsActive()
                   )
-                  .for('update', { of: document })
-                  .limit(1)
+                )
+                .limit(1)
+              if (!sourceActive) return
+              /**
+               * While `knowledge-async-projection` is on, the chunks are committed with a mark on
+               * their document and no search projection rows; the knowledge projector writes those
+               * after the commit. Read before the transaction opens.
+               */
+              const deferProjection = await isFeatureEnabled('knowledge-async-projection')
+              processingCommitted = await db
+                .transaction(async (tx) => {
+                  signal.throwIfAborted()
+                  if (deferProjection)
+                    await tx.execute(sql.raw(`SELECT ${DEFER_KNOWLEDGE_PROJECTION}`))
+                  /**
+                   * Reads only the document row. Connector activity is checked by
+                   * the completion write at the end instead: reading
+                   * `knowledge_connector` here would hold a lock on it until commit,
+                   * across the embedding writes, so a slow index write would block
+                   * DDL on the connector table for its whole duration. The
+                   * knowledge base table stays locked for the pass regardless,
+                   * through the embedding foreign key and projection triggers.
+                   */
+                  const activeDocument = await tx
+                    .select({ id: document.id })
+                    .from(document)
+                    .where(
+                      and(
+                        eq(document.id, documentId),
+                        eq(document.processingStatus, 'processing'),
+                        eq(document.processingStartedAt, processingStartedAt),
+                        ...queueGenerationConditions(attemptContext),
+                        eq(document.userExcluded, false),
+                        isNull(document.archivedAt),
+                        isNull(document.deletedAt)
+                      )
+                    )
+                    .for('update')
+                    .limit(1)
 
-                if (activeDocument.length === 0) {
-                  return false
-                }
-
-                if (embeddingRecords.length > 0) {
-                  await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-                  const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-                  const batches: (typeof embeddingRecords)[] = []
-                  for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-                    batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                  if (activeDocument.length === 0) {
+                    return false
                   }
 
-                  logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-                  for (const [batchIndex, batch] of batches.entries()) {
-                    signal.throwIfAborted()
-                    const insertStartedAt = Date.now()
-                    try {
-                      await tx.insert(embedding).values(batch)
-                    } catch (error) {
-                      logger.error(`[${documentId}] Failed to insert embedding batch`, {
-                        knowledgeBaseId,
-                        operation: 'embedding.insert',
-                        batchNumber: batchIndex + 1,
-                        batchSize: batch.length,
-                        totalChunks: embeddingRecords.length,
-                        embeddingModel: kbEmbeddingModel,
-                        embeddingDimensions: kbEmbedding.dimensions,
-                        elapsedMs: Date.now() - insertStartedAt,
-                        diagnostic: getConnectorFailureDiagnostic(error),
-                      })
-                      throw error
+                  if (embeddingRecords.length > 0) {
+                    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+                    const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+                    const batches: (typeof embeddingRecords)[] = []
+                    for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                      batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                    }
+
+                    logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+                    for (const [batchIndex, batch] of batches.entries()) {
+                      signal.throwIfAborted()
+                      const insertStartedAt = Date.now()
+                      try {
+                        await tx.insert(embedding).values(batch)
+                      } catch (error) {
+                        logger.error(`[${documentId}] Failed to insert embedding batch`, {
+                          knowledgeBaseId,
+                          operation: 'embedding.insert',
+                          batchNumber: batchIndex + 1,
+                          batchSize: batch.length,
+                          totalChunks: embeddingRecords.length,
+                          embeddingModel: kbEmbeddingModel,
+                          embeddingDimensions: kbEmbedding.dimensions,
+                          elapsedMs: Date.now() - insertStartedAt,
+                          diagnostic: getConnectorFailureDiagnostic(error),
+                        })
+                        throw error
+                      }
+                    }
+                    const provenanceRecords = embeddingRecords.flatMap((record, index) => {
+                      const provenance = chunkProvenances[index]
+                      if (!provenance) return []
+                      return [
+                        {
+                          embeddingId: record.id,
+                          contentHash: record.chunkHash,
+                          status: provenance.status,
+                          entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+                          updatedAt: now,
+                        },
+                      ]
+                    })
+                    for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
+                      signal.throwIfAborted()
+                      await tx
+                        .insert(embeddingSecretProvenance)
+                        .values(provenanceRecords.slice(i, i + insertBatchSize))
                     }
                   }
-                  const provenanceRecords = embeddingRecords.flatMap((record, index) => {
-                    const provenance = chunkProvenances[index]
-                    if (!provenance) return []
-                    return [
-                      {
-                        embeddingId: record.id,
-                        contentHash: record.chunkHash,
-                        status: provenance.status,
-                        entries: provenance.status === 'exact' ? [...provenance.entries] : [],
-                        updatedAt: now,
-                      },
-                    ]
-                  })
-                  for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
-                    signal.throwIfAborted()
-                    await tx
-                      .insert(embeddingSecretProvenance)
-                      .values(provenanceRecords.slice(i, i + insertBatchSize))
-                  }
-                }
 
-                signal.throwIfAborted()
-                await tx
-                  .update(document)
-                  .set({
-                    chunkCount: processed.metadata.chunkCount,
-                    tokenCount: processed.metadata.tokenCount,
-                    characterCount: processed.metadata.characterCount,
-                    processingStatus: 'completed',
-                    processingCompletedAt: now,
-                    processingError: null,
-                    /** A completed pass restores the retry allowance for a future failure. */
-                    processingAttempts: 0,
-                    processingQueueToken: null,
-                    processingQueuedAt: null,
-                    processingDeferredUntil: null,
-                  })
-                  .where(
-                    and(
-                      eq(document.id, documentId),
-                      eq(document.processingStatus, 'processing'),
-                      eq(document.processingStartedAt, processingStartedAt),
-                      ...queueGenerationConditions(attemptContext),
-                      eq(document.userExcluded, false),
-                      isNull(document.archivedAt),
-                      isNull(document.deletedAt),
-                      documentConnectorIsActive()
+                  signal.throwIfAborted()
+                  const completed = await tx
+                    .update(document)
+                    .set({
+                      chunkCount: processed.metadata.chunkCount,
+                      tokenCount: processed.metadata.tokenCount,
+                      characterCount: processed.metadata.characterCount,
+                      processingStatus: 'completed',
+                      processingCompletedAt: now,
+                      processingError: null,
+                      /** A completed pass restores the retry allowance for a future failure. */
+                      processingAttempts: 0,
+                      processingQueueToken: null,
+                      processingQueuedAt: null,
+                      processingDeferredUntil: null,
+                    })
+                    .where(
+                      and(
+                        eq(document.id, documentId),
+                        eq(document.processingStatus, 'processing'),
+                        eq(document.processingStartedAt, processingStartedAt),
+                        ...queueGenerationConditions(attemptContext),
+                        eq(document.userExcluded, false),
+                        isNull(document.archivedAt),
+                        isNull(document.deletedAt),
+                        documentConnectorIsActive(),
+                        knowledgeBaseIsActive()
+                      )
                     )
-                  )
-                signal.throwIfAborted()
-                return true
-              })
+                    .returning({ id: document.id })
+                  if (completed.length === 0) throw new SupersededProcessingOutput()
+                  signal.throwIfAborted()
+                  return true
+                })
+                .catch((error: unknown) => {
+                  if (error instanceof SupersededProcessingOutput) return false
+                  throw error
+                })
             },
             {
               opaqueInputSafe:
@@ -2073,6 +2157,8 @@ export async function processDocumentAsync(
         logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
         return { outcome: 'skipped', reason: 'superseded' }
       }
+      /** The commit marked the document in either mode; a pass writes or verifies its rows. */
+      await requestKnowledgeProjection()
 
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
@@ -2172,10 +2258,13 @@ export async function processDocumentAsync(
         recordedError = continuationError
       }
     }
-    const deferredUntil = continuation?.deferredUntil ?? null
+    const databaseRetryAt = continuation?.deferredUntil
+      ? null
+      : (attemptContext?.scheduleDatabaseRetry?.(recordedError) ?? null)
+    const deferredUntil = continuation?.deferredUntil ?? databaseRetryAt
     const providerContinuationExhausted =
       recordedError instanceof ProviderCapacityContinuationExhaustedError
-    const quotaContinuationFailed = quotaContinuationAttempted && !deferredUntil
+    const quotaContinuationFailed = quotaContinuationAttempted && !continuation?.deferredUntil
     const failureDiagnostic = getConnectorFailureDiagnostic(recordedError)
     const errorMessage = byokCredentialRejected
       ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
@@ -2217,84 +2306,76 @@ export async function processDocumentAsync(
       logger.error(logMessage, logContext)
     }
 
-    await db
-      .update(document)
-      .set({
-        processingStatus: deferredUntil ? 'pending' : 'failed',
-        processingError: deferredUntil ? null : errorMessage,
-        processingStartedAt: deferredUntil ? null : processingStartedAt,
-        ...(continuation
+    const failureStatus = {
+      processingStatus: deferredUntil ? 'pending' : 'failed',
+      processingError: deferredUntil ? null : errorMessage,
+      processingStartedAt: deferredUntil ? null : processingStartedAt,
+      ...(continuation
+        ? {
+            processingQueuedAt: continuation.deferredUntil,
+            processingQueueToken: continuation.processingQueueToken,
+          }
+        : databaseRetryAt
           ? {
-              processingQueuedAt: continuation.deferredUntil,
-              processingQueueToken: continuation.processingQueueToken,
+              /**
+               * Stamps the queue like a continuation does, so a dispatch cannot claim the row as
+               * never-queued while its retry is scheduled. The retry itself claims by token, and
+               * an existing stamp is kept because a legacy retry claims by that stamp.
+               */
+              processingQueuedAt: sql`COALESCE(${document.processingQueuedAt}, ${sql.param(databaseRetryAt, document.processingQueuedAt)})`,
             }
           : {}),
-        processingDeferredUntil: deferredUntil,
-        processingCompletedAt: deferredUntil ? null : new Date(),
-        ...(permanentError ||
-        ocrRequestRejected ||
-        byokCredentialRejected ||
-        providerContinuationExhausted ||
-        (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
-          ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
-          : (embeddingQuotaExhausted || usageLimitExceeded || providerDeferral) &&
-              attemptContext?.chargedAtDispatch
-            ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
-            : {}),
+      processingDeferredUntil: deferredUntil,
+      processingCompletedAt: deferredUntil ? null : new Date(),
+      ...(permanentError ||
+      ocrRequestRejected ||
+      byokCredentialRejected ||
+      providerContinuationExhausted ||
+      (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
+        ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
+        : (embeddingQuotaExhausted || usageLimitExceeded || providerDeferral) &&
+            attemptContext?.chargedAtDispatch
+          ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+          : {}),
+    }
+    const failureStatusGuard = and(
+      eq(document.id, documentId),
+      eq(document.processingStatus, 'processing'),
+      eq(document.processingStartedAt, processingStartedAt),
+      ...queueGenerationConditions(attemptContext),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+      documentConnectorIsActive()
+    )
+    if (databaseRetryAt) {
+      /**
+       * An uploaded document has no recovery sweep, so the deferral and the watchdog that fails it
+       * if this retry never runs commit together.
+       */
+      await db.transaction(async (tx) => {
+        const [deferred] = await tx
+          .update(document)
+          .set(failureStatus)
+          .where(failureStatusGuard)
+          .returning({
+            ...processingSnapshotColumns,
+            knowledgeBaseId: document.knowledgeBaseId,
+            connectorId: document.connectorId,
+          })
+        if (deferred && deferred.connectorId === null && deferred.processingDeferredUntil) {
+          await enqueueDeferredRetryCheck(tx, {
+            ...deferred,
+            processingDeferredUntil: deferred.processingDeferredUntil,
+          })
+        }
       })
-      .where(
-        and(
-          eq(document.id, documentId),
-          eq(document.processingStatus, 'processing'),
-          eq(document.processingStartedAt, processingStartedAt),
-          ...queueGenerationConditions(attemptContext),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          documentConnectorIsActive()
-        )
-      )
+    } else {
+      await db.update(document).set(failureStatus).where(failureStatusGuard)
+    }
 
     throw recordedError
   }
-}
-
-let triggerAvailabilityLogged = false
-
-/**
- * Whether background work may be dispatched to Trigger.dev rather than run
- * in-process.
- *
- * Inside a Trigger.dev run the answer is unconditionally yes: the platform is
- * what is executing this process, so no environment guess can be more reliable
- * than the run marker. Outside a run the deployment must both enable
- * Trigger.dev and hold the secret key the SDK authenticates with.
- *
- * Resolving `true` inside a run is safe even if the run process turns out not
- * to expose `TRIGGER_SECRET_KEY`: the SDK would then reject the batch trigger
- * and `dispatchViaBatchTrigger` falls back to processing in-process, which is
- * exactly where a `false` predicate lands anyway.
- *
- * The first evaluation in a process logs the resolved inputs. That is once per
- * worker process rather than once per dispatch, and it is the signal that makes
- * an app-vs-worker asymmetry visible without reading a crashed run's spans.
- */
-export function isTriggerAvailable(): boolean {
-  const insideRun = isInsideTriggerRun()
-  const hasSecretKey = Boolean(env.TRIGGER_SECRET_KEY)
-  const available = insideRun || (hasSecretKey && isTriggerDevEnabled)
-
-  if (!triggerAvailabilityLogged) {
-    triggerAvailabilityLogged = true
-    logger.info('Resolved Trigger.dev dispatch availability', {
-      available,
-      insideTriggerRun: insideRun,
-      triggerDevEnabled: isTriggerDevEnabled,
-      hasSecretKey,
-    })
-  }
-
-  return available
 }
 
 interface DocumentStorageBilling {

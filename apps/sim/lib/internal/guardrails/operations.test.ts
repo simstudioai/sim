@@ -27,9 +27,11 @@ vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredential,
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mocks.checkAttributedUsageLimits,
   requireBillingAttributionHeader: mocks.requireBillingAttribution,
   toBillingContext: vi.fn(() => ({})),
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: mocks.checkAttributedUsageLimits,
 }))
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(),

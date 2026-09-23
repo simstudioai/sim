@@ -398,13 +398,14 @@ export class DocNotReadyError extends Error {
 /**
  * Fetch compiled/binary file content via the serve URL.
  *
- * A `version` (the file record's `updatedAt`) makes the URL content-immutable: the
- * serve route marks versioned responses `immutable`, so the browser HTTP cache
- * resolves re-opens and focus refetches with no round trip. Generated docs are
- * edited in place (same storage key), so an unversioned caller cannot assume
- * immutability and instead busts + bypasses the cache to always read fresh. A 409
- * means a generated doc is still compiling — surfaced as {@link DocNotReadyError}
- * so the query keeps polling.
+ * A `version` (the file record's `updatedAt`) lets the serve route mark the response
+ * `immutable`, so the browser HTTP cache resolves re-opens and focus refetches with no
+ * round trip. The route withholds that promise for bytes it resolved against OTHER
+ * files — a doc compiled against its references, a page inlining its images — which the
+ * same key can serve differently over time. An unversioned caller makes no immutability
+ * claim at all and busts + bypasses the cache to always read fresh. A 409 means a
+ * generated doc is still compiling — surfaced as {@link DocNotReadyError} so the query
+ * keeps polling.
  */
 async function fetchWorkspaceFileBinary(
   url: string,
@@ -426,11 +427,10 @@ async function fetchWorkspaceFileBinary(
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  *
  * `options.version` is a content version (the record's `updatedAt`) folded into the
- * query key. Generated docs are edited IN PLACE — `edit_content` keeps the SAME
- * storage key — so without a version the cache is never busted and the open
- * preview keeps showing the stale binary after a regenerate. Versioning the key
- * makes the preview refetch whenever the file's content changes (and on first
- * open, keyed to the current content rather than a stale cached entry).
+ * query key, and it is what lets the response be cached as immutable. A content write
+ * rotates the storage key, so `key` alone would already re-key the query; `version`
+ * additionally covers a recompile that leaves the key alone, and keys the first open to
+ * the current content rather than a stale cached entry.
  */
 export function useWorkspaceFileBinary(
   workspaceId: string,

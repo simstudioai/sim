@@ -16,6 +16,7 @@ import {
   slugify,
   stripVersionSuffix,
   truncate,
+  truncateAtCodePoint,
 } from './string.js'
 
 describe('slugify', () => {
@@ -302,5 +303,21 @@ describe('hasRegexMetacharacter', () => {
     for (const value of ['plain', 'a.b', 'a|b', '', 'x-y']) {
       expect(hasRegexMetacharacter(value)).toBe(escapeRegExp(value) !== value)
     }
+  })
+})
+
+describe('truncateAtCodePoint', () => {
+  it('returns the input untouched when it fits', () => {
+    expect(truncateAtCodePoint('ab😀cd', 10)).toBe('ab😀cd')
+  })
+
+  it('cuts like truncate when the cut lands between code points', () => {
+    expect(truncateAtCodePoint('ab😀cd', 4)).toBe('ab😀...')
+    expect(truncateAtCodePoint('hello world', 8, ' …')).toBe('hello wo …')
+  })
+
+  it('moves the cut back one unit rather than splitting a surrogate pair', () => {
+    expect(truncateAtCodePoint('ab😀cd', 3)).toBe('ab...')
+    expect(truncateAtCodePoint('😀'.repeat(3), 3)).toBe('😀...')
   })
 })

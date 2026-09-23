@@ -5,7 +5,18 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
+import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   resolveSubscriptionUsagePeriod,
@@ -228,12 +239,14 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await executor
-    .select({
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+  )
 
   return Number.parseFloat(row?.cost ?? '0')
 }
@@ -254,36 +267,38 @@ export async function getBillingPeriodWorkflowRunCount(
   billingPeriod: UsageQueryPeriod,
   executor: DbClient = db
 ): Promise<number> {
-  const [row] = await executor
-    .select({
-      /**
-       * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
-       * a JavaScript array into a `sql` template emits parenthesized scalar binds —
-       * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
-       * requires array on right side". Unit tests cannot catch it, because `@sim/db`
-       * is mocked and no statement is ever rendered.
-       */
-      workflowRuns:
-        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
-          Number
-        ),
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, billingPeriod.start),
-              eq(usageLog.billingPeriodEnd, billingPeriod.end),
-            ])
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        /**
+         * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
+         * a JavaScript array into a `sql` template emits parenthesized scalar binds —
+         * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
+         * requires array on right side". Unit tests cannot catch it, because `@sim/db`
+         * is mocked and no statement is ever rendered.
+         */
+        workflowRuns:
+          sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
+            Number
+          ),
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                eq(usageLog.billingPeriodStart, billingPeriod.start),
+                eq(usageLog.billingPeriodEnd, billingPeriod.end),
+              ])
+        )
       )
-    )
+  )
 
   return row?.workflowRuns ?? 0
 }
@@ -301,27 +316,29 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
-  const [row] = await executor
-    .select({
-      total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-      subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, billingPeriod.start),
-              eq(usageLog.billingPeriodEnd, billingPeriod.end),
-            ])
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+        subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                eq(usageLog.billingPeriodStart, billingPeriod.start),
+                eq(usageLog.billingPeriodEnd, billingPeriod.end),
+              ])
+        )
       )
-    )
+  )
 
   return {
     total: Number.parseFloat(row?.total ?? '0'),
@@ -357,14 +374,16 @@ export async function getBillingPeriodUsageCostByUser(
   }
   if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
 
-  const rows = await executor
-    .select({
-      userId: usageLog.userId,
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
-    .groupBy(usageLog.userId)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        userId: usageLog.userId,
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+      .groupBy(usageLog.userId)
+  )
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
@@ -398,14 +417,16 @@ export async function getStampedPeriodRangeUsageCostByUser(
     )
   }
 
-  const rows = await executor
-    .select({
-      userId: usageLog.userId,
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
-    .groupBy(usageLog.userId)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        userId: usageLog.userId,
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+      .groupBy(usageLog.userId)
+  )
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
@@ -983,6 +1004,7 @@ export interface GetUsageLogsOptions {
    * Skips the row lookup that would otherwise resolve it from `cursor`.
    */
   cursorCreatedAt?: Date
+  keyset?: { sortOrder: ListSortOrder; cursorKeys?: CursorKey[] }
   /**
    * Whether to compute the full-filter `summary` aggregate (default `true`).
    * A cursor-paginated caller collecting every page (e.g. a CSV export) only
@@ -1023,9 +1045,15 @@ export interface UsageLogsResult {
   }
   pagination: {
     nextCursor?: string
+    nextCursorKeys?: CursorKey[] | null
     hasMore: boolean
   }
 }
+
+const USAGE_LOG_KEYS = [
+  timestampKey(usageLog.createdAt, (row: { createdAt: Date; id: string }) => row.createdAt),
+  textKey(usageLog.id, (row: { createdAt: Date; id: string }) => row.id),
+]
 
 /**
  * Gets one bounded usage-log page for an explicit actor or workspace scope.
@@ -1044,6 +1072,7 @@ async function getUsageLogs(
     limit = 50,
     cursor,
     cursorCreatedAt,
+    keyset,
     includeSummary = true,
   } = options
 
@@ -1057,7 +1086,10 @@ async function getUsageLogs(
       billingPeriod,
     })
 
-    if (cursor) {
+    if (keyset) {
+      const after = resumeKeyset(USAGE_LOG_KEYS, keyset.cursorKeys, keyset.sortOrder)
+      if (after) conditions.push(after)
+    } else if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
@@ -1100,11 +1132,16 @@ async function getUsageLogs(
       .from(usageLog)
       .leftJoin(workflow, eq(usageLog.workflowId, workflow.id))
       .where(and(...conditions))
-      .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
+      .orderBy(
+        ...(keyset
+          ? listOrderBy(keysetColumns(USAGE_LOG_KEYS), keyset.sortOrder)
+          : [desc(usageLog.createdAt), desc(usageLog.id)])
+      )
       .limit(limit + 1)
 
     const hasMore = logs.length > limit
-    const resultLogs = hasMore ? logs.slice(0, limit) : logs
+    const page = keyset ? keysetPage(USAGE_LOG_KEYS, logs, limit) : undefined
+    const resultLogs = page?.data ?? (hasMore ? logs.slice(0, limit) : logs)
 
     const transformedLogs: UsageLogEntry[] = resultLogs.map((log) => ({
       id: log.id,
@@ -1156,6 +1193,7 @@ async function getUsageLogs(
         bySource,
       },
       pagination: {
+        ...(page ? { nextCursorKeys: page.nextCursorKeys } : {}),
         nextCursor:
           hasMore && resultLogs.length > 0 ? resultLogs[resultLogs.length - 1].id : undefined,
         hasMore,

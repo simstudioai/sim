@@ -39,7 +39,7 @@ import {
   resendWorkspaceInvitation,
 } from '@/lib/invitations/application/manage-invitation'
 import {
-  sendInvitationBatch,
+  sendOrganizationInvitationBatch,
   sendWorkspaceInvitationBatch,
 } from '@/lib/invitations/application/send-invitation-batch'
 import {
@@ -76,20 +76,20 @@ import {
   settingsWorkspaceId,
 } from '@/lib/mothership/tools/server/settings-operation'
 import { organizationDomainSettingsActions } from '@/lib/mothership/tools/server/settings-security'
-import { removeOrganizationMember } from '@/lib/organizations/application/member-removal'
-import { updateOrganizationMemberRole } from '@/lib/organizations/application/member-role'
 import {
+  removeOrganizationMember,
+  updateOrganizationMember,
+} from '@/lib/organizations/application/members'
+import {
+  addPermissionGroupMember,
   createPermissionGroup,
   deletePermissionGroup,
   getPermissionGroup,
-  listPermissionGroupWorkspaces,
-  updatePermissionGroup,
-} from '@/lib/permission-groups/application/management'
-import {
-  addPermissionGroupMember,
   listPermissionGroupMembers,
+  listPermissionGroupWorkspaces,
   removePermissionGroupMember,
-} from '@/lib/permission-groups/application/management-members'
+  updatePermissionGroup,
+} from '@/lib/permission-groups/application/use-cases'
 import { updateWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
 import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
 
@@ -280,11 +280,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
           principal: context.principal,
           input: { groupId: input.groupId, organizationId: settingsOrganizationId(context) },
         })
-        return settingsPage(
-          result.permissionGroup.workspaces.map(projectSettingsWorkspace),
-          input,
-          (row) => row.id
-        )
+        return settingsPage(result.workspaces.map(projectSettingsWorkspace), input, (row) => row.id)
       }
     ),
     get_group: settingsOperation(
@@ -295,7 +291,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
           principal: context.principal,
           input: { ...input, organizationId: settingsOrganizationId(context) },
         })
-        const { workspaces, ...group } = result.permissionGroup
+        const { workspaces, ...group } = result
         return {
           permissionGroup: {
             ...group,
@@ -313,7 +309,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       (context, settings) =>
         createPermissionGroup.execute({
           principal: context.principal,
-          input: { settings, organizationId: settingsOrganizationId(context) },
+          input: { changes: settings, organizationId: settingsOrganizationId(context) },
         })
     ),
     update_group: settingsOperation(
@@ -325,27 +321,30 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       (context, input) =>
         updatePermissionGroup.execute({
           principal: context.principal,
-          input: { ...input, organizationId: settingsOrganizationId(context) },
+          input: {
+            groupId: input.groupId,
+            changes: input.settings,
+            organizationId: settingsOrganizationId(context),
+          },
         })
     ),
     delete_group: settingsOperation(
       'write',
       z.strictObject({ groupId: z.string().min(1) }),
-      async (context, input) => ({
-        success: (
-          await deletePermissionGroup.execute({
-            principal: context.principal,
-            input: { ...input, organizationId: settingsOrganizationId(context) },
-          })
-        ).success,
-      })
+      async (context, input) => {
+        await deletePermissionGroup.execute({
+          principal: context.principal,
+          input: { ...input, organizationId: settingsOrganizationId(context) },
+        })
+        return { success: true }
+      }
     ),
     list_workspaces: settingsOperation('read', settingsPageSchema, async (context, input) => {
       const result = await listPermissionGroupWorkspaces.execute({
         principal: context.principal,
         input: { organizationId: settingsOrganizationId(context) },
       })
-      return settingsPage(result.workspaces.map(projectSettingsWorkspace), input, (row) => row.id)
+      return settingsPage(result.data.map(projectSettingsWorkspace), input, (row) => row.id)
     }),
     list_members: settingsOperation(
       'read',
@@ -355,7 +354,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
           principal: context.principal,
           input: { groupId: input.groupId, organizationId: settingsOrganizationId(context) },
         })
-        return settingsPage(result.members.map(projectSettingsGroupMember), input, (row) => row.id)
+        return settingsPage(result.data.map(projectSettingsGroupMember), input, (row) => row.id)
       }
     ),
     add_member: settingsOperation(
@@ -373,14 +372,13 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     remove_member: settingsOperation(
       'write',
       z.strictObject({ groupId: z.string().min(1), memberId: z.string().min(1) }),
-      async (context, input) => ({
-        success: (
-          await removePermissionGroupMember.execute({
-            principal: context.principal,
-            input: { ...input, organizationId: settingsOrganizationId(context) },
-          })
-        ).success,
-      })
+      async (context, input) => {
+        await removePermissionGroupMember.execute({
+          principal: context.principal,
+          input: { ...input, organizationId: settingsOrganizationId(context) },
+        })
+        return { success: true }
+      }
     ),
   },
   'organization/members': {
@@ -429,7 +427,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         membership: invitationMembershipSchema.extract(['admin', 'member']).default('member'),
       }),
       (context, input) =>
-        sendInvitationBatch.execute({
+        sendOrganizationInvitationBatch.execute({
           principal: context.principal,
           input: { ...input, organizationId: settingsOrganizationId(context), workspaceIds: [] },
         })
@@ -438,7 +436,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       'write',
       updateOrganizationMemberRoleBodySchema.extend({ userId: z.string().min(1) }).strict(),
       (context, input) =>
-        updateOrganizationMemberRole.execute({
+        updateOrganizationMember.execute({
           principal: context.principal,
           input: { ...input, organizationId: settingsOrganizationId(context) },
         })

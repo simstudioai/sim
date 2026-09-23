@@ -42,6 +42,11 @@ const fixtures = vi.hoisted(() => ({
   storageRoot: '',
   afterResponse: [] as Array<() => Promise<void>>,
 }))
+/** This ingestion suite covers the explicit rollback backend; live Search has its own suites. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/core/utils/after-response', () => ({
   afterResponse: (task: () => Promise<void>) => fixtures.afterResponse.push(task),
 }))
@@ -91,7 +96,7 @@ import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/s
 import { DELETE, GET, POST } from '@/app/api/mcp/search/organizations/[organizationId]/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-describe('organization Search MCP with real ingestion and current access', () => {
+describe('organization Search MCP rollback backend with real ingestion and current access', () => {
   const ids = createKnowledgeAclFixtureIds()
   const {
     aliceId,

@@ -1000,6 +1000,8 @@ export const schemaMock = {
     documentId: 'embeddingKeywordTin.documentId',
     enabled: 'embeddingKeywordTin.enabled',
     content: 'embeddingKeywordTin.content',
+    connectorId: 'embeddingKeywordTin.connectorId',
+    acl: 'embeddingKeywordTin.acl',
   },
   embeddingSearch: {
     id: 'embeddingSearch.id',
@@ -1825,10 +1827,12 @@ export const schemaMock = {
     lastMemberSyncError: 'knowledgeConnector.lastMemberSyncError',
     memberSyncConsecutiveFailures: 'knowledgeConnector.memberSyncConsecutiveFailures',
     accessRewritePending: 'knowledgeConnector.accessRewritePending',
+    memberTombstoneCursor: 'knowledgeConnector.memberTombstoneCursor',
     createdAt: 'knowledgeConnector.createdAt',
     updatedAt: 'knowledgeConnector.updatedAt',
     archivedAt: 'knowledgeConnector.archivedAt',
     deletedAt: 'knowledgeConnector.deletedAt',
+    detachedAt: 'knowledgeConnector.detachedAt',
   },
   knowledgeConnectorSyncLog: {
     listedCount: 'knowledgeConnectorSyncLog.listedCount',
@@ -1914,6 +1918,12 @@ export const schemaMock = {
     memberId: 'knowledgeDocumentObservation.memberId',
     lastSeenAt: 'knowledgeDocumentObservation.lastSeenAt',
     runId: 'knowledgeDocumentObservation.runId',
+  },
+  knowledgeProjectionDirty: {
+    documentId: 'knowledgeProjectionDirty.documentId',
+    generation: 'knowledgeProjectionDirty.generation',
+    content: 'knowledgeProjectionDirty.content',
+    markedAt: 'knowledgeProjectionDirty.markedAt',
   },
   knowledgeConnectorMemberSyncLog: {
     id: 'knowledgeConnectorMemberSyncLog.id',

@@ -21,4 +21,20 @@ export const POST = (request: NextRequest, context?: Parameters<typeof handler>[
       'GET'
     )
   })
+  it('checks both handlers selected by a backend feature flag', () => {
+    const source = `${handler}
+const fallback = defineInternalJsonRoute({
+  contract: fallbackContract,
+})
+export const POST = enabled ? handler : fallback`
+    expect(wrappedRouteSites(source)).toEqual([
+      { verb: 'POST', optionsStart: source.indexOf('{') + 1 },
+      { verb: 'POST', optionsStart: source.indexOf('{', source.indexOf('const fallback')) + 1 },
+    ])
+  })
+  it('checks an exported local handler alias', () => {
+    expect(wrappedRouteSites(`${handler}\nexport const POST = handler`)).toEqual([
+      { verb: 'POST', optionsStart: handler.indexOf('{') + 1 },
+    ])
+  })
 })

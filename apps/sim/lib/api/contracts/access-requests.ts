@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  organizationIdSchema,
+  withMissingFieldMessage,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
 import {
@@ -33,6 +37,7 @@ const requestIdSchema = z
   .string()
   .min(1, 'Request ID cannot be empty')
   .max(ACCESS_REQUEST_MAX_ID_LENGTH)
+  .describe('Access request identifier.')
 const reasonSchema = z.string().trim().max(1000, 'Reason must be at most 1000 characters')
 const fingerprintSchema = z.string().min(1, 'A current preview is required').max(128)
 const usageLimitSchema = z
@@ -146,14 +151,20 @@ export const resolveAccessRequestBodySchema = z.discriminatedUnion('action', [
   z
     .object({
       action: z.literal('apply'),
-      expectedFingerprint: fingerprintSchema,
+      expectedFingerprint: withMissingFieldMessage(
+        fingerprintSchema,
+        'expectedFingerprint is required; preview the request before applying it'
+      ),
       newLimitCredits: usageLimitSchema.optional(),
     })
     .strict(),
   z
     .object({
       action: z.literal('decline'),
-      reason: reasonSchema.min(1, 'Explain why this request was declined'),
+      reason: withMissingFieldMessage(
+        reasonSchema.min(1, 'Explain why this request was declined'),
+        'reason is required when declining a request'
+      ),
     })
     .strict(),
 ])
@@ -164,32 +175,58 @@ export type AccessRequestSettings = z.output<typeof accessRequestSettingsSchema>
 export type UpdateAccessRequestSettingsBody = z.input<typeof accessRequestSettingsSchema>
 
 export const accessRequestRecordSchema = z.object({
-  id: requestIdSchema,
-  organizationId: organizationIdSchema,
-  workspaceId: workspaceIdSchema.nullable(),
-  target: accessRequestTargetSchema,
-  targetLabel: z.string().min(1).max(512),
-  reason: reasonSchema,
-  status: z.enum(ACCESS_REQUEST_STATUSES),
-  decisionReason: reasonSchema.nullable(),
-  createdAt: z.iso.datetime(),
-  decidedAt: z.iso.datetime().nullable(),
-  groupName: z.string().nullable(),
-  requester: z.object({
-    id: z.string().min(1).max(128),
-    name: z.string().nullable(),
-    email: z.string().max(320),
-  }),
+  id: requestIdSchema.describe('Access request identifier.'),
+  organizationId: organizationIdSchema.describe('Organization that owns the request.'),
+  workspaceId: workspaceIdSchema
+    .nullable()
+    .describe('Workspace where access was requested; null for an organization-level request.'),
+  target: accessRequestTargetSchema.describe(
+    'The requested feature, integration, model, tool, authentication mode, or member credit cap.'
+  ),
+  targetLabel: z.string().min(1).max(512).describe('Human-readable name of the requested access.'),
+  reason: reasonSchema.describe('Reason supplied by the requester.'),
+  status: z.enum(ACCESS_REQUEST_STATUSES).describe('Current request status.'),
+  decisionReason: reasonSchema
+    .nullable()
+    .describe('Explanation for a declined or closed request; null when none was recorded.'),
+  createdAt: z.iso.datetime().describe('When the request was submitted.'),
+  decidedAt: z.iso
+    .datetime()
+    .nullable()
+    .describe('When the request was resolved; null while pending.'),
+  groupName: z
+    .string()
+    .nullable()
+    .describe(
+      'Name of the governing group when the request was submitted; null for credit-cap requests.'
+    ),
+  requester: z
+    .object({
+      id: z.string().min(1).max(128).describe('Requester user identifier.'),
+      name: z.string().nullable().describe('Requester display name.'),
+      email: z.string().max(320).describe('Requester email address.'),
+    })
+    .describe('User who submitted the request.'),
 })
 export type AccessRequestRecord = z.output<typeof accessRequestRecordSchema>
 export type AccessRequestStatus = AccessRequestRecord['status']
 
 export const accessRequestDiscoveryEntrySchema = z.object({
-  target: accessRequestTargetSchema,
-  label: z.string().min(1).max(512),
-  state: z.enum(['allowed', 'requestable', 'unavailable']),
-  reason: z.string().max(1000).nullable(),
-  pendingRequestId: requestIdSchema.nullable(),
+  target: accessRequestTargetSchema.describe(
+    'Pass this target unchanged to Create Access Request.'
+  ),
+  label: z.string().min(1).max(512).describe('Human-readable access item name.'),
+  state: z
+    .enum(['allowed', 'requestable', 'unavailable'])
+    .describe('Whether access is already allowed, can be requested, or is unavailable.'),
+  reason: z
+    .string()
+    .max(1000)
+    .nullable()
+    .describe('Why access is unavailable or restricted; null when no explanation is needed.'),
+  pendingRequestId: requestIdSchema
+    .nullable()
+    .describe('Existing pending request for this item; null when none exists.'),
 })
 export type AccessRequestDiscoveryEntry = z.output<typeof accessRequestDiscoveryEntrySchema>
 
@@ -219,29 +256,53 @@ export const accessRequestDecisionSchema = storedAccessRequestDecisionSchema
 export type AccessRequestDecision = z.output<typeof accessRequestDecisionSchema>
 
 const previewShape = {
-  newLimitCredits: z.number().finite().nonnegative().nullable(),
-  request: accessRequestRecordSchema,
+  newLimitCredits: z
+    .number()
+    .finite()
+    .nonnegative()
+    .nullable()
+    .describe(
+      'Applied credit cap for a fulfilled request; null before approval or for permission changes.'
+    ),
+  request: accessRequestRecordSchema.describe('Access request being reviewed.'),
   changes: z
     .array(accessRequestPolicyChangeSchema)
-    .max(Object.keys(PERMISSION_GROUP_FIELDS).length),
+    .max(Object.keys(PERMISSION_GROUP_FIELDS).length)
+    .describe('Permission changes proposed for the whole governing group.'),
   impact: storedAccessRequestDecisionSchema.shape.impact,
-  fingerprint: fingerprintSchema,
-  canApply: z.boolean(),
-  unavailableReason: z.string().max(1000).nullable(),
+  fingerprint: fingerprintSchema.describe(
+    'Pass to Resolve Organization Access Request after reviewing the changes and impact.'
+  ),
+  canApply: z.boolean().describe('Whether this request can currently be approved.'),
+  unavailableReason: z
+    .string()
+    .max(1000)
+    .nullable()
+    .describe('Why approval is unavailable; null when canApply is true.'),
 }
 
 export const accessRequestPreviewResponseSchema = z.discriminatedUnion('resolutionKind', [
   z.object({
     ...previewShape,
-    resolutionKind: z.literal('permission'),
+    resolutionKind: z
+      .literal('permission')
+      .describe('Approval changes the governing permission group.'),
     group: storedAccessRequestDecisionSchema.shape.group,
-    currentLimitCredits: z.null(),
+    currentLimitCredits: z.null().describe('Not applicable to permission changes.'),
   }),
   z.object({
     ...previewShape,
-    resolutionKind: z.literal('usage_limit'),
-    group: z.null(),
-    currentLimitCredits: z.number().finite().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
+    resolutionKind: z
+      .literal('usage_limit')
+      .describe('Approval raises the requester’s member credit cap.'),
+    group: z.null().describe('Credit-cap requests do not change a permission group.'),
+    currentLimitCredits: z
+      .number()
+      .finite()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .describe('Current member credit cap. Approval requires a higher newLimitCredits.'),
   }),
 ])
 export type AccessRequestPreviewResponse = z.output<typeof accessRequestPreviewResponseSchema>

@@ -484,7 +484,7 @@ export interface RemoveMemberParams {
   revokePersonalApiKeys?: boolean
   /** The caller's own session token, kept alive when a member removes themselves. */
   spareSessionToken?: string
-  /** Authenticated session identity; avoids carrying its bearer token into application operations. */
+  /** Verified session row to preserve during a self-removal. */
   spareSessionId?: string
   /** Acting member whose management authority is rechecked under the mutation lock. */
   actorUserId?: string

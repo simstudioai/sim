@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
+  TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
 
 const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
@@ -65,7 +66,9 @@ function mockSelectChain(limitResult: unknown[]) {
  * Returns a nested chain: update() -> set() -> where()
  */
 function mockUpdateChain() {
-  const mockWhere = vi.fn().mockResolvedValue({})
+  /** The rotated write returns the row it matched; an empty result means the chain moved first. */
+  const mockReturning = vi.fn().mockResolvedValue([{ id: 'account-1' }])
+  const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
   const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
   mockDb.update.mockReturnValueOnce({ set: mockSet })
   return { mockSet, mockWhere }

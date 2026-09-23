@@ -68,7 +68,6 @@ import {
 } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
-import { browserUserAgent } from '@/main/browser-agent/user-agent'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
 import { isAppOrigin } from '@/main/navigation'
@@ -1432,11 +1431,6 @@ function configureAgentPartition(ses: Session): void {
   configuredPartitions.add(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
-  // Service workers do not inherit a tab's user agent. With only the tab's set,
-  // the document request carries the browser string while the worker's own
-  // script request still announces Electron — and on a site that routes its
-  // fetches through a worker, that is the one the server sees.
-  ses.setUserAgent(browserUserAgent())
   ses.webRequest.onBeforeRequest((details, callback) => {
     handleBrowserRequest(details, callback)
   })
@@ -1984,10 +1978,6 @@ function initializeTabView(
     }
   }
   registerAgentNavigation(contents, routeNavigation)
-  // The session default does not reach a WebContents that already exists, and
-  // the first tab is what brings the session into being, so each tab sets its
-  // own as well — otherwise tab one browses as Electron and the rest as Chrome.
-  contents.setUserAgent(browserUserAgent())
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
     openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),

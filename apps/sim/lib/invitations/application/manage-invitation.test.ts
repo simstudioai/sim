@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   subscription: vi.fn(),
   prepare: vi.fn(),
   send: vi.fn(),
-  persist: vi.fn(),
+  revert: vi.fn(),
   audit: vi.fn(),
   workspaceRole: vi.fn(),
 }))
@@ -41,7 +41,7 @@ vi.mock('@/lib/invitations/core', () => ({
 vi.mock('@/lib/invitations/send', () => ({
   prepareInvitationResend: mocks.prepare,
   sendInvitationEmail: mocks.send,
-  persistInvitationResend: mocks.persist,
+  revertInvitationResend: mocks.revert,
 }))
 vi.mock('@/lib/billing/core/organization', () => ({ isOrganizationOwnerOrAdmin: mocks.orgAdmin }))
 vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
@@ -96,6 +96,9 @@ const invitation = {
   email: 'invited@example.com',
   token: 'private-old-token',
   status: 'pending',
+  expiresAt: new Date(Date.now() + 60_000),
+  updatedAt: new Date(),
+  createdAt: new Date(),
   grants: [],
   membershipIntent: 'internal',
 }
@@ -114,7 +117,7 @@ beforeEach(() => {
     nextExpiresAt: new Date(),
   })
   mocks.send.mockResolvedValue({ success: true })
-  mocks.persist.mockResolvedValue(undefined)
+  mocks.revert.mockResolvedValue(true)
   queueTableRows(user, [{ name: 'Real actor', email: 'actor@example.com' }])
 })
 
@@ -159,7 +162,8 @@ describe('workspace invitation management authority', () => {
     mocks.policy.mockResolvedValue({ allowed: true })
     await resendWorkspaceInvitation.execute({ principal: actor, input: target })
     expect(mocks.send).toHaveBeenCalledTimes(1)
-    expect(mocks.persist).toHaveBeenCalledTimes(1)
+    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
+    expect(mocks.revert).not.toHaveBeenCalled()
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
@@ -216,9 +220,16 @@ describe('invitation management application authority', () => {
     queueTableRows(member, [{ role: 'owner' }])
     const result = await resendInvitation.execute({ principal, input })
     expect(result).toEqual({ success: true })
-    expect(mocks.validate).toHaveBeenCalledWith('actor', { organizationId: 'org' })
-    expect(mocks.send).toHaveBeenCalledBefore(mocks.persist)
-    expect(mocks.persist).toHaveBeenCalledBefore(mocks.audit)
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invitationId: input.invitationId,
+        expectedOrganizationId: 'org',
+        actorUserId: 'actor',
+      })
+    )
+    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
+    expect(mocks.send).toHaveBeenCalledBefore(mocks.audit)
+    expect(mocks.revert).not.toHaveBeenCalled()
     expect(JSON.stringify(result)).not.toContain('private')
   })
   it.each([cancelInvitation, resendInvitation])(
@@ -242,13 +253,13 @@ describe('invitation management application authority', () => {
     expect(mocks.prepare).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
   })
-  it('does not persist a new token or audit when delivery fails', async () => {
+  it('reverts the prepared token without auditing when delivery fails', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     mocks.send.mockResolvedValueOnce({ success: false, error: 'Delivery unavailable' })
     await expect(resendInvitation.execute({ principal, input })).rejects.toMatchObject({
       status: 502,
     })
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(mocks.revert).toHaveBeenCalledWith(await mocks.prepare.mock.results[0].value)
     expect(mocks.audit).not.toHaveBeenCalled()
   })
   it('refuses forged organization and workspace authority before cancellation', async () => {
@@ -261,6 +272,7 @@ describe('invitation management application authority', () => {
     expect(mocks.revoke).not.toHaveBeenCalled()
   })
   it('keeps the internal HTTP cancellation on the same semantic operation', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'session-actor' },
       session: { id: 'session' },

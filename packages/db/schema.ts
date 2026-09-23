@@ -3384,6 +3384,26 @@ export const document = pgTable(
     deletedAtPartialIdx: index('doc_deleted_at_partial_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * The connector sync's tombstone check asks whether a connector still has a recently deleted
+     * or never-hydrated document. Without this index the planner scans the whole table for the
+     * first match, and a connector with none reads every row.
+     */
+    connectorTombstoneIdx: index('doc_connector_tombstone_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.archivedAt} IS NULL AND (${table.deletedAt} IS NOT NULL OR ${table.contentHash} IS NULL)`
+      ),
+    /**
+     * The live documents a connector owns, counted at every sync completion for the connector's
+     * document count. The reconciliation index deliberately keeps tombstones, so this one exists
+     * to make that count an index-only scan.
+     */
+    connectorLiveIdx: index('doc_connector_live_idx')
+      .on(table.connectorId)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Text tag indexes
     tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
     tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
@@ -3632,8 +3652,8 @@ export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
  * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
  * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
  * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. Access never enters the row, so ACL
- * changes never rewrite it. Script migration `0019_tin_keyword_projection` installs the extension,
+ * the index and stems exactly as the GIN projection does. The row mirrors its document's source
+ * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
  * the index, and the embedding and knowledge base triggers that own these rows, and only where
  * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
  */
@@ -3661,9 +3681,10 @@ export const embeddingKeywordTin = pgTable(
 )
 
 /**
- * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
- * from content prevents candidate scans from fetching full-precision TOAST values.
- * The embedding write trigger owns this projection; application writers only change embedding.
+ * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
+ * candidate scans from fetching full-precision TOAST values. Application writers only change
+ * `embedding`: its trigger writes this projection in the writer's transaction, or, for a writer that
+ * deferred it, the knowledge projector writes it after the commit (see {@link knowledgeProjectionDirty}).
  */
 export const embeddingSearch = pgTable(
   'embedding_search',
@@ -3725,6 +3746,35 @@ export const embeddingSearch = pgTable(
       'embedding_search_width_check',
       sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
     ),
+  })
+)
+
+/**
+ * Documents whose search projection rows may lag their source rows. The `document` and `embedding`
+ * triggers mark a document here whenever they change what its projection rows carry, in the
+ * writer's transaction; the projector rewrites the rows and then removes the mark, but only on the
+ * generation it read, so a change made while it ran leaves the mark in place. Search decides a
+ * marked document's rows on the document itself, so a mark never widens what a reader sees.
+ *
+ * A side table rather than a column on `document`: a mark is written by the writer that already
+ * holds the document row, but clearing it would otherwise take that row again, and readers probe
+ * this small table instead of joining `document` per ranked row.
+ */
+export const knowledgeProjectionDirty = pgTable(
+  'knowledge_projection_dirty',
+  {
+    documentId: text('document_id')
+      .primaryKey()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    /** Bumped by every mark; the projector removes the row only on the generation it read. */
+    generation: bigint('generation', { mode: 'number' }).notNull().default(1),
+    /** Whether chunk content changed, not only the document's source or ACL. */
+    content: boolean('content').notNull().default(false),
+    markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    /** The projector claims the oldest marks first. */
+    markedAtIdx: index('knowledge_projection_dirty_marked_at_idx').on(table.markedAt),
   })
 )
 
@@ -6011,6 +6061,12 @@ export const knowledgeConnector = pgTable(
      */
     accessRewritePending: boolean('access_rewrite_pending').notNull().default(false),
     /**
+     * Where the members-mode absence reconcile resumes: the external id of the
+     * last live document it checked, in `doc_connector_external_id_idx` order.
+     * NULL starts a new pass from the beginning.
+     */
+    memberTombstoneCursor: jsonb('member_tombstone_cursor').$type<{ externalId: string }>(),
+    /**
      * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
      *
      * `pending` and `syncing` are the two halves of a sync in flight: `pending`
@@ -6062,6 +6118,21 @@ export const knowledgeConnector = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
     deletedAt: timestamp('deleted_at'),
+    /**
+     * Set when the connector is removed but its documents are kept. The connector stops syncing
+     * and leaves every management surface at once, while its documents stay readable; a
+     * background job releases them as standalone entries in bounded pages and then deletes the
+     * row. Releasing a document rewrites every search projection row of it, so the release
+     * cannot run inside the removal request.
+     */
+    detachedAt: timestamp('detached_at'),
+    /**
+     * Storage admitted and charged when the connector was detached but not yet matched by a released
+     * document. Each released page consumes its bytes; whatever remains when the row is deleted, such
+     * as a document deleted before its release, is settled then. Billing recomputations count it
+     * alongside standalone documents, since the workspace ledger already includes it.
+     */
+    detachReservedBytes: bigint('detach_reserved_bytes', { mode: 'number' }).notNull().default(0),
   },
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
@@ -6507,6 +6578,12 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsPurged: integer('docs_purged').notNull().default(0),
     credentialsAudited: integer('credentials_audited').notNull().default(0),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcmsl_connector_started_at_idx').on(
@@ -6520,6 +6597,10 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     statusCheck: check(
       'kcmsl_status_check',
       sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
+    ),
+    databaseFailureClassCheck: check(
+      'kcmsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
     ),
   })
 )
@@ -6546,6 +6627,12 @@ export const knowledgeConnectorSyncLog = pgTable(
     /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
     listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
@@ -6566,6 +6653,10 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    databaseFailureClassCheck: check(
+      'kcsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
+    ),
   })
 )
 

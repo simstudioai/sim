@@ -147,6 +147,12 @@ describe('buildRequest', () => {
     })
   })
 
+  it('preserves the literal word null on string flags', async () => {
+    expect(
+      (await buildRequest('updateWorkflow', ['wf_1'], { description: 'null' }, WORKSPACE)).body
+    ).toEqual({ description: 'null' })
+  })
+
   describe('failures, all before any network call', () => {
     it('rejects a missing path arg', async () => {
       await expect(buildRequest('getTable', [], {}, WORKSPACE)).rejects.toThrow('Missing <tableId>')
@@ -291,6 +297,15 @@ describe('buildRequest', () => {
         '--min-cost must be a number'
       )
     })
+
+    it.each(['Infinity', '-Infinity', '1e999'])(
+      'rejects non-finite numeric input %s before JSON can turn it into null',
+      async (minCost) => {
+        await expect(buildRequest('listLogs', [], { minCost }, WORKSPACE)).rejects.toThrow(
+          '--min-cost must be a finite number'
+        )
+      }
+    )
 
     it('explains an unset workspace in terms of how to set one', async () => {
       await expect(buildRequest('listTables', [], {}, null)).rejects.toThrow(SimApiError)

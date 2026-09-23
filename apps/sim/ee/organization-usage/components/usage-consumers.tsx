@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import {
@@ -23,6 +23,7 @@ import {
   OpenRouterIcon,
   SakanaIcon,
   TogetherIcon,
+  TypeSafeIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -74,6 +75,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
   together: TogetherIcon,
+  typesafe: TypeSafeIcon,
   vertex: VertexIcon,
   vllm: VllmIcon,
   xai: xAIIcon,
@@ -87,6 +89,8 @@ export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
+  /** Replaces the provider mark, e.g. with a member's avatar. */
+  leading?: ReactNode
   /** BYOK rows carry no cost, so tokens are the only usage they can show. */
   showTokensOnly: boolean
   onSelect?: (row: OrganizationUsageBreakdownRow) => void
@@ -124,6 +128,7 @@ export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-
  */
 function UsageConsumerRow({
   row,
+  leading,
   showTokensOnly,
   onSelect,
   actions,
@@ -146,14 +151,15 @@ function UsageConsumerRow({
         onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+      {leading ??
+        (ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />)}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
       <div
         className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
         aria-hidden='true'
       >
         <div
-          className='h-full rounded-full bg-[var(--indicator-seat-filled)]'
+          className='h-full rounded-full bg-[var(--brand-blue)]'
           style={{ width: `${Math.max(2, Math.round(row.share * 100))}%` }}
         />
       </div>
@@ -183,6 +189,8 @@ interface UsageConsumersProps {
   onSelectRow?: (row: OrganizationUsageBreakdownRow) => void
   /** Set on Members, where a row can open the shared manage-credits modal. */
   rowActions?: (row: OrganizationUsageBreakdownRow) => RowAction[]
+  /** Leading visual per row, in place of the provider mark. */
+  renderLeading?: (row: OrganizationUsageBreakdownRow) => ReactNode
   /**
    * Opens the truncated tail. Omitted when the list is already showing everything the
    * API will return, which is the one case where the `Other` row has nothing to open.
@@ -198,6 +206,7 @@ export function UsageConsumers({
   isPlaceholderData,
   onSelectRow,
   rowActions,
+  renderLeading,
   onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
@@ -236,6 +245,7 @@ export function UsageConsumers({
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
+          leading={renderLeading?.(row)}
           showTokensOnly={showTokensOnly}
           {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}

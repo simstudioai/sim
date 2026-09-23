@@ -39,7 +39,7 @@ vi.mock('@/lib/auth/active-organization', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
 
-import { updateOrganizationMemberRole } from '@/lib/organizations/application/member-role'
+import { updateOrganizationMember } from '@/lib/organizations/application/members'
 import { PUT } from '@/app/api/organizations/[id]/members/[memberId]/route'
 
 const principal = {
@@ -65,6 +65,7 @@ describe('organization role update', () => {
     'preserves locked role change for current %s and audits actual actor',
     async (role) => {
       queueTableRows(member, [{ role }])
+      queueTableRows(member, [{ role: 'admin' }])
       queueTableRows(member, [
         {
           id: 'member-id',
@@ -74,15 +75,15 @@ describe('organization role update', () => {
           name: 'Target',
         },
       ])
-      await expect(updateOrganizationMemberRole.execute({ principal, input })).resolves.toEqual({
-        id: 'member-id',
-        userId: 'target-user',
-        role: 'admin',
-        updatedBy: 'actor',
+      await expect(updateOrganizationMember.execute({ principal, input })).resolves.toEqual({
+        member: expect.objectContaining({ id: 'member-id', userId: 'target-user', role: 'admin' }),
+        previousRole: 'member',
+        changed: true,
       })
       expect(mocks.lock).toHaveBeenCalledBefore(mocks.scim)
       expect(mocks.scim).toHaveBeenCalledBefore(mocks.change)
       expect(mocks.change).toHaveBeenCalledWith(expect.anything(), {
+        actorUserId: 'actor',
         organizationId: 'org',
         userId: 'target-user',
         role: 'admin',
@@ -97,19 +98,21 @@ describe('organization role update', () => {
     { targetRole: 'member', newRole: 'owner' },
   ] as const)('refuses ownership change', async ({ targetRole, newRole }) => {
     queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [{ role: targetRole }])
     await expect(
-      updateOrganizationMemberRole.execute({ principal, input: { ...input, role: newRole } })
+      updateOrganizationMember.execute({ principal, input: { ...input, role: newRole } })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.change).not.toHaveBeenCalled()
   })
   it('keeps the existing audit for an unchanged role', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(member, [{ role: 'admin' }])
     mocks.change.mockResolvedValueOnce({ changed: false, role: 'admin' })
-    await updateOrganizationMemberRole.execute({ principal, input })
+    await updateOrganizationMember.execute({ principal, input })
     expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.analytics).toHaveBeenCalledTimes(1)
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'actor' }))
   })
 })
 
@@ -117,16 +120,17 @@ it.each([{ role: 'member' }, { role: null }])(
   'rejects insufficient current authority before mutation',
   async ({ role }) => {
     queueTableRows(member, role ? [{ role }] : [])
-    await expect(updateOrganizationMemberRole.execute({ principal, input })).rejects.toThrow()
+    await expect(updateOrganizationMember.execute({ principal, input })).rejects.toThrow()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
   }
 )
 it('preserves SCIM authority and emits no audit on refusal', async () => {
   queueTableRows(member, [{ role: 'admin' }])
+  queueTableRows(member, [{ role: 'admin' }])
   queueTableRows(member, [{ role: 'member' }])
   mocks.scim.mockRejectedValueOnce(new Error('Managed by directory'))
-  await expect(updateOrganizationMemberRole.execute({ principal, input })).rejects.toThrow(
+  await expect(updateOrganizationMember.execute({ principal, input })).rejects.toThrow(
     'Managed by directory'
   )
   expect(mocks.change).not.toHaveBeenCalled()
@@ -138,6 +142,7 @@ it('internal HTTP role update uses the same current actor and locked operation',
     user: { id: 'session-actor' },
     session: { id: 'session' },
   })
+  queueTableRows(member, [{ role: 'admin' }])
   queueTableRows(member, [{ role: 'admin' }])
   queueTableRows(member, [{ id: 'member-id', userId: 'target-user', role: 'member' }])
   const response = await PUT(

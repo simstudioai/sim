@@ -45,8 +45,8 @@ export async function revokeUserSessionsTx(
       and(
         eq(sessionTable.userId, params.userId),
         isNull(sessionTable.impersonatedBy),
-        ...(params.spareSessionId ? [ne(sessionTable.id, params.spareSessionId)] : []),
-        ...(params.spareSessionToken ? [ne(sessionTable.token, params.spareSessionToken)] : [])
+        ...(params.spareSessionToken ? [ne(sessionTable.token, params.spareSessionToken)] : []),
+        ...(params.spareSessionId ? [ne(sessionTable.id, params.spareSessionId)] : [])
       )
     )
     .returning({ id: sessionTable.id })

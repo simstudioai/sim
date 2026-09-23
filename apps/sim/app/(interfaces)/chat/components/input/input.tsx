@@ -7,6 +7,7 @@ import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { PublicChatActionButton } from '@/app/(interfaces)/chat/components/input/public-chat-action-button'
 
 const logger = createLogger('ChatInput')
 
@@ -221,15 +222,14 @@ export const ChatInput: React.FC<{
             <div>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <PublicChatActionButton
                     aria-label='Attach files'
                     variant='quiet'
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachedFiles.length >= 15}
-                    className='size-[28px] rounded-full p-0'
                   >
                     <Paperclip className='size-[16px]' />
-                  </Button>
+                  </PublicChatActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
                   <p>Attach files</p>
@@ -252,24 +252,22 @@ export const ChatInput: React.FC<{
 
             <div className='flex items-center gap-1.5'>
               {isStreaming ? (
-                <Button
+                <PublicChatActionButton
                   variant='primary'
                   onClick={onStopStreaming}
-                  className='size-[28px] rounded-full p-0'
                   aria-label='Stop generation'
                 >
                   <StopFilled className='block size-[14px] fill-current' />
-                </Button>
+                </PublicChatActionButton>
               ) : (
-                <Button
+                <PublicChatActionButton
                   variant='primary'
                   onClick={handleSubmit}
                   disabled={!canSubmit}
                   aria-label='Send message'
-                  className='size-[28px] rounded-full p-0'
                 >
                   <ArrowUp className='block size-[16px]' />
-                </Button>
+                </PublicChatActionButton>
               )}
             </div>
           </div>

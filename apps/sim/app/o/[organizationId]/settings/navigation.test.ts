@@ -29,7 +29,7 @@ describe('organization settings navigation', () => {
   it('exposes MCP setup and the read-only roster to an ordinary organization member', () => {
     expect(
       organizationSettingsNavigation(false, enterprise, available).map(({ id }) => id)
-    ).toEqual(['members', 'recently-deleted', 'search-mcp'])
+    ).toEqual(['members', 'recently-deleted', 'requests', 'search-mcp'])
   })
 
   it('uses Sources for administration when Search is available', () => {
@@ -50,7 +50,7 @@ describe('organization settings navigation', () => {
         { ...enterprise, hasEnterprisePlan: false, governanceActive: false },
         available
       ).map(({ id }) => id)
-    ).toEqual(['billing', 'members', 'recently-deleted', 'search-mcp'])
+    ).toEqual(['billing', 'members', 'recently-deleted', 'requests', 'search-mcp'])
   })
 
   /**
@@ -65,7 +65,14 @@ describe('organization settings navigation', () => {
         { ...enterprise, hasEnterprisePlan: false, governanceActive: true },
         available
       ).map(({ id }) => id)
-    ).toEqual(['billing', 'members', 'recently-deleted', 'access-control', 'search-mcp'])
+    ).toEqual([
+      'billing',
+      'members',
+      'recently-deleted',
+      'requests',
+      'access-control',
+      'search-mcp',
+    ])
   })
 
   it('honors individual self-hosted feature flags and hides billing when disabled', () => {
@@ -80,7 +87,15 @@ describe('organization settings navigation', () => {
         },
         available
       ).map(({ id }) => id)
-    ).toEqual(['members', 'recently-deleted', 'sso', 'integrations', 'search-mcp', 'search-slack'])
+    ).toEqual([
+      'members',
+      'recently-deleted',
+      'requests',
+      'sso',
+      'integrations',
+      'search-mcp',
+      'search-slack',
+    ])
   })
 
   it('normalizes old section names and does not expose unsupported routes', () => {
@@ -107,6 +122,7 @@ describe('organization settings navigation', () => {
       'organization:usage',
       'organization:whitelabeling',
       'organization:recently-deleted',
+      'organization:requests',
       'governance:audit-logs',
       'governance:access-control',
       'governance:sso',
@@ -122,7 +138,7 @@ describe('organization settings navigation', () => {
   it('hosts the account General section ahead of the organization sections', () => {
     expect(
       organizationSurfaceSettingsNavigation(false, enterprise, available).map(({ id }) => id)
-    ).toEqual(['general', 'members', 'recently-deleted', 'search-mcp'])
+    ).toEqual(['general', 'members', 'recently-deleted', 'requests', 'search-mcp'])
     expect(ORGANIZATION_SETTINGS_GROUPS.map(({ key }) => key)).toEqual([
       'account',
       'organization',

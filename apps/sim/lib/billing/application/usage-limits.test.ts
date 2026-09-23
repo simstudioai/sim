@@ -37,6 +37,7 @@ vi.mock(
   () => ({ getOrganizationBillingSummary: { execute: mocks.summary } })
 )
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
+  isOrgMemberUsageLimitTarget: vi.fn().mockResolvedValue(true),
   getOrgMemberUsageLimit: mocks.memberRead,
   setOrgMemberUsageLimit: mocks.memberUpdate,
   getOrgMemberUsageForCurrentPeriod: mocks.usage,
@@ -47,9 +48,9 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 }))
 
 import {
-  readMemberUsageLimit,
-  updateMemberUsageLimit,
-} from '@/lib/billing/application/member-usage-limits'
+  getOrganizationMemberUsageLimit,
+  updateOrganizationMemberUsageLimit,
+} from '@/lib/billing/application/member-usage-limits/use-cases'
 import { readUsageLimit, updateUsageLimit } from '@/lib/billing/application/usage-limits'
 
 const principal = (): OrganizationDelegatedPrincipal => ({
@@ -171,7 +172,7 @@ describe('budget settings application boundaries', () => {
   it('reads per-member amounts in credits', async () => {
     membership()
     expect(
-      await readMemberUsageLimit.execute({
+      await getOrganizationMemberUsageLimit.execute({
         principal: principal(),
         input: { organizationId: 'org', userId: 'external-user' },
       })
@@ -181,7 +182,8 @@ describe('budget settings application boundaries', () => {
     'updates or clears external member cap %s with actual actor',
     async (creditLimit) => {
       membership()
-      await updateMemberUsageLimit.execute({
+      membership()
+      await updateOrganizationMemberUsageLimit.execute({
         principal: principal(),
         input: { organizationId: 'org', userId: 'external-user', creditLimit },
       })
@@ -189,7 +191,8 @@ describe('budget settings application boundaries', () => {
         'org',
         'external-user',
         creditLimit === null ? null : 2,
-        'actor'
+        'actor',
+        expect.anything()
       )
       expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -202,7 +205,7 @@ describe('budget settings application boundaries', () => {
   it('keeps member cap hosted-only and does not audit rejected writes', async () => {
     setEnvFlags({ isHosted: false })
     await expect(
-      updateMemberUsageLimit.execute({
+      updateOrganizationMemberUsageLimit.execute({
         principal: session,
         input: { organizationId: 'org', userId: 'other', creditLimit: 4 },
       })

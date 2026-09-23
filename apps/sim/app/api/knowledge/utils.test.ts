@@ -211,6 +211,8 @@ describe('Knowledge Utils', () => {
           secretProvenanceVersion: null,
         },
       ])
+      /** Pre-commit connector and knowledge-base activity check. */
+      queueTableRows(schemaMock.document, [{ id: 'doc1' }])
       /** In-transaction active-document recheck. */
       queueTableRows(schemaMock.document, [{ id: 'doc1' }])
 

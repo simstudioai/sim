@@ -1,55 +1,42 @@
-import { NextResponse } from 'next/server'
 import {
   createPermissionGroupContract,
   listPermissionGroupsContract,
-  permissionGroupParamsSchema,
 } from '@/lib/api/contracts/permission-groups'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { presentPermissionGroup } from '@/lib/api/server/permission-group-presenters'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { authorizePermissionGroupManagement } from '@/lib/permission-groups/application/authorized-management-use-case'
+import { internalPermissionGroupErrorPolicy } from '@/lib/api/server/routes/permission-groups'
+import { permissionGroupOperations } from '@/lib/permission-groups/application/operations'
 import {
   createPermissionGroup,
   listPermissionGroups,
-} from '@/lib/permission-groups/application/management'
-import { permissionGroupManagementOperations } from '@/lib/permission-groups/application/management-operations'
-import { permissionGroupErrorPolicy } from '@/app/api/organizations/[id]/permission-groups/utils'
+} from '@/lib/permission-groups/application/use-cases'
 
 export const GET = defineInternalJsonRoute({
   contract: listPermissionGroupsContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.list,
+  operation: permissionGroupOperations.list,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Internal server error'),
+  errorPolicy: internalPermissionGroupErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id }),
   useCase: listPermissionGroups,
+  present: ({ data }) => ({ permissionGroups: data.map(presentPermissionGroup) }),
 })
 
 export const POST = defineInternalJsonRoute({
   contract: createPermissionGroupContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.create,
+  operation: permissionGroupOperations.create,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Failed to create permission group'),
-  beforeParse: async ({ principal, params }) => {
-    const scope = permissionGroupParamsSchema.parse(params)
-    await authorizePermissionGroupManagement(
-      principal,
-      permissionGroupManagementOperations.create,
-      { organizationId: scope.id }
-    )
-  },
-  parseOptions: {
-    validationErrorResponse: (error) =>
-      NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
-  },
-  mapInput: ({ params, body }) => ({ organizationId: params.id, settings: body }),
+  errorPolicy: internalPermissionGroupErrorPolicy,
+  mapInput: ({ params, body }) => ({ organizationId: params.id, changes: body }),
   useCase: createPermissionGroup,
+  present: (group) => ({ permissionGroup: presentPermissionGroup(group) }),
 })

@@ -218,7 +218,7 @@ describe('access request administrator notifications', () => {
     expect(mockRender).toHaveBeenCalledExactlyOnceWith({
       kind: 'created',
       requestLink:
-        'https://sim.example/access-requests?organizationId=organization-one&view=admin&requestId=request-one',
+        'https://sim.example/access-requests?organizationId=organization-one&view=review&request-id=request-one',
     })
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'current-admin@example.com', emailType: 'transactional' })
@@ -270,7 +270,7 @@ describe('access request requester notifications', () => {
       expect(mockRender).toHaveBeenCalledExactlyOnceWith({
         kind: 'decided',
         requestLink:
-          'https://sim.example/workspace/workspace-one/access-requests?requestId=request-one',
+          'https://sim.example/workspace/workspace-one/settings/requests?view=requests&requestId=request-one',
       })
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'requester@example.com', emailType: 'transactional' })
@@ -294,7 +294,7 @@ describe('access request requester notifications', () => {
     expect(mockRender).toHaveBeenCalledExactlyOnceWith({
       kind: 'decided',
       requestLink:
-        'https://sim.example/workspace/workspace-one/access-requests?requestId=request-one',
+        'https://sim.example/workspace/workspace-one/settings/requests?view=requests&requestId=request-one',
     })
   })
 
@@ -307,7 +307,7 @@ describe('access request requester notifications', () => {
     expect(mockRender).toHaveBeenCalledExactlyOnceWith({
       kind: 'decided',
       requestLink:
-        'https://sim.example/workspace/workspace%2Fwith%3Fcharacters/access-requests?requestId=request-one',
+        'https://sim.example/workspace/workspace%2Fwith%3Fcharacters/settings/requests?view=requests&requestId=request-one',
     })
   })
 
@@ -350,7 +350,7 @@ describe('access request requester notifications', () => {
     expect(mockRender).toHaveBeenCalledWith({
       kind: 'decided',
       requestLink:
-        'https://sim.example/access-requests?organizationId=organization-one&requestId=request-one',
+        'https://sim.example/access-requests?view=requests&requestId=request-one&organizationId=organization-one',
     })
   })
 

@@ -62,7 +62,8 @@ export type V2ListWorkspacesQuery = z.output<typeof v2ListWorkspacesQuerySchema>
 
 export const v2WorkspaceMemberSchema = z
   .object({
-    email: z.email().describe('Member email address and public member identifier.'),
+    userId: z.string().describe('User identifier; use this identifier for member administration.'),
+    email: z.email().describe('Member email address.'),
     name: z.string().describe('Member display name.'),
     image: z.string().nullable().describe('Member profile image URL, or null when absent.'),
     role: z.enum(['admin', 'write', 'read']).describe('Effective role in the workspace.'),

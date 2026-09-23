@@ -35,10 +35,15 @@ describe.runIf(Boolean(databaseUrl))('member sync status upgrade in PostgreSQL',
     )?.[0]
     if (!table) throw new Error('Original member sync log table DDL was not found')
     await sql.unsafe(table)
-    migration = await readFile(
-      new URL('./migrations/0375_member_sync_partial_status.sql', import.meta.url),
+    const mergedMigration = await readFile(
+      new URL('./migrations/0380_mothership_staging_merge.sql', import.meta.url),
       'utf8'
     )
+    const statusMigration = mergedMigration.match(
+      /ALTER TABLE "knowledge_connector_member_sync_log"[\s\S]*?NOT VALID;/
+    )?.[0]
+    if (!statusMigration) throw new Error('Member sync status upgrade was not found')
+    migration = statusMigration
   })
 
   afterAll(async () => {

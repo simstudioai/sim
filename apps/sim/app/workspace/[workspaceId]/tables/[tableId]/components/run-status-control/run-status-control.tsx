@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { Loader, Square } from '@sim/emcn/icons'
 
 interface RunStatusControlProps {
@@ -38,15 +38,9 @@ export const RunStatusControl = memo(function RunStatusControl({
           </>
         )}
       </div>
-      <Button
-        variant='subtle'
-        className='py-1 text-caption'
-        onClick={onStopAll}
-        disabled={isStopping}
-      >
-        <Square className='mr-1.5 size-[14px]' />
+      <Chip leftIcon={Square} onClick={onStopAll} disabled={isStopping}>
         {isStopping ? 'Stopping…' : 'Stop all'}
-      </Button>
+      </Chip>
     </div>
   )
 })

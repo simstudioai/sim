@@ -1,5 +1,5 @@
 {
-  "id": "386bafc3-3e1d-489c-9ca8-97b91f0c38c8",
+  "id": "fe70196f-1ead-4c12-89f7-5c76ec664389",
   "prevId": "fad933f6-bdb2-460d-a6cb-b30a0ef6505d",
   "version": "7",
   "dialect": "postgresql",
@@ -1574,49 +1574,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "sandbox_processes": {
-          "name": "sandbox_processes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "execution_owner_token": {
-          "name": "execution_owner_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_workflow_execution_id": {
-          "name": "client_workflow_execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "execution_started_at": {
-          "name": "execution_started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "execution_settled_at": {
-          "name": "execution_settled_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "execution_lease_expires_at": {
-          "name": "execution_lease_expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "execution_revoked_at": {
-          "name": "execution_revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -2794,25 +2751,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "tool_admission_closed_at": {
-          "name": "tool_admission_closed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tool_execution_version": {
-          "name": "tool_execution_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -3060,15 +2998,6 @@
           "tableFrom": "copilot_runs",
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_runs_organization_id_organization_id_fk": {
-          "name": "copilot_runs_organization_id_organization_id_fk",
-          "tableFrom": "copilot_runs",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -5968,6 +5897,22 @@
           ],
           "isUnique": false,
           "where": "\"document\".\"deleted_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_connector_tombstone_idx": {
+          "name": "doc_connector_tombstone_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"document\".\"archived_at\" IS NULL AND (\"document\".\"deleted_at\" IS NOT NULL OR \"document\".\"content_hash\" IS NULL)",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -28218,293 +28163,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.copilot_organization_request_stops": {
-      "name": "copilot_organization_request_stops",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stream_id": {
-          "name": "stream_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stopped_at": {
-          "name": "stopped_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "copilot_organization_request_stops_user_id_user_id_fk": {
-          "name": "copilot_organization_request_stops_user_id_user_id_fk",
-          "tableFrom": "copilot_organization_request_stops",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_organization_request_stops_organization_id_organization_id_fk": {
-          "name": "copilot_organization_request_stops_organization_id_organization_id_fk",
-          "tableFrom": "copilot_organization_request_stops",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "copilot_organization_request_stops_user_id_organization_id_stream_id_pk": {
-          "name": "copilot_organization_request_stops_user_id_organization_id_stream_id_pk",
-          "columns": ["user_id", "organization_id", "stream_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.copilot_task_subscriptions": {
-      "name": "copilot_task_subscriptions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "task_id": {
-          "name": "task_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chat_id": {
-          "name": "chat_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "copilot_task_subscriptions_execution_idx": {
-          "name": "copilot_task_subscriptions_execution_idx",
-          "columns": [
-            {
-              "expression": "execution_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "copilot_task_subscriptions_task_idx": {
-          "name": "copilot_task_subscriptions_task_idx",
-          "columns": [
-            {
-              "expression": "task_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "copilot_task_subscriptions_chat_id_copilot_chats_id_fk": {
-          "name": "copilot_task_subscriptions_chat_id_copilot_chats_id_fk",
-          "tableFrom": "copilot_task_subscriptions",
-          "tableTo": "copilot_chats",
-          "columnsFrom": ["chat_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_task_subscriptions_workspace_id_workspace_id_fk": {
-          "name": "copilot_task_subscriptions_workspace_id_workspace_id_fk",
-          "tableFrom": "copilot_task_subscriptions",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_task_subscriptions_user_id_user_id_fk": {
-          "name": "copilot_task_subscriptions_user_id_user_id_fk",
-          "tableFrom": "copilot_task_subscriptions",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.copilot_request_stops": {
-      "name": "copilot_request_stops",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stream_id": {
-          "name": "stream_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stopped_at": {
-          "name": "stopped_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "copilot_request_stops_user_id_user_id_fk": {
-          "name": "copilot_request_stops_user_id_user_id_fk",
-          "tableFrom": "copilot_request_stops",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_request_stops_workspace_id_workspace_id_fk": {
-          "name": "copilot_request_stops_workspace_id_workspace_id_fk",
-          "tableFrom": "copilot_request_stops",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "copilot_request_stops_user_id_workspace_id_stream_id_pk": {
-          "name": "copilot_request_stops_user_id_workspace_id_stream_id_pk",
-          "columns": ["user_id", "workspace_id", "stream_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.mothership_resource_effects": {
-      "name": "mothership_resource_effects",
-      "schema": "",
-      "columns": {
-        "chat_id": {
-          "name": "chat_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effect_id": {
-          "name": "effect_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "mothership_resource_effects_chat_id_copilot_chats_id_fk": {
-          "name": "mothership_resource_effects_chat_id_copilot_chats_id_fk",
-          "tableFrom": "mothership_resource_effects",
-          "tableTo": "copilot_chats",
-          "columnsFrom": ["chat_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "mothership_resource_effects_chat_id_effect_id_pk": {
-          "name": "mothership_resource_effects_chat_id_effect_id_pk",
-          "columns": ["chat_id", "effect_id"]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

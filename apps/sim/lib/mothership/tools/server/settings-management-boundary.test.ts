@@ -21,7 +21,7 @@ import {
   revokeWorkspaceApiKey,
 } from '@/lib/api-key/application/workspace-api-keys'
 import { deleteWorkspaceByokKey } from '@/lib/api-key/application/workspace-byok-keys'
-import { updateMemberUsageLimit } from '@/lib/billing/application/member-usage-limits'
+import { updateOrganizationMemberUsageLimit } from '@/lib/billing/application/member-usage-limits/use-cases'
 import { readUsageLimit, updateUsageLimit } from '@/lib/billing/application/usage-limits'
 import { listWorkspaceInvitations } from '@/lib/invitations/application/list-workspace-invitations'
 import {
@@ -130,7 +130,9 @@ describe('settings management adapter boundaries', () => {
     'keeps member credit units and nullable clear value %s',
     async (creditLimit) => {
       target('organization')
-      const update = vi.spyOn(updateMemberUsageLimit, 'execute').mockResolvedValue({ creditLimit })
+      const update = vi
+        .spyOn(updateOrganizationMemberUsageLimit, 'execute')
+        .mockResolvedValue({ creditLimit })
       await execute('organization', 'billing', 'set_member_limit', {
         userId: 'external-member',
         creditLimit,

@@ -1,5 +1,10 @@
-import { backfillProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { PROJECTION_SOURCE_ACL_TABLES } from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { projectionSourceAclBackfillMigration as embeddingSearchConnectorMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
+import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
+import {
+  installKnowledgeProjectionMarking,
+  knowledgeProjectionAsyncMigration,
+} from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -7,11 +12,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
 
 /**
- * The projections here carry only the columns the source and ACL triggers and backfill touch; the
- * vector and lexeme columns, and their indexes, are what make the backfill slow, not what decides
- * which rows it writes.
+ * The projections here carry only the columns the source and ACL triggers touch; the vector and
+ * lexeme columns, and their indexes, are what make a projection write slow, not what decides
+ * which rows the triggers write or which documents they mark. `embedding` and its projection
+ * functions are stand-ins, so `0024` can re-create the triggers it guards.
  */
-describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in PostgreSQL', () => {
+describe.runIf(Boolean(databaseUrl))('projection source and ACL triggers in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   const schemaName = `projection_acl_${generateId().replaceAll('-', '')}`
@@ -19,6 +25,17 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
   const projected = (projection: 'embedding_search' | 'embedding_keyword_tin') =>
     sql<{ id: string; connector_id: string | null; acl: string[] | null }[]>`
       SELECT id, connector_id, acl FROM ${sql(projection)} ORDER BY id`
+
+  const marks = () =>
+    sql<{ document_id: string; generation: string; content: boolean }[]>`
+      SELECT document_id, generation, content FROM knowledge_projection_dirty ORDER BY document_id`
+
+  /** Runs `write` in a transaction that declared the asynchronous projection mode. */
+  const asynchronously = (write: (tx: postgres.TransactionSql) => Promise<unknown>) =>
+    sql.begin(async (tx) => {
+      await tx`SELECT set_config('sim.projection_mode', 'async', true)`
+      await write(tx)
+    })
 
   beforeAll(async () => {
     const url = new URL(databaseUrl!)
@@ -38,14 +55,40 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
     await sql`CREATE TABLE document (
       id text PRIMARY KEY, connector_id text, acl text[] NOT NULL DEFAULT '{ws}'
     )`
+    await sql`CREATE TABLE knowledge_projection_dirty (
+      document_id text PRIMARY KEY REFERENCES document (id) ON DELETE CASCADE,
+      generation bigint NOT NULL DEFAULT 1, content boolean NOT NULL DEFAULT false,
+      marked_at timestamptz NOT NULL DEFAULT now()
+    )`
     for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
       await sql`CREATE TABLE ${sql(projection)} (
         id text PRIMARY KEY, document_id text NOT NULL, enabled boolean NOT NULL DEFAULT true,
         connector_id text, acl text[]
       )`
     }
+    await sql`CREATE TABLE embedding (
+      id text PRIMARY KEY, knowledge_base_id text, document_id text, enabled boolean, content text,
+      embedding text, embedding_384 text, embedding_768 text, embedding_1024 text, embedding_3072 text
+    )`
+    for (const name of ['sync_embedding_search', 'sync_embedding_keyword_search']) {
+      await sql.unsafe(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RETURN NULL; END; $$`)
+    }
     await embeddingSearchConnectorMigration.up(sql)
   }, 60_000)
+
+  /** Each trigger `0024` guards, with whether its definition carries the mode guard. */
+  const guarded = async () =>
+    Object.fromEntries(
+      (
+        await sql<{ name: string; guarded: boolean }[]>`
+          SELECT tgname AS name, pg_get_triggerdef(oid) LIKE '%sim.projection_mode%' AS guarded
+          FROM pg_trigger
+          WHERE tgname IN ('embedding_search_sync', 'embedding_keyword_search_sync',
+            'embedding_search_source_acl_set', 'embedding_keyword_tin_source_acl_set')
+            AND tgrelid::regclass::text IN ('embedding', 'embedding_search', 'embedding_keyword_tin')`
+      ).map((row) => [row.name, row.guarded])
+    )
 
   afterAll(async () => {
     await sql?.end()
@@ -54,9 +97,51 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE embedding_search, embedding_keyword_tin, document`
+    await sql`TRUNCATE embedding_search, embedding_keyword_tin, knowledge_projection_dirty, document`
     await sql`ALTER TABLE embedding_search DISABLE TRIGGER embedding_search_source_acl_set`
     await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
+  })
+
+  it('runs everything synchronously through 0023, and 0024 adds the guards with the marks', async () => {
+    /** A database that has run `0023` and not yet `0024`. */
+    await sql`DROP FUNCTION IF EXISTS mark_knowledge_projection(text[], boolean)`
+    await embeddingSearchConnectorMigration.up(sql)
+    await projectionAclSkipUnfilledMigration.up(sql)
+    /** The embedding triggers as `0016` installs them. */
+    for (const projection of ['embedding_search', 'embedding_keyword_search']) {
+      await sql.unsafe(`CREATE OR REPLACE TRIGGER ${projection}_sync AFTER INSERT ON embedding
+        FOR EACH ROW EXECUTE FUNCTION sync_${projection}()`)
+    }
+    const [before] = await sql<{ installed: boolean }[]>`
+      SELECT to_regprocedure('mark_knowledge_projection(text[], boolean)') IS NOT NULL AS installed`
+    expect(before?.installed).toBe(false)
+    expect(await guarded()).toEqual({
+      embedding_search_sync: false,
+      embedding_keyword_search_sync: false,
+      embedding_search_source_acl_set: false,
+      embedding_keyword_tin_source_acl_set: false,
+    })
+    await sql`INSERT INTO document (id, connector_id, acl) VALUES ('doc', 'src', ARRAY['u:alice'])`
+    await sql`INSERT INTO embedding_search (id, document_id, connector_id, acl)
+      VALUES ('filled', 'doc', 'src', ARRAY['u:alice'])`
+
+    /** Even a writer that asks for the asynchronous mode is synchronous until `0024`. */
+    await asynchronously((tx) => tx`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`)
+    expect(await projected('embedding_search')).toEqual([
+      { id: 'filled', connector_id: 'src', acl: ['u:bob'] },
+    ])
+    expect(await marks()).toEqual([])
+
+    await knowledgeProjectionAsyncMigration.up(sql)
+    expect(await guarded()).toEqual({
+      embedding_search_sync: true,
+      embedding_keyword_search_sync: true,
+      embedding_search_source_acl_set: true,
+      embedding_keyword_tin_source_acl_set: true,
+    })
+    await sql`UPDATE document SET acl = ARRAY['u:carol'] WHERE id = 'doc'`
+    expect((await projected('embedding_search'))[0]?.acl).toEqual(['u:carol'])
+    expect(await marks()).toEqual([{ document_id: 'doc', generation: '1', content: false }])
   })
 
   it('installs its triggers and indexes again without failing, so a cut-short deploy completes', async () => {
@@ -74,55 +159,97 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL backfill in Post
     )
   })
 
-  it('fills only the rows still unset, in pages, and leaves a chunk that changed documents to its trigger', async () => {
-    await sql`INSERT INTO document (id, connector_id, acl) VALUES
-      ('doc-a', 'src-a', ARRAY['u:alice']), ('doc-b', NULL, ARRAY['ws']), ('doc-c', 'src-c', ARRAY['u:carol'])`
-    await sql`INSERT INTO embedding_search (id, document_id, connector_id, acl) VALUES
-      ('c1', 'doc-a', NULL, NULL), ('c2', 'doc-b', NULL, NULL),
-      ('c3', 'doc-c', 'src-old', ARRAY['u:stale']), ('c4', 'doc-a', NULL, NULL), ('c5', 'missing', NULL, NULL)`
-    const progress = await backfillProjectionSourceAcl(sql, 'embedding_search', {
-      pageSize: 2,
-      pauseMs: 0,
+  describe('a document change', () => {
+    beforeEach(async () => {
+      /** Tests here install older bodies; each starts from the one `0024` installs. */
+      await installKnowledgeProjectionMarking(sql)
+      await sql`INSERT INTO document (id, connector_id, acl) VALUES ('doc', 'src', ARRAY['u:alice'])`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        await sql`INSERT INTO ${sql(projection)} (id, document_id, connector_id, acl) VALUES
+          ('filled', 'doc', 'src', ARRAY['u:alice']), ('unfilled', 'doc', NULL, NULL),
+          ('unfilled-sourced', 'doc', 'src', NULL)`
+      }
     })
-    expect(progress).toEqual({
-      projection: 'embedding_search',
-      scanned: 3,
-      written: 3,
-      afterId: 'c4',
-      done: true,
-    })
-    expect(await projected('embedding_search')).toEqual([
-      { id: 'c1', connector_id: 'src-a', acl: ['u:alice'] },
-      { id: 'c2', connector_id: null, acl: ['ws'] },
-      { id: 'c3', connector_id: 'src-old', acl: ['u:stale'] },
-      { id: 'c4', connector_id: 'src-a', acl: ['u:alice'] },
-      { id: 'c5', connector_id: null, acl: null },
-    ])
-    expect(await projected('embedding_keyword_tin')).toEqual([])
-  })
 
-  it('stops at its budget with the cursor to resume from, and resumes after it', async () => {
-    await sql`INSERT INTO document (id, connector_id, acl) VALUES ('doc', 'src', ARRAY['u:alice'])`
-    await sql`INSERT INTO embedding_keyword_tin (id, document_id) VALUES
-      ('k1', 'doc'), ('k2', 'doc'), ('k3', 'doc')`
-    const paused = await backfillProjectionSourceAcl(sql, 'embedding_keyword_tin', {
-      pageSize: 1,
-      pauseMs: 0,
-      budgetMs: 0,
+    it('replaces the body a database already has when its own migration runs', async () => {
+      /** The body `0022` installed before `0023`. */
+      await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
+          WHERE document_id = NEW.id AND enabled
+            AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
+          UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
+          WHERE document_id = NEW.id AND enabled
+            AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
+          RETURN NEW;
+        END;
+        $$`)
+      await sql`UPDATE document SET acl = ARRAY['u:carol'] WHERE id = 'doc'`
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:carol'],
+        ['u:carol'],
+        ['u:carol'],
+      ])
+      await sql`UPDATE embedding_search SET acl = NULL WHERE id LIKE 'unfilled%'`
+
+      await projectionAclSkipUnfilledMigration.up(sql)
+      await sql`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      expect((await projected('embedding_search')).map((row) => row.acl)).toEqual([
+        ['u:bob'],
+        null,
+        null,
+      ])
     })
-    expect(paused).toMatchObject({ scanned: 1, written: 1, afterId: 'k1', done: false })
-    const resumed = await backfillProjectionSourceAcl(sql, 'embedding_keyword_tin', {
-      afterId: paused.afterId,
-      pageSize: 1,
-      pauseMs: 0,
+
+    it('writes a changed ACL onto filled chunks only and marks the document', async () => {
+      await sql`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        expect(await projected(projection)).toEqual([
+          { id: 'filled', connector_id: 'src', acl: ['u:bob'] },
+          { id: 'unfilled', connector_id: null, acl: null },
+          { id: 'unfilled-sourced', connector_id: 'src', acl: null },
+        ])
+      }
+      expect(await marks()).toEqual([{ document_id: 'doc', generation: '1', content: false }])
     })
-    expect(resumed).toMatchObject({ scanned: 2, written: 2, afterId: 'k3', done: true })
-    expect((await projected('embedding_keyword_tin')).map((row) => row.acl)).toEqual([
-      ['u:alice'],
-      ['u:alice'],
-      ['u:alice'],
-    ])
-    const again = await backfillProjectionSourceAcl(sql, 'embedding_keyword_tin', { pauseMs: 0 })
-    expect(again).toMatchObject({ scanned: 0, written: 0, afterId: '', done: true })
+
+    it('still carries a changed source onto unfilled chunks, whose source filters read the row', async () => {
+      await sql`UPDATE document SET connector_id = 'moved' WHERE id = 'doc'`
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        expect(await projected(projection)).toEqual([
+          { id: 'filled', connector_id: 'moved', acl: ['u:alice'] },
+          { id: 'unfilled', connector_id: 'moved', acl: null },
+          { id: 'unfilled-sourced', connector_id: 'moved', acl: null },
+        ])
+      }
+      expect(await marks()).toEqual([{ document_id: 'doc', generation: '1', content: false }])
+    })
+
+    it('leaves every row to the projector in the asynchronous mode, and only marks the document', async () => {
+      await asynchronously((tx) => tx`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`)
+      await asynchronously((tx) => tx`UPDATE document SET connector_id = 'moved' WHERE id = 'doc'`)
+      for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+        expect(await projected(projection)).toEqual([
+          { id: 'filled', connector_id: 'src', acl: ['u:alice'] },
+          { id: 'unfilled', connector_id: null, acl: null },
+          { id: 'unfilled-sourced', connector_id: 'src', acl: null },
+        ])
+      }
+      expect(await marks()).toEqual([{ document_id: 'doc', generation: '2', content: false }])
+    })
+
+    it('marks nothing when an assignment leaves the source and ACL as they were', async () => {
+      await sql`UPDATE document SET acl = ARRAY['u:alice'], connector_id = 'src' WHERE id = 'doc'`
+      expect(await marks()).toEqual([])
+    })
+
+    it('keeps the synchronous fan-out for a transaction that set another mode', async () => {
+      await sql.begin(async (tx) => {
+        await tx`SELECT set_config('sim.projection_mode', 'sync', true)`
+        await tx`UPDATE document SET acl = ARRAY['u:bob'] WHERE id = 'doc'`
+      })
+      expect((await projected('embedding_search'))[0]?.acl).toEqual(['u:bob'])
+    })
   })
 })

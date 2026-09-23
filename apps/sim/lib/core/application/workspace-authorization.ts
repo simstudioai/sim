@@ -5,7 +5,6 @@ import {
   type Principal,
   resolvePrincipalSubject,
 } from '@sim/auth/principal'
-import type { db } from '@sim/db'
 import {
   type PermissionType,
   permissionSatisfies,
@@ -20,6 +19,7 @@ import type {
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   assertWorkspaceCapability,
   capabilityDeniedBy,
@@ -77,7 +77,7 @@ export interface WorkspaceDelegationPolicy<C extends WorkspaceAuthorizationConte
 }
 
 export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationContext> {
-  executor?: Pick<typeof db, 'select'>
+  executor?: DbOrTx
   forUpdate?: boolean
   delegation?: WorkspaceDelegationPolicy<C>
 }
@@ -209,7 +209,8 @@ function requirePermission(permission: PermissionType | null, required: Permissi
 async function requireCapability(
   userId: string,
   context: WorkspaceAuthorizationContext,
-  operation: WorkspaceOperation
+  operation: WorkspaceOperation,
+  executor?: DbOrTx
 ): Promise<void> {
   const capability = operation.capability
   if (capability === 'none') return
@@ -219,7 +220,8 @@ async function requireCapability(
     userId,
     context.workspaceId,
     capability,
-    context.workspaceOrganizationId
+    context.workspaceOrganizationId,
+    executor
   )
 }
 
@@ -231,9 +233,8 @@ async function requireCapability(
  * authorization skip the consent endpoint, and a refresh token keeps minting
  * access tokens for a month. Withdrawing the capability has to stop the
  * credential in use, not only the next fresh grant, so it is asked again here,
- * on the request. The group config is request-cached and the personal-key check
- * that runs just before this one has already read it, so it costs no extra
- * query.
+ * on the request. Without an explicit executor, the personal-key check that runs
+ * just before this one has already cached the group config, so it costs no extra query.
  *
  * Three surfaces authorize themselves instead of entering through the funnel.
  * Billing and audit-log reads repeat this check at their own call sites, since
@@ -244,7 +245,8 @@ async function requireCapability(
 export async function requireCliAccessAllowed(
   clientId: string,
   userId: string,
-  context: WorkspaceAuthorizationContext
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
 ): Promise<void> {
   if (clientId !== SIM_CLI_CLIENT_ID) return
   if (context.workspaceOrganizationId === null) return
@@ -253,7 +255,8 @@ export async function requireCliAccessAllowed(
     userId,
     context.workspaceId,
     'cli.use',
-    context.workspaceOrganizationId
+    context.workspaceOrganizationId,
+    executor
   )
 }
 
@@ -263,9 +266,10 @@ export async function requireCliAccessAllowed(
  */
 export async function requireUserCredentialCapabilities(
   principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
-  context: WorkspaceAuthorizationContext
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
 ): Promise<void> {
-  await requirePersonalApiKeysAllowed(principal.userId, context)
+  await requirePersonalApiKeysAllowed(principal.userId, context, executor)
   if (principal.kind === 'oauth_access_token') {
     /** permission-group-enforced: oauth_apps.use — applies to every OAuth principal after the role check. */
     if (context.workspaceOrganizationId !== null) {
@@ -273,24 +277,33 @@ export async function requireUserCredentialCapabilities(
         principal.userId,
         context.workspaceId,
         'oauth_apps.use',
-        context.workspaceOrganizationId
+        context.workspaceOrganizationId,
+        executor
       )
     }
-    await requireCliAccessAllowed(principal.clientId, principal.userId, context)
+    await requireCliAccessAllowed(principal.clientId, principal.userId, context, executor)
   }
 }
 
 export async function requirePersonalApiKeysAllowed(
   userId: string,
-  context: WorkspaceAuthorizationContext
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
 ): Promise<void> {
   if (context.workspaceOrganizationId === null) return
 
-  const config = await resolvePermissionGroupConfig(
-    userId,
-    context.workspaceId,
-    context.workspaceOrganizationId
-  )
+  const config = executor
+    ? await resolvePermissionGroupConfig(
+        userId,
+        context.workspaceId,
+        context.workspaceOrganizationId,
+        executor
+      )
+    : await resolvePermissionGroupConfig(
+        userId,
+        context.workspaceId,
+        context.workspaceOrganizationId
+      )
   if (capabilityDeniedBy('personal_api_key.use', config)) throw new PersonalApiKeysDisabledError()
 }
 
@@ -335,7 +348,7 @@ async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   await requireCurrentHumanRole(userId, context, operation.minimumRole, options)
-  await requireCapability(userId, context, operation)
+  await requireCapability(userId, context, operation, options?.executor)
 }
 
 export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizationContext>(
@@ -380,8 +393,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new PersonalApiKeysDisabledError()
       }
       await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
-      await requirePersonalApiKeysAllowed(principal.userId, context)
-      await requireCapability(principal.userId, context, operation)
+      await requirePersonalApiKeysAllowed(principal.userId, context, options?.executor)
+      await requireCapability(principal.userId, context, operation, options?.executor)
       return
     /** OAuth scopes and expiry were checked before loading protected context. */
     case 'oauth_access_token': {
@@ -389,8 +402,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new PersonalApiKeysDisabledError()
       }
       await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
-      await requireUserCredentialCapabilities(principal, context)
-      await requireCapability(principal.userId, context, operation)
+      await requireUserCredentialCapabilities(principal, context, options?.executor)
+      await requireCapability(principal.userId, context, operation, options?.executor)
       return
     }
     /**

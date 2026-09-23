@@ -476,6 +476,42 @@ export const transferOwnershipContract = defineRouteContract({
   },
 })
 
+export const organizationSeatInfoSchema = z.object({
+  organizationId: z.string(),
+  organizationName: z.string(),
+  currentSeats: z.number(),
+  maxSeats: z.number(),
+  availableSeats: z.number(),
+  subscriptionPlan: z.string(),
+  canAddSeats: z.boolean(),
+})
+export const getOrganizationQuerySchema = z.object({ include: z.string().max(100).optional() })
+export type GetOrganizationQuery = z.input<typeof getOrganizationQuerySchema>
+export const getOrganizationResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    logo: z.string().nullable(),
+    metadata: z.unknown().describe('Organization-defined JSON metadata.'),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    seats: organizationSeatInfoSchema.optional(),
+    seatAnalytics: organizationSeatInfoSchema.extend({ utilizationRate: z.number() }).optional(),
+  }),
+  userRole: organizationRoleSchema,
+  hasAdminAccess: z.boolean(),
+})
+export type GetOrganizationResponse = z.output<typeof getOrganizationResponseSchema>
+export const getOrganizationContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]',
+  params: organizationParamsSchema,
+  query: getOrganizationQuerySchema,
+  response: { mode: 'json', schema: getOrganizationResponseSchema },
+})
+
 export const updateOrganizationContract = defineRouteContract({
   method: 'PUT',
   path: '/api/organizations/[id]',

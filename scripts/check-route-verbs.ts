@@ -88,7 +88,7 @@ const CONTRACT_KEY_RE = /\n\s{2}contract:\s*([A-Za-z0-9_$]+)\s*,/
 /** How far past the builder's `({` to look for the `contract:` key. */
 const OPTIONS_SCAN_CHARS = 4000
 
-/** Resolves a traced export through its local handler without importing server code. */
+/** Resolves exported handler references and tracing callbacks without importing server code. */
 export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
   const handlers = new Map<string, number>()
@@ -127,12 +127,8 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
           return
         }
         const node = value as Record<string, unknown>
-        if (node.type === 'CallExpression' && node.callee && typeof node.callee === 'object') {
-          const callee = node.callee as Record<string, unknown>
-          const start =
-            callee.type === 'Identifier' && typeof callee.name === 'string'
-              ? handlers.get(callee.name)
-              : undefined
+        if (node.type === 'Identifier' && typeof node.name === 'string') {
+          const start = handlers.get(node.name)
           if (start !== undefined) found.add(start)
         }
         Object.values(node).forEach(visit)

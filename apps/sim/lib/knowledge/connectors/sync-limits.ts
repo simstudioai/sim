@@ -21,6 +21,17 @@ export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECO
  */
 export const MAX_CONSECUTIVE_FAILURES = 10
 
+/** The error a workspace connector carries once its credential is removed; cleared by reconnecting. */
+export const CREDENTIAL_REMOVED_SYNC_ERROR =
+  'Credential removed. Reconnect the connector to resume syncing.'
+
+/**
+ * The error a connector carries once the source rejects its credential outright (a revoked or
+ * expired grant, not a passing failure); cleared by reauthorizing that credential.
+ */
+export const CREDENTIAL_REVOKED_SYNC_ERROR =
+  'The source no longer accepts this credential. Reconnect it to resume syncing.'
+
 /**
  * The error a connector carries once {@link MAX_CONSECUTIVE_FAILURES} disables it.
  *
@@ -130,9 +141,48 @@ export const MEMBER_TOMBSTONE_PURGE_DAYS = 7
 /** Hard deletes one members-mode run may perform; bounds the blast radius of a bad run. */
 export const MEMBER_PURGE_MAX_PER_RUN = 1000
 
+/**
+ * Pages of the connector's documents one members-mode run checks for a document nobody
+ * observes, beyond the ones whose observations the run itself removed. The check resumes
+ * where the previous run stopped, so a pass over a large connector spans several runs
+ * while each run's cost stays independent of the connector's size.
+ */
+export const MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN = 20
+
 export const SOURCE_PERMISSION_ERROR =
   'Some document permissions could not be verified. Documents without verified access stay hidden from search.'
 
 /** Source downloads are retried by connector listing, never by parsing the retained file again. */
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
+
+/**
+ * Documents whose permission evidence is refreshed per statement. Documents are
+ * grouped by identical ACL first — files under one folder overwhelmingly share
+ * theirs — so a crawl of thousands usually resolves to a handful of statements.
+ * A refresh never assigns `acl`, so it fires no projection fan-out.
+ */
+export const ACL_WRITE_BATCH_SIZE = 500
+
+/**
+ * How long a connector-lease ACL page waits on any lock before it fails. The
+ * connector row is locked last, so the wait is on document rows, which a
+ * processing commit may hold for its whole embedding write.
+ */
+export const LEASE_PAGE_LOCK_TIMEOUT_MS = 15_000
+
+/** The longest one statement of a connector-lease ACL page may run. */
+export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
+
+/**
+ * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
+ * document trigger that copies it onto every chunk's search projection rows, and
+ * each of those rows is re-inserted into the vector index, so one statement costs
+ * the chunks of every document in it rather than the documents. Kept small so a
+ * page of changed documents cannot outrun the statement timeout; with
+ * `knowledge-async-projection` on, the trigger only marks the documents and the bound is the
+ * cleanup boundary noted at `pagesByProjectionRows` in `member-observations.ts`. Also the page
+ * of the transactions that remove observations and rematerialise the ACLs they
+ * decide together, which must commit as one and so cannot be split by rows.
+ */
+export const ACL_CHANGE_BATCH_SIZE = 25

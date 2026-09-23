@@ -10,25 +10,20 @@ import {
 } from '@/lib/api/contracts/organization'
 import {
   defineInternalJsonRoute,
-  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalOrganizationErrorPolicy } from '@/lib/api/server/routes/organizations'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isRetryableTransactionError } from '@/lib/db/transaction'
 import {
   removeOrganizationMember,
-  removeOrganizationMemberOperation,
-} from '@/lib/organizations/application/member-removal'
-import {
-  updateOrganizationMemberRole,
-  updateOrganizationMemberRoleOperation,
-} from '@/lib/organizations/application/member-role'
+  updateOrganizationMember,
+} from '@/lib/organizations/application/members'
+import { organizationOperations } from '@/lib/organizations/application/operations'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('OrganizationMemberAPI')
 
@@ -152,82 +147,84 @@ export const GET = withRouteHandler(
   }
 )
 
-/**
- * PUT /api/organizations/[id]/members/[memberId]
- * Update organization member role
- */
 export const PUT = defineInternalJsonRoute({
   contract: updateOrganizationMemberRoleContract,
   auth: internalSessionAuth,
-  operation: updateOrganizationMemberRoleOperation,
+  operation: organizationOperations.updateMember,
   rateLimit: internalRateLimits.none({
-    reason: 'Preserves the existing session-authenticated role update policy',
+    reason: 'Preserve existing organization member administration behavior.',
   }),
-  errorPolicy: {
-    project(error) {
-      if (error instanceof ForbiddenOperationError)
-        return { status: 403, body: { error: error.message, details: { code: error.detailCode } } }
-      if (
-        error instanceof OrchestrationError &&
-        error.code === 'not_found' &&
-        error.message === 'Organization not found'
-      )
-        return { status: 403, body: { error: 'Forbidden - Not a member of this organization' } }
-      if (error instanceof OrchestrationError && error.code === 'forbidden')
-        return { status: 403, body: { error: 'Forbidden - Admin access required' } }
-      if (isRetryableTransactionError(error))
-        return { status: 409, body: { error: 'The organization is busy; retry in a moment' } }
-      return internalOrchestrationErrorPolicy.project(error)
-    },
-  },
+  errorPolicy: internalOrganizationErrorPolicy,
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     userId: params.memberId,
     role: body.role,
   }),
-  useCase: updateOrganizationMemberRole,
-  present: (data) => ({
+  useCase: updateOrganizationMember,
+  present: ({ member }, { principal }) => ({
     success: true,
     message: 'Member role updated successfully',
-    data: { ...data },
+    data: { id: member.id, userId: member.userId, role: member.role, updatedBy: principal.userId },
   }),
+  onSuccess: ({ principal, input }) => {
+    captureServerEvent(
+      principal.userId,
+      'org_member_role_changed',
+      { organization_id: input.organizationId, new_role: input.role },
+      { groups: { organization: input.organizationId } }
+    )
+  },
 })
 
-/**
- * DELETE /api/organizations/[id]/members/[memberId]
- * Remove member from organization
- */
 export const DELETE = defineInternalJsonRoute({
   contract: removeOrganizationMemberContract,
   auth: internalSessionAuth,
-  operation: removeOrganizationMemberOperation,
+  operation: organizationOperations.removeMember,
   rateLimit: internalRateLimits.none({
-    reason: 'Preserves the existing session-authenticated member removal policy',
+    reason: 'Preserve existing organization member administration behavior.',
   }),
-  errorPolicy: {
-    project(error) {
-      if (
-        error instanceof OrchestrationError &&
-        error.code === 'not_found' &&
-        error.message === 'Organization not found'
-      )
-        return { status: 403, body: { error: 'Forbidden - Not a member of this organization' } }
-      return internalOrchestrationErrorPolicy.project(error)
-    },
-  },
+  errorPolicy: internalOrganizationErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id, userId: params.memberId }),
   useCase: removeOrganizationMember,
-  present: (result) => ({ ...result, data: { ...result.data } }),
-  async onSuccess({ principal, input }) {
-    if (principal.userId !== input.userId) return
-    try {
-      await setActiveOrganizationForCurrentSession(null)
-    } catch (error) {
-      logger.warn('Failed to clear active organization after self-removal', {
-        userId: principal.userId,
-        organizationId: input.organizationId,
-        error,
-      })
+  present: (result) => ({
+    success: true,
+    message:
+      result.membershipType === 'external'
+        ? 'External member removed successfully'
+        : result.wasSelfRemoval
+          ? 'You have left the organization'
+          : 'Member removed successfully',
+    data: {
+      removedMemberId: result.target.userId,
+      removedBy: result.removedBy,
+      removedAt: result.removedAt,
+      ...(result.membershipType === 'external'
+        ? {
+            membershipType: 'external',
+            workspaceAccessRevoked: result.removal.workspaceAccessRevoked,
+            permissionGroupsRevoked: result.removal.permissionGroupsRevoked,
+            credentialMembershipsRevoked: result.removal.credentialMembershipsRevoked,
+            pendingInvitationsCancelled: result.removal.pendingInvitationsCancelled,
+          }
+        : { seatReduction: result.seatReduction }),
+    },
+  }),
+  async onSuccess({ principal, input, result }) {
+    if (result.wasSelfRemoval) {
+      try {
+        await setActiveOrganizationForCurrentSession(null)
+      } catch (error) {
+        logger.warn('Failed to clear active organization after self-removal', {
+          organizationId: input.organizationId,
+          error,
+        })
+      }
     }
+    captureServerEvent(
+      principal.userId,
+      'org_member_removed',
+      { organization_id: input.organizationId, is_self_removal: result.wasSelfRemoval },
+      { groups: { organization: input.organizationId } }
+    )
   },
 })

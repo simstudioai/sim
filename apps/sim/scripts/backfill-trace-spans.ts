@@ -27,7 +27,9 @@
  * failure after draining active workers; reruns skip committed rows.
  * Reports migrated rows, throughput, and elapsed time every five seconds.
  * Concurrency accepts 1–512 workers; it does not set a rows-per-second target.
- * Payload reads share a serialized-byte budget (512 MiB by default). Parsed
+ * Trace archives are capped at 512 MiB; individual workflow values keep their
+ * separate 64 MiB cap. Payload reads share a serialized-byte budget (512 MiB
+ * by default), so larger archives reduce effective concurrency. Parsed
  * objects, serialization copies, and the shared cache use additional memory.
  * Reports RSS and cumulative average timings per stage without counting rows.
  * SIGINT/SIGTERM stop scheduling and drain active writes. A partial page never
@@ -56,7 +58,7 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
-import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import { MAX_TRACE_ARCHIVE_BYTES } from '@/lib/execution/payloads/limits'
 import {
   externalizeExecutionData,
   stripSpanCosts,
@@ -165,10 +167,7 @@ export function parseArgs(argv: string[]): Options {
   if (options.concurrency > MAX_CONCURRENCY) {
     throw new Error(`--concurrency must be between 1 and ${MAX_CONCURRENCY}`)
   }
-  if (
-    options.maxInFlightMiB < MAX_DURABLE_LARGE_VALUE_BYTES / MIB ||
-    options.maxInFlightMiB > 4096
-  ) {
+  if (options.maxInFlightMiB < 64 || options.maxInFlightMiB > 4096) {
     throw new Error('--max-in-flight-mib must be between 64 and 4096')
   }
   if (options.cursor) {
@@ -385,9 +384,14 @@ export async function backfillTraceStorage(
           .limit(rows.length)
       )
       for (const { id, payloadBytes } of sizes) {
-        if (payloadBytes > MAX_DURABLE_LARGE_VALUE_BYTES) {
+        if (payloadBytes > MAX_TRACE_ARCHIVE_BYTES) {
           throw new Error(
-            `Execution log ${id} exceeds the ${MAX_DURABLE_LARGE_VALUE_BYTES}-byte backfill limit`
+            `Execution log ${id} is ${payloadBytes} bytes, exceeding the ${MAX_TRACE_ARCHIVE_BYTES}-byte trace archive limit`
+          )
+        }
+        if (payloadBytes > options.maxInFlightMiB * MIB) {
+          throw new Error(
+            `Execution log ${id} is ${payloadBytes} bytes, exceeding --max-in-flight-mib=${options.maxInFlightMiB}; increase the byte budget to migrate it`
           )
         }
       }

@@ -39,6 +39,7 @@ interface MockView {
     session: {
       setPermissionRequestHandler: ReturnType<typeof vi.fn>
       setPermissionCheckHandler: ReturnType<typeof vi.fn>
+      setUserAgent: ReturnType<typeof vi.fn>
       webRequest: { onBeforeRequest: ReturnType<typeof vi.fn> }
     }
     on: ReturnType<typeof vi.fn>
@@ -362,15 +363,14 @@ describe('browser-agent session', () => {
     expect(onTabNavigated).toHaveBeenCalledWith(contents, true)
   })
 
-  it('gives every tab a user agent with no Electron token in it', () => {
+  it('leaves every tab on the process-wide user agent instead of overriding it', () => {
     const first = session.ensureTab()
     const second = session.addTab()
 
     for (const tab of [first, second]) {
       const contents = (tab.view as unknown as MockView).webContents
-      const agent = contents.setUserAgent.mock.calls.at(-1)?.[0] as string | undefined
-      expect(agent).toMatch(/^Mozilla\/5\.0 \(.+\) .*Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/)
-      expect(agent).not.toMatch(/Electron|Sim\//)
+      expect(contents.setUserAgent).not.toHaveBeenCalled()
+      expect(contents.session.setUserAgent).not.toHaveBeenCalled()
     }
   })
 

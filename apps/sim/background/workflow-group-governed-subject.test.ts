@@ -93,8 +93,10 @@ vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-  checkAttributedUsageLimits: async () => ({ isExceeded: false }),
   toBillingContext: () => ({}),
+}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: async () => ({ isExceeded: false }),
 }))
 /** Real pacing would sleep jittered backoff against the global db mock. */
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({

@@ -89,7 +89,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`CREATE INDEX workspace_files_workspace_active_keyset_idx
       ON workspace_files (workspace_id, id)
       WHERE deleted_at IS NULL AND context = 'workspace' AND workspace_id IS NOT NULL`
-    await connection`CREATE INDEX ON workspace_file_search_revision
+    await connection`CREATE INDEX workspace_file_search_revision_pending_idx
+      ON workspace_file_search_revision
       (workspace_id, updated_at, file_id, source_content_updated_at)
       WHERE status = 'pending' AND dispatched_at IS NULL`
     await connection`CREATE INDEX ON workspace_file_search_revision (workspace_id, dispatched_at)
@@ -261,6 +262,39 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
 
     expect(plan).toContain('workspace_files_workspace_active_keyset_idx')
     expect(plan).toMatch(/Index Cond:.*ROW\(/)
+  }, 30_000)
+
+  it('claims from the ordered pending index rather than a hash join over the backlog', async () => {
+    await seedQueue('workspace-1', 10_000)
+    await connection`ANALYZE workspace_files`
+    await connection`ANALYZE workspace_file_search_revision`
+
+    statements.length = 0
+    await prepareWorkspaceFileSearchDispatch()
+
+    const claim = statements.find((statement) =>
+      statement.query.includes('FOR UPDATE OF search_index SKIP LOCKED')
+    )
+    expect(claim).toBeDefined()
+
+    const plan = await connection.begin(async (tx) => {
+      /**
+       * At fixture scale the planner already nests the join, so it is pinned to the choice
+       * production makes when it misestimates the timestamp equi-join under `FOR UPDATE`. A join
+       * spelling then hashes every file and every pending revision of the workspace and sorts the
+       * whole backlog before the top-N cut; the correlated LATERAL cannot be flattened into that
+       * join, so the claim stays an ordered walk of the pending index.
+       */
+      await tx`SET LOCAL enable_nestloop = off`
+      const rows = await tx.unsafe(`EXPLAIN ${claim?.query}`, claim?.params as never[])
+      return rows.map((row: Record<string, unknown>) => row['QUERY PLAN']).join('\n')
+    })
+
+    /** The locked candidate scan must be fed by the ordered index walk, not a sorted hash join. */
+    expect(plan).toMatch(
+      /LockRows[^\n]*\n\s*-> {2}Nested Loop[^\n]*\n\s*-> {2}Index Scan using workspace_file_search_revision_pending_idx/
+    )
+    expect(plan).not.toMatch(/Sort Key: search_index(_\d+)?\.updated_at/)
   }, 30_000)
 
   it('fails on a locked backfill row and releases the dispatcher lock', async () => {

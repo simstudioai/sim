@@ -57,7 +57,8 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
       id text PRIMARY KEY, external_id text, connector_id text, knowledge_base_id text,
       tag1 text, tag2 text, tag3 text, tag4 text, tag5 text, tag6 text, tag7 text,
       acl text[] NOT NULL DEFAULT '{ws}', storage_key text,
-      user_excluded boolean NOT NULL DEFAULT false, archived_at timestamp
+      user_excluded boolean NOT NULL DEFAULT false, archived_at timestamp,
+      chunk_count integer NOT NULL DEFAULT 0
     );
     CREATE INDEX doc_connector_id_idx ON document(connector_id);
     CREATE TABLE knowledge_connector (

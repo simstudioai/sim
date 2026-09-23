@@ -88,6 +88,11 @@ const WorkflowMcpServers = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
+const AccessRequestsSettings = dynamic(() =>
+  import('@/ee/access-requests/components/access-requests-settings').then(
+    (m) => m.AccessRequestsSettings
+  )
+)
 const CustomBlocks = dynamic(() =>
   import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
 )
@@ -182,6 +187,15 @@ function SettingsPageContent({ section }: SettingsPageProps) {
         <AccessControl
           organizationId={organizationId}
           isOrganizationAdmin={hostContext.viewer.isHostOrganizationAdmin}
+          requestsHref={`/workspace/${hostContext.workspace.id}/settings/requests`}
+        />
+      )}
+      {effectiveSection === 'requests' && organizationId && (
+        <AccessRequestsSettings
+          scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+          reviewOrganizationId={
+            hostContext.viewer.isHostOrganizationAdmin ? organizationId : undefined
+          }
         />
       )}
       {effectiveSection === 'custom-blocks' && <CustomBlocks />}

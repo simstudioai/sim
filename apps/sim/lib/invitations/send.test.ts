@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { workspace } from '@sim/db/schema'
+import { invitation, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -85,6 +85,39 @@ describe('createPendingInvitation', () => {
       ).resolves.toEqual(expect.objectContaining({ grants: [], created: true }))
     }
   )
+
+  it('expires a stale pending invitation under the creation locks before validating its replacement', async () => {
+    const stale = {
+      id: 'stale',
+      token: 'old',
+      expiresAt: new Date('2000-01-01'),
+      organizationId: 'org-1',
+      role: 'member',
+      membershipIntent: 'internal',
+      updatedAt: new Date('2000-01-01'),
+    }
+    queueTableRows(invitation, [stale])
+    queueTableRows(invitation, [stale])
+    const validateLockedContext = vi.fn(async () => {
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        status: 'expired',
+        updatedAt: expect.any(Date),
+      })
+    })
+    const result = await createPendingInvitation({
+      kind: 'organization',
+      email: 'invitee@example.com',
+      inviterId: 'actor',
+      organizationId: 'org-1',
+      role: 'member',
+      grants: [],
+      validateLockedContext,
+    })
+    expect(result.created).toBe(true)
+    expect(result.invitationId).not.toBe('stale')
+    expect(validateLockedContext).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
 
   it('rejects a grantless organization invitation without an internal organization target', async () => {
     for (const input of [

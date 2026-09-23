@@ -35,6 +35,9 @@ export const authOAuthUtilsMockFns = {
   mockGetOAuthToken: vi.fn(),
   mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
+  mockGetCredentialTerminalRefreshError: vi.fn(
+    async (): Promise<{ errorCode: string; providerId: string } | null> => null
+  ),
 }
 
 /**
@@ -54,4 +57,5 @@ export const authOAuthUtilsMock = {
   getOAuthToken: authOAuthUtilsMockFns.mockGetOAuthToken,
   refreshAccessTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded,
   refreshTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshTokenIfNeeded,
+  getCredentialTerminalRefreshError: authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError,
 }

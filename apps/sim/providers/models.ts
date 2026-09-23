@@ -28,6 +28,7 @@ import {
   OpenRouterIcon,
   SakanaIcon,
   TogetherIcon,
+  TypeSafeIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -83,6 +84,8 @@ export interface ModelCapabilities {
      */
     streamed?: ThinkingStreamVisibility
   }
+  /** Uses native state and questions instead of a conversational prompt. */
+  evaluation?: boolean
   deepResearch?: boolean
   /** Whether this model supports conversation memory. Defaults to true if omitted. */
   memory?: boolean
@@ -167,6 +170,34 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  typesafe: {
+    id: 'typesafe',
+    name: 'TypeSafe',
+    description: 'Jev evaluation models for classification, scoring, and agent decisions',
+    icon: TypeSafeIcon,
+    color: '#F386A1',
+    models: [
+      {
+        id: 'jev-latest',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+      {
+        id: 'jev-1.13.0',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+      {
+        id: 'jev-preview',
+        pricing: { input: 0.042, output: 0, updatedAt: '2026-09-22' },
+        capabilities: { evaluation: true, memory: false },
+        contextWindow: 64000,
+      },
+    ],
+    defaultModel: 'jev-latest',
+  },
   fireworks: {
     id: 'fireworks',
     name: 'Fireworks',
@@ -356,6 +387,63 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2026-09-03',
         featured: true,
         recommended: true,
+      },
+      {
+        id: 'gpt-6-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.4,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+      },
+      {
+        id: 'gpt-6-luna',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.5,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 0.2,
+              cachedInput: 0.02,
+              output: 0.75,
+            },
+          ],
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+        speedOptimized: true,
       },
       // GPT-4.1 family
       {
@@ -1005,6 +1093,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         recommended: true,
       },
       {
+        id: 'claude-opus-5-5',
+        pricing: {
+          input: 4.0,
+          cachedInput: 0.2,
+          output: 20.0,
+          updatedAt: '2026-09-22',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'medium',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-22',
+        recommended: true,
+      },
+      {
         id: 'claude-opus-5',
         pricing: {
           input: 5.0,
@@ -1024,7 +1135,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-07-24',
-        recommended: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-8',
@@ -5312,6 +5423,7 @@ export function getProvidersWithToolUsageControl(): string[] {
 
 export function getHostedModels(): string[] {
   return [
+    ...getProviderModels('typesafe'),
     ...getProviderModels('openai'),
     ...getProviderModels('anthropic'),
     ...getProviderModels('google'),
@@ -5743,6 +5855,17 @@ export function getThinkingStreamVisibility(modelId: string): ThinkingStreamVisi
     }
   }
   return null
+}
+
+/** Models that consume native evaluation inputs in the Agent block. */
+export function getEvaluationModels(): string[] {
+  return Object.values(PROVIDER_DEFINITIONS).flatMap((provider) =>
+    provider.models.filter((model) => model.capabilities.evaluation).map((model) => model.id)
+  )
+}
+
+export function isEvaluationModel(modelId: string): boolean {
+  return getModelCapabilities(modelId)?.evaluation === true
 }
 
 /**

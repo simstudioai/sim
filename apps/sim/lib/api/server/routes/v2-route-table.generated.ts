@@ -295,6 +295,133 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/meta/route'),
   },
   {
+    pattern: '/api/v2/organizations',
+    load: () => import('@/app/api/v2/organizations/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/access-requests/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/{requestId}/cancel',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/{requestId}/preview',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/{requestId}/resolve',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/discovery',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/discovery/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/mine',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/access-requests/mine/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/access-requests/settings',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/access-requests/settings/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/invitations',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/invitations/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/invitations/{invitationId}',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/invitations/{invitationId}/resend',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/invitations/{invitationId}/workspaces',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/members',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/members/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/members/{userId}',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/members/[userId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/members/{userId}/usage-limit',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/members/[userId]/usage-limit/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/permission-groups',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/permission-groups/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/permission-groups/{groupId}',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/{userId}',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/permission-groups/{groupId}/members/bulk',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/usage/breakdown',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/usage/breakdown/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/usage/events',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/usage/events/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/usage/summary',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/usage/summary/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/workspaces',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/workspaces/route'),
+  },
+  {
     pattern: '/api/v2/sandboxes',
     load: () => import('@/app/api/v2/sandboxes/route'),
   },
@@ -595,6 +722,19 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/access-requests',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/access-requests/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/access-requests/{requestId}/cancel',
+    load: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/access-requests/discovery',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/access-requests/discovery/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/fork',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/route'),
   },
@@ -651,6 +791,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/unlink/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/invitations',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/invitations/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/members',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/route'),
   },
@@ -661,5 +805,9 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/operations/{operationId}',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/operations/[operationId]/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/permission-config',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
   },
 ]

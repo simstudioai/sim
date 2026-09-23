@@ -2252,7 +2252,7 @@ function safeOAuthErrorCode(value: unknown, secrets: string[]): string | undefin
  * Without this bound a hung endpoint would wedge every joiner on that key until
  * the undici socket defaults (~5 min) gave up.
  */
-const TOKEN_REFRESH_TIMEOUT_MS = 15_000
+export const TOKEN_REFRESH_TIMEOUT_MS = 15_000
 
 function parseOAuthResponse(responseText: string): unknown {
   try {

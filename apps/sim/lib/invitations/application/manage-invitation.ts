@@ -7,10 +7,6 @@ import {
 import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
-import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
@@ -23,29 +19,14 @@ import {
   OrchestrationError,
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
-import {
-  getInvitationById,
-  resolveInvitationAdmissionOrganizationId,
-  revokeInvitationAsAdmin,
-} from '@/lib/invitations/core'
-import {
-  persistInvitationResend,
-  prepareInvitationResend,
-  sendInvitationEmail,
-} from '@/lib/invitations/send'
-import { refuseCapability } from '@/lib/permission-groups/capabilities'
+import { getInvitationById } from '@/lib/invitations/core'
+import { resendInvitationRecord, revokeInvitationRecord } from '@/lib/invitations/mutation-manager'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
-import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
-import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
-import {
-  InvitationsNotAllowedError,
-  validateInvitationsAllowed,
-} from '@/ee/access-control/utils/permission-check'
 
 export const invitationManagementOperations = {
   /** permission-group-exempt: cancellation removes access and remains available when sends are withheld. */
   cancel: defineOrganizationOperation({
-    id: 'invitations.cancel',
+    id: 'organization_invitations.cancel',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'organization_delegated'],
@@ -54,7 +35,7 @@ export const invitationManagementOperations = {
   }),
   /** permission-group-exempt: resend checks invitations.send against each canonical admission and workspace scope below. */
   resend: defineOrganizationOperation({
-    id: 'invitations.resend',
+    id: 'organization_invitations.resend',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'organization_delegated'],
@@ -162,39 +143,12 @@ async function cancelInvitationWithActor({
     .from(user)
     .where(eq(user.id, actorId))
     .limit(1)
-  const result = await revokeInvitationAsAdmin({
-    actorId,
+  const result = await revokeInvitationRecord({
+    actorUserId: actorId,
     invitationId: input.invitationId,
-    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
-    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+    workspaceId: input.workspaceId,
+    assertedOrganizationId: input.organizationId,
   })
-  if (!result.success) {
-    switch (result.kind) {
-      case 'not-found':
-        throw new InvitationManagementError(404, 'Invitation not found')
-      case 'not-pending':
-        throw new InvitationManagementError(400, 'Can only cancel pending invitations')
-      case 'grant-not-found':
-        throw new InvitationManagementError(
-          400,
-          'Invitation does not grant access to that workspace'
-        )
-      case 'scoped-forbidden':
-        throw new InvitationManagementError(
-          403,
-          'You need admin permissions on that workspace to revoke its invitation'
-        )
-      case 'whole-forbidden':
-        throw new InvitationManagementError(
-          403,
-          result.spansMultipleWorkspaces
-            ? 'This invitation spans several workspaces. Revoke it from a workspace you administer, or ask an organization admin.'
-            : 'Only an organization or workspace admin can cancel this invitation'
-        )
-      default:
-        throw new InvitationManagementError(400, 'Invitation not cancellable')
-    }
-  }
   const inv = result.invitation
   const scoped = input.workspaceId
   recordAudit({
@@ -256,90 +210,14 @@ async function resendInvitationWithActor({
       403,
       'Resend invitations spanning multiple workspaces from organization settings'
     )
-  if (inv.status !== 'pending')
-    throw new InvitationManagementError(400, 'Can only resend pending invitations')
-  let allowed = inv.organizationId
-    ? await isOrganizationOwnerOrAdmin(actorId, inv.organizationId)
-    : false
-  if (!allowed && inv.grants.length)
-    allowed = (
-      await Promise.all(
-        inv.grants.map((grant) => hasWorkspaceAdminAccess(actorId, grant.workspaceId))
-      )
-    ).some(Boolean)
-  if (!allowed)
-    throw new InvitationManagementError(
-      403,
-      'Only an organization or workspace admin can resend this invitation'
-    )
-  try {
-    const admission = await resolveInvitationAdmissionOrganizationId(inv)
-    if (admission) await validateInvitationsAllowed(actorId, { organizationId: admission })
-    for (const grant of inv.grants)
-      await validateInvitationsAllowed(actorId, { workspaceId: grant.workspaceId })
-  } catch (error) {
-    if (error instanceof InvitationsNotAllowedError) refuseCapability('invitations.send')
-    throw error
-  }
-  for (const grant of inv.grants) {
-    const details = await getWorkspaceWithOwner(grant.workspaceId)
-    if (!details)
-      throw new InvitationManagementError(
-        409,
-        'Invitation references a workspace that no longer exists'
-      )
-    const policy = await getWorkspaceInvitePolicy(details)
-    if (!policy.allowed)
-      throw new InvitationManagementError(
-        403,
-        policy.reason ?? 'Invites are no longer allowed on this workspace',
-        policy.upgradeRequired
-      )
-  }
-  if (inv.kind === 'organization' && inv.grants.length === 0 && inv.organizationId) {
-    const subscription = await getOrganizationSubscription(inv.organizationId)
-    if (
-      !subscription ||
-      !hasUsableSubscriptionStatus(subscription.status) ||
-      (!isTeam(subscription.plan) && !isEnterprise(subscription.plan))
-    )
-      throw new InvitationManagementError(
-        403,
-        'Invites are no longer allowed on this organization',
-        true
-      )
-  }
-  const { tokenForEmail, nextToken, nextExpiresAt } = await prepareInvitationResend({
-    invitationId: input.invitationId,
-    rotateToken: true,
-    currentToken: inv.token,
+  await resendInvitationRecord({
+    invitation: inv,
+    actorUserId: actorId,
+    assertedOrganizationId: input.organizationId,
   })
-  const [actor] = await db
-    .select({ name: user.name, email: user.email })
-    .from(user)
-    .where(eq(user.id, actorId))
-    .limit(1)
-  const result = await sendInvitationEmail({
-    invitationId: inv.id,
-    token: tokenForEmail,
-    kind: inv.kind,
-    email: inv.email,
-    inviterName: actor?.name || actor?.email || 'A user',
-    organizationId: inv.organizationId,
-    organizationRole: inv.role === 'admin' ? 'admin' : 'member',
-    grants: inv.grants.map((grant) => ({
-      workspaceId: grant.workspaceId,
-      permission: grant.permission,
-    })),
-  })
-  if (!result.success)
-    throw new InvitationManagementError(502, result.error || 'Failed to send invitation email')
-  await persistInvitationResend({ invitationId: input.invitationId, nextToken, nextExpiresAt })
   recordAudit({
     workspaceId: inv.grants[0]?.workspaceId ?? null,
     actorId,
-    actorName: actor?.name ?? undefined,
-    actorEmail: actor?.email ?? undefined,
     action:
       inv.kind === 'workspace' ? AuditAction.INVITATION_RESENT : AuditAction.ORG_INVITATION_RESENT,
     resourceType:

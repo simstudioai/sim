@@ -50,6 +50,7 @@ vi.mock('@/components/settings/navigation', () => ({
     'access-control': 'access-control',
   },
   UNIFIED_TO_WORKSPACE_SECTION: {
+    requests: 'requests',
     secrets: 'secrets',
     forks: 'forks',
     'custom-blocks': 'custom-blocks',
@@ -302,6 +303,22 @@ describe('authorizeWorkspaceSettingsSection', () => {
 
     await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
     expect(mocks.isOrganizationOnEnterprisePlan).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens own requests for workspace members without organization administration or Enterprise entitlement', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'requests' }])
+    mocks.canOpenOrganizationSettingsSection.mockResolvedValue(false)
+    await expect(authorize('requests')).resolves.toEqual({ allowed: true })
+    expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+    expect(mocks.isOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('does not offer request settings in a personal workspace', async () => {
+    await expect(authorize('requests')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {

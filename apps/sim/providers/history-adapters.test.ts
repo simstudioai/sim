@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import { providerHistoryAdapters, providerHistoryProtocols } from '@/providers/history-adapters'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { isEvaluationModel, PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const fixtures: Array<{ protocol: ConversationProtocol; value: unknown }> = [
   {
@@ -121,7 +121,14 @@ describe('canonical provider wire adapters', () => {
     expect(Object.keys(providerHistoryProtocols).sort()).toEqual(
       Object.keys(PROVIDER_DEFINITIONS).sort()
     )
-    for (const protocol of Object.values(providerHistoryProtocols))
-      expect(providerHistoryAdapters[protocol]).toBeDefined()
+    for (const [providerId, protocol] of Object.entries(providerHistoryProtocols)) {
+      if (protocol === null) {
+        expect(
+          PROVIDER_DEFINITIONS[providerId].models.every((model) => isEvaluationModel(model.id))
+        ).toBe(true)
+      } else {
+        expect(providerHistoryAdapters[protocol]).toBeDefined()
+      }
+    }
   })
 })

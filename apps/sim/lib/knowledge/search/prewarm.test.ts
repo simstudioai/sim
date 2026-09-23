@@ -3,8 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db/script-migrations/0021_embedding_search_connector', () => ({
-  PROJECTION_SOURCE_ACL_TABLES: ['embedding_search', 'embedding_keyword_tin'],
+vi.mock('@sim/db/knowledge-projection', () => ({
+  SOURCE_ACL_PROJECTIONS: ['embedding_search', 'embedding_keyword_tin'],
 }))
 
 import {

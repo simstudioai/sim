@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import {
-  readMemberUsageLimit,
-  updateMemberUsageLimit,
-} from '@/lib/billing/application/member-usage-limits'
+  getOrganizationMemberUsageLimit,
+  updateOrganizationMemberUsageLimit,
+} from '@/lib/billing/application/member-usage-limits/use-cases'
 import {
   memberCreditLimitUpdateSchema,
   usageLimitReadSchema,
@@ -49,7 +49,7 @@ export const usageLimitSettingsActions = {
 const memberInput = z.strictObject({ userId: z.string().min(1).max(200) })
 export const memberUsageLimitSettingsActions = {
   get_member_limit: settingsOperation('read', memberInput, (context, input) =>
-    readMemberUsageLimit.execute({
+    getOrganizationMemberUsageLimit.execute({
       principal: context.principal,
       input: { ...input, organizationId: settingsOrganizationId(context) },
     })
@@ -62,7 +62,7 @@ export const memberUsageLimitSettingsActions = {
       ),
     }),
     (context, input) =>
-      updateMemberUsageLimit.execute({
+      updateOrganizationMemberUsageLimit.execute({
         principal: context.principal,
         input: { ...input, organizationId: settingsOrganizationId(context) },
       })

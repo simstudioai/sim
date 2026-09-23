@@ -205,6 +205,8 @@ export interface ExternalListingFailures {
     status?: number
     reasons: string[]
     reasonState?: ConnectorSourceReasonState
+    /** When a standing account condition was first observed, bounding how long it is retained. */
+    since?: string
   }[]
 }
 
@@ -265,6 +267,8 @@ export const SYNC_SKIP_REASONS = [
   'sync_in_progress',
   'sync_superseded',
   'connector_deleted_during_sync',
+  'credential_missing',
+  'credential_revoked',
 ] as const
 
 export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]

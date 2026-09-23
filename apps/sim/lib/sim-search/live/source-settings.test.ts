@@ -37,6 +37,19 @@ describe('live source fields', () => {
     ])
   })
 
+  it('preserves the installation repository selector when using the indexed backend', () => {
+    const meta = liveSearchSourceMeta(CONNECTOR_META_REGISTRY.github, false, {
+      githubInstallation: true,
+    })
+    expect(meta?.configFields.find((field) => field.id === 'repository')).toMatchObject({
+      type: 'selector',
+      selectorKey: 'github.installationRepositories',
+    })
+    expect(meta?.configFields.map((field) => field.id)).toEqual(
+      CONNECTOR_META_REGISTRY.github.configFields.map((field) => field.id)
+    )
+  })
+
   it.each(['google_drive', 'gmail', 'google_calendar'])(
     'requires the delegated administrator before browsing %s',
     (provider) => {

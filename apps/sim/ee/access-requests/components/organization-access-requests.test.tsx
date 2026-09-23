@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   refetch: vi.fn(),
 }))
-vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
+vi.mock('@/hooks/queries/access-requests', () => ({
   ACCESS_REQUEST_PAGE_SIZE: 25,
   useAccessRequestSettings: mocks.settings,
   useOrganizationAccessRequests: mocks.requests,
@@ -21,6 +21,7 @@ vi.mock('@/ee/access-requests/components/access-request-review', () => ({
   AccessRequestReview: () => null,
 }))
 
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
 
 describe('organization access request settings', () => {
@@ -53,6 +54,7 @@ describe('organization access request settings', () => {
             createdAt: '2026-09-15T12:00:00Z',
           },
         ],
+        total: 1,
         hasMore: false,
       },
     })
@@ -62,11 +64,15 @@ describe('organization access request settings', () => {
     container.remove()
   })
 
-  const render = () =>
+  const render = (searchParams = '') =>
     act(() =>
       root.render(
-        <NuqsTestingAdapter>
-          <OrganizationAccessRequests organizationId='organization' />
+        <NuqsTestingAdapter searchParams={searchParams} hasMemory>
+          <SettingsHeaderProvider>
+            <SettingsHeaderShell>
+              <OrganizationAccessRequests organizationId='organization' />
+            </SettingsHeaderShell>
+          </SettingsHeaderProvider>
         </NuqsTestingAdapter>
       )
     )
@@ -77,7 +83,70 @@ describe('organization access request settings', () => {
     expect(container.textContent).toContain('Loading request settings...')
     expect(container.textContent).toContain('Slack')
     expect(container.textContent).not.toContain('Members can ask administrators')
-    expect(container.querySelector('[aria-label="Allow users to request permissions"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Allow requests"]')).toBeNull()
+  })
+
+  it('shows the pending total from the existing paginated query', () => {
+    mocks.requests.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { requests: [], total: 0, hasMore: false },
+    })
+    render()
+    expect(container.textContent).toContain('Pending requests (0)')
+    expect(container.textContent).toContain('No pending requests.')
+    expect(container.textContent).not.toContain('No requests yet.')
+  })
+
+  it.each([
+    ['?request-status=all', 'No requests yet.'],
+    ['?request-status=declined', 'No declined requests.'],
+    ['?request-search=Tables', 'No matching requests for "Tables".'],
+  ])('distinguishes the empty queue for %s', (query, message) => {
+    mocks.requests.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { requests: [], total: 0, hasMore: false },
+    })
+    render(query)
+    expect(container.textContent).toContain(message)
+  })
+
+  it('resets pagination and hides stale results while a new search is debounced', async () => {
+    vi.useFakeTimers()
+    mocks.requests.mockReturnValue({
+      data: {
+        requests: [
+          {
+            id: 'request',
+            targetLabel: 'Previous result',
+            requester: { name: 'Member' },
+            status: 'pending',
+            createdAt: '2026-09-01T00:00:00Z',
+          },
+        ],
+        total: 51,
+        hasMore: true,
+      },
+      isPending: false,
+    })
+    render('?request-page=2')
+    expect(mocks.requests).toHaveBeenLastCalledWith('organization', 50, 'pending', '')
+    const input = container.querySelector<HTMLInputElement>('input')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'Tables'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(container.textContent).toContain('Loading requests...')
+    expect(container.textContent).not.toContain('Previous result')
+    expect(container.textContent).not.toContain('Page 3')
+    expect(container.textContent).not.toContain('Pending requests (51)')
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(mocks.requests).toHaveBeenLastCalledWith('organization', 0, 'pending', 'Tables')
+    vi.useRealTimers()
   })
 
   it('allows settings failures to be retried independently of the request history', () => {
@@ -91,7 +160,7 @@ describe('organization access request settings', () => {
     render()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Settings unavailable')
     expect(container.textContent).toContain('Slack')
-    expect(container.querySelector('[aria-label="Allow users to request permissions"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Allow requests"]')).toBeNull()
     const retry = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Try again'
     )
@@ -108,9 +177,7 @@ describe('organization access request settings', () => {
 
   it('uses the shared switch to pause requests and blocks repeat changes while saving', () => {
     render()
-    const setting = container.querySelector(
-      '[role="radiogroup"][aria-label="Allow users to request permissions"]'
-    )
+    const setting = container.querySelector('[role="radiogroup"][aria-label="Allow requests"]')
     expect(setting?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe(
       'Enabled'
     )

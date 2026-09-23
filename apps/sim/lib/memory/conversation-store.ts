@@ -3,6 +3,7 @@ import { agentMemoryTurn, memory, memoryItem, memorySecretProvenance } from '@si
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, gt, inArray, isNull, lt, type SQLWrapper, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   type DurableSecretProvenance,
@@ -10,7 +11,6 @@ import {
   hashDurableSecretProvenanceValue,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import { MAX_RICH_MEMORY_PAGE_BYTES, PlainMemoryReadBudget } from '@/lib/memory/read-budget'
 import {
@@ -98,7 +98,7 @@ interface PlainMemoryWriteInput {
 
 /** Both storage versions persist the same admitted snapshot of each new history item. */
 function captureMemoryItem(value: unknown): unknown {
-  const encoded = stringifyBoundedMemoryJson(value, MAX_MEMORY_ITEM_BYTES)
+  const encoded = stringifyBoundedJson(value, MAX_MEMORY_ITEM_BYTES)
   if (encoded === undefined)
     throw new OrchestrationError(
       'payload_too_large',

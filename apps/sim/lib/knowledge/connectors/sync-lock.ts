@@ -1,7 +1,15 @@
 import { db } from '@sim/db'
+import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import { knowledgeConnector } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
-import { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } from '@/lib/knowledge/connectors/sync-limits'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  LEASE_PAGE_LOCK_TIMEOUT_MS,
+  LEASE_PAGE_STATEMENT_TIMEOUT_MS,
+  SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
+} from '@/lib/knowledge/connectors/sync-limits'
+import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 
 /**
  * Raised when a run discovers mid-flight that it no longer holds its sync lock.
@@ -42,9 +50,17 @@ export function stillHoldsSyncLock(connectorId: string, syncLockToken: string) {
   return and(holdsSyncLockToken(connectorId, syncLockToken), connectorIsLive())
 }
 
-/** The archived/deleted half of {@link stillHoldsSyncLock}. */
+/**
+ * The archived/deleted/detached half of {@link stillHoldsSyncLock}, and the canonical test for a
+ * connector that can still be synced or managed. A detached connector's documents stay readable,
+ * so document visibility checks `archivedAt` and `deletedAt` alone.
+ */
 export function connectorIsLive() {
-  return and(isNull(knowledgeConnector.archivedAt), isNull(knowledgeConnector.deletedAt))
+  return and(
+    isNull(knowledgeConnector.archivedAt),
+    isNull(knowledgeConnector.deletedAt),
+    isNull(knowledgeConnector.detachedAt)
+  )
 }
 
 /**
@@ -68,6 +84,25 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
 
 /** Connector statuses a scheduler may start an automatic run from. */
 export const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/**
+ * A terminal, unscheduled error. The lock is released alongside the status because
+ * this write can land on a row a previous run left `syncing` — a run that may still
+ * be alive. Flipping status without releasing the token left a row that was neither
+ * locked nor reclaimable: the reaper only looks at `syncing` rows, and the old run's
+ * terminal write could still match its own token and resurrect the schedule.
+ * Releasing both makes the transition terminal.
+ */
+export function buildSyncUnscheduledUpdate(now: Date, errorMessage: string) {
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: null,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }
+}
 
 /**
  * The statuses a run may take the lock from.
@@ -206,6 +241,56 @@ export async function assertSyncLeaseHeldInTx(
     .where(lease.stillHeld())
     .for('share')
   if (!held) throw new SyncLockLostException(connectorId)
+}
+
+/**
+ * Runs `write` as one connector-lease ACL page: a short transaction of its own whose first
+ * statement sets its bounds, so a page that waits on a lock or runs long fails within them and
+ * rolls back only itself, and its projection mode. While `knowledge-async-projection` is on, the
+ * page's ACL writes only mark their documents and the knowledge projector rewrites their search
+ * projection rows; off, the `document` ACL trigger still rewrites every filled row in the page's
+ * own statement, which is what the row-bounded paging of these pages exists for. The flag is read
+ * before the transaction opens, and a projector pass is requested once it commits. Every page that
+ * assigns a connector document's ACL runs here, so this is the one place those writers choose the
+ * mode.
+ */
+export async function aclPageTransaction<T>(
+  write: (tx: DbOrTx) => Promise<T>,
+  executor: Pick<typeof db, 'transaction'> = db
+): Promise<T> {
+  const deferProjection = await isFeatureEnabled('knowledge-async-projection')
+  const written = await executor.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)${deferProjection ? sql.raw(`, ${DEFER_KNOWLEDGE_PROJECTION}`) : sql``}`
+    )
+    return write(tx)
+  })
+  await requestKnowledgeProjection()
+  return written
+}
+
+/** Runs one bounded page of writes in a short transaction of its own. */
+export type LeaseTransaction = <T>(write: (tx: DbOrTx) => Promise<T>) => Promise<T>
+
+/**
+ * One {@link aclPageTransaction} per call that proves `lease` as its last statement, so a run
+ * that lost its lease writes nothing further: the proof fails and the page rolls back. Proving it
+ * last keeps the connector row unlocked while the page waits on document rows, which a processing
+ * commit may hold for its whole write, and the share lock it then takes keeps the reclaim from
+ * landing until the page commits. Without a lease the page is only bounded: callers outside a
+ * sync run have no lease to prove.
+ */
+export function leaseTransaction(
+  connectorId: string,
+  lease?: SyncWriteLease,
+  executor: Pick<typeof db, 'transaction'> = db
+): LeaseTransaction {
+  return (write) =>
+    aclPageTransaction(async (tx) => {
+      const written = await write(tx)
+      if (lease) await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+      return written
+    }, executor)
 }
 
 /**

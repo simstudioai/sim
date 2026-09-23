@@ -25,8 +25,8 @@ import {
   updateDataDrain,
 } from '@/lib/data-drains/application/use-cases'
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
-import { updateOrganizationMemberRole } from '@/lib/organizations/application/member-role'
 import { readOrganizationRoster } from '@/lib/organizations/application/member-roster'
+import { updateOrganizationMember } from '@/lib/organizations/application/members'
 import {
   readOrganizationSettings,
   updateOrganizationSettings,
@@ -249,7 +249,7 @@ describe('settings tool dispatch', () => {
 
   it('binds collection operations to the authorized organization and preserves policy errors', async () => {
     const update = vi
-      .spyOn(updateOrganizationMemberRole, 'execute')
+      .spyOn(updateOrganizationMember, 'execute')
       .mockRejectedValue(new Error('Administrator required'))
     await expect(
       settingsServerTool.execute({

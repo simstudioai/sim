@@ -25,6 +25,7 @@ describe('unified settings navigation', () => {
       { id: 'desktop', label: 'Desktop', section: 'account' },
       { id: 'browser', label: 'Browser', section: 'account' },
       { id: 'terminal', label: 'Terminal', section: 'account' },
+      { id: 'requests', label: 'Requests', section: 'workspace' },
       { id: 'access-control', label: 'Permission groups', section: 'organization' },
       { id: 'audit-logs', label: 'Audit logs', section: 'organization' },
       { id: 'forks', label: 'Workspace forks', section: 'workspace' },
@@ -81,6 +82,7 @@ describe('unified settings navigation', () => {
       'apikeys',
       'sandboxes',
       'recently-deleted',
+      'requests',
     ])
     expect(idsForSection('organization')).toEqual([
       'organization',

@@ -20,10 +20,13 @@ import {
   renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
+import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -271,14 +274,22 @@ async function createOrExtendPendingInvitation(
     })
 
     const organizationId = await resolveInvitationOrganizationId(tx, input, workspaceIds)
-    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
-    const existing = organizationId
+    let existing = organizationId
       ? await findPendingOrganizationInvitation(tx, organizationId, email)
       : null
 
     if (existing && existing.id !== knownPendingId) {
       throw new InvitationScopeChangedError()
     }
+
+    if (existing && existing.expiresAt.getTime() <= now.getTime()) {
+      await tx
+        .update(invitation)
+        .set({ status: 'expired', updatedAt: now })
+        .where(and(eq(invitation.id, existing.id), eq(invitation.status, 'pending')))
+      existing = null
+    }
+    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
 
     if (existing) {
       return extendPendingInvitation(tx, { existing, input, expiresAt, now })
@@ -681,38 +692,113 @@ export async function sendWorkspaceAddedEmail(
   return { success: true }
 }
 
-export async function prepareInvitationResend(params: {
+export interface PreparedInvitationResend {
   invitationId: string
-  rotateToken?: boolean
-  currentToken: string
-}): Promise<{ tokenForEmail: string; nextExpiresAt: Date; nextToken: string | null }> {
-  const nextExpiresAt = computeInvitationExpiry()
-  const nextToken = params.rotateToken ? generateId() : null
-  const tokenForEmail = nextToken ?? params.currentToken
-  return { tokenForEmail, nextExpiresAt, nextToken }
+  organizationId: string | null
+  tokenForEmail: string
+  nextExpiresAt: Date
+  mutationUpdatedAt: Date
+  previousToken: string
+  previousExpiresAt: Date
 }
 
-export async function persistInvitationResend(params: {
+/** Commits the resend token before delivery; stale requests never send an unsaved link. */
+export async function prepareInvitationResend(params: {
   invitationId: string
-  nextToken: string | null
-  nextExpiresAt: Date
-}): Promise<void> {
-  const [row] = await db
-    .update(invitation)
-    .set({
-      expiresAt: params.nextExpiresAt,
-      updatedAt: new Date(),
-      ...(params.nextToken ? { token: params.nextToken } : {}),
+  currentToken: string
+  expectedOrganizationId?: string
+  expectedUpdatedAt: Date
+  actorUserId: string
+}): Promise<PreparedInvitationResend> {
+  return db.transaction(async (tx) => {
+    const current = await lockInvitationForMutation(tx, params.invitationId, {
+      lockCurrentGrantWorkspaces: true,
     })
-    .where(and(eq(invitation.id, params.invitationId), eq(invitation.status, 'pending')))
-    .returning({ id: invitation.id })
+    if (
+      !current ||
+      (params.expectedOrganizationId !== undefined &&
+        current.organizationId !== params.expectedOrganizationId)
+    )
+      throw new OrchestrationError('not_found', 'Invitation not found')
+    /** Compare hydrated revisions while the row is locked; legacy timestamps retain sub-millisecond precision in SQL. */
+    if (
+      current.token !== params.currentToken ||
+      current.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
+    )
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed before it could be resent. Refresh before resending.'
+      )
+    await lockInvitationResendPolicy(tx, current, params.actorUserId, params.expectedOrganizationId)
+    if (current.status !== 'pending' || current.expiresAt.getTime() <= Date.now())
+      throw new InvitationNotPendingError('resend')
 
-  if (!row) {
-    throw new Error(`Invitation ${params.invitationId} not found or no longer pending`)
-  }
+    const nextToken = generateId()
+    const nextExpiresAt = computeInvitationExpiry()
+    const mutationUpdatedAt = new Date()
+    const [row] = await tx
+      .update(invitation)
+      .set({ token: nextToken, expiresAt: nextExpiresAt, updatedAt: mutationUpdatedAt })
+      .where(
+        and(
+          eq(invitation.id, params.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.token, params.currentToken),
+          sql`${invitation.expiresAt} > clock_timestamp()`,
+          params.expectedOrganizationId === undefined
+            ? undefined
+            : eq(invitation.organizationId, params.expectedOrganizationId)
+        )
+      )
+      .returning({ id: invitation.id })
+    if (!row)
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed before it could be resent. Refresh before resending.'
+      )
+    return {
+      invitationId: current.id,
+      organizationId: current.organizationId,
+      tokenForEmail: nextToken,
+      nextExpiresAt,
+      mutationUpdatedAt,
+      previousToken: current.token,
+      previousExpiresAt: current.expiresAt,
+    }
+  })
+}
 
-  logger.info('Persisted invitation resend', {
-    invitationId: params.invitationId,
-    rotated: !!params.nextToken,
+/** Restores a failed resend only while its exact pending revision still owns the token. */
+export async function revertInvitationResend(prepared: PreparedInvitationResend): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const current = await lockInvitationForMutation(tx, prepared.invitationId)
+    if (
+      !current ||
+      current.status !== 'pending' ||
+      current.organizationId !== prepared.organizationId ||
+      current.token !== prepared.tokenForEmail ||
+      current.updatedAt.getTime() !== prepared.mutationUpdatedAt.getTime()
+    )
+      return false
+    const restored = await tx
+      .update(invitation)
+      .set({
+        token: prepared.previousToken,
+        expiresAt: prepared.previousExpiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(invitation.id, prepared.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.token, prepared.tokenForEmail),
+          eq(invitation.updatedAt, prepared.mutationUpdatedAt),
+          prepared.organizationId === null
+            ? sql`${invitation.organizationId} IS NULL`
+            : eq(invitation.organizationId, prepared.organizationId)
+        )
+      )
+      .returning({ id: invitation.id })
+    return restored.length > 0
   })
 }

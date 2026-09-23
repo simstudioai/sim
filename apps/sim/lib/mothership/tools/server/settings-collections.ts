@@ -3,7 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 import { settingsOrganizationId } from '@/lib/mothership/tools/server/settings-operation'
 import { readOrganizationRoster } from '@/lib/organizations/application/member-roster'
-import { listPermissionGroups } from '@/lib/permission-groups/application/management'
+import { listPermissionGroups } from '@/lib/permission-groups/application/use-cases'
 
 export const settingsPageSchema = z.strictObject({
   offset: z.number().int().min(0).max(1_000_000).default(0),
@@ -109,7 +109,7 @@ export async function readSettingsGroups(context: SettingsContext, page = initia
     principal: context.principal,
     input: { organizationId: settingsOrganizationId(context) },
   })
-  return settingsPage(result.permissionGroups.map(projectSettingsGroup), page, (row) => row.id)
+  return settingsPage(result.data.map(projectSettingsGroup), page, (row) => row.id)
 }
 export function projectSettingsWorkspace<T extends { id: string; name: string }>(row: T) {
   return { id: row.id, name: label(row.name) }

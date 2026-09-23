@@ -13,10 +13,7 @@ import {
 } from '@sim/emcn'
 import { PolicyChanges } from '@/ee/access-requests/components/policy-changes'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
-import {
-  useAccessRequestPreview,
-  useResolveAccessRequest,
-} from '@/ee/access-requests/hooks/access-requests'
+import { useAccessRequestPreview, useResolveAccessRequest } from '@/hooks/queries/access-requests'
 
 interface AccessRequestReviewProps {
   organizationId: string

@@ -115,6 +115,55 @@ sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --cursor "
 billing and audit logs), workflow run/version histories, and knowledge
 document/chunk lists all support this continuation.
 
+## Organization access and invitations
+
+Organization commands use `--organization`; workspace commands use `--workspace`
+or the active profile. Use `userId` from `organizations members list` or
+`workspaces members list` for member credit limits, including external collaborators.
+
+`access-requests mine` shows your requests in the selected scope. Organization
+`access-requests list` is the administrator inbox across all organization workspaces.
+Use discovery to find the exact target to submit:
+
+```bash
+sim workspaces access-requests discover --workspace "$workspace_id" --state requestable --output json
+sim workspaces access-requests create --workspace "$workspace_id" \
+  --target '{"kind":"feature","configKey":"hideTablesTab"}' --reason 'Maintain team data'
+sim workspaces access-requests mine --workspace "$workspace_id"
+```
+
+Administrators preview a request before approving it. Inspect `canApply`, `changes`,
+and `impact`: permission approvals change the governing group for all affected
+members. Pass the reviewed fingerprint explicitly; a conflict means you need a
+new preview.
+
+```bash
+sim organizations access-requests preview "$request_id" --organization "$organization_id" --output json > preview.json
+sim organizations access-requests resolve "$request_id" --organization "$organization_id" \
+  --action apply --expected-fingerprint "$(jq -r '.fingerprint' preview.json)"
+```
+
+For a credit-cap request, applying also requires `--new-limit-credits` greater than
+the current cap. To decline instead, use `--action decline --reason 'Explanation'`.
+
+Administrators can also set a cap directly. `0` prevents further credit-consuming
+usage; `null` removes only the per-person cap, so organization limits still apply:
+
+```bash
+sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit 5000
+sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit null
+```
+
+Workspace invitations accept a list of up to 50 emails. Recipients are processed
+independently. If any fail, the CLI prints the full result and exits `1`; successful
+invitations and grants remain committed. Inspect `failed` and current invitations
+before retrying, especially when delivery could not be confirmed.
+
+```bash
+sim workspaces invitations create --workspace "$workspace_id" \
+  --emails alex@example.com sam@example.com --permission write --membership member --output json
+```
+
 ## Destructive commands
 
 Deletions require an explicit selector **and** `--yes`. There is no "delete

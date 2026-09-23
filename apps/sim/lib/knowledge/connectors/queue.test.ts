@@ -35,7 +35,7 @@ vi.mock('@trigger.dev/sdk', () => ({
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
@@ -44,6 +44,14 @@ vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
 }))
 
 vi.mock('@/lib/knowledge/connectors/sync-lock', () => ({
+  buildSyncUnscheduledUpdate: (now: Date, lastSyncError: string) => ({
+    status: 'error',
+    lastSyncError,
+    nextSyncAt: null,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }),
   connectorIsLive: () => ({ type: 'connectorIsLive' }),
   LOCKABLE_CONNECTOR_STATUSES: ['active', 'error', 'pending'],
 }))

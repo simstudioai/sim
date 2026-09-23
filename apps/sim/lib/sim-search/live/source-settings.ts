@@ -78,13 +78,29 @@ const LIVE_FIELD_DESCRIPTIONS: Record<string, Record<string, string | null>> = {
   },
 }
 
-/** Present only settings enforced by federated retrieval; keep indexed connector setup unchanged. */
+/** Keep installation selectors in both backends and limit live settings to federated retrieval. */
 export function liveSearchSourceMeta(
   meta: ConnectorMeta | null,
   enabled: boolean,
   options: { githubInstallation?: boolean } = {}
 ): ConnectorMeta | null {
-  if (!enabled || !meta) return meta
+  if (!meta) return meta
+  if (meta.id === 'github' && options.githubInstallation) {
+    meta = {
+      ...meta,
+      configFields: meta.configFields.map((field) =>
+        field.id === 'repository'
+          ? {
+              ...field,
+              type: 'selector',
+              selectorKey: 'github.installationRepositories',
+              placeholder: 'Select a repository',
+            }
+          : field
+      ),
+    }
+  }
+  if (!enabled) return meta
   const fields = LIVE_SOURCE_FIELDS[meta.id]
   if (!fields) return meta
   const descriptions = LIVE_FIELD_DESCRIPTIONS[meta.id] ?? {}
@@ -102,13 +118,6 @@ export function liveSearchSourceMeta(
         ...((field.id === 'labelSelector' && meta.id === 'gmail') ||
         (field.id === 'calendarSelector' && meta.id === 'google_calendar')
           ? { hideInAdminMode: undefined, dependsOn: ['adminEmail'] }
-          : {}),
-        ...(field.id === 'repository' && options.githubInstallation
-          ? {
-              type: 'selector' as const,
-              selectorKey: 'github.installationRepositories' as const,
-              placeholder: 'Select a repository',
-            }
           : {}),
         ...(field.id === 'adminEmail'
           ? {

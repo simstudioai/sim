@@ -1,4 +1,3 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
 import {
@@ -15,7 +14,10 @@ import {
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import type { AccessRequestOperation } from '@/ee/access-requests/lib/application/operations'
+import type {
+  AccessRequestOperation,
+  AccessRequestPrincipal,
+} from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 export interface AccessRequestContext {
@@ -82,7 +84,7 @@ export async function loadAccessRequestMembership(
 
 /** Canonical scope and current role are loaded together on the transaction's connection. */
 export async function authorizeAccessRequestScope(
-  principal: SessionPrincipal,
+  principal: AccessRequestPrincipal,
   operation: AccessRequestOperation,
   scope: AccessRequestScope,
   executor: DbOrTx = db,

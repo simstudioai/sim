@@ -1,11 +1,11 @@
 # Permission access requests
 
-Members request access from locked features, the block picker, or **My access requests**. Organization owners and administrators review requests in **Access control → Requests**, **Review access requests** in the workspace menu, or through an authenticated email link. The same queue handles increases to an administrator-set member credit cap.
+Members request access from locked features or the block picker and track their requests in **Settings → Requests** on both workspace and organization surfaces. **My requests** shows the current scope's history, including the member's credit-limit requests, and **Browse access** lists additional requestable access. Organization administrators also have **Review requests** for the organization-wide queue. Saved requester links and authenticated email links resolve to settings; the standalone entry remains available outside the organization Search rollout. Requests are independent of the Enterprise permission-group settings because the same queue handles increases to an administrator-set member credit cap.
 
 ## Deployment
 
 1. Apply migration `0349_permission_access_requests.sql` before deploying the application changes.
-2. Each organization starts with **Allow users to request permissions** enabled. An explicit organization opt-out disables creation and approval and restores existing feature hiding. History, cancellation, and decline remain available.
+2. Each organization starts with requests enabled. An explicit organization opt-out disables creation and approval and restores existing feature hiding. History, cancellation, and decline remain available.
 3. The existing outbox worker delivers notifications. Email links open authenticated review/history; email never applies a change.
 
 ## Policy and lifecycle

@@ -1,79 +1,65 @@
-import { NextResponse } from 'next/server'
 import {
   addPermissionGroupMemberContract,
   listPermissionGroupMembersContract,
-  permissionGroupDetailParamsSchema,
   removePermissionGroupMemberContract,
 } from '@/lib/api/contracts/permission-groups'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { presentPermissionGroupMember } from '@/lib/api/server/permission-group-presenters'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { authorizePermissionGroupManagement } from '@/lib/permission-groups/application/authorized-management-use-case'
+import { internalPermissionGroupErrorPolicy } from '@/lib/api/server/routes/permission-groups'
+import { permissionGroupOperations } from '@/lib/permission-groups/application/operations'
 import {
   addPermissionGroupMember,
   listPermissionGroupMembers,
   removePermissionGroupMember,
-} from '@/lib/permission-groups/application/management-members'
-import { permissionGroupManagementOperations } from '@/lib/permission-groups/application/management-operations'
-import { permissionGroupErrorPolicy } from '@/app/api/organizations/[id]/permission-groups/utils'
+} from '@/lib/permission-groups/application/use-cases'
 
 export const GET = defineInternalJsonRoute({
   contract: listPermissionGroupMembersContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.listMembers,
+  operation: permissionGroupOperations.listMembers,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Internal server error'),
+  errorPolicy: internalPermissionGroupErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id, groupId: params.groupId }),
   useCase: listPermissionGroupMembers,
+  present: ({ data }) => ({ members: data.map(presentPermissionGroupMember) }),
 })
 
 export const POST = defineInternalJsonRoute({
   contract: addPermissionGroupMemberContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.addMember,
+  operation: permissionGroupOperations.addMember,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Failed to add member'),
-  beforeParse: async ({ principal, params }) => {
-    const scope = permissionGroupDetailParamsSchema.parse(params)
-    await authorizePermissionGroupManagement(
-      principal,
-      permissionGroupManagementOperations.addMember,
-      { organizationId: scope.id, groupId: scope.groupId }
-    )
-  },
-  parseOptions: {
-    validationErrorResponse: (error) =>
-      NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
-  },
-  mapInput: ({ params, body }) => ({ organizationId: params.id, groupId: params.groupId, ...body }),
+  errorPolicy: internalPermissionGroupErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    organizationId: params.id,
+    groupId: params.groupId,
+    userId: body.userId,
+  }),
   useCase: addPermissionGroupMember,
-  present: ({ member }) => ({ member }),
+  present: ({ member }) => ({ member: presentPermissionGroupMember(member) }),
 })
 
 export const DELETE = defineInternalJsonRoute({
   contract: removePermissionGroupMemberContract,
   auth: internalSessionAuth,
-  operation: permissionGroupManagementOperations.removeMember,
+  operation: permissionGroupOperations.removeMember,
   rateLimit: internalRateLimits.none({
-    reason: 'Existing admin-only enterprise access-control management',
+    reason: 'Preserve existing permission group settings behavior',
   }),
-  errorPolicy: permissionGroupErrorPolicy('Failed to remove member'),
-  parseOptions: {
-    validationErrorResponse: () =>
-      NextResponse.json({ error: 'memberId is required' }, { status: 400 }),
-  },
+  errorPolicy: internalPermissionGroupErrorPolicy,
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     groupId: params.groupId,
     memberId: query.memberId,
   }),
   useCase: removePermissionGroupMember,
-  present: ({ success }) => ({ success }),
+  present: () => ({ success: true as const }),
 })

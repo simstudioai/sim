@@ -38,7 +38,7 @@ describe('db:push policy and process boundaries', () => {
   it('sets create/drop only on the Drizzle child and forwards force independently', async () => {
     vi.stubEnv('SIM_DB_PUSH_RENAME_MODE', undefined)
     expect(await runPush(['--force'])).toBe(0)
-    expect(spawn).toHaveBeenCalledTimes(7)
+    expect(spawn).toHaveBeenCalledTimes(8)
     expect(spawn.mock.calls[0][0]).toContain('./scripts/prepare-push.ts')
     expect(spawn.mock.calls[1][0]).toEqual([
       'bunx',
@@ -62,9 +62,10 @@ describe('db:push policy and process boundaries', () => {
 
   it('rebuilds projections after a schema push', async () => {
     expect(await runPush([])).toBe(0)
-    expect(spawn.mock.calls.slice(-2).map(([command]) => command.at(-1))).toEqual([
+    expect(spawn.mock.calls.slice(-3).map(([command]) => command.at(-1))).toEqual([
       './script-migrations/0019_tin_keyword_projection.ts',
       './script-migrations/0021_embedding_search_connector.ts',
+      './script-migrations/0024_knowledge_projection_async.ts',
     ])
   })
 

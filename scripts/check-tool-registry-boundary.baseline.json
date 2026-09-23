@@ -75,10 +75,8 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/access-requests/page.tsx": {
-      "modules": 45,
-      "gateways": {
-        "apps/sim/ee/access-requests/components/my-access-requests.tsx": 43
-      }
+      "modules": 5,
+      "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/error.tsx": {
       "modules": 3,
@@ -258,7 +256,7 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/page.tsx": {
-      "modules": 2420,
+      "modules": 2439,
       "gateways": {
         "apps/sim/triggers/registry.ts": 485,
         "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 432,

@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import postgres, { type Sql } from 'postgres'
+import { backoffWithJitter } from '@sim/utils/retry'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 import { resolveMigrationDatabaseUrl } from './database-url'
 
 const logger = createLogger('ProjectionSourceAcl')
@@ -16,11 +18,21 @@ export const PROJECTION_SOURCE_ACL_PAGE_SIZE = 100
 export const PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS = 250
 
 /**
- * Longest a page may run before the database cancels it; the run then fails and resumes. A caller
- * that bounds a run leaves at least this much headroom after its budget, since the budget is
- * checked between pages and the page in flight runs to this limit.
+ * Longest a page may run before the database cancels it; the page is then retried in place. A
+ * caller that bounds a run leaves at least this much headroom after its budget, plus the longest
+ * retry pause, since the budget is checked between pages and the page in flight runs to this limit.
  */
 export const PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS = 60_000
+
+/**
+ * How many times in a row one page may time out before the run fails. Index maintenance was
+ * observed holding the page for several minutes; with the pauses below a page waits roughly
+ * twelve minutes, about fourteen at the jitter's worst, so the budget covers one such pass.
+ */
+export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 12
+
+/** Pause before a page is retried: 10 s, doubling to a 60 s base with up to 20% jitter (about 72 s). */
+const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
 
 /** Pages between progress log lines. */
 const PROGRESS_EVERY_PAGES = 100
@@ -28,6 +40,36 @@ const PROGRESS_EVERY_PAGES = 100
 /** The projections that carry their document's source and ACL. */
 export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
+
+/**
+ * The document trigger's body: fans a document's source and ACL out to its enabled chunks.
+ *
+ * A chunk the backfill has not filled yet (`acl IS NULL`) keeps a NULL ACL. Search decides such a
+ * row on its document, so writing the ACL there changes no answer, while every write to
+ * `embedding_search` re-inserts the row into its vector index: a document whose ACL changed would
+ * otherwise rewrite each of its unfilled chunks inside the writer's statement. The backfill fills
+ * the row later from the document under a share lock, so it copies whichever ACL is current. A
+ * document that moves to another source still carries the source onto its unfilled chunks, because
+ * source filters read it from the row; an ACL change alone leaves them untouched.
+ */
+export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql): Promise<void> {
+  const fanOut = (projection: ProjectionSourceAclTable) => `
+      UPDATE ${projection}
+      SET connector_id = NEW.connector_id, acl = CASE WHEN acl IS NULL THEN NULL ELSE NEW.acl END
+      WHERE document_id = NEW.id AND enabled
+        AND CASE WHEN acl IS NULL
+          THEN moved AND connector_id IS DISTINCT FROM NEW.connector_id
+          ELSE connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl
+        END;`
+  await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+      moved boolean := TG_OP = 'UPDATE' AND OLD.connector_id IS DISTINCT FROM NEW.connector_id;
+    BEGIN${PROJECTION_SOURCE_ACL_TABLES.map(fanOut).join('')}
+      RETURN NEW;
+    END;
+    $$`)
+}
 
 /**
  * Carries a chunk's source and ACL onto the ranking projections and keeps them there.
@@ -45,18 +87,7 @@ export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[num
 export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        RETURN NEW;
-      END;
-      $$`)
+    await replaceProjectionSourceAclSync(tx)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER projection_source_acl_sync
       AFTER INSERT OR UPDATE OF connector_id, acl ON document
       FOR EACH ROW EXECUTE FUNCTION sync_projection_source_acl()`)
@@ -118,6 +149,15 @@ export interface ProjectionSourceAclBackfillProgress {
  * predicate, the join per candidate every row paid before the columns existed. A run fills the
  * range it was given and reports that range done; whether the projection as a whole is done, and
  * the analysis the planner then needs, is the caller's, since several runs may share a projection.
+ *
+ * A page the database cancels — on a lock timeout, because the keyword index's background
+ * maintenance holds the index page the row's write needs, or on a statement timeout — is retried
+ * in place after a pause, up to {@link PROJECTION_SOURCE_ACL_PAGE_RETRIES} times in a row, and
+ * the cursor stays on the last page that committed. A retry from the run's original cursor would
+ * instead walk every row the run had filled, past the index entries those writes left behind,
+ * into a statement timeout of its own; and the maintenance that cancelled the page outlasts the
+ * few attempts a run gets, so the fill would end where it stalled. A page that is still failing
+ * when the budget runs out is left to the continuation rather than retried past it.
  */
 export async function backfillProjectionSourceAcl(
   sql: Sql,
@@ -145,32 +185,66 @@ export async function backfillProjectionSourceAcl(
   let written = 0
   let pages = 0
   let done = false
+  /** Timeouts in a row on the page after `afterId`; reset once it commits. */
+  let timeouts = 0
   for (;;) {
-    const page = await sql.begin(async (tx) => {
-      await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-      await tx.unsafe(`SET LOCAL statement_timeout = ${PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}`)
-      const [row] = await tx.unsafe<
-        Array<{ scanned: number; filled: number; last_id: string | null }>
-      >(
-        `WITH page AS (
-          SELECT s.id, s.document_id, d.connector_id, d.acl
-          FROM ${projection} s JOIN document d ON d.id = s.document_id
-          WHERE s.id > $1 AND ($2::text IS NULL OR s.id < $2) AND s.acl IS NULL
-          ORDER BY s.id LIMIT ${pageSize}
-          FOR SHARE OF d
-        ), updated AS (
-          UPDATE ${projection} s SET connector_id = page.connector_id, acl = page.acl
-          FROM page
-          WHERE s.id = page.id AND s.document_id = page.document_id AND s.acl IS NULL
-          RETURNING s.id
+    let page: { scanned: number; filled: number; last_id: string | null }
+    try {
+      page = await sql.begin(async (tx) => {
+        await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+        await tx.unsafe(`SET LOCAL statement_timeout = ${PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}`)
+        const [row] = await tx.unsafe<
+          Array<{ scanned: number; filled: number; last_id: string | null }>
+        >(
+          `WITH page AS (
+            SELECT s.id, s.document_id, d.connector_id, d.acl
+            FROM ${projection} s JOIN document d ON d.id = s.document_id
+            WHERE s.id > $1 AND ($2::text IS NULL OR s.id < $2) AND s.acl IS NULL
+            ORDER BY s.id LIMIT ${pageSize}
+            FOR SHARE OF d
+          ), updated AS (
+            UPDATE ${projection} s SET connector_id = page.connector_id, acl = page.acl
+            FROM page
+            WHERE s.id = page.id AND s.document_id = page.document_id AND s.acl IS NULL
+            RETURNING s.id
+          )
+          SELECT (SELECT count(*)::int FROM page) AS scanned,
+            (SELECT count(*)::int FROM updated) AS filled,
+            (SELECT max(id) FROM page) AS last_id`,
+          [afterId, beforeId]
         )
-        SELECT (SELECT count(*)::int FROM page) AS scanned,
-          (SELECT count(*)::int FROM updated) AS filled,
-          (SELECT max(id) FROM page) AS last_id`,
-        [afterId, beforeId]
-      )
-      return row
-    })
+        return row
+      })
+    } catch (error) {
+      /**
+       * The page is cancelled on `lock_timeout` (55P03) while its index write waits on a lock the
+       * index's background maintenance holds, and on `statement_timeout` (57014) when it runs past
+       * {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}; both pass once the maintenance moves on. A
+       * deadlock, a serialization failure, or a dropped connection rolls the page back the same
+       * way, and a page only fills rows still unset, so all are retried in place. 57014 is also
+       * what an explicit cancellation raises, and that is not retried.
+       */
+      const failure = getTransientDatabaseFailure(error)
+      if (!failure) throw error
+      const code = getPostgresErrorCode(error)
+      timeouts += 1
+      if (timeouts > PROJECTION_SOURCE_ACL_PAGE_RETRIES) throw error
+      if (Date.now() >= deadline) break
+      const pauseMs = backoffWithJitter(timeouts, null, PAGE_RETRY_PAUSE)
+      logger.warn('Projection source and ACL backfill page failed transiently; retrying', {
+        projection,
+        afterId,
+        failure,
+        code,
+        attempt: timeouts,
+        retryInMs: Math.round(pauseMs),
+      })
+      await sleep(pauseMs)
+      /** Checked again after the pause, so a timeout at the budget cannot start another page. */
+      if (Date.now() >= deadline) break
+      continue
+    }
+    timeouts = 0
     if (page.last_id === null) {
       done = true
       break
