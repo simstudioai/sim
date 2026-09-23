@@ -36,6 +36,7 @@ import {
   detachKnowledgeConnector,
   enqueueConnectorDetachment,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+  settleDetachedConnectorReservations,
 } from '@/lib/knowledge/connectors/detachment'
 
 const payload = {
@@ -223,5 +224,46 @@ describe('connector detachment', () => {
       detachKnowledgeConnector(payload, { ...context(), signal: controller.signal })
     ).rejects.toThrow()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('purged knowledge base reservations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.resolveStorage.mockResolvedValue(STORAGE_CONTEXT)
+    mocks.incrementStorage.mockResolvedValue(1_000)
+    /** The base is read once to resolve its payer and again under the settlement lock. */
+    queueTableRows(knowledgeBase, [owner])
+    queueTableRows(knowledgeBase, [owner])
+  })
+  afterEach(resetDbChainMock)
+
+  it('settles a base as one net refund, so no overdraft warning precedes it', async () => {
+    queueTableRows(knowledgeConnector, [
+      { id: 'connector-a', reservedBytes: -7 },
+      { id: 'connector-b', reservedBytes: 50 },
+    ])
+
+    await settleDetachedConnectorReservations(['kb-1'])
+
+    expect(mocks.decrementStorage).toHaveBeenCalledOnce()
+    expect(mocks.decrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 43)
+    expect(mocks.incrementStorage).not.toHaveBeenCalled()
+    expect(mocks.notifyStorage).not.toHaveBeenCalled()
+  })
+
+  it('charges a net overdraft once and notifies with the final balance', async () => {
+    queueTableRows(knowledgeConnector, [
+      { id: 'connector-a', reservedBytes: -30 },
+      { id: 'connector-b', reservedBytes: 10 },
+    ])
+
+    await settleDetachedConnectorReservations(['kb-1'])
+
+    expect(mocks.incrementStorage).toHaveBeenCalledOnce()
+    expect(mocks.incrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 20)
+    expect(mocks.decrementStorage).not.toHaveBeenCalled()
+    expect(mocks.notifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 1_000)
   })
 })

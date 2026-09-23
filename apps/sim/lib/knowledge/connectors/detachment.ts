@@ -149,12 +149,12 @@ export async function settleDetachedConnectorReservations(
         .for('update')
       if (reserved.length === 0) return undefined
 
-      let grownUsage: number | undefined
-      for (const connector of reserved) {
-        grownUsage =
-          (await settleDetachReservationInTx(tx, storageContext, connector.reservedBytes)) ??
-          grownUsage
-      }
+      /**
+       * One net settlement per base: the ledger lands where settling each connector in turn would
+       * leave it, and the notifier sees that final balance rather than one from mid-sequence.
+       */
+      const netReservedBytes = reserved.reduce((sum, connector) => sum + connector.reservedBytes, 0)
+      const grownUsage = await settleDetachReservationInTx(tx, storageContext, netReservedBytes)
       await tx
         .update(knowledgeConnector)
         .set({ detachReservedBytes: 0 })
