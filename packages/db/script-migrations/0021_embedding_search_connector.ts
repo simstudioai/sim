@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
@@ -31,36 +32,6 @@ export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 12
 
 /** Pause before a page is retried: 10 s, doubling to a 60 s base with up to 20% jitter (about 72 s). */
 const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
-
-/** The SQLSTATE on a driver error, or on the error it wraps. */
-function postgresErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const code = (error as { code?: unknown }).code
-  if (typeof code === 'string') return code
-  return postgresErrorCode((error as { cause?: unknown }).cause)
-}
-
-/** The message on a driver error, or on the error it wraps. */
-function postgresErrorMessage(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const message = (error as { message?: unknown }).message
-  if (typeof message === 'string') return message
-  return postgresErrorMessage((error as { cause?: unknown }).cause)
-}
-
-/**
- * The two ways the database cancels a page: `lock_timeout` (55P03) while the page's index write
- * waits on a lock the index's background maintenance holds, and `statement_timeout` (57014) when
- * the page itself runs past {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}. Both pass once the
- * maintenance moves on, so both are retried the same way. 57014 is also what an explicit
- * cancellation raises, and that is not retried: only the message tells the two apart.
- */
-function isPageTimeout(error: unknown): boolean {
-  const code = postgresErrorCode(error)
-  if (code === '55P03') return true
-  if (code !== '57014') return false
-  return postgresErrorMessage(error)?.includes('statement timeout') ?? false
-}
 
 /** Pages between progress log lines. */
 const PROGRESS_EVERY_PAGES = 100
@@ -244,15 +215,25 @@ export async function backfillProjectionSourceAcl(
         return row
       })
     } catch (error) {
-      if (!isPageTimeout(error)) throw error
-      const code = postgresErrorCode(error)
+      /**
+       * The page is cancelled on `lock_timeout` (55P03) while its index write waits on a lock the
+       * index's background maintenance holds, and on `statement_timeout` (57014) when it runs past
+       * {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}; both pass once the maintenance moves on. A
+       * deadlock, a serialization failure, or a dropped connection rolls the page back the same
+       * way, and a page only fills rows still unset, so all are retried in place. 57014 is also
+       * what an explicit cancellation raises, and that is not retried.
+       */
+      const failure = getTransientDatabaseFailure(error)
+      if (!failure) throw error
+      const code = getPostgresErrorCode(error)
       timeouts += 1
       if (timeouts > PROJECTION_SOURCE_ACL_PAGE_RETRIES) throw error
       if (Date.now() >= deadline) break
       const pauseMs = backoffWithJitter(timeouts, null, PAGE_RETRY_PAUSE)
-      logger.warn('Projection source and ACL backfill page timed out; retrying', {
+      logger.warn('Projection source and ACL backfill page failed transiently; retrying', {
         projection,
         afterId,
+        failure,
         code,
         attempt: timeouts,
         retryInMs: Math.round(pauseMs),

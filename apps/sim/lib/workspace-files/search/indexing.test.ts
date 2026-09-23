@@ -217,6 +217,11 @@ describe('indexing retry policy', () => {
   it.each([
     ['statement timeout', 'canceling statement due to statement timeout', '57014'],
     ['lock timeout', 'canceling statement due to lock timeout', '55P03'],
+    ['transaction timeout', 'terminating connection due to transaction timeout', '25P04'],
+    ['deadlock', 'deadlock detected', '40P01'],
+    ['serialization failure', 'could not serialize access', '40001'],
+    ['dropped connection', 'write CONNECTION_CLOSED', 'CONNECTION_CLOSED'],
+    ['connection reset', 'read ECONNRESET', 'ECONNRESET'],
   ])('waits minutes, not seconds, after a %s', async (_label, message, code) => {
     const thrown = await thrownBy(statementTimeout(message, code))
     const first = delayOf(getWorkspaceFileSearchRetry(thrown, 1, now))
@@ -250,6 +255,22 @@ describe('indexing retry policy', () => {
     expect(getWorkspaceFileSearchRetry(parserFailure, FILE_SEARCH_INDEX_MAX_ATTEMPTS, now)).toEqual(
       { skipRetrying: true }
     )
+  })
+
+  it('treats a reset outside the database as an ordinary failure', async () => {
+    vi.clearAllMocks()
+    mocks.begin.mockResolvedValue({ id: 'build', ...payload })
+    mocks.file.mockResolvedValue({
+      name: 'notes.txt',
+      size: 100,
+      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    })
+    mocks.load.mockRejectedValue(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+    const thrown = await indexWorkspaceFileForSearch(payload, signal).catch((caught) => caught)
+    expect(thrown).toMatchObject({ code: 'ECONNRESET' })
+    expect(getWorkspaceFileSearchRetry(thrown, 1, now)).toBeUndefined()
   })
 
   it('treats a user cancellation as an ordinary failure', async () => {

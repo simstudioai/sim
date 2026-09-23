@@ -17,8 +17,16 @@ import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
-import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
-import { CREDENTIAL_REVOKED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  buildSyncDatabaseRetryUpdate,
+  buildSyncFailureUpdate,
+  executeSync,
+  isConnectorRunnableStatus,
+} from '@/lib/knowledge/connectors/sync-engine'
+import {
+  CREDENTIAL_REVOKED_SYNC_ERROR,
+  MAX_CONSECUTIVE_FAILURES,
+} from '@/lib/knowledge/connectors/sync-limits'
 import {
   classifySuspectListing,
   evaluateListingSafety,
@@ -1102,6 +1110,148 @@ describe('executeSync deferred hydration rate limits', () => {
   })
 })
 
+describe('executeSync database failures', () => {
+  const NOW = new Date('2026-08-29T03:00:00.000Z')
+
+  async function failSyncWith(
+    error: Error,
+    consecutiveFailures?: number,
+    firstPage?: { documents: ExternalDocument[] }
+  ) {
+    const connector = {
+      id: 'c-1',
+      knowledgeBaseId: 'kb-1',
+      connectorType: 'paged',
+      credentialId: null,
+      encryptedApiKey: null,
+      sourceConfig: {},
+      syncMode: 'full',
+      syncIntervalMinutes: 1440,
+      accessMode: 'workspace',
+      status: 'active',
+      lastSyncAt: null,
+      lastSyncDocCount: null,
+      consecutiveFailures: consecutiveFailures ?? MAX_CONSECUTIVE_FAILURES - 1,
+      syncLockToken: null,
+    }
+    queueTableRows(schemaMock.knowledgeConnector, [connector])
+    for (let i = 0; i < 20; i++)
+      queueTableRows(schemaMock.knowledgeConnector, [
+        { id: 'c-1', connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
+      ])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    for (let i = 0; i < 5; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    for (let i = 0; i < 4; i++) queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }]).mockResolvedValueOnce([connector])
+    if (firstPage) {
+      mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+        key: customKey,
+        path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+      }))
+      mockProcessDocumentsWithQueue.mockImplementation(async (documents: unknown[]) => ({
+        accepted: documents.length,
+        failed: 0,
+      }))
+      mockListDocuments.mockResolvedValueOnce({
+        documents: firstPage.documents,
+        hasMore: true,
+        nextCursor: 'page-2',
+      })
+    }
+    mockListDocuments.mockRejectedValueOnce(error)
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+    const terminal = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => 'consecutiveFailures' in value)
+    return { result, terminal, MAX_CONSECUTIVE_FAILURES }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not disable a connector one failure from the breaker over a database timeout', async () => {
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    const { result, terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(timeout)
+
+    expect(result.error).toBe('Database request failed (SQLSTATE 57014).')
+    expect(terminal).toMatchObject({
+      status: 'error',
+      lastSyncError: 'Database request failed (SQLSTATE 57014).',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+    })
+    expect((terminal?.nextSyncAt as Date).getTime()).toBeGreaterThan(NOW.getTime())
+  })
+
+  it('backs a repeated database failure off by the streak in the run log', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
+      { status: 'failed' },
+      { status: 'failed' },
+      { status: 'completed' },
+    ])
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    const { terminal } = await failSyncWith(timeout, 0)
+
+    /** Two failed runs before this one: the third rung, with the breaker still at zero. */
+    const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
+    expect(delay).toBeGreaterThanOrEqual(90 * 60 * 1000)
+    expect(delay).toBeLessThanOrEqual(91 * 60 * 1000)
+    expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
+  })
+
+  it('retries within minutes after a run that added documents before the database failed', async () => {
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    const { result, terminal } = await failSyncWith(timeout, 0, {
+      documents: [
+        {
+          externalId: 'external-1',
+          title: 'Document 1',
+          content: 'hydrated',
+          contentHash: 'hash-1',
+          mimeType: 'text/plain',
+          metadata: { size: 8 },
+        },
+      ],
+    })
+
+    expect(result.docsAdded).toBeGreaterThan(0)
+    const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
+    expect(delay).toBeLessThanOrEqual(5 * 60 * 1000)
+    expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
+  })
+
+  it('still disables at the breaker for a failure the database did not cause', async () => {
+    const { terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(new Error('source broke'))
+
+    expect(terminal).toMatchObject({
+      status: 'disabled',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+    })
+  })
+})
+
 describe('previous complete listing evidence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -2016,6 +2166,44 @@ describe('buildSyncCapacityUpdate', () => {
       syncLockLeaseAt: null,
       updatedAt: now,
     })
+  })
+})
+
+describe('buildSyncDatabaseRetryUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+  const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
+
+  it('keeps the error visible without advancing the auto-disable counter', async () => {
+    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
+    expect(update).toMatchObject({
+      status: 'error',
+      lastSyncError: 'db timeout',
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: now,
+    })
+  })
+
+  it('schedules the next run after the resolved retry delay', async () => {
+    expect(buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', 90 * 60 * 1000).nextSyncAt).toEqual(
+      new Date(minutesAfter(90))
+    )
+  })
+
+  it('leaves a later source failure to be judged on source failures alone', async () => {
+    let failures = 1
+    for (let run = 0; run < 30; run++) {
+      failures = buildSyncDatabaseRetryUpdate(
+        now,
+        failures,
+        'db timeout',
+        30 * 60 * 1000
+      ).consecutiveFailures
+    }
+    const sourceFailure = buildSyncFailureUpdate(now, failures, 'source broke')
+    expect(sourceFailure.status).toBe('error')
+    expect(sourceFailure.consecutiveFailures).toBe(2)
   })
 })
 
@@ -2977,8 +3165,9 @@ describe('executeSync heartbeats during the listing phase', () => {
       })
       expect(mockListDocuments).not.toHaveBeenCalled()
       expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private')
+      /** A database timeout is not the connector's failure, so it leaves the breaker alone. */
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'error', consecutiveFailures: 1 })
+        expect.objectContaining({ status: 'error', consecutiveFailures: 0 })
       )
     }
   )

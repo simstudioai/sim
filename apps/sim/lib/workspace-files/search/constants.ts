@@ -78,12 +78,13 @@ export const FILE_SEARCH_INDEX_TRANSACTION_LIMITS = {
   transactionTimeout: 30 * 1000,
 } as const
 
-/** Attempts for failures other than database capacity cancellations. */
+/** Attempts for failures other than transient database failures. */
 export const FILE_SEARCH_INDEX_MAX_ATTEMPTS = 3
 /**
  * Attempts when PostgreSQL cancels an indexing statement on a timeout. One row's direct GIN insert
  * is not interruptible, so under storage saturation even a single ordinary chunk can outlive the
- * statement deadline; smaller batches cannot help, only waiting out the slow window can.
+ * statement deadline; smaller batches cannot help, only waiting out the slow window can. Deadlocks,
+ * serialization failures, and dropped connections share the same budget and pacing.
  */
 export const FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS = 6
 /** First capacity retry delay; later ones double up to the ceiling, about an hour in total. */

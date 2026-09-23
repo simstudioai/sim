@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage, getTransientDatabaseFailure, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -48,6 +48,7 @@ import {
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -699,6 +700,34 @@ export function buildSyncCapacityUpdate(
   return {
     ...buildSyncUnscheduledUpdate(now, errorMessage),
     consecutiveFailures: previousFailures ?? 0,
+  }
+}
+
+/**
+ * The connector row written after the database, not the source, failed the run: a statement,
+ * lock, or transaction timeout, a deadlock, or a dropped connection.
+ *
+ * A slow database window says nothing about the connector, so, like throttling, it must not
+ * consume the breaker that disables connectors after persistent failures: the counter keeps the
+ * source failures already counted, and a later source failure is judged on those alone. The retry
+ * still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
+ * made progress, and otherwise up the failure ladder, so a statement too heavy for its budget backs
+ * off to the ladder's ceiling instead of re-crawling the source every half hour.
+ */
+export function buildSyncDatabaseRetryUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string,
+  retryDelayMs: number
+) {
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: new Date(now.getTime() + retryDelayMs),
+    consecutiveFailures: previousFailures ?? 0,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
   }
 }
 
@@ -1548,22 +1577,37 @@ export async function executeSync(
       try {
         await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
 
+        const databaseFailure =
+          !(error instanceof ConnectorSyncCapacityError) && getTransientDatabaseFailure(error)
         const failureUpdate =
           error instanceof ConnectorSyncCapacityError
             ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-            : rateLimited
-              ? buildSyncRateLimitUpdate(
+            : databaseFailure
+              ? buildSyncDatabaseRetryUpdate(
                   new Date(),
                   connector.consecutiveFailures,
                   errorMessage,
-                  retryAfterMs
+                  await resolveDatabaseRetryDelayMs({
+                    kind: 'content',
+                    connectorId,
+                    runId: syncLogId,
+                    previousFailures: connector.consecutiveFailures,
+                    madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
+                  })
                 )
-              : buildSyncFailureUpdate(
-                  new Date(),
-                  connector.consecutiveFailures,
-                  errorMessage,
-                  retryAfterMs
-                )
+              : rateLimited
+                ? buildSyncRateLimitUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
+                : buildSyncFailureUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
 
         if (failureUpdate.status === 'disabled') {
           logger.warn('Connector disabled after repeated failures', {
