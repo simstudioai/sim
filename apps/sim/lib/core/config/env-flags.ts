@@ -726,13 +726,3 @@ const liveEnterpriseSearchSetting =
   typeof window === 'undefined' ? env.SIM_SEARCH_LIVE : getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE')
 export const isLiveEnterpriseSearchEnabled =
   liveEnterpriseSearchSetting === undefined || isTruthy(liveEnterpriseSearchSetting)
-
-/** Private organizational planning, enabled only by this deployment. */
-export const isPlanModeEnabled =
-  typeof window === 'undefined' &&
-  (envBoolean(env.MSHIP_PLAN_MODE) ?? (isDev || appHostname === 'dev.sim.ai'))
-
-/** Advanced model, effort and Fast controls share one dev-default deployment gate. */
-export const isMothershipModelSelectorEnabled =
-  typeof window === 'undefined' &&
-  (envBoolean(env.MSHIP_MODEL_SELECTOR) ?? (isDev || appHostname === 'dev.sim.ai'))

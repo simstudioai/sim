@@ -21,7 +21,6 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
-import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/core/config/env-flags'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -57,6 +56,7 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   type ChatRequest,
@@ -988,10 +988,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
-    if (body.mode !== 'assistant')
-      Object.assign(body, resolveMothershipModelSettings(body, isMothershipModelSelectorEnabled))
-    if (body.mode === 'plan' && !isPlanModeEnabled)
-      return createBadRequestResponse('Plan mode is disabled')
+    if (body.mode !== 'assistant') {
+      const [modelSelectorEnabled, planEnabled] = await Promise.all([
+        isMothershipModelSelectorEnabled(),
+        body.mode === 'plan' ? isPlanModeEnabled() : false,
+      ])
+      Object.assign(body, resolveMothershipModelSettings(body, modelSelectorEnabled))
+      if (body.mode === 'plan' && !planEnabled)
+        return createBadRequestResponse('Plan mode is disabled')
+    }
     if (
       body.mode === 'assistant' &&
       (body.workflowId ||

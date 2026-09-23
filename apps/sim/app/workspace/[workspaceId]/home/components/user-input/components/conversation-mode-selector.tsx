@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { ChipDropdown, cn, Tooltip } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
 interface ConversationModeSelectorProps {
   value: ChatRequestMode
@@ -18,7 +18,7 @@ export function ConversationModeSelector({
   searchEnabled = false,
   onChange,
 }: ConversationModeSelectorProps) {
-  const planEnabled = useDeploymentShape().features.planMode === true
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [open, setOpen] = useState(false)
   const search = value === 'assistant'
   const options = [

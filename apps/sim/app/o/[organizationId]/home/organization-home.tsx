@@ -9,7 +9,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
-import { getDeploymentShape, useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
@@ -35,6 +35,7 @@ import type {
   FileAttachmentForApi,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -80,7 +81,7 @@ function OrganizationHomeContent({
   )
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
-  const planEnabled = useDeploymentShape().features.planMode === true
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??

@@ -40,8 +40,6 @@ vi.mock('@/lib/core/config/deployment-shape', () => ({
   useDeploymentShape: () => ({
     features: {
       liveEnterpriseSearch: mocks.live,
-      planMode: mocks.plan,
-      mothershipModelSelector: mocks.advanced,
     },
   }),
   getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
@@ -89,6 +87,7 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
 }))
 
 import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
 let root: Root
@@ -228,7 +227,15 @@ async function render(
   await act(async () =>
     root.render(
       <QueryClientProvider client={queryClient}>
-        <Harness />
+        <FeatureFlagsProvider
+          flags={{
+            'table-row-ttl': false,
+            'mothership-model-selector': mocks.advanced,
+            'mothership-plan-mode': mocks.plan,
+          }}
+        >
+          <Harness />
+        </FeatureFlagsProvider>
       </QueryClientProvider>
     )
   )
@@ -479,7 +486,15 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
   await act(async () =>
     root.render(
       <QueryClientProvider client={queryClient}>
-        <Harness />
+        <FeatureFlagsProvider
+          flags={{
+            'table-row-ttl': false,
+            'mothership-model-selector': mocks.advanced,
+            'mothership-plan-mode': mocks.plan,
+          }}
+        >
+          <Harness />
+        </FeatureFlagsProvider>
       </QueryClientProvider>
     )
   )

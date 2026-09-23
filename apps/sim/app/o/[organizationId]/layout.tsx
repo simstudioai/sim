@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -53,7 +54,7 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, tableRowTtlEnabled] = await Promise.all([
+  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
       organizationId,
@@ -61,12 +62,20 @@ export default async function OrganizationLayout({
       getActiveOrganizationId(session)
     ),
     isTableRowTtlEnabled(),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <FeatureFlagsProvider flags={{ 'table-row-ttl': tableRowTtlEnabled }}>
+      <FeatureFlagsProvider
+        flags={{
+          'table-row-ttl': tableRowTtlEnabled,
+          'mothership-model-selector': modelSelectorEnabled,
+          'mothership-plan-mode': planModeEnabled,
+        }}
+      >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
             <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>

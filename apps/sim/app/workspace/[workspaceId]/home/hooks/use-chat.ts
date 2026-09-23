@@ -106,6 +106,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
@@ -652,6 +653,7 @@ export function useChat(
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
+  const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
@@ -3673,7 +3675,7 @@ export function useChat(
               ? {
                   ...resolveMothershipModelSettings(
                     useMothershipEffortStore.getState(),
-                    getDeploymentShape().features.mothershipModelSelector === true
+                    modelSelectorEnabled
                   ),
                 }
               : {}),
@@ -3882,6 +3884,7 @@ export function useChat(
       scopeKey,
       queryClient,
       upsertChatHistory,
+      modelSelectorEnabled,
       processSSEStream,
       finalize,
       resumeOrFinalize,

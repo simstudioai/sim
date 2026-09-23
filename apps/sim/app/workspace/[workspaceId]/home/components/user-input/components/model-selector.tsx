@@ -9,7 +9,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
@@ -17,11 +16,12 @@ import {
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 /** Reasoning effort and Fast mode for Build chat composers. */
 export function ModelSelector() {
-  const advanced = useDeploymentShape().features.mothershipModelSelector === true
+  const advanced = useFeatureFlag('mothership-model-selector')
   const selection = useMothershipEffortStore((state) => state.modelSelection)
   const setModel = useMothershipEffortStore((state) => state.setModel)
   const setFastMode = useMothershipEffortStore((state) => state.setFastMode)

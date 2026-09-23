@@ -21,6 +21,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: () => false,
+}))
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/home',
   useRouter: () => ({

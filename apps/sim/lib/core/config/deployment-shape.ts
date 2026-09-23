@@ -14,8 +14,6 @@ import {
   isHosted,
   isInboxEnabled,
   isLiveEnterpriseSearchEnabled,
-  isMothershipModelSelectorEnabled,
-  isPlanModeEnabled,
   isSandboxesEnabled,
   isScimEnabled,
   isSessionPoliciesEnabled,
@@ -91,8 +89,6 @@ export function resolveDeploymentShape(): DeploymentShape {
     azureConfigured: isAzureConfigured,
     cohereConfigured: isCohereConfigured,
     features: {
-      planMode: isPlanModeEnabled,
-      mothershipModelSelector: isMothershipModelSelectorEnabled,
       liveEnterpriseSearch: isLiveEnterpriseSearchEnabled,
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,

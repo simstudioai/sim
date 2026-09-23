@@ -22,6 +22,10 @@ vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteAppTool }))
 
+const modelSelectorEnabled = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isMothershipModelSelectorEnabled: modelSelectorEnabled,
+}))
 const continuationAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   authorizeCopilotChatCallback: continuationAuth,
@@ -224,6 +228,7 @@ const SCHEMA_CONTROL_KEYS = [
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    modelSelectorEnabled.mockResolvedValue(false)
     mockExecuteAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
     mockMaterializeOrganizationSecrets.mockResolvedValue({
       envVars: { GRAFANA_API_KEY: 'test-org-token' },
@@ -911,7 +916,7 @@ describe('runCopilotLifecycle', () => {
   it.each([false, true])(
     'attaches BYOK without letting a hidden hosted default override it (advanced=%s)',
     async (advanced) => {
-      setEnvFlags({ isMothershipModelSelectorEnabled: advanced })
+      modelSelectorEnabled.mockResolvedValue(advanced)
       mockResolveEnterpriseByokKey.mockResolvedValueOnce('sk-ant-enterprise-test')
       const payload = {
         message: 'hi',

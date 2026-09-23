@@ -30,9 +30,12 @@ const mocks = vi.hoisted(() => ({
   selectResource: vi.fn(),
   activeResource: null as string | null,
 }))
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
+}))
 vi.mock('@/lib/core/config/deployment-shape', () => ({
   useDeploymentShape: () => ({
-    features: { liveEnterpriseSearch: mocks.live, planMode: mocks.plan },
+    features: { liveEnterpriseSearch: mocks.live },
   }),
   getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))

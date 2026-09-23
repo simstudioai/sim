@@ -12,7 +12,6 @@ import {
   permissionsMockFns,
   resetDbChainMock,
   resetEnvironmentUtilsMock,
-  setEnvFlags,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -20,6 +19,12 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const flags = vi.hoisted(() => ({ plan: vi.fn(), models: vi.fn() }))
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isPlanModeEnabled: flags.plan,
+  isMothershipModelSelectorEnabled: flags.models,
+}))
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -242,7 +247,7 @@ describe('handleUnifiedChatPost', () => {
   it.each([false, true])(
     'admits Plan only when its deployment flag is enabled (%s)',
     async (enabled) => {
-      setEnvFlags({ isPlanModeEnabled: enabled })
+      flags.plan.mockResolvedValue(enabled)
       try {
         const response = await handleUnifiedChatPost(
           new NextRequest('http://localhost/api/mothership/chat', {
@@ -262,7 +267,7 @@ describe('handleUnifiedChatPost', () => {
           )
         else expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
       } finally {
-        setEnvFlags({ isPlanModeEnabled: false })
+        flags.plan.mockResolvedValue(false)
       }
     }
   )
@@ -273,8 +278,9 @@ describe('handleUnifiedChatPost', () => {
   })
 
   beforeEach(() => {
-    setEnvFlags({ isMothershipModelSelectorEnabled: true })
+    flags.models.mockResolvedValue(true)
     vi.clearAllMocks()
+    flags.plan.mockResolvedValue(false)
     resetDbChainMock()
     atomicallyClaimChatSend.mockResolvedValue({
       claimed: true,
@@ -857,7 +863,7 @@ describe('handleUnifiedChatPost', () => {
   ])(
     'enforces the default model and effort range on submitted %s effort',
     async (effort, expected) => {
-      setEnvFlags({ isMothershipModelSelectorEnabled: false })
+      flags.models.mockResolvedValue(false)
       const response = await handleUnifiedChatPost(
         new NextRequest('http://localhost/api/mothership/chat', {
           method: 'POST',
@@ -883,7 +889,7 @@ describe('handleUnifiedChatPost', () => {
   it.each(['gpt-6-sol', 'claude-opus-5-5'])(
     'admits advanced %s and Fast when enabled',
     async (model) => {
-      setEnvFlags({ isMothershipModelSelectorEnabled: true })
+      flags.models.mockResolvedValue(true)
       const effort = model === 'gpt-6-sol' ? 'none' : 'max'
       const fastMode = model === 'gpt-6-sol'
       const response = await handleUnifiedChatPost(
@@ -1884,6 +1890,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    flags.plan.mockResolvedValue(false)
     resetDbChainMock()
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     atomicallyClaimChatSend.mockResolvedValue({

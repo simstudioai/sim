@@ -43,6 +43,10 @@ const { mockRequestJson, mockExecuteWorkflow, navigationMocks } = vi.hoisted(() 
   },
 }))
 
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: () => false,
+}))
+
 vi.mock('next/navigation', () => navigationMocks)
 vi.mock('@/lib/auth/auth-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/auth-client')>()),
