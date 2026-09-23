@@ -2,11 +2,27 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 
-const mocks = vi.hoisted(() => ({ update: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  update: vi.fn(),
+  reset: vi.fn(),
+  refetch: vi.fn(),
+  error: null as Error | null,
+}))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useUpdateOrganizationAccounts: () => ({ mutate: mocks.update, isPending: false, error: null }),
+  useUpdateOrganizationAccounts: () => ({
+    mutate: mocks.update,
+    reset: mocks.reset,
+    isPending: false,
+    error: mocks.error,
+  }),
+  useOrganizationAccounts: () => ({
+    refetch: mocks.refetch,
+    isFetching: false,
+    error: null,
+  }),
 }))
 
 import { OrganizationAccountApiKeys } from '@/ee/credential-groups/components/organization-account-api-keys'
@@ -28,10 +44,63 @@ const group: NonNullable<OrganizationAccountsSettings['credentialGroup']> = {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.error = null
+  mocks.reset.mockImplementation(() => {
+    mocks.error = null
+  })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+})
+
+it('reloads current definitions after a conflict before permitting another save', async () => {
+  const original = { id: 'option-1', name: 'Original key', description: null }
+  const current = { ...original, name: 'Updated by another admin' }
+  const render = () =>
+    root.render(
+      <OrganizationAccountApiKeys
+        organizationId='org-1'
+        group={{ ...group, apiKeyOptions: [original] }}
+      />
+    )
+  await act(async () => render())
+  await act(async () => button('Add API key').click())
+  mocks.error = new ApiClientError({ status: 409, message: 'Conflict', body: {} })
+  await act(async () => render())
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    'discard your unsaved edits'
+  )
+  expect(
+    Array.from(document.querySelectorAll('button')).some((item) => item.textContent === 'Save')
+  ).toBe(false)
+  mocks.refetch.mockResolvedValue({
+    isSuccess: true,
+    data: { credentialGroup: { ...group, apiKeyOptions: [current] } },
+  })
+  await act(async () => button('Reload requests').click())
+  expect(mocks.refetch).toHaveBeenCalledOnce()
+  expect(mocks.reset).toHaveBeenCalledOnce()
+  const input = document.querySelector('[role="dialog"] input')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'New key'
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => button('Save').click())
+  expect(mocks.update).toHaveBeenCalledWith(
+    {
+      organizationId: 'org-1',
+      groupId: 'group-1',
+      update: {
+        expectedApiKeyOptions: [current],
+        apiKeyOptions: [current, { name: 'New key', description: null }],
+      },
+    },
+    expect.anything()
+  )
 })
 afterEach(async () => {
   await act(async () => root.unmount())

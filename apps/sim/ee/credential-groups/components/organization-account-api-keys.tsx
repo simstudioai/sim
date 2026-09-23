@@ -10,6 +10,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { CredentialGroupApiKeyOption } from '@/lib/api/contracts/credential-groups'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT } from '@/lib/credential-groups/api-key-constants'
@@ -20,7 +21,10 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useUpdateOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import {
+  useOrganizationAccounts,
+  useUpdateOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 
 interface OrganizationAccountApiKeysProps {
   organizationId: string
@@ -108,10 +112,13 @@ interface ApiKeyOptionModalProps extends OrganizationAccountApiKeysProps {
 
 function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOptionModalProps) {
   const option = editor.kind === 'add' ? undefined : editor.option
-  const [initialOptions] = useState(() => group.apiKeyOptions)
+  const [initialOptions, setInitialOptions] = useState(() => group.apiKeyOptions)
   const [name, setName] = useState(option?.name ?? '')
   const [description, setDescription] = useState(option?.description ?? '')
   const update = useUpdateOrganizationAccounts()
+  const accounts = useOrganizationAccounts(organizationId)
+  const conflict = isApiClientError(update.error) && update.error.status === 409
+  const busy = update.isPending || (conflict && accounts.isFetching)
   const removing = editor.kind === 'remove'
   const title = removing
     ? `Remove ${option?.name}`
@@ -119,7 +126,7 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
       ? 'Edit API key request'
       : 'Add API key request'
   const save = () => {
-    if (update.isPending) return
+    if (busy || conflict) return
     const others = initialOptions.filter((item) => item.id !== option?.id)
     const definition = {
       ...(option ? { id: option.id } : {}),
@@ -142,17 +149,32 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
       { onSuccess: onClose }
     )
   }
+  const reload = async () => {
+    if (busy) return
+    const result = await accounts.refetch()
+    if (!result.isSuccess) return
+    const latest = result.data.credentialGroup
+    const currentOption = latest?.apiKeyOptions.find((item) => item.id === option?.id)
+    if (!latest || latest.id !== group.id || (option && !currentOption)) {
+      onClose()
+      return
+    }
+    setInitialOptions(latest.apiKeyOptions)
+    setName(currentOption?.name ?? '')
+    setDescription(currentOption?.description ?? '')
+    update.reset()
+  }
   return (
     <ChipModal
       open
       size='sm'
       srTitle={title}
-      dismissDisabled={update.isPending}
+      dismissDisabled={busy}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
     >
-      <ChipModalHeader onClose={onClose} closeDisabled={update.isPending}>
+      <ChipModalHeader onClose={onClose} closeDisabled={busy}>
         {title}
       </ChipModalHeader>
       <ChipModalBody>
@@ -171,7 +193,7 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
               placeholder='Exa API key'
               maxLength={100}
               required
-              disabled={update.isPending}
+              disabled={busy || conflict}
             />
             <ChipModalField
               type='textarea'
@@ -180,21 +202,34 @@ function ApiKeyOptionModal({ organizationId, group, editor, onClose }: ApiKeyOpt
               onChange={setDescription}
               placeholder='Tell people where to get the key and what permissions it needs.'
               maxLength={1000}
-              disabled={update.isPending}
+              disabled={busy || conflict}
             />
           </>
         )}
-        <ChipModalError>{update.error?.message}</ChipModalError>
+        <ChipModalError>
+          {conflict
+            ? 'API key requests changed. Reload the latest requests to discard your unsaved edits and try again.'
+            : update.error?.message}
+        </ChipModalError>
+        {conflict && <ChipModalError>{accounts.error?.message}</ChipModalError>}
       </ChipModalBody>
       <ChipModalFooter
-        defaultAction={removing ? 'none' : 'primary'}
+        defaultAction={removing || conflict ? 'none' : 'primary'}
         onCancel={onClose}
-        cancelDisabled={update.isPending}
+        cancelDisabled={busy}
         primaryAction={{
-          label: update.isPending ? 'Saving…' : removing ? 'Remove' : 'Save',
-          variant: removing ? 'destructive' : 'primary',
-          disabled: update.isPending || (!removing && !name.trim()),
-          onClick: save,
+          label: conflict
+            ? accounts.isFetching
+              ? 'Reloading…'
+              : 'Reload requests'
+            : update.isPending
+              ? 'Saving…'
+              : removing
+                ? 'Remove'
+                : 'Save',
+          variant: removing && !conflict ? 'destructive' : 'primary',
+          disabled: busy || (!conflict && !removing && !name.trim()),
+          onClick: conflict ? reload : save,
         }}
       />
     </ChipModal>
