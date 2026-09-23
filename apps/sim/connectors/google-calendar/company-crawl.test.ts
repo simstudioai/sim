@@ -74,10 +74,7 @@ describe('Google Calendar company crawl', () => {
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       adminCredentialType: 'service_account',
       adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
-      serviceAccountDelegationScopes: [
-        'https://www.googleapis.com/auth/calendar.events.readonly',
-        'https://www.googleapis.com/auth/calendar.readonly',
-      ],
+      serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
       serviceAccountSubjectFieldId: 'adminEmail',
     })
     expect(
