@@ -147,6 +147,20 @@ describe('usageWindowLedgerFilter', () => {
 describe('resolveUsageAnalyticsWindow', () => {
   const now = new Date('2026-08-20T12:00:00.000Z')
 
+  it('starts a rolling window on the viewer-local hour, so its first segment settles', () => {
+    const window = resolveUsageAnalyticsWindow({
+      preset: '7d',
+      period: period(),
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    })
+    expect(window.kind === 'range' && window.from).toEqual(new Date('2026-08-13T12:30:00.000Z'))
+    const [first] = usageWindowSegments(window, 'Asia/Kolkata', {
+      now: window.kind === 'range' ? window.to : undefined,
+    })
+    expect(first?.settled).toBe(true)
+  })
+
   it('keeps current-period a period so it matches the billing page', () => {
     const window = resolveUsageAnalyticsWindow({ preset: 'current-period', period: period(), now })
     expect(window).toEqual({ kind: 'period', period: period() })

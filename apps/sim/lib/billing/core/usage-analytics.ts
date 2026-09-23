@@ -211,13 +211,22 @@ function civilDaysBetween(fromKey: string, toKey: string): number {
 }
 
 /**
- * The last `days` up to now, starting on the hour. A start mid-hour would leave the
- * window's first hour partial, and a partial hour can never be cached — every view
- * would read it from the ledger again.
+ * The last `days` up to now, starting on the viewer's hour. A start mid-hour would
+ * leave the window's first hour partial, and a partial hour can never be cached —
+ * every view would read it from the ledger again. The hour is local, not UTC: in a
+ * half-hour-offset zone a UTC hour starts halfway through a segment.
  */
-function trailingRange(days: number, now: Date): UsageAnalyticsWindow {
+function trailingRange(days: number, now: Date, timezone: string): UsageAnalyticsWindow {
   const from = new Date(now.getTime() - days * DAY_MS)
-  from.setUTCMinutes(0, 0, 0)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    minute: 'numeric',
+    second: 'numeric',
+  }).formatToParts(from)
+  const part = (type: 'minute' | 'second') =>
+    Number(parts.find((entry) => entry.type === type)?.value ?? 0)
+  from.setTime(from.getTime() - (part('minute') * 60 + part('second')) * 1000)
+  from.setUTCMilliseconds(0)
   return { kind: 'range', from, to: now }
 }
 
@@ -239,7 +248,7 @@ export function resolveUsageAnalyticsWindow({
   switch (preset) {
     case 'current-period':
       return isUnboundedPeriod(period)
-        ? trailingRange(UNBOUNDED_PERIOD_DISPLAY_DAYS, now)
+        ? trailingRange(UNBOUNDED_PERIOD_DISPLAY_DAYS, now, timezone)
         : { kind: 'period', period }
     case 'previous-period': {
       const previous = resolvePreviousPeriod(period)
@@ -265,9 +274,9 @@ export function resolveUsageAnalyticsWindow({
       }
     }
     case '7d':
-      return trailingRange(7, now)
+      return trailingRange(7, now, timezone)
     case '30d':
-      return trailingRange(30, now)
+      return trailingRange(30, now, timezone)
     case 'custom': {
       // A partial selection is not a range, so it falls back to the current period —
       // through the same branch, which is what keeps an unbounded period from being
