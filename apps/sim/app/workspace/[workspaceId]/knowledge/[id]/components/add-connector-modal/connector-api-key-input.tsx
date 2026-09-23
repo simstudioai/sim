@@ -36,6 +36,12 @@ export function ConnectorApiKeyInput({
           setCursorPosition(inputRef.current?.selectionStart ?? next.length)
           setShowSecrets(true)
         }}
+        onSelect={(event) => {
+          setCursorPosition(event.currentTarget.selectionStart ?? value.length)
+        }}
+        inputClassName={
+          value.trimStart().startsWith('{{') ? 'text-[var(--brand-secondary)]' : undefined
+        }
         placeholder={placeholder}
       />
       {visible && (

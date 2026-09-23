@@ -905,10 +905,24 @@ describe('Search setup options', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(document.body.textContent).toContain('GITLAB_PAT')
+    expect(input.className).toContain('text-[var(--brand-secondary)]')
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      input.setSelectionRange(0, 0)
+      input.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    })
+    expect(document.querySelector('[role="menuitem"]')).toBeNull()
+    expect(input.value).toBe('{{GIT')
+    await act(async () => {
+      input.setSelectionRange(input.value.length, input.value.length)
+      input.dispatchEvent(new KeyboardEvent('keyup', { key: 'End', bubbles: true }))
+    })
+    expect(document.body.textContent).toContain('GITLAB_PAT')
     await act(async () =>
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     expect(input.value).toBe('{{GITLAB_PAT}}')
+    expect(input.className).toContain('text-[var(--brand-secondary)]')
     expect(mocks.create).not.toHaveBeenCalled()
     await act(async () => button('Connect & Sync').click())
     expect(mocks.create).toHaveBeenCalledWith(
