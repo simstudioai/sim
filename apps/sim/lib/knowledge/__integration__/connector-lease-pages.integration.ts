@@ -17,6 +17,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -272,6 +273,11 @@ describe('connector lease ACL pages in PostgreSQL', () => {
   describe('search projection fan-out', () => {
     const CHUNKS = 20
 
+    /** The production document trigger under test, whatever an earlier suite left installed. */
+    beforeAll(async () => {
+      await installProjectionSourceAcl(db.$client)
+    })
+
     /** Real chunks: the installed triggers create each chunk's search and keyword projection rows. */
     const seedChunks = async (documents: { id: string }[]) => {
       const rows = documents.flatMap((entry) =>
@@ -292,18 +298,26 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       for (let offset = 0; offset < rows.length; offset += 200)
         await db.insert(embedding).values(rows.slice(offset, offset + 200))
       /**
-       * The keyword projection's own sync trigger ships with the Tin migration, which a database
-       * without the Tin extension skips; write the rows it would, and its installed ACL trigger
-       * fills them from the document as it does for every insert.
+       * Each chunk's projection rows, filled from its document as the backfill leaves them. The
+       * embedding insert writes the vector projection's row; the keyword projection's own sync
+       * trigger ships with the Tin migration, which a database without Tin skips. The fixture sets
+       * the filled state itself, whatever triggers an earlier suite left behind; what is under
+       * test is the document trigger that rewrites these rows.
        */
+      const chunkIds = sql.join(
+        documents.map((entry) => sql`${entry.id}`),
+        sql`, `
+      )
       await db.execute(sql`
-        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
-        SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.content FROM embedding e
-        WHERE e.document_id IN (${sql.join(
-          documents.map((entry) => sql`${entry.id}`),
-          sql`, `
-        )})
-        ON CONFLICT (id) DO NOTHING`)
+        UPDATE embedding_search p SET enabled = true, connector_id = d.connector_id, acl = d.acl
+        FROM document d WHERE d.id = p.document_id AND d.id IN (${chunkIds})`)
+      await db.execute(sql`
+        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content, connector_id, acl)
+        SELECT e.id, e.knowledge_base_id, e.document_id, true, e.content, d.connector_id, d.acl
+        FROM embedding e JOIN document d ON d.id = e.document_id WHERE e.document_id IN (${chunkIds})
+        ON CONFLICT (id) DO UPDATE SET enabled = true, connector_id = EXCLUDED.connector_id, acl = EXCLUDED.acl`)
+      /** Only writes made by the code under test are counted. */
+      await db.execute(sql`DELETE FROM lease_page_projection_writes`)
       await db
         .update(document)
         .set({ chunkCount: CHUNKS })
@@ -348,7 +362,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       ).resolves.toEqual({ updated: 30, rejected: 0 })
 
       const after = [...(await projectionAcls(ids.connectorId))]
-      expect(after.every((row) => row.acl === bob() && row.expected === bob())).toBe(true)
+      expect(after.filter((row) => row.acl !== bob() || row.expected !== bob())).toEqual([])
       const perTransaction = await projectionRowsPerTransaction()
       expect(perTransaction.reduce((total, rows) => total + rows, 0)).toBe(2 * 30 * CHUNKS)
       expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PROJECTION_ROW_BATCH_SIZE)
@@ -368,7 +382,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
 
       const after = [...(await projectionAcls(members.connectorId))]
       expect(after).toHaveLength(2 * 30 * CHUNKS)
-      expect(after.every((row) => row.acl === '' && row.expected === '')).toBe(true)
+      expect(after.filter((row) => row.acl !== '' || row.expected !== '')).toEqual([])
       expect(Math.max(...(await projectionRowsPerTransaction()))).toBeLessThanOrEqual(
         PROJECTION_ROW_BATCH_SIZE
       )
