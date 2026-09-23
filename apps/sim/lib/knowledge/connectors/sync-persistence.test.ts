@@ -342,8 +342,8 @@ describe('persistDocumentAcls paging', () => {
     await persistDocumentAcls(CONNECTOR, changedGroup(30))
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
-    const bounds = dbChainMockFns.execute.mock.calls.filter(([query]) =>
-      JSON.stringify(query).includes('lock_timeout')
+    const bounds = dbChainMockFns.execute.mock.calls.filter((call: unknown[]) =>
+      JSON.stringify(call).includes('lock_timeout')
     )
     expect(bounds).toHaveLength(dbChainMockFns.transaction.mock.calls.length)
   })

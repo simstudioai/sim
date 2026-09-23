@@ -3230,6 +3230,7 @@ describe('executeSync heartbeats during the listing phase', () => {
               externalId: 'page-1',
               title: 'Page',
               content: 'Body',
+              contentHash: 'hash-1',
               mimeType: 'text/plain',
               acl: ['u:reader@example.com'],
             },
@@ -3257,7 +3258,7 @@ describe('executeSync heartbeats during the listing phase', () => {
         .map(({ order }) => order)
       expect(between(leaseChecks)).toBe(true)
       const bounds = dbChainMockFns.execute.mock.calls
-        .map(([query], index) => ({
+        .map((query: unknown[], index) => ({
           query,
           order: dbChainMockFns.execute.mock.invocationCallOrder[index],
         }))

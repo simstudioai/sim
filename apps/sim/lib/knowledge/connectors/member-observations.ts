@@ -5,6 +5,8 @@ import {
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import {
   and,
@@ -48,6 +50,8 @@ import {
   ConnectorSyncDeletionGuardError,
   hardDeleteDocuments,
 } from '@/lib/knowledge/documents/service'
+
+const logger = createLogger('MemberObservations')
 
 /**
  * Documents per tombstone or resurrection page. Those writes set `deleted_at` alone and fire no
@@ -870,6 +874,9 @@ function memberStillStale(memberId: string, cutoff: Date) {
   )
 }
 
+/** Lock, statement-timeout and serialization failures a sweep page defers instead of failing the tick. */
+const SWEEP_DEFERRABLE_CODES = new Set(['55P03', '57014', '40P01', '40001'])
+
 /**
  * Stale-member observations one sweep tick removes per member: the same
  * {@link OBSERVATION_BATCH_SIZE} as before, now in pages of
@@ -1044,14 +1051,28 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
   for (const member of staleMembers) {
     const memberCutoff = new Date(now.getTime() - staleMemberWindowMs(member.syncIntervalMinutes))
     let sweptAny = false
-    for (let page = 0; page < STALE_MEMBER_PAGES_PER_TICK; page++) {
-      const swept = await sweepStaleMemberPage(member, memberCutoff, now)
-      if (!swept) break
-      sweptAny = true
-      result.observationsRemoved += swept.observationsRemoved
-      result.documentsRematerialized += swept.documentsRematerialized
-      result.docsTombstoned += swept.docsTombstoned
-      if (swept.observationsRemoved < ACL_CHANGE_BATCH_SIZE) break
+    try {
+      for (let page = 0; page < STALE_MEMBER_PAGES_PER_TICK; page++) {
+        const swept = await sweepStaleMemberPage(member, memberCutoff, now)
+        if (!swept) break
+        sweptAny = true
+        result.observationsRemoved += swept.observationsRemoved
+        result.documentsRematerialized += swept.documentsRematerialized
+        result.docsTombstoned += swept.docsTombstoned
+        if (swept.observationsRemoved < ACL_CHANGE_BATCH_SIZE) break
+      }
+    } catch (error) {
+      /**
+       * A connector whose member run holds its row, or whose page outruns the bounds, is left
+       * for the next tick: its committed pages stand, and the other members are still swept.
+       */
+      const code = getPostgresErrorCode(error)
+      if (!code || !SWEEP_DEFERRABLE_CODES.has(code)) throw error
+      logger.warn('Deferred a stale member sweep to the next tick', {
+        connectorId: member.connectorId,
+        memberId: member.id,
+        code,
+      })
     }
     if (sweptAny) result.members += 1
   }

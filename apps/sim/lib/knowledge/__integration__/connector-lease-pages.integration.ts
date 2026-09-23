@@ -9,6 +9,8 @@ import {
   document,
   knowledgeConnector,
   knowledgeConnectorMember,
+  knowledgeConnectorMemberSyncLog,
+  knowledgeDocumentObservation,
   organization,
   resourcePolicy,
   user,
@@ -47,6 +49,7 @@ import {
   materializeDocumentAcls,
   recordMemberObservations,
   rewriteConnectorAcls,
+  sweepStaleMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import {
   executeMemberSync,
@@ -395,6 +398,83 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     })
   })
 
+  describe('stale member sweep', () => {
+    it('defers a connector whose row a member run holds and still sweeps the others', async () => {
+      const busy = members
+      const idle = await seedKnowledgeMemberFixture(ids)
+      for (const fixture of [busy, idle]) {
+        await db
+          .update(knowledgeConnector)
+          .set({
+            status: 'active',
+            memberSyncStatus: 'idle',
+            memberSyncLockToken: null,
+            syncIntervalMinutes: 60,
+            lastMemberSyncAt: new Date(),
+          })
+          .where(eq(knowledgeConnector.id, fixture.connectorId))
+        /** Enrolled long enough ago that never having listed makes them stale. */
+        await db
+          .update(knowledgeConnectorMember)
+          .set({ createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) })
+          .where(eq(knowledgeConnectorMember.connectorId, fixture.connectorId))
+        const seeded = await seedDocuments(
+          fixture.connectorId,
+          fixture.members.map((member) => member.subjectToken).sort(),
+          3
+        )
+        for (const member of fixture.members)
+          await recordMemberObservations(
+            db,
+            member.id,
+            seeded.map((row) => row.id),
+            fixture.runId
+          )
+      }
+      const observed = async (connectorId: string) =>
+        (
+          await db
+            .select({ id: knowledgeDocumentObservation.memberId })
+            .from(knowledgeDocumentObservation)
+            .innerJoin(
+              knowledgeConnectorMember,
+              eq(knowledgeConnectorMember.id, knowledgeDocumentObservation.memberId)
+            )
+            .where(eq(knowledgeConnectorMember.connectorId, connectorId))
+        ).length
+
+      /** A member page of a running sync holds the busy connector's row for longer than a sweep page waits. */
+      let release!: () => void
+      let locked!: () => void
+      const held = new Promise<void>((resolve) => {
+        locked = resolve
+      })
+      const holder = db.transaction(async (tx) => {
+        await tx
+          .select({ id: knowledgeConnector.id })
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, busy.connectorId))
+          .for('update')
+        locked()
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+      })
+      await held
+      try {
+        const result = await sweepStaleMemberObservations(new Date(Date.now() + 1_000))
+        expect(result.members).toBe(idle.members.length)
+      } finally {
+        release()
+        await holder
+      }
+
+      expect(await observed(busy.connectorId)).toBe(busy.members.length * 3)
+      expect(await observed(idle.connectorId)).toBe(0)
+      expect((await storedAcls(idle.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+    }, 30_000)
+  })
+
   describe('resumeMembershipRewrites', () => {
     it('rematerialises a changed member one page per lease transaction', async () => {
       const seeded = await seedDocuments(members.connectorId, [])
@@ -648,6 +728,46 @@ describe('connector lease ACL pages in PostgreSQL', () => {
           and(eq(document.connectorId, members.connectorId), sql`cardinality(${document.acl}) > 0`)
         )
       expect(granted).toBe(0)
+    })
+
+    it('closes a run whose disable of a removed option fails as an ordinary failure', async () => {
+      /** The option id is set but no longer exists, which membership reconciliation reports. */
+      await db
+        .update(knowledgeConnector)
+        .set({ credentialGroupOptionId: generateId() })
+        .where(eq(knowledgeConnector.id, members.connectorId))
+      await seedDocuments(
+        members.connectorId,
+        members.members.map((member) => member.subjectToken).sort()
+      )
+      await db.execute(
+        sql.raw(`CREATE OR REPLACE FUNCTION fail_after_acl_writes() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture statement failure'; END $$`)
+      )
+      await db.execute(
+        sql`CREATE TRIGGER fail_after_acl_writes BEFORE UPDATE OF acl ON document FOR EACH ROW
+          WHEN (NEW.connector_id = ${sql.raw(`'${members.connectorId}'`)})
+          EXECUTE FUNCTION fail_after_acl_writes()`
+      )
+
+      const failed = await executeMemberSync(members.connectorId, {
+        billingAttribution: await billing(),
+      })
+
+      expect(failed.error).toBeTruthy()
+      const state = await connectorState()
+      expect(state?.memberSyncStatus).toBe('error')
+      expect(state?.memberSyncLockToken).toBeNull()
+      const [log] = await db
+        .select({ status: knowledgeConnectorMemberSyncLog.status })
+        .from(knowledgeConnectorMemberSyncLog)
+        .where(eq(knowledgeConnectorMemberSyncLog.connectorId, members.connectorId))
+      expect(log?.status).toBe('failed')
+
+      await db.execute(sql`DROP TRIGGER fail_after_acl_writes ON document`)
+      await executeMemberSync(members.connectorId, { billingAttribution: await billing() })
+      expect((await connectorState())?.memberSyncStatus).toBe('disabled')
+      expect((await storedAcls(members.connectorId)).every((acl) => acl.length === 0)).toBe(true)
     })
   })
 })

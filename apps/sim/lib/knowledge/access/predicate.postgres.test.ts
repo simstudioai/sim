@@ -22,6 +22,7 @@ vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 const { drizzle } = await import('drizzle-orm/postgres-js')
 const schema = await import('@sim/db/schema')
 const { persistDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
+const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
   '@/lib/knowledge/connectors/mirrored-acls'
 )
@@ -750,7 +751,9 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     const space = 'g:confluence:tenant:space'
     const page = 'g:confluence:tenant:page'
     const input = new Map([['page', { acl: [space], requirements: [[page]] }]])
-    expect(await persistDocumentAcls('admin', input, executor)).toEqual({ updated: 1, rejected: 0 })
+    expect(
+      await persistDocumentAcls('admin', input, leaseTransaction('admin', undefined, executor))
+    ).toEqual({ updated: 1, rejected: 0 })
     expect(await readable([space, page], 'persisted')).toBe(true)
     expect(await readable([page], 'persisted')).toBe(false)
     await connection.unsafe("UPDATE document SET acl = string_to_array($1, E'\\n')", [page])
@@ -760,7 +763,7 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       "UPDATE document SET acl_verified_at = statement_timestamp() - interval '25 hours'"
     )
     expect(await readable([space, page], 'persisted')).toBe(false)
-    await persistDocumentAcls('admin', input, executor)
+    await persistDocumentAcls('admin', input, leaseTransaction('admin', undefined, executor))
     expect(await readable([space, page], 'persisted')).toBe(true)
     const [stored] = await connection.unsafe(
       "SELECT jsonb_typeof(acl_requirements) AS shape, acl_requirements FROM document WHERE id = 'persisted'"
@@ -844,10 +847,15 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
         {}
       )
       if (step === 'unlisted') hideUnlistedDocuments(merged.acls, ['shared-file'])
-      await persistDocumentAcls('admin', merged.acls, executor, {
-        unresolvedExternalIds: merged.unresolvedExternalIds,
-        generationStartedAt,
-      })
+      await persistDocumentAcls(
+        'admin',
+        merged.acls,
+        leaseTransaction('admin', undefined, executor),
+        {
+          unresolvedExternalIds: merged.unresolvedExternalIds,
+          generationStartedAt,
+        }
+      )
       const [stored] = await connection.unsafe(
         "SELECT to_jsonb(acl) AS acl, acl_verified_at FROM document WHERE id = 'shared'"
       )
@@ -882,10 +890,15 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
       [verifiedAt]
     )
     const executor = drizzle(connection, { schema })
-    const result = await persistDocumentAcls('admin', new Map([['file', []]]), executor, {
-      unresolvedExternalIds: new Set(['file']),
-      generationStartedAt,
-    })
+    const result = await persistDocumentAcls(
+      'admin',
+      new Map([['file', []]]),
+      leaseTransaction('admin', undefined, executor),
+      {
+        unresolvedExternalIds: new Set(['file']),
+        generationStartedAt,
+      }
+    )
     expect(result.updated).toBe(preserved ? 0 : 1)
     const [stored] = await connection.unsafe(
       "SELECT to_jsonb(acl) AS acl, acl_verified_at FROM document WHERE id = 'boundary'"

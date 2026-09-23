@@ -1791,13 +1791,14 @@ async function deferMemberSync(run: MemberSyncRun, syncIntervalMinutes: number):
  * every ACL. Nothing is purged: re-enabling restores access from the retained
  * observations.
  *
- * Suspension lands first, so anything that rematerialises an ACL meanwhile
- * computes nobody. Every ACL is then revoked in short lease-proving pages, and
- * only after the last page does the connector flip to disabled: one statement
- * over the whole connector outlasted the statement timeout, rolled back, and
- * retried forever. Readers decide from the ACL alone, so no reader gains access
- * between pages, and an interrupted run leaves the binding still gone, which
- * sends the next run back here to finish. Returns false when the run's budget
+ * Suspension lands first: a reader needs an active member's observation as
+ * well as an overlapping ACL, so suspending the members revokes their reads at
+ * once, and anything that rematerialises an ACL meanwhile computes nobody.
+ * Every ACL is then revoked in short lease-proving pages, and only after the
+ * last page does the connector flip to disabled: one statement over the whole
+ * connector outlasted the statement timeout, rolled back, and retried forever.
+ * No reader gains access between pages, and an interrupted run leaves the
+ * binding still gone, which sends the next run back here to finish. Returns false when the run's budget
  * ended first; the caller re-dispatches.
  */
 async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<boolean> {
@@ -2407,7 +2408,9 @@ export async function executeMemberSync(
       }
       logger.info('Member sync completed', { connectorId, runId, ...result })
       return result
-    } catch (error) {
+    } catch (caught) {
+      /** A failed disable of a gone binding replaces the error the failure path records. */
+      let error: unknown = caught
       if (error instanceof SyncLockLostException) {
         logger.warn('Member sync abandoned — lock was reclaimed while this run was executing', {
           connectorId,
@@ -2426,18 +2429,27 @@ export async function executeMemberSync(
         return skipped(result, 'connector_deleted_during_sync')
       }
       if (error instanceof MemberBindingGoneError) {
+        const bindingError = error
         try {
-          if (!(await disableMemberSync(run, error.message)))
+          if (!(await disableMemberSync(run, bindingError.message)))
             return await finishDisableLater(run, connector.syncIntervalMinutes)
+          return { ...skipped(result, 'connector_not_syncable'), error: bindingError.message }
         } catch (disableError) {
-          if (!(disableError instanceof SyncLockLostException)) throw disableError
-          logger.warn('Member sync abandoned — lock was reclaimed before it could be disabled', {
-            connectorId,
-            runId,
-          })
-          return skipped(result, 'sync_superseded')
+          if (disableError instanceof SyncLockLostException) {
+            logger.warn('Member sync abandoned — lock was reclaimed before it could be disabled', {
+              connectorId,
+              runId,
+            })
+            return skipped(result, 'sync_superseded')
+          }
+          /**
+           * A disable that failed part-way is an ordinary run failure: the log closes as failed
+           * and the lease is released under its own guard, instead of the run escaping with the
+           * connector left running until the stale-lease reclaim. The binding is still gone, so
+           * the next run resumes the revocation.
+           */
+          error = disableError
         }
-        return { ...skipped(result, 'connector_not_syncable'), error: error.message }
       }
 
       if (getConnectorSyncDeferral(error)) {

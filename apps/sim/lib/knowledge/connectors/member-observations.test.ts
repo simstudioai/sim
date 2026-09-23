@@ -203,10 +203,42 @@ describe('sweepStaleMemberObservations', () => {
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(25)
-    const bounds = dbChainMockFns.execute.mock.calls.filter(([query]) =>
-      JSON.stringify(query).includes('lock_timeout')
+    const bounds = dbChainMockFns.execute.mock.calls.filter((call: unknown[]) =>
+      JSON.stringify(call).includes('lock_timeout')
     )
     expect(bounds).toHaveLength(2)
+  })
+
+  /** A connector whose running member page holds its row must not stall the other connectors. */
+  it('defers a member whose page hits a lock timeout and still sweeps the next one', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorMember, [
+      STALE_MEMBER,
+      { ...STALE_MEMBER, id: 'm-2', connectorId: 'c-2' },
+    ])
+    dbChainMockFns.transaction.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-2' }])
+    queueTableRows(schemaMock.knowledgeConnectorMember, [{ id: 'm-2' }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ documentId: 'd-1' }])
+      .mockResolvedValueOnce([{ id: 'd-1' }])
+      .mockResolvedValueOnce([])
+
+    await expect(sweepStaleMemberObservations(NOW)).resolves.toEqual({
+      members: 1,
+      observationsRemoved: 1,
+      documentsRematerialized: 1,
+      docsTombstoned: 0,
+    })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails the sweep on an error that is not a lock or capacity failure', async () => {
+    queueTableRows(schemaMock.knowledgeConnectorMember, [STALE_MEMBER])
+    dbChainMockFns.transaction.mockRejectedValueOnce(new TypeError('broken'))
+
+    await expect(sweepStaleMemberObservations(NOW)).rejects.toThrow('broken')
   })
 
   /**
@@ -336,8 +368,8 @@ describe('rewriteConnectorAcls', () => {
     expect(assignedPages()).toHaveLength(3)
     expect(pageSizes()).toEqual([25, 25, 10])
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
-    const bounds = dbChainMockFns.execute.mock.calls.filter(([query]) =>
-      JSON.stringify(query).includes('lock_timeout')
+    const bounds = dbChainMockFns.execute.mock.calls.filter((call: unknown[]) =>
+      JSON.stringify(call).includes('lock_timeout')
     )
     expect(bounds).toHaveLength(3)
   })
