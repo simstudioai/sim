@@ -5449,13 +5449,13 @@
             "description": "Registered connector type."
           },
           "credentialId": {
-            "description": "OAuth credential identifier for connectors that require OAuth.",
+            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255
           },
           "apiKey": {
-            "description": "Write-only API key for connectors that use API-key authentication.",
+            "description": "Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.",
             "type": "string",
             "minLength": 1,
             "maxLength": 10000

@@ -294,6 +294,37 @@ describe('knowledge connector application use cases', () => {
     )
   })
 
+  it('rejects a $NAME spelling of an existing secret instead of storing it as the key', async () => {
+    mocks.resolveEnvironment.mockResolvedValue({ GITLAB_PAT: { value: 'resolved-pat' } })
+    await expect(
+      createKnowledgeConnector.execute({
+        principal: patPrincipal,
+        input: { ...patInput, apiKey: ' $GITLAB_PAT ' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message:
+        'Secret references use {{GITLAB_PAT}}, not $GITLAB_PAT. Pass apiKey as "{{GITLAB_PAT}}" to use the secret.',
+    })
+    expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
+  it('passes a $-prefixed literal through when no secret has that name', async () => {
+    mocks.resolveEnvironment.mockResolvedValue({})
+    mocks.createConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { id: 'new-connector', connectorType: 'sftp', accessMode: 'workspace' },
+    })
+    await createKnowledgeConnector.execute({
+      principal: patPrincipal,
+      input: { ...patInput, apiKey: '$Summer2024' },
+    })
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: '$Summer2024' })
+    )
+  })
+
   it('refuses workspace-wide or unreviewed source ingestion into the canonical search index', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValue({
       ...crossWorkspaceContext,

@@ -357,7 +357,7 @@ export async function performCreateKnowledgeConnector(
       return fail(
         (configValidation.error &&
           redactKnownSensitiveValues(configValidation.error, [accessToken])) ||
-          `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
+          `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields with \`sim connector-types list --detail full\` (GET /api/v2/connector-types?detail=full) before retrying; the same config will fail again.`,
         'validation'
       )
     }

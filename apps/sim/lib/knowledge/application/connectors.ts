@@ -785,14 +785,43 @@ async function summarizeConnectorMembers(
   return { active: row?.active ?? 0, suspended: row?.suspended ?? 0, stale: row?.stale ?? 0 }
 }
 
+/** Whole-value `$NAME`, the shell-style spelling of a secret reference that is never resolved. */
+const SHELL_STYLE_SECRET_PATTERN = /^\$([A-Za-z_][A-Za-z0-9_]*)$/
+
+/**
+ * Rejects an API key spelled `$NAME` when the caller has a secret named `NAME`, so the literal
+ * reference is not sent to the provider and stored as the key. A `$`-prefixed value that names no
+ * secret passes through, since password-style keys (SFTP, ServiceNow) can legitimately look alike.
+ */
+async function rejectShellStyleSecretReference(
+  apiKey: string,
+  principal: Principal,
+  workspaceId: string | undefined
+): Promise<void> {
+  const name = apiKey.trim().match(SHELL_STYLE_SECRET_PATTERN)?.[1]
+  if (!name) return
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) return
+  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
+  if (!Object.hasOwn(variables, name)) return
+  throw new OrchestrationError(
+    'validation',
+    `Secret references use {{${name}}}, not $${name}. Pass apiKey as "{{${name}}}" to use the secret.`
+  )
+}
+
 /** Resolves a secret reference at setup time; the connector stores an encrypted token snapshot. */
 async function resolveConnectorApiKey(
   apiKey: string | undefined,
   principal: Principal,
   workspaceId: string | undefined
 ): Promise<string | undefined> {
-  const name = apiKey?.trim().match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)?.[1]
-  if (!name) return apiKey
+  if (apiKey === undefined) return undefined
+  const name = apiKey.trim().match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)?.[1]
+  if (!name) {
+    await rejectShellStyleSecretReference(apiKey, principal, workspaceId)
+    return apiKey
+  }
   const userId = resolvePrincipalSubjectUserId(principal)
   if (!userId) {
     throw new OrchestrationError('forbidden', 'Secret references require a user identity')

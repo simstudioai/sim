@@ -2162,8 +2162,8 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--connector-type <value>` | Yes | Registered connector type. |
-| `--credential-id <value>` | No | OAuth credential identifier for connectors that require OAuth. |
-| `--api-key <value>` | No | Write-only API key for connectors that use API-key authentication. |
+| `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors. |
+| `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `&#123;&#123;SECRET_NAME&#125;&#125;`, which the server resolves; `$SECRET_NAME` is not a reference. |
 | `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
 

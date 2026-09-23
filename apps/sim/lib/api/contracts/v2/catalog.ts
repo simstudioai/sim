@@ -671,7 +671,11 @@ export const v2ConnectorTypeSchema = z
     auth: z
       .discriminatedUnion('mode', [
         z.object({
-          mode: z.literal('oauth').describe('Authenticates with an OAuth credential.'),
+          mode: z
+            .literal('oauth')
+            .describe(
+              'Authenticates with an OAuth credential; pass `credentialId` when creating the connector.'
+            ),
           provider: z.string().describe('OAuth service the credential must authenticate.'),
           requiredScopes: z
             .array(z.string())
@@ -679,7 +683,11 @@ export const v2ConnectorTypeSchema = z
             .describe('Scopes the credential must carry.'),
         }),
         z.object({
-          mode: z.literal('apiKey').describe('Authenticates with a stored API key.'),
+          mode: z
+            .literal('apiKey')
+            .describe(
+              'Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector.'
+            ),
           label: z.string().optional().describe('Label shown above the key field.'),
           placeholder: z.string().optional().describe('Placeholder shown in the key field.'),
           optional: z
@@ -689,7 +697,9 @@ export const v2ConnectorTypeSchema = z
             ),
         }),
       ])
-      .describe('How the connector authenticates against its source.'),
+      .describe(
+        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+      ),
     configFields: z
       .array(v2ConnectorConfigFieldSchema)
       .describe('Fields that make up the connector’s `sourceConfig`.'),
@@ -731,7 +741,9 @@ export const v2ConnectorTypeSummarySchema = z
       .object({
         mode: z
           .enum(['oauth', 'apiKey'])
-          .describe('How the connector authenticates against its source.'),
+          .describe(
+            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+          ),
       })
       .describe(
         'Authentication mode only. `detail=full` adds the OAuth provider and scopes, or the API-key field labels.'
