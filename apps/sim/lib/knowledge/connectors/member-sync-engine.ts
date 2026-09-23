@@ -65,10 +65,7 @@ import {
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
-import {
-  countFailedRunStreak,
-  databaseRetryDelayMs,
-} from '@/lib/knowledge/connectors/sync-database-retry'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -334,20 +331,18 @@ export function buildMemberSyncFailureUpdate(
 /**
  * The connector row written after the database, not the source, failed a members-mode run. The
  * members-mode counterpart of `buildSyncDatabaseRetryUpdate`: the breaker keeps only the source
- * failures already counted, while the retry climbs the failure ladder by the failed-run streak.
+ * failures already counted, and the retry waits the delay `resolveDatabaseRetryDelayMs` chose.
  */
 export function buildMemberSyncDatabaseRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
   errorMessage: string,
-  failedRunStreak: number
+  retryDelayMs: number
 ) {
   return {
     memberSyncStatus: 'error' as const,
     lastMemberSyncError: errorMessage,
-    nextMemberSyncAt: new Date(
-      now.getTime() + databaseRetryDelayMs(failedRunStreak, previousFailures)
-    ),
+    nextMemberSyncAt: new Date(now.getTime() + retryDelayMs),
     memberSyncConsecutiveFailures: previousFailures ?? 0,
     memberSyncLockToken: null,
     memberSyncLockLeaseAt: null,
@@ -368,6 +363,8 @@ export async function resolveMemberSyncFailureUpdate(
     previousFailures: number
     errorMessage: string
     retryAfterMs?: number
+    /** Whether the run completed a member or wrote documents before it failed. */
+    madeProgress: boolean
   }
 ) {
   const now = new Date()
@@ -387,7 +384,13 @@ export async function resolveMemberSyncFailureUpdate(
       now,
       failure.previousFailures,
       failure.errorMessage,
-      await countFailedRunStreak('member', failure.connectorId, failure.runId)
+      await resolveDatabaseRetryDelayMs({
+        kind: 'member',
+        connectorId: failure.connectorId,
+        runId: failure.runId,
+        previousFailures: failure.previousFailures,
+        madeProgress: failure.madeProgress,
+      })
     )
   }
   return buildMemberSyncFailureUpdate(
@@ -2499,6 +2502,7 @@ export async function executeMemberSync(
           previousFailures: connector.memberSyncConsecutiveFailures,
           errorMessage,
           retryAfterMs,
+          madeProgress: result.membersCompleted + result.docsAdded + result.docsUpdated > 0,
         })
         const written = await db
           .update(knowledgeConnector)

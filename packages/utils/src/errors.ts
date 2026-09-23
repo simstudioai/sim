@@ -116,9 +116,9 @@ const CONNECTION_EXCEPTION_SQLSTATE = /^08[0-9A-Z]{3}$/
  *
  * `57014` is both a statement timeout and an explicit cancellation, and only the message tells
  * them apart: an explicit cancellation was asked for, so it is `permanent`. A socket error such as
- * `ECONNRESET` is a database connection failure only when a query is in the chain (Drizzle's
- * wrapper and the driver's own error both carry the SQL); a file download or provider call raising
- * the same code is not the database's to retry.
+ * `ECONNRESET` is a database connection failure only when a database query error is in the chain
+ * (see {@link isDatabaseQueryError}); a file download or provider call raising the same code is
+ * not the database's to retry.
  */
 export function classifyDatabaseFailure(error: unknown): DatabaseFailureClass {
   const code = getPostgresErrorCode(error)
@@ -143,12 +143,30 @@ export function getTransientDatabaseFailure(
   return failureClass === 'permanent' ? undefined : failureClass
 }
 
+/**
+ * Whether a link is one of the two errors a failed database query produces:
+ *
+ * - Drizzle's `DrizzleQueryError`, which sets no `name` of its own, so it is matched by shape: the
+ *   SQL in `query`, bound values in a `params` array, and a message starting `Failed query: `.
+ * - A postgres.js error for a query in flight (a `PostgresError` or a connection error), onto which
+ *   the driver defines `query`, a `parameters` array, and `args`.
+ *
+ * A `query` string alone is not enough: an HTTP or GraphQL client error carrying its own `query`
+ * would otherwise exempt a source failure from the connector breaker.
+ */
+function isDatabaseQueryError(value: Error): boolean {
+  const candidate = value as Error & { query?: unknown; params?: unknown; parameters?: unknown }
+  if (typeof candidate.query !== 'string') return false
+  if (Array.isArray(candidate.params) && candidate.message.startsWith('Failed query: ')) return true
+  return Array.isArray(candidate.parameters) && 'args' in candidate
+}
+
 function carriesDatabaseQuery(error: unknown): boolean {
   const seen = new Set<unknown>()
   let current: unknown = error
   while (current instanceof Error && !seen.has(current) && seen.size < 10) {
     seen.add(current)
-    if ('query' in current && typeof current.query === 'string') return true
+    if (isDatabaseQueryError(current)) return true
     current = current.cause
   }
   return false

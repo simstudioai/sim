@@ -48,10 +48,7 @@ import {
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
-import {
-  countFailedRunStreak,
-  databaseRetryDelayMs,
-} from '@/lib/knowledge/connectors/sync-database-retry'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -726,20 +723,20 @@ export function buildSyncCapacityUpdate(
  * A slow database window says nothing about the connector, so, like throttling, it must not
  * consume the breaker that disables connectors after persistent failures: the counter keeps the
  * source failures already counted, and a later source failure is judged on those alone. The retry
- * still climbs the failure ladder by the run's failed-run streak (see
- * {@link countFailedRunStreak}), so a statement too heavy for its budget backs off to the ladder's
- * ceiling instead of re-crawling the source every half hour.
+ * still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
+ * made progress, and otherwise up the failure ladder, so a statement too heavy for its budget backs
+ * off to the ladder's ceiling instead of re-crawling the source every half hour.
  */
 export function buildSyncDatabaseRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
   errorMessage: string,
-  failedRunStreak: number
+  retryDelayMs: number
 ) {
   return {
     status: 'error' as const,
     lastSyncError: errorMessage,
-    nextSyncAt: new Date(now.getTime() + databaseRetryDelayMs(failedRunStreak, previousFailures)),
+    nextSyncAt: new Date(now.getTime() + retryDelayMs),
     consecutiveFailures: previousFailures ?? 0,
     syncLockToken: null,
     syncLockLeaseAt: null,
@@ -1578,7 +1575,13 @@ export async function executeSync(
                   new Date(),
                   connector.consecutiveFailures,
                   errorMessage,
-                  await countFailedRunStreak('content', connectorId, syncLogId)
+                  await resolveDatabaseRetryDelayMs({
+                    kind: 'content',
+                    connectorId,
+                    runId: syncLogId,
+                    previousFailures: connector.consecutiveFailures,
+                    madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
+                  })
                 )
               : rateLimited
                 ? buildSyncRateLimitUpdate(

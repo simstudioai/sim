@@ -1105,7 +1105,11 @@ describe('executeSync deferred hydration rate limits', () => {
 describe('executeSync database failures', () => {
   const NOW = new Date('2026-08-29T03:00:00.000Z')
 
-  async function failSyncWith(error: Error, consecutiveFailures?: number) {
+  async function failSyncWith(
+    error: Error,
+    consecutiveFailures?: number,
+    firstPage?: { documents: ExternalDocument[] }
+  ) {
     const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
     const connector = {
       id: 'c-1',
@@ -1132,6 +1136,21 @@ describe('executeSync database failures', () => {
     for (let i = 0; i < 5; i++) queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     for (let i = 0; i < 4; i++) queueTableRows(schemaMock.document, [])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }]).mockResolvedValueOnce([connector])
+    if (firstPage) {
+      mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
+        key: customKey,
+        path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+      }))
+      mockProcessDocumentsWithQueue.mockImplementation(async (documents: unknown[]) => ({
+        accepted: documents.length,
+        failed: 0,
+      }))
+      mockListDocuments.mockResolvedValueOnce({
+        documents: firstPage.documents,
+        hasMore: true,
+        nextCursor: 'page-2',
+      })
+    }
     mockListDocuments.mockRejectedValueOnce(error)
 
     const result = await executeSync('c-1', {
@@ -1188,6 +1207,31 @@ describe('executeSync database failures', () => {
     const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
     expect(delay).toBeGreaterThanOrEqual(90 * 60 * 1000)
     expect(delay).toBeLessThanOrEqual(91 * 60 * 1000)
+    expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
+  })
+
+  it('retries within minutes after a run that added documents before the database failed', async () => {
+    const timeout = new DrizzleQueryError(
+      'select private SQL',
+      ['private'],
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    const { result, terminal } = await failSyncWith(timeout, 0, {
+      documents: [
+        {
+          externalId: 'external-1',
+          title: 'Document 1',
+          content: 'hydrated',
+          contentHash: 'hash-1',
+          mimeType: 'text/plain',
+          metadata: { size: 8 },
+        },
+      ],
+    })
+
+    expect(result.docsAdded).toBeGreaterThan(0)
+    const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
+    expect(delay).toBeLessThanOrEqual(5 * 60 * 1000)
     expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
   })
 
@@ -2137,16 +2181,12 @@ describe('buildSyncDatabaseRetryUpdate', () => {
     })
   })
 
-  it('climbs the failure ladder with the failed-run streak, up to its ceiling', async () => {
+  it('schedules the next run after the resolved retry delay', async () => {
     const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
 
-    const at = (streak: number) =>
-      buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', streak).nextSyncAt.getTime()
-    expect(at(1)).toBeGreaterThanOrEqual(minutesAfter(30))
-    expect(at(1)).toBeLessThanOrEqual(minutesAfter(31))
-    expect(at(10)).toBeGreaterThanOrEqual(minutesAfter(300))
-    expect(at(10)).toBeLessThanOrEqual(minutesAfter(301))
-    expect(at(500)).toBeLessThanOrEqual(minutesAfter(24 * 60 + 1))
+    expect(buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', 90 * 60 * 1000).nextSyncAt).toEqual(
+      new Date(minutesAfter(90))
+    )
   })
 
   it('leaves a later source failure to be judged on source failures alone', async () => {
@@ -2155,12 +2195,12 @@ describe('buildSyncDatabaseRetryUpdate', () => {
     )
 
     let failures = 1
-    for (let streak = 2; streak <= 30; streak++) {
+    for (let run = 0; run < 30; run++) {
       failures = buildSyncDatabaseRetryUpdate(
         now,
         failures,
         'db timeout',
-        streak
+        30 * 60 * 1000
       ).consecutiveFailures
     }
     const sourceFailure = buildSyncFailureUpdate(now, failures, 'source broke')

@@ -278,14 +278,10 @@ describe('member sync engine decisions', () => {
       })
     })
 
-    it('climbs the failure ladder with the failed-run streak, up to its ceiling', () => {
-      const at = (streak: number) =>
-        buildMemberSyncDatabaseRetryUpdate(now, 0, 'db timeout', streak).nextMemberSyncAt.getTime()
-      expect(at(1)).toBeGreaterThanOrEqual(minutesAfter(30))
-      expect(at(1)).toBeLessThanOrEqual(minutesAfter(31))
-      expect(at(4)).toBeGreaterThanOrEqual(minutesAfter(120))
-      expect(at(4)).toBeLessThanOrEqual(minutesAfter(121))
-      expect(at(500)).toBeLessThanOrEqual(minutesAfter(24 * 60 + 1))
+    it('schedules the next run after the resolved retry delay', () => {
+      expect(
+        buildMemberSyncDatabaseRetryUpdate(now, 0, 'db timeout', 120 * 60 * 1000).nextMemberSyncAt
+      ).toEqual(new Date(minutesAfter(120)))
     })
   })
 
@@ -299,13 +295,23 @@ describe('member sync engine decisions', () => {
       runId: 'run-1',
       previousFailures: MAX_CONSECUTIVE_FAILURES - 1,
       errorMessage: 'failed',
+      madeProgress: false,
     }
+    const run = (status: string, membersCompleted = 0) => ({
+      status,
+      membersCompleted,
+      docsAdded: 0,
+      docsUpdated: 0,
+    })
+    const deadlock = () =>
+      new DrizzleQueryError(
+        'update private SQL',
+        ['private'],
+        Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      )
 
     it('does not disable a connector one failure from the breaker over a database timeout', async () => {
-      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
-        { status: 'failed' },
-        { status: 'completed' },
-      ])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [run('failed'), run('completed')])
       const timeout = new DrizzleQueryError(
         'select private SQL',
         ['private'],
@@ -323,21 +329,27 @@ describe('member sync engine decisions', () => {
 
     it('reads the members-mode run log for the streak', async () => {
       queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
-        { status: 'failed' },
-        { status: 'failed' },
-        { status: 'completed' },
+        run('failed'),
+        run('failed'),
+        run('completed'),
       ])
-      const deadlock = new DrizzleQueryError(
-        'update private SQL',
-        ['private'],
-        Object.assign(new Error('deadlock detected'), { code: '40P01' })
-      )
       const before = Date.now()
-      const update = await resolveMemberSyncFailureUpdate(deadlock, {
+      const update = await resolveMemberSyncFailureUpdate(deadlock(), {
         ...failure,
         previousFailures: 0,
       })
       expect(update.nextMemberSyncAt!.getTime() - before).toBeGreaterThanOrEqual(90 * 60 * 1000)
+    })
+
+    it('retries within minutes after a run that completed members before the database failed', async () => {
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [run('failed'), run('failed')])
+      const before = Date.now()
+      const update = await resolveMemberSyncFailureUpdate(deadlock(), {
+        ...failure,
+        madeProgress: true,
+      })
+      expect(update.nextMemberSyncAt!.getTime() - before).toBeLessThanOrEqual(5 * 60 * 1000)
+      expect(update.memberSyncConsecutiveFailures).toBe(MAX_CONSECUTIVE_FAILURES - 1)
     })
 
     it('still disables at the breaker for a failure the database did not cause', async () => {

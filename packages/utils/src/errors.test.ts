@@ -140,12 +140,35 @@ describe('classifyDatabaseFailure', () => {
     )
   })
 
-  it('counts a socket error the driver raised with its query attached', () => {
-    const driver = Object.assign(new Error('read ECONNRESET'), {
-      code: 'ECONNRESET',
-      query: 'private SQL',
+  /** The properties postgres.js defines on an error for a query in flight, non-enumerable. */
+  function withDriverQuery(error: Error): Error {
+    return Object.defineProperties(error, {
+      query: { value: 'private SQL', enumerable: false },
+      parameters: { value: ['private'], enumerable: false },
+      args: { value: ['private'], enumerable: false },
+      types: { value: undefined, enumerable: false },
     })
+  }
+
+  it('counts a socket error the driver raised with its query attached', () => {
+    const driver = withDriverQuery(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
     expect(classifyDatabaseFailure(driver)).toBe('connection')
+  })
+
+  it.each([
+    [
+      'a GraphQL client error with its query and variables',
+      { query: 'query Items { items { id } }', variables: { first: 50 } },
+    ],
+    ['a query string beside a params array', { query: 'items', params: ['page'] }],
+    ['a query string beside a parameters array', { query: 'items', parameters: ['page'] }],
+  ])('treats a socket error under %s as permanent', (_label, fields) => {
+    const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    const client = Object.assign(new Error('Request failed'), { ...fields, cause: reset })
+    expect(classifyDatabaseFailure(client)).toBe('permanent')
+    expect(getTransientDatabaseFailure(client)).toBeUndefined()
   })
 
   it('treats failures without a code as permanent', () => {
