@@ -17,8 +17,16 @@ import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
-import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
-import { CREDENTIAL_REVOKED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  buildSyncDatabaseRetryUpdate,
+  buildSyncFailureUpdate,
+  executeSync,
+  isConnectorRunnableStatus,
+} from '@/lib/knowledge/connectors/sync-engine'
+import {
+  CREDENTIAL_REVOKED_SYNC_ERROR,
+  MAX_CONSECUTIVE_FAILURES,
+} from '@/lib/knowledge/connectors/sync-limits'
 import {
   classifySuspectListing,
   evaluateListingSafety,
@@ -1110,7 +1118,6 @@ describe('executeSync database failures', () => {
     consecutiveFailures?: number,
     firstPage?: { documents: ExternalDocument[] }
   ) {
-    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
     const connector = {
       id: 'c-1',
       knowledgeBaseId: 'kb-1',
@@ -2167,9 +2174,6 @@ describe('buildSyncDatabaseRetryUpdate', () => {
   const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
   it('keeps the error visible without advancing the auto-disable counter', async () => {
-    const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
-
     const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
     expect(update).toMatchObject({
       status: 'error',
@@ -2182,18 +2186,12 @@ describe('buildSyncDatabaseRetryUpdate', () => {
   })
 
   it('schedules the next run after the resolved retry delay', async () => {
-    const { buildSyncDatabaseRetryUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
     expect(buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', 90 * 60 * 1000).nextSyncAt).toEqual(
       new Date(minutesAfter(90))
     )
   })
 
   it('leaves a later source failure to be judged on source failures alone', async () => {
-    const { buildSyncDatabaseRetryUpdate, buildSyncFailureUpdate } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
-    )
-
     let failures = 1
     for (let run = 0; run < 30; run++) {
       failures = buildSyncDatabaseRetryUpdate(
