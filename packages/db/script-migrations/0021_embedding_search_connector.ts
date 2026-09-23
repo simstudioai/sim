@@ -1,58 +1,23 @@
-import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
-import { backoffWithJitter } from '@sim/utils/retry'
+import { SYNCHRONOUS_PROJECTION_WHEN } from '@sim/db/knowledge-projection'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
-
-const logger = createLogger('ProjectionSourceAcl')
-
-/**
- * Chunks filled per page. Every write to `embedding_search` re-inserts the row into each of its
- * HNSW indexes, so a page's cost is index maintenance rather than the plan, and a small page keeps
- * each transaction short and its locks brief.
- */
-export const PROJECTION_SOURCE_ACL_PAGE_SIZE = 100
-
-/** Pause between pages, so the backfill shares the database with the search it serves. */
-export const PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS = 250
-
-/**
- * Longest a page may run before the database cancels it; the page is then retried in place. A
- * caller that bounds a run leaves at least this much headroom after its budget, plus the longest
- * retry pause, since the budget is checked between pages and the page in flight runs to this limit.
- */
-export const PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS = 60_000
-
-/**
- * How many times in a row one page may time out before the run fails. Index maintenance was
- * observed holding the page for several minutes; with the pauses below a page waits roughly
- * twelve minutes, about fourteen at the jitter's worst, so the budget covers one such pass.
- */
-export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 12
-
-/** Pause before a page is retried: 10 s, doubling to a 60 s base with up to 20% jitter (about 72 s). */
-const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
-
-/** Pages between progress log lines. */
-const PROGRESS_EVERY_PAGES = 100
 
 /** The projections that carry their document's source and ACL. */
 export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
 
 /**
- * The document trigger's body: fans a document's source and ACL out to its enabled chunks.
+ * The document trigger's fan-out: copies a document's source and ACL onto its enabled chunks.
  *
- * A chunk the backfill has not filled yet (`acl IS NULL`) keeps a NULL ACL. Search decides such a
- * row on its document, so writing the ACL there changes no answer, while every write to
+ * A chunk the source and ACL fill has not reached (`acl IS NULL`) keeps a NULL ACL. Search decides
+ * such a row on its document, so writing the ACL there changes no answer, while every write to
  * `embedding_search` re-inserts the row into its vector index: a document whose ACL changed would
- * otherwise rewrite each of its unfilled chunks inside the writer's statement. The backfill fills
- * the row later from the document under a share lock, so it copies whichever ACL is current. A
- * document that moves to another source still carries the source onto its unfilled chunks, because
- * source filters read it from the row; an ACL change alone leaves them untouched.
+ * otherwise rewrite each of its unfilled chunks inside the writer's statement. A document that
+ * moves to another source still carries the source onto its unfilled chunks, because source
+ * filters read it from the row; an ACL change alone leaves them untouched. Expects `moved` in scope.
  */
-export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql): Promise<void> {
-  const fanOut = (projection: ProjectionSourceAclTable) => `
+export function projectionSourceAclFanOut(): string {
+  return PROJECTION_SOURCE_ACL_TABLES.map(
+    (projection) => `
       UPDATE ${projection}
       SET connector_id = NEW.connector_id, acl = CASE WHEN acl IS NULL THEN NULL ELSE NEW.acl END
       WHERE document_id = NEW.id AND enabled
@@ -60,14 +25,36 @@ export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql):
           THEN moved AND connector_id IS DISTINCT FROM NEW.connector_id
           ELSE connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl
         END;`
+  ).join('')
+}
+
+/**
+ * The document trigger's body as `0022` and `0023` install it: the fan-out alone. It depends on no
+ * object a later migration creates, so every migration up to `0023` runs, and every write between
+ * them succeeds, on its own. `0024_knowledge_projection_async` replaces it with the body that also
+ * marks the document for the knowledge projector.
+ */
+export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql): Promise<void> {
   await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
     RETURNS trigger LANGUAGE plpgsql AS $$
     DECLARE
       moved boolean := TG_OP = 'UPDATE' AND OLD.connector_id IS DISTINCT FROM NEW.connector_id;
-    BEGIN${PROJECTION_SOURCE_ACL_TABLES.map(fanOut).join('')}
+    BEGIN${projectionSourceAclFanOut()}
       RETURN NEW;
     END;
     $$`)
+}
+
+/**
+ * The projection triggers that copy a chunk's source and ACL from its document on every write,
+ * skipped in the asynchronous mode, where the projector writes both itself.
+ */
+export async function installProjectionSourceAclSetTriggers(tx: TransactionSql): Promise<void> {
+  for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
+    await tx.unsafe(`CREATE OR REPLACE TRIGGER ${projection}_source_acl_set
+      BEFORE INSERT OR UPDATE OF document_id, enabled ON ${projection}
+      FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN}) EXECUTE FUNCTION set_projection_source_acl()`)
+  }
 }
 
 /**
@@ -98,11 +85,7 @@ export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
         RETURN NEW;
       END;
       $$`)
-    for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
-      await tx.unsafe(`CREATE OR REPLACE TRIGGER ${projection}_source_acl_set
-        BEFORE INSERT OR UPDATE OF document_id, enabled ON ${projection}
-        FOR EACH ROW EXECUTE FUNCTION set_projection_source_acl()`)
-    }
+    await installProjectionSourceAclSetTriggers(tx)
     /** The earlier shape of this migration, where the source alone was carried, and only on vectors. */
     await tx.unsafe('DROP TRIGGER IF EXISTS embedding_search_connector_sync ON document')
     await tx.unsafe('DROP TRIGGER IF EXISTS embedding_search_connector_set ON embedding_search')
@@ -111,187 +94,17 @@ export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
   })
 }
 
-export interface ProjectionSourceAclBackfillOptions {
-  /** Resume after this chunk id; the projection's first page otherwise. */
-  afterId?: string
-  /** Stop before this chunk id; the projection's end otherwise. Lets workers fill disjoint ranges. */
-  beforeId?: string
-  pageSize?: number
-  pauseMs?: number
-  /** Stop once this much time has passed and report where to resume; unbounded otherwise. */
-  budgetMs?: number
-}
-
-export interface ProjectionSourceAclBackfillProgress {
-  projection: ProjectionSourceAclTable
-  /** Unfilled chunks this run read, including any a concurrent write filled first. */
-  scanned: number
-  written: number
-  /** The last chunk id this run reached; the next run resumes after it while `done` is false. */
-  afterId: string
-  done: boolean
-}
-
-/**
- * Fills a projection's source and ACL for chunks written before the trigger existed, in
- * independently committed keyset pages of unfilled rows. Each page is one statement that bounds
- * its own locking and runtime and writes only rows still unset, so an interrupted run resumes by
- * rerunning and a row the trigger has since written is left alone. The documents are share-locked
- * before their values are copied, so a change in flight waits for the page and then fans its own
- * values out; and a chunk that moved to another document meanwhile is left to that document's
- * trigger, since the write requires the document the values were read from.
- *
- * On `embedding_search` every filled row is re-inserted into each HNSW index, which is the whole
- * cost of a page and far more than a deploy can wait for; the run paces itself with a pause between
- * pages and stops at its budget so a background task can chain runs until the projection is filled.
- * Search does not wait: an unfilled row is decided on its document by the on-row candidate
- * predicate, the join per candidate every row paid before the columns existed. A run fills the
- * range it was given and reports that range done; whether the projection as a whole is done, and
- * the analysis the planner then needs, is the caller's, since several runs may share a projection.
- *
- * A page the database cancels — on a lock timeout, because the keyword index's background
- * maintenance holds the index page the row's write needs, or on a statement timeout — is retried
- * in place after a pause, up to {@link PROJECTION_SOURCE_ACL_PAGE_RETRIES} times in a row, and
- * the cursor stays on the last page that committed. A retry from the run's original cursor would
- * instead walk every row the run had filled, past the index entries those writes left behind,
- * into a statement timeout of its own; and the maintenance that cancelled the page outlasts the
- * few attempts a run gets, so the fill would end where it stalled. A page that is still failing
- * when the budget runs out is left to the continuation rather than retried past it.
- */
-export async function backfillProjectionSourceAcl(
-  sql: Sql,
-  projection: ProjectionSourceAclTable,
-  options: ProjectionSourceAclBackfillOptions = {}
-): Promise<ProjectionSourceAclBackfillProgress> {
-  const pageSize = options.pageSize ?? PROJECTION_SOURCE_ACL_PAGE_SIZE
-  const pauseMs = options.pauseMs ?? PROJECTION_SOURCE_ACL_PAGE_PAUSE_MS
-  /**
-   * The page size is interpolated into the statement and a page of nothing would report the
-   * projection filled; a payload that asks for either is refused rather than quietly reshaped.
-   */
-  if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
-    throw new Error(`Projection backfill page size must be a positive integer, got ${pageSize}`)
-  }
-  if (!Number.isFinite(pauseMs) || pauseMs < 0) {
-    throw new Error(`Projection backfill pause must be a non-negative number, got ${pauseMs}`)
-  }
-  const startedAt = Date.now()
-  const deadline =
-    options.budgetMs === undefined ? Number.POSITIVE_INFINITY : startedAt + options.budgetMs
-  let afterId = options.afterId ?? ''
-  const beforeId = options.beforeId ?? null
-  let scanned = 0
-  let written = 0
-  let pages = 0
-  let done = false
-  /** Timeouts in a row on the page after `afterId`; reset once it commits. */
-  let timeouts = 0
-  for (;;) {
-    let page: { scanned: number; filled: number; last_id: string | null }
-    try {
-      page = await sql.begin(async (tx) => {
-        await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-        await tx.unsafe(`SET LOCAL statement_timeout = ${PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}`)
-        const [row] = await tx.unsafe<
-          Array<{ scanned: number; filled: number; last_id: string | null }>
-        >(
-          `WITH page AS (
-            SELECT s.id, s.document_id, d.connector_id, d.acl
-            FROM ${projection} s JOIN document d ON d.id = s.document_id
-            WHERE s.id > $1 AND ($2::text IS NULL OR s.id < $2) AND s.acl IS NULL
-            ORDER BY s.id LIMIT ${pageSize}
-            FOR SHARE OF d
-          ), updated AS (
-            UPDATE ${projection} s SET connector_id = page.connector_id, acl = page.acl
-            FROM page
-            WHERE s.id = page.id AND s.document_id = page.document_id AND s.acl IS NULL
-            RETURNING s.id
-          )
-          SELECT (SELECT count(*)::int FROM page) AS scanned,
-            (SELECT count(*)::int FROM updated) AS filled,
-            (SELECT max(id) FROM page) AS last_id`,
-          [afterId, beforeId]
-        )
-        return row
-      })
-    } catch (error) {
-      /**
-       * The page is cancelled on `lock_timeout` (55P03) while its index write waits on a lock the
-       * index's background maintenance holds, and on `statement_timeout` (57014) when it runs past
-       * {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}; both pass once the maintenance moves on. A
-       * deadlock, a serialization failure, or a dropped connection rolls the page back the same
-       * way, and a page only fills rows still unset, so all are retried in place. 57014 is also
-       * what an explicit cancellation raises, and that is not retried.
-       */
-      const failure = getTransientDatabaseFailure(error)
-      if (!failure) throw error
-      const code = getPostgresErrorCode(error)
-      timeouts += 1
-      if (timeouts > PROJECTION_SOURCE_ACL_PAGE_RETRIES) throw error
-      if (Date.now() >= deadline) break
-      const pauseMs = backoffWithJitter(timeouts, null, PAGE_RETRY_PAUSE)
-      logger.warn('Projection source and ACL backfill page failed transiently; retrying', {
-        projection,
-        afterId,
-        failure,
-        code,
-        attempt: timeouts,
-        retryInMs: Math.round(pauseMs),
-      })
-      await sleep(pauseMs)
-      /** Checked again after the pause, so a timeout at the budget cannot start another page. */
-      if (Date.now() >= deadline) break
-      continue
-    }
-    timeouts = 0
-    if (page.last_id === null) {
-      done = true
-      break
-    }
-    afterId = page.last_id
-    scanned += page.scanned
-    written += page.filled
-    pages += 1
-    if (pages % PROGRESS_EVERY_PAGES === 0) {
-      logger.info('Projection source and ACL backfill progress', {
-        projection,
-        scanned,
-        written,
-        afterId,
-        elapsedMs: Date.now() - startedAt,
-      })
-    }
-    if (pauseMs > 0) await sleep(pauseMs)
-    /** Checked after the pause, so the pause cannot carry a run past its budget into another page. */
-    if (Date.now() >= deadline) break
-  }
-  logger.info(
-    done
-      ? 'Projection source and ACL range backfilled'
-      : 'Projection source and ACL backfill paused',
-    {
-      projection,
-      beforeId,
-      scanned,
-      written,
-      afterId,
-      elapsedMs: Date.now() - startedAt,
-    }
-  )
-  return { projection, scanned, written, afterId, done }
-}
-
 /**
  * The indexes exact ranking of a readable set needs: the ACL index on each projection, and on the
  * vector projection the source index that lets the planner lead with a few sources when the
  * caller's tokens alone would match most of the index. Built concurrently, so the triggers and the
- * backfill keep writing. `CONCURRENTLY` cannot run in a transaction, and the pool's lock timeout
+ * projector keep writing. `CONCURRENTLY` cannot run in a transaction, and the pool's lock timeout
  * would cancel a build that merely waits for a long transaction to finish. The timeout is a
  * session setting, so one connection is reserved for it, the builds, and the reset — a pool
  * would otherwise hand the builds to connections that never saw the setting.
  *
- * The unfilled index on each projection lists the rows the backfill has not reached: each page
- * reads its rows from it instead of walking past every filled one, and the on-row predicate's
+ * The unfilled index on each projection lists the rows the fill has not reached: the projector's
+ * fill reads them from it instead of walking past every filled row, and the on-row predicate's
  * unfilled branch, an `OR` beside the ACL overlap, stays an index probe for the planner — once the
  * projection is filled, a probe of an empty index.
  */
@@ -330,20 +143,17 @@ export async function indexProjectionAcl(pool: Sql): Promise<void> {
 }
 
 /**
- * Run directly — `db:push`, or an operator filling a database by hand — the projections are filled
- * here, paced the same way, rather than left to the app. The registered migration is
- * `0022_projection_source_acl_backfill`, which supersedes this file's earlier, synchronous shape.
+ * Run directly — `db:push`, or an operator repairing a database by hand — the triggers and indexes
+ * are installed here; rows they have not filled are marked and filled by the knowledge projector.
+ * The registered migration is `0022_projection_source_acl_backfill`.
  */
 if (import.meta.main) {
   const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
-  if (!url) throw new Error('DATABASE_URL is required to backfill the projection source and ACL')
+  if (!url) throw new Error('DATABASE_URL is required to install the projection source and ACL')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
     await installProjectionSourceAcl(sql)
     await indexProjectionAcl(sql)
-    for (const projection of PROJECTION_SOURCE_ACL_TABLES) {
-      await backfillProjectionSourceAcl(sql, projection)
-    }
   } finally {
     await sql.end()
   }

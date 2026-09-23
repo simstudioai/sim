@@ -1,22 +1,35 @@
+import {
+  SEARCH_VECTOR_COLUMNS,
+  SYNCHRONOUS_PROJECTION_WHEN,
+  searchBinaryProjections,
+  searchVectorProjections,
+  searchVectorShortened,
+} from '@sim/db/knowledge-projection'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('SearchVectorProjection')
 const BATCH_SIZE = 500
-const WIDTHS = [1536, 384, 512, 768, 1024, 3072] as const
-const SOURCE_WIDTHS = [1536, 384, 768, 1024, 3072] as const
-const field = (name: string, width: number) => (width === 1536 ? name : `${name}_${width}`)
-const columns = WIDTHS.map((width) => field('vector', width))
+const columns = SEARCH_VECTOR_COLUMNS
 const missing = columns.map((column) => `s.${column} IS NULL`).join(' AND ')
 
-/** Shortening is valid only for the two OpenAI models trained for prefix retrieval. */
-function projections(prefix: string, shortened: string): string {
-  return WIDTHS.map((width) =>
-    width === 512
-      ? `CASE WHEN ${shortened} THEN subvector(coalesce(${SOURCE_WIDTHS.map((size) => `${prefix}.${field('embedding', size)}`).join(', ')}), 1, 512)::halfvec(512) END`
-      : `CASE WHEN NOT (${shortened}) THEN ${prefix}.${field('embedding', width)}::halfvec(${width}) END`
-  ).join(', ')
+/**
+ * The vector projection's trigger, skipped by a writer that declared the asynchronous projection
+ * mode; see `0024_knowledge_projection_async`.
+ */
+export async function installSearchVectorTrigger(tx: TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync
+    AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled,
+      embedding, embedding_384, embedding_768, embedding_1024, embedding_3072 ON embedding
+    FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN}) EXECUTE FUNCTION sync_embedding_search()`)
+}
+
+/** The keyword projection's trigger, skipped the same way as {@link installSearchVectorTrigger}. */
+export async function installSearchKeywordTrigger(tx: TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_search_sync
+    AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
+    FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN}) EXECUTE FUNCTION sync_embedding_keyword_search()`)
 }
 
 /** Replaces the projection atomically, then fills only missing rows in independently committed pages. */
@@ -33,16 +46,13 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
       RETURNS trigger LANGUAGE plpgsql AS $$
       DECLARE shortened boolean;
       BEGIN
-        SELECT embedding_model IN ('text-embedding-3-small', 'text-embedding-3-large')
-          AND NEW.embedding_384 IS NULL INTO STRICT shortened
+        SELECT ${searchVectorShortened('embedding_model', 'NEW')} INTO STRICT shortened
         FROM knowledge_base WHERE id = NEW.knowledge_base_id;
         INSERT INTO embedding_search
           (id, knowledge_base_id, document_id, enabled,
             "binary", binary_384, binary_768, binary_1024, binary_3072, ${columns.join(', ')})
         VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
-          binary_quantize(NEW.embedding)::bit(1536), binary_quantize(NEW.embedding_384)::bit(384),
-          binary_quantize(NEW.embedding_768)::bit(768), binary_quantize(NEW.embedding_1024)::bit(1024),
-          binary_quantize(NEW.embedding_3072)::bit(3072), ${projections('NEW', 'shortened')})
+          ${searchBinaryProjections('NEW')}, ${searchVectorProjections('NEW', 'shortened')})
         ON CONFLICT (id) DO UPDATE SET
           knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
           enabled = EXCLUDED.enabled, "binary" = EXCLUDED."binary", binary_384 = EXCLUDED.binary_384,
@@ -52,10 +62,7 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
         RETURN NEW;
       END;
       $$`)
-    await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync
-      AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled,
-        embedding, embedding_384, embedding_768, embedding_1024, embedding_3072 ON embedding
-      FOR EACH ROW EXECUTE FUNCTION sync_embedding_search()`)
+    await installSearchVectorTrigger(tx)
   })
 
   let afterId = ''
@@ -77,8 +84,7 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
         ), batch AS MATERIALIZED (
           SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled,
             e.embedding, e.embedding_384, e.embedding_768, e.embedding_1024, e.embedding_3072,
-            k.embedding_model IN ('text-embedding-3-small', 'text-embedding-3-large')
-              AND e.embedding_384 IS NULL AS shortened
+            ${searchVectorShortened('k.embedding_model', 'e')} AS shortened
           FROM missing m INNER JOIN embedding e ON e.id = m.id
           INNER JOIN knowledge_base k ON k.id = e.knowledge_base_id
           ORDER BY e.id FOR KEY SHARE OF e
@@ -87,9 +93,7 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
             (id, knowledge_base_id, document_id, enabled,
               "binary", binary_384, binary_768, binary_1024, binary_3072, ${columns.join(', ')})
           SELECT id, knowledge_base_id, document_id, enabled,
-            binary_quantize(embedding)::bit(1536), binary_quantize(embedding_384)::bit(384),
-            binary_quantize(embedding_768)::bit(768), binary_quantize(embedding_1024)::bit(1024),
-            binary_quantize(embedding_3072)::bit(3072), ${projections('batch', 'shortened')}
+            ${searchBinaryProjections('batch')}, ${searchVectorProjections('batch', 'shortened')}
           FROM batch ON CONFLICT (id) DO UPDATE SET
             ${columns.map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
           WHERE ${missing} RETURNING id
@@ -135,9 +139,7 @@ export async function backfillSearchKeywords(sql: Sql): Promise<number> {
         RETURN NEW;
       END;
       $$`)
-    await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_search_sync
-      AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
-      FOR EACH ROW EXECUTE FUNCTION sync_embedding_keyword_search()`)
+    await installSearchKeywordTrigger(tx)
   })
   let afterId = ''
   let count = 0
@@ -192,10 +194,10 @@ export async function buildSearchIndexes(sql: Sql): Promise<void> {
       table: 'embedding_search',
       definition: 'ON embedding_search (document_id, knowledge_base_id, id) WHERE enabled',
     },
-    ...WIDTHS.map((width) => ({
-      name: `embedding_search${width === 1536 ? '' : `_${width}`}_cosine_hnsw_idx`,
+    ...columns.map((column) => ({
+      name: `embedding_search${column.replace(/^vector/, '')}_cosine_hnsw_idx`,
       table: 'embedding_search',
-      definition: `ON embedding_search USING hnsw (${field('vector', width)} halfvec_cosine_ops) WITH (m=16, ef_construction=64)`,
+      definition: `ON embedding_search USING hnsw (${column} halfvec_cosine_ops) WITH (m=16, ef_construction=64)`,
     })),
     {
       name: 'embedding_keyword_search_kb_idx',

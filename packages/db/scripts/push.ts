@@ -11,6 +11,7 @@ export function pushCommands(flags: readonly string[]): string[][] {
     ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
     ['bun', '--env-file=.env', 'run', './script-migrations/0019_tin_keyword_projection.ts'],
     ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],
+    ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],
   ]
 }
 

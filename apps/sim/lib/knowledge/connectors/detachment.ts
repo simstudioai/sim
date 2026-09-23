@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { PROJECTION_ROW_BATCH_SIZE } from '@sim/db/knowledge-projection'
 import {
   document,
   embeddingKeywordTin,
@@ -24,7 +25,6 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { removeDrainedConnector } from '@/lib/knowledge/connectors/deletion'
 import { revokeKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
-import { PROJECTION_ROW_BATCH_SIZE } from '@/lib/knowledge/connectors/sync-limits'
 
 export const KNOWLEDGE_CONNECTOR_DETACH_EVENT = 'knowledge.connector.detach'
 const DOCUMENT_BATCH_SIZE = 100

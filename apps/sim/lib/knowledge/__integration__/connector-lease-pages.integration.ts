@@ -18,6 +18,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { installKnowledgeProjectionAsync } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,6 +39,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
+import { PROJECTION_ROW_BATCH_SIZE } from '@sim/db/knowledge-projection'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
@@ -59,7 +61,6 @@ import {
   resumeMembershipRewrites,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
-import { PROJECTION_ROW_BATCH_SIZE } from '@/lib/knowledge/connectors/sync-limits'
 import {
   createMemberSyncLease,
   type LeaseTransaction,
@@ -276,6 +277,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     /** The production document trigger under test, whatever an earlier suite left installed. */
     beforeAll(async () => {
       await installProjectionSourceAcl(db.$client)
+      await installKnowledgeProjectionAsync(db.$client)
     })
 
     /** Real chunks: the installed triggers create each chunk's search and keyword projection rows. */

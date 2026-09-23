@@ -105,6 +105,23 @@ const FEATURE_FLAGS = {
       'invalid. Off-AppConfig falls back to KNOWLEDGE_TIN_KEYWORD.',
     fallback: 'KNOWLEDGE_TIN_KEYWORD',
   },
+  'knowledge-async-projection': {
+    description:
+      'Knowledge writers (document processing and connector ACL writes) leave search projection ' +
+      'rows to the background knowledge projector instead of rewriting them in their own ' +
+      'transaction. Global on/off only; turn it on only once no release older than the ' +
+      'projector serves search. Off-AppConfig falls back to KNOWLEDGE_ASYNC_PROJECTION.',
+    fallback: 'KNOWLEDGE_ASYNC_PROJECTION',
+  },
+  'knowledge-projection-fill': {
+    description:
+      'The knowledge projector also fills search projection rows written before they carried ' +
+      "their document's source and ACL, marking at most 100 documents at once so fresh writes " +
+      'never wait behind much of it. Global on/off only; off pauses the fill, and search keeps ' +
+      'deciding unfilled rows on their document. Off-AppConfig falls back to ' +
+      'KNOWLEDGE_PROJECTION_FILL.',
+    fallback: 'KNOWLEDGE_PROJECTION_FILL',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

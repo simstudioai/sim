@@ -282,6 +282,8 @@ jobs:
           lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/knowledge/__integration__/gitlab-workspace.integration.ts
           lib/knowledge/__integration__/unfilled-projection-source.integration.ts
+          lib/knowledge/__integration__/knowledge-projection.integration.ts
+          lib/knowledge/__integration__/async-projection-processing.integration.ts
           lib/knowledge/__integration__/purged-detach-reservation.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts

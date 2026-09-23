@@ -1,12 +1,15 @@
 import { db } from '@sim/db'
+import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import { knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   LEASE_PAGE_LOCK_TIMEOUT_MS,
   LEASE_PAGE_STATEMENT_TIMEOUT_MS,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 
 /**
  * Raised when a run discovers mid-flight that it no longer holds its sync lock.
@@ -241,21 +244,36 @@ export async function assertSyncLeaseHeldInTx(
 }
 
 /**
- * The bounds of a connector-lease ACL page. The `document` ACL trigger rewrites every filled
- * search projection row of a document whose ACL is assigned, so a page that waits on a lock or
- * runs long fails within the bounds and rolls back only itself.
+ * Runs `write` as one connector-lease ACL page: a short transaction of its own whose first
+ * statement sets its bounds, so a page that waits on a lock or runs long fails within them and
+ * rolls back only itself, and its projection mode. While `knowledge-async-projection` is on, the
+ * page's ACL writes only mark their documents and the knowledge projector rewrites their search
+ * projection rows; off, the `document` ACL trigger still rewrites every filled row in the page's
+ * own statement, which is what the row-bounded paging of these pages exists for. The flag is read
+ * before the transaction opens, and a projector pass is requested once it commits. Every page that
+ * assigns a connector document's ACL runs here, so this is the one place those writers choose the
+ * mode.
  */
-export async function boundLeaseTransaction(tx: Pick<DbOrTx, 'execute'>): Promise<void> {
-  await tx.execute(
-    sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)`
-  )
+export async function aclPageTransaction<T>(
+  write: (tx: DbOrTx) => Promise<T>,
+  executor: Pick<typeof db, 'transaction'> = db
+): Promise<T> {
+  const deferProjection = await isFeatureEnabled('knowledge-async-projection')
+  const written = await executor.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)${deferProjection ? sql.raw(`, ${DEFER_KNOWLEDGE_PROJECTION}`) : sql``}`
+    )
+    return write(tx)
+  })
+  await requestKnowledgeProjection()
+  return written
 }
 
 /** Runs one bounded page of writes in a short transaction of its own. */
 export type LeaseTransaction = <T>(write: (tx: DbOrTx) => Promise<T>) => Promise<T>
 
 /**
- * One short, bounded transaction per call that proves `lease` as its last statement, so a run
+ * One {@link aclPageTransaction} per call that proves `lease` as its last statement, so a run
  * that lost its lease writes nothing further: the proof fails and the page rolls back. Proving it
  * last keeps the connector row unlocked while the page waits on document rows, which a processing
  * commit may hold for its whole write, and the share lock it then takes keeps the reclaim from
@@ -268,12 +286,11 @@ export function leaseTransaction(
   executor: Pick<typeof db, 'transaction'> = db
 ): LeaseTransaction {
   return (write) =>
-    executor.transaction(async (tx) => {
-      await boundLeaseTransaction(tx)
+    aclPageTransaction(async (tx) => {
       const written = await write(tx)
       if (lease) await assertSyncLeaseHeldInTx(tx, connectorId, lease)
       return written
-    })
+    }, executor)
 }
 
 /**

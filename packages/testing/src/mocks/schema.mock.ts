@@ -1876,6 +1876,12 @@ export const schemaMock = {
     lastSeenAt: 'knowledgeDocumentObservation.lastSeenAt',
     runId: 'knowledgeDocumentObservation.runId',
   },
+  knowledgeProjectionDirty: {
+    documentId: 'knowledgeProjectionDirty.documentId',
+    generation: 'knowledgeProjectionDirty.generation',
+    content: 'knowledgeProjectionDirty.content',
+    markedAt: 'knowledgeProjectionDirty.markedAt',
+  },
   knowledgeConnectorMemberSyncLog: {
     id: 'knowledgeConnectorMemberSyncLog.id',
     connectorId: 'knowledgeConnectorMemberSyncLog.connectorId',
