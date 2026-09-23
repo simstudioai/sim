@@ -95,16 +95,6 @@ export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 export const DEFAULT_USAGE_PRESET = '30d' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
 
-/**
- * The Insights chart palette, declared on each chart's root so a layer, its legend
- * dot, and its tooltip swatch resolve to one color. Each hue is its source's color
- * elsewhere in the app — Sim green for Chat, the Enrichment block's purple, the
- * Knowledge block's teal, the agent violet — stepped to the lightness a filled mark
- * needs in each mode; badge text tokens are too pale in dark mode to fill a bar.
- */
-export const USAGE_PALETTE_CLASS =
-  '[--usage-chat:#1f9d63] [--usage-enrichment:#c026d3] [--usage-knowledge:#0e9f9f] [--usage-agent:#6f3dfa] [--usage-other:var(--text-secondary)] dark:[--usage-chat:#2dac72] dark:[--usage-enrichment:#d946ef] dark:[--usage-agent:#8b5cf6] dark:[--usage-other:#8a8a8a]'
-
 /** Sim Chat's color, shared by its credit layer and the chat-runs chart. */
 export const USAGE_CHAT_COLOR = 'var(--usage-chat)'
 

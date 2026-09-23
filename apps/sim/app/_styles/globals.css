@@ -742,6 +742,13 @@ html[data-sim-desktop-title-bar="inset"]
     --selection-muted: #1a5cf647;
     --warning: #ea580c;
 
+    /* Organization usage chart fills, shared by bars, legends, and tooltips. */
+    --usage-chat: #1f9d63;
+    --usage-enrichment: #c026d3;
+    --usage-knowledge: #0e9f9f;
+    --usage-agent: var(--brand-agent);
+    --usage-other: var(--text-secondary);
+
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
     --surface-inverted: #1b1b1b;
     --surface-inverted-hover: #363636;
@@ -904,6 +911,12 @@ html[data-sim-desktop-title-bar="inset"]
     --selection: #4b83f7;
     --selection-muted: #4b83f759;
     --warning: #ff6600;
+
+    /* Dark chart fills keep their existing contrast on dark surfaces. */
+    --usage-chat: var(--brand-accent-hover);
+    --usage-enrichment: #d946ef;
+    --usage-agent: var(--color-violet-500);
+    --usage-other: #8a8a8a;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
     --surface-inverted: #242424;

@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import type { OrganizationUsageOverview } from '@/lib/api/contracts/organization-usage'
 import {
-  USAGE_PALETTE_CLASS,
   USAGE_SOURCE_CATEGORIES,
   USAGE_SOURCE_CATEGORY,
   type UsageSourceCategoryId,
@@ -111,9 +110,7 @@ export function UsageCredits({
   const highlight = useLegendHighlight(legend.map((item) => item.id))
 
   return (
-    <div
-      className={cn('flex flex-col gap-4', USAGE_PALETTE_CLASS, isPlaceholderData && 'opacity-50')}
-    >
+    <div className={cn('flex flex-col gap-4', isPlaceholderData && 'opacity-50')}>
       <div className='flex flex-col gap-1.5'>
         <div className='flex h-7 items-baseline gap-2 whitespace-nowrap'>
           <span className='text-[var(--text-body)] text-lg tabular-nums'>
