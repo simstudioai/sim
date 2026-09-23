@@ -551,10 +551,13 @@ describe('writeProjectionPages', () => {
   })
 
   it('writes every page when no deadline is given', async () => {
+    /** Each page plans from an unlocked read, then locks and rereads only what it planned. */
     queueTableRows(schemaMock.document, [
       { id: 'a', chunkCount: 200 },
       { id: 'b', chunkCount: 200 },
     ])
+    queueTableRows(schemaMock.document, [{ id: 'a', chunkCount: 200 }])
+    queueTableRows(schemaMock.document, [{ id: 'b', chunkCount: 200 }])
     queueTableRows(schemaMock.document, [{ id: 'b', chunkCount: 200 }])
     const write = vi.fn(async (_tx: unknown, page: string[]) => page.length)
 

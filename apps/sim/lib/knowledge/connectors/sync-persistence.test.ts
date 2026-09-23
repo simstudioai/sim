@@ -517,6 +517,19 @@ describe('revokeDocumentAcls', () => {
     expect(pages).toHaveBeenCalledTimes(4)
   })
 
+  /** A revocation runs to completion, so a long one keeps its lease alive between transactions. */
+  it('runs the heartbeat ahead of every transaction', async () => {
+    const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+    queueGranting(60, 10)
+    const beforePage = vi.fn(async () => {})
+
+    await revokeDocumentAcls(direct, ids, scope, { beforePage })
+
+    expect(beforePage).toHaveBeenCalledTimes(4)
+    for (const [index, order] of pages.mock.invocationCallOrder.entries())
+      expect(beforePage.mock.invocationCallOrder[index]).toBeLessThan(order)
+  })
+
   it('stops writing at the first page whose lease is gone', async () => {
     const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
     queueGranting(60, 10)

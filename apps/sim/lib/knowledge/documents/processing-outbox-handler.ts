@@ -1,5 +1,6 @@
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
   type OutboxHandler,
   type OutboxHandlerRegistry,
@@ -56,7 +57,6 @@ import {
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
 import {
   getKnowledgeDocument,
-  isTriggerAvailable,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,

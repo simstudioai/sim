@@ -79,11 +79,11 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: () => true,
   hardDeleteDocuments: vi.fn(),
   processDocumentsWithQueue: mocks.dispatch,
   ConnectorSyncDeletionGuardError: class extends Error {},
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     full_listing: {
@@ -758,6 +758,64 @@ describe('member engine with a dedicated content credential', () => {
     expect(result.error).toBeUndefined()
     expect(mocks.removeForDocuments).toHaveBeenCalledOnce()
     expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(new Set(['stored-file']))
+  })
+
+  it('advances the change cursor only after the ACLs a feed removal decides are written', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const cursorWrites = () =>
+      dbChainMockFns.set.mock.calls.filter(([values]) => values?.changeCursor === 'drained')
+    mocks.rematerialize.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+
+    expect((await run()).error).toBeDefined()
+    expect(mocks.rematerialize).toHaveBeenCalledOnce()
+    expect(cursorWrites()).toEqual([])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
+    )
+
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    const retry = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    /** The first attempt already committed the observation removal, so the replay removes nothing. */
+    mocks.removeForDocuments.mockResolvedValue([])
+
+    expect((await retry()).error).toBeUndefined()
+    expect(mocks.rematerialize).toHaveBeenCalledWith(
+      'connector',
+      new Set(['stored-file']),
+      expect.any(Function),
+      expect.any(Function)
+    )
+    expect(cursorWrites()).toHaveLength(1)
+    expect(mocks.rematerialize.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.findIndex(([values]) => values?.changeCursor === 'drained')
+      ]
+    )
   })
 
   it('fully lists scopes whose ancestor moves cannot be represented by the change feed', async () => {

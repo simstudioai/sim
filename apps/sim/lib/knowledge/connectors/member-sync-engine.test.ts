@@ -323,6 +323,7 @@ describe('member sync engine decisions', () => {
     }
     const run = (status: string, membersCompleted = 0) => ({
       status,
+      databaseFailureClass: status === 'failed' ? 'conflict' : null,
       membersCompleted,
       docsAdded: 0,
       docsUpdated: 0,

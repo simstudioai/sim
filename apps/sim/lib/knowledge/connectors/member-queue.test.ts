@@ -28,7 +28,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@trigger.dev/sdk', () => ({

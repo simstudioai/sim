@@ -14,6 +14,7 @@ import {
   resolveSystemOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
@@ -27,7 +28,6 @@ import {
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
   RUNNABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
-import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorMemberSyncQueue')
 

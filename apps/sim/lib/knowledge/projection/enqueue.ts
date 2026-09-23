@@ -3,10 +3,8 @@ import { SOURCE_ACL_PROJECTIONS } from '@sim/db/knowledge-projection'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
-import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 
 const logger = createLogger('KnowledgeProjectionEnqueue')
 
@@ -69,15 +67,6 @@ function runInline(): void {
 }
 
 /**
- * Whether passes run on Trigger.dev, by the rule document processing dispatches with: inside a
- * Trigger.dev run always, and otherwise only where Trigger.dev is enabled and the secret key the
- * SDK authenticates with is set.
- */
-function projectsOnTrigger(): boolean {
-  return isInsideTriggerRun() || Boolean(isTriggerDevEnabled && env.TRIGGER_SECRET_KEY)
-}
-
-/**
  * Asks for a projector pass soon after a knowledge write commits, so its marked documents are
  * converged within seconds rather than at the next sweep. Debounced twice: in this process, and
  * across processes by the task's debounce key. Without a Trigger.dev worker the pass runs in this
@@ -85,7 +74,7 @@ function projectsOnTrigger(): boolean {
  * leaves the marks to the sweep, which keeps enqueueing a pass every minute until one runs.
  */
 export async function requestKnowledgeProjection(): Promise<void> {
-  if (!projectsOnTrigger()) {
+  if (!isTriggerAvailable()) {
     runInline()
     return
   }
@@ -140,7 +129,7 @@ export async function enqueueKnowledgeProjectionSweep(): Promise<KnowledgeProjec
   if (!(await hasKnowledgeProjectionWork())) {
     return { triggered: false, backend: null, jobId: null }
   }
-  if (!projectsOnTrigger()) {
+  if (!isTriggerAvailable()) {
     runInline()
     return { triggered: true, backend: 'inline', jobId: null }
   }

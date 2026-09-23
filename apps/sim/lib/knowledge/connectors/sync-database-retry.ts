@@ -46,8 +46,18 @@ export const RUN_HISTORY_LOCK_TIMEOUT_MS = 500
 export type SyncRunLogKind = 'content' | 'member'
 
 interface LoggedRun {
-  status: string
+  /** Whether the run failed on the database: logged `failed` with a database failure class. */
+  failedOnDatabase: boolean
   progressed: boolean
+}
+
+/**
+ * A run the database failed. Only a `failed` row carrying a database failure class counts: a
+ * provider, throttling, or capacity failure is not the database's, and a row logged before the
+ * class was recorded reads as not the database's either, which only shortens the streak.
+ */
+function failedOnDatabase(row: { status: string; databaseFailureClass: string | null }): boolean {
+  return row.status === 'failed' && row.databaseFailureClass !== null
 }
 
 /** Earlier runs of this connector, newest first, and whether each one moved the sync forward. */
@@ -63,6 +73,7 @@ async function readEarlierRuns(
     const rows = await tx
       .select({
         status: log.status,
+        databaseFailureClass: log.databaseFailureClass,
         docsAdded: log.docsAdded,
         docsUpdated: log.docsUpdated,
         docsDeleted: log.docsDeleted,
@@ -72,7 +83,7 @@ async function readEarlierRuns(
       .orderBy(desc(log.startedAt))
       .limit(limit)
     return rows.map((row) => ({
-      status: row.status,
+      failedOnDatabase: failedOnDatabase(row),
       progressed: row.docsAdded + row.docsUpdated + row.docsDeleted > 0,
     }))
   }
@@ -80,6 +91,7 @@ async function readEarlierRuns(
   const rows = await tx
     .select({
       status: log.status,
+      databaseFailureClass: log.databaseFailureClass,
       membersCompleted: log.membersCompleted,
       docsAdded: log.docsAdded,
       docsUpdated: log.docsUpdated,
@@ -90,15 +102,15 @@ async function readEarlierRuns(
     .orderBy(desc(log.startedAt))
     .limit(limit)
   return rows.map((row) => ({
-    status: row.status,
+    failedOnDatabase: failedOnDatabase(row),
     progressed: row.membersCompleted + row.docsAdded + row.docsUpdated + row.docsPurged > 0,
   }))
 }
 
 /**
- * How many runs in a row, ending with `runId`, have failed without moving the sync forward: the
- * run itself plus every such run before it, back to the last run that succeeded or made progress,
- * bounded by the ladder's ceiling.
+ * How many runs in a row, ending with `runId`, the database has failed without the sync moving
+ * forward: the run itself plus every such run before it, back to the last run that succeeded, made
+ * progress, or failed for any other reason, bounded by the ladder's ceiling.
  *
  * A database failure never advances the connector's failure counter, so that a slow database
  * cannot spend the breaker that disables connectors for persistent source failures. The run log
@@ -122,7 +134,7 @@ export async function countZeroProgressFailedRuns(
       )
       return readEarlierRuns(tx, kind, connectorId, runId, LADDER_RUNGS - 1)
     })
-    const streakEnd = earlier.findIndex((run) => run.status !== 'failed' || run.progressed)
+    const streakEnd = earlier.findIndex((run) => !run.failedOnDatabase || run.progressed)
     return 1 + (streakEnd === -1 ? earlier.length : streakEnd)
   } catch (error) {
     logger.warn('Could not read the failed-run streak; backing off from this run alone', {

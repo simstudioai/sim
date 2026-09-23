@@ -11,6 +11,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
@@ -38,7 +39,7 @@ import {
 } from '@/lib/knowledge/documents/processing-recovery-queue'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import {
   type DocumentProcessingStatus,
   isDocumentProcessingStatus,

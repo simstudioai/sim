@@ -223,15 +223,19 @@ export async function persistDocumentAcls(
  * assignment of `acl`, changed or not, and each document costs a rewrite of its chunks'
  * projection rows. A document already readable by nobody only has leftover evidence cleared,
  * which fires no fan-out. Each batch is its own `transaction`, so a lease lost between batches
- * stops the rest and every committed batch stays revoked.
+ * stops the rest and every committed batch stays revoked. It runs to completion rather than to a
+ * deadline, because callers record the documents as revoked only once it returns; `beforePage`
+ * runs ahead of every transaction, for the lease heartbeat.
  */
 export async function revokeDocumentAcls(
   transaction: LeaseTransaction,
   ids: string[],
-  target: (batch: string[]) => SQL | undefined
+  target: (batch: string[]) => SQL | undefined,
+  options: { beforePage?: () => Promise<void> } = {}
 ): Promise<void> {
   const grants = sql`cardinality(${document.acl}) > 0`
   for (const window of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
+    await options.beforePage?.()
     const granting = await transaction(async (tx) => {
       await tx
         .update(document)
@@ -249,13 +253,18 @@ export async function revokeDocumentAcls(
         .where(and(target(window), grants))
     })
     for (const page of pagesByProjectionRows(granting)) {
-      await writeProjectionPages(page, transaction, async (tx, locked) => {
-        await tx
-          .update(document)
-          .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-          .where(and(target(window), inArray(document.id, locked), grants))
-        return 0
-      })
+      await writeProjectionPages(
+        page,
+        transaction,
+        async (tx, locked) => {
+          await tx
+            .update(document)
+            .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+            .where(and(target(window), inArray(document.id, locked), grants))
+          return 0
+        },
+        { beforePage: options.beforePage }
+      )
     }
   }
 }

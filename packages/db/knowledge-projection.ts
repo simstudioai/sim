@@ -482,10 +482,14 @@ export const FILL_MARK_CEILING = 100
  * fills them as it converges any other document. Rows are read off each projection's unfilled
  * index after `afterId`, and only while fewer than {@link FILL_MARK_CEILING} marks are outstanding;
  * a row whose document is gone is passed over. Documents are taken in the order of their first
- * row read, up to the room left under the ceiling, and the cursor moves only past rows whose
- * documents are now marked: when the room runs out, it stops before the first row of the first
- * document left unmarked, so the next call starts there. Returns how many documents were marked
- * and the id to continue after, or `null` once every projection's unfilled rows have been read.
+ * row read, up to the room left under the ceiling, and the cursor moves only past rows of the
+ * documents taken: when the room runs out, it stops before the first row of the first document
+ * left out, so the next call starts there. A taken document is marked only once its row is locked
+ * `FOR KEY SHARE`, so a deletion committing meanwhile can never fail the mark's foreign key; one
+ * whose row a deletion or another writer holds is skipped rather than waited on, since that writer
+ * removes or rewrites its rows itself, and the next pass reads whatever is still unfilled. Returns
+ * how many documents were marked and the id to continue after, or `null` once every projection's
+ * unfilled rows have been read.
  */
 export async function markUnfilledProjectionDocuments(
   sql: Sql,
@@ -507,12 +511,15 @@ export async function markUnfilledProjectionDocuments(
         GROUP BY u.document_id
       ), chosen AS MATERIALIZED (
         SELECT document_id, first_id FROM documents ORDER BY first_id LIMIT $2
+      ), locked AS MATERIALIZED (
+        SELECT d.id FROM document d WHERE d.id IN (SELECT document_id FROM chosen)
+        FOR KEY SHARE SKIP LOCKED
       ), held AS (
         SELECT min(first_id) AS first_id FROM documents
         WHERE document_id NOT IN (SELECT document_id FROM chosen)
       ), marked AS (
         INSERT INTO knowledge_projection_dirty (document_id)
-        SELECT document_id FROM chosen ORDER BY document_id
+        SELECT id FROM locked ORDER BY id
         ON CONFLICT (document_id) DO NOTHING RETURNING document_id
       ) SELECT (SELECT count(*)::int FROM marked) AS marked,
         (SELECT max(u.id) FROM unfilled u, held

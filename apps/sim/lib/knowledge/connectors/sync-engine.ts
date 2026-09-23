@@ -6,7 +6,12 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getTransientDatabaseFailure, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getTransientDatabaseFailure,
+  type TransientDatabaseFailureClass,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -230,6 +235,8 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
 interface CompleteSyncLogOptions {
   /** Recorded on the row when the run is being closed as `failed`. */
   errorMessage?: string
+  /** Recorded on a `failed` row when a transient database failure ended the run. */
+  databaseFailureClass?: TransientDatabaseFailureClass
   /**
    * Connector whose sync lock this run must still hold for the close to land.
    *
@@ -292,7 +299,7 @@ export async function completeSyncLog(
   result: SyncResult,
   options: CompleteSyncLogOptions = {}
 ): Promise<boolean> {
-  const { errorMessage, requireSyncLockOn } = options
+  const { errorMessage, databaseFailureClass, requireSyncLockOn } = options
 
   const closed = await db
     .update(knowledgeConnectorSyncLog)
@@ -300,6 +307,7 @@ export async function completeSyncLog(
       status,
       completedAt: new Date(),
       ...(errorMessage != null && { errorMessage }),
+      ...(databaseFailureClass && { databaseFailureClass }),
       docsAdded: result.docsAdded,
       docsUpdated: result.docsUpdated,
       docsDeleted: result.docsDeleted,
@@ -1611,10 +1619,14 @@ export async function executeSync(
       })
 
       try {
-        await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
-
         const databaseFailure =
-          !(error instanceof ConnectorSyncCapacityError) && getTransientDatabaseFailure(error)
+          error instanceof ConnectorSyncCapacityError
+            ? undefined
+            : getTransientDatabaseFailure(error)
+        await completeSyncLog(syncLogId, 'failed', result, {
+          errorMessage,
+          databaseFailureClass: databaseFailure,
+        })
         const failureUpdate =
           error instanceof ConnectorSyncCapacityError
             ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)

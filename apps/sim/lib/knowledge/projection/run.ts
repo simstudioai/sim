@@ -51,7 +51,7 @@ export interface KnowledgeProjectionPassResult extends KnowledgeProjectionProgre
  * per-document advisory locks; a pass this long should not hold the pool's connections. Workers
  * read the same oldest marks and split them at those locks. A round ends when every worker found
  * nothing more it could take; the pass goes on while rounds settle documents, and `remaining`
- * reports marks it left, so the caller can schedule another.
+ * reports marks it left or a fill it did not finish, so the caller can schedule another.
  */
 export async function runKnowledgeProjectionPass(options: {
   budgetMs: number
@@ -114,6 +114,8 @@ export async function runKnowledgeProjectionPass(options: {
       if (fill.marked > 0) result.remaining = true
       if (fill.marked === 0 && fillCursor === null) break
     }
+    /** A fill stopped partway by the budget has rows left to read, so another pass is owed. */
+    if (fillCursor) result.remaining = true
     logger.info('Knowledge projection pass finished', result)
     return result
   } finally {
