@@ -260,7 +260,8 @@ describe('member document lifecycle in PostgreSQL', () => {
     const excluded = { ...row('excluded'), userExcluded: true, deletedAt }
     const archived = { ...row('archived'), archivedAt: new Date(), deletedAt }
     const noContent = { ...row('no-content'), contentHash: null, deletedAt }
-    await insertRows([...walked, excluded, archived, noContent])
+    await insertRows([...walked, excluded, archived])
+    await db.insert(document).values(noContent)
     await observe([...walked, excluded, archived, noContent].map(({ id }) => id))
     const walk = (stopAfterFirstPage: boolean) => {
       const lease = createMemberSyncLease(members.connectorId, members.runId)
