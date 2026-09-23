@@ -103,6 +103,7 @@ import {
   GitHubV2BlockMeta,
 } from '@/blocks/blocks/github'
 import { GitLabBlock, GitLabBlockMeta } from '@/blocks/blocks/gitlab'
+import { GlasserBlock, GlasserBlockMeta } from '@/blocks/blocks/glasser'
 import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/blocks/blocks/gmail'
 import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
@@ -490,6 +491,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   github: GitHubBlock,
   github_v2: GitHubV2Block,
   gitlab: GitLabBlock,
+  glasser: GlasserBlock,
   gmail: GmailBlock,
   gmail_v2: GmailV2Block,
   gong: GongBlock,
@@ -837,6 +839,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,
   gitlab: GitLabBlockMeta,
+  glasser: GlasserBlockMeta,
   gmail: GmailBlockMeta,
   gmail_v2: GmailV2BlockMeta,
   gong: GongBlockMeta,
