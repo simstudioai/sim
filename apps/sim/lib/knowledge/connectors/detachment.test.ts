@@ -251,6 +251,11 @@ describe('purged knowledge base reservations', () => {
     expect(mocks.decrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 43)
     expect(mocks.incrementStorage).not.toHaveBeenCalled()
     expect(mocks.notifyStorage).not.toHaveBeenCalled()
+    /** Re-stamping the detach fences out the pending job before the purge deletes the documents. */
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      detachReservedBytes: 0,
+      detachedAt: expect.any(Date),
+    })
   })
 
   it('charges a net overdraft once and notifies with the final balance', async () => {

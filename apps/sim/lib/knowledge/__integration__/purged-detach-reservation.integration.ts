@@ -199,6 +199,61 @@ describe('purging a knowledge base with a source still being detached', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 
+  it('settles an overdrawn reservation before the purge deletes the released documents', async () => {
+    const ids = await seed()
+    const rows = Array.from({ length: SOURCE_DOCUMENTS }, (_, index) =>
+      sourceDocument(ids, (index % 7) + 1)
+    )
+    const keptBytes = rows.reduce((total, row) => total + row.fileSize, 0)
+    await db.insert(document).values(rows)
+    await disconnect(ids)
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+
+    /** Documents that grew after removal release more bytes than removal reserved. */
+    await db
+      .update(document)
+      .set({ fileSize: sql`${document.fileSize} + 10` })
+      .where(eq(document.connectorId, ids.connectorId))
+    expect(await runDetachOnce(ids)).toBe('pending')
+    const overdrawn = await reservation(ids)
+    expect(overdrawn).toBeLessThan(0)
+    /** Removal charged less than the released documents now hold, so the ledger trails them. */
+    expect(await ledger(ids)).toEqual({ workspaceBytes: keptBytes, payerBytes: keptBytes })
+
+    await db
+      .update(knowledgeBase)
+      .set({ deletedAt: new Date(Date.now() - 2 * RETENTION_HOURS * 60 * 60 * 1000) })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    await runCleanupSoftDeletes({
+      label: 'purge-overdrawn-fixture',
+      plan: 'free',
+      retentionHours: RETENTION_HOURS,
+      workspaceIds: [ids.workspaceId],
+    })
+
+    expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
+  })
+
+  it('fences the pending detach job so it releases nothing once the reservation is settled', async () => {
+    const ids = await seed()
+    await db
+      .insert(document)
+      .values(
+        Array.from({ length: SOURCE_DOCUMENTS }, (_, index) => sourceDocument(ids, (index % 7) + 1))
+      )
+    await disconnect(ids)
+
+    await settleDetachedConnectorReservations([ids.knowledgeBaseId])
+    expect(await reservation(ids)).toBe(0)
+    expect(await runDetachOnce(ids)).toBe('completed')
+    const [released] = await db
+      .select({ count: sql<number>`count(*)::integer` })
+      .from(document)
+      .where(and(eq(document.knowledgeBaseId, ids.knowledgeBaseId), isNull(document.connectorId)))
+    expect(released.count).toBe(0)
+    expect(await reservation(ids)).toBe(0)
+  })
+
   it('zeroes a refunded reservation so a detach run that still reaches the source refunds nothing', async () => {
     const ids = await seed()
     await manualDocument(ids, 29)

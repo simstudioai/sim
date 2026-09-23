@@ -309,7 +309,7 @@ describe('cleanup soft deletes', () => {
     )
   })
 
-  it('settles detached source reservations after the documents and before the base delete', async () => {
+  it('settles detached source reservations before the documents and the base delete', async () => {
     mockChunkedBatchDelete.mockImplementationOnce(
       async (options: { onBatch?: (rows: Array<{ id: string }>) => Promise<void> }) => {
         await options.onBatch?.([{ id: 'kb-1' }, { id: 'kb-2' }])
@@ -326,7 +326,7 @@ describe('cleanup soft deletes', () => {
 
     expect(mockSettleDetachedConnectorReservations).toHaveBeenCalledWith(['kb-1', 'kb-2'])
     const [settled] = mockSettleDetachedConnectorReservations.mock.invocationCallOrder
-    expect(mockHardDeleteDocuments.mock.invocationCallOrder[0]).toBeLessThan(settled)
+    expect(settled).toBeLessThan(mockHardDeleteDocuments.mock.invocationCallOrder[0])
     expect(settled).toBeLessThan(mockKnowledgeBaseContainerDelete.mock.invocationCallOrder[0])
   })
 

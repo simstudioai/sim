@@ -6,7 +6,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
 } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -102,10 +102,16 @@ async function settleDetachReservationInTx(
  *
  * Purging a base cascades its connectors away, and with them the reservation a detached connector
  * still holds for documents it never released; its pending detach job then finds no base and
- * settles nothing. So before the purge deletes the bases, each base's detached connectors are
- * locked in the detach job's order (base, then connector), their remaining reservation is settled
- * exactly as the job's final transaction would, and zeroed in the same transaction, so a retried
- * purge or a detach run that still reaches the connector settles nothing twice.
+ * settles nothing. So before the purge deletes the bases' documents, each base's detached
+ * connectors are locked in the detach job's order (base, then connector), their net reservation is
+ * settled exactly as the job's final transaction would settle it, and zeroed in the same
+ * transaction, so a retried purge settles nothing twice.
+ *
+ * It runs before the documents are deleted because deleting a released document decrements the
+ * payer's usage with a floor at zero: an overdrawn (negative) reservation settled afterwards would
+ * re-add bytes the floor already discarded. Settling first also means the pending detach job must
+ * not release another page before the documents go, so the same transaction re-stamps each
+ * connector's `detached_at`; the job's own supersession check then treats its event as obsolete.
  */
 export async function settleDetachedConnectorReservations(
   knowledgeBaseIds: string[]
@@ -141,8 +147,7 @@ export async function settleDetachedConnectorReservations(
         .where(
           and(
             eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-            isNotNull(knowledgeConnector.detachedAt),
-            ne(knowledgeConnector.detachReservedBytes, 0)
+            isNotNull(knowledgeConnector.detachedAt)
           )
         )
         .orderBy(asc(knowledgeConnector.id))
@@ -157,7 +162,7 @@ export async function settleDetachedConnectorReservations(
       const grownUsage = await settleDetachReservationInTx(tx, storageContext, netReservedBytes)
       await tx
         .update(knowledgeConnector)
-        .set({ detachReservedBytes: 0 })
+        .set({ detachReservedBytes: 0, detachedAt: new Date() })
         .where(
           inArray(
             knowledgeConnector.id,
