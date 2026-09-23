@@ -31,8 +31,6 @@ const CATALOG_ROOTS = [
   'app/api/v2/blocks',
   'app/api/v2/tools',
   'app/api/v2/connector-types',
-  /** The Copilot tool the shared projection was extracted for: ~6,756 modules down to ~1,321. */
-  'lib/copilot/tools/server/blocks',
 ] as const
 
 /** Modules no catalog file may import, with what each would drag in. */
@@ -48,6 +46,8 @@ const FORBIDDEN_IN_PROJECTION: Record<string, string> = {
   'next/server': 'the HTTP surface; a projection must stay surface-neutral',
   '@sim/db': 'the database; a projection reads code-defined registries only',
   '@/enrichments/run': 'the enrichment cascade runner, which executes tools',
+  '@/lib/workflows/editing/operations':
+    'the workflow mutation engine; container vocabulary belongs in its data-only module',
 }
 
 function collectSourceFiles(root: string): string[] {

@@ -1,12 +1,15 @@
+import type { Principal } from '@sim/auth/principal'
 import { describePrincipalAuth } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
+import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
+import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -268,7 +271,7 @@ export function requireHeadAuthorizableUseCase(
  */
 export async function v2HeadAuthorizationResponse(args: {
   useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
-  principal: V2ApiKeyAuthContext['principal']
+  principal: Principal
   input: unknown
   request: NextRequest
   errorPolicy: V2ErrorPolicy
@@ -355,44 +358,86 @@ async function admitAuthenticatedV2Request(
     throw error
   }
 
-  const limited = await rateLimitPolicy.enforce(request, auth, operation)
+  // The server's own requests (embedded CLI, agent-cli engines) are authenticated like
+  // any other but never rate limited: the buckets exist for callers on the wire, and a
+  // chat turn's tool calls all land on one key. See `internal-request.ts`.
+  const limited = isInternalRequest(request)
+    ? null
+    : await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
+
+type V2AdmissionAuth =
+  | V2ApiKeyAuthContext
+  | {
+      principal: Principal
+      keyType?: undefined
+      keyExpiresAt?: undefined
+    }
+
+type CopilotRouteUseCase = Pick<
+  OperationUseCase<ApplicationOperation, unknown, unknown>,
+  'operation' | 'delegationAudience'
+>
 
 async function admitRateLimitedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
-): Promise<
-  { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
-> {
-  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  if (isCopilotRequest(request)) {
+    const principal = copilotRequestPrincipal(request, operation, useCase)
+    if (!principal)
+      return {
+        success: false,
+        response: v2Error('FORBIDDEN', 'This operation is unavailable through Mothership.'),
+      }
+    setRequestAuth(describePrincipalAuth(principal))
+    return { success: true, auth: { principal } }
+  }
+  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
 /** Admission for a v2 route the builders do not cover, such as the resume leg. */
-export async function admitV2Request(
+export function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
   rateLimitPolicy: V2RateLimitPolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
-> {
-  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy)
+>
+export function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }>
+export async function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, useCase)
 }
 
 export async function admitOptionalV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
-): Promise<
-  { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
-> {
-  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth?: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  if (isCopilotRequest(request))
+    return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, useCase)
+  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   if (!hasV2Credential(request.headers)) return { success: true }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
@@ -409,8 +454,8 @@ export async function admitOptionalV2Request(
  * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
  */
 export interface V2CredentialFacts {
-  readonly keyType: V2CredentialType
-  readonly keyExpiresAt: Date | null
+  readonly keyType: V2CredentialType | undefined
+  readonly keyExpiresAt: Date | null | undefined
 }
 
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
@@ -439,11 +484,11 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
-    principal: V2ApiKeyAuthContext['principal']
+    principal: Principal
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
   onSuccess?(args: {
-    principal: V2ApiKeyAuthContext['principal']
+    principal: Principal
     input: NoInfer<I>
     result: NoInfer<R>
   }): void | Promise<void>
@@ -486,7 +531,8 @@ export function defineV2JsonRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.useCase
       )
       if (!admission.success) return admission.response
       const { auth } = admission

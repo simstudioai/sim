@@ -4,7 +4,8 @@ import { createSecureWebPreferences } from '@/main/window-preferences'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, dialog, screen, systemPreferences } from 'electron'
+import { BrowserWindow, dialog, screen, systemPreferences, WebContentsView } from 'electron'
+import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
 import {
@@ -183,6 +184,22 @@ describe('setupPermissionHandlers', () => {
     expect(check(null, 'media', APP, { mediaType: 'video' })).toBe(false)
     expect(check(null, 'media', APP, {})).toBe(false)
     expect(check(null, 'media', 'https://evil.example', { mediaType: 'audio' })).toBe(false)
+  })
+
+  it('keeps browser permission prompts when a Sim page shares the app session', () => {
+    const { request, check } = createSession()
+    const contents = new WebContentsView().webContents
+    const browserRequest = vi.fn((_contents, _permission, callback) => callback(false))
+    const browserCheck = vi.fn(() => false)
+    registerAgentWebContents(contents, APP, { request: browserRequest, check: browserCheck })
+    const callback = vi.fn()
+    request(contents, 'media', callback, { requestingUrl: `${APP}/chat`, mediaTypes: ['audio'] })
+    expect(browserRequest).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith(false)
+    expect(check(contents, 'media', APP, { mediaType: 'audio' })).toBe(false)
+    expect(browserCheck).toHaveBeenCalledOnce()
+    expect(systemPreferences.getMediaAccessStatus).not.toHaveBeenCalled()
+    expect(check(null, 'media', APP, { mediaType: 'audio' })).toBe(true)
   })
 })
 

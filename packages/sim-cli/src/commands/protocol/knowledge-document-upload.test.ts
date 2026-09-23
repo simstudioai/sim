@@ -179,9 +179,11 @@ describe('knowledge documents upload', () => {
     expect(JSON.parse(logged[0])).toEqual({
       id: 'doc_1',
       knowledgeBaseId: 'kb_1',
-      name: 'notes.doc',
-      size: 5,
-      status: 'pending',
+      filename: 'notes.doc',
+      fileSize: 5,
+      mimeType: 'application/msword',
+      processingStatus: 'pending',
+      chunkCount: 0,
     })
     expect(logged[0]).not.toContain('secret-token')
   })

@@ -259,7 +259,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       title: 'Include tool calls',
       type: 'switch',
       defaultValue: true,
-      description: 'Show tool execution lifecycle as Slack task updates.',
+      description: 'Show Agent and Sim Chat tool execution progress as Slack task updates.',
       required: false,
       mode: 'trigger',
       condition: {

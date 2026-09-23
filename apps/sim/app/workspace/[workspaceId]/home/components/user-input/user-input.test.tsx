@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
 const { mockSubmit, mockResetTranscript } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
@@ -143,7 +144,15 @@ function mount() {
         searchParams='?mode=search&q=budget&source=upload&updated=7d&resource=report'
         onUrlUpdate={mockUrlUpdate}
       >
-        <Composer />
+        <FeatureFlagsProvider
+          flags={{
+            'table-row-ttl': false,
+            'mothership-model-selector': false,
+            'mothership-plan-mode': false,
+          }}
+        >
+          <Composer />
+        </FeatureFlagsProvider>
       </NuqsTestingAdapter>
     )
   })

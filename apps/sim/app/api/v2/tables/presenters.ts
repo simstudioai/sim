@@ -8,7 +8,8 @@ import {
   toV2CreateTableImport,
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
-import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
+import type { TableSchema, WorkflowGroup, WorkflowGroupDeploymentMode } from '@/lib/table/types'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 export function presentV2CreateTableImport(result: CreateTableImportResult) {
   return { data: toV2CreateTableImport(result) }
@@ -35,8 +36,19 @@ export function presentV2TableExport(record: TableExportRecord, queued = false) 
  * driven by the inverse map; a ref naming no current column is left as-is, so a
  * legacy name-keyed group and a ref to a since-deleted column both survive.
  */
-export function presentV2WorkflowGroup(group: WorkflowGroup, schema: TableSchema): WorkflowGroup {
-  return remapGroupColumnRefs(group, buildNameById(schema))
+export function presentV2WorkflowGroup(
+  group: WorkflowGroup,
+  schema: TableSchema
+): Omit<WorkflowGroup, 'deploymentMode'> & { deploymentMode: WorkflowGroupDeploymentMode } {
+  return {
+    ...remapGroupColumnRefs(group, buildNameById(schema)),
+    /**
+     * Always the effective mode. A group that predates the field ran the
+     * deployed version all along; publishing it as absent read as "no mode",
+     * which a caller took for the draft.
+     */
+    deploymentMode: resolveWorkflowGroupDeploymentMode(group),
+  }
 }
 
 /**

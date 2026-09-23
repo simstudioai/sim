@@ -19,6 +19,7 @@ import {
   readPageActionState,
   readPageText,
   readSelectElementState,
+  resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
   setFocusedInputValue,
@@ -806,15 +807,116 @@ describe('collectSnapshot', () => {
     }
   })
 
-  it('marks file inputs unsupported and refuses to open a native chooser', () => {
+  it('labels file inputs and refuses to open a native chooser', () => {
     document.body.innerHTML = '<input type="file" aria-label="Upload receipt" />'
     visible(document.querySelector('input') as HTMLInputElement)
     const outline = outlineOf(collectSnapshot())
     const ref = refFor(outline, 'Upload receipt')
 
     expect(outline).toContain('file-input "Upload receipt"')
-    expect(outline).toContain('upload-unsupported')
     expect(clickElement(ref)).toEqual({ error: 'file-input' })
+  })
+
+  it('pins the file input behind a drop zone, label, or the input itself', () => {
+    document.body.innerHTML = `<div id="zone">Drop files<input type="file" id="hidden" multiple hidden accept=".png"></div>
+      <label id="label" for="labelled">Resume</label><input type="file" id="labelled">
+      <section id="two"><input type="file"><input type="file"></section>`
+    register(
+      document.getElementById('zone') as HTMLElement,
+      document.getElementById('label') as HTMLElement,
+      document.getElementById('labelled') as HTMLElement,
+      document.getElementById('two') as HTMLElement
+    )
+
+    expect(resolveFileInputTarget(0)).toEqual({
+      input: document.getElementById('hidden'),
+      document,
+    })
+    expect(resolveFileInputTarget(1)).toEqual({
+      input: document.getElementById('labelled'),
+      document,
+    })
+    expect(resolveFileInputTarget(2)).toEqual({
+      input: document.getElementById('labelled'),
+      document,
+    })
+    expect(() => resolveFileInputTarget(3)).toThrow('multiple file inputs')
+    expect(document.querySelector('[data-sim-agent-upload]')).toBeNull()
+  })
+
+  it('reports an element with no nearby file input', () => {
+    document.body.innerHTML =
+      '<main><div><div><div><button id="b">Upload</button></div></div></div></main>'
+    register(document.getElementById('b') as HTMLElement)
+
+    expect(() => resolveFileInputTarget(0)).toThrow('no nearby file input')
+  })
+
+  it.each([
+    ['disabled input', '<input type="file" disabled>'],
+    ['disabled fieldset', '<fieldset disabled><input type="file"></fieldset>'],
+    [
+      'second legend of a disabled fieldset',
+      '<fieldset disabled><legend>First</legend><legend><input type="file"></legend></fieldset>',
+    ],
+    [
+      'enabled fieldset within a disabled fieldset',
+      '<fieldset disabled><fieldset><input type="file"></fieldset></fieldset>',
+    ],
+    [
+      'disabled fieldset within an exempt legend',
+      '<fieldset disabled><legend><fieldset disabled><input type="file"></fieldset></legend></fieldset>',
+    ],
+  ])('refuses to resolve an upload in a %s', (_label, html) => {
+    document.body.innerHTML = html
+    const input = document.querySelector('input') as HTMLInputElement
+    register(input)
+
+    expect(() => runSerialized(resolveFileInputTarget, [0])).toThrow('disabled')
+    expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
+  })
+
+  it('allows the first legend exemption in a disabled fieldset', () => {
+    document.body.innerHTML =
+      '<fieldset disabled><legend><label for="upload">Upload</label><input id="upload" type="file"></legend></fieldset>'
+    const input = document.querySelector('input') as HTMLInputElement
+    register(document.querySelector('label') as HTMLLabelElement)
+
+    expect(runSerialized(resolveFileInputTarget, [0])).toEqual({ input, document })
+  })
+
+  it('pins the original input inside an open shadow root without modifying the DOM', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const input = document.createElement('input')
+    input.type = 'file'
+    host.attachShadow({ mode: 'open' }).append(input)
+    register(host)
+
+    expect(runSerialized(resolveFileInputTarget, [0])).toEqual({ input, document })
+    expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
+  })
+
+  it('captures the actual owner document for an input reached through a same-origin frame', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const childDocument = frame.contentDocument as Document
+    childDocument.body.innerHTML = '<input type="file">'
+    const input = childDocument.querySelector('input') as HTMLInputElement
+    register(input)
+
+    const captured = resolveFileInputTarget(0)
+    expect(captured).toEqual({ input, document: childDocument })
+    document.body.append(input)
+    expect(captured.document).toBe(childDocument)
+    expect(captured.input.ownerDocument).toBe(document)
+  })
+
+  it('refuses a disconnected or stale upload reference', () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    register(input)
+    expect(() => resolveFileInputTarget(0)).toThrow('stale')
   })
 
   it('sets a complete multiple selection atomically and can clear it', () => {

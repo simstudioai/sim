@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -162,6 +169,7 @@ const member = {
 /** Real engine, content stages, pagination, classification, and leases; external I/O is mocked. */
 function arrange(
   options: {
+    isSearchIndex?: boolean
     connectorType?: 'drive' | 'full_listing' | 'scoped_listing'
     members?: boolean
     memberContent?: boolean
@@ -209,6 +217,7 @@ function arrange(
     queueTableRows(schemaMock.knowledgeBase, [
       {
         id: 'kb',
+        isSearchIndex: options.isSearchIndex,
         workspaceId: options.organizationId ? null : 'workspace',
         organizationId: options.organizationId ?? null,
         userId: 'owner',
@@ -346,8 +355,20 @@ function arrange(
 describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  })
+
+  it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const result = await arrange({ isSearchIndex: true, members: true })()
+    expect(result.skipReason).toBe('connector_not_syncable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(mocks.credentials).not.toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
   })
 
   it.each([undefined, 'organization'])(

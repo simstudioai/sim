@@ -123,7 +123,8 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mergeSubblockStateWithValuesMock,
 }))
 
-vi.mock('@/lib/workflows/triggers/triggers', () => ({
+vi.mock('@/lib/workflows/triggers/triggers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/triggers/triggers')>()),
   TriggerUtils: {
     findStartBlock: findStartBlockMock,
   },
@@ -142,6 +143,11 @@ vi.mock('@/executor', () => ({
       }
     }
   },
+}))
+
+const uploadWorkflowInputMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: uploadWorkflowInputMock,
 }))
 
 vi.mock('@/serializer', () => ({
@@ -383,6 +389,62 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeStartMock).toHaveBeenCalledTimes(1)
     expect(executorConstructorMock).toHaveBeenCalledTimes(1)
   })
+
+  it.each([true, false])(
+    'normalizes files once before downstream execution for client session %s',
+    async (isClientSession) => {
+      const file = {
+        id: 'uploaded',
+        name: 'input.txt',
+        size: 3,
+        type: 'text/plain',
+        key: 'execution/key',
+        url: 'https://fresh.example.com/input.txt',
+      }
+      uploadWorkflowInputMock.mockResolvedValue(file)
+      serializeWorkflowMock.mockReturnValue({
+        blocks: [
+          {
+            id: 'start-block',
+            metadata: { id: 'start_trigger' },
+            config: { params: { inputFormat: [{ name: 'documents', type: 'file[]' }] } },
+          },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+      })
+      const snapshot = createSnapshot()
+      const input = {
+        documents: [{ type: 'file', name: 'input.txt', data: 'data:text/plain;base64,YWJj' }],
+        count: 7,
+        config: { enabled: false, key: 'execution/not-granted' },
+        items: [1, 'two'],
+      }
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: { ...snapshot.metadata, isClientSession, triggerBlockId: 'start-block' },
+          input,
+        } as unknown as ExecutionSnapshot,
+        callbacks: {},
+        loggingSession: loggingSession as unknown as LoggingSession,
+      })
+      expect(uploadWorkflowInputMock).toHaveBeenCalledTimes(1)
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.fileKeys).toEqual([
+        file.key,
+      ])
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.workflowInput).toEqual({
+        ...input,
+        documents: [file],
+      })
+    }
+  )
 
   it('begins connecting the signal subscriber synchronously, before the first await', async () => {
     const executionPromise = executeWorkflowCore({
@@ -1352,6 +1414,62 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     }
   )
 
+  it('awaits delivery acknowledgment before recording workflow success', async () => {
+    const result = {
+      success: true,
+      status: 'completed',
+      output: { content: 'Complete answer' },
+      logs: [],
+    }
+    executorExecuteMock.mockResolvedValue(result)
+    let release: (() => void) | undefined
+    const acknowledgment = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const finalizeDelivery = vi.fn(async () => {
+      await acknowledgment
+    })
+    const execution = executeWorkflowCore({
+      snapshot: createSnapshot(),
+      callbacks: {},
+      loggingSession: loggingSession as Parameters<typeof executeWorkflowCore>[0]['loggingSession'],
+      finalizeDelivery,
+    })
+    await vi.waitFor(() => expect(finalizeDelivery).toHaveBeenCalledWith(result))
+    expect(safeCompleteMock).not.toHaveBeenCalled()
+    release?.()
+    await execution
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+    expect(safeCompleteMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a delivery failure with the generated output instead of a successful workflow receipt', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { content: 'Generated answer' },
+      logs: [],
+    })
+    const deliveryError = new Error('Slack append acknowledgment was lost')
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot(),
+        callbacks: {},
+        loggingSession: loggingSession as Parameters<
+          typeof executeWorkflowCore
+        >[0]['loggingSession'],
+        finalizeDelivery: async () => {
+          throw deliveryError
+        },
+      })
+    ).rejects.toBe(deliveryError)
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+    expect(safeCompleteMock).not.toHaveBeenCalled()
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(deliveryError).toHaveProperty('executionResult.output.content', 'Generated answer')
+    expect(executorExecuteMock).toHaveBeenCalledTimes(1)
+  })
+
   it('awaits wrapped lifecycle persistence before terminal finalization returns', async () => {
     let releaseBlockStart: (() => void) | undefined
     const blockStartPromise = new Promise<void>((resolve) => {
@@ -1598,6 +1716,8 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       loggingSession: loggingSession as any,
     })
 
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
     expect(result.status).toBe('cancelled')
     expect(safeCompleteWithCancellationMock).toHaveBeenCalledTimes(1)
     expect(safeCompleteWithCancellationMock).toHaveBeenCalledWith(
@@ -1609,7 +1729,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
     expect(safeCompleteMock).not.toHaveBeenCalled()
     expect(safeCompleteWithPauseMock).not.toHaveBeenCalled()
-    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
   })
 
@@ -1650,12 +1770,12 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   /**
-   * The population `runCount` actually counts. Cancelled and paused runs are
-   * already pinned above; a plain failure is the case a caller is most likely to
-   * assume is included, and the workflow contract's `runCount` description is
-   * written against this.
+   * The population `runCount` actually counts: every settled run. A workflow
+   * whose only runs failed used to list `runCount: 0, lastRunAt: null`, which
+   * reads as "never ran". Cancelled runs are pinned above; paused runs are
+   * pinned below as the one outcome that is not yet settled.
    */
-  it('leaves runCount untouched when the run fails', async () => {
+  it('counts a failed run, awaited from the finalization path', async () => {
     executorExecuteMock.mockResolvedValue({
       success: false,
       status: 'failed',
@@ -1673,7 +1793,27 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
-    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('counts a run whose engine threw, after the error was logged', async () => {
+    executorExecuteMock.mockRejectedValue(new Error('engine failed'))
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot() as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+    ).rejects.toThrow('engine failed')
+
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+    expect(safeCompleteWithErrorMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateWorkflowRunCountsMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('routes paused executions through safeCompleteWithPause', async () => {

@@ -5,10 +5,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   index: vi.fn(),
   overview: vi.fn(),
   search: vi.fn(),
   retry: vi.fn(),
+}))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
@@ -32,6 +36,7 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.live = false
   mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index' }, isPending: false })
   mocks.search.mockReturnValue({
     data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
@@ -279,5 +284,64 @@ describe('result paging and the custom window', () => {
     /** The days are the reader's own: local midnight to the last millisecond of the local day. */
     expect(filters.modifiedAfter).toBe(new Date(2026, 8, 1).toISOString())
     expect(filters.modifiedBefore).toBe(new Date(2026, 8, 11, 0, 0, 0, -1).toISOString())
+  })
+})
+
+describe('live backend selection', () => {
+  it('renders live results without mounting any index or sync-status hooks', async () => {
+    mocks.live = true
+    mocks.search.mockReturnValue({
+      data: {
+        query: 'launch',
+        results: [],
+        retrieval: { status: 'complete', timedOutLegs: [] },
+        live: { backend: 'live', accounts: [], guidance: '' },
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+    })
+    await render({ kind: 'organization', organizationId: 'org' })
+    expect(mocks.index).not.toHaveBeenCalled()
+    expect(mocks.overview).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('searched live as you')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('a')).toBeNull()
+    expect(container.textContent).not.toContain('Connected accounts')
+    expect(container.textContent).toContain('Search found no results.')
+    expect(container.textContent).not.toContain('indexing')
+  })
+  it('reports incomplete results without connection management in the results pane', async () => {
+    mocks.live = true
+    mocks.search.mockReturnValue({
+      data: {
+        query: 'launch',
+        results: [],
+        retrieval: { status: 'partial', timedOutLegs: [] },
+        live: {
+          backend: 'live',
+          accounts: [
+            {
+              accountId: 'slack',
+              provider: 'slack',
+              displayName: 'My Slack',
+              status: 'reconnect',
+              message: 'Reconnect Slack for RTS.',
+            },
+          ],
+          guidance: '',
+        },
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+    })
+    await render()
+    expect(container.textContent).toContain('Some apps couldn’t be searched.')
+    expect(container.textContent).not.toContain('Manage connections')
+    expect(container.textContent).not.toContain('Search found no results.')
+    expect(container.textContent).not.toContain('RTS')
+    expect(container.textContent).not.toContain('Coverage is incomplete')
+    expect(mocks.index).not.toHaveBeenCalled()
   })
 })

@@ -1,11 +1,11 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
+import { MANAGED_OAUTH_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
   createCopilotApplicationPrincipal,
   requireTrustedCopilotExecutionContext,
-} from '@/lib/copilot/auth/application-delegation'
-import { MANAGED_OAUTH_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
+} from '@/lib/mothership/auth/application-delegation'
 
 /**
  * The principal a Chat tool call presents for one managed credential: a copilot

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -15,7 +16,10 @@ import {
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
+  releaseFileInput,
+  resolveFileInput,
   setColorScheme,
+  setFileInputFiles,
 } from '@/main/browser-agent/cdp'
 
 function createOopifFrameFixture() {
@@ -45,6 +49,7 @@ function createOopifFrameFixture() {
         {
           frame: {
             id: 'child',
+            parentId: 'top',
             name: 'account-menu',
             url: 'https://accounts.example/menu',
           },
@@ -58,7 +63,7 @@ describe('browser-agent CDP instrumentation', () => {
   it('leaves file chooser dialogs native so users can upload files', async () => {
     const contents = new WebContentsView().webContents
 
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
 
     expect(contents.debugger.sendCommand).toHaveBeenCalledWith('Page.enable', undefined)
     expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
@@ -78,10 +83,12 @@ describe('browser-agent CDP instrumentation', () => {
       return Promise.resolve({})
     })
 
-    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).rejects.toThrow(
-      'setup acknowledgement lost'
-    )
-    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).resolves.toBeUndefined()
+    await expect(
+      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    ).rejects.toThrow('setup acknowledgement lost')
+    await expect(
+      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    ).resolves.toBeUndefined()
 
     expect(autoAttachAttempts).toBe(2)
   })
@@ -89,7 +96,7 @@ describe('browser-agent CDP instrumentation', () => {
   it('dismisses an OOPIF dialog on the flattened child session', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -111,13 +118,18 @@ describe('browser-agent CDP instrumentation', () => {
       { accept: false },
       'child-session'
     )
-    expect(onDialog).toHaveBeenCalledWith({ type: 'alert', message: 'Hello', handled: true })
+    expect(onDialog).toHaveBeenCalledWith({
+      type: 'alert',
+      message: 'Hello',
+      handled: true,
+      accepted: false,
+    })
   })
 
   it('accepts an OOPIF beforeunload dialog on the flattened child session', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -143,13 +155,43 @@ describe('browser-agent CDP instrumentation', () => {
       type: 'beforeunload',
       message: 'Leave this page?',
       handled: true,
+      accepted: true,
+    })
+  })
+
+  it('answers dialogs with the running action requested response', async () => {
+    const contents = new WebContentsView().webContents
+    const onDialog = vi.fn()
+    const dialogResponse = vi.fn(() => ({ accept: true }))
+    await ensureInstrumented(contents, { onDialog, dialogResponse })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+
+    listener?.({}, 'Page.javascriptDialogOpening', { type: 'alert', message: 'Saved' })
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalledTimes(1))
+    listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalledTimes(2))
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls).toEqual([
+      ['Page.handleJavaScriptDialog', { accept: true }],
+      ['Page.handleJavaScriptDialog', { accept: true }],
+    ])
+    expect(onDialog).toHaveBeenLastCalledWith({
+      type: 'confirm',
+      message: 'Delete?',
+      handled: true,
+      accepted: true,
     })
   })
 
   it('reports an OOPIF dialog as unhandled when child and root commands fail', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog })
+    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -175,6 +217,7 @@ describe('browser-agent CDP instrumentation', () => {
       type: 'confirm',
       message: 'Continue?',
       handled: false,
+      accepted: false,
     })
   })
 
@@ -193,6 +236,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 240,
           button: 'left',
           buttons: 1,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -204,6 +248,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 240,
           button: 'left',
           buttons: 0,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -228,6 +273,7 @@ describe('browser-agent CDP instrumentation', () => {
         y: 24,
         button: 'left',
         buttons: 0,
+        modifiers: 0,
         clickCount: 1,
       },
     ])
@@ -252,6 +298,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 48,
           button: 'left',
           buttons: 1,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -263,6 +310,7 @@ describe('browser-agent CDP instrumentation', () => {
           y: 48,
           button: 'left',
           buttons: 0,
+          modifiers: 0,
           clickCount: 1,
         },
       ],
@@ -310,81 +358,115 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
-  it('routes OOPIF isolated-world creation and evaluation through its flattened session', async () => {
-    const contents = new WebContentsView().webContents
-    const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
-    const listener = vi
-      .mocked(contents.debugger.on)
-      .mock.calls.find(([event]) => event === 'message')?.[1] as
-      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
-      | undefined
-    expect(listener).toBeTypeOf('function')
+  it.each(['complete', 'split', 'worker', 'detached', 'ambiguous'])(
+    'routes OOPIF evaluation through its session (%s tree)',
+    async (treeKind) => {
+      const contents = new WebContentsView().webContents
+      const { child, frameTree } = createOopifFrameFixture()
+      await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+      const listener = vi
+        .mocked(contents.debugger.on)
+        .mock.calls.find(([event]) => event === 'message')?.[1] as
+        | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+        | undefined
+      expect(listener).toBeTypeOf('function')
 
-    listener?.(
-      {},
-      'Target.attachedToTarget',
-      {
-        sessionId: 'child-session',
-        targetInfo: { targetId: 'child', type: 'iframe' },
-      },
-      undefined
-    )
-    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
-      'Target.setAutoAttach',
-      { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
-      'child-session'
-    )
-    vi.mocked(contents.debugger.sendCommand).mockClear()
-    vi.mocked(contents.debugger.sendCommand).mockImplementation((method) => {
-      if (method === 'Page.getFrameTree') {
-        return Promise.resolve({ frameTree })
+      listener?.(
+        {},
+        'Target.attachedToTarget',
+        {
+          sessionId: 'child-session',
+          targetInfo: { targetId: 'child', type: 'iframe' },
+        },
+        undefined
+      )
+      expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+        'Target.setAutoAttach',
+        { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+        'child-session'
+      )
+      if (treeKind === 'worker' || treeKind === 'detached') {
+        listener?.({}, 'Target.attachedToTarget', {
+          sessionId: 'unavailable-session',
+          targetInfo: {
+            targetId: 'unavailable',
+            type: treeKind === 'worker' ? 'worker' : 'iframe',
+          },
+        })
       }
-      if (method === 'Page.createIsolatedWorld') {
-        return Promise.resolve({ executionContextId: 42 })
-      }
-      if (method === 'Runtime.evaluate') {
-        return Promise.resolve({ result: { type: 'number', value: 4 } })
-      }
-      return Promise.resolve({})
-    })
+      vi.mocked(contents.debugger.sendCommand).mockClear()
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method, _params, sessionId) => {
+        if (method === 'Page.getFrameTree') {
+          if (sessionId === 'unavailable-session')
+            return Promise.reject(new Error('Target unavailable'))
+          return Promise.resolve({
+            frameTree:
+              treeKind === 'complete'
+                ? frameTree
+                : sessionId
+                  ? frameTree.childFrames[0]
+                  : { frame: frameTree.frame },
+          })
+        }
+        if (method === 'Page.createIsolatedWorld') {
+          return Promise.resolve({ executionContextId: 42 })
+        }
+        if (method === 'Runtime.evaluate') {
+          return Promise.resolve({ result: { type: 'number', value: 4 } })
+        }
+        return Promise.resolve({})
+      })
 
-    await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).resolves.toBe(4)
-
-    expect(
-      vi
-        .mocked(contents.debugger.sendCommand)
-        .mock.calls.filter(([method]) =>
-          ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+      if (treeKind === 'ambiguous') {
+        /** An omitted twin must not be mistaken for the only frame in a partial tree. */
+        child.parent?.frames.push(createOopifFrameFixture().child)
+        await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).rejects.toThrow(
+          'Could not map'
         )
-    ).toEqual([
-      [
-        'Page.createIsolatedWorld',
-        {
-          frameId: 'child',
-          worldName: 'sim-browser-agent',
-          grantUniveralAccess: false,
-        },
-        'child-session',
-      ],
-      [
-        'Runtime.evaluate',
-        {
-          expression: '2 + 2',
-          contextId: 42,
-          returnByValue: true,
-          awaitPromise: true,
-          userGesture: false,
-        },
-        'child-session',
-      ],
-    ])
-  })
+        expect(
+          vi
+            .mocked(contents.debugger.sendCommand)
+            .mock.calls.some(([method]) => method === 'Runtime.evaluate')
+        ).toBe(false)
+        return
+      }
+      await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).resolves.toBe(4)
+
+      expect(
+        vi
+          .mocked(contents.debugger.sendCommand)
+          .mock.calls.filter(([method]) =>
+            ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+          )
+      ).toEqual([
+        [
+          'Page.createIsolatedWorld',
+          {
+            frameId: 'child',
+            worldName: 'sim-browser-agent',
+            grantUniveralAccess: false,
+          },
+          'child-session',
+        ],
+        [
+          'Runtime.evaluate',
+          {
+            expression: '2 + 2',
+            contextId: 42,
+            returnByValue: true,
+            awaitPromise: true,
+            userGesture: false,
+          },
+          'child-session',
+        ],
+      ])
+    }
+  )
 
   it('falls back to the root target when OOPIF isolated-world creation fails', async () => {
     const contents = new WebContentsView().webContents
     const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -457,6 +539,313 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+})
+
+describe('browser-agent file input handles', () => {
+  async function fileInputFixture(childSession = false) {
+    const contents = new WebContentsView().webContents
+    const { child, frameTree } = createOopifFrameFixture()
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    if (childSession) {
+      const onMessage = vi.mocked(contents.debugger.on).mock.calls[0]?.[1] as
+        | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+        | undefined
+      onMessage?.({}, 'Target.attachedToTarget', {
+        sessionId: 'child-session',
+        targetInfo: { targetId: 'child', type: 'iframe' },
+      })
+    }
+    const document: { defaultView: { document: unknown } | null } = { defaultView: null }
+    document.defaultView = { document }
+    const input = {
+      tagName: 'INPUT',
+      type: 'file',
+      isConnected: true,
+      ownerDocument: document,
+      multiple: true,
+      accept: 'application/pdf',
+      matches: vi.fn(() => false),
+      files: [] as Array<{ name: string; size: number }>,
+    }
+    const wrapper = { input, document }
+    const behavior = {
+      rejectEvaluation: false,
+      rejectSet: false,
+      rejectReadback: false,
+      beforeSet: async () => {},
+      beforeReadback: async () => {},
+      afterInputValidation: () => {},
+      afterSet: () => {},
+    }
+    const send = vi.mocked(contents.debugger.sendCommand)
+    send.mockClear().mockImplementation(async (method, params) => {
+      if (method === 'Page.getFrameTree') return { frameTree }
+      if (method === 'Page.createIsolatedWorld') return { executionContextId: 42 }
+      if (method === 'Runtime.evaluate') {
+        if (behavior.rejectEvaluation) {
+          return {
+            result: { objectId: 'exception' },
+            exceptionDetails: { exception: { objectId: 'exception', description: 'Ref expired' } },
+          }
+        }
+        return { result: { objectId: 'wrapper' } }
+      }
+      if (method === 'Runtime.callFunctionOn') {
+        expect(params?.objectId).toBe('wrapper')
+        const args = params?.arguments as Array<{ value: unknown }>
+        if (args[0].value === 'files') await behavior.beforeReadback()
+        if (behavior.rejectReadback && args[0].value === 'files') {
+          throw new Error('Execution context was destroyed')
+        }
+        try {
+          const inspect = new Function(`return (${params?.functionDeclaration})`)() as (
+            ...args: unknown[]
+          ) => unknown
+          const result = inspect.apply(
+            wrapper,
+            args.map((arg) => arg.value)
+          )
+          if (result === input) {
+            behavior.afterInputValidation()
+            return { result: { objectId: 'original-input' } }
+          }
+          return { result: { value: result } }
+        } catch (error) {
+          return {
+            result: { objectId: 'exception' },
+            exceptionDetails: {
+              exception: { objectId: 'exception', description: getErrorMessage(error) },
+            },
+          }
+        }
+      }
+      if (method === 'DOM.setFileInputFiles') {
+        await behavior.beforeSet()
+        if (behavior.rejectSet) throw new Error('Input target disappeared')
+        expect(params).toEqual({ files: ['/staged/a.pdf'], objectId: 'original-input' })
+        input.files = [{ name: 'a.pdf', size: 12 }]
+        behavior.afterSet()
+      }
+      return {}
+    })
+    return {
+      contents,
+      frame: childSession ? child : child.parent!,
+      input,
+      document,
+      send,
+      behavior,
+    }
+  }
+
+  it.each([false, true])(
+    'keeps capture, dispatch, readback and release in the original session (OOPIF: %s)',
+    async (childSession) => {
+      const { contents, frame, input, send } = await fileInputFixture(childSession)
+      const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+      expect(handle).toMatchObject({ multiple: true, accept: 'application/pdf' })
+      expect(input.matches).toHaveBeenCalledWith(':disabled')
+
+      try {
+        await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+          files: [{ name: 'a.pdf', size: 12 }],
+        })
+      } finally {
+        await releaseFileInput(contents, handle)
+      }
+
+      const sessionId = childSession ? 'child-session' : undefined
+      const protocolCalls = send.mock.calls.filter(([method]) => method !== 'Page.getFrameTree')
+      expect(protocolCalls.every((call) => call[2] === sessionId)).toBe(true)
+      expect(send.mock.calls.some(([method]) => /Search|DOM.getDocument/.test(method))).toBe(false)
+      expect(send.mock.calls.find(([method]) => method === 'Runtime.evaluate')?.[1]).toEqual({
+        expression: 'captureUploadInput(4)',
+        contextId: 42,
+        returnByValue: false,
+        awaitPromise: true,
+        userGesture: false,
+      })
+      expect(
+        send.mock.calls
+          .filter(([method]) => method === 'Runtime.releaseObject')
+          .map(([, params]) => params?.objectId)
+      ).toEqual(['original-input', 'wrapper'])
+    }
+  )
+
+  it.each([
+    'detached',
+    'disabled',
+    'adopted',
+    'document-replaced',
+    'document-closed',
+    'type',
+    'multiple',
+  ])('refuses a captured input changed before dispatch (%s)', async (change) => {
+    const { contents, frame, input, document, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    if (change === 'detached') input.isConnected = false
+    if (change === 'disabled') input.matches.mockReturnValue(true)
+    if (change === 'adopted') input.ownerDocument = { defaultView: null }
+    if (change === 'document-replaced') document.defaultView = { document: {} }
+    if (change === 'document-closed') document.defaultView = null
+    if (change === 'type') input.type = 'text'
+    if (change === 'multiple') input.multiple = false
+    const onDispatch = vi.fn()
+    try {
+      await expect(
+        setFileInputFiles(
+          contents,
+          handle,
+          ['/staged/a.pdf', '/staged/b.pdf'],
+          undefined,
+          onDispatch
+        )
+      ).rejects.toThrow(/upload input|upload target/)
+      expect(onDispatch).not.toHaveBeenCalled()
+      expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'wrapper' })
+    expect(
+      send.mock.calls.filter(
+        ([method, params]) => method === 'Runtime.releaseObject' && params?.objectId === 'exception'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('supports a same-origin child document and XHTML input captured by its parent world', async () => {
+    const { contents, frame, input } = await fileInputFixture()
+    input.tagName = 'input'
+    const handle = await resolveFileInput(contents, frame, 'captureSameOriginChildInput()')
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        files: [{ name: 'a.pdf', size: 12 }],
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it.each(['evaluation', 'metadata'] as const)('releases handles when %s fails', async (phase) => {
+    const { contents, frame, input, behavior, send } = await fileInputFixture()
+    if (phase === 'evaluation') behavior.rejectEvaluation = true
+    else input.matches.mockReturnValue(true)
+
+    await expect(resolveFileInput(contents, frame, 'captureUploadInput(4)')).rejects.toThrow()
+    const released = send.mock.calls
+      .filter(([method]) => method === 'Runtime.releaseObject')
+      .map(([, params]) => params?.objectId)
+    expect(released).toEqual(phase === 'evaluation' ? ['exception'] : ['exception', 'wrapper'])
+  })
+
+  it('releases the transient node when cancellation arrives during validation', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    const controller = new AbortController()
+    const onDispatch = vi.fn()
+    behavior.afterInputValidation = () => controller.abort()
+    try {
+      await expect(
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], controller.signal, onDispatch)
+      ).rejects.toThrow()
+      expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
+      expect(onDispatch).not.toHaveBeenCalled()
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'original-input' })
+  })
+
+  it('releases the transient node when Chromium rejects the file assignment', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture(true)
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.rejectSet = true
+    const onDispatch = vi.fn()
+    try {
+      await expect(
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatch)
+      ).rejects.toThrow('disappeared')
+      expect(onDispatch.mock.calls).toEqual([['pending']])
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith(
+      'Runtime.releaseObject',
+      { objectId: 'original-input' },
+      'child-session'
+    )
+    expect(send).toHaveBeenCalledWith(
+      'Runtime.releaseObject',
+      { objectId: 'wrapper' },
+      'child-session'
+    )
+  })
+
+  it('reads the original input even when its change handler removes it', async () => {
+    const { contents, frame, input, behavior } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.afterSet = () => {
+      input.isConnected = false
+    }
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        files: [{ name: 'a.pdf', size: 12 }],
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it('reports pending dispatch while acknowledgement is held, then acknowledges before readback', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    let acknowledge: () => void = () => {}
+    let releaseReadback: () => void = () => {}
+    const acknowledgement = new Promise<void>((resolve) => {
+      acknowledge = resolve
+    })
+    const readback = new Promise<void>((resolve) => {
+      releaseReadback = resolve
+    })
+    behavior.beforeSet = () => acknowledgement
+    behavior.beforeReadback = () => readback
+    const onDispatch = vi.fn()
+    const pending = setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatch)
+    try {
+      await vi.waitFor(() =>
+        expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(true)
+      )
+      expect(onDispatch.mock.calls).toEqual([['pending']])
+      acknowledge()
+      await vi.waitFor(() => expect(onDispatch.mock.calls).toEqual([['pending'], ['acknowledged']]))
+      expect(send.mock.calls.some(([method]) => method === 'Runtime.releaseObject')).toBe(false)
+      releaseReadback()
+      await expect(pending).resolves.toEqual({ files: [{ name: 'a.pdf', size: 12 }] })
+      expect(onDispatch.mock.calls).toEqual([['pending'], ['acknowledged']])
+    } finally {
+      acknowledge()
+      releaseReadback()
+      await pending
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it('reports readback failure separately once Chromium has acknowledged the upload', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.rejectReadback = true
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        readbackError: 'Execution context was destroyed',
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send.mock.calls.filter(([method]) => method === 'DOM.setFileInputFiles')).toHaveLength(1)
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'original-input' })
   })
 })
 

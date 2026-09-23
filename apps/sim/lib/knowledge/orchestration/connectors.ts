@@ -50,6 +50,7 @@ import {
   enqueueConnectorDetachment,
   keptDocumentBytes,
 } from '@/lib/knowledge/connectors/detachment'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
@@ -154,6 +155,7 @@ export interface ConnectorKnowledgeBase {
   name: string
   workspaceId: string | null
   organizationId?: string | null
+  isSearchIndex?: boolean | null
 }
 
 export function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
@@ -264,6 +266,7 @@ export async function performCreateKnowledgeConnector(
   }
   const workspaceId = kb.workspaceId
   const owner = resourceScopeFields(resourceScopeFromOwner(kb))
+  const indexesContent = requiresConnectorIndexing(kb.isSearchIndex)
 
   const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
   const connectorConfig = CONNECTOR_REGISTRY[connectorType]
@@ -275,7 +278,7 @@ export async function performCreateKnowledgeConnector(
   if (selectionError) return fail(selectionError, 'validation')
 
   try {
-    await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
+    if (indexesContent) await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
   }
@@ -542,17 +545,17 @@ export async function performCreateKnowledgeConnector(
            * ownership token that make the queue entry recoverable come from that
            * later write, which is why it must not skip an already-`pending` row.
            *
-           * A members-mode connector is born `active`: its member run has its
-           * own queue state, and `pending` here would read as a content sync.
+           * Members-mode and federated sources start active. Members have their
+           * own queue state; federated sources do not queue content indexing.
            */
-          status: membersBinding ? 'active' : 'pending',
-          nextSyncAt: membersBinding ? null : nextSyncAt,
+          status: membersBinding || !indexesContent ? 'active' : 'pending',
+          nextSyncAt: membersBinding || !indexesContent ? null : nextSyncAt,
           ...(membersBinding
             ? {
                 accessMode: 'members',
                 credentialGroupId: membersBinding.credentialGroupId,
                 credentialGroupOptionId: membersBinding.credentialGroupOptionId,
-                nextMemberSyncAt: now,
+                nextMemberSyncAt: indexesContent ? now : null,
               }
             : /**
                * An admin-mode connector is a content-engine connector like a
@@ -641,6 +644,9 @@ export async function performCreateKnowledgeConnector(
    * initial sync is at stake — so a failed enqueue is reported on the connector,
    * not by failing the creation.
    */
+  if (!indexesContent)
+    return { success: true, connector: withoutSecret(created), initialSyncQueued: false }
+
   let initialSyncQueued = true
   try {
     const dispatch = membersBinding
@@ -737,6 +743,7 @@ export async function performUpdateKnowledgeConnector(
     source,
   } = params
   const requestId = params.requestId ?? generateRequestId()
+  const indexesContent = requiresConnectorIndexing(kb.isSearchIndex)
 
   const updatedFields = Object.keys(updates).filter(
     (key) => updates[key as keyof typeof updates] !== undefined
@@ -891,6 +898,7 @@ export async function performUpdateKnowledgeConnector(
 
   const resultingStatus = updates.status ?? existing.status
   const shouldDispatchSourceSync =
+    indexesContent &&
     (credentialChanged ||
       updates.sourceConfig !== undefined ||
       params.permissionChange?.requiresContentSync === true) &&
@@ -986,6 +994,10 @@ export async function performUpdateKnowledgeConnector(
   }
   if (shouldDispatchSourceSync) {
     values[scheduleColumn] = updateTimestamp
+  }
+  if (!indexesContent) {
+    values.nextSyncAt = null
+    values.nextMemberSyncAt = null
   }
 
   let updated: ConnectorRow
@@ -1439,6 +1451,8 @@ export async function performSyncKnowledgeConnector(
   if (!connector) {
     return fail('Connector not found', 'not_found')
   }
+  if (!requiresConnectorIndexing(kb.isSearchIndex))
+    return fail('This source is searched live and does not require indexing.', 'conflict')
   if (connector.status === 'syncing' || connector.status === 'pending') {
     return fail('Sync already in progress', 'conflict')
   }

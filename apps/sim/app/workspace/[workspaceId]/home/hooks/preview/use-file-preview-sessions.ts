@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useReducer } from 'react'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
 
 export interface FilePreviewSessionsState {
   activeSessionId: string | null

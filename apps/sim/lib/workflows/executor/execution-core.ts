@@ -7,7 +7,7 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
+import { getErrorMessage, redactBoundParameters, toError } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from '@xyflow/react'
@@ -25,6 +25,7 @@ import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
+import { processInputFileFields } from '@/lib/execution/files'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -117,6 +118,8 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
+  /** Required delivery must settle before the workflow can persist a successful outcome. */
+  finalizeDelivery?: (result: ExecutionResult) => Promise<void>
   skipLogCreation?: boolean
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
@@ -131,6 +134,8 @@ export interface ExecuteWorkflowCoreOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -271,15 +276,31 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
   )
 }
 
+/**
+ * Counts a settled run — completed, failed, or cancelled alike — on the
+ * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
+ * when they finish. Awaited from the finalization path rather than fired and
+ * forgotten, so a process reload after the log write cannot drop it.
+ */
+async function recordSettledRun(workflowId: string, requestId: string): Promise<void> {
+  try {
+    await updateWorkflowRunCounts(workflowId)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to update run counts`, { error })
+  }
+}
+
 async function finalizeExecutionOutcome(params: {
   result: ExecutionResult
   loggingSession: LoggingSession
+  workflowId: string
   executionId: string
   requestId: string
   workflowInput: unknown
   abortSignal?: AbortSignal
 }): Promise<void> {
-  const { result, loggingSession, executionId, requestId, workflowInput, abortSignal } = params
+  const { result, loggingSession, workflowId, executionId, requestId, workflowInput, abortSignal } =
+    params
   const { traceSpans, totalDuration } = buildTraceSpans(result)
   const endedAt = new Date().toISOString()
 
@@ -337,18 +358,23 @@ async function finalizeExecutionOutcome(params: {
       })
     )
   }
+
+  // Every non-paused outcome above is a settled run; the paused branch returned.
+  await recordSettledRun(workflowId, requestId)
 }
 
 async function finalizeExecutionError(params: {
   error: unknown
   loggingSession: LoggingSession
+  workflowId: string
   executionId: string
   requestId: string
 }): Promise<boolean> {
-  const { error, loggingSession, executionId, requestId } = params
+  const { error, loggingSession, workflowId, executionId, requestId } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
+  let finalized = false
   try {
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
@@ -361,18 +387,20 @@ async function finalizeExecutionError(params: {
       executionState: executionResult?.executionState,
     })
 
-    const finalized = loggingSession.hasCompleted()
+    finalized = loggingSession.hasCompleted()
     if (finalized) {
       await clearExecutionCancellationSafely(executionId, requestId)
     }
-    return finalized
   } catch (postExecError) {
     logger.error(
       `[${requestId}] Post-execution error logging failed`,
       loggingSession.projectDiagnosticError(postExecError, { executionId })
     )
-    return false
   }
+
+  // A run that threw after starting is a failed run, and failed runs count.
+  await recordSettledRun(workflowId, requestId)
+  return finalized
 }
 
 /**
@@ -616,10 +644,18 @@ async function executeWorkflowCoreImpl(
     const restoredState =
       runFromBlock?.sourceSnapshot ?? (resumeFromSnapshot ? snapshot.state : undefined)
     const restoreTrusted = resumeFromSnapshot || Boolean(runFromBlock?.sourceExecutionId)
+    // An EMPTY snapshot (the server-synthesized base for a pure-mock isolated
+    // block run) restores no values at all, so there is nothing whose provenance
+    // could be untrusted — latching incomplete here withheld every isolated
+    // unit-test result from the model. Any snapshot WITH content keeps the guard.
+    const restoredStateEmpty =
+      restoredState !== undefined &&
+      Object.keys(restoredState.blockStates ?? {}).length === 0 &&
+      (restoredState.executedBlocks ?? []).length === 0
     const trustedLargeValueAccess = restoreTrusted
       ? restoredState?.trustedLargeValueAccess
       : undefined
-    const requireRestoredProvenance = restoredState !== undefined
+    const requireRestoredProvenance = restoredState !== undefined && !restoredStateEmpty
     resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
       personalEncrypted,
       workspaceEncrypted,
@@ -634,7 +670,7 @@ async function executeWorkflowCoreImpl(
       requireRestoredProvenance,
       scope: { userId: personalEnvUserId ?? workspaceEnvUserId, workspaceId: providedWorkspaceId },
     })
-    if (restoredState && !restoreTrusted) {
+    if (restoredState && !restoreTrusted && !restoredStateEmpty) {
       resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')
     }
     if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
@@ -710,7 +746,21 @@ async function executeWorkflowCoreImpl(
       parallels,
       true
     )
-    processedInput = input || {}
+    const inputFileKeys = new Set<string>()
+    processedInput =
+      resumeFromSnapshot || runFromBlock
+        ? (input ?? {})
+        : await processInputFileFields(
+            input ?? {},
+            serializedWorkflow.blocks,
+            { workspaceId: providedWorkspaceId, workflowId, executionId },
+            requestId,
+            userId,
+            resolvedTriggerBlockId,
+            (file) => {
+              if (file.key) inputFileKeys.add(file.key)
+            }
+          )
 
     // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
     let resolvedStopAfterBlockId = stopAfterBlockId
@@ -856,7 +906,11 @@ async function executeWorkflowCoreImpl(
       ])
     )
     const fileKeys = Array.from(
-      new Set([...(metadata.fileKeys ?? []), ...(trustedLargeValueAccess?.fileKeys ?? [])])
+      new Set([
+        ...(metadata.fileKeys ?? []),
+        ...(trustedLargeValueAccess?.fileKeys ?? []),
+        ...inputFileKeys,
+      ])
     )
     const allowLargeValueWorkflowScope =
       metadata.allowLargeValueWorkflowScope === true ||
@@ -1096,11 +1150,20 @@ async function executeWorkflowCoreImpl(
       ? ((await executorInstance.executeFromBlock(
           workflowId,
           runFromBlock.startBlockId,
-          runFromBlock.sourceSnapshot
+          runFromBlock.sourceSnapshot,
+          runFromBlock.variableInputs
         )) as ExecutionResult)
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
     await waitForLifecycleCallbacks()
+
+    if (options.finalizeDelivery) {
+      try {
+        await options.finalizeDelivery(result)
+      } catch (error) {
+        throw Object.assign(toError(error), { executionResult: result })
+      }
+    }
 
     loggingSession.setPostExecutionPromise(
       (async () => {
@@ -1108,19 +1171,12 @@ async function executeWorkflowCoreImpl(
           await finalizeExecutionOutcome({
             result,
             loggingSession,
+            workflowId,
             executionId,
             requestId,
             workflowInput: processedInput,
             abortSignal,
           })
-
-          if (result.success && result.status !== 'paused') {
-            try {
-              await updateWorkflowRunCounts(workflowId)
-            } catch (runCountError) {
-              logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
-            }
-          }
         } catch (postExecError) {
           logger.error(
             `[${requestId}] Post-execution logging failed`,
@@ -1169,6 +1225,7 @@ async function executeWorkflowCoreImpl(
             ? await finalizeExecutionError({
                 error,
                 loggingSession,
+                workflowId,
                 executionId,
                 requestId,
               })

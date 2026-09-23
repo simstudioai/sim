@@ -226,7 +226,7 @@ export function isSelfHostedOverrideEnabled(
   deployment: DeploymentShape
 ): boolean {
   if (override === undefined || deployment.hosted) return false
-  return override === 'always' || deployment.features[override]
+  return override === 'always' || deployment.features[override] === true
 }
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>
@@ -942,7 +942,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
     return {
       id,
       label: 'Sources',
-      description: 'Set up the sources your organization searches.',
+      description: '',
       icon: Integration,
       group,
     }

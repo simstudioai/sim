@@ -195,6 +195,320 @@ describe('AgentGroup inline main activity', () => {
     expect(Boolean(container.querySelector('[class*="shimmer"]'))).toBe(status === 'executing')
   })
 
+  it('preserves manual expansion when more main-agent tools arrive', () => {
+    const items = [tool('success'), tool('executing')]
+    const render = (nextItems: AgentGroupItem[]) =>
+      act(() => {
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items: nextItems,
+            isStreaming: true,
+            isLaneOpen: true,
+          })
+        )
+      })
+    render(items)
+    const header = () => container.querySelector<HTMLElement>('[role="button"][aria-expanded]')
+    expect(header()?.getAttribute('aria-expanded')).toBe('false')
+    act(() => header()?.click())
+    expect(header()?.getAttribute('aria-expanded')).toBe('true')
+    render([...items, tool('executing')])
+    expect(header()?.getAttribute('aria-expanded')).toBe('true')
+    act(() => header()?.click())
+    render([...items, tool('executing')])
+    expect(header()?.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it.each([
+    ['success', 'Searched'],
+    ['error', 'Searching'],
+    ['cancelled', 'Stopped searching'],
+    ['skipped', 'Skipped searching'],
+    ['interrupted', 'Stopped searching'],
+    ['rejected', 'Searching'],
+  ] as const)('shows the single call directly after %s', (status, expected) => {
+    const item = tool(status)
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: {
+            id: 'search',
+            completedTitle: 'Checked search requirements',
+          },
+          items: [item],
+          isStreaming: true,
+          isLaneOpen: false,
+        })
+      )
+    )
+    expect(container.textContent).toBe(expected)
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+  })
+
+  it('keeps the concrete running call distinct from grouped activity intent', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: {
+            id: 'search',
+            completedTitle: 'Checked requirements',
+          },
+          items: [tool('executing')],
+          isStreaming: true,
+          isLaneOpen: true,
+        })
+      )
+    )
+    expect(container.textContent).toBe('Searching')
+    expect(container.textContent).not.toContain('Checking requirements')
+  })
+
+  it('counts unresolved calls and waits for a lane boundary before showing completed activity', () => {
+    vi.useFakeTimers()
+    const render = (statuses: ToolCallStatus[], isLaneOpen = true) => {
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            activity: { id: 'build', completedTitle: 'Built Search API' },
+            isStreaming: true,
+            isLaneOpen,
+            items: statuses.map((status, index) => ({
+              type: 'tool' as const,
+              data: {
+                id: `call-${index}`,
+                toolName: 'read',
+                displayTitle: `Reading document ${index}`,
+                status,
+              },
+            })),
+          })
+        )
+      )
+      act(() => vi.advanceTimersByTime(1000))
+      return container.querySelector('[role="status"]')!
+    }
+    expect(render(['executing', 'executing', 'success']).textContent).toBe('Reading document 1 + 1')
+    expect(render(['executing', 'success', 'success']).textContent).toBe('Reading document 0')
+    expect(render(['success', 'success', 'success']).textContent).toBe('Read document 2')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    const completed = render(['success', 'success', 'success'], false)
+    expect(completed.textContent).toBe('Built Search API')
+    expect(completed.querySelector('svg')).toBeNull()
+    act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+    expect(container.querySelector('[data-state="open"] svg')).not.toBeNull()
+  })
+
+  it.each(['sim_cli', 'run_code'])(
+    'shows %s argument preparation before its concrete call',
+    (toolName) => {
+      vi.useFakeTimers()
+      const render = (
+        params: Record<string, unknown>,
+        status: ToolCallStatus,
+        isLaneOpen = true
+      ) => {
+        act(() =>
+          root.render(
+            createElement(AgentGroup, {
+              agentName: 'mothership',
+              agentLabel: 'Sim',
+              isStreaming: true,
+              isLaneOpen,
+              items: [
+                {
+                  type: 'tool',
+                  data: {
+                    id: 'call',
+                    toolName,
+                    displayTitle: 'Running checks',
+                    status,
+                    params,
+                    streamingArgs: '{"activity":{"id":"check","completedTitle":"Checked inputs"},',
+                  },
+                },
+              ],
+            })
+          )
+        )
+        act(() => vi.advanceTimersByTime(1000))
+        return container.textContent
+      }
+      expect(render({}, 'executing')).toBe('Working…')
+      const params = { code: '1', activity: { id: 'check', completedTitle: 'Checked inputs' } }
+      expect(render(params, 'executing')).toBe('Running checks')
+      expect(render(params, 'success')).toBe('Ran checks')
+      expect(render(params, 'success', false)).toBe('Ran checks')
+    }
+  )
+
+  it('keeps an activity unfinished while a standalone approval is pending', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroupView, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: { id: 'build', completedTitle: 'Built API' },
+          items: [
+            {
+              type: 'tool',
+              data: {
+                id: 'read',
+                toolName: 'read',
+                displayTitle: 'Read configuration',
+                status: 'success',
+              },
+            },
+            {
+              type: 'tool',
+              data: {
+                id: 'approval',
+                toolName: 'create',
+                displayTitle: 'Waiting for approval',
+                status: 'awaiting_approval',
+              },
+            },
+          ],
+          ToolCallComponent: ({ displayTitle, renderStatus }: ToolCallItemProps) =>
+            renderStatus
+              ? renderStatus({ label: displayTitle, activeLabel: displayTitle, isActive: false })
+              : createElement('div', null, displayTitle),
+        })
+      )
+    )
+    expect(container.textContent).toBe('Read configurationWaiting for approval')
+    expect(container.textContent).not.toContain('Built API')
+  })
+
+  it('keeps earlier failures in expanded history when completed activities collapse', () => {
+    act(() =>
+      root.render(
+        createElement(AgentGroup, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: { id: 'second', completedTitle: 'Checked inputs' },
+          completedGroupCount: 2,
+          items: [
+            {
+              type: 'tool',
+              data: {
+                id: 'first',
+                toolName: 'read',
+                displayTitle: 'Reading first document',
+                status: 'error',
+                params: { activity: { id: 'first' } },
+              },
+            },
+            {
+              type: 'tool',
+              data: {
+                id: 'second',
+                toolName: 'read',
+                displayTitle: 'Reading second document',
+                status: 'success',
+                params: { activity: { id: 'second' } },
+              },
+            },
+          ],
+        })
+      )
+    )
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Read second document')
+    act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+    expect(container.textContent).toContain('Reading first document')
+  })
+
+  it.each(['mothership', 'workflow'])(
+    'keeps a lone failed %s call accessible under a neutral disclosure',
+    (agentName) => {
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName,
+            agentLabel: agentName,
+            items: [
+              {
+                type: 'tool',
+                data: {
+                  id: 'failed-read',
+                  toolName: 'read',
+                  displayTitle: 'Reading notes',
+                  status: 'error',
+                },
+              },
+            ],
+          })
+        )
+      )
+      if (agentName === 'mothership') {
+        expect(container.textContent).toBe('Reading notes')
+        expect(container.querySelector('[aria-expanded]')).toBeNull()
+        return
+      }
+      expect(container.textContent).not.toContain('Failed')
+      expect(container.textContent).toContain('Reading notes')
+      const disclosure = container.querySelector<HTMLElement>('[role="button"]')
+      expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
+      act(() => disclosure?.click())
+      expect(container.textContent).toContain('Reading notes')
+    }
+  )
+
+  it.each(['executing', 'success'] as const)(
+    'keeps failures out of a %s summary while retaining them in expanded history',
+    (status) => {
+      const items: AgentGroupItem[] = [
+        {
+          type: 'tool',
+          data: {
+            id: 'read-failed',
+            toolName: 'read',
+            displayTitle: 'Reading image.png',
+            status: 'error',
+          },
+        },
+        {
+          type: 'tool',
+          data: { id: 'view', toolName: 'read', displayTitle: 'Viewing image.png', status },
+        },
+        {
+          type: 'tool',
+          data: {
+            id: 'later-failed',
+            toolName: 'read',
+            displayTitle: 'Reading notes',
+            status: 'error',
+          },
+        },
+      ]
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items,
+            activity: { id: 'inspect', completedTitle: 'Inspected images' },
+            isStreaming: status === 'executing',
+            isLaneOpen: status === 'executing',
+          })
+        )
+      )
+      expect(container.textContent).toBe(
+        status === 'executing' ? 'Viewing image.png' : 'Viewed image.png'
+      )
+      act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+      expect(container.textContent).toContain('Reading image.png')
+      expect(container.textContent).toContain('Reading notes')
+    }
+  )
+
   it('paces the active status in place and expands the full completed history', () => {
     vi.useFakeTimers()
     const first: AgentGroupItem = {
@@ -227,7 +541,7 @@ describe('AgentGroup inline main activity', () => {
     expect(container.firstElementChild).toBe(activity)
     expect(container.textContent).toBe('Searching files')
     act(() => vi.advanceTimersByTime(1000))
-    expect(container.textContent).toBe('Reading notes')
+    expect(container.textContent).toBe('Reading notes + 1')
     expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
     expect(
       container.querySelector<HTMLElement>('[role="button"]')?.getAttribute('aria-expanded')
@@ -242,7 +556,7 @@ describe('AgentGroup inline main activity', () => {
       ],
       false
     )
-    expect(container.textContent).toBe('Searched files, read files')
+    expect(container.textContent).toBe('Read notes + 1')
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
     const header = container.querySelector<HTMLElement>('[role="button"]')
     act(() => header?.click())
@@ -252,7 +566,7 @@ describe('AgentGroup inline main activity', () => {
     )
     act(() => header?.click())
     expect(header?.getAttribute('aria-expanded')).toBe('false')
-    expect(container.textContent).toBe('Searched files, read files')
+    expect(container.textContent).toBe('Read notes + 1')
   })
 
   it('keeps history expanded as new tools arrive', () => {
@@ -343,8 +657,8 @@ describe('AgentGroup inline main activity', () => {
       const header = container.querySelector<HTMLElement>('[role="button"]')
       act(() => header?.click())
       expect(header?.hasAttribute('aria-label')).toBe(false)
-      expect(header?.textContent).toBe('Tool activity')
-      expect(header).toHaveAccessibleName('Tool activity')
+      expect(header?.textContent).toBe('Waiting 1s')
+      expect(header).toHaveAccessibleName('Waiting 1s')
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'Waiting 1sRead notes'
       )
@@ -360,8 +674,8 @@ describe('AgentGroup inline main activity', () => {
         read,
         { ...wait, data: { ...wait.data, id: 'wait-second' } },
       ])
-      expect(header?.textContent).toBe('Tool activity')
-      expect(header).toHaveAccessibleName('Tool activity')
+      expect(header?.textContent).toBe('Waiting 3s')
+      expect(header).toHaveAccessibleName('Waiting 3s')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'WaitedRead notesWaiting 3s'
@@ -372,7 +686,7 @@ describe('AgentGroup inline main activity', () => {
         read,
         { ...wait, data: { ...wait.data, id: 'wait-second', status: 'success' } },
       ])
-      expect(header?.textContent).toBe('Waited, read files')
+      expect(header?.textContent).toBe('Waited + 2')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(clearIntervalSpy).toHaveBeenCalledTimes(2)
     } finally {
@@ -414,8 +728,8 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       const header = container.querySelector<HTMLElement>('[role="button"]')
-      expect(header?.textContent).toBe('Read files, ran commands')
-      expect(header).toHaveAccessibleName('Read files, ran commands')
+      expect(header?.textContent).toBe('Ran checks + 1')
+      expect(header).toHaveAccessibleName('Ran checks + 1')
       expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
       act(() => header?.click())
       expect(
@@ -582,7 +896,8 @@ describe('AgentGroup inline main activity', () => {
       Array.from(container.querySelectorAll('[data-tool-call-id]'), (row) =>
         row.getAttribute('data-tool-call-id')
       )
-    ).toEqual(['permission', 'handoff', 'latest'])
+    ).toEqual(['permission', 'handoff'])
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Reading notes')
     expect(
       container.querySelector('[data-tool-call-id="permission"]')?.closest('[data-state]')
     ).toBeNull()

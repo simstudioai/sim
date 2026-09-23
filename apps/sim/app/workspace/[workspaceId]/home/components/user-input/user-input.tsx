@@ -14,9 +14,9 @@ import { Chip, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
-import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -29,6 +29,8 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
+import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   FileAttachmentForApi,
@@ -49,6 +51,8 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  requestMode?: 'agent' | 'plan'
+  onModeChange?: (mode: 'agent' | 'plan') => void
   defaultValue?: string
   draftScopeKey?: string
   onSubmit: (
@@ -80,6 +84,8 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    requestMode = 'agent',
+    onModeChange,
     defaultValue = '',
     draftScopeKey,
     onSubmit,
@@ -575,58 +581,70 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
       />
 
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Plus}
-                onClick={handlePlusClick}
-                aria-label='Add resources'
+      <InputToolbar
+        leadingControls={
+          <>
+            {onModeChange && (
+              <ConversationModeSelector
+                value={requestMode}
+                onChange={(mode) => {
+                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
+                }}
               />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Add resources</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Paperclip}
-                onClick={handleFileSelectStable}
-                aria-label='Attach file'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Slash}
-                onClick={handleSlashTriggerClick}
-                aria-label='Skills'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Skills</Tooltip.Content>
-          </Tooltip.Root>
-        </div>
-        <div className='flex items-center gap-1.5'>
-          {isSttSupported && (
+            )}
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Plus}
+                  onClick={handlePlusClick}
+                  aria-label='Add resources'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Add resources</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Paperclip}
+                  onClick={handleFileSelectStable}
+                  aria-label='Attach file'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Slash}
+                  onClick={handleSlashTriggerClick}
+                  aria-label='Skills'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Skills</Tooltip.Content>
+            </Tooltip.Root>
+          </>
+        }
+        voiceControl={
+          isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}
               isListening={isListening}
               onToggle={toggleListening}
             />
-          )}
+          )
+        }
+        submitControl={
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
             onSubmit={handleSubmit}
             onStopGeneration={onStopGeneration}
           />
-        </div>
-      </div>
+        }
+      />
 
       <input
         ref={files.fileInputRef}

@@ -84,7 +84,14 @@ describe('organization account indexing authorization', () => {
         credentialGroupOptionId: 'option-1',
       })
       expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({ actorId: 'admin-1', metadata: { organizationId: 'org-1' } })
+        expect.objectContaining({
+          actorId: 'admin-1',
+          metadata: {
+            organizationId: 'org-1',
+            operation: 'organization_accounts.indexing.update',
+            actor: { kind: 'session', userId: 'admin-1' },
+          },
+        })
       )
     }
   )

@@ -50,6 +50,7 @@ describe('catalogOperations', () => {
       expect(operation.minimumRole, operation.id).toBe('read')
       expect(operation.workspaceApiKey, operation.id).toBe('allow')
       expect([...operation.principalKinds].sort(), operation.id).toEqual([
+        'delegated',
         'oauth_access_token',
         'personal_api_key',
         'session',
@@ -58,10 +59,10 @@ describe('catalogOperations', () => {
     }
   })
 
-  it('admits no delegated principal, because no delegated caller exists yet', () => {
+  it('admits Copilot as the only delegated catalog reader', () => {
     for (const operation of Object.values(catalogOperations)) {
-      expect(operation.principalKinds, operation.id).not.toContain('delegated')
-      expect(operation.delegatedServices, operation.id).toBeUndefined()
+      expect(operation.principalKinds, operation.id).toContain('delegated')
+      expect(operation.delegatedServices, operation.id).toEqual(['copilot'])
     }
   })
 

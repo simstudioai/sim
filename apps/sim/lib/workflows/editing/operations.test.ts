@@ -1,13 +1,35 @@
 /**
  * @vitest-environment node
  */
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { createBlockFromParams } from '@/lib/workflows/editing/builders'
+import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { applyOperationsToWorkflowState } from './engine'
 
 vi.mock('@/blocks/registry', () => {
   const blocks: Record<string, any> = {
+    conditional_format: {
+      type: 'conditional_format',
+      name: 'Conditional Format',
+      subBlocks: [
+        { id: 'mode', type: 'short-input', value: () => 'compact' },
+        {
+          id: 'format',
+          type: 'dropdown',
+          condition: () => ({ field: 'mode', value: ['compact'] }),
+          options: [{ id: 'json', label: 'JSON' }],
+        },
+        {
+          id: 'format',
+          type: 'dropdown',
+          condition: { field: 'mode', value: 'tabular' },
+          options: [{ id: 'csv', label: 'CSV' }],
+        },
+      ],
+    },
     condition: {
       type: 'condition',
       name: 'Condition',
@@ -21,6 +43,11 @@ vi.mock('@/blocks/registry', () => {
         { id: 'model', type: 'combobox' },
         { id: 'tools', type: 'tool-input' },
       ],
+    },
+    mothership: {
+      type: 'mothership',
+      name: 'Sim Chat',
+      subBlocks: [{ id: 'tools', type: 'tool-input' }],
     },
     function: {
       type: 'function',
@@ -1364,6 +1391,27 @@ describe('tool canonical-mode reindexing', () => {
     })
   })
 
+  it('switches Sim Chat between variable and fixed tool modes through operations apply', () => {
+    const tool = {
+      type: 'mcp',
+      params: { serverId: 'server', toolName: 'search' },
+      usageControl: 'auto',
+    }
+    const workflow = agentWithTools([tool], {})
+    workflow.blocks.agent.type = 'mothership'
+    expect(
+      editTools(workflow, [
+        { type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' },
+      ])
+    ).toEqual({ '0:agentToolUsageControl': 'advanced' })
+    const variable = agentWithTools(
+      [{ type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' }],
+      { '0:agentToolUsageControl': 'advanced' }
+    )
+    variable.blocks.agent.type = 'mothership'
+    expect(editTools(variable, [{ ...tool, usageControl: 'none' }])).toEqual({})
+  })
+
   it('keeps a round-tripped Permission Mode with its tool when an explicit choice moves past it', () => {
     const roundTripTool = { ...selectorTool, usageControlExpression: '<start.dormant>' }
     const expressionTool = {
@@ -1381,5 +1429,319 @@ describe('tool canonical-mode reindexing', () => {
     expect(editTools(workflow, [expressionTool, roundTripTool])).toEqual({
       '0:agentToolUsageControl': 'advanced',
     })
+  })
+})
+
+/**
+ * A `connections` value the parser does not understand used to be ignored: the
+ * block landed, `applied` counted it, and nothing said the wiring never
+ * happened. The handle and the accepted shapes are now named as a dropped input.
+ */
+describe('connection shape validation', () => {
+  const BLOCK_A = '44444444-4444-4444-8444-444444444444'
+
+  function workflowWithStart() {
+    return {
+      blocks: {
+        'start-1': {
+          id: 'start-1',
+          type: 'function',
+          name: 'Start',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('reports a connections value of an unsupported shape instead of dropping it silently', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { source: { target: 'start-1' }, error: [{ target: 'start-1' }] },
+          },
+        },
+      ]
+    )
+
+    expect(state.blocks[BLOCK_A]).toBeDefined()
+    expect(state.edges).toEqual([])
+    expect(skippedItems).toEqual([])
+    expect(validationErrors).toEqual([
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error:
+          'connections["source"]: expected a target block id, {block, handle?}, or an array of those',
+      },
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error: 'connections["error"][0]: expected a target block id or {block, handle?}',
+      },
+    ])
+  })
+
+  it('wires the accepted shapes and reports a handle the block lacks as a skip', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { success: 'start-1', error: [{ block: 'start-1' }], incoming: 'start-1' },
+          },
+        },
+      ]
+    )
+
+    expect(validationErrors).toEqual([])
+    expect(state.edges.map((edge: { sourceHandle?: string }) => edge.sourceHandle).sort()).toEqual([
+      'error',
+      'source',
+    ])
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_source_handle',
+        blockId: BLOCK_A,
+        details: expect.objectContaining({ sourceHandle: 'incoming' }),
+      }),
+    ])
+  })
+})
+
+describe('conditional input validation through workflow operations', () => {
+  const blockId = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
+
+  function workflowWithStoredDefault() {
+    const workflow = makeLoopWorkflow()
+    const formatter: BlockState = createBlockFromParams(blockId, {
+      type: 'conditional_format',
+      name: 'Formatter',
+    })
+    expect(formatter.subBlocks.mode.value).toBe('compact')
+    return { ...workflow, blocks: { ...workflow.blocks, [blockId]: formatter } }
+  }
+
+  it('validates an add against explicit selectors regardless of input order', () => {
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: blockId,
+        params: {
+          type: 'conditional_format',
+          name: 'Formatter',
+          inputs: { format: 'json', mode: 'compact' },
+        },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+  })
+
+  it.each(['edit', 'nested', 'insert'] as const)(
+    'uses the stored default selector for a partial %s write',
+    (path) => {
+      const workflow = workflowWithStoredDefault()
+      const operations: EditWorkflowOperation[] = []
+      if (path === 'nested') {
+        workflow.blocks[blockId].data = { parentId: 'loop-1', extent: 'parent' }
+        operations.push({
+          operation_type: 'edit',
+          block_id: 'loop-1',
+          params: {
+            nestedNodes: {
+              incoming: {
+                type: 'conditional_format',
+                name: 'Formatter',
+                inputs: { format: 'json' },
+              },
+            },
+          },
+        })
+      } else {
+        operations.push({
+          operation_type: path === 'insert' ? 'insert_into_subflow' : 'edit',
+          block_id: blockId,
+          params: {
+            subflowId: 'loop-1',
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { format: 'json' },
+          },
+        })
+      }
+      const { state, validationErrors } = applyOperationsToWorkflowState(workflow, operations)
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+      expect(state.blocks[blockId].subBlocks.mode.value).toBe('compact')
+      expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+    }
+  )
+
+  it('uses incoming selectors over stored values and reports invalid active choices', () => {
+    const workflow = workflowWithStoredDefault()
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: blockId,
+        params: { inputs: { format: 'csv', mode: 'tabular' } },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+
+    const rejected = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: blockId, params: { inputs: { format: 'csv' } } },
+    ])
+    expect(rejected.validationErrors.map((error) => error.field)).toEqual(['format'])
+    expect(rejected.state.blocks[blockId].subBlocks.format.value).toBeNull()
+    expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+  })
+
+  it.each([{}, { mode: 'dormant' }])(
+    'preserves the existing dormant fallback on add without a matching selector: %j',
+    (selectors) => {
+      /**
+       * Characterizes the compatibility boundary, not correct default inference:
+       * add validation still runs before default seeding and does not infer mode.
+       */
+      const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: {
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { ...selectors, format: 'csv' },
+          },
+        },
+      ])
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+    }
+  )
+})
+
+describe('Mothership tool attachment writes', () => {
+  const tool = { type: 'slack', operation: 'send', title: 'Approved sender' }
+  const graph = { blocks: {}, edges: [], loops: {}, parallels: {} }
+  const add: EditWorkflowOperation = {
+    operation_type: 'add',
+    block_id: 'agent',
+    params: { type: 'agent', name: 'Agent', inputs: { tools: [tool] } },
+  }
+
+  it('rejects an alias before storing a new binding, without changing ordinary API authoring', () => {
+    const internal = applyOperationsToWorkflowState(graph, [add], null, true)
+    expect(internal.validationErrors).toEqual([
+      expect.objectContaining({ field: 'tools', error: expect.stringContaining('read-only') }),
+    ])
+    const publicResult = applyOperationsToWorkflowState(graph, [add])
+    expect(publicResult.validationErrors).toEqual([])
+    const id = publicResult.mintedBlockIds.agent
+    expect(publicResult.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('preserves existing labels during unrelated edits and rejects a subsequent rename', () => {
+    const existing = applyOperationsToWorkflowState(graph, [add])
+    const id = existing.mintedBlockIds.agent
+    const untouched = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { systemPrompt: 'New instructions' } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(untouched.validationErrors).toEqual([])
+    expect(untouched.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+    const preserved = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, params: { channel: 'support' } }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(preserved.validationErrors).toEqual([])
+    const renamed = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, title: 'Another name' }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(renamed.validationErrors[0]?.error).toContain('read-only')
+    expect(renamed.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('refuses an integration selection that Sim Chat would ignore', () => {
+    const result = applyOperationsToWorkflowState(
+      graph,
+      [
+        {
+          ...add,
+          params: {
+            type: 'mothership',
+            name: 'Sim Chat',
+            inputs: { tools: [{ type: 'slack', operation: 'send' }] },
+          },
+        },
+      ],
+      null,
+      true
+    )
+    expect(result.validationErrors[0]?.error).toContain('MCP tool or MCP server bindings only')
+  })
+
+  it('enforces attachment names inside new nested blocks too', () => {
+    const result = applyOperationsToWorkflowState(
+      graph,
+      [
+        {
+          operation_type: 'add',
+          block_id: 'loop',
+          params: { type: 'loop', name: 'Tool loop', nestedNodes: { nested: add.params } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(result.validationErrors.some((error) => error.error.includes('read-only'))).toBe(true)
   })
 })

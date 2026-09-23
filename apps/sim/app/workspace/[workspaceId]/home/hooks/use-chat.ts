@@ -7,86 +7,32 @@ import {
   useRef,
   useState,
 } from 'react'
-import { isBrowserToolName, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  type WorkspaceSearchFilters,
-  workspaceSearchFiltersSchema,
-} from '@/lib/api/contracts/knowledge/search'
+import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
-import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import type {
-  PersistedFileAttachment,
-  PersistedMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
-import {
-  type RevealedSimKeysByMessage,
-  restoreRevealedSimKeysForMessage,
-} from '@/lib/copilot/chat/sim-key-redaction'
-import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import {
-  MothershipStreamV1CompletionStatus,
-  MothershipStreamV1EventType,
-  MothershipStreamV1SessionKind,
-  MothershipStreamV1SpanLifecycleEvent,
-  MothershipStreamV1SpanPayloadKind,
-  MothershipStreamV1TextChannel,
-  MothershipStreamV1ToolOutcome,
-  MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import {
-  type ParseStreamEventEnvelopeFailure,
-  parsePersistedStreamEventEnvelope,
-  parsePersistedStreamEventEnvelopeJson,
-} from '@/lib/copilot/request/session/contract'
-import {
-  type FilePreviewSession,
-  isFilePreviewSession,
-} from '@/lib/copilot/request/session/file-preview-session-contract'
-import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { canDisplayResource } from '@/lib/copilot/resources/availability'
-import { ResourcePersistenceQueue } from '@/lib/copilot/resources/client-persistence-queue'
-import {
-  isAddressableResource,
-  isEphemeralResource,
-  type MothershipResourceUpdate,
-  mergeChatResource,
-  sanitizeChatResources,
-} from '@/lib/copilot/resources/types'
-import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import {
-  bindRunToolToExecution,
-  cancelRunToolExecution,
-  executeRunToolOnClient,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal-tool-execution'
-import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
-import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import {
@@ -96,7 +42,48 @@ import {
   migrateDesktopChatScopes,
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import type {
+  PersistedFileAttachment,
+  PersistedMessage,
+} from '@/lib/mothership/chat/persisted-message'
+import {
+  type RevealedSimKeysByMessage,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/mothership/chat/sim-key-redaction'
+import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
+import {
+  isTerminalStreamStatus,
+  parsePersistedStreamEventEnvelopeJson,
+} from '@/lib/mothership/request/session/contract'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import { canDisplayResource } from '@/lib/mothership/resources/availability'
+import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
+import {
+  getChatResourceKey,
+  getChatResourceSelectionId,
+  isAddressableResource,
+  isEphemeralResource,
+  type MothershipResourceUpdate,
+  mergeChatResource,
+  reorderStoredChatResources,
+  sanitizeChatResources,
+} from '@/lib/mothership/resources/types'
+import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
+import {
+  bindRunToolToExecution,
+  executeRunToolOnClient,
+  stopRunToolExecutions,
+} from '@/lib/mothership/tools/client/run-tool-execution'
+import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
+import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
+import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
@@ -119,21 +106,22 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
   mothershipChatKeys,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
-import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
-import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
@@ -141,7 +129,6 @@ import type {
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
-import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
@@ -156,6 +143,39 @@ import type {
   QueuedMessage,
   ToolCallInfo,
 } from '../types'
+import {
+  buildAssistantSnapshotMessage,
+  buildChatHistoryHydrationKey,
+  getReplayCompletedWorkflowToolCallIds,
+  hasTerminalPersistedAssistantForStream,
+  markMessageStopped,
+  type ReconnectReplaySelection,
+  reconcileLiveAssistantTurn,
+  selectReconnectReplayState,
+  toRawPersistedContentBlock,
+} from './message-reconcile'
+import {
+  clearQueuedSendHandoffClaim,
+  clearQueuedSendHandoffState,
+  hasQueuedSendHandoffClaimOwner,
+  queuedSendHandoffClaimRetryDelay,
+  queuedSendHandoffResolveRetryDelay,
+  readQueuedSendHandoffClaim,
+  readQueuedSendHandoffState,
+  writeQueuedSendHandoffClaim,
+  writeQueuedSendHandoffState,
+} from './send-handoff'
+import {
+  buildReplayStream,
+  createStreamSchemaValidationError,
+  isAlreadyProcessedStreamCursor,
+  isStreamGoneError,
+  isStreamSchemaValidationError,
+  parseStreamBatchResponse,
+  resolveChatIdFromStreamBatch,
+  type StreamBatchResponse,
+  StreamGoneError,
+} from './stream-protocol'
 
 export interface SendMessageOptions {
   /**
@@ -167,6 +187,14 @@ export interface SendMessageOptions {
   /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
+}
+
+interface FinalizeOptions {
+  error?: boolean
+  targetChatId?: string
+  /** A lost transport must remain recoverable while the server is still running. */
+  streamTerminal?: boolean
 }
 
 /**
@@ -192,6 +220,15 @@ interface StartSendMessageOptions {
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
+}
+
+/** Stop must preserve send admission even when it precedes the first response byte. */
+interface PendingChatAdmission {
+  userMessageId: string
+  chatKey: string
+  controller: AbortController
+  settled: Promise<string | undefined>
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -202,6 +239,7 @@ interface WithdrawnSend {
   userMessageId: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 export interface UseChatReturn {
@@ -224,7 +262,12 @@ export interface UseChatReturn {
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
   addResource: (resource: MothershipResourceUpdate) => boolean
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  setTableViewContext: (tableId: string, context: MothershipTableViewContext) => void
+  removeResource: (
+    resourceType: MothershipResourceType,
+    resourceId: string,
+    workspaceId?: string
+  ) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
   removeFromQueue: (id: string) => void
@@ -248,12 +291,6 @@ const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
-const QUEUED_SEND_HANDOFF_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff`
-const QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff-claim`
-const QUEUED_SEND_HANDOFF_TTL_MS = 5 * 60 * 1000
-const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
-const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
-const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 const DETACHED_CHAT_RETRY_BASE_MS = 1000
 const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 
@@ -301,28 +338,6 @@ type ActiveTurn = {
 interface DetachedChatResolution {
   chatId?: string
   terminal: boolean
-}
-
-interface QueuedSendHandoffState {
-  id: string
-  chatId?: string
-  workspaceId?: string
-  organizationId?: string
-  supersededStreamId: string | null
-  userMessageId: string
-  message: string
-  fileAttachments?: FileAttachmentForApi[]
-  contexts?: ChatContext[]
-  requestMode?: ChatRequestMode
-  assistantSearch?: WorkspaceSearchFilters
-  requestedAt: number
-  resolveAttempts?: number
-}
-
-interface QueuedSendHandoffClaim {
-  id: string
-  ownerId: string
-  claimedAt: number
 }
 
 interface ActiveQueuedSendHandoffRecovery {
@@ -424,732 +439,6 @@ export async function waitForDetachedChatResolution(
   }
 }
 
-function isFileAttachmentForApi(value: unknown): value is FileAttachmentForApi {
-  if (!isRecordLike(value)) return false
-  return (
-    typeof value.id === 'string' &&
-    typeof value.key === 'string' &&
-    typeof value.filename === 'string' &&
-    typeof value.media_type === 'string' &&
-    typeof value.size === 'number' &&
-    Number.isFinite(value.size) &&
-    (value.path === undefined || typeof value.path === 'string')
-  )
-}
-
-function isChatContext(value: unknown): value is ChatContext {
-  if (!isRecordLike(value) || typeof value.kind !== 'string' || typeof value.label !== 'string') {
-    return false
-  }
-
-  switch (value.kind) {
-    case 'past_chat':
-      return typeof value.chatId === 'string'
-    case 'workflow':
-    case 'current_workflow':
-      return typeof value.workflowId === 'string'
-    case 'blocks':
-      return Array.isArray(value.blockIds) && value.blockIds.every((id) => typeof id === 'string')
-    case 'logs':
-      return value.executionId === undefined || typeof value.executionId === 'string'
-    case 'workflow_block':
-      return typeof value.workflowId === 'string' && typeof value.blockId === 'string'
-    case 'knowledge':
-      return value.knowledgeId === undefined || typeof value.knowledgeId === 'string'
-    case 'table':
-      return typeof value.tableId === 'string'
-    case 'table_selection':
-      return (
-        typeof value.tableId === 'string' &&
-        typeof value.tableName === 'string' &&
-        Array.isArray(value.rowIds) &&
-        value.rowIds.every((id) => typeof id === 'string')
-      )
-    case 'file':
-      return typeof value.fileId === 'string'
-    case 'file_selection':
-      return (
-        typeof value.fileId === 'string' &&
-        typeof value.fileName === 'string' &&
-        typeof value.text === 'string'
-      )
-    case 'folder':
-      return typeof value.folderId === 'string'
-    case 'filefolder':
-      return typeof value.fileFolderId === 'string'
-    case 'docs':
-      return true
-    case 'slash_command':
-      return typeof value.command === 'string'
-    case 'integration':
-      return typeof value.blockType === 'string'
-    case 'skill':
-      return typeof value.skillId === 'string'
-    case 'mcp':
-      return typeof value.serverId === 'string'
-    case 'browser_tab':
-      return (
-        typeof value.tabId === 'string' &&
-        (value.selection === undefined ||
-          (isRecordLike(value.selection) &&
-            typeof value.selection.text === 'string' &&
-            (value.selection.url === undefined || typeof value.selection.url === 'string') &&
-            (value.selection.title === undefined || typeof value.selection.title === 'string')))
-      )
-    case 'terminal_tab':
-      return (
-        typeof value.terminalId === 'string' &&
-        (value.selection === undefined ||
-          (isRecordLike(value.selection) &&
-            typeof value.selection.text === 'string' &&
-            typeof value.selection.startLine === 'number' &&
-            typeof value.selection.endLine === 'number' &&
-            Number.isInteger(value.selection.startLine) &&
-            Number.isInteger(value.selection.endLine) &&
-            value.selection.startLine > 0 &&
-            value.selection.endLine >= value.selection.startLine))
-      )
-    default:
-      return false
-  }
-}
-
-function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const raw = window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-    if (!raw) return null
-
-    const parsed = JSON.parse(raw) as Partial<QueuedSendHandoffState>
-    const chatId = typeof parsed.chatId === 'string' ? parsed.chatId : undefined
-    const supersededStreamId =
-      typeof parsed.supersededStreamId === 'string' ? parsed.supersededStreamId : null
-    if (
-      typeof parsed?.id !== 'string' ||
-      (typeof parsed.workspaceId !== 'string' && typeof parsed.organizationId !== 'string') ||
-      (typeof parsed.workspaceId === 'string' && typeof parsed.organizationId === 'string') ||
-      typeof parsed.userMessageId !== 'string' ||
-      typeof parsed.message !== 'string' ||
-      typeof parsed.requestedAt !== 'number' ||
-      (!chatId && !supersededStreamId)
-    ) {
-      return null
-    }
-    if (Date.now() - parsed.requestedAt > QUEUED_SEND_HANDOFF_TTL_MS) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-      if (readQueuedSendHandoffClaim() === parsed.id) {
-        window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      }
-      return null
-    }
-
-    const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
-    if (!assistantSearch.success) return null
-
-    return {
-      id: parsed.id,
-      ...(chatId ? { chatId } : {}),
-      workspaceId: parsed.workspaceId,
-      organizationId: parsed.organizationId,
-      supersededStreamId,
-      userMessageId: parsed.userMessageId,
-      message: parsed.message,
-      ...(Array.isArray(parsed.fileAttachments)
-        ? { fileAttachments: parsed.fileAttachments.filter(isFileAttachmentForApi) }
-        : {}),
-      ...(Array.isArray(parsed.contexts)
-        ? { contexts: parsed.contexts.filter(isChatContext) }
-        : {}),
-      ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
-      ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
-      requestedAt: parsed.requestedAt,
-      ...(typeof parsed.resolveAttempts === 'number' &&
-      Number.isFinite(parsed.resolveAttempts) &&
-      parsed.resolveAttempts > 0
-        ? { resolveAttempts: parsed.resolveAttempts }
-        : {}),
-    }
-  } catch {
-    return null
-  }
-}
-
-function writeQueuedSendHandoffState(state: QueuedSendHandoffState) {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.setItem(QUEUED_SEND_HANDOFF_STORAGE_KEY, JSON.stringify(state))
-}
-
-function clearQueuedSendHandoffState(expectedId?: string) {
-  if (typeof window === 'undefined') return
-  if (expectedId) {
-    const current = readQueuedSendHandoffState()
-    if (current && current.id !== expectedId) {
-      return
-    }
-  }
-  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-}
-
-function readQueuedSendHandoffClaimState(): QueuedSendHandoffClaim | null {
-  if (typeof window === 'undefined') return null
-  const raw = window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<QueuedSendHandoffClaim>
-    if (
-      typeof parsed?.id !== 'string' ||
-      typeof parsed.ownerId !== 'string' ||
-      typeof parsed.claimedAt !== 'number'
-    ) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      return null
-    }
-    if (Date.now() - parsed.claimedAt > QUEUED_SEND_HANDOFF_CLAIM_TTL_MS) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      return null
-    }
-    return { id: parsed.id, ownerId: parsed.ownerId, claimedAt: parsed.claimedAt }
-  } catch {
-    window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-    return null
-  }
-}
-
-function readQueuedSendHandoffClaim(): string | null {
-  return readQueuedSendHandoffClaimState()?.id ?? null
-}
-
-function hasQueuedSendHandoffClaimOwner(id: string, ownerId: string): boolean {
-  const claim = readQueuedSendHandoffClaimState()
-  return claim?.id === id && claim.ownerId === ownerId
-}
-
-function queuedSendHandoffClaimRetryDelay(id: string): number | null {
-  const claim = readQueuedSendHandoffClaimState()
-  if (!claim || claim.id !== id) return null
-  const elapsed = Date.now() - claim.claimedAt
-  return Math.max(0, QUEUED_SEND_HANDOFF_CLAIM_TTL_MS - elapsed + 1)
-}
-
-function queuedSendHandoffResolveRetryDelay(resolveAttempts: number): number {
-  return Math.min(
-    QUEUED_SEND_HANDOFF_RETRY_MAX_MS,
-    QUEUED_SEND_HANDOFF_RETRY_BASE_MS * 2 ** Math.max(0, resolveAttempts - 1)
-  )
-}
-
-function writeQueuedSendHandoffClaim(id: string): string {
-  const ownerId = generateId()
-  if (typeof window === 'undefined') return ownerId
-  window.sessionStorage.setItem(
-    QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY,
-    JSON.stringify({ id, ownerId, claimedAt: Date.now() } satisfies QueuedSendHandoffClaim)
-  )
-  return ownerId
-}
-
-function clearQueuedSendHandoffClaim(expectedId?: string, expectedOwnerId?: string) {
-  if (typeof window === 'undefined') return
-  if (expectedId) {
-    const current = readQueuedSendHandoffClaimState()
-    if (
-      current &&
-      (current.id !== expectedId || (expectedOwnerId && current.ownerId !== expectedOwnerId))
-    ) {
-      return
-    }
-  }
-  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-}
-
-type StreamBatchResponse = {
-  success: boolean
-  events: StreamBatchEvent[]
-  previewSessions?: FilePreviewSession[]
-  status: string
-  chatId?: string
-}
-
-const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
-
-class StreamSchemaValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'StreamSchemaValidationError'
-  }
-}
-
-function createStreamSchemaValidationError(
-  failure: ParseStreamEventEnvelopeFailure,
-  context?: string
-): StreamSchemaValidationError {
-  const details = failure.errors?.filter(Boolean).join('; ')
-  return new StreamSchemaValidationError(
-    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details].filter(Boolean).join(' ')
-  )
-}
-
-function createBatchSchemaValidationError(message: string): StreamSchemaValidationError {
-  return new StreamSchemaValidationError([STREAM_SCHEMA_ENFORCEMENT_PREFIX, message].join(' '))
-}
-
-function isStreamSchemaValidationError(error: unknown): error is StreamSchemaValidationError {
-  return error instanceof StreamSchemaValidationError
-}
-
-function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
-  if (!isRecordLike(value)) {
-    throw new Error('Invalid stream batch response')
-  }
-
-  const rawEvents = Array.isArray(value.events) ? value.events : []
-  const events: StreamBatchEvent[] = []
-  for (const [index, entry] of rawEvents.entries()) {
-    if (!isRecordLike(entry)) {
-      throw createBatchSchemaValidationError(`Reconnect batch event ${index + 1} is not an object.`)
-    }
-    if (
-      typeof entry.eventId !== 'number' ||
-      !Number.isFinite(entry.eventId) ||
-      typeof entry.streamId !== 'string'
-    ) {
-      throw createBatchSchemaValidationError(
-        `Reconnect batch event ${index + 1} is missing required metadata.`
-      )
-    }
-
-    const parsedEvent = parsePersistedStreamEventEnvelope(entry.event)
-    if (!parsedEvent.ok) {
-      throw createStreamSchemaValidationError(parsedEvent, `Reconnect batch event ${index + 1}.`)
-    }
-
-    events.push({
-      eventId: entry.eventId,
-      streamId: entry.streamId,
-      event: parsedEvent.event,
-    })
-  }
-
-  const rawPreviewSessions = Array.isArray(value.previewSessions)
-    ? value.previewSessions
-    : undefined
-  const previewSessions =
-    rawPreviewSessions?.map((session, index) => {
-      if (!isFilePreviewSession(session)) {
-        throw createBatchSchemaValidationError(
-          `Reconnect preview session ${index + 1} failed validation.`
-        )
-      }
-      return session
-    }) ?? undefined
-
-  return {
-    success: value.success === true,
-    events,
-    ...(previewSessions ? { previewSessions } : {}),
-    status: typeof value.status === 'string' ? value.status : 'unknown',
-    ...(typeof value.chatId === 'string' && value.chatId ? { chatId: value.chatId } : {}),
-  }
-}
-
-function resolveChatIdFromStreamBatch(batch: StreamBatchResponse): string | undefined {
-  if (batch.chatId) return batch.chatId
-
-  for (const { event } of batch.events) {
-    const streamChatId = typeof event.stream?.chatId === 'string' ? event.stream.chatId : undefined
-    if (streamChatId) return streamChatId
-    if (
-      event.type === MothershipStreamV1EventType.session &&
-      event.payload.kind === MothershipStreamV1SessionKind.chat
-    ) {
-      return event.payload.chatId
-    }
-  }
-
-  return undefined
-}
-
-function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
-  const persisted = toRawPersistedContentBlockBody(block)
-  if (!persisted) return null
-  if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
-  // Carry deterministic span identity onto the live streaming snapshot so the
-  // rendered live message nests subagents via the span tree. Without this the
-  // live blocks lose spanId and parseBlocks falls back to legacy flat grouping,
-  // rendering nested subagents (e.g. deploy) at the top level mid-stream until
-  // the persisted message (which keeps spanId) replaces it.
-  if (block.spanId) persisted.spanId = block.spanId
-  if (block.parentSpanId) persisted.parentSpanId = block.parentSpanId
-  return withBlockTiming(persisted, block)
-}
-
-function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unknown> | null {
-  switch (block.type) {
-    case 'text':
-      return {
-        type: MothershipStreamV1EventType.text,
-        ...(block.subagent ? { lane: 'subagent' } : {}),
-        channel: MothershipStreamV1TextChannel.assistant,
-        content: block.content ?? '',
-      }
-    case 'thinking':
-      return {
-        type: MothershipStreamV1EventType.text,
-        channel: MothershipStreamV1TextChannel.thinking,
-        content: block.content ?? '',
-      }
-    case 'subagent_thinking':
-      return {
-        type: MothershipStreamV1EventType.text,
-        lane: 'subagent',
-        channel: MothershipStreamV1TextChannel.thinking,
-        content: block.content ?? '',
-        ...(block.subagent ? { agent: block.subagent } : {}),
-      }
-    case 'subagent_text':
-      return {
-        type: MothershipStreamV1EventType.text,
-        lane: 'subagent',
-        channel: MothershipStreamV1TextChannel.assistant,
-        content: block.content ?? '',
-        ...(block.subagent ? { agent: block.subagent } : {}),
-      }
-    case 'tool_call':
-      if (!block.toolCall) {
-        return null
-      }
-      return {
-        type: MothershipStreamV1EventType.tool,
-        phase: MothershipStreamV1ToolPhase.call,
-        toolCall: {
-          id: block.toolCall.id,
-          name: block.toolCall.name,
-          state: block.toolCall.status,
-          ...(block.toolCall.activityDescription
-            ? { activityDescription: block.toolCall.activityDescription }
-            : {}),
-          ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
-          ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
-          ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
-          ...(block.toolCall.displayTitle
-            ? {
-                display: {
-                  title: block.toolCall.displayTitle,
-                },
-              }
-            : {}),
-        },
-      }
-    case 'subagent':
-      return {
-        type: MothershipStreamV1EventType.span,
-        kind: MothershipStreamV1SpanPayloadKind.subagent,
-        lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
-        content: block.content ?? '',
-      }
-    case 'subagent_end':
-      return {
-        type: MothershipStreamV1EventType.span,
-        kind: MothershipStreamV1SpanPayloadKind.subagent,
-        lifecycle: MothershipStreamV1SpanLifecycleEvent.end,
-      }
-    case 'stopped':
-      return {
-        type: MothershipStreamV1EventType.complete,
-        status: MothershipStreamV1CompletionStatus.cancelled,
-      }
-    default:
-      return null
-  }
-}
-
-function buildAssistantSnapshotMessage(params: {
-  id: string
-  content: string
-  contentBlocks: ContentBlock[]
-  requestId?: string
-}): PersistedMessage {
-  const rawContentBlocks = params.contentBlocks
-    .map(toRawPersistedContentBlock)
-    .filter((block): block is Record<string, unknown> => block !== null)
-
-  return normalizeMessage({
-    id: params.id,
-    role: 'assistant',
-    content: params.content,
-    timestamp: new Date().toISOString(),
-    ...(params.requestId ? { requestId: params.requestId } : {}),
-    ...(rawContentBlocks.length > 0 ? { contentBlocks: rawContentBlocks } : {}),
-  })
-}
-
-function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  const hasExecutingTool = message.contentBlocks?.some(
-    (block) => block.toolCall?.state === 'executing'
-  )
-  const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
-  if (!hasExecutingTool && !hasOpenBlock) {
-    return message
-  }
-
-  const stopTs = Date.now()
-  const nextBlocks = (message.contentBlocks ?? []).map((block) => {
-    const stamped = block.endedAt === undefined ? { ...block, endedAt: stopTs } : block
-    if (stamped.toolCall?.state !== 'executing') {
-      return stamped
-    }
-    return {
-      ...stamped,
-      toolCall: {
-        ...stamped.toolCall,
-        state: 'cancelled' as const,
-        display: {
-          ...(stamped.toolCall.display ?? {}),
-          title: 'Stopped by user',
-        },
-      },
-    }
-  })
-
-  if (
-    !nextBlocks.some(
-      (block) =>
-        block.type === MothershipStreamV1EventType.complete &&
-        block.status === MothershipStreamV1CompletionStatus.cancelled
-    )
-  ) {
-    nextBlocks.push({
-      type: MothershipStreamV1EventType.complete,
-      status: MothershipStreamV1CompletionStatus.cancelled,
-    })
-  }
-
-  return normalizeMessage({
-    ...message,
-    contentBlocks: nextBlocks,
-  })
-}
-
-function buildChatResourceHydrationKey(resource: MothershipResource): string {
-  return JSON.stringify([
-    resource.type,
-    resource.id,
-    resource.title,
-    resource.path ?? null,
-    resource.viewId ?? null,
-    resource.executionId ?? null,
-  ])
-}
-
-function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
-  const resourceKey = chatHistory.resources.map(buildChatResourceHydrationKey).join('|')
-  const messageKey = chatHistory.messages.map((message) => message.id).join('|')
-  const streamSnapshot = chatHistory.streamSnapshot
-  const snapshotKey = streamSnapshot
-    ? [
-        streamSnapshot.status,
-        streamSnapshot.events.length,
-        streamSnapshot.events[streamSnapshot.events.length - 1]?.eventId ?? '',
-        streamSnapshot.previewSessions
-          .map(
-            (session) =>
-              `${session.id}:${session.previewVersion}:${session.status}:${session.updatedAt}`
-          )
-          .join('|'),
-      ].join('~')
-    : 'none'
-
-  return [
-    chatHistory.id,
-    chatHistory.activeStreamId ?? '',
-    messageKey,
-    resourceKey,
-    snapshotKey,
-  ].join('::')
-}
-
-const TERMINAL_STREAM_STATUSES = new Set(['complete', 'error', 'cancelled'])
-
-function isTerminalStreamStatus(status: string | null | undefined): boolean {
-  return TERMINAL_STREAM_STATUSES.has(status ?? '')
-}
-
-function isAlreadyProcessedStreamCursor(
-  eventCursor: string | undefined,
-  currentCursor: string
-): boolean {
-  if (!eventCursor) return false
-
-  const eventSequence = Number(eventCursor)
-  const currentSequence = Number(currentCursor)
-  return (
-    Number.isFinite(eventSequence) &&
-    Number.isFinite(currentSequence) &&
-    eventSequence <= currentSequence
-  )
-}
-
-function isZeroStreamCursor(cursor: string): boolean {
-  const sequence = Number(cursor)
-  return Number.isFinite(sequence) && sequence <= 0
-}
-
-/**
- * The resume endpoint 404s when no run exists for the stream — there is
- * nothing left to resume, so reconnect falls back to the persisted DB
- * transcript instead of retrying or surfacing an error.
- */
-class StreamGoneError extends Error {
-  constructor(streamId: string) {
-    super(`Stream ${streamId} no longer exists`)
-    this.name = 'StreamGoneError'
-  }
-}
-
-function isStreamGoneError(error: unknown): error is StreamGoneError {
-  return error instanceof Error && error.name === 'StreamGoneError'
-}
-
-function isPersistedAssistantMessage(message: PersistedMessage, liveAssistantId: string): boolean {
-  return (
-    message.role === 'assistant' &&
-    message.id !== liveAssistantId &&
-    !message.id.startsWith('live-assistant:')
-  )
-}
-
-function findStreamOwnerIndex(messages: PersistedMessage[], streamId: string): number {
-  return messages.findIndex((message) => message.role === 'user' && message.id === streamId)
-}
-
-function findAssistantAfterOwner(messages: PersistedMessage[], ownerIndex: number): number {
-  for (let index = ownerIndex + 1; index < messages.length; index++) {
-    const message = messages[index]
-    if (message.role === 'user') return -1
-    if (message.role === 'assistant') return index
-  }
-  return -1
-}
-
-function hasTerminalPersistedAssistantForStream(
-  messages: PersistedMessage[],
-  streamId: string,
-  liveAssistantId: string
-): boolean {
-  const ownerIndex = findStreamOwnerIndex(messages, streamId)
-  if (ownerIndex === -1) return false
-
-  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
-  if (assistantIndex === -1) return false
-
-  return isPersistedAssistantMessage(messages[assistantIndex], liveAssistantId)
-}
-
-export function reconcileLiveAssistantTurn(params: {
-  messages: PersistedMessage[]
-  streamId: string
-  liveAssistant: PersistedMessage
-  activeStreamId: string | null
-}): PersistedMessage[] {
-  const { messages, streamId, liveAssistant, activeStreamId } = params
-  const ownerIndex = findStreamOwnerIndex(messages, streamId)
-  if (ownerIndex === -1) {
-    return [...messages.filter((message) => message.id !== liveAssistant.id), liveAssistant]
-  }
-
-  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
-  const existingAssistant = assistantIndex >= 0 ? messages[assistantIndex] : undefined
-  if (
-    activeStreamId !== streamId &&
-    existingAssistant &&
-    isPersistedAssistantMessage(existingAssistant, liveAssistant.id)
-  ) {
-    const withoutStaleLiveAssistant = messages.filter((message) => message.id !== liveAssistant.id)
-    return withoutStaleLiveAssistant.length === messages.length
-      ? messages
-      : withoutStaleLiveAssistant
-  }
-
-  const withoutDuplicateLiveAssistant = messages.filter(
-    (message, index) => index === assistantIndex || message.id !== liveAssistant.id
-  )
-  const adjustedOwnerIndex = withoutDuplicateLiveAssistant.findIndex(
-    (message) => message.role === 'user' && message.id === streamId
-  )
-  const adjustedAssistantIndex =
-    adjustedOwnerIndex >= 0
-      ? findAssistantAfterOwner(withoutDuplicateLiveAssistant, adjustedOwnerIndex)
-      : -1
-
-  if (adjustedAssistantIndex >= 0) {
-    return withoutDuplicateLiveAssistant.map((message, index) =>
-      index === adjustedAssistantIndex ? liveAssistant : message
-    )
-  }
-
-  if (adjustedOwnerIndex >= 0) {
-    return [
-      ...withoutDuplicateLiveAssistant.slice(0, adjustedOwnerIndex + 1),
-      liveAssistant,
-      ...withoutDuplicateLiveAssistant.slice(adjustedOwnerIndex + 1),
-    ]
-  }
-
-  return [...withoutDuplicateLiveAssistant, liveAssistant]
-}
-
-export interface ReconnectReplaySelection {
-  afterCursor: string
-  preserveExistingState: boolean
-  source: 'live' | 'reset'
-}
-
-/**
- * Decides how a reconnect replay starts. The only state a resumed stream may
- * continue from is the live in-memory pair (streaming refs + lastCursorRef)
- * maintained together by this mount's stream loop — those are coherent by
- * construction. Anything else (fresh mount, cleared refs, cache-derived
- * transcripts) replays the Redis buffer from seq 0 into a fresh model: the
- * buffer is the source of truth for an in-flight turn and replay is
- * idempotent, so a full rebuild is always safe. Seeding the model from a
- * cached transcript paired stale content with a newer cursor, which dropped
- * replayed events and rendered empty or suffix-only messages.
- */
-export function selectReconnectReplayState(params: {
-  afterCursor: string
-  currentContent: string
-  currentBlocks: ContentBlock[]
-}): ReconnectReplaySelection {
-  const { afterCursor, currentContent, currentBlocks } = params
-  const hasLiveState = currentContent.length > 0 || currentBlocks.length > 0
-  if (!isZeroStreamCursor(afterCursor) && hasLiveState) {
-    return { afterCursor, preserveExistingState: true, source: 'live' }
-  }
-  return { afterCursor: '0', preserveExistingState: false, source: 'reset' }
-}
-
-export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]): Set<string> {
-  const completedToolCallIds = new Set<string>()
-  for (const entry of events) {
-    const event = entry.event
-    if (event.type !== MothershipStreamV1EventType.tool) continue
-    const payload = event.payload
-    if (!('phase' in payload)) continue
-    if (payload.phase !== MothershipStreamV1ToolPhase.result) continue
-    // Client-executed tools (workflow runs, browser actions) must never
-    // re-fire when their completed call replays after reconnect/reload.
-    if (
-      typeof payload.toolCallId === 'string' &&
-      (isWorkflowToolName(payload.toolName) || isBrowserToolName(payload.toolName))
-    ) {
-      completedToolCallIds.add(payload.toolCallId)
-    }
-  }
-  return completedToolCallIds
-}
-
 /**
  * Runs a browser tool on the desktop client. The agent's tab reaches the
  * resource strip through the desktop tab list, so nothing is opened here.
@@ -1190,17 +479,6 @@ function buildRecoverySubjectKey(
   selectedChatId: string | undefined
 ): string {
   return `${chatId ?? ''}:${selectedChatId ?? ''}`
-}
-
-const sseEncoder = new TextEncoder()
-function buildReplayStream(events: StreamBatchEvent[]): ReadableStream<Uint8Array> {
-  return new ReadableStream({
-    start(controller) {
-      const payload = events.map((entry) => `data: ${JSON.stringify(entry.event)}\n\n`).join('')
-      controller.enqueue(sseEncoder.encode(payload))
-      controller.close()
-    },
-  })
 }
 
 /** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
@@ -1254,7 +532,10 @@ export function selectDeletedWorkflowResources(
 }
 
 export interface ResourceEventOptions {
+  /** A completed Search answer reveals its cited evidence as the turn result. */
+  revealCitedSources?: boolean
   activate?: boolean
+  tableViewId?: string
 }
 
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
@@ -1292,6 +573,8 @@ export function shouldQueueOutgoingMessage(
 }
 
 export interface UseChatOptions {
+  /** Intent for new turns; persisted chat intent remains authoritative on reload. */
+  requestMode?: ChatRequestMode
   onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
@@ -1341,6 +624,7 @@ export function getMothershipUseChatOptions(
     | 'initialActiveResourceId'
     | 'activeResourceState'
     | 'onRequestStarted'
+    | 'requestMode'
   > = {}
 ): UseChatOptions {
   return {
@@ -1369,9 +653,12 @@ export function useChat(
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
+  const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
+  const session = useSession()
+  const viewerId = session.data?.user?.id
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -1437,17 +724,40 @@ export function useChat(
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  const refreshResourceHistory = useCallback(
+    async (chatId: string) => {
+      /** Cancel pre-write reads without rolling back newer optimistic changes. */
+      const query = { queryKey: mothershipChatKeys.detail(chatId), exact: true }
+      await queryClient.cancelQueries(query, { revert: false })
+      queryClient.setQueryData<MothershipChatHistory>(query.queryKey, (current) => {
+        const queue = resourcePersistenceQueueRef.current
+        if (!current || !queue) return current
+        const resources = queue.applyPendingUpdates(chatId, current.resources)
+        const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+        return {
+          ...current,
+          resources: pendingOrder
+            ? (reorderStoredChatResources(resources, pendingOrder) ?? resources)
+            : resources,
+        }
+      })
+      void queryClient.invalidateQueries(query)
+    },
+    [queryClient]
+  )
   if (!resourcePersistenceQueueRef.current) {
     resourcePersistenceQueueRef.current = new ResourcePersistenceQueue({
-      persist: (chatId, update) => {
+      persist: async (chatId, update) => {
         const { clearViewId, ...resource } = update
-        return requestJson(addMothershipChatResourceContract, {
+        const result = await requestJson(addMothershipChatResourceContract, {
           body: {
             chatId,
             resource,
             ...(clearViewId === true ? { clearViewId: true as const } : {}),
           },
         })
+        await refreshResourceHistory(chatId)
+        return result
       },
       onError: (error) => {
         logger.warn('Failed to persist resource; will retry on next hydration', error)
@@ -1486,8 +796,9 @@ export function useChat(
     [resources, activeResourceId, nativeActiveTabIds]
   )
 
-  const activeResourceIdRef = useRef(effectiveActiveResourceId)
-  activeResourceIdRef.current = effectiveActiveResourceId
+  /** Keep the requested selection while the resource list is still loading. */
+  const activeResourceIdRef = useRef(activeResourceId ?? effectiveActiveResourceId)
+  activeResourceIdRef.current = activeResourceId ?? effectiveActiveResourceId
   const selectedResourceIdRef = useRef(activeResourceId)
   selectedResourceIdRef.current = activeResourceId
   const {
@@ -1508,6 +819,7 @@ export function useChat(
     onPreviewPhase,
   } = useFilePreviewController({
     workspaceId,
+    resourcesRef,
     setResources,
     setActiveResourceId,
     activeResourceIdRef,
@@ -1549,6 +861,11 @@ export function useChat(
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
+  const pendingChatAdmissionRef = useRef<PendingChatAdmission | null>(null)
+  const hasPendingChatAdmission = useCallback(
+    () => pendingChatAdmissionRef.current?.chatKey === chatKeyRef.current,
+    []
+  )
   const queueDispatchLoopRef = useRef<() => Promise<void>>(async () => {})
   const enqueueQueueDispatchRef = useRef<(action: QueueDispatchActionInput) => Promise<void>>(
     async () => {}
@@ -1581,9 +898,7 @@ export function useChat(
   const resolveDetachedChatForStreamRef = useRef<
     (streamId: string, signal?: AbortSignal) => Promise<DetachedChatResolution>
   >(async () => ({ terminal: false }))
-  const finalizeRef = useRef<(options?: { error?: boolean; targetChatId?: string }) => void>(
-    () => {}
-  )
+  const finalizeRef = useRef<(options?: FinalizeOptions) => void>(() => {})
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
   const recoverActiveStreamRef = useRef<
     (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck') => Promise<void>
@@ -1594,6 +909,32 @@ export function useChat(
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  const tableViewContextsRef = useRef({
+    scopeId: desktopScopeId,
+    views: new Map<string, MothershipTableViewContext>(),
+  })
+  if (tableViewContextsRef.current.scopeId !== desktopScopeId) {
+    tableViewContextsRef.current = { scopeId: desktopScopeId, views: new Map() }
+  }
+  for (const tableId of tableViewContextsRef.current.views.keys()) {
+    if (!resources.some((resource) => resource.type === 'table' && resource.id === tableId)) {
+      tableViewContextsRef.current.views.delete(tableId)
+    }
+  }
+  const setTableViewContext = useCallback(
+    (tableId: string, context: MothershipTableViewContext) => {
+      if (tableViewContextsRef.current.scopeId !== desktopScopeId) return
+      if (
+        !resourcesRef.current.some(
+          (resource) => resource.type === 'table' && resource.id === tableId
+        )
+      )
+        return
+      tableViewContextsRef.current.views.set(tableId, context)
+    },
+    [desktopScopeId]
+  )
+
   /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
@@ -1620,7 +961,6 @@ export function useChat(
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
-  const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
   const setTransportIdle = useCallback(() => {
@@ -1761,12 +1101,18 @@ export function useChat(
             continue
           }
 
-          pendingResourceReordersRef.current.delete(chatId)
-          if (pendingOrder.length === 0) return
+          if (pendingOrder.length === 0) {
+            pendingResourceReordersRef.current.delete(chatId)
+            return
+          }
           try {
             await requestJson(reorderMothershipChatResourcesContract, {
               body: { chatId, resources: pendingOrder },
             })
+            await refreshResourceHistory(chatId)
+            if (pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
+              pendingResourceReordersRef.current.delete(chatId)
+            }
           } catch (error) {
             // 400 is the server rejecting the body's identity set — a tab was
             // closed after this order was captured. Replaying it verbatim can
@@ -1774,8 +1120,8 @@ export function useChat(
             // re-establish the order. Everything else (offline, 401, 5xx) is
             // transient and keeps the body for the next retry.
             const unsatisfiable = isApiClientError(error) && error.status === 400
-            if (!unsatisfiable && !pendingResourceReordersRef.current.has(chatId)) {
-              pendingResourceReordersRef.current.set(chatId, pendingOrder)
+            if (unsatisfiable && pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
+              pendingResourceReordersRef.current.delete(chatId)
             }
             logger.warn(
               unsatisfiable
@@ -1795,7 +1141,7 @@ export function useChat(
       pendingResourceReorderFlushesRef.current.set(chatId, tracked)
       return tracked
     },
-    [resourcePersistenceQueue]
+    [refreshResourceHistory, resourcePersistenceQueue]
   )
 
   const flushPendingResources = useCallback(
@@ -1896,12 +1242,46 @@ export function useChat(
     [flushPendingResources, queryClient, workspaceId, organizationId, scopeKey]
   )
 
-  const { data: chatHistory, isPending: isChatHistoryPending } =
-    useMothershipChatHistory(resolvedChatId)
+  const {
+    data: chatHistory,
+    isPending: isChatHistoryPending,
+    error: chatHistoryError,
+  } = useMothershipChatHistory(resolvedChatId)
+  const requestModeRef = useRef<ChatRequestMode>(
+    options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
+  )
+  requestModeRef.current =
+    options?.requestMode ?? chatHistory?.mode ?? (organizationId ? 'assistant' : 'agent')
+  const pendingTurn =
+    chatHistory?.id === (initialChatId ?? chatIdRef.current) ? activeTurnRef.current : null
+  const liveContent = streamingContentRef.current
+  const liveBlocks = streamingBlocksRef.current
   const messages = useMemo(() => {
-    const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
+    const source = chatHistory?.messages.map(toDisplayMessage) ?? [...pendingMessages]
+    /** History reads can lag the live turn; retain both its owner and current response. */
+    if (pendingTurn) {
+      let ownerIndex = source.findIndex((message) => message.id === pendingTurn.userMessageId)
+      if (ownerIndex < 0) {
+        const assistantIndex = source.findIndex(
+          (message) => message.id === pendingTurn.assistantMessageId
+        )
+        ownerIndex = assistantIndex < 0 ? source.length : assistantIndex
+        source.splice(ownerIndex, 0, pendingTurn.optimisticUserMessage)
+      }
+      const assistant = source[ownerIndex + 1]
+      const liveAssistant = {
+        ...pendingTurn.optimisticAssistantMessage,
+        content: liveContent,
+        contentBlocks: liveBlocks,
+      }
+      if (assistant?.id === pendingTurn.assistantMessageId) {
+        source[ownerIndex + 1] = { ...assistant, ...liveAssistant }
+      } else if (assistant?.role !== 'assistant') {
+        source.splice(ownerIndex + 1, 0, liveAssistant)
+      }
+    }
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
-  }, [chatHistory, pendingMessages])
+  }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
       // The single fan-in for tab creation, so the invariant lives here.
@@ -1913,7 +1293,7 @@ export function useChat(
         return false
       }
       const existing = resourcesRef.current.find(
-        (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
+        (r) => getChatResourceKey(r) === getChatResourceKey(resourceUpdate)
       )
       const resource = mergeChatResource(existing, resourceUpdate)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
@@ -1923,7 +1303,7 @@ export function useChat(
           (current) => {
             if (!current) return current
             const cached = current.resources.find(
-              (item) => item.type === resource.type && item.id === resource.id
+              (item) => getChatResourceKey(item) === getChatResourceKey(resource)
             )
             const merged = mergeChatResource(cached, resourceUpdate)
             if (cached === merged) return current
@@ -1931,7 +1311,7 @@ export function useChat(
               ...current,
               resources: cached
                 ? current.resources.map((item) =>
-                    item.type === resource.type && item.id === resource.id ? merged : item
+                    getChatResourceKey(item) === getChatResourceKey(resource) ? merged : item
                   )
                 : [...current.resources, merged],
             }
@@ -1943,12 +1323,12 @@ export function useChat(
       }
 
       setResources((prev) => {
-        const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
+        const current = prev.find((r) => getChatResourceKey(r) === getChatResourceKey(resource))
         if (!current) return [...prev, resource]
         const merged = mergeChatResource(current, resourceUpdate)
         return merged === current
           ? prev
-          : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
+          : prev.map((r) => (getChatResourceKey(r) === getChatResourceKey(resource) ? merged : r))
       })
       // Synthetic result/preview panels are in-memory only. The browser tab
       // metadata is persisted even though its live page remains desktop-owned.
@@ -1964,18 +1344,38 @@ export function useChat(
   )
 
   const removeResource = useCallback(
-    (resourceType: MothershipResourceType, resourceId: string) => {
-      setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
-      setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+    (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
+      const matches = (resource: MothershipResource) =>
+        resource.type === resourceType &&
+        resource.id === resourceId &&
+        resource.workspaceId === resourceWorkspaceId
+      if (resourceType === 'table') tableViewContextsRef.current.views.delete(resourceId)
+      setResources((prev) => prev.filter((r) => !matches(r)))
+      setActiveResourceId((prev) =>
+        prev ===
+        getChatResourceSelectionId({
+          type: resourceType,
+          id: resourceId,
+          workspaceId: resourceWorkspaceId,
+          title: '',
+        })
+          ? null
+          : prev
+      )
 
       // Ephemeral panels were never persisted; nothing to delete server-side.
       if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
-      const existing = resourcesRef.current.find(
-        (resource) => resource.type === resourceType && resource.id === resourceId
-      )
+      const existing = resourcesRef.current.find(matches)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
+      if (persistChatId) {
+        queryClient.setQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(persistChatId),
+          (current) =>
+            current && { ...current, resources: current.resources.filter((r) => !matches(r)) }
+        )
+      }
       const {
         inFlight: inFlightAdd,
         scheduleDelete,
@@ -1985,48 +1385,80 @@ export function useChat(
         resourceType,
         resourceId,
         persistenceScopeId,
-        Boolean(existing && persistChatId)
+        Boolean(existing && persistChatId),
+        resourceWorkspaceId
       )
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
       if (!persistChatId) return
-      scheduleDelete(persistChatId, () =>
-        requestJson(removeMothershipChatResourceContract, {
-          body: { chatId: persistChatId, resourceType, resourceId },
+      scheduleDelete(persistChatId, async () => {
+        const result = await requestJson(removeMothershipChatResourceContract, {
+          body: {
+            chatId: persistChatId,
+            resourceType,
+            resourceId,
+            workspaceId: resourceWorkspaceId,
+          },
         })
-      )
+        await refreshResourceHistory(persistChatId)
+        return result
+      })
     },
-    [resourcePersistenceQueue]
+    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
   )
 
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
-   * chat cannot resurrect a deleted workflow. The check is against a fetched
-   * workflow list rather than the cache: seeding the registry from the chat's
-   * persisted resources (what hydration previously did unconditionally) put
-   * phantom entries in the sidebar that 404 on click. Removal also deletes the
-   * resource from the chat's persisted set, so the tab stays gone next open.
+   * chat cannot resurrect a deleted workflow. The workspace list is the fast
+   * existence check; missing entries need an authorized detail read because a
+   * personal delegation can also address another workspace. Persisted chat
+   * resources alone never seed the sidebar. Confirmed 404s also remove the
+   * resource from the stored chat so the tab stays gone next open.
    */
   const reconcileHydratedWorkflowResources = useCallback(
     async (chatId: string, workflowResources: MothershipResource[]) => {
-      if (!workspaceId) return
-      let existing: WorkflowMetadata[]
-      try {
-        existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
-      } catch {
-        // Existence is unknowable right now; keep the tabs rather than delete
-        // resources on a network failure. The next hydration retries.
-        return
+      const byWorkspace = new Map<string, MothershipResource[]>()
+      for (const resource of workflowResources) {
+        const target = resource.workspaceId ?? workspaceId
+        if (target) byWorkspace.set(target, [...(byWorkspace.get(target) ?? []), resource])
       }
-      const deleted = selectDeletedWorkflowResources(
-        workflowResources,
-        new Set(existing.map((workflow) => workflow.id)),
-        getWorkflows(workspaceId)
+      await Promise.all(
+        [...byWorkspace].map(async ([targetWorkspaceId, scopedResources]) => {
+          let existing: WorkflowMetadata[]
+          try {
+            existing = await getQueryClient().fetchQuery(
+              getWorkflowListQueryOptions(targetWorkspaceId)
+            )
+          } catch {
+            // Existence is unknowable right now; keep the tabs rather than delete
+            // resources on a network failure. The next hydration retries.
+            return
+          }
+          const missing = selectDeletedWorkflowResources(
+            scopedResources,
+            new Set(existing.map((workflow) => workflow.id)),
+            getWorkflows(targetWorkspaceId)
+          )
+          for (const resource of missing) {
+            if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
+            /** Personal delegation can read another workspace; absence from this list is not deletion. */
+            try {
+              await getQueryClient().fetchQuery({
+                queryKey: workflowKeys.state(resource.id),
+                queryFn: ({ signal }) => fetchWorkflowEnvelope(resource.id, signal),
+                staleTime: 0,
+              })
+            } catch (error) {
+              if (
+                isApiClientError(error) &&
+                error.status === 404 &&
+                (chatIdRef.current ?? selectedChatIdRef.current) === chatId
+              )
+                removeResource('workflow', resource.id, resource.workspaceId)
+            }
+          }
+        })
       )
-      for (const resource of deleted) {
-        if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
-        removeResource('workflow', resource.id)
-      }
     },
     [workspaceId, organizationId, scopeKey, removeResource]
   )
@@ -2048,19 +1480,24 @@ export function useChat(
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
-      if (!workspaceId) return undefined
+      const targetWorkspaceId =
+        typeof toolArgs.workspaceId === 'string' ? toolArgs.workspaceId : workspaceId
+      if (!targetWorkspaceId) return undefined
       const targetWorkflowId =
         typeof toolArgs.workflowId === 'string'
           ? toolArgs.workflowId
-          : useWorkflowRegistry.getState().activeWorkflowId
+          : workspaceId
+            ? useWorkflowRegistry.getState().activeWorkflowId
+            : undefined
 
       if (!targetWorkflowId) {
         return undefined
       }
 
-      const meta = getWorkflowById(workspaceId, targetWorkflowId)
+      const meta = getWorkflowById(targetWorkspaceId, targetWorkflowId)
       addResource({
         type: 'workflow',
+        ...(organizationId ? { workspaceId: targetWorkspaceId } : {}),
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
       })
@@ -2092,7 +1529,10 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs)) {
+      if (
+        !isNativeFileTool(toolName) &&
+        (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs))
+      ) {
         return
       }
       if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
@@ -2113,7 +1553,7 @@ export function useChat(
        * report an error completion rather than leaving it hanging with the dedupe ref
        * already marked handled.
        */
-      import('@/lib/copilot/tools/client/local-filesystem').then(
+      import('@/lib/mothership/tools/client/local-filesystem').then(
         (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
         async (error) => {
           logger.error('Failed to load local filesystem tool executor', { error })
@@ -2126,8 +1566,8 @@ export function useChat(
           try {
             const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
               await Promise.all([
-                import('@/lib/copilot/tools/client/completion'),
-                import('@/lib/copilot/async-runs/lifecycle'),
+                import('@/lib/mothership/tools/client/completion'),
+                import('@/lib/mothership/async-runs/lifecycle'),
               ])
             await reportClientToolCompletion(
               toolCallId,
@@ -2352,7 +1792,10 @@ export function useChat(
     setError(null)
     setTransportIdle()
     setResources([])
-    setActiveResourceId(null)
+    /** A controlled selection belongs to the destination URL, including on first mount. */
+    if (!options?.activeResourceState && initialChatId !== streamOwnerId) {
+      setActiveResourceId(null)
+    }
     useTableViewPinStore.getState().reset()
     resetEphemeralPreviewState()
     // Rotate the bucket key; the previous chat's queue stays in the store.
@@ -2399,11 +1842,11 @@ export function useChat(
   ])
 
   useEffect(() => {
-    if (organizationId) return
+    if (requestModeRef.current === 'assistant') return
     initBrowserAgentTransport()
     initTerminalTransport()
     void activateDesktopChatScopes(desktopScopeIdRef.current).catch(() => {})
-  }, [organizationId])
+  }, [organizationId, chatHistory?.mode, options?.requestMode])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -2459,38 +1902,67 @@ export function useChat(
     const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
+    let updatedResources = resourcePersistenceQueue.applyPendingUpdates(
+      chatHistory.id,
+      persistedResources
+    )
+    // Chats saved by earlier live-search clients can hold both tabs. Keep only
+    // the cited evidence when restoring that completed answer, and remove the
+    // obsolete search row through the same persistence queue as a tab close.
+    if (
+      getDeploymentShape().features.liveEnterpriseSearch &&
+      requestModeRef.current === 'assistant' &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status)) &&
+      updatedResources.some((resource) => resource.type === 'sources')
+    ) {
+      for (const resource of updatedResources) {
+        if (resource.type === 'search') {
+          removeResource('search', resource.id, resource.workspaceId)
+        }
+      }
+      updatedResources = resourcePersistenceQueue.applyPendingUpdates(
+        chatHistory.id,
+        persistedResources
+      )
+    }
     // A stored panel this client cannot open is kept out of the tab strip
     // rather than restored onto an error, but stays in the stored set so the
     // desktop app still gets it back.
-    const restorableResources = persistedResources.filter(canDisplayResource)
+    const pendingOrder = pendingResourceReordersRef.current.get(chatHistory.id)
+    const projectedResources = pendingOrder
+      ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
+      : updatedResources
+    const restorableResources = projectedResources.filter(canDisplayResource)
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
     // resource being hidden cannot make it look local-only and get re-added.
-    const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
+    const serverKeys = new Set(persistedResources.map(getChatResourceKey))
     const localOnly = resourcesRef.current.filter(
-      (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
+      (r) =>
+        r.id !== 'streaming-file' &&
+        !serverKeys.has(getChatResourceKey(r)) &&
+        (isEphemeralResource(r) ||
+          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id, r.workspaceId))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)
     // keep their current on-screen position — hydration reruns on every send
     // and stream completion, and appending them at the end made those tabs
     // visibly jump/flash each time.
-    const mergedResources = [...restorableResources]
+    const localOnlyKeys = new Set(localOnly.map(getChatResourceKey))
+    const mergedResources = restorableResources.filter(
+      (r) => !localOnlyKeys.has(getChatResourceKey(r))
+    )
     for (const resource of localOnly) {
       const currentIndex = resourcesRef.current.findIndex(
-        (r) => r.type === resource.type && r.id === resource.id
+        (r) => getChatResourceKey(r) === getChatResourceKey(resource)
       )
       const insertAt =
         currentIndex < 0 ? mergedResources.length : Math.min(currentIndex, mergedResources.length)
       mergedResources.splice(insertAt, 0, resource)
     }
     const resourcesUnchanged =
-      mergedResources.length === resourcesRef.current.length &&
-      mergedResources.every(
-        (resource, index) =>
-          buildChatResourceHydrationKey(resourcesRef.current[index]) ===
-          buildChatResourceHydrationKey(resource)
-      )
+      JSON.stringify(mergedResources) === JSON.stringify(resourcesRef.current)
 
     if (mergedResources.length > 0) {
       // An explicit selection wins. Otherwise pin the last resource the server
@@ -2501,9 +1973,14 @@ export function useChat(
       // resolved against the tab the desktop app remembers.
       const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
-        selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
+        selectedResourceId &&
+        mergedResources.some(
+          (resource) => getChatResourceSelectionId(resource) === selectedResourceId
+        )
           ? selectedResourceId
-          : (restorableResources[restorableResources.length - 1]?.id ?? null)
+          : restorableResources.length
+            ? getChatResourceSelectionId(restorableResources[restorableResources.length - 1])
+            : null
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
@@ -2525,7 +2002,7 @@ export function useChat(
       if (workflowResources.length > 0) {
         void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
-    } else if (hasPersistedStreamingFile) {
+    } else if (resourcesRef.current.length > 0 || hasPersistedStreamingFile) {
       activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)
@@ -2580,7 +2057,11 @@ export function useChat(
         }
         if (!succeeded && streamGenRef.current === gen) {
           try {
-            finalizeRef.current({ error: true, targetChatId: chatHistory.id })
+            finalizeRef.current({
+              error: true,
+              targetChatId: chatHistory.id,
+              streamTerminal: false,
+            })
           } catch {
             setTransportIdle()
             abortControllerRef.current = null
@@ -2597,6 +2078,7 @@ export function useChat(
     cancelActiveStreamRecovery,
     flushPendingResources,
     reconcileHydratedWorkflowResources,
+    removeResource,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,
@@ -2652,6 +2134,11 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
+        citedSourcesEnabled:
+          getDeploymentShape().features.liveEnterpriseSearch &&
+          requestModeRef.current === 'assistant',
+        refreshRoute: () => router.refresh(),
+        viewerId,
         workspaceId,
         organizationId,
         queryClient,
@@ -2784,9 +2271,20 @@ export function useChat(
           streamReaderRef.current = null
         }
       }
-      return { sawStreamError: state.sawStreamError, sawComplete: state.sawCompleteEvent }
+      // The server's verdict priority (its backendFinishedTurn rule): a terminal
+      // complete{status:complete} outranks any non-fatal mid-stream error frame —
+      // subagent hiccups the orchestrator recovered from are inline content, not the
+      // turn's outcome. Conversely complete{status:error} is an error even when no
+      // error frame preceded it. Deciding here means every consumer (send path,
+      // reconnect replay, live tail) inherits the same rule.
+      const terminalStatus = state.completionStatus
+      const settledError =
+        terminalStatus === 'complete' ? false : state.sawStreamError || terminalStatus === 'error'
+      return { sawStreamError: settledError, sawComplete: state.sawCompleteEvent }
     },
     [
+      router,
+      viewerId,
       workspaceId,
       queryClient,
       addResource,
@@ -3112,6 +2610,10 @@ export function useChat(
             if (activeAbort.signal.aborted || streamGenRef.current !== expectedGen) {
               return { error: false, aborted: true }
             }
+            /* A middlebox that closes the SSE tail promptly makes this loop spin
+               tail->batch->tail with zero delay. An empty non-terminal batch means
+               nothing new arrived — pace the next cycle instead of hammering. */
+            await sleep(1_000)
           }
         }
 
@@ -3498,7 +3000,7 @@ export function useChat(
             shouldContinue: isSameRecoverySubject,
           })
           if (!succeeded && streamGenRef.current === recoveryGen && isSameRecoverySubject()) {
-            finalizeRef.current({ error: true, targetChatId: chatId })
+            finalizeRef.current({ error: true, targetChatId: chatId, streamTerminal: false })
           }
         }
       })()
@@ -3577,55 +3079,24 @@ export function useChat(
       const traceparent = overrides?.traceparent ?? streamTraceparentRef.current
 
       const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
-      const storedBlocks = sourceBlocks.map((block) => {
-        const timing = {
-          ...(typeof block.timestamp === 'number' ? { timestamp: block.timestamp } : {}),
-          ...(typeof block.endedAt === 'number' ? { endedAt: block.endedAt } : {}),
-        }
-        // Span identity must survive this serializer too (matching
-        // toRawPersistedContentBlock): a stop-persisted turn that loses
-        // spanId/parentSpanId permanently renders through the legacy flat
-        // parser — nested subagents hoist to the top level on every reload.
-        const spanIdentity = {
-          ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
-          ...(block.spanId ? { spanId: block.spanId } : {}),
-          ...(block.parentSpanId ? { parentSpanId: block.parentSpanId } : {}),
-        }
-        if (block.type === 'tool_call' && block.toolCall) {
-          const isCancelled =
-            block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
-          const displayTitle = isCancelled ? 'Stopped by user' : block.toolCall.displayTitle
-          const display = displayTitle ? { title: displayTitle } : undefined
-          return {
-            type: block.type,
-            content: block.content,
-            toolCall: {
-              id: block.toolCall.id,
-              name: block.toolCall.name,
-              state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
-              params: block.toolCall.params,
-              ...(block.toolCall.activityDescription
-                ? { activityDescription: block.toolCall.activityDescription }
-                : {}),
-              result: block.toolCall.result,
-              ...(display ? { display } : {}),
-              calledBy: block.toolCall.calledBy,
-            },
-            ...spanIdentity,
-            ...timing,
+      const storedBlocks = sourceBlocks
+        .map((block) => {
+          const persisted = toRawPersistedContentBlock(block)
+          if (
+            persisted?.toolCall &&
+            (persisted.toolCall.state === 'executing' || persisted.toolCall.state === 'cancelled')
+          ) {
+            persisted.toolCall = {
+              ...persisted.toolCall,
+              state: 'cancelled',
+              display: { title: 'Stopped by user' },
+            }
           }
-        }
-        return {
-          type: block.type,
-          content: block.content,
-          ...(block.subagent ? { lane: 'subagent' } : {}),
-          ...spanIdentity,
-          ...timing,
-        }
-      })
-
+          return persisted
+        })
+        .filter((block) => block !== null)
       if (storedBlocks.length > 0) {
-        storedBlocks.push({ type: 'stopped', content: undefined })
+        storedBlocks.push({ type: 'complete', status: 'cancelled' })
       }
 
       try {
@@ -3718,7 +3189,8 @@ export function useChat(
       contexts?: ChatContext[],
       resumeUserMessageId?: string,
       requestMode?: ChatRequestMode,
-      assistantSearch?: WorkspaceSearchFilters
+      assistantSearch?: WorkspaceSearchFilters,
+      assistantSearchLevel?: AssistantSearchLevel
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3741,6 +3213,7 @@ export function useChat(
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
         ...(assistantSearch ? { assistantSearch } : {}),
+        ...(assistantSearchLevel !== undefined ? { assistantSearchLevel } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3756,7 +3229,7 @@ export function useChat(
   )
 
   const finalize = useCallback(
-    (options?: { error?: boolean; targetChatId?: string }) => {
+    (options?: FinalizeOptions) => {
       const isError = !!options?.error
       if (isError) {
         const blocks = streamingBlocksRef.current
@@ -3805,8 +3278,10 @@ export function useChat(
       if (completedActivityTracker?.generation === streamGenRef.current) {
         clearResourceActivity(completedActivityTracker, true)
       }
-      locallyTerminalStreamIdRef.current =
-        streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+      if (options?.streamTerminal !== false) {
+        locallyTerminalStreamIdRef.current =
+          streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+      }
       clearActiveTurn()
       setTransportIdle()
       abortControllerRef.current = null
@@ -3833,22 +3308,38 @@ export function useChat(
     async (
       message: string,
       fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[],
+      suppliedContexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
+      options = { ...options, requestMode: options?.requestMode ?? requestModeRef.current }
+      const contexts = suppliedContexts?.map((context) =>
+        context.kind === 'table' &&
+        !context.currentView &&
+        tableViewContextsRef.current.views.has(context.tableId)
+          ? { ...context, currentView: tableViewContextsRef.current.views.get(context.tableId) }
+          : context
+      )
+
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
-      const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
+      const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
+      let queuedSendHandoff = options?.queuedSendHandoff
       const pendingStopStreamId = pendingStop
-        ? queuedSendHandoff?.supersededStreamId ||
-          locallyTerminalStreamIdRef.current ||
+        ? locallyTerminalStreamIdRef.current ||
+          queuedSendHandoff?.supersededStreamId ||
           streamIdRef.current ||
           activeTurnRef.current?.userMessageId
         : undefined
+      if (pendingStop && queuedSendHandoff) {
+        queuedSendHandoff = {
+          ...queuedSendHandoff,
+          supersededStreamId: pendingStopStreamId ?? null,
+          stopRequired: true,
+        }
+      }
 
       let consumedByTranscript = false
       let sendReachedServer = false
-      let sendAbortSignal: AbortSignal | null = null
 
       setError(null)
       setTransportStreaming()
@@ -3881,12 +3372,16 @@ export function useChat(
           workspaceId,
           organizationId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
+          ...(queuedSendHandoff.stopRequired ? { stopRequired: true } : {}),
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
           ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+          ...(options?.assistantSearchLevel !== undefined
+            ? { assistantSearchLevel: options?.assistantSearchLevel }
+            : {}),
           requestedAt: Date.now(),
         })
       }
@@ -3899,6 +3394,9 @@ export function useChat(
         ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
+        ...(c.kind === 'table'
+          ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
+          : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
@@ -3965,9 +3463,9 @@ export function useChat(
         contentBlocks: [],
       }
 
-      if (requestChatId) {
-        await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
-      }
+      const cancelledQuery = requestChatId
+        ? queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
+        : Promise.resolve()
 
       const applyOptimisticSend = () => {
         const assistantSnapshot = buildAssistantSnapshotMessage({
@@ -4018,16 +3516,66 @@ export function useChat(
         )
       }
 
+      let gen: number | undefined
+      let streamTargetChatId: string | undefined
+      let admission: PendingChatAdmission | undefined
+      let resolveAdmission: ((chatId: string | undefined) => void) | undefined
+      const beginSend = () => {
+        gen = ++streamGenRef.current
+        locallyTerminalStreamIdRef.current = undefined
+        streamIdRef.current = userMessageId
+        lastCursorRef.current = '0'
+        resetStreamingBuffers()
+        activeTurnRef.current = {
+          userMessageId,
+          assistantMessageId: assistantId,
+          optimisticUserMessage,
+          optimisticAssistantMessage,
+          pendingChatKey: pendingChatKeyRef.current,
+          desktopScopeId: desktopScopeIdRef.current,
+        }
+        const controller = new AbortController()
+        abortControllerRef.current = controller
+        admission = {
+          userMessageId,
+          chatKey: chatKeyRef.current,
+          controller,
+          settled: new Promise((resolve) => {
+            resolveAdmission = resolve
+          }),
+        }
+        pendingChatAdmissionRef.current = admission
+      }
+      /** Publish identity before any asynchronous preparation, including query cancellation. */
+      if (!pendingStop && !queuedSendHandoff?.stopRequired) beginSend()
       applyOptimisticSend()
       onOptimisticSendApplied?.()
       consumedByTranscript = true
 
-      let gen: number | undefined
-      let streamTargetChatId: string | undefined
       try {
-        if (pendingStop) {
+        if (pendingStop || queuedSendHandoff?.stopRequired) {
           try {
-            await pendingStop
+            if (pendingStop) {
+              await pendingStop
+            } else {
+              const predecessor = queuedSendHandoff?.supersededStreamId
+              if (!predecessor) throw new Error('The previous response could not be identified.')
+              const stopped = await requestJson(copilotChatAbortContract, {
+                keepalive: true,
+                signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
+                headers: {},
+                body: {
+                  streamId: predecessor,
+                  ...(organizationId ? { organizationId } : { workspaceId }),
+                  ...(requestChatId ? { chatId: requestChatId } : {}),
+                },
+              })
+              if (!stopped.settled) throw new Error('Previous response is still shutting down.')
+            }
+            if (queuedSendHandoff) {
+              queuedSendHandoff = { ...queuedSendHandoff, stopRequired: false }
+              writeQueuedSendHandoff(requestChatId)
+            }
             if (!requestChatId) {
               requestChatId =
                 queuedSendHandoff?.chatId ??
@@ -4080,22 +3628,10 @@ export function useChat(
         }
 
         streamTargetChatId = requestChatId
-        gen = ++streamGenRef.current
-        locallyTerminalStreamIdRef.current = undefined
-        streamIdRef.current = userMessageId
-        lastCursorRef.current = '0'
-        resetStreamingBuffers()
-        activeTurnRef.current = {
-          userMessageId,
-          assistantMessageId: assistantId,
-          optimisticUserMessage,
-          optimisticAssistantMessage,
-          pendingChatKey: pendingChatKeyRef.current,
-          desktopScopeId: desktopScopeIdRef.current,
-        }
-        const abortController = new AbortController()
-        abortControllerRef.current = abortController
-        sendAbortSignal = abortController.signal
+        if (!admission) beginSend()
+        if (!admission || gen === undefined) throw new Error('Send admission was not initialized')
+        const abortController = admission.controller
+        await cancelledQuery
 
         const resourceAttachments =
           options?.requestMode === 'assistant'
@@ -4103,11 +3639,13 @@ export function useChat(
             : buildResourceAttachments(
                 resourcesRef.current,
                 activeResourceIdRef.current,
-                desktopScopeIdRef.current
+                desktopScopeIdRef.current,
+                tableViewContextsRef.current.views
               )
-        const desktopChatCapabilities = organizationId
-          ? {}
-          : await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const desktopChatCapabilities =
+          options?.requestMode === 'assistant'
+            ? {}
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -4121,12 +3659,11 @@ export function useChat(
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
-            ...(organizationId
-              ? { mode: 'assistant' }
-              : options?.requestMode
-                ? { mode: options.requestMode }
-                : {}),
+            ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.requestMode === 'assistant' && options.assistantSearchLevel
+              ? { assistantSearchLevel: options.assistantSearchLevel }
+              : {}),
             ...(options?.requestMode !== 'assistant' && workflowIdRef.current
               ? { workflowId: workflowIdRef.current }
               : {}),
@@ -4134,10 +3671,32 @@ export function useChat(
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            ...(options?.requestMode !== 'assistant'
+              ? {
+                  ...resolveMothershipModelSettings(
+                    useMothershipEffortStore.getState(),
+                    modelSelectorEnabled
+                  ),
+                }
+              : {}),
           }),
           signal: abortController.signal,
         })
         sendReachedServer = true
+        const admittedChatId = response.ok
+          ? (response.headers.get(MOTHERSHIP_CHAT_ID_HEADER) ?? requestChatId)
+          : undefined
+        resolveAdmission?.(admittedChatId)
+        if (pendingChatAdmissionRef.current === admission) pendingChatAdmissionRef.current = null
+        if (streamGenRef.current !== gen) {
+          await response.body?.cancel()
+          return consumedByTranscript
+        }
+        if (admittedChatId && !requestChatId) {
+          requestChatId = admittedChatId
+          streamTargetChatId = admittedChatId
+          adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
+        }
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -4204,7 +3763,17 @@ export function useChat(
             }
             return consumedByTranscript
           }
-          throw new Error(errorData.error || `Request failed: ${response.status}`)
+          /** An explicit rejection never admitted a run, so there is nothing to reconnect. */
+          setError(
+            typeof errorData.error === 'string'
+              ? errorData.error
+              : `Request failed: ${response.status}`
+          )
+          finalize({
+            error: true,
+            ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
+          })
+          return consumedByTranscript
         }
 
         if (queuedSendHandoff) {
@@ -4249,6 +3818,7 @@ export function useChat(
           }
         }
       } catch (err) {
+        const sendAbortSignal = admission?.controller.signal
         /* fetch rejects with the RAW abort reason (here a plain string) when
            its signal was aborted with abort(reason) — an `err.name` check alone
            misses those, so abort detection also consults the signal itself. */
@@ -4297,10 +3867,14 @@ export function useChat(
         if (gen !== undefined && streamGenRef.current === gen) {
           finalize({
             error: true,
+            streamTerminal: false,
             ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
           })
         }
         return consumedByTranscript
+      } finally {
+        resolveAdmission?.(undefined)
+        if (pendingChatAdmissionRef.current === admission) pendingChatAdmissionRef.current = null
       }
       return consumedByTranscript
     },
@@ -4310,6 +3884,7 @@ export function useChat(
       scopeKey,
       queryClient,
       upsertChatHistory,
+      modelSelectorEnabled,
       processSSEStream,
       finalize,
       resumeOrFinalize,
@@ -4337,7 +3912,8 @@ export function useChat(
           send.fileAttachments,
           send.userMessageId,
           send.requestMode,
-          send.assistantSearch
+          send.assistantSearch,
+          send.assistantSearchLevel
         )
       ) {
         return
@@ -4350,6 +3926,9 @@ export function useChat(
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
           ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
+          ...(send.assistantSearchLevel !== undefined
+            ? { assistantSearchLevel: send.assistantSearchLevel }
+            : {}),
         },
         organizationId ? { organizationId } : workspaceId!
       )
@@ -4381,6 +3960,7 @@ export function useChat(
             contexts,
             requestMode: options?.requestMode ?? existing.requestMode,
             assistantSearch: options?.assistantSearch ?? existing.assistantSearch,
+            assistantSearchLevel: options?.assistantSearchLevel ?? existing.assistantSearchLevel,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -4392,6 +3972,8 @@ export function useChat(
         queueStore.setEditing(activeChatKey, null)
       }
 
+      options = { ...options, requestMode: options?.requestMode ?? requestModeRef.current }
+
       // An in-flight send drains the queue from `finalize`; a pending stop kicks
       // the dispatcher itself, since nothing else will once the stop settles.
       // A non-empty queue forces queueing even on an idle chat: messages
@@ -4401,7 +3983,7 @@ export function useChat(
       const queuedAheadCount = (queueStore.queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE).length
       if (
         shouldQueueOutgoingMessage(
-          Boolean(sendingRef.current),
+          Boolean(sendingRef.current || hasPendingChatAdmission()),
           Boolean(pendingStopPromiseRef.current),
           queuedAheadCount
         )
@@ -4414,7 +3996,8 @@ export function useChat(
             contexts,
             options?.resumeUserMessageId,
             options?.requestMode,
-            options?.assistantSearch
+            options?.assistantSearch,
+            options?.assistantSearchLevel
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -4438,6 +4021,9 @@ export function useChat(
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
         ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+        ...(options?.assistantSearchLevel !== undefined
+          ? { assistantSearchLevel: options?.assistantSearchLevel }
+          : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4453,11 +4039,18 @@ export function useChat(
             contexts,
             result.userMessageId,
             options?.requestMode,
-            options?.assistantSearch
+            options?.assistantSearch,
+            options?.assistantSearchLevel
           )
         )
     },
-    [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
+    [
+      workspaceId,
+      createQueuedMessage,
+      startSendMessage,
+      handOffWithdrawnSend,
+      hasPendingChatAdmission,
+    ]
   )
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -4642,79 +4235,28 @@ export function useChat(
       return
     }
 
-    const claimOwnerId = writeQueuedSendHandoffClaim(handoff.id)
-    recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
-    void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
-      pendingStop: null,
+    /** Recovered sends join the queue so dispatch, failure and retry have one owner. */
+    useMothershipQueueStore.getState().insertAt(chatHistory.id, 0, {
+      id: handoff.id,
+      content: handoff.message,
+      fileAttachments: handoff.fileAttachments,
+      contexts: handoff.contexts,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
         supersededStreamId: handoff.supersededStreamId,
         userMessageId: handoff.userMessageId,
+        ...(handoff.stopRequired ? { stopRequired: true } : {}),
       },
-    }).finally(() => {
-      if (
-        recoveringQueuedSendHandoffRef.current?.id === handoff.id &&
-        recoveringQueuedSendHandoffRef.current.ownerId === claimOwnerId
-      ) {
-        recoveringQueuedSendHandoffRef.current = null
-      }
-      clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     })
-  }, [
-    workspaceId,
-    organizationId,
-    scopeKey,
-    chatHistory,
-    queuedHandoffRecoveryEpoch,
-    startSendMessage,
-  ])
-  const cancelActiveWorkflowExecutions = useCallback(() => {
-    const execState = useExecutionStore.getState()
-    const consoleStore = useTerminalConsoleStore.getState()
-
-    for (const [workflowId, wfExec] of execState.workflowExecutions) {
-      if (!wfExec.isExecuting) continue
-
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-
-      const executionId = execState.getCurrentExecutionId(workflowId)
-      if (executionId) {
-        execState.setCurrentExecutionId(workflowId, null)
-        requestJson(cancelWorkflowExecutionContract, {
-          params: { id: workflowId, executionId },
-        }).catch(() => {})
-      }
-
-      consoleStore.cancelRunningEntries(workflowId, executionId ?? undefined)
-      const now = new Date()
-      consoleStore.addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: 'Run was cancelled',
-        durationMs: 0,
-        startedAt: now.toISOString(),
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        endedAt: now.toISOString(),
-        workflowId,
-        blockId: 'cancelled',
-        executionId: executionId ?? undefined,
-        blockName: 'Run Cancelled',
-        blockType: 'cancelled',
-      })
-
-      executionStream.cancel(workflowId)
-      execState.setIsExecuting(workflowId, false)
-      execState.setIsDebugging(workflowId, false)
-      execState.setActiveBlocks(workflowId, new Set())
-
-      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
-    }
-  }, [executionStream])
+    clearQueuedSendHandoffState(handoff.id)
+    clearQueuedSendHandoffClaim(handoff.id)
+  }, [workspaceId, organizationId, scopeKey, chatHistory, queuedHandoffRecoveryEpoch])
 
   const stopGeneration = useCallback(
     async (options?: StopGenerationOptions) => {
@@ -4736,11 +4278,13 @@ export function useChat(
       pendingStopPromiseRef.current = stopOperation
       pendingStopModeRef.current = mode
 
-      const wasSending = sendingRef.current
+      const pendingAdmission = hasPendingChatAdmission() ? pendingChatAdmissionRef.current : null
+      const wasSending = sendingRef.current || Boolean(pendingAdmission)
       let activeChatId = chatIdRef.current ?? selectedChatIdRef.current
       const sid =
         streamIdRef.current ||
         activeTurnRef.current?.userMessageId ||
+        pendingAdmission?.userMessageId ||
         (activeChatId
           ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
               ?.activeStreamId
@@ -4775,6 +4319,16 @@ export function useChat(
         ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
         ...(block.endedAt === undefined ? { endedAt: stopNow } : {}),
       }))
+      const cachedAssistant = activeChatId
+        ? queryClient
+            .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
+            ?.messages.find((message) => message.id === activeAssistantMessageId)
+        : undefined
+      const stoppedToolCallIds = new Set(
+        [...stopBlocksSnapshot, ...(cachedAssistant?.contentBlocks ?? [])].flatMap((block) =>
+          block.toolCall ? [block.toolCall.id] : []
+        )
+      )
       const stopRequestIdSnapshot = streamRequestIdRef.current ?? initialStopRequestIdSnapshot
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
@@ -4795,11 +4349,14 @@ export function useChat(
       // Establish the stream boundary immediately after synchronous activity
       // settlement. Native cancellation above is deliberately fire-and-forget,
       // so a slow shell cannot delay the server-side abort below.
-      streamGenRef.current++
+      const stoppedGeneration = ++streamGenRef.current
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})
       streamReaderRef.current = null
-      abortControllerRef.current?.abort('user_stop:client_stopGeneration')
+      const stoppedController = abortControllerRef.current
+      if (stoppedController !== pendingAdmission?.controller) {
+        stoppedController?.abort('user_stop:client_stopGeneration')
+      }
       abortControllerRef.current = null
       setTransportIdle()
       // The paced reveal may still hold up to a drain-horizon of buffered text;
@@ -4851,9 +4408,8 @@ export function useChat(
         throw err
       }
 
-      // Cancel active run-tool executions before waiting for the server-side stream
-      // shutdown barrier; otherwise the abort settle can sit behind tool execution teardown.
-      cancelActiveWorkflowExecutions()
+      /** Exact tool ownership excludes other chats and independent manual workflow runs. */
+      stopRunToolExecutions(stoppedToolCallIds)
 
       let abortSucceeded = false
       const stopBarrier = (async () => {
@@ -4863,62 +4419,52 @@ export function useChat(
           let abortSettled = false
           const postAbortRequest = async (chatId?: string): Promise<boolean> => {
             if (!sid) return true
-            // boundary-raw-fetch: stream-abort endpoint requires propagating the snapshotted traceparent header from the in-flight stream and has no contract authored yet
-            const res = await fetch('/api/mothership/chat/abort', {
-              method: 'POST',
+            const payload = await requestJson(copilotChatAbortContract, {
+              keepalive: true,
               signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
               headers: {
-                'Content-Type': 'application/json',
                 ...(stopTraceparentSnapshot ? { traceparent: stopTraceparentSnapshot } : {}),
               },
-              body: JSON.stringify({
+              body: {
                 streamId: sid,
+                ...(organizationId ? { organizationId } : { workspaceId }),
                 ...(chatId ? { chatId } : {}),
-              }),
+              },
             })
-            const payload: unknown = await res.json().catch(() => null)
-            if (isRecordLike(payload) && payload.aborted === true) {
-              abortSucceeded = true
-            }
-            if (!res.ok) {
-              if (isRecordLike(payload) && payload.settled === false) {
-                return false
-              }
-              throw new Error(
-                isRecordLike(payload) && typeof payload.error === 'string'
-                  ? payload.error
-                  : 'Failed to abort previous response'
-              )
-            }
             abortSucceeded = true
-            return isRecordLike(payload) && payload.settled === true
+            return payload.settled
           }
+          let abortFailure: unknown
           const abortPromise = sid
-            ? postAbortRequest(resolvedChatId).then((settled) => {
-                abortSettled = settled
-              })
+            ? postAbortRequest(resolvedChatId).then(
+                (settled) => {
+                  abortSettled = settled
+                },
+                (error) => {
+                  abortFailure = error
+                }
+              )
             : Promise.resolve()
 
           let stopFailure: unknown
-          let abortFailure: unknown
           try {
-            if (mode === 'queued-handoff' && !resolvedChatId && sid) {
-              resolvedChatId = await resolveChatIdForStream(sid, {
-                preferExistingChatId: false,
-              })
-              if (!resolvedChatId) {
+            if (pendingAdmission && pendingAdmission.userMessageId === sid) {
+              const admittedChatId = await pendingAdmission.settled
+              resolvedChatId ??= admittedChatId
+              pendingAdmission.controller.abort('user_stop:client_stopGeneration')
+            }
+            if (!resolvedChatId && sid) {
+              resolvedChatId = await resolveChatIdForStream(sid, { preferExistingChatId: false })
+              if (!resolvedChatId && mode === 'queued-handoff') {
                 throw new Error('Cannot send queued message until the active chat is known.')
               }
-              if (
-                pendingStopPromiseRef.current !== stopOperation ||
-                locallyTerminalStreamIdRef.current !== sid
-              ) {
-                throw new Error(
-                  'Previous response stop was superseded; queued message was restored.'
-                )
-              }
+            }
+            if (resolvedChatId) {
               activeChatId = resolvedChatId
-              if (!selectedChatIdRef.current || selectedChatIdRef.current === resolvedChatId) {
+              if (
+                streamGenRef.current === stoppedGeneration &&
+                (!selectedChatIdRef.current || selectedChatIdRef.current === resolvedChatId)
+              ) {
                 adoptResolvedChatId(resolvedChatId, { replaceHomeHistory: true })
               }
             }
@@ -4937,12 +4483,8 @@ export function useChat(
             stopFailure = err
           }
 
-          try {
-            await abortPromise
-          } catch (err) {
-            abortFailure = err
-          }
-          if (sid && resolvedChatId && !abortSettled) {
+          await abortPromise
+          if (sid && !abortSettled) {
             try {
               const retrySettled = await postAbortRequest(resolvedChatId)
               abortSettled = retrySettled
@@ -4959,20 +4501,22 @@ export function useChat(
             activeChatId = resolvedChatId
           }
           stopSucceeded = true
+          if (streamGenRef.current === stoppedGeneration) {
+            notifyTurnEnded({ error: false, skipQueueDispatch: mode === 'queued-handoff' })
+          }
         } finally {
           invalidateChatQueries({
             includeDetail: mode !== 'queued-handoff' || !stopSucceeded,
+            ...(activeChatId ? { targetChatId: activeChatId } : {}),
           })
-          resetEphemeralPreviewState({ removeStreamingResource: true })
+          if (streamGenRef.current === stoppedGeneration) {
+            resetEphemeralPreviewState({ removeStreamingResource: true })
+          }
         }
       })()
 
       try {
-        await stopBarrier
-        notifyTurnEnded({
-          error: false,
-          skipQueueDispatch: mode === 'queued-handoff',
-        })
+        await withinDeadline(() => stopBarrier, Date.now() + STOP_REQUEST_TIMEOUT_MS)
         resolveStopOperation()
       } catch (err) {
         if (sid && !abortSucceeded && locallyTerminalStreamIdRef.current === sid) {
@@ -4981,7 +4525,9 @@ export function useChat(
         if (activeChatId) {
           invalidateChatQueries()
         }
-        setError(getErrorMessage(err, 'Failed to stop the previous response'))
+        if (streamGenRef.current === stoppedGeneration) {
+          setError(getErrorMessage(err, 'Failed to stop the previous response'))
+        }
         rejectStopOperation(err)
         throw err
       } finally {
@@ -4992,7 +4538,6 @@ export function useChat(
       }
     },
     [
-      cancelActiveWorkflowExecutions,
       cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
@@ -5005,8 +4550,10 @@ export function useChat(
       clearResourceActivity,
       clearActiveTurn,
       getResourceActivityTracker,
+      hasPendingChatAdmission,
       setTransportIdle,
       workspaceId,
+      organizationId,
     ]
   )
 
@@ -5053,9 +4600,17 @@ export function useChat(
         withdrawnUserMessageId?: string
       ) => {
         const withdrawnByCleanup = withdrawnUserMessageId !== undefined
-        if (!handoff) {
-          clearQueuedSendHandoffState(msg.id)
-        }
+        const savedHandoff = readQueuedSendHandoffState()
+        const retainedHandoff =
+          savedHandoff?.id === msg.id
+            ? {
+                id: savedHandoff.id,
+                chatId: savedHandoff.chatId,
+                supersededStreamId: savedHandoff.supersededStreamId,
+                userMessageId: savedHandoff.userMessageId,
+                stopRequired: savedHandoff.stopRequired,
+              }
+            : handoff
         clearQueuedSendHandoffClaim(msg.id)
         if (!removedFromQueue) {
           return
@@ -5066,6 +4621,7 @@ export function useChat(
         // If the user explicitly removed this message during dispatch, honor
         // that and don't re-insert on failure.
         if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
+          clearQueuedSendHandoffState(msg.id)
           return
         }
         /* A chatless surface regenerates its queue key every mount, so a
@@ -5073,18 +4629,26 @@ export function useChat(
            the next surface instead. A chat-bound key is the stable chat id, so
            the queue itself is the durable retry. */
         if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+          clearQueuedSendHandoffState(msg.id)
           handOffWithdrawnSend({
             content: dispatched.content,
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
             ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
+            ...(dispatched.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: dispatched.assistantSearchLevel }
+              : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
         }
+        /** Once restored, the queue owns recovery; a second handoff reader must not resend it. */
+        clearQueuedSendHandoffState(msg.id)
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
           ...dispatched,
+          ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
+          retryRequired: !withdrawnByCleanup,
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
       }
@@ -5119,6 +4683,9 @@ export function useChat(
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
             ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
+            ...(liveMsg.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: liveMsg.assistantSearchLevel }
+              : {}),
           }
         )
 
@@ -5152,11 +4719,12 @@ export function useChat(
         if (action.epoch !== queueDispatchEpochRef.current) {
           continue
         }
+        if (hasPendingChatAdmission()) continue
 
         const queueState = useMothershipQueueStore.getState()
         const activeChatKey = chatKeyRef.current
         const msg = queueState.queues[activeChatKey]?.[0]
-        if (!msg) continue
+        if (!msg || msg.retryRequired) continue
         // Pause draining if the head is bound to the composer; dispatching now
         // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
@@ -5175,7 +4743,7 @@ export function useChat(
         void queueDispatchLoopRef.current()
       }
     })
-  }, [dispatchQueuedMessage])
+  }, [dispatchQueuedMessage, hasPendingChatAdmission])
   queueDispatchLoopRef.current = runQueueDispatchLoop
 
   const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {
@@ -5202,6 +4770,7 @@ export function useChat(
       const msg = queue?.find((queued) => queued.id === id)
       if (!msg) return
       if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
+      const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
       queueDispatchActionsRef.current = queueDispatchActionsRef.current.filter(
@@ -5210,7 +4779,7 @@ export function useChat(
 
       const queuedSendHandoff =
         msg.queuedSendHandoff ??
-        ((sendingRef.current || pendingStopPromiseRef.current) && scopeKey
+        ((sendingRef.current || pendingStopPromiseRef.current || admissionPending) && scopeKey
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
@@ -5224,17 +4793,19 @@ export function useChat(
                 supersededStreamId:
                   streamIdRef.current ||
                   activeTurnRef.current?.userMessageId ||
+                  (admissionPending ? pendingChatAdmissionRef.current?.userMessageId : undefined) ||
                   cachedActiveStreamId ||
                   null,
               }
             })()
           : undefined)
 
-      const pendingStop = sendingRef.current
-        ? stopGeneration({
-            mode: 'queued-handoff',
-          })
-        : pendingStopPromiseRef.current
+      const pendingStop =
+        sendingRef.current || admissionPending
+          ? stopGeneration({
+              mode: 'queued-handoff',
+            })
+          : pendingStopPromiseRef.current
 
       await dispatchQueuedMessage(msg, {
         epoch: queueDispatchEpochRef.current,
@@ -5242,7 +4813,15 @@ export function useChat(
         queuedSendHandoff,
       })
     },
-    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId, organizationId, scopeKey]
+    [
+      dispatchQueuedMessage,
+      queryClient,
+      stopGeneration,
+      workspaceId,
+      organizationId,
+      scopeKey,
+      hasPendingChatAdmission,
+    ]
   )
 
   const sendNow = useCallback(
@@ -5275,6 +4854,23 @@ export function useChat(
       void enqueueQueueDispatchRef.current({ type: 'send_head' })
     }
   }, [])
+
+  /** A recovered send already in history belongs to its accepted turn, even after Stop. */
+  useEffect(() => {
+    if (!chatHistory || chatHistory.id !== chatKeyRef.current) return
+    const acceptedMessageIds = new Set(
+      chatHistory.messages.filter((message) => message.role === 'user').map((message) => message.id)
+    )
+    if (chatHistory.activeStreamId) acceptedMessageIds.add(chatHistory.activeStreamId)
+    for (const queued of messageQueue) {
+      if (queuedMessageDispatchIdsRef.current.has(queued.id)) continue
+      const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
+      if (!requestId || !acceptedMessageIds.has(requestId)) continue
+      clearQueuedSendHandoffState(queued.id)
+      clearQueuedSendHandoffClaim(queued.id)
+      useMothershipQueueStore.getState().remove(chatHistory.id, queued.id)
+    }
+  }, [chatHistory, messageQueue])
 
   // Resume draining when a non-empty queue rehydrates with no active stream
   // (e.g. nav-back). Wait for chat history to confirm no `activeStreamId` to
@@ -5329,7 +4925,8 @@ export function useChat(
     isChatHistoryPending,
     isSending,
     isReconnecting,
-    error,
+    error:
+      error ?? (chatHistoryError ? 'Failed to load chat history. Refresh to try again.' : null),
     resolvedChatId,
     desktopScopeId,
     sendMessage,
@@ -5337,6 +4934,7 @@ export function useChat(
     resources,
     activeResourceId: effectiveActiveResourceId,
     setActiveResourceId,
+    setTableViewContext,
     addResource,
     removeResource,
     reorderResources,

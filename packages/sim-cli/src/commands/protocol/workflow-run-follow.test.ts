@@ -84,7 +84,7 @@ beforeEach(() => {
   output.format = 'json'
   request.mockReset()
   requestRaw.mockReset()
-  requestRaw.mockResolvedValue(
+  requestRaw.mockImplementation(async () =>
     jsonResponse({
       runId: 'run-1',
       workflowId: WORKFLOW_ID,
@@ -303,32 +303,45 @@ describe('sim workflows run --follow', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('refuses --select-output without --follow and sends nothing', async () => {
-    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
-      /add --follow/
+  it('sends --select-output through the sync path without --follow', async () => {
+    requestRaw.mockResolvedValueOnce(
+      ndjsonResponse({
+        type: 'final',
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'completed',
+          output: {},
+          blockOutputs: { 'agent_1.content': 'Selected output' },
+          error: null,
+        },
+      })
     )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--select-output', 'agent_1.content')
+
     expect(request).not.toHaveBeenCalled()
-    expect(requestRaw).not.toHaveBeenCalled()
+    expect(requestRaw).toHaveBeenCalledOnce()
+    expect(requestRaw.mock.calls[0][1].headers).toEqual({ accept: 'application/x-ndjson' })
+    expect(requestRaw.mock.calls[0][1].body).toEqual({ selectedOutputs: ['agent_1.content'] })
+    expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
+      blockOutputs: { 'agent_1.content': 'Selected output' },
+    })
   })
 
-  it('points a refused --select-output at the dialect the run resource takes', async () => {
-    // The caller just typed a block *name*, which is what this flag accepts and
-    // what `workflows runs get` rejects, so a hint that only repeated the flag
-    // would send them into a second 400.
-    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
-      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
-    )
-  })
-
-  it('tells --async --select-output that no stream is coming, rather than to follow', async () => {
-    // `--async --follow` is refused outright, so "add --follow" would be advice
-    // that cannot be taken.
+  it('refuses --async --select-output and points at the finished-run read', async () => {
+    // `workflows runs get` accepts the same selectors this flag does, so the
+    // hint names that recovery instead of repeating the flag into a second
+    // failure.
     const failure = await run(WORKFLOW_ID, '--async', '--select-output', 'agent_1.content').catch(
       (error: Error) => error
     )
 
     expect(failure?.message).toContain('--async returns as soon as the run is queued')
-    expect(failure?.message).not.toContain('add --follow')
+    expect(failure?.message).toMatch(
+      /workflows runs get .*--select-output <blockName\|blockId>\[\.path\].*takes the same selectors/s
+    )
     expect(request).not.toHaveBeenCalled()
   })
 
@@ -394,6 +407,22 @@ describe('sim workflows run --follow', () => {
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       input: { event: 'created' },
       run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+    })
+  })
+
+  it('lets --trigger and --mock-payload imply --manual', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--trigger', 'slack-trigger')
+    await run(WORKFLOW_ID, '--mock-payload')
+
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).toHaveBeenCalledTimes(2)
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+    })
+    expect(requestRaw.mock.calls[1][1].body).toEqual({
+      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
     })
   })
 
@@ -495,7 +524,9 @@ describe('sim workflows run --follow', () => {
   })
 
   it('fails fast on invalid manual flag combinations', async () => {
-    await expect(run(WORKFLOW_ID, '--trigger', 'trigger-1')).rejects.toThrow(/require --manual/)
+    await expect(run(WORKFLOW_ID, '--trigger', 'trigger-1', '--async')).rejects.toThrow(
+      /does not support --async/
+    )
     await expect(run(WORKFLOW_ID, '--from-block', 'agent-1')).rejects.toThrow(
       /requires --source-run/
     )

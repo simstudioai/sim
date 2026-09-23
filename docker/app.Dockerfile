@@ -131,6 +131,12 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
+# Runtime flags override these image defaults; dev images opt into Plan.
+ARG MSHIP_PLAN_MODE_DEFAULT=false
+ENV MSHIP_PLAN_MODE_DEFAULT=$MSHIP_PLAN_MODE_DEFAULT
+ARG SIM_SEARCH_LIVE_DEFAULT=true
+ENV SIM_SEARCH_LIVE_DEFAULT=$SIM_SEARCH_LIVE_DEFAULT
+
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
@@ -146,6 +152,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/
 # Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
 # before the standalone server.js to hydrate process.env from the runtime secret.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
+COPY --from=builder --chown=nextjs:nodejs /app/packages/sim-cli/dist/runtime.js ./packages/sim-cli/dist/runtime.js
 
 # Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content

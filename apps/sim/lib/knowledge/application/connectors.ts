@@ -18,6 +18,7 @@ import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/conn
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -257,6 +258,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   return {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
+    isSearchIndex: context.knowledgeBase.isSearchIndex,
     workspaceId: context.workspaceId ?? null,
     organizationId: context.organizationId ?? null,
   }
@@ -706,20 +708,25 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+    const liveSearchConnector = isLiveEnterpriseSearchEnabled && context.knowledgeBase.isSearchIndex
     const [syncLogs, memberSyncLogs, members] = await Promise.all([
-      db
-        .select()
-        .from(knowledgeConnectorSyncLog)
-        .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
-        .limit(10),
-      db
-        .select()
-        .from(knowledgeConnectorMemberSyncLog)
-        .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
-        .limit(10),
-      connector.accessMode === 'members'
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorSyncLog)
+            .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
+            .limit(10),
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorMemberSyncLog)
+            .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
+            .limit(10),
+      !liveSearchConnector && connector.accessMode === 'members'
         ? summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes)
         : { active: 0, suspended: 0, stale: 0 },
     ])

@@ -65,6 +65,53 @@ describe('MessageContent shared thinking indicator', () => {
   const thinking = () => container.querySelectorAll('[aria-hidden="false"] svg')
   const groups = () => container.querySelectorAll('[data-agent-group]')
 
+  it.each([undefined, 'main'])(
+    'shows thinking after main tools finish and yields to the next tool (spanId=%s)',
+    (spanId) => {
+      const mainCall = (id: string, status: ToolCallStatus): ContentBlock => ({
+        type: 'tool_call',
+        spanId,
+        toolCall: {
+          id,
+          name: 'sim_cli',
+          status,
+          displayTitle: 'List tables in Alfred',
+          params: {
+            args: ['tables', 'list'],
+            activity: {
+              id: 'inspect',
+              title: 'Inspecting workspace resources',
+              completedTitle: 'Inspected workspace resources',
+            },
+          },
+        },
+      })
+      render([mainCall('first', 'executing')])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(0)
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+
+      const completed = [mainCall('first', 'success')]
+      render(completed)
+      expect(thinking()).toHaveLength(0)
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(1)
+      expect(container.querySelector('[aria-hidden="false"]')?.textContent).toContain('Thinking')
+
+      render([...completed, { type: 'thinking', content: 'Checking the result.', timestamp: 3 }])
+      expect(thinking()).toHaveLength(1)
+      render([...completed, mainCall('next', 'executing')])
+      expect(thinking()).toHaveLength(0)
+
+      const finished = [...completed, mainCall('next', 'success')]
+      render(finished)
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(1)
+      render(finished, false)
+      expect(thinking()).toHaveLength(0)
+    }
+  )
+
   it('shares one indicator across parallel and nested empty agents', () => {
     render([start('workflow'), start('browser'), start('deploy', 'workflow')])
     expect(thinking()).toHaveLength(1)
@@ -142,7 +189,7 @@ describe('MessageContent shared thinking indicator', () => {
     )
   })
 
-  it.each(['awaiting_approval', 'error', 'cancelled', 'rejected'] as const)(
+  it.each(['awaiting_approval', 'cancelled'] as const)(
     'keeps %s tool rows visible while another agent is pending',
     (status) => {
       render([start('workflow'), start('browser'), tool('workflow', status)])
@@ -151,6 +198,42 @@ describe('MessageContent shared thinking indicator', () => {
       expect(thinking()).toHaveLength(1)
     }
   )
+
+  it.each(['error', 'rejected'] as const)(
+    'keeps %s details inside an expandable group while another agent is pending',
+    (status) => {
+      render([start('workflow'), start('browser'), tool('workflow', status)])
+      expect(groups()).toHaveLength(1)
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Reading workflow notes')
+      expect(container.textContent).not.toContain('Failed')
+      expect(thinking()).toHaveLength(1)
+
+      const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
+      expect(disclosure.getAttribute('aria-expanded')).toBe('false')
+      act(() => disclosure.click())
+      expect(disclosure.getAttribute('aria-expanded')).toBe('true')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
+        'Reading workflow notes'
+      )
+      expect(thinking()).toHaveLength(1)
+    }
+  )
+
+  it('keeps interrupted subagent details visible with neutral styling and no active shimmer', () => {
+    const error = 'Subagent interrupted during run recovery.'
+    render(
+      [{ ...start('task'), subagentName: 'Build wakeups and delivery', endedAt: 2, error }],
+      false
+    )
+    expect(container.textContent).toContain('Build wakeups and delivery')
+    const detail = Array.from(container.querySelectorAll('p')).find(
+      (node) => node.textContent === error
+    )
+    expect(detail).toBeDefined()
+    expect(detail?.className).toContain('--text-tertiary')
+    expect(container.innerHTML).not.toContain('--text-error')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+  })
 
   it('keeps thinking hidden while prose streams and finishes revealing', () => {
     const blocks: ContentBlock[] = [

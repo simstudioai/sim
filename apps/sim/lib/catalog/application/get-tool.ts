@@ -1,3 +1,4 @@
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
@@ -34,7 +35,7 @@ export const getCatalogTool = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.readTool,
   resolveContext: ({ input }: { input: GetCatalogToolInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<GetCatalogToolResult> => {
     const gate = await resolveCatalogGate(principal, context)
     const visibleToolIds = await resolveVisibleToolIds(gate)

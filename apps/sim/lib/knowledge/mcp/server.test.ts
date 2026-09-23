@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { createMockLogger } from '@sim/testing'
+import { createMockLogger, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,8 +9,14 @@ const mocks = vi.hoisted(() => ({
     string,
     (input: Record<string, unknown>, extra: { signal: AbortSignal }) => Promise<CallToolResult>
   >(),
+  configs: new Map<
+    string,
+    { description: string; inputSchema: { parse: (input: unknown) => unknown } }
+  >(),
   search: vi.fn(),
   read: vi.fn(),
+  liveSearch: vi.fn(),
+  liveRead: vi.fn(),
   chat: vi.fn(),
   rateLimit: vi.fn(),
   info: vi.fn(),
@@ -28,13 +34,14 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   McpServer: class {
     registerTool(
       name: string,
-      _config: unknown,
+      config: { description: string; inputSchema: { parse: (input: unknown) => unknown } },
       run: (
         input: Record<string, unknown>,
         extra: { signal: AbortSignal }
       ) => Promise<CallToolResult>
     ) {
       mocks.tools.set(name, run)
+      mocks.configs.set(name, config)
     }
   },
 }))
@@ -47,6 +54,10 @@ vi.mock('@/lib/knowledge/application/search', () => ({
 vi.mock('@/lib/knowledge/application/read-indexed-document', () => ({
   readIndexedKnowledgeDocument: { execute: mocks.read },
 }))
+vi.mock('@/lib/sim-search/live/application', () => ({
+  searchLiveKnowledge: { execute: mocks.liveSearch },
+  readLiveDocument: { execute: mocks.liveRead },
+}))
 vi.mock('@/lib/knowledge/application/chat', () => ({
   organizationSearchChat: { execute: mocks.chat },
 }))
@@ -54,6 +65,7 @@ vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
 const auth = {
@@ -81,7 +93,10 @@ function payload(result: CallToolResult): unknown {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetEnvFlagsMock()
+  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
   mocks.tools.clear()
+  mocks.configs.clear()
   mocks.rateLimit.mockReset().mockResolvedValue(null)
   mocks.search.mockResolvedValue({ results: [] })
   mocks.read.mockResolvedValue({
@@ -94,6 +109,185 @@ beforeEach(() => {
     pagination: { total: 1, offset: 0, limit: 20, hasMore: false },
   })
   mocks.chat.mockResolvedValue({ content: 'An answer', citations: [] })
+})
+
+describe('live organization Search MCP', () => {
+  const documentId = `live:${'a'.repeat(500)}`
+  const document = {
+    documentId,
+    knowledgeBaseId: '',
+    documentName: 'Release notes',
+    sourceUrl: 'https://example.com/notes',
+    sourceModifiedAt: '2026-09-22T10:00:00Z',
+    connectorType: 'google_drive',
+    content: 'Live evidence',
+    chunkIndex: 0,
+  }
+  const coverage = {
+    backend: 'live',
+    accounts: [
+      { accountId: 'account-1', provider: 'google_drive', status: 'partial', nextCursor: 'page-2' },
+    ],
+    guidance: 'Use nativeQueries to continue.',
+  }
+  beforeEach(() => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mocks.liveSearch.mockResolvedValue({
+      results: [document],
+      live: coverage,
+      retrieval: { status: 'partial' },
+    })
+    mocks.liveRead.mockResolvedValue({
+      ...document,
+      knowledgeBaseName: 'Drive',
+      chunks: [
+        {
+          chunkIndex: 0,
+          content: 'More evidence',
+          startOffset: 8000,
+          endOffset: 16000,
+          totalCharacters: 20000,
+        },
+      ],
+      hasMore: true,
+      next: { startChunkIndex: 0, startOffset: 16000 },
+    })
+  })
+
+  it('searches live without an index and preserves native pagination and the actual caller', async () => {
+    create(null)
+    const input = {
+      query: 'release',
+      source: 'google_drive',
+      startDate: '2026-09-01T00:00:00Z',
+      nativeQueries: [
+        {
+          provider: 'google_drive',
+          query: "fullText contains 'release'",
+          accountId: 'account-1',
+          cursor: 'page-1',
+        },
+      ],
+    }
+    const result = await call('search', input)
+    expect(result.isError).toBeUndefined()
+    expect(payload(result)).toMatchObject({
+      results: [
+        {
+          documentId,
+          title: 'Release notes',
+          citationId: expect.stringMatching(/^live:[a-f0-9]{32}$/),
+          citationUrl: document.sourceUrl,
+        },
+      ],
+      live: coverage,
+    })
+    expect(mocks.liveSearch).toHaveBeenCalledExactlyOnceWith({
+      principal,
+      request,
+      input: {
+        organizationId: 'org-1',
+        query: input.query,
+        topK: 20,
+        nativeQueries: input.nativeQueries,
+        filters: { source: input.source, startDate: input.startDate },
+        resultSecretRegistry: expect.any(ResolvedSecretTraceRegistry),
+        signal: expect.any(AbortSignal),
+      },
+    })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(mocks.configs.get('search')?.description).not.toMatch(/index|similarity/)
+    expect(mocks.configs.get('search')?.inputSchema.parse(input)).toMatchObject(input)
+  })
+
+  it('advertises and accepts long live references and exact read continuation', async () => {
+    create()
+    const input = { documentId, limit: 1, startChunkIndex: 0, startOffset: 8000 }
+    expect(mocks.configs.get('read_document')?.inputSchema.parse(input)).toEqual(input)
+    const result = await call('read_document', input)
+    expect(result.isError).toBeUndefined()
+    expect(mocks.liveRead).toHaveBeenCalledExactlyOnceWith({
+      principal,
+      request,
+      input: {
+        ...input,
+        organizationId: 'org-1',
+        resultSecretRegistry: expect.any(ResolvedSecretTraceRegistry),
+        signal: expect.any(AbortSignal),
+      },
+    })
+    expect(payload(result)).toMatchObject({
+      documentId,
+      citationUrl: document.sourceUrl,
+      hasMore: true,
+      next: { startChunkIndex: 0, startOffset: 16000 },
+    })
+    expect(payload(result)).not.toHaveProperty('knowledgeBaseId')
+    expect(payload(result)).not.toHaveProperty('processingStatus')
+    expect(mocks.read).not.toHaveBeenCalled()
+    expect(mocks.configs.get('read_document')?.description).not.toMatch(/index/)
+  })
+
+  it('does not invent a knowledge-base link when a live result has no source URL', async () => {
+    create()
+    mocks.liveSearch.mockResolvedValueOnce({ results: [{ ...document, sourceUrl: null }] })
+    expect(payload(await call('search', { query: 'release' }))).toMatchObject({
+      results: [{ citationUrl: null }],
+    })
+  })
+
+  it.each(['search', 'read_document'])(
+    'does not fall back to indexed data after a live %s denial',
+    async (tool) => {
+      create()
+      const backend = tool === 'search' ? mocks.liveSearch : mocks.liveRead
+      backend.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
+      const result = await call(tool, tool === 'search' ? { query: 'release' } : { documentId })
+      expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'Access denied' }] })
+      expect(mocks.search).not.toHaveBeenCalled()
+      expect(mocks.read).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['search', 'read_document'])(
+    'refuses live %s content with incomplete secret provenance',
+    async (tool) => {
+      create()
+      const backend = tool === 'search' ? mocks.liveSearch : mocks.liveRead
+      backend.mockImplementationOnce(
+        async ({ input }: { input: { resultSecretRegistry: ResolvedSecretTraceRegistry } }) => {
+          input.resultSecretRegistry.markIncomplete('source-provenance-incomplete')
+          return tool === 'search' ? { results: [document] } : document
+        }
+      )
+      const result = await call(tool, tool === 'search' ? { query: 'release' } : { documentId })
+      expect(result.isError).toBe(true)
+      expect(result.content).toEqual([
+        {
+          type: 'text',
+          text: 'Document secret provenance is unavailable. The content cannot be returned safely.',
+        },
+      ])
+    }
+  )
+
+  it.each(['search', 'read_document'])(
+    'stops cancelled live %s calls before provider access',
+    async (tool) => {
+      create()
+      expect(
+        (
+          await call(
+            tool,
+            tool === 'search' ? { query: 'release' } : { documentId },
+            AbortSignal.abort()
+          )
+        ).isError
+      ).toBe(true)
+      expect(mocks.liveSearch).not.toHaveBeenCalled()
+      expect(mocks.liveRead).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('search', () => {

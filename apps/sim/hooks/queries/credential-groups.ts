@@ -235,7 +235,7 @@ export function useUpdateCredentialGroupMcpConnector() {
     }: {
       workspaceId: string
       groupId: string
-      connectorId: 'fireflies' | 'granola' | 'databricks'
+      connectorId: 'fireflies' | 'granola' | 'databricks' | 'coda'
       body: ContractBodyInput<typeof updateCredentialGroupMcpConnectorContract>
     }) =>
       requestJson(updateCredentialGroupMcpConnectorContract, {
@@ -257,7 +257,7 @@ export function useDeleteCredentialGroupMcpConnector() {
     }: {
       workspaceId: string
       groupId: string
-      connectorId: 'fireflies' | 'granola' | 'databricks'
+      connectorId: 'fireflies' | 'granola' | 'databricks' | 'coda'
     }) =>
       requestJson(deleteCredentialGroupMcpConnectorContract, {
         params: { id: workspaceId, groupId, connectorId },

@@ -25,12 +25,12 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 /**
- * Direct callers only. Uploads and version history admit no delegated service: no copilot or
- * executor caller exists for them today, and admitting one is a separate decision.
+ * Version history admits direct callers only; delegated version access is a separate decision.
  */
 const DIRECT_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
+const UPLOAD_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 
 export const fileOperations = {
   list: defineWorkspaceOperation({
@@ -114,7 +114,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',
@@ -290,7 +290,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   /**
    * Reading an upload session's current state. Distinct from `uploadCancel`,
@@ -312,7 +312,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'files.upload.complete',
@@ -320,7 +320,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'files.upload.cancel',
@@ -328,7 +328,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
 } as const
 

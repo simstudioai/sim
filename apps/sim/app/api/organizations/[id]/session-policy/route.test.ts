@@ -28,6 +28,10 @@ vi.mock('@/lib/auth/security-policy', () => ({
   invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
+}))
+
 /**
  * These tests run with billing enabled, where `isOrganizationFeatureEntitled`
  * delegates straight to the plan check — so both names resolve to the same
@@ -65,7 +69,7 @@ describe('session policy route', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
-      session: { token: 'tok-1' },
+      session: { id: 'session-1', token: 'tok-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
   })
@@ -84,7 +88,7 @@ describe('session policy route', () => {
     })
 
     it('returns the configured policy for members', async () => {
-      queueTableRows(member, [{ id: 'member-1' }])
+      queueTableRows(member, [{ id: 'member-1', role: 'member' }])
       queueTableRows(organization, [
         { sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: null } },
       ])

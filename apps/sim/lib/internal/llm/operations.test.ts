@@ -32,7 +32,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
   requireBillingAttributionHeader: mocks.requireBillingAttribution,
 }))
-vi.mock('@/lib/copilot/environment-context', () => ({
+vi.mock('@/lib/mothership/environment-context', () => ({
   prepareCopilotEnvironmentContext: mocks.prepareEnvironment,
 }))
 vi.mock('@/lib/internal/llm/credentials', () => ({

@@ -24,7 +24,10 @@ import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organi
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
-import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
+import {
+  type CredentialGroupStandardOAuthProvider,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import { credentialGroupScope } from '@/lib/credential-groups/scope'
 import { resolveSlackManagedUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type {
@@ -387,6 +390,60 @@ export async function ensureWorkspaceAccountsGroup(
     ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id, executor))),
     created: wasCreated,
   }
+}
+
+/** Adds a provider explicitly selected by an organization administrator, preserving all grants. */
+export async function addOrganizationAccountProvider(
+  organizationId: string,
+  userId: string,
+  option: { provider: CredentialGroupStandardOAuthProvider; label: string },
+  executor: DbOrTx
+): Promise<{ groupId: string; changed: boolean }> {
+  const scope = { kind: 'organization', organizationId } as const
+  const group = await ensureWorkspaceAccountsGroup(scope, userId, undefined, executor)
+  const [existing] = await executor
+    .select()
+    .from(credentialGroup)
+    .where(and(eq(credentialGroup.id, group.id), resourceScopeCondition(credentialGroup, scope)))
+    .limit(1)
+    .for('update')
+  if (!existing) throw new Error('Connected accounts disappeared during provider setup')
+  const matching = existing.options.filter((candidate) => candidate.provider === option.provider)
+  if (matching.length > 1)
+    throw new OrchestrationError(
+      'conflict',
+      `Connected accounts contains duplicate ${option.label} settings`
+    )
+  if (matching[0]) {
+    if (matching[0].status !== 'active')
+      throw new OrchestrationError(
+        'validation',
+        `Enable ${option.label} in Connected accounts first`
+      )
+    return { groupId: group.id, changed: group.created }
+  }
+  if (
+    existing.options.some(
+      (candidate) => candidate.label.toLowerCase() === option.label.toLowerCase()
+    )
+  )
+    throw new OrchestrationError(
+      'conflict',
+      `An account option already uses the name ${option.label}. Rename it in Settings.`
+    )
+  const preparedOption = await buildOption(
+    scope,
+    { ...option, required: false },
+    group.id,
+    executor
+  )
+  const [updated] = await executor
+    .update(credentialGroup)
+    .set({ options: [...existing.options, preparedOption], updatedAt: new Date() })
+    .where(and(eq(credentialGroup.id, group.id), resourceScopeCondition(credentialGroup, scope)))
+    .returning({ id: credentialGroup.id })
+  if (!updated) throw new Error('Connected accounts provider update returned no row')
+  return { groupId: group.id, changed: true }
 }
 
 /**

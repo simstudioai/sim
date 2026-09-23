@@ -13,6 +13,7 @@ import {
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
+import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
@@ -357,6 +358,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   requireAllowedWorkspacePrincipal(principal, operation)
+  assertWorkspaceInvocationScope(context)
 
   switch (principal.kind) {
     case 'session':

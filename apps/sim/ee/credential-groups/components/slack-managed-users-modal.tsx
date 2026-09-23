@@ -391,7 +391,7 @@ export function SlackManagedUsersModal({
               <ChipModalField type='custom' title='Install Sim Search first'>
                 <p className='text-[var(--text-secondary)] text-sm'>
                   Install the Sim Search app in your Slack workspace to use the bot and connect
-                  Slack sources. Members can then authorize their own accounts for indexing.
+                  Slack accounts.
                 </p>
               </ChipModalField>
             ) : (
@@ -424,7 +424,7 @@ export function SlackManagedUsersModal({
                       ? sharedAppNeedsUpdate
                         ? 'Member access is outdated. Update it so members can reconnect their Slack accounts.'
                         : 'The Sim Search installation needs attention. Manage the app to finish setup.'
-                      : 'Verify member authorization for the installed app. Each member can then connect their Slack account to index channels and DMs they can access.'}
+                      : 'Verify member authorization for the installed app. Members can then search the Slack conversations they can access.'}
                   </p>
                   {selectedApp && (
                     <Chip onClick={() => setAppSetupOpen(true)} disabled={pending}>

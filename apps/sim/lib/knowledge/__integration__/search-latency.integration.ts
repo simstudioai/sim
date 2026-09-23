@@ -26,15 +26,6 @@ import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from
 import { z } from 'zod'
 import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
 import { internalSessionAuth } from '@/lib/api/server/routes'
-import type {
-  MothershipStreamV1CheckpointPausePayload,
-  MothershipStreamV1ToolCallDescriptor,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { isContractStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import {
-  readDocumentServerTool,
-  searchWorkspaceServerTool,
-} from '@/lib/copilot/tools/server/knowledge/workspace-search'
 import { seedSearchReaderFixture } from '@/lib/knowledge/__integration__/seed-search-reader-fixture'
 import {
   createKnowledgeAclFixtureIds,
@@ -51,6 +42,15 @@ import {
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { embeddingCandidateDistance } from '@/lib/knowledge/vector-columns'
+import type {
+  MothershipStreamV1CheckpointPausePayload,
+  MothershipStreamV1ToolCallDescriptor,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { isContractStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import {
+  readDocumentServerTool,
+  searchWorkspaceServerTool,
+} from '@/lib/mothership/tools/server/knowledge/workspace-search'
 import { POST as searchRoute } from '@/app/api/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

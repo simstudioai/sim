@@ -26,12 +26,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type {
   BrowserWindow,
+  BrowserWindowConstructorOptions,
   CookiesSetDetails,
   DownloadItem,
   Input,
   MenuItemConstructorOptions,
   Session,
   WebContents,
+  WebContentsViewConstructorOptions,
 } from 'electron'
 import {
   app,
@@ -59,16 +61,18 @@ import {
   panelUpdateAllowed,
   panelWindow,
 } from '@/main/browser-agent/panel'
-import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import {
-  checkAgentUrl,
-  clearHostVerdictCache,
-  isBlockedRequestUrl,
-  isBlockedSubresourceUrl,
-  subresourceNeedsResolution,
-} from '@/main/browser-agent/url-guard'
+  agentAppOrigin,
+  type BrowserPermissionHandlers,
+  isAgentWebContents,
+  registerAgentNavigation,
+  registerAgentWebContents,
+} from '@/main/browser-agent/registry'
+import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
+import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
+import { isAppOrigin } from '@/main/navigation'
 import {
   type FocusedResourceShortcut,
   isResourceTabSelectionShortcut,
@@ -80,6 +84,16 @@ const logger = createLogger('BrowserAgentSession')
 
 /** Dedicated cookie jar for the agent browser; `persist:` = survives restarts. */
 const AGENT_PARTITION = 'persist:sim-browser-agent'
+
+/** The existing app session is borrowed only by views confined to this origin. */
+export interface BrowserAppSession {
+  origin: string
+  session: Session
+}
+
+let browserAppSession: BrowserAppSession | undefined
+const configuredDownloadSessions = new WeakSet<Session>()
+const routedNavigations = new WeakMap<WebContents, AgentTab>()
 
 class SessionError extends Error {}
 
@@ -96,6 +110,8 @@ export interface AgentTab {
   pendingMediaPermission?: PendingMediaPermission
   mediaPermissionGrant?: MediaPermissionGrant
   lastRealUserGestureAt?: number
+  /** The tab whose page opened this one; agent work returns there when this tab closes. */
+  openerTabId?: string
 }
 
 interface PendingMediaPermission {
@@ -127,6 +143,8 @@ export interface BrowserDownloadSettings {
 }
 
 export interface AgentSessionEvents {
+  /** The native page moved or its visibility changed. */
+  onPanelGeometryChanged?: () => void
   /** The browser session ended (all tabs gone). */
   onSessionClosed: () => void
   /** A newly created tab's WebContents, for the driver to instrument. */
@@ -275,6 +293,10 @@ function liveBrowserTabCount(): number {
   let count = 0
   for (const state of browserScopeStates.values()) count += state.tabs.length
   return count
+}
+
+function hasTabCapacity(): boolean {
+  return tabs.length < MAX_LIVE_TABS_PER_SCOPE && liveBrowserTabCount() < MAX_LIVE_TABS_GLOBAL
 }
 
 function assertTabCapacity(): void {
@@ -779,11 +801,13 @@ export function showBrowserDownloadsMenu(
   return true
 }
 
-/** Reveals a completed download without launching the downloaded file. */
-export function showBrowserDownloadInFolder(scopeId: string, downloadId: string): boolean {
-  const resolved = resolveBrowserScopeId(scopeId)
+/** A finished download of this scope whose file is still on disk. */
+export function completedBrowserDownload(
+  scopeId: string,
+  downloadId: string
+): { filename: string; savePath: string } | null {
   const download = browserDownloadsByScope
-    .get(resolved)
+    .get(resolveBrowserScopeId(scopeId))
     ?.find((candidate) => candidate.id === downloadId)
   if (
     !download ||
@@ -791,8 +815,15 @@ export function showBrowserDownloadInFolder(scopeId: string, downloadId: string)
     typeof download.savePath !== 'string' ||
     !existsSync(download.savePath)
   ) {
-    return false
+    return null
   }
+  return { filename: download.filename, savePath: download.savePath }
+}
+
+/** Reveals a completed download without launching the downloaded file. */
+export function showBrowserDownloadInFolder(scopeId: string, downloadId: string): boolean {
+  const download = completedBrowserDownload(scopeId, downloadId)
+  if (!download) return false
   shell.showItemInFolder(download.savePath)
   return true
 }
@@ -837,14 +868,17 @@ export function initSession(
   handlers: AgentSessionEvents,
   mainWindowProvider: () => BrowserWindow | null,
   persistence?: BrowserSessionPersistence,
-  downloadSettings?: BrowserDownloadSettings
+  downloadSettings?: BrowserDownloadSettings,
+  appSession?: BrowserAppSession
 ): void {
   resetSessionState()
+  browserAppSession = appSession
   events = handlers
   getMainWindow = mainWindowProvider
   browserSessionPersistence = persistence ?? null
   browserDownloadSettings = downloadSettings ?? null
   initPanel({
+    onGeometryChanged: () => events?.onPanelGeometryChanged?.(),
     getMainWindow: () => getMainWindow(),
     activeTab: () => {
       const scopeId = getActiveBrowserScopeId()
@@ -1318,18 +1352,8 @@ export async function respondToMediaPermission(requestId: string, allowed: boole
   publishPageIssue(tab)
 }
 
-/**
- * Default-deny hardening for the agent partition. Site permissions remain
- * denied apart from ALLOWED_SITE_PERMISSIONS. Media is granted only after a
- * renderer-owned, document-scoped prompt validates the requesting origin,
- * active visible tab, recent native user input, and operating-system grant.
- * Uploads use Chromium's native file chooser and downloads are saved into the
- * device-level browser download directory.
- */
-function configureAgentPartition(ses: Session): void {
-  if (configuredPartitions.has(ses)) return
-  configuredPartitions.add(ses)
-  ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+const browserPermissions: BrowserPermissionHandlers = {
+  request: (contents, permission, callback, details) => {
     if (permission === 'media') {
       const scoped = scopedTabForContents(contents)
       const request = details as {
@@ -1380,8 +1404,8 @@ function configureAgentPartition(ses: Session): void {
       return
     }
     callback(ALLOWED_SITE_PERMISSIONS.has(permission))
-  })
-  ses.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
+  },
+  check: (contents, permission, requestingOrigin, details) => {
     if (permission === 'media') {
       if (!contents || details.isMainFrame !== true) return false
       const scoped = scopedTabForContents(contents)
@@ -1411,56 +1435,34 @@ function configureAgentPartition(ses: Session): void {
       )
     }
     return ALLOWED_SITE_PERMISSIONS.has(permission)
-  })
-  // SSRF choke point for the agent partition. Document navigations (top-level +
-  // iframes) get the full DNS-resolving check — the one seam every navigation
-  // passes through, including page-initiated ones the driver never sees (server
-  // redirects, link clicks, location.href, meta-refresh) — so an internal host
-  // can't slip in that way.
-  //
-  // Subresources that come back readable, render into screenshots, or execute
-  // get the resolving check too, cached per host; fonts keep the cheap
-  // synchronous path. See isBlockedSubresourceUrl and
-  // subresourceNeedsResolution for why each way round.
+  },
+}
+
+/**
+ * Default-deny hardening for the agent partition. Site permissions remain
+ * denied apart from ALLOWED_SITE_PERMISSIONS. Media is granted only after a
+ * renderer-owned, document-scoped prompt validates the requesting origin,
+ * active visible tab, recent native user input, and operating-system grant.
+ * Uploads use Chromium's native file chooser and downloads are saved into the
+ * device-level browser download directory.
+ */
+function configureAgentPartition(ses: Session): void {
+  if (configuredPartitions.has(ses)) return
+  configuredPartitions.add(ses)
+  ses.setPermissionRequestHandler(browserPermissions.request)
+  ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {
-    // Answered exactly once, and never throwing. A throw inside the `then`
-    // below would otherwise land in the `catch` and answer a second time, and
-    // by the time an async check settles the request's loader may be gone —
-    // now the case for most subresources, not just the odd navigation.
-    let settled = false
-    const settle = (cancel: boolean) => {
-      if (settled) return
-      settled = true
-      try {
-        callback({ cancel })
-      } catch (error) {
-        logger.warn('Could not answer an agent request', { error: getErrorMessage(error) })
-      }
-    }
-    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
-      void checkAgentUrl(details.url)
-        .then((guard) => {
-          if (!guard.ok) logger.warn('Blocked agent document navigation to a private host')
-          settle(!guard.ok)
-        })
-        .catch((error) => {
-          logger.error('Agent SSRF check failed; cancelling request', { error })
-          settle(true)
-        })
-      return
-    }
-    if (!subresourceNeedsResolution(details.resourceType)) {
-      settle(isBlockedRequestUrl(details.url))
-      return
-    }
-    void isBlockedSubresourceUrl(details.url)
-      .then((blocked) => settle(blocked))
-      .catch((error) => {
-        logger.error('Agent subresource SSRF check failed; cancelling request', { error })
-        settle(true)
-      })
+    handleBrowserRequest(details, callback)
   })
+  configureBrowserDownloads(ses)
+}
+
+/** Borrowing app authentication must not replace its permission or request handlers. */
+function configureBrowserDownloads(ses: Session): void {
+  if (configuredDownloadSessions.has(ses)) return
+  configuredDownloadSessions.add(ses)
   ses.on('will-download', (_event, item, contents) => {
+    if (!isAgentWebContents(contents)) return
     const directory = browserDownloadSettings?.getDirectory()
     if (!directory) {
       logger.warn('Agent browser download has no configured destination')
@@ -1682,6 +1684,7 @@ export function recordPageLoadFailure(
   contents: WebContents,
   issue: Extract<BrowserPageIssue, { kind: 'load-error' }>
 ): void {
+  if ((issue.code === -2 || issue.code === -3) && routedNavigations.has(contents)) return
   const tab = tabForContents(contents)
   if (!tab) return
   tab.pageIssue = issue
@@ -1905,6 +1908,34 @@ export function stopFindInActiveTab(focusPage: boolean): void {
 }
 
 /**
+ * Whether a page's popup can become a tab that keeps its opener: http(s), within the tab
+ * limits, and in the opener's own session (a session boundary needs a separate, opener-less tab).
+ */
+function canAdoptPopup(opener: WebContents, url: string): boolean {
+  if (!/^https?:\/\//i.test(url) || !hasTabCapacity()) return false
+  return (
+    !browserAppSession ||
+    isAppOrigin(url, browserAppSession.origin) === Boolean(agentAppOrigin(opener))
+  )
+}
+
+/** Registers a page-opened window as a tab that remembers its opener. */
+function adoptPopupTab(
+  opener: WebContents,
+  url: string,
+  popup: PopupWindowOptions,
+  agentOwned: boolean
+): WebContents {
+  const openerTabId = tabForContents(opener)?.id
+  const tab = agentOwned ? addAutomationTab(url, popup) : addTab(url, popup)
+  tab.openerTabId = openerTabId
+  const contents = tab.view.webContents
+  // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
+  if (!popup.webContents) void contents.loadURL(url).catch(() => {})
+  return contents
+}
+
+/**
  * Opens a link from a page in another tab of this browser. Shared by the
  * window.open interception and the page's right-click menu — both have to stay
  * inside the browser resource rather than spawn a native window, and both are
@@ -1913,7 +1944,7 @@ export function stopFindInActiveTab(focusPage: boolean): void {
 function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = agentOwned ? addAutomationTab() : addTab()
+    const tab = agentOwned ? addAutomationTab(url) : addTab(url)
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -1922,16 +1953,47 @@ function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): v
   }
 }
 
-function createTabView(): WebContentsView {
+/**
+ * The options Electron hands `createWindow`. Its typings omit the Chromium-created `webContents`
+ * the documented adoption pattern forwards (absent only for a deferred background-tab popup).
+ */
+type PopupWindowOptions = BrowserWindowConstructorOptions & WebContentsViewConstructorOptions
+
+/**
+ * Creates a tab's view. `popup` adopts a page-opened window's WebContents, which Chromium created
+ * with the opener's (identical) web preferences, so the opener relationship and its session stay
+ * intact; callers only adopt popups whose URL belongs to the opener's session.
+ */
+function createTabView(url?: string, popup?: PopupWindowOptions): WebContentsView {
+  const appSession =
+    url && browserAppSession && isAppOrigin(url, browserAppSession.origin)
+      ? browserAppSession
+      : undefined
   const scopeId = getBrowserScopeId()
-  const view = new WebContentsView({
+  const view = popup?.webContents ? new WebContentsView(popup) : createFreshTabView(appSession)
+  try {
+    /** Detached tabs must lay out before a foreground panel owns their native view. */
+    const [width, height] = getMainWindow()?.getContentSize() ?? [1280, 720]
+    view.setBounds({ x: 0, y: 0, width: Math.max(1, width), height: Math.max(1, height) })
+    return initializeTabView(view, scopeId, appSession?.origin)
+  } catch (error) {
+    if (!view.webContents.isDestroyed()) view.webContents.close()
+    throw error
+  }
+}
+
+function createFreshTabView(appSession: BrowserAppSession | undefined): WebContentsView {
+  return new WebContentsView({
     webPreferences: {
-      partition: AGENT_PARTITION,
+      ...(appSession ? { session: appSession.session } : { partition: AGENT_PARTITION }),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
       webviewTag: false,
+      // Electron's plugin switch only admits its internal plugins; the built-in
+      // PDF viewer is one, and without it a PDF renders as an empty frame.
+      plugins: true,
       // A minimal, isolated preload that reports login-form presence and
       // performs user-authorized credential fills. It exposes nothing to the
       // page, and runs in the top-level frame only.
@@ -1946,19 +2008,42 @@ function createTabView(): WebContentsView {
       zoomFactor: getBrowserDefaultZoomFactor(),
     },
   })
-  try {
-    return initializeTabView(view, scopeId)
-  } catch (error) {
-    if (!view.webContents.isDestroyed()) view.webContents.close()
-    throw error
-  }
 }
 
-function initializeTabView(view: WebContentsView, scopeId: string): WebContentsView {
+function initializeTabView(
+  view: WebContentsView,
+  scopeId: string,
+  appOrigin?: string
+): WebContentsView {
   view.setBackgroundColor(browserBackgroundColor())
   const contents = view.webContents
-  registerAgentWebContents(contents)
-  configureAgentPartition(contents.session)
+  registerAgentWebContents(contents, appOrigin, browserPermissions)
+  if (appOrigin) configureBrowserDownloads(contents.session)
+  else configureAgentPartition(contents.session)
+  const routeNavigation = (url: string, method: string): boolean => {
+    if (!/^https?:\/\//i.test(url) || !browserAppSession) return false
+    const wantsAppSession = isAppOrigin(url, browserAppSession.origin)
+    if (wantsAppSession === Boolean(appOrigin)) {
+      routedNavigations.delete(contents)
+      return false
+    }
+    /** Never turn a form POST or a method-preserving redirect into a GET in another session. */
+    if (method !== 'GET') return true
+    try {
+      return withBrowserScope(scopeId, () => {
+        const target = tabForNavigation(contents, url, { reuseBlank: false })
+        if (target === contents) return false
+        void target.loadURL(url).catch(() => {})
+        return true
+      })
+    } catch (error) {
+      logger.warn('Could not route browser navigation to its session', {
+        error: getErrorMessage(error),
+      })
+      return true
+    }
+  }
+  registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
     openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),
@@ -2017,14 +2102,25 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
 
   // Keep popups inside the browser resource: http(s) window.open and
   // target=_blank requests become a new internal tab, never a native window.
-  contents.setWindowOpenHandler((details) => {
-    withBrowserScope(scopeId, () =>
-      openTabWithUrl(details.url, {
-        agentOwned: agentOwnsPopupFrom(contents),
-      })
-    )
-    return { action: 'deny' }
-  })
+  // A same-session popup adopts Chromium's own WebContents so window.opener
+  // survives (sign-in and "connect" popups post their result back to it).
+  contents.setWindowOpenHandler((details) =>
+    withBrowserScope(scopeId, () => {
+      const agentOwned = agentOwnsPopupFrom(contents)
+      if (!canAdoptPopup(contents, details.url)) {
+        openTabWithUrl(details.url, { agentOwned })
+        return { action: 'deny' }
+      }
+      return {
+        action: 'allow',
+        outlivesOpener: true,
+        createWindow: (options) =>
+          withBrowserScope(scopeId, () =>
+            adoptPopupTab(contents, details.url, options, agentOwned)
+          ),
+      }
+    })
+  )
 
   // A page can call window.resizeTo/window.moveTo, and Electron otherwise
   // applies that request to the BrowserWindow which owns this view. Controlled
@@ -2191,10 +2287,11 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
   contents.on(
     'destroyed',
     bindToBrowserScope(scopeId, () => {
+      // closeTab unlists a tab before closing it, so a listed tab here closed itself
+      // (window.close() at the end of a sign-in popup). Electron has already dropped
+      // the view's contents, so remove it without touching them.
       const tab = tabs.find((entry) => entry.view === view)
-      if (tab) {
-        revokeTabMediaPermissions(tab, false)
-      }
+      if (tab) removeTab(tab, null)
       events?.onTabClosed(contents)
     })
   )
@@ -2363,9 +2460,16 @@ export function requireTab(): AgentTab {
 interface AddTabOptions {
   activate?: boolean
   notify?: boolean
+  url?: string
+  popup?: PopupWindowOptions
 }
 
-function addTabInternal({ activate = true, notify = true }: AddTabOptions = {}): AgentTab {
+function addTabInternal({
+  activate = true,
+  notify = true,
+  url,
+  popup,
+}: AddTabOptions = {}): AgentTab {
   assertTabCapacity()
   const previousActiveTab = activeTab()
   const transferBrowserFocus =
@@ -2375,7 +2479,7 @@ function addTabInternal({ activate = true, notify = true }: AddTabOptions = {}):
   const tab: AgentTab = {
     id: String(currentScope.nextTabId++),
     scopeId: getBrowserScopeId(),
-    view: createTabView(),
+    view: createTabView(url, popup),
   }
   tabs.push(tab)
   if (currentScope.automationTabId === null) currentScope.automationTabId = tab.id
@@ -2646,8 +2750,49 @@ export async function waitForPendingTabRestore(tab: AgentTab): Promise<boolean> 
   return pending ? await pending.ready : true
 }
 
+/**
+ * A session boundary opens a separate tab, preserving the source's native history.
+ * A blank tab can adopt the target session before its first navigation instead.
+ */
+export function tabForNavigation(
+  contents: WebContents,
+  url: string,
+  options: { agentOwned?: boolean; reuseBlank?: boolean } = {}
+): WebContents {
+  const tab = tabForContents(contents)
+  if (!tab || !browserAppSession) return contents
+  const wantsAppSession = isAppOrigin(url, browserAppSession.origin)
+  if (wantsAppSession === Boolean(agentAppOrigin(contents))) return contents
+  if (options.reuseBlank !== false && (!contents.getURL() || contents.getURL() === 'about:blank')) {
+    const view = createTabView(url)
+    detachIfAttached(tab.view)
+    tab.view = view
+    contents.close()
+    applyActiveTabThrottling()
+    layout()
+    events?.onActiveTabChanged(view.webContents)
+    return view.webContents
+  }
+  const target =
+    (options.agentOwned ?? agentOwnsPopupFrom(contents)) ? addAutomationTab(url) : addTab(url)
+  routedNavigations.set(contents, target)
+  return target.view.webContents
+}
+
+/** Follows an intercepted redirect without treating its cancelled source load as a failure. */
+export function navigationTarget(contents: WebContents): WebContents {
+  let current = contents
+  for (let count = 0; count < 20; count++) {
+    const target = routedNavigations.get(current)
+    if (!target || target.view.webContents.isDestroyed()) return current
+    current = target.view.webContents
+  }
+  throw new SessionError('Too many browser session redirects.')
+}
+
 /** Prevents a delayed restore slot from overwriting a newer explicit navigation. */
 export function prepareExplicitNavigation(contents: WebContents): void {
+  routedNavigations.delete(contents)
   const tab = tabForContents(contents)
   if (!tab) return
   tab.pendingRestoreUrl = undefined
@@ -2734,7 +2879,7 @@ export function restoreBrowserSession(): void {
         snapshot.downloads.map((download) => ({ ...download }))
       )
       for (const { entry } of selectedEntries) {
-        const tab = addTabInternal({ activate: false, notify: false })
+        const tab = addTabInternal({ activate: false, notify: false, url: entry.url })
         tab.pendingRestoreUrl = entry.url
         restoredTabs.push(tab)
         restoredLoads.push({ tab, url: entry.url })
@@ -2784,10 +2929,10 @@ export function restoreBrowserSession(): void {
   }
 }
 
-export function addTab(): AgentTab {
+export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
   restoreBrowserSession()
   currentScope.visibleTabUserSelected = true
-  return addTabInternal()
+  return addTabInternal({ url, popup })
 }
 
 /**
@@ -2795,9 +2940,9 @@ export function addTab(): AgentTab {
  * renderer's decision: every page is a resource tab there, and it shows the
  * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab(): AgentTab {
+export function addAutomationTab(url?: string, popup?: PopupWindowOptions): AgentTab {
   restoreBrowserSession()
-  const tab = addTabInternal({ activate: false, notify: false })
+  const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
   applyActiveTabThrottling()
   persistBrowserSession()
@@ -2837,7 +2982,7 @@ export function reopenClosedTab(): AgentTab | null {
   if (!url) return null
 
   currentScope.visibleTabUserSelected = true
-  const tab = addTabInternal()
+  const tab = addTabInternal({ url })
   if (url !== 'about:blank') {
     // No checkAgentUrl here, unlike the tool-driven navigations: the stored
     // URL was already sanitized to http(s) on close, and the partition's
@@ -2926,23 +3071,39 @@ export function closeTab(
   { adoptNeighborForAgent = false }: { adoptNeighborForAgent?: boolean } = {}
 ): void {
   restoreBrowserSession()
-  const index = tabs.findIndex((entry) => entry.id === tabId)
-  if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  const tab = tabs.find((entry) => entry.id === tabId)
+  if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
+  removeTab(tab, tab.view.webContents, adoptNeighborForAgent)
+}
+
+/**
+ * Unlists a tab and moves selection off it. `contents` is null when the page already
+ * closed itself; the tab then leaves no reopenable history entry.
+ */
+function removeTab(
+  tab: AgentTab,
+  contents: WebContents | null,
+  adoptNeighborForAgent = false
+): void {
+  const index = tabs.indexOf(tab)
   // Before the splice, while the tab is still resolvable, stop page-owned UI.
-  dismissFind(tabId)
-  clearAutomationIndicatorsForTab(tabId)
-  const [tab] = tabs.splice(index, 1)
+  if (contents) dismissFind(tab.id)
+  clearAutomationIndicatorsForTab(tab.id)
+  tabs.splice(index, 1)
+  if (!contents) dismissFind(tab.id)
   discardPendingTabRestore(tab)
   revokeTabMediaPermissions(tab, false)
-  recentlyClosedTabUrls.unshift(sanitizeRestorableUrl(tabUrl(tab)) ?? 'about:blank')
-  if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
-    recentlyClosedTabUrls.length = MAX_RECENTLY_CLOSED_TABS
+  if (contents) {
+    recentlyClosedTabUrls.unshift(sanitizeRestorableUrl(tabUrl(tab)) ?? 'about:blank')
+    if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
+      recentlyClosedTabUrls.length = MAX_RECENTLY_CLOSED_TABS
+    }
   }
   const transferBrowserFocus =
-    currentScope.focusedBrowserTabId === tab.id || tab.view.webContents.isFocused()
+    currentScope.focusedBrowserTabId === tab.id || Boolean(contents?.isFocused())
   clearFocusedBrowserTab(tab.id)
   detachIfAttached(tab.view)
-  tab.view.webContents.close()
+  if (contents && !contents.isDestroyed()) contents.close()
   if (currentScope.activeTabId === tab.id) {
     currentScope.activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
     layout()
@@ -2952,9 +3113,9 @@ export function closeTab(
     }
   }
   if (currentScope.automationTabId === tab.id) {
-    currentScope.automationTabId = adoptNeighborForAgent
-      ? ((tabs[index] ?? tabs[index - 1])?.id ?? null)
-      : null
+    const opener = tabs.find((entry) => entry.id === tab.openerTabId)
+    currentScope.automationTabId =
+      opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
     applyActiveTabThrottling()
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId

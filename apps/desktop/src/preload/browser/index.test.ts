@@ -58,6 +58,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: false,
       hasPasswordField: false,
+      targetId: null,
+      bounds: null,
     })
 
     // No DOM mutation here: this models stylesheet/layout completion after
@@ -69,6 +71,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: true,
       hasPasswordField: true,
+      targetId: expect.any(String),
+      bounds: null,
     })
 
     await vi.advanceTimersByTimeAsync(3_000)
@@ -82,6 +86,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: false,
       hasPasswordField: false,
+      targetId: null,
+      bounds: null,
     })
   })
 })

@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
+import type {
+  PersonalApiKeyPrincipal,
+  SessionPrincipal,
+  WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
   getAllBlocks: vi.fn(),
   executeRegistryTool: vi.fn(),
+  executeFileManage: vi.fn(),
   resolveBillingAttribution: vi.fn(),
   recordUsage: vi.fn(),
 }))
@@ -82,6 +87,12 @@ vi.mock('@/tools/tool-ids', () => ({
 
 vi.mock('@/tools', () => ({ executeTool: mocks.executeRegistryTool }))
 
+vi.mock('@/lib/internal/file/operations', () => ({
+  executeFileManageOperation: mocks.executeFileManage,
+  getFileContentProvenance: vi.fn(),
+  fileContentJsonResponse: vi.fn(),
+}))
+
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.resolveBillingAttribution,
   toBillingContext: () => ({
@@ -92,10 +103,14 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
 
+import { executeFileTool } from '@/lib/internal/file/execute-tool'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
 import type { BlockConfig } from '@/blocks/types'
+import { fileReadTool } from '@/tools/file/get'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
+  file_read: { ...fileReadTool },
   slack_message: {
     id: 'slack_message',
     name: 'Slack Send Message',
@@ -175,6 +190,7 @@ function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig 
   } as BlockConfig
 }
 
+const fileBlock = block({ type: 'file_v5', tools: { access: ['file_read'] } })
 const slackBlock = block({ type: 'slack', tools: { access: ['slack_message'] } })
 const firecrawlBlock = block({ type: 'firecrawl', tools: { access: ['firecrawl_scrape'] } })
 const previewBlock = block({
@@ -216,6 +232,7 @@ describe('executeToolForCaller', () => {
     mocks.listCustomBlocks.mockResolvedValue([])
     mocks.isDeploymentAvailable.mockReturnValue(true)
     mocks.getAllBlocks.mockReturnValue([
+      fileBlock,
       slackBlock,
       firecrawlBlock,
       previewBlock,
@@ -236,6 +253,56 @@ describe('executeToolForCaller', () => {
       error: null,
     })
   })
+
+  it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
+    principal,
+    { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  ])('hands the authenticated $kind caller through to the real File handler', async (caller) => {
+    mocks.executeFileManage.mockResolvedValue(
+      Response.json({ success: true, data: { files: [{ id: 'file-1' }] } })
+    )
+    /** Adapt the existing registry mock at its dispatch boundary; admission and File handling are real. */
+    mocks.executeRegistryTool.mockImplementationOnce(
+      async (
+        toolId: string,
+        params: Parameters<typeof fileReadTool.operation.input>[0],
+        options: { operationContext: InternalToolOperationContext }
+      ) => {
+        const response = await executeFileTool({
+          toolId,
+          input: fileReadTool.operation.input(params),
+          context: options.operationContext,
+          headers: new Headers(),
+          requestId: 'direct-file-read',
+        })
+        return fileReadTool.transformResponse?.(response)
+      }
+    )
+
+    const result = await executeToolForCaller.execute({
+      principal: caller,
+      input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
+    })
+
+    expect(result).toMatchObject({ status: 'succeeded', output: { files: [{ id: 'file-1' }] } })
+    const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
+    expect(options.operationContext.callerPrincipal).toBe(caller)
+    expect(options.operationContext.workflowId).toBe('')
+    expect(options.operationContext.executorDelegationOrigin).toBeUndefined()
+    expect(params).not.toHaveProperty('callerPrincipal')
+    expect(params._context).not.toHaveProperty('callerPrincipal')
+    expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
+  })
+
+  it.each(['callerPrincipal', 'principal', 'operationContext', '_context'])(
+    'rejects caller input attempting to supply %s authority',
+    async (key) => {
+      await expect(
+        run({ input: { url: 'https://a.co', [key]: { callerPrincipal: principal } } })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    }
+  )
 
   it('acts as the authenticated caller and enforces credential access', async () => {
     await run({ input: { url: 'https://example.com' } })

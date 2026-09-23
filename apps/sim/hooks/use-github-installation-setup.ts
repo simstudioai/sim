@@ -31,6 +31,7 @@ export function useGitHubInstallationSetup({
   onConnected,
 }: GitHubInstallationSetupProps) {
   const active = useRef<{ setupId: string; tab: Window } | null>(null)
+  const checking = useRef<string | null>(null)
   const callback = useRef(onConnected)
   const [setupId, setSetupId] = useState<string>()
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +93,7 @@ export function useGitHubInstallationSetup({
       active.current.tab.close()
       active.current = null
       setSetupId(undefined)
+      setError(null)
       for (const purpose of [undefined, 'browsing'] as const) {
         void client.invalidateQueries({
           queryKey: oauthCredentialKeys.list(
@@ -123,6 +125,54 @@ export function useGitHubInstallationSetup({
       void cancelSetup({ organizationId, setupId }).catch(() => undefined)
     }
   }, [query.data, query.error, setupId, organizationId, client, cancelSetup])
+
+  const checkConnection = useCallback(
+    async (manual = true) => {
+      const attempt = active.current
+      if (!attempt || !organizationId || !setupId || checking.current === attempt.setupId) return
+      let reopened = false
+      if (manual && attempt.tab.closed) {
+        const tab = window.open('about:blank', '_blank', 'width=600,height=700')
+        if (!tab) {
+          setError('Allow pop-ups for this site to continue GitHub setup, then try again.')
+          return
+        }
+        tab.opener = null
+        attempt.tab = tab
+        reopened = true
+      }
+      checking.current = attempt.setupId
+      setError(null)
+      try {
+        const result = await start({ organizationId, setupId: attempt.setupId })
+        if (active.current !== attempt) return
+        const url = resolveGitHubSetupUrl(result.url, window.location.origin)
+        if (new URL(url).origin === window.location.origin) {
+          if (!attempt.tab.closed) {
+            attempt.tab.location.href = url
+            if (manual) attempt.tab.focus()
+          }
+        } else if (manual) {
+          if (reopened) attempt.tab.location.href = url
+          setError('Finish setup on GitHub, then check the connection again.')
+        }
+        await refetch()
+      } catch (failure) {
+        if (active.current === attempt && manual)
+          setError(getErrorMessage(failure, 'Could not check GitHub. Try again.'))
+      } finally {
+        if (checking.current === attempt.setupId) checking.current = null
+      }
+    },
+    [organizationId, setupId, start, refetch]
+  )
+
+  useEffect(() => {
+    if (!setupId) return
+    const onFocus = () => void checkConnection(false)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [setupId, checkConnection])
 
   const connect = useCallback(
     async (intent?: StartGitHubSearchSetupBody['intent']) => {
@@ -168,5 +218,12 @@ export function useGitHubInstallationSetup({
     void cancelSetup({ organizationId, setupId: attempt.setupId }).catch(() => undefined)
   }, [organizationId, cancelSetup])
 
-  return { connect, cancel, pending: isStarting || Boolean(setupId), error }
+  return {
+    connect,
+    cancel,
+    checkConnection,
+    isChecking: isStarting,
+    pending: isStarting || Boolean(setupId),
+    error,
+  }
 }

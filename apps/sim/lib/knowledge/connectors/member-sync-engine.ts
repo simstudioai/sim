@@ -46,6 +46,7 @@ import {
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -2026,6 +2027,7 @@ export async function executeMemberSync(
 
   const [kbRow] = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
@@ -2053,6 +2055,9 @@ export async function executeMemberSync(
       .where(eq(knowledgeConnector.id, connectorId))
     return skipped(result, 'knowledge_base_deleted')
   }
+  if (!requiresConnectorIndexing(kbRow.isSearchIndex))
+    return skipped(result, 'connector_not_syncable')
+
   if (!kbRow.workspaceId && !kbRow.organizationId) {
     throw new Error(
       `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`

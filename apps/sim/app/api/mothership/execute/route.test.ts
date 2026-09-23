@@ -12,7 +12,6 @@ const {
   mockCheckInternalAuth,
   mockComputeWorkspaceEntitlements,
   mockDecryptSecret,
-  mockGenerateWorkspaceContext,
   mockGetPersonalAndWorkspaceEnv,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
@@ -26,7 +25,6 @@ const {
   mockCheckInternalAuth: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
   mockDecryptSecret: vi.fn(),
-  mockGenerateWorkspaceContext: vi.fn(),
   mockGetPersonalAndWorkspaceEnv: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
@@ -60,33 +58,33 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
 }))
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
+vi.mock('@/lib/mothership/chat/payload', () => ({
   buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
 }))
 
-vi.mock('@/lib/copilot/chat/process-contents', () => ({
+vi.mock('@/lib/mothership/chat/process-contents', () => ({
   processContextsServer: mockProcessContextsServer,
 }))
 
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
-  generateWorkspaceContext: mockGenerateWorkspaceContext,
-}))
-
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: mockComputeWorkspaceEntitlements,
 }))
 
-vi.mock('@/lib/copilot/mcp-tools', () => ({
+vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildSelectedMcpToolSchemas: mockBuildSelectedMcpToolSchemas,
   buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
+}))
+
+vi.mock('@/lib/mothership/transport/connection', () => ({
+  getSimConnection: () => ({ mode: 'checkpoint', channelId: 'f'.repeat(64) }),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -102,7 +100,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   isWorkspaceAccessDeniedError: vi.fn(() => false),
 }))
 
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { buildExecuteResponsePayload, POST } from '@/app/api/mothership/execute/route'
 
 type Payload = Parameters<typeof buildExecuteResponsePayload>[0]
@@ -115,8 +113,7 @@ describe('buildExecuteResponsePayload', () => {
   it('still admits integration and mcp tool calls, and still drops other server tools', () => {
     const payload = buildExecuteResponsePayload(
       resultWithToolCalls(['gmail_send', 'mcp-notion-create', 'read', 'edit_workflow']),
-      'chat-1',
-      [{ name: 'gmail_send' }]
+      'chat-1'
     )
 
     const names = payload.toolCalls.map((tc: { name: string }) => tc.name)
@@ -155,7 +152,6 @@ describe('mothership private trace provenance transport', () => {
       workspaceDecrypted: {},
       decryptionFailures: [],
     })
-    mockGenerateWorkspaceContext.mockResolvedValue({})
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
     mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
     mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
@@ -199,7 +195,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-billing-attribution': 'billing',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -213,6 +210,32 @@ describe('mothership private trace provenance transport', () => {
       expect.objectContaining({ environmentContext: expect.any(Object) })
     )
   })
+
+  it.each([true, false, undefined])(
+    'forwards conversation replay opt-in: %s',
+    async (useConversationHistory) => {
+      mockRunHeadlessCopilotLifecycle.mockImplementation(
+        async (payload: Record<string, unknown>) => {
+          expect(payload.useConversationHistory).toBe(useConversationHistory)
+          return successResult()
+        }
+      )
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { ...requestBody, useConversationHistory },
+          {
+            'X-Sim-Mcp-Delegation': 'signed-block',
+            Authorization: 'Bearer internal',
+            'x-sim-billing-attribution': 'billing',
+          },
+          'http://localhost:3000/api/mothership/execute'
+        ),
+        undefined
+      )
+      expect(response.status).toBe(200)
+    }
+  )
 
   it('omits an absent response format from the headless lifecycle payload', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
@@ -230,7 +253,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-billing-attribution': 'billing',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -256,7 +280,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-billing-attribution': 'billing',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
@@ -272,6 +297,141 @@ describe('mothership private trace provenance transport', () => {
     const contextRegistry = mockProcessContextsServer.mock.calls.at(-1)?.[5]
     const lifecycleOptions = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)?.[1]
     expect(contextRegistry).toBe(lifecycleOptions.environmentContext?.resolvedSecretTraceRegistry)
+  })
+
+  it('forwards closed model controls and an ordered deduplicated safe timeline', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(payload).toMatchObject({
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        })
+        const base = { v: 1 as const, ts: new Date().toISOString(), stream: { id: 'message-1' } }
+        const thinking = {
+          ...base,
+          seq: 1,
+          type: 'text' as const,
+          payload: { channel: 'thinking' as const, text: 'Considering' },
+        }
+        await options.onEvent?.({
+          ...base,
+          seq: 0,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'I will check.' },
+        })
+        await options.onEvent?.(thinking)
+        await options.onEvent?.(thinking)
+        await options.onEvent?.({
+          ...base,
+          seq: 2,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            partial: true,
+            arguments: { secret: 'private-args' },
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 3,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 4,
+          type: 'tool',
+          payload: {
+            phase: 'result',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            success: true,
+            output: 'private-result',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 5,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'Answer' },
+        })
+        return { ...successResult(), content: 'Answer' }
+      }
+    )
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        },
+        {
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+          Accept: 'application/x-ndjson',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      ),
+      undefined
+    )
+    const text = await response.text()
+    const events = text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(response.status).toBe(200)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(events.filter((event) => event.type === 'agent_event')).toEqual(
+      [
+        { type: 'thinking_delta', text: 'Considering' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+        { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+        { type: 'turn_end', turn: 'final' },
+      ].map((event) => ({ type: 'agent_event', v: 1, event }))
+    )
+    expect(events.filter((event) => event.type === 'chunk')).toEqual([
+      { type: 'chunk', v: 1, content: 'I will check.', turn: 'pending' },
+      { type: 'chunk', v: 1, content: 'Answer', turn: 'pending' },
+    ])
+    expect(text).not.toContain('private-args')
+    expect(text).not.toContain('private-result')
+  })
+
+  it.each([
+    { modelSelection: { model: 'arbitrary' } },
+    { modelSelection: { model: 'claude-opus-5', fastMode: true } },
+    { effort: 'ultra' },
+  ])('rejects unsupported controls before lifecycle dispatch: %j', async (selection) => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { ...requestBody, ...selection },
+        {
+          Authorization: 'Bearer internal',
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          'x-sim-billing-attribution': 'billing',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      ),
+      undefined
+    )
+    expect(response.status).toBe(400)
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
   it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
@@ -290,6 +450,18 @@ describe('mothership private trace provenance transport', () => {
         'POST',
         {
           ...requestBody,
+          mcpTools: [
+            {
+              type: 'mcp',
+              usageControl: 'force',
+              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'search_transcripts' },
+            },
+            {
+              type: 'mcp',
+              usageControl: 'none',
+              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'delete_transcripts' },
+            },
+          ],
           contexts: [
             { kind: 'mcp', label: 'MCP 123', serverId: '123', path: '123' },
             {
@@ -308,16 +480,27 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-billing-attribution': 'billing',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
-    expect(mockBuildTaggedMcpToolSchemas).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      ['123'],
-      expect.objectContaining({ mcpBlockId: 'block-1' })
-    )
+    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0]?.[0]).toMatchObject({
+      integrationCatalog: {
+        mcpServerIds: ['123'],
+        mcpToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
+        requiredToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
+        mcpExecution: {
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          mcpBlockId: 'block-1',
+          subjectUserId: 'user-1',
+        },
+      },
+    })
+    expect(mockBuildIntegrationToolSchemas).not.toHaveBeenCalled()
+    expect(mockBuildTaggedMcpToolSchemas).not.toHaveBeenCalled()
+    expect(mockBuildSelectedMcpToolSchemas).not.toHaveBeenCalled()
     expect(mockProcessContextsServer).toHaveBeenCalledWith(
       [
         {
@@ -367,17 +550,20 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-billing-attribution': 'billing',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
-    expect(mockGenerateWorkspaceContext).toHaveBeenCalledWith('workspace-1', 'user-1', {
-      workspaceAccess: expect.any(Object),
-      secretMountPolicy: {
-        secretScope: 'selected',
-        mountedSecrets: ['API_KEY'],
-      },
+    // The snapshot builder is gone (revamp): the mount policy stays server-only by riding
+    // the LIFECYCLE OPTIONS (sim-side tool execution), never the wire payload.
+    const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)!
+    expect(options.secretMountPolicy).toEqual({
+      secretScope: 'selected',
+      mountedSecrets: ['API_KEY'],
     })
+    expect(payload).not.toHaveProperty('secretMountPolicy')
+    expect(payload).not.toHaveProperty('workspaceContext')
   })
 
   it('fails model egress closed when catalog setup fails', async () => {
@@ -402,7 +588,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -445,7 +632,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -481,7 +669,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -499,7 +688,7 @@ describe('mothership private trace provenance transport', () => {
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps discovered MCP schemas raw without activating matching configured secrets', async () => {
+  it('sends enabled MCP IDs without schemas or activating matching configured secrets', async () => {
     mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
       { name: 'mcp-docs', description: 'Uses secret-value' },
     ])
@@ -514,9 +703,21 @@ describe('mothership private trace provenance transport', () => {
           entries: [],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
-        expect(payload.mothershipTools).toEqual([
-          { name: 'mcp-docs', description: 'Uses secret-value' },
-        ])
+        expect(payload).not.toHaveProperty('mothershipTools')
+        expect(payload).not.toHaveProperty('integrationTools')
+        expect(payload.integrationCatalog).toEqual({
+          mcpServerIds: ['server-1'],
+          mcpToolIds: [],
+          mcpExecution: {
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            mcpBlockId: 'block-1',
+            subjectUserId: 'user-1',
+          },
+        })
+        expect(JSON.stringify(payload.messages)).toContain('search_integration_tools')
+        expect(JSON.stringify(payload.messages)).toContain('call_integration_tool')
+        expect(JSON.stringify(payload.messages)).not.toContain('callable directly')
         return successResult()
       }
     )
@@ -535,7 +736,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -575,7 +777,8 @@ describe('mothership private trace provenance transport', () => {
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -607,7 +810,8 @@ describe('mothership private trace provenance transport', () => {
           'x-mothership-execute-stream': 'ndjson',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const events = (await response.text())
       .trim()

@@ -6,8 +6,8 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { STREAM_TIMEOUT_MS } from '@/lib/mothership/constants'
 
 /**
  * Pure half of organization usage analytics: window resolution, the ledger scope

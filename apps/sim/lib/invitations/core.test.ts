@@ -2211,6 +2211,21 @@ describe('locked invitation mutations', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
+  it('DELETE refuses delegated organization scope after the protected re-read changes', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows({ organizationId: 'org-old' }),
+      ...invitationHydrationRows({ organizationId: 'org-new' }),
+    ])
+    await expect(
+      revokeInvitationAsAdmin({
+        actorId: 'admin-1',
+        invitationId: 'inv-1',
+        organizationId: 'org-old',
+      })
+    ).resolves.toEqual({ success: false, kind: 'not-found' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
   it('DELETE authorizes against the organization from its protected re-read', async () => {
     queueWhereResponses([
       ...invitationHydrationRows({ organizationId: 'org-old' }),

@@ -20,6 +20,7 @@ import {
   BROWSER_DATA_KINDS,
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
   BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
+  BROWSER_UPLOAD_MAX_FILES,
   type BrowserDataKind,
   type BrowserKnownSessionsState,
   type BrowserPageState,
@@ -39,10 +40,18 @@ import * as cdp from '@/main/browser-agent/cdp'
 import { steppedZoomFactor, zoomPercentOf } from '@/main/browser-agent/context-menu'
 import { ToolError } from '@/main/browser-agent/errors'
 import {
+  discardStagedUploads,
+  type LocalFileSource,
+  saveDownloadToWorkspace,
+  stageUploadFiles,
+} from '@/main/browser-agent/file-transfer'
+import {
+  cdpModifiers,
   comboTouchesClipboard,
   dispatchKeyCombo,
   KeyDispatchError,
   parseKeyCombo,
+  parseModifiers,
 } from '@/main/browser-agent/keyboard'
 import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
@@ -64,15 +73,22 @@ import {
   readPageActionState,
   readPageText,
   readSelectElementState,
+  resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
+import {
+  withFailedPostActionObservation,
+  withPostActionObservation,
+} from '@/main/browser-agent/post-action-observation'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
 import type { ConfigStore } from '@/main/config'
+import { trackInputActivity } from '@/main/input-activity'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -97,7 +113,6 @@ export const BROWSER_TOOL_ADMISSION_LIMITS = Object.freeze({
 const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
-const BROWSER_AGENT_ISOLATED_WORLD_ID = 1001
 const BROWSER_WAIT_ELEMENT_STATES = [
   'attached',
   'detached',
@@ -121,6 +136,8 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 }
 
 type PageExecutionTarget = WebContents | WebFrameMain
+
+type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
 
 type FormField =
   | { elementId: number; kind: 'text'; text: string }
@@ -202,6 +219,9 @@ export interface DriverCallbacks {
 }
 
 let driverCallbacks: DriverCallbacks | null = null
+/** The app origin and authenticated session file transfers use; absent in headless tests. */
+let driverAppSession: session.BrowserAppSession | undefined
+let driverLocalFiles: LocalFileSource | undefined
 let knownSessions: BrowserKnownSessionRegistry | null = null
 /** Kept so teardown can force its erasures past the settings write debounce. */
 let configStore: ConfigStore | null = null
@@ -215,6 +235,8 @@ interface DriverScopeState {
   /** Unique state generation so teardown cannot suffer an epoch ABA race. */
   generation: number
   pendingNotices: string[]
+  /** Answer for JavaScript dialogs from the running action's target tab only. */
+  dialogResponse: { contents: WebContents; response: cdp.DialogResponse } | null
   takeoverActive: boolean
   takeoverDone: boolean
   takeoverResponse: string | null
@@ -266,6 +288,7 @@ function createDriverScopeState(): DriverScopeState {
   return {
     generation: nextDriverScopeGeneration++,
     pendingNotices: [],
+    dialogResponse: null,
     takeoverActive: false,
     takeoverDone: false,
     takeoverResponse: null,
@@ -505,20 +528,28 @@ function pushTabsState(): void {
 
 /** Instruments a fresh tab: CDP dialog handling + page-state pushes. */
 function instrumentTab(contents: WebContents): void {
+  trackInputActivity(contents)
   const scopeId = session.browserScopeIdForContents(contents) ?? session.getBrowserScopeId()
   const inScope =
     <Args extends unknown[]>(fn: (...args: Args) => void) =>
     (...args: Args) =>
       session.withBrowserScope(scopeId, () => fn(...args))
 
-  const callbacks = {
+  const callbacks: cdp.CdpCallbacks = {
     onDialog: inScope((dialog: cdp.PageDialog) => {
       recordNotice(
-        dialog.handled
-          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
-          : `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be dismissed and may still be blocking the page.`
+        !dialog.handled
+          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be answered and may still be blocking the page.`
+          : dialog.accepted
+            ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was accepted as requested.`
+            : `The page showed a ${dialog.type} dialog ("${dialog.message}") which was dismissed. If the task needs it accepted, repeat the same action with dialog: {"accept": true}.`
       )
     }),
+    dialogResponse: () =>
+      session.withBrowserScope(scopeId, () => {
+        const requested = driverScopeState().dialogResponse
+        return requested?.contents === contents ? requested.response : null
+      }),
   }
   void (async () => {
     let lastError: unknown
@@ -607,9 +638,14 @@ export function initDriver(
   getMainWindow: () => BrowserWindow | null,
   config?: ConfigStore,
   persistence?: BrowserSessionPersistence,
-  downloadSettings?: session.BrowserDownloadSettings
+  downloadSettings?: session.BrowserDownloadSettings,
+  appSession?: session.BrowserAppSession,
+  localFiles?: LocalFileSource
 ): void {
   driverCallbacks = callbacks
+  driverAppSession = appSession
+  driverLocalFiles = localFiles
+  void discardStagedUploads().catch(() => {})
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
   configStore = config ?? null
   // The rest of this module's state is per-session too. Left behind, a new
@@ -623,6 +659,35 @@ export function initDriver(
   // leaving the old chain head in place would queue the new session's first
   // tool call behind a promise nothing can ever settle.
   initFillCoordinator({
+    pickerHost: (contents, bounds) => {
+      const scopeId = session.getActiveBrowserScopeId()
+      const window = panelWindow()
+      if (!scopeId || !window || window.isDestroyed() || !window.isVisible() || !isPanelVisible())
+        return null
+      return session.withBrowserScope(scopeId, () => {
+        const tab = session.activeTab()
+        if (!tab || tab.view.webContents !== contents || !tab.view.getVisible()) return null
+        const panel = tab.view.getBounds()
+        const content = window.getContentBounds()
+        const zoom = contents.getZoomFactor()
+        if (
+          bounds.x + bounds.width <= 0 ||
+          bounds.y + bounds.height <= 0 ||
+          bounds.x * zoom >= panel.width ||
+          bounds.y * zoom >= panel.height
+        )
+          return null
+        return {
+          window,
+          anchor: {
+            x: content.x + panel.x + bounds.x * zoom,
+            y: content.y + panel.y + bounds.y * zoom,
+            width: bounds.width * zoom,
+            height: bounds.height * zoom,
+          },
+        }
+      })
+    },
     getActiveContents: (scopeId) => {
       const activeScopeId = session.getActiveBrowserScopeId()
       if (!activeScopeId) return null
@@ -644,6 +709,7 @@ export function initDriver(
   })
   session.initSession(
     {
+      onPanelGeometryChanged: () => fillCoordinator()?.dismissPicker(),
       onSessionClosed: () => {
         driverCallbacks?.onSessionStatus(false, session.getBrowserScopeId())
       },
@@ -670,7 +736,8 @@ export function initDriver(
     },
     getMainWindow,
     persistence,
-    downloadSettings
+    downloadSettings,
+    appSession
   )
 }
 
@@ -745,6 +812,14 @@ export function showToolbarMenu(
       ],
     },
     { type: 'separator' },
+    {
+      label: 'Fill Saved Password',
+      enabled: pageAvailable,
+      click: () => {
+        void fillCoordinator()?.showChooser(ownerWindow, anchor, resolved)
+      },
+    },
+    { label: 'Passwords', click: () => sendCommand('passwords') },
     { label: 'Import Passwords', click: () => sendCommand('import') },
     { type: 'separator' },
     { label: 'Browser Settings', click: () => sendCommand('browser-settings') },
@@ -840,6 +915,7 @@ export function disposeBrowserScope(scopeId: string): void {
   const state = driverScopeStates.get(resolved)
   if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
+  void discardStagedUploads(resolved).catch(() => {})
   for (const [alias, target] of driverScopeAliases) {
     if (alias === resolved || resolveDriverScopeId(target) === resolved) {
       driverScopeAliases.delete(alias)
@@ -925,6 +1001,7 @@ export async function clearBrowserProfile(
 export function closeBrowserSession(): void {
   retireAllDriverScopeStates()
   session.closeSession()
+  void discardStagedUploads().catch(() => {})
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -959,7 +1036,9 @@ export function browserToolWatchdogMs(
     tool === 'browser_go_forward' ||
     tool === 'browser_reload' ||
     tool === 'browser_open_tab' ||
-    tool === 'browser_switch_tab'
+    tool === 'browser_switch_tab' ||
+    tool === 'browser_upload_file' ||
+    tool === 'browser_save_download'
   ) {
     return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
@@ -980,6 +1059,82 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   const value = num(params, key)
   if (value === undefined) throw new ToolError(`Missing required numeric parameter "${key}"`)
   return value
+}
+
+const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle'])
+/** Enough to walk a slider or list by keyboard in one call without flooding the page. */
+const MAX_KEY_REPEAT = 50
+
+/** The optional click gesture shared by `browser_click` and `browser_click_at`. */
+function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
+  const button = str(params, 'button') ?? 'left'
+  if (!POINTER_BUTTONS.has(button)) throw new ToolError('button must be left, right, or middle.')
+  const clickCount = num(params, 'clickCount') ?? 1
+  if (clickCount !== 1 && clickCount !== 2 && clickCount !== 3) {
+    throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
+  }
+  const names = params.modifiers ?? []
+  if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
+    throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
+  }
+  return {
+    button: button as cdp.PointerClick['button'],
+    clickCount,
+    modifiers: cdpModifiers(parseModifiers(names)),
+  }
+}
+
+/** The exact client tool call executing now; the app binds file transfers to it. */
+function requireActiveToolCallId(): string {
+  const toolCallId = driverScopeState().activeToolCallId
+  if (!toolCallId) throw new ToolError('This browser action has no tool call to authorize it.')
+  return toolCallId
+}
+
+function uploadPaths(params: Record<string, unknown>): string[] {
+  const paths = params.paths
+  if (
+    !Array.isArray(paths) ||
+    paths.length === 0 ||
+    paths.length > BROWSER_UPLOAD_MAX_FILES ||
+    paths.some((path) => typeof path !== 'string' || path.trim() === '' || path.length > 1024)
+  ) {
+    throw new ToolError(
+      `paths must list 1 to ${BROWSER_UPLOAD_MAX_FILES} file paths (files/…, uploads/…, or user-local/…).`
+    )
+  }
+  return paths as string[]
+}
+
+function isPrimaryClick(click: cdp.PointerClick): boolean {
+  return click.button === 'left' && click.clickCount === 1 && click.modifiers === 0
+}
+
+const DIALOG_ANSWERING_TOOLS: ReadonlySet<BrowserToolName> = new Set([
+  'browser_click',
+  'browser_click_at',
+  'browser_press_key',
+  'browser_type',
+])
+
+/** The optional answer for JavaScript dialogs an action opens; absent means dismiss. */
+function dialogResponse(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): cdp.DialogResponse | null {
+  const value = params.dialog
+  if (value === undefined) return null
+  if (
+    !DIALOG_ANSWERING_TOOLS.has(tool) ||
+    !isRecordLike(value) ||
+    typeof value.accept !== 'boolean' ||
+    Object.keys(value).some((key) => key !== 'accept')
+  ) {
+    throw new ToolError(
+      'dialog must be {accept: boolean} on browser_click, browser_click_at, browser_press_key, or browser_type.'
+    )
+  }
+  return { accept: value.accept }
 }
 
 function browserElementStateMatches(
@@ -1045,10 +1200,10 @@ function browserElementStateMatches(
 
 /**
  * Serializes a self-contained page function with JSON-encoded arguments.
- * WebContents runs it in a persistent isolated world so page scripts cannot
- * replace the ref registry or built-ins. Child WebFrameMain targets use a CDP
- * isolated world mapped to that exact Chromium frame; test doubles without a
- * frameTreeNodeId alone retain the legacy executeJavaScript fallback.
+ * Root and child frames share a persistent CDP isolated world, so snapshot refs
+ * and retained DOM handles have the same execution context. Page scripts cannot
+ * replace its registry or built-ins. Test doubles without an immutable frame id
+ * retain the executeJavaScript fallback.
  */
 async function execInPage<Args extends unknown[], Result>(
   target: PageExecutionTarget,
@@ -1058,7 +1213,7 @@ async function execInPage<Args extends unknown[], Result>(
   notAfter?: number
 ): Promise<Result> {
   const url = 'getURL' in target ? target.getURL() : target.url
-  if (url === '' || url === 'about:blank') {
+  if ('getURL' in target && (url === '' || url === 'about:blank')) {
     throw new ToolError(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
@@ -1069,19 +1224,9 @@ async function execInPage<Args extends unknown[], Result>(
       ? `(Date.now() >= ${Math.floor(notAfter)} ? ({error: "expired"}) : ${invocation})`
       : invocation
   try {
-    if (
-      'executeJavaScriptInIsolatedWorld' in target &&
-      typeof target.executeJavaScriptInIsolatedWorld === 'function'
-    ) {
-      return (await target.executeJavaScriptInIsolatedWorld(
-        BROWSER_AGENT_ISOLATED_WORLD_ID,
-        [{ code: expression }],
-        userGesture
-      )) as Result
-    }
-    if ('frameTreeNodeId' in target && typeof target.frameTreeNodeId === 'number') {
-      const contents = session.automationTab()?.view.webContents
-      const frame = target as WebFrameMain
+    const frame = 'getURL' in target ? target.mainFrame : target
+    if (frame && typeof frame.frameTreeNodeId === 'number') {
+      const contents = 'getURL' in target ? target : session.automationTab()?.view.webContents
       if (
         !contents ||
         contents.isDestroyed() ||
@@ -1091,8 +1236,7 @@ async function execInPage<Args extends unknown[], Result>(
       }
       return (await cdp.evaluateInIsolatedFrame(contents, frame, expression, userGesture)) as Result
     }
-    // Unit-test WebFrame mocks omit Electron's immutable frameTreeNodeId. Real
-    // WebFrameMain instances always take the isolated CDP branch above.
+    /** Unit-test frame doubles omit Electron's immutable frameTreeNodeId. */
     return (await target.executeJavaScript(expression, userGesture)) as Result
   } catch (error) {
     const message = getErrorMessage(error)
@@ -1180,6 +1324,9 @@ const PASSWORD_REFUSAL =
   'Refusing to act on a password field. Ask the user to enter their credentials in the visible browser, then take a fresh browser_snapshot.'
 
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
+const FILE_INPUT_REFUSAL =
+  'Clicking a file input opens a native file chooser the browser agent cannot complete. Use browser_upload_file with this element and the files to attach.'
+
 function unwrapPageResult(result: unknown): unknown {
   if (isRecordLike(result) && 'error' in result) {
     const code = (result as { error: string }).error
@@ -1196,8 +1343,16 @@ function unwrapPageResult(result: unknown): unknown {
       throw new ToolError(PASSWORD_REFUSAL)
     }
     if (code === 'file-input') {
+      throw new ToolError(FILE_INPUT_REFUSAL)
+    }
+    if (code === 'no-file-input') {
       throw new ToolError(
-        'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
+        'No file input belongs to that element. Target the file input, its label, or the upload button or drop zone that contains it.'
+      )
+    }
+    if (code === 'ambiguous-file-input') {
+      throw new ToolError(
+        'That element contains several file inputs. Target the specific upload control or its file input.'
       )
     }
     if (code === 'expired') {
@@ -1359,8 +1514,17 @@ async function navigationResult(
   completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
 ): Promise<Record<string, unknown>> {
   await completion
+  const target = session.navigationTarget(contents)
+  if (target !== contents) {
+    contents = target
+    await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+  }
   await sleep(NAVIGATION_SETTLE_MS)
   if (contents.isDestroyed()) throw new ToolError('The tab was closed during navigation.')
+  const issue = session.pageIssueForContents(contents)
+  if (issue?.kind === 'load-error') {
+    throw new ToolError(`The page failed to load (${issue.description || issue.code}).`)
+  }
   return { url: contents.getURL(), title: contents.getTitle() }
 }
 
@@ -1368,6 +1532,7 @@ async function loadAgentCheckedUrlAndGetResult(
   contents: WebContents,
   url: string
 ): Promise<Record<string, unknown>> {
+  contents = session.tabForNavigation(contents, url, { agentOwned: true })
   session.prepareExplicitNavigation(contents)
   if (contents.isDestroyed()) {
     throw new ToolError('The tab was closed before navigation could start.')
@@ -1383,13 +1548,16 @@ async function loadAgentCheckedUrlAndGetResult(
       candidate.code === 'ERR_ABORTED' ||
       candidate.errno === -3 ||
       /ERR_ABORTED/i.test(getErrorMessage(error))
-    if (!routineAbort) {
+    if (!routineAbort && session.navigationTarget(contents) === contents) {
       throw new ToolError(`The page failed to load (${getErrorMessage(error)}).`)
     }
     // Redirect/client-abort races can reject the initiating promise even
     // though a replacement navigation committed. Accept only concrete URL
     // progress; an unchanged URL is a real failure, not a successful load.
     await sleep(100)
+    contents = session.navigationTarget(contents)
+    if (!contents.getURL() && contents.isLoading())
+      await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
     if (!contents.getURL() || contents.getURL() === beforeUrl) {
       throw new ToolError(`The navigation was aborted (${getErrorMessage(error)}).`)
     }
@@ -1776,6 +1944,11 @@ function pageEffect(
   }
 }
 
+/** Inline sandboxed previews are real browser frames even though they have no HTTP URL. */
+function isInspectableFrameUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) || /^about:(?:srcdoc|blank)(?:[?#]|$)/i.test(url)
+}
+
 function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
   const mainFrame = contents.mainFrame
   if (!mainFrame) return []
@@ -1783,8 +1956,8 @@ function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
     if (sameWebFrame(frame, mainFrame) || frame.detached || frame.isDestroyed() || !frame.parent) {
       return false
     }
-    if (!/^https?:\/\//i.test(frame.url)) return false
-    return frame.origin !== frame.parent.origin
+    if (!isInspectableFrameUrl(frame.url)) return false
+    return frame.origin === 'null' || frame.origin !== frame.parent.origin
   })
 }
 
@@ -1897,7 +2070,7 @@ async function visibleFrameTargets(
         !frame.detached &&
         !frame.isDestroyed() &&
         Boolean(frame.parent) &&
-        /^https?:\/\//i.test(frame.url)
+        isInspectableFrameUrl(frame.url)
     )
     .slice(0, MAX_CROSS_ORIGIN_SCAN_FRAMES)
   const targets: WebFrameMain[] = []
@@ -2281,7 +2454,8 @@ async function executeToolInner(
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
   invocationEpoch: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onActionOutcome?: (outcome: BrowserActionOutcome) => void
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2321,7 +2495,10 @@ async function executeToolInner(
       // A failed snapshot (browser-internal page, injection error) should not
       // fail the open itself — the page is on screen either way.
       assertCurrentExecution()
-      const snapshot = await captureSnapshot(contents, executionDeadline).catch(() => null)
+      const snapshot = await captureSnapshot(
+        session.requireAutomationTab().view.webContents,
+        executionDeadline
+      ).catch(() => null)
       return snapshot === null
         ? { ...nav, note: 'The page loaded but a snapshot could not be captured.' }
         : { ...nav, snapshot }
@@ -2368,12 +2545,12 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      const tab = session.addAutomationTab()
+      const tab = session.addAutomationTab(url)
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
         const result = await loadAgentCheckedUrlAndGetResult(contents, url)
-        return { tabId: tab.id, ...result }
+        return { tabId: session.requireAutomationTab().id, ...result }
       }
       return { tabId: tab.id, url: '', title: '' }
     }
@@ -2413,6 +2590,80 @@ async function executeToolInner(
 
     case 'browser_list_downloads': {
       return session.getBrowserDownloadsState(session.getBrowserScopeId())
+    }
+
+    case 'browser_save_download': {
+      const download = session.completedBrowserDownload(
+        session.getBrowserScopeId(),
+        requireStr(params, 'downloadId')
+      )
+      if (!download) {
+        throw new ToolError(
+          'That download is not a completed file. Check browser_list_downloads for its id and state.'
+        )
+      }
+      assertCurrentExecution()
+      return saveDownloadToWorkspace({
+        appSession: driverAppSession,
+        toolCallId: requireActiveToolCallId(),
+        filePath: download.savePath,
+        filename: download.filename,
+        signal,
+      })
+    }
+
+    case 'browser_upload_file': {
+      const contents = session.requireAutomationTab().view.webContents
+      const elementId = requireNum(params, 'elementId')
+      const paths = uploadPaths(params)
+      const target = pageTargetForElement(contents, elementId)
+      assertCurrentExecution()
+      const frame = 'getURL' in target ? target.mainFrame : target
+      const expression = `(${String(resolveFileInputTarget)})(${elementId})`
+      const input = await cdp.resolveFileInput(contents, frame, expression)
+      let attachment: Awaited<ReturnType<typeof cdp.setFileInputFiles>>
+      try {
+        assertCurrentExecution()
+        if (!input.multiple && paths.length > 1) {
+          throw new ToolError('That file input accepts one file. Upload the files one at a time.')
+        }
+        const files = await stageUploadFiles({
+          scopeId: session.getBrowserScopeId(),
+          toolCallId: requireActiveToolCallId(),
+          paths,
+          appSession: driverAppSession,
+          localFiles: driverLocalFiles,
+          signal,
+        })
+        assertCurrentExecution()
+        assertActiveContents(contents)
+        attachment = await cdp.setFileInputFiles(contents, input, files, signal, (status) => {
+          onActionOutcome?.(
+            status === 'pending' ? { status } : { status, result: { dispatched: true } }
+          )
+        })
+      } finally {
+        await cdp.releaseFileInput(contents, input)
+      }
+      if ('readbackError' in attachment) {
+        return withFailedPostActionObservation({ dispatched: true }, attachment.readbackError)
+      }
+      const result = {
+        dispatched: true,
+        uploaded: attachment.files,
+        effectObserved: attachment.files.length === paths.length,
+        ...(input.accept ? { accept: input.accept } : {}),
+      }
+      try {
+        await sleep(150)
+        const afterPage = await pageActionState(contents)
+        return {
+          ...result,
+          dialogs: Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : [],
+        }
+      } catch (error) {
+        return withFailedPostActionObservation(result, error)
+      }
     }
 
     case 'browser_wait_for': {
@@ -2738,6 +2989,7 @@ async function executeToolInner(
       const clickedTab = session.requireAutomationTab()
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
+      const click = pointerClick(params)
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let trusted = false
@@ -2896,7 +3148,7 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false)
+          await cdp.clickAt(contents, x, y, false, click)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -2936,7 +3188,7 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false)
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -2951,6 +3203,11 @@ async function executeToolInner(
             )
           }
         } else {
+          if (!isPrimaryClick(click)) {
+            throw new ToolError(
+              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, or modifiers.'
+            )
+          }
           const activationKey = prepared.activationKey
           if (prepared.focusSucceeded === true && typeof activationKey === 'string') {
             // Observation probes above give the app time to open a modal, move a
@@ -3652,6 +3909,10 @@ async function executeToolInner(
     case 'browser_press_key': {
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
+      const repeat = num(params, 'repeat') ?? 1
+      if (!Number.isInteger(repeat) || repeat < 1 || repeat > MAX_KEY_REPEAT) {
+        throw new ToolError(`repeat must be a whole number from 1 to ${MAX_KEY_REPEAT}.`)
+      }
       const contents = session.requireAutomationTab().view.webContents
       const pressedNavigationEpoch = navigationEpoch(contents)
       let target: PageExecutionTarget = focusedPageTarget(contents)
@@ -3710,12 +3971,28 @@ async function executeToolInner(
       }
       let trusted = true
       let fallbackState: Record<string, unknown> = {}
+      let pressesDispatched = 0
       try {
-        assertCurrentExecution()
-        assertActiveContents(contents, pressedNavigationEpoch)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
-        await dispatchKeyCombo(contents, combo)
+        for (; pressesDispatched < repeat; pressesDispatched++) {
+          // A repeated key must never carry on into a credential field focus has reached.
+          if (
+            pressesDispatched > 0 &&
+            (await execInPage(target, activeElementSecrecy, []).catch(() => 'opaque')) === 'secret'
+          ) {
+            throw new ToolError(PASSWORD_REFUSAL)
+          }
+          assertCurrentExecution()
+          assertActiveContents(contents, pressedNavigationEpoch)
+          assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
+          await dispatchKeyCombo(contents, combo)
+        }
       } catch (error) {
+        if (pressesDispatched > 0) {
+          throw new ToolError(
+            `Pressed ${requestedKey} ${pressesDispatched} of ${repeat} times before the page stopped accepting it (${getErrorMessage(error)}). Inspect the page before continuing.`
+          )
+        }
+        if (error instanceof ToolError) throw error
         if (error instanceof KeyDispatchError && error.keyDownDispatched) {
           throw new ToolError(
             'The key-down may have reached the page but dispatch did not complete. The keystroke was not retried to avoid a duplicate action; inspect the page before continuing.'
@@ -3815,6 +4092,7 @@ async function executeToolInner(
       return {
         ...fallbackState,
         pressed: requestedKey,
+        ...(repeat > 1 ? { repeat: trusted ? repeat : 1 } : {}),
         primaryModifier: process.platform === 'darwin' ? 'Cmd' : 'Control',
         trusted,
         ...state,
@@ -4206,10 +4484,7 @@ async function executeToolInner(
       const contents = clickedTab.view.webContents
       const x = requireNum(params, 'x')
       const y = requireNum(params, 'y')
-      const clickCount = num(params, 'clickCount') ?? 1
-      if (![1, 2, 3].includes(clickCount)) {
-        throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
-      }
+      const click = pointerClick(params)
       const clickNavigationEpoch = navigationEpoch(contents)
       const urlAtDispatch = contents.getURL()
       assertCurrentExecution()
@@ -4223,16 +4498,14 @@ async function executeToolInner(
         )
       }
       if (pointTarget.fileInput === true) {
-        throw new ToolError(
-          'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
-        )
+        throw new ToolError(FILE_INPUT_REFUSAL)
       }
       const beforePage = await pageActionState(contents, true)
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
       try {
-        await cdp.clickAt(contents, x, y, true, clickCount)
+        await cdp.clickAt(contents, x, y, true, click)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,
@@ -4282,7 +4555,7 @@ async function executeToolInner(
         trusted: true,
         activation: 'native-pointer',
         clickedAt: { x, y },
-        clickCount,
+        clickCount: click.clickCount,
         target: pointTarget.element,
         targetCursor: pointTarget.cursor,
         effectObserved,
@@ -4667,6 +4940,10 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
+          const response = dialogResponse(tool, params)
+          state.dialogResponse = response
+            ? { contents: session.requireAutomationTab().view.webContents, response }
+            : null
           const executionEpoch = ++state.toolExecutionEpoch
           const watchdogMs = browserToolWatchdogMs(tool, params)
           const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
@@ -4675,29 +4952,69 @@ export async function executeTool(
               throw new ToolError('This browser action expired before it could dispatch input.')
             }
           }
-          const execution = executeToolInner(
+          let actionOutcome: BrowserActionOutcome | undefined
+          const execution = withPostActionObservation(
             tool,
             params,
-            assertCurrentExecution,
-            executionDeadline,
-            invocationEpoch,
-            executionController.signal
+            async (actionParams) => {
+              const result = await executeToolInner(
+                tool,
+                actionParams,
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal,
+                (outcome) => {
+                  actionOutcome = outcome
+                }
+              )
+              if (params.observe !== undefined) actionOutcome = { status: 'acknowledged', result }
+              return result
+            },
+            (query) =>
+              executeToolInner(
+                query === undefined ? 'browser_snapshot' : 'browser_find',
+                query === undefined ? {} : { query },
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal
+              ),
+            assertCurrentExecution
           )
+          const cancellableExecution = Promise.race([execution, cancellation])
           const guardedExecution =
             watchdogMs === null
-              ? execution
-              : raceAgainstWatchdog(execution, watchdogMs, () => {
+              ? cancellableExecution
+              : raceAgainstWatchdog(cancellableExecution, watchdogMs, () => {
                   executionController.abort()
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                   if (
                     tool === 'browser_snapshot' ||
                     tool === 'browser_open_url' ||
-                    tool === 'browser_find'
+                    tool === 'browser_find' ||
+                    params.observe !== undefined
                   ) {
                     invalidateSnapshot(state)
                   }
                 })
-          const result = withNotices(await Promise.race([guardedExecution, cancellation]))
+          let observedResult: unknown
+          try {
+            observedResult = await guardedExecution
+          } catch (error) {
+            if (!actionOutcome) throw error
+            invalidateSnapshot(state)
+            observedResult =
+              actionOutcome.status === 'pending'
+                ? {
+                    outcomeUnknown: true,
+                    doNotRetry: true,
+                    error: getErrorMessage(error),
+                    note: 'The action may already have run. Inspect the page before repeating it.',
+                  }
+                : withFailedPostActionObservation(actionOutcome.result, error)
+          }
+          const result = withNotices(observedResult)
           logger.info('Browser tool completed', {
             tool,
             toolCallId,
@@ -4707,6 +5024,7 @@ export async function executeTool(
           })
           return result
         } finally {
+          state.dialogResponse = null
           executionController.abort()
           if (keepHiddenPageActive && !state.disposed) {
             session.setAutomationActive(false)
@@ -4731,7 +5049,12 @@ export async function executeTool(
       // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
       // capture token before releasing the queue so a late snapshot cannot
       // overwrite refs belonging to a newer tab or snapshot.
-      if (tool === 'browser_snapshot' || tool === 'browser_open_url' || tool === 'browser_find') {
+      if (
+        tool === 'browser_snapshot' ||
+        tool === 'browser_open_url' ||
+        tool === 'browser_find' ||
+        params.observe !== undefined
+      ) {
         invalidateSnapshot(state)
       }
       const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
@@ -4823,7 +5146,11 @@ export async function handlePanelAction(
     if (action.action === 'navigate') {
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
         session.claimActiveTabForUser()
-        const contents = session.ensureTab().view.webContents
+        const contents = session.tabForNavigation(
+          session.ensureTab().view.webContents,
+          action.url,
+          { agentOwned: false }
+        )
         session.prepareExplicitNavigation(contents)
         void contents.loadURL(action.url).catch(() => {})
       }

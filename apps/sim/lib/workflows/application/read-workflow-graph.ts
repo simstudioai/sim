@@ -48,24 +48,28 @@ export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
     }),
   async execute({ context }): Promise<ReadWorkflowGraphResult> {
-    const snapshot = await loadWorkflowReadSnapshot(context.workflowId, context.workspaceId)
-    if (!snapshot.workflowRecord) {
-      throw new OrchestrationError('not_found', 'Workflow not found')
-    }
-    // The column has carried three shapes over time (JSON string, legacy array,
-    // current record) and nothing bounds what a write puts in `type`. Parsing it
-    // is what keeps a strict outbound response from rejecting a workflow it
-    // exists to open — the same rule `normalizeStoredBlockRetry` states for
-    // blocks. The export read already does this; this one did not.
-    const variables = parseWorkflowVariables(snapshot.workflowRecord.variables)
-    return {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      blocks: (snapshot.normalizedData?.blocks ?? {}) as Record<string, BlockState>,
-      edges: (snapshot.normalizedData?.edges ?? []) as WorkflowState['edges'],
-      loops: snapshot.normalizedData?.loops ?? {},
-      parallels: snapshot.normalizedData?.parallels ?? {},
-      variables: variables ?? {},
-    }
+    return loadWorkflowGraph(context)
   },
 })
+
+/** Loads the canonical draft after the application operation has authorized its context. */
+export async function loadWorkflowGraph(context: {
+  workflowId: string
+  workspaceId: string
+}): Promise<ReadWorkflowGraphResult> {
+  const snapshot = await loadWorkflowReadSnapshot(context.workflowId, context.workspaceId)
+  if (!snapshot.workflowRecord) {
+    throw new OrchestrationError('not_found', 'Workflow not found')
+  }
+  /** Normalize all persisted variable formats identically for graph reads and diagnostics. */
+  const variables = parseWorkflowVariables(snapshot.workflowRecord.variables)
+  return {
+    workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
+    blocks: (snapshot.normalizedData?.blocks ?? {}) as Record<string, BlockState>,
+    edges: (snapshot.normalizedData?.edges ?? []) as WorkflowState['edges'],
+    loops: snapshot.normalizedData?.loops ?? {},
+    parallels: snapshot.normalizedData?.parallels ?? {},
+    variables: variables ?? {},
+  }
+}

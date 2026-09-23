@@ -36,7 +36,8 @@ vi.mock('@/lib/oauth/github-installation', () => ({
   GitHubInstallationError: class extends Error {
     constructor(
       message: string,
-      readonly status?: number
+      readonly status?: number,
+      readonly operation?: string
     ) {
       super(message)
     }
@@ -195,6 +196,22 @@ describe('GitHub Search installation application operations', () => {
     const error = new GitHubInstallationError('Provider unavailable', 503)
     m.list.mockRejectedValueOnce(error)
     await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toBe(error)
+  })
+  it('reports missing app membership access without requesting another OAuth connection', async () => {
+    setupReader()
+    m.list.mockRejectedValueOnce(
+      new GitHubInstallationError(
+        'Approve Organization Members read-only access',
+        403,
+        'membership-permissions'
+      )
+    )
+    await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toMatchObject(
+      {
+        code: 'validation',
+        message: 'Approve Organization Members read-only access',
+      }
+    )
   })
   it('preserves transient token refresh failures instead of requesting OAuth', async () => {
     setupReader()

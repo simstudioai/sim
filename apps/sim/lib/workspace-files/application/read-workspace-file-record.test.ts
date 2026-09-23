@@ -60,10 +60,34 @@ describe('workspace file record reads', () => {
       ).resolves.toEqual({ file })
 
       expect(useCase.operation.id).toBe(operationId)
-      expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
+      expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
+        includeDeleted: undefined,
+        includeChatUploads: true,
+      })
       expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
         throwOnError: true,
+        includeChatUploads: true,
       })
     }
   )
+  it('rejects a foreign asserted workspace before reading file metadata', async () => {
+    await expect(
+      readWorkspaceFileContentRecord.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { fileId: 'file-1', assertedWorkspaceId: 'other-workspace' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.getFile).not.toHaveBeenCalled()
+  })
+
+  it('requires current workspace access before reading an addressed upload', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readWorkspaceFileContentRecord.execute({
+        principal: { kind: 'session', userId: 'outsider', sessionId: 'session-2' },
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).rejects.toThrow()
+    expect(mocks.getFile).not.toHaveBeenCalled()
+  })
 })

@@ -3,11 +3,32 @@ import {
   knowledgeConnectorPermissionGrant,
   knowledgeConnectorPermissionSnapshot,
 } from '@sim/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 
 export type ConnectorPermissionSnapshot = typeof knowledgeConnectorPermissionSnapshot.$inferSelect
+
+/** The application has authorized this canonical source and verified the reader's subject. */
+export async function hasConnectorPermissionGrant(
+  connectorId: string,
+  groupKey: string,
+  subjectToken: string
+): Promise<boolean> {
+  const table = knowledgeConnectorPermissionGrant
+  const [grant] = await db
+    .select({ connectorId: table.connectorId })
+    .from(table)
+    .where(
+      and(
+        eq(table.connectorId, connectorId),
+        eq(table.groupKey, groupKey),
+        eq(table.subjectToken, subjectToken)
+      )
+    )
+    .limit(1)
+  return Boolean(grant)
+}
 
 /** Call only after authorizing the connector; this materializes its private normalized input. */
 export async function loadConnectorPermissionSnapshot(connectorId: string) {

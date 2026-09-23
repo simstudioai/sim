@@ -4,6 +4,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildFolderPath } from '@/lib/folders/paths'
 import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import {
   findUserEmailsByIds,
@@ -80,6 +81,7 @@ export function toV2FileText({
   return {
     fileId: file.id,
     name: file.name,
+    path: workspaceFileVfsPath(file),
     type: file.type,
     text,
     truncated,

@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { ChipModalTabs } from '@sim/emcn'
+import { ChipLink, ChipModalTabs } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
@@ -11,6 +11,7 @@ import { SettingsPanel } from '@/components/settings/settings-panel'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -62,6 +63,7 @@ interface OrganizationSourceDetailProps {
 export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDetailProps) {
   const { organization, viewer } = useOrganizationContext()
   const router = useRouter()
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const backHref = organizationRoutes(organization.id).settingsSection('integrations')
   const index = useSearchIndex(scope, { enabled: viewer.isAdmin })
@@ -125,6 +127,20 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
         <SettingsEmptyState variant='inline'>Loading connection…</SettingsEmptyState>
       </SettingsPanel>
     )
+  if (
+    liveSearch &&
+    detail.data.accessMode === 'members' &&
+    !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)
+  )
+    return (
+      <SettingsPanel back={back} title='Member accounts'>
+        <SettingsEmptyState variant='inline'>
+          Members search all content their connected accounts can access. Manage this integration’s
+          account mode in Sources.
+        </SettingsEmptyState>
+        <ChipLink href={backHref}>Manage sources</ChipLink>
+      </SettingsPanel>
+    )
   return (
     <SourceDetailContent
       key={`${organization.id}:${connectorId}`}
@@ -172,6 +188,7 @@ function SourceDetailContent({
   const { organization } = useOrganizationContext()
   const integrations = useSearchIntegrations(organization.id)
   const router = useRouter()
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const [view, setView] = useQueryState(
     sourceViewParam.key,
     sourceViewParam.parser.withOptions({ history: 'replace' })
@@ -191,11 +208,17 @@ function SourceDetailContent({
     connector.lastSyncError?.split('\n').includes(SOURCE_PERMISSION_ERROR) ?? false
   const status =
     effectiveStatus === 'paused'
-      ? 'Sync paused'
+      ? liveSearch
+        ? 'Search paused'
+        : 'Sync paused'
       : effectiveStatus === 'disabled'
-        ? 'Sync disabled'
+        ? liveSearch
+          ? 'Search disabled'
+          : 'Sync disabled'
         : effectiveStatus === 'error'
-          ? 'Sync failed'
+          ? liveSearch
+            ? undefined
+            : 'Sync failed'
           : undefined
   const description =
     [title === meta?.name ? undefined : meta?.name, status].filter(Boolean).join(' · ') || undefined
@@ -248,7 +271,7 @@ function SourceDetailContent({
       )}
     </>
   )
-  if (view === 'settings')
+  if (liveSearch || view === 'settings')
     return (
       <SourceSettingsEditor
         key={connector.id}
@@ -360,6 +383,7 @@ function SourcePanel({
   children,
   ...panel
 }: SourcePanelProps) {
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const lifecycle = useConnectorActions({
     connector,
     knowledgeBaseId: connector.knowledgeBaseId,
@@ -369,7 +393,22 @@ function SourcePanel({
     onRemoved,
   })
   return (
-    <SettingsPanel {...panel} actions={[...lifecycle.actions, ...(actions ?? [])]}>
+    <SettingsPanel
+      {...panel}
+      actions={[
+        ...lifecycle.actions
+          .filter((action) => !liveSearch || action.id !== 'sync')
+          .map((action) =>
+            liveSearch && action.id === 'pause'
+              ? {
+                  ...action,
+                  text: connector.status === 'paused' ? 'Resume search' : 'Pause search',
+                }
+              : action
+          ),
+        ...(actions ?? []),
+      ]}
+    >
       <ConnectorActionFeedback state={lifecycle} />
       {children}
     </SettingsPanel>
@@ -423,6 +462,7 @@ function SourceSettingsForm({
   onSaved,
   onDiscard,
 }: SourceSettingsFormProps) {
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const form = useConnectorSettingsForm({
     connector: baseline,
     syncing: isConnectorSyncingOrPending(connector),
@@ -451,12 +491,20 @@ function SourceSettingsForm({
       })}
     >
       {queryError}
-      <SourceNavigation
-        view='settings'
-        onViewChange={(next) => {
-          if (next !== 'settings') guard.guardBack(() => onViewChange(next))
-        }}
-      />
+      {!liveSearch && (
+        <SourceNavigation
+          view='settings'
+          onViewChange={(next) => {
+            if (next !== 'settings') guard.guardBack(() => onViewChange(next))
+          }}
+        />
+      )}
+      {liveSearch && connector.connectorType === 'gitlab' && (
+        <SettingsResourceRow
+          title='Organization-managed GitLab'
+          description='Admin tokens check current permissions. Other tokens use the CSV mappings below.'
+        />
+      )}
       <div className='-mx-2 flex flex-col gap-4'>
         <ConnectorSettingsFields {...form.fieldsProps} />
       </div>

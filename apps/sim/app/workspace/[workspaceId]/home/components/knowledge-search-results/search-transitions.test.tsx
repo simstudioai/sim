@@ -90,6 +90,14 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-01-15T12:00:00Z'))
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   mocks.userId = 'reader'
   requests = []
   mocks.request.mockImplementation(
@@ -117,11 +125,15 @@ async function render({
   query = 'launch',
   params = '',
   organizationPage = false,
+  filters,
+  topK,
 }: {
   scope?: ResourceScope
   query?: string
   params?: string
   organizationPage?: boolean
+  filters?: import('@/lib/api/contracts/knowledge').WorkspaceSearchFilters
+  topK?: number
 } = {}) {
   await act(async () => {
     root.render(
@@ -130,7 +142,13 @@ async function render({
           {organizationPage ? (
             <OrganizationSearch />
           ) : (
-            <KnowledgeSearchResults scope={scope} query={query} onSummarize={mocks.summarize} />
+            <KnowledgeSearchResults
+              scope={scope}
+              query={query}
+              filters={filters}
+              topK={topK}
+              onSummarize={mocks.summarize}
+            />
           )}
         </NuqsTestingAdapter>
       </QueryClientProvider>
@@ -194,10 +212,10 @@ describe('search refinement with the real query cache and URL state', () => {
     await render({ organizationPage: true, params: '?q=launch' })
     expect(container.querySelector('h1')).toBeNull()
     expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    const input = container.querySelector('input')
+    const input = container.querySelector('textarea')
     await complete(0)
     expect(container.querySelector('h1')).toBeNull()
-    expect(container.querySelector('input')).toBe(input)
+    expect(container.querySelector('textarea')).toBe(input)
     const filters = container.querySelector('[aria-label="Search filters"]')
 
     for (const [label, expectedFilters] of [
@@ -212,11 +230,11 @@ describe('search refinement with the real query cache and URL state', () => {
       expect(requests.at(-1)?.body).toEqual({
         organizationId: 'organization',
         query: 'launch',
-        topK: 20,
         filters: expectedFilters,
+        topK: 20,
       })
       expect(container.querySelector('h1')).toBeNull()
-      expect(container.querySelector('input')).toBe(input)
+      expect(container.querySelector('textarea')).toBe(input)
       expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
       expect(document.activeElement).toBe(control)
       expect(container.textContent).toContain('Updating results…')
@@ -255,6 +273,17 @@ describe('search refinement with the real query cache and URL state', () => {
       expect(container.querySelector('h1')).toBeNull()
     }
   )
+
+  it('honors an explicitly empty tool filter and limit instead of page filters', async () => {
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 5 })
+    expect(requests[0].body.filters).toEqual({})
+    expect(requests[0].body.topK).toBe(5)
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    await complete(0)
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 10 })
+    expect(requests[1].body.topK).toBe(10)
+    expect(container.textContent).not.toContain('Release plan')
+  })
 
   it('replaces filter URL state while preserving unrelated parameters', async () => {
     await render({ params: '?q=launch&panel=details' })

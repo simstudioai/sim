@@ -15,12 +15,12 @@ import {
   InternalUnauthenticatedError,
   internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'
-import { authorizeOrganizationChatEvents } from '@/lib/copilot/chat/organization-chats'
-import { chatPubSub } from '@/lib/copilot/chat-status'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSSEStream, createWorkspaceSSE } from '@/lib/events/sse-endpoint'
+import { authorizeOrganizationChatEvents } from '@/lib/mothership/chat/organization-chats'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 
 export const dynamic = 'force-dynamic'
 

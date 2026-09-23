@@ -34,7 +34,8 @@ export const toolExecutionOperations = {
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
     capability: 'none',
   }),
 } as const

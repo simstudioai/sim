@@ -3,8 +3,10 @@
 import { type ComponentType, type ReactNode, useState } from 'react'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
+import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
   collectGroupTools,
@@ -36,6 +38,7 @@ import { useSmoothText } from '@/hooks/use-smooth-text'
  * how deterministic parent/child nesting (e.g. Deploy inside Workflow) is drawn.
  */
 export interface NestedAgentGroup {
+  error?: string
   id: string
   agentName: string
   agentLabel: string
@@ -50,6 +53,9 @@ export type AgentGroupItem =
   | { type: 'agent_group'; group: NestedAgentGroup }
 
 export interface AgentGroupProps {
+  activity?: ToolActivity
+  completedGroupCount?: number
+  error?: string
   agentName: string
   agentLabel: string
   items: AgentGroupItem[]
@@ -65,7 +71,7 @@ export interface AgentGroupProps {
 
 function activeToolTitle(tool: ToolCallData): string {
   return getToolStatusDisplayTitle(
-    tool.displayTitle || String(tool.toolName ?? ''),
+    tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), undefined),
     tool.status === ToolCallStatus.success ? ToolCallStatus.executing : tool.status,
     tool.toolName,
     tool.activityDescription
@@ -140,6 +146,10 @@ interface AgentGroupViewProps extends AgentGroupProps {
 
 export function AgentGroupView({
   agentName,
+  agentLabel,
+  activity: groupActivity,
+  completedGroupCount,
+  error,
   items,
   isDelegating = false,
   isStreaming = false,
@@ -153,6 +163,13 @@ export function AgentGroupView({
   const isMainAgent = agentName === 'mothership'
   const tools = isMainAgent ? [] : collectGroupTools(items)
   const statusTool = getActivityStatusTool(tools)
+  const activityDescriptor =
+    groupActivity ??
+    tools
+      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .reverse()
+      .find((entry) => entry?.title || entry?.completedTitle)
+  const runningCount = tools.filter((tool) => !isToolDone(tool.status)).length
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
   const activeBrowserTakeover =
@@ -179,7 +196,7 @@ export function AgentGroupView({
     (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
 
   const meaningfulItems = items.filter(hasAgentGroupItemContent)
-  if (meaningfulItems.length === 0) return null
+  if (meaningfulItems.length === 0 && !error) return null
 
   const toggleExpanded = () => {
     if (activeBrowserTakeover) {
@@ -218,6 +235,7 @@ export function AgentGroupView({
           isDelegating={item.group.isDelegating}
           isStreaming={isStreaming}
           isLaneOpen={item.group.isOpen}
+          error={item.group.error}
           autoScrollActivity={autoScrollActivity}
         />
       )
@@ -234,6 +252,8 @@ export function AgentGroupView({
 
   const activity = isMainAgent ? (
     <MainAgentActivity
+      activity={groupActivity}
+      completedGroupCount={completedGroupCount}
       items={items}
       ToolCallComponent={ToolCallComponent}
       renderItem={renderItem}
@@ -243,14 +263,24 @@ export function AgentGroupView({
   ) : (
     <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
   )
-  const headerText = isWorking
-    ? statusTool
-      ? getActiveToolActivityTitle(activeToolTitle(statusTool), statusTool, tools)
-      : 'Thinking'
-    : tools.length > 0
-      ? getToolActivitySummary(tools)
-      : 'Tool activity'
+  const headerText = error
+    ? agentLabel
+    : isWorking
+      ? statusTool
+        ? getActiveToolActivityTitle(
+            `${activeToolTitle(statusTool)}${runningCount > 1 ? ` + ${runningCount - 1}` : ''}`,
+            statusTool,
+            tools
+          )
+        : 'Thinking'
+      : activityDescriptor?.completedTitle &&
+          tools.every((tool) => tool.status === ToolCallStatus.success)
+        ? activityDescriptor.completedTitle
+        : tools.length > 0
+          ? getToolActivitySummary(tools)
+          : agentLabel
   const headerActive =
+    !error &&
     isWorking &&
     (!statusTool ||
       statusTool.status === ToolCallStatus.executing ||
@@ -260,6 +290,8 @@ export function AgentGroupView({
     meaningfulItems.some(
       (item) =>
         item.type !== 'tool' ||
+        item.data.status === ToolCallStatus.error ||
+        item.data.status === ToolCallStatus.rejected ||
         needsToolInput(item.data) ||
         item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
     )
@@ -272,6 +304,7 @@ export function AgentGroupView({
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
           activityKey={statusTool?.id}
+          expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}
           expanded={expanded}
@@ -282,6 +315,7 @@ export function AgentGroupView({
           {activity}
         </ActivityStream>
       )}
+      {error && <p className='pl-6 text-[var(--text-tertiary)] text-caption'>{error}</p>}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}

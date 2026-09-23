@@ -95,7 +95,7 @@ type ScopedSearchInput = Omit<SearchKnowledgeInput, 'knowledgeBaseIds'>
  * index is read twice. Surfaces differ only in how they name the owner and find the index.
  */
 function defineScopedSearchUseCase<
-  I extends Pick<SearchKnowledgeInput, 'query' | 'surface' | 'signal'>,
+  I extends Pick<SearchKnowledgeInput, 'query' | 'surface' | 'signal' | 'filters'>,
 >(surface: {
   resolveContext: (input: I) => Promise<KnowledgeResourceContext>
   findIndex: (context: KnowledgeResourceContext) => Promise<ActiveKnowledgeBaseReference | null>
@@ -107,6 +107,16 @@ function defineScopedSearchUseCase<
       measureSearchStage('scope_resolution', () => surface.resolveContext(input)),
     async execute({ principal, input, context }): Promise<ScopedSearchResult> {
       input.signal?.throwIfAborted()
+      if (
+        !input.query?.trim() ||
+        input.filters?.startDate ||
+        input.filters?.endDate ||
+        input.filters?.sortBy
+      )
+        throw new OrchestrationError(
+          'validation',
+          'Date-only search, startDate/endDate and sorting require live search. Use a text query and modification filters for indexed search.'
+        )
       const index = await measureSearchStage('index_resolution', () => surface.findIndex(context))
       if (!index) return searchWithoutIndex(principal, context, input)
       const searchInput: SearchKnowledgeInput = {

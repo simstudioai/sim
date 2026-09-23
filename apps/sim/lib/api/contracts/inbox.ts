@@ -4,6 +4,7 @@ import {
   secretMountScopeSchema,
 } from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { inboxSettingsPatchSchema } from '@/lib/mothership/inbox/settings-input'
 
 export const inboxWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
@@ -35,12 +36,7 @@ export const inboxConfigSchema = z.object({
 export type InboxConfig = z.output<typeof inboxConfigSchema>
 export type InboxTaskStatus = z.output<typeof inboxTaskStatusSchema>
 
-export const updateInboxConfigBodySchema = z.object({
-  enabled: z.boolean().optional(),
-  username: z.string().min(1).max(64).optional(),
-  secretScope: secretMountScopeSchema.optional(),
-  mountedSecrets: mountedSecretNamesSchema.optional(),
-})
+export const updateInboxConfigBodySchema = inboxSettingsPatchSchema
 
 export const updateInboxConfigResponseSchema = z.object({
   enabled: z.boolean(),

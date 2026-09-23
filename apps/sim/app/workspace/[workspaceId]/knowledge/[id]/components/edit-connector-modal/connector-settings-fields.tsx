@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import {
@@ -19,6 +20,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import {
   ConnectServiceAccountModal,
@@ -120,7 +122,7 @@ export function ConnectorSettingsFields({
   availability,
   isSearchIndex,
   usesGitHubInstallation = false,
-  connectorConfig,
+  connectorConfig: originalConfig,
   sourceConfig,
   selectionLabels,
   credentialId,
@@ -157,6 +159,10 @@ export function ConnectorSettingsFields({
   onContentCredentialChange,
   onWorkspaceCredentialChange,
 }: ConnectorSettingsFieldsProps) {
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const connectorConfig = liveSearchSourceMeta(originalConfig, Boolean(liveSearch), {
+    githubInstallation: usesGitHubInstallation && scope.kind === 'organization',
+  })
   const providerId =
     connectorConfig?.auth.mode === 'oauth'
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
@@ -206,9 +212,11 @@ export function ConnectorSettingsFields({
   })
   useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
   const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
-  const selectorCredentialId = syncsPerMember
-    ? browseCredentialId
-    : (workspaceCredentialId ?? credentialId)
+  const selectorCredentialId = isGitHubInstallationSource
+    ? contentCredentialId
+    : syncsPerMember
+      ? browseCredentialId
+      : (workspaceCredentialId ?? credentialId)
   const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
   const installations = rawCredentials.filter(
     (credential) => credential.provider === GITHUB_INSTALLATION_PROVIDER_ID
@@ -300,6 +308,8 @@ export function ConnectorSettingsFields({
               : undefined
           }
           onCancel={githubSetup.cancel}
+          onCheckConnection={() => void githubSetup.checkConnection()}
+          isChecking={githubSetup.isChecking}
           onChange={onContentCredentialChange}
         >
           {(accessDirty || canReenableMemberSync) && (

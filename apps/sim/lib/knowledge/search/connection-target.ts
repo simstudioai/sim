@@ -9,11 +9,26 @@ export const searchConnectionTargetSchema = z
     connectorType: z.string().trim().min(1).max(100),
     connectorId: z.string().min(1).max(200).optional(),
     credentialId: z.string().min(1).max(128).optional(),
+    connectionMode: z.literal('live').optional(),
+    optionId: z.string().min(1).max(128).optional(),
   })
   .strict()
-  .refine((target) => !target.credentialId || Boolean(target.connectorId), {
-    message: 'A reconnect requires a configured source',
-  })
+  .refine(
+    (target) =>
+      !target.credentialId || Boolean(target.connectorId) || target.connectionMode === 'live',
+    {
+      message: 'A reconnect requires a configured source',
+    }
+  )
+  .refine(
+    (target) =>
+      target.connectionMode === 'live'
+        ? Boolean(target.optionId) && !target.connectorId
+        : !target.optionId,
+    {
+      message: 'Live account connections require an account option instead of an indexed source',
+    }
+  )
 
 export type SearchConnectionTarget = z.infer<typeof searchConnectionTargetSchema>
 
@@ -48,5 +63,5 @@ export function parseSearchConnectionTargets(text: string): SearchConnectionTarg
 
 /** Carries an untrusted selection to the existing authenticated Integrations page, without OAuth state. */
 export function searchConnectionPath(organizationId: string, target: SearchConnectionTarget) {
-  return `${organizationRoutes(organizationId).integrations}?${new URLSearchParams({ connectorType: target.connectorType, ...(target.connectorId ? { connectorId: target.connectorId } : {}), ...(target.credentialId ? { credentialId: target.credentialId } : {}) })}`
+  return `${organizationRoutes(organizationId).integrations}?${new URLSearchParams({ connectorType: target.connectorType, ...(target.connectorId ? { connectorId: target.connectorId } : {}), ...(target.credentialId ? { credentialId: target.credentialId } : {}), ...(target.connectionMode ? { connectionMode: target.connectionMode, ...(target.optionId ? { optionId: target.optionId } : {}), provider: target.provider } : {}) })}`
 }

@@ -3,8 +3,8 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { InternalToolConfig } from '@/tools/types'
@@ -30,7 +30,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
   })),
 }))
 
-vi.mock('@/lib/copilot/application/execute-credential-use-case', () => ({
+vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: resolvePersonalToken,
 }))
 vi.mock('@/lib/credentials/application/resolve-personal-token', () => ({

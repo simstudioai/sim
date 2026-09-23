@@ -50,7 +50,7 @@ export interface ManagedMcpConnectorSummary {
 }
 
 export type CreateManagedMcpConnectorInput =
-  | { connectorId: 'fireflies' | 'granola' }
+  | { connectorId: 'fireflies' | 'granola' | 'coda' }
   | {
       connectorId: 'databricks'
       name: string

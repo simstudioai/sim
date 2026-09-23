@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
+import { writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../../context'
 import type {
   CompleteTableImportResponse,
@@ -39,7 +40,7 @@ function tableNameFrom(fileName: string): string {
   return (/^[0-9]/.test(cleaned) ? `_${cleaned}` : cleaned).slice(0, 128)
 }
 
-function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): unknown {
+function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): Promise<unknown> {
   return coerce(raw, { kind }, { json: true }, flagName)
 }
 
@@ -107,13 +108,13 @@ async function watchImport(
     )
     current = next.data
     const line = progressLine(current)
-    if (process.stderr.isTTY && line !== reported) {
+    if (hasProgressTerminal() && line !== reported) {
       reported = line
-      process.stderr.write(`\r${chalk.dim(line)}\u001b[K`)
+      writeStderr(`\r${styles().dim(line)}\u001b[K`)
     }
   }
 
-  if (process.stderr.isTTY && reported !== null) process.stderr.write('\r\u001b[K')
+  if (hasProgressTerminal() && reported !== null) writeStderr('\r\u001b[K')
   return current
 }
 
@@ -226,9 +227,11 @@ export function attachTableImport(tables: Command): void {
             workspaceId,
             source,
             target,
-            ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
+            ...(options.mapping
+              ? { mapping: await jsonFlag(options.mapping, 'mapping', 'object') }
+              : {}),
             ...(options.createColumns
-              ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
+              ? { createColumns: await jsonFlag(options.createColumns, 'create-columns', 'array') }
               : {}),
             ...(options.timezone ? { timezone: options.timezone } : {}),
           },

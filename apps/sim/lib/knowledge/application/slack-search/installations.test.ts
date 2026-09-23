@@ -1,4 +1,5 @@
 /** @vitest-environment node */
+import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { sha256Hex } from '@sim/security/hash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
   audit: vi.fn(),
+  config: vi.fn(),
 }))
 vi.mock('@sim/audit', () => ({
   AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
@@ -37,10 +39,20 @@ vi.mock('@/lib/internal/slack/search-client', () => ({
   SlackSearchConfigurationError: class extends Error {},
 }))
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
+  getUserPermissionConfigForOrganization: mocks.config,
 }))
 
-import { configureSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/installations'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import {
+  configureSlackSearchInstallation,
+  listSlackSearchInstallations,
+  removeSlackSearchInstallation,
+} from '@/lib/knowledge/application/slack-search/installations'
+import {
+  projectSlackSearchSettingsForTool,
+  slackSearchSettingsPatchSchema,
+} from '@/lib/knowledge/application/slack-search/settings-projection'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const credential = {
   id: 'cred1',
@@ -61,6 +73,7 @@ const input = { organizationId: 'org1', credentialId: 'cred1', enabled: true }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.config.mockResolvedValue(null)
   mocks.membership.mockResolvedValue([{ role: 'admin' }])
   mocks.credential.mockResolvedValue({
     botToken: 'secret-token',
@@ -192,5 +205,147 @@ describe('Slack Search installation configuration', () => {
     expect(mocks.credential).not.toHaveBeenCalled()
     expect(mocks.verifyBot).not.toHaveBeenCalled()
     expect(mocks.update).toHaveBeenCalledOnce()
+  })
+})
+
+const delegated: OrganizationDelegatedPrincipal = {
+  kind: 'organization_delegated',
+  serviceId: 'copilot',
+  organizationId: 'org1',
+  subjectUserId: 'admin',
+  delegationId: 'call',
+  audience: 'sim:settings',
+  issuedAt: new Date('2020-01-01'),
+  expiresAt: new Date('2099-01-01'),
+  resourceScope: { chatId: 'chat' },
+}
+
+describe('Slack Search Settings delegation', () => {
+  it('admits settings delegation only for the three existing administrative operations', () => {
+    const operations = Object.values(knowledgeOperations).filter(
+      (operation) => operation.organizationOperation.delegationAudience === 'sim:settings'
+    )
+    expect(operations).toEqual([
+      knowledgeOperations.listSlackInstallations,
+      knowledgeOperations.configureSlackInstallation,
+      knowledgeOperations.removeSlackInstallation,
+    ])
+    for (const operation of operations) {
+      expect(operation.principalKinds).toEqual(['session'])
+      expect(operation.organizationOperation).toMatchObject({
+        minimumRole: 'admin',
+        capability: 'knowledge.use',
+        delegatedServices: ['copilot'],
+      })
+    }
+  })
+  it('uses the same canonical configuration behavior and real delegated actor', async () => {
+    await expect(
+      configureSlackSearchInstallation.execute({ principal: delegated, input })
+    ).resolves.toEqual({ id: 'install1' })
+    expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin',
+        metadata: expect.objectContaining({
+          actor: expect.objectContaining({ kind: 'organization_delegated' }),
+        }),
+      })
+    )
+  })
+  it('rechecks organization admin authority for status, configure, and remove', async () => {
+    mocks.membership.mockResolvedValue([{ role: 'member' }])
+    await expect(
+      listSlackSearchInstallations.authorize({
+        principal: delegated,
+        input: { organizationId: 'org1' },
+      })
+    ).rejects.toThrow('administrator')
+    await expect(
+      configureSlackSearchInstallation.authorize({ principal: delegated, input })
+    ).rejects.toThrow('administrator')
+    await expect(
+      removeSlackSearchInstallation.authorize({
+        principal: delegated,
+        input: { organizationId: 'org1', installationId: 'install1' },
+      })
+    ).rejects.toThrow('administrator')
+    expect(mocks.credential).not.toHaveBeenCalled()
+  })
+  it.each([
+    { ...delegated, audience: 'sim:knowledge' },
+    { ...delegated, organizationId: 'other-org' },
+    { ...delegated, expiresAt: new Date(0) },
+    {
+      ...delegated,
+      serviceId: 'slack-search' as const,
+      resourceScope: { installationId: 'install1', eventId: 'event' },
+    },
+  ])(
+    'refuses stale or wrongly scoped delegated settings before reading credentials',
+    async (caller) => {
+      await expect(
+        configureSlackSearchInstallation.execute({ principal: caller, input })
+      ).rejects.toThrow()
+      expect(mocks.credential).not.toHaveBeenCalled()
+      expect(mocks.insert).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    }
+  )
+  it('does not bypass the organization knowledge capability', async () => {
+    mocks.config.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideKnowledgeBaseTab: true,
+    })
+    await expect(
+      configureSlackSearchInstallation.execute({ principal: delegated, input })
+    ).rejects.toThrow()
+    expect(mocks.credential).not.toHaveBeenCalled()
+  })
+  it('preserves Search availability checks before provider calls', async () => {
+    mocks.available.mockRejectedValueOnce(new Error('Search unavailable'))
+    await expect(
+      configureSlackSearchInstallation.execute({ principal: delegated, input })
+    ).rejects.toThrow('Search unavailable')
+    expect(mocks.credential).not.toHaveBeenCalled()
+    expect(mocks.verifyBot).not.toHaveBeenCalled()
+  })
+  it('rejects secret fields at the tool boundary', () => {
+    expect(
+      slackSearchSettingsPatchSchema.safeParse({ credentialId: 'cred1', enabled: true }).success
+    ).toBe(true)
+    expect(
+      slackSearchSettingsPatchSchema.safeParse({
+        credentialId: 'cred1',
+        enabled: true,
+        botToken: 'secret',
+      }).success
+    ).toBe(false)
+  })
+  it('projects bounded metadata without provider outcomes or credential payloads', () => {
+    const result = projectSlackSearchSettingsForTool({
+      sharedAppAvailable: true,
+      bots: [{ id: 'cred1', displayName: 'Bot' }],
+      installations: [
+        {
+          id: 'install1',
+          credentialId: 'cred1',
+          appId: 'A1',
+          appKind: 'custom',
+          teamId: 'T1',
+          teamName: 'Team',
+          enabled: true,
+          needsValidation: false,
+          lastEventAt: null,
+          lastOutcome: 'secret',
+        },
+      ],
+    })
+    expect(JSON.stringify(result)).not.toContain('secret')
+    expect(result.installations[0]).toMatchObject({
+      id: 'install1',
+      credentialId: 'cred1',
+      enabled: true,
+    })
   })
 })

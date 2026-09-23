@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { mcpJsonRpcMessageSchema } from '@/lib/api/contracts/mcp'
+import {
+  readDocumentInputSchema,
+  searchWorkspaceInputSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -13,6 +17,9 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 })
 
 const documentIdSchema = z.string().min(1, 'Document ID is required').max(255)
+
+export const liveSearchMcpSchema = searchWorkspaceInputSchema.strict()
+export const readLiveDocumentMcpSchema = readDocumentInputSchema.strict()
 
 export const searchMcpSchema = workspaceSearchFiltersSchema
   .extend({

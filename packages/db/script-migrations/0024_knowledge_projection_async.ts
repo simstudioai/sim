@@ -3,6 +3,7 @@ import {
   SOURCE_ACL_PROJECTIONS,
   SYNCHRONOUS_PROJECTION_WHEN,
 } from '@sim/db/knowledge-projection'
+import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
@@ -215,7 +216,7 @@ export const knowledgeProjectionAsyncMigration: ScriptMigration = {
 
 /** Run directly by `db:push`, after the projection migrations it builds on. */
 if (import.meta.main) {
-  const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required to install the knowledge projection triggers')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {

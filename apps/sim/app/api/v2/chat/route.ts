@@ -18,29 +18,6 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { chatOperations } from '@/lib/copilot/application/operations'
-import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { persistCopilotChatTurn } from '@/lib/copilot/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
-import {
-  buildPersistedAssistantMessage,
-  buildPersistedUserMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import {
-  type CopilotEnvironmentContext,
-  createCopilotEnvironmentContext,
-} from '@/lib/copilot/environment-context'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import {
   ForbiddenOperationError,
   forbiddenErrorDetails,
@@ -48,10 +25,30 @@ import {
   requireUserCredentialCapabilities,
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { chatOperations } from '@/lib/mothership/application/operations'
+import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/mothership/chat/persisted-message'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/mothership/environment-context'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1TextChannel,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import type { OrchestratorResult, StreamEvent } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
   capabilityRefusal,
@@ -62,6 +59,7 @@ import {
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
+import { hasToolId } from '@/tools/tool-ids'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 3600
@@ -98,7 +96,7 @@ function deriveConversationTitle(message: string): string | undefined {
  * the one route that never reaches it, or `null` when the credential may
  * proceed.
  *
- * The group half runs through the same {@link requirePersonalApiKeysAllowed} the
+ * The group half runs through the same {@link requireUserCredentialCapabilities} the
  * funnel and the billing reads call, so a third wording of the same refusal
  * cannot drift in. Its error is projected rather than thrown because this route
  * renders its own v2 envelope, and the detail code is read off the error so the
@@ -142,14 +140,9 @@ function encodeNdjson(value: unknown): Uint8Array {
  * reply, the conversation id that continues this conversation, and the client
  * tool calls the run surfaced.
  */
-function buildChatResultPayload(
-  result: OrchestratorResult,
-  conversationId: string,
-  integrationTools: Array<{ name: string }>
-) {
-  const clientToolNames = new Set(integrationTools.map((t) => t.name))
+function buildChatResultPayload(result: OrchestratorResult, conversationId: string) {
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) => hasToolId(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -202,7 +195,7 @@ export const POST = withRouteHandler(
 
     const parsed = await parseRequest(v2ChatContract, req, {}, { ...V2_PARSE_DEFAULTS })
     if (!parsed.success) return parsed.response
-    const { workspaceId, message, conversationId } = parsed.data.body
+    const { workspaceId, message, conversationId, effort } = parsed.data.body
 
     const messageId = generateId()
     const requestId = generateId()
@@ -332,34 +325,30 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [workspaceContext, integrationTools, entitlements, billingAttribution] =
-        await Promise.all([
-          generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
-          buildIntegrationToolSchemas(userId, undefined, workspaceId),
-          computeWorkspaceEntitlements(workspaceId, userId),
-          // Hosted execution refuses to run without an attribution snapshot;
-          // the executor path receives it as a header, this path resolves it
-          // from the authenticated actor and asserted workspace.
-          resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-        ])
+      const billingAttribution = await resolveBillingAttribution({
+        actorUserId: userId,
+        workspaceId,
+      })
 
+      /**
+       * The wire payload IS the shared ChatRequest contract, and this surface now rides
+       * the full CHAT pipeline (persona + skills + CLI under the user's delegation
+       * token) — "talk to Sim" over the public API is the same agent as the workspace
+       * chat, not a persona-less one-shot.
+       */
       const requestPayload: Record<string, unknown> = {
-        messages: [{ role: 'user', content: message }],
+        message,
         userId,
+        protocolVersion: PROTOCOL_VERSION,
         workspaceId,
         chatId,
-        mode: 'agent',
         messageId,
-        isHosted: true,
-        workspaceContext,
-        ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-        ...(integrationTools.length > 0 ? { integrationTools } : {}),
-        ...(userPermission ? { userPermission } : {}),
-        ...(entitlements.length > 0 ? { entitlements } : {}),
+        integrationCatalog: { mcpServerIds: [] },
+        ...(effort ? { effort } : {}),
       }
 
       let allowExplicitAbort = true
-      let explicitAbortRequest: Promise<void> | undefined
+      let explicitAbortRequest: Promise<unknown> | undefined
       const lifecycleAbortController = new AbortController()
       const requestExplicitAbortOnce = () => {
         if (!allowExplicitAbort || explicitAbortRequest) {
@@ -370,7 +359,6 @@ export const POST = withRouteHandler(
           streamId: messageId,
           userId,
           chatId,
-          workspaceId,
         }).catch((error) => {
           reqLogger.warn('Failed to send explicit abort for chat request', {
             error: toError(error).message,
@@ -399,10 +387,7 @@ export const POST = withRouteHandler(
           workspaceId,
           chatId,
           simRequestId: requestId,
-          // The Go copilot route this turn is POSTed to — the same headless
-          // execute surface the Sim Chat block uses (it also selects the
-          // mothership sandbox profile for code tools).
-          goRoute: '/api/mothership/execute',
+          goRoute: '/api/mothership',
           autoExecuteTools: true,
           interactive: false,
           abortSignal: lifecycleAbortController.signal,
@@ -481,7 +466,7 @@ export const POST = withRouteHandler(
 
                 send({
                   type: 'final',
-                  data: buildChatResultPayload(result, chatId, integrationTools),
+                  data: buildChatResultPayload(result, chatId),
                 })
               } catch (error) {
                 if (
@@ -550,7 +535,7 @@ export const POST = withRouteHandler(
           return v2Error('INTERNAL_ERROR', result.error || 'Chat request failed')
         }
 
-        return v2Data(buildChatResultPayload(result, chatId, integrationTools))
+        return v2Data(buildChatResultPayload(result, chatId))
       } finally {
         allowExplicitAbort = false
         req.signal.removeEventListener('abort', onAbort)

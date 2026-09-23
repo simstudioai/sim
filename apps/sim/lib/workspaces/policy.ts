@@ -3,6 +3,7 @@ import { member, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
+import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -15,9 +16,11 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  capabilityDeniedBy,
   capabilityRefusal,
   isEntitledOrganizationCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import {
@@ -26,6 +29,21 @@ import {
 } from '@/lib/workspaces/policy-constants'
 
 const logger = createLogger('WorkspacePolicy')
+
+/** Permission only: quotas and subscription availability are enforced when a workspace is created. */
+export function canCreateOrganizationWorkspace(
+  role: OrganizationRole | null,
+  config: PermissionGroupConfig | null
+): boolean {
+  return (
+    organizationWorkspaceCreationRoleAllowed(role) &&
+    !capabilityDeniedBy('workspace.create', config)
+  )
+}
+
+function organizationWorkspaceCreationRoleAllowed(role: string | null | undefined): boolean {
+  return Boolean(role) && (!isBillingEnabled || isOrgAdminRole(role))
+}
 
 export const WORKSPACE_MODE = {
   PERSONAL: 'personal',
@@ -235,7 +253,7 @@ export async function lockWorkspaceCreationContext(
   let billedAccountUserId = userId
   if (organizationId) {
     if (isBillingEnabled) {
-      if (!currentMembership || !isOrgAdminRole(currentMembership.role)) {
+      if (!currentMembership || !organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
         throw new WorkspaceCreationContextChangedError()
       }
       const currentSubscription = await getOrganizationSubscription(organizationId, {
@@ -594,7 +612,7 @@ export async function getWorkspaceCreationPolicy({
     ) {
       const billedAccountUserId = await requireOrganizationOwnerId(organizationId)
 
-      if (!isOrgAdminRole(orgRole)) {
+      if (!organizationWorkspaceCreationRoleAllowed(orgRole)) {
         return {
           canCreate: false,
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,
@@ -632,7 +650,7 @@ export async function getWorkspaceCreationPolicy({
      * of the hierarchy, so there is no purview to escape, and after a
      * downgrade they are usually back on a personal plan they still pay for.
      */
-    if (!isOrgAdminRole(orgRole)) {
+    if (!organizationWorkspaceCreationRoleAllowed(orgRole)) {
       return {
         canCreate: false,
         workspaceMode: WORKSPACE_MODE.ORGANIZATION,

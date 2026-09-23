@@ -320,7 +320,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       data: {
-        results: results.map((result) => {
+        results: results.map((result, index) => {
           const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
           const tags: Record<string, string | number | boolean | Date | null> = {}
 
@@ -332,6 +332,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             }
           })
 
+          const similarity = hasQuery ? 1 - result.distance : 1
           return {
             documentId: result.documentId,
             documentName: result.filename || undefined,
@@ -339,7 +340,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             content: result.content,
             chunkIndex: result.chunkIndex,
             metadata: tags,
-            similarity: hasQuery ? 1 - result.distance : 1,
+            similarity,
+            rankScore: result.rankScore ?? similarity,
+            rank: index + 1,
           }
         }),
         query: query || '',

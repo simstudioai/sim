@@ -18,6 +18,8 @@ interface GitHubInstallationConnectionFieldProps {
   connectionError?: string | null
   hint?: string
   onCancel?: () => void
+  onCheckConnection: () => void
+  isChecking?: boolean
   children?: ReactNode
 }
 
@@ -35,13 +37,17 @@ export function GitHubInstallationConnectionField({
   connectionError,
   hint,
   onCancel,
+  onCheckConnection,
+  isChecking = false,
   children,
 }: GitHubInstallationConnectionFieldProps) {
   return (
     <ChipModalField type='custom' title='GitHub' hint={hint}>
       {connecting ? (
         <div className='flex items-center gap-2'>
-          <Chip disabled>Connecting GitHub…</Chip>
+          <Chip disabled={isChecking} onClick={onCheckConnection}>
+            {isChecking ? 'Checking GitHub…' : 'Check connection'}
+          </Chip>
           <Chip aria-label='Cancel GitHub connection' onClick={onCancel}>
             Cancel
           </Chip>

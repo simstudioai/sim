@@ -126,6 +126,21 @@ describe('POST /api/v2/files/uploads', () => {
     expect(mocks.createUpload).not.toHaveBeenCalled()
   })
 
+  it.each(['secretProvenance', 'workspaceFileSecretProvenance', 'metadata'])(
+    'does not accept private source classification through the public %s input',
+    async (key) => {
+      const response = await request({
+        workspaceId: WORKSPACE_ID,
+        name: 'file.csv',
+        contentType: 'text/csv',
+        size: 10,
+        [key]: { status: 'exact', entries: [] },
+      }).response
+      expect(response.status).toBe(400)
+      expect(mocks.createUpload).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects an unauthenticated request', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 

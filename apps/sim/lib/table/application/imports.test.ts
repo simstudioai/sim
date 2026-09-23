@@ -76,6 +76,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
 }))
 
+import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableImportUseCase,
@@ -434,33 +436,35 @@ describe('table import application use cases', () => {
     expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, executor)
   })
 
-  it('rejects delegated HTTP import creation before canonical load or mutation', async () => {
-    const delegated = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'copilot-tool:tool-1',
-      audience: 'sim:tables',
-      issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-      expiresAt: new Date('2099-08-01T00:00:00.000Z'),
+  it('creates a private CLI import for the actual Copilot subject with API keys disabled', async () => {
+    const delegated = createCopilotChatPrincipal(
+      { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat-1' },
+      'sim:tables'
+    )
+    markCopilotWorkspaceInvocation(delegated)
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      ...workspaceContext,
+      allowPersonalApiKeys: false,
+    })
+    const request = new Request('http://localhost:3000/api/v2/tables/imports', { method: 'POST' })
+    const input = {
+      body: { workspaceId: 'workspace-1', source: record.source, target: record.target },
     }
-
+    await expect(
+      createTableImportUseCase.execute({ principal: delegated, input, request })
+    ).resolves.toEqual({ import: { record, upload: null } })
+    expect(createTableImportUseCase.delegationAudience).toBe('sim:tables')
+    expect(mocks.createResource).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: delegated, userId: 'user-1' })
+    )
+    mocks.createResource.mockClear()
     await expect(
       createTableImportUseCase.execute({
-        principal: delegated as never,
-        input: {
-          body: {
-            workspaceId: 'workspace-1',
-            source: record.source,
-            target: record.target,
-          },
-        },
+        principal: { ...delegated, workspaceId: 'other' },
+        input,
+        request,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
-    expect(mocks.resolveTableContext).not.toHaveBeenCalled()
     expect(mocks.createResource).not.toHaveBeenCalled()
   })
 

@@ -8,6 +8,7 @@ import {
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
+import { resolveCostMultiplier } from './cost-multiplier'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
@@ -717,5 +718,11 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
  * fall back to 1.
  */
 export function getCostMultiplier(): number {
-  return isProd ? envNumber(env.COST_MULTIPLIER, 1) : 1
+  return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
+
+/** Backend selector. Kept independent of enterprise entitlement overrides. */
+const liveEnterpriseSearchSetting =
+  typeof window === 'undefined' ? env.SIM_SEARCH_LIVE : getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE')
+export const isLiveEnterpriseSearchEnabled =
+  liveEnterpriseSearchSetting === undefined || isTruthy(liveEnterpriseSearchSetting)

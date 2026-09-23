@@ -19,7 +19,10 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     adminCredentialType: 'service_account',
     serviceAccountScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
     adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
-    serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+    serviceAccountDelegationScopes: [
+      'https://www.googleapis.com/auth/calendar.events.readonly',
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ],
     serviceAccountSubjectFieldId: 'adminEmail',
   },
 

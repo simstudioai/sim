@@ -104,6 +104,61 @@ describe('useMothershipQueueStore', () => {
       expect(useMothershipQueueStore.getState().queues['chat-A']).toBe(before)
     })
 
+    it('edits one captured Search level without changing adjacent queued turns', () => {
+      const store = useMothershipQueueStore.getState()
+      store.enqueue('chat-A', {
+        ...message('m1'),
+        requestMode: 'assistant',
+        assistantSearchLevel: 'fast',
+      })
+      store.enqueue('chat-A', {
+        ...message('m2'),
+        requestMode: 'assistant',
+        assistantSearchLevel: 'adaptive',
+      })
+      store.replaceAt('chat-A', 'm1', {
+        content: 'Edited',
+        requestMode: 'assistant',
+        assistantSearchLevel: 'max',
+      })
+      expect(
+        useMothershipQueueStore
+          .getState()
+          .queues['chat-A']?.map((item) => item.assistantSearchLevel)
+      ).toEqual(['max', 'adaptive'])
+    })
+
+    it('editing preserves an unresolved Stop while replacing the prior request identity', () => {
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'm1',
+        content: 'original',
+        retryRequired: true,
+        resumeUserMessageId: 'prior-request',
+        queuedSendHandoff: {
+          id: 'm1',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'prior-request',
+          stopRequired: true,
+        },
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'm1', { content: 'corrected' })
+      const edited = useMothershipQueueStore.getState().queues['chat-A']?.[0]
+      expect(edited).toMatchObject({
+        id: 'm1',
+        content: 'corrected',
+        queuedSendHandoff: {
+          id: 'm1',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          stopRequired: true,
+        },
+      })
+      expect(edited?.queuedSendHandoff?.userMessageId).toBeUndefined()
+      expect(edited?.resumeUserMessageId).toBeUndefined()
+      expect(edited?.retryRequired).toBeUndefined()
+    })
+
     it('strips queuedSendHandoff on edit so a fresh handoff is minted at send time', () => {
       const original: QueuedMothershipMessage = {
         id: 'm1',

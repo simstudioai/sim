@@ -5,14 +5,14 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 
 const logger = createLogger('MarkTaskReadAPI')
 

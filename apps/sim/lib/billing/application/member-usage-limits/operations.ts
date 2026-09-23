@@ -8,7 +8,9 @@ export const memberUsageLimitOperations = {
     id: 'organization_member_usage_limits.read',
     minimumRole: 'admin',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     oauthScope: 'api:read',
   }),
   /**
@@ -18,7 +20,9 @@ export const memberUsageLimitOperations = {
     id: 'organization_member_usage_limits.update',
     minimumRole: 'admin',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     oauthScope: 'api:write',
   }),
 } as const

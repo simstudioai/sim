@@ -1,5 +1,7 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBulkOperationResponse, TableDeleteByFilterParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -20,12 +22,7 @@ export const tableDeleteRowsByFilterTool: InternalToolConfig<
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: true,
@@ -61,14 +58,11 @@ export const tableDeleteRowsByFilterTool: InternalToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        deletedCount: data.deletedCount || 0,
-        deletedRowIds: data.deletedRowIds || [],
-        message: data.message || 'Rows deleted successfully',
-      },
-    }
+    return tableSuccess({
+      deletedCount: data.deletedCount || 0,
+      deletedRowIds: data.deletedRowIds || [],
+      message: data.message || 'Rows deleted successfully',
+    })
   },
 
   outputs: {

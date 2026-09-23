@@ -17,6 +17,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -52,6 +53,8 @@ export interface MemberSyncPayload {
 export interface DispatchMemberSyncOptions {
   /** Manual requests wait briefly after a successful run and make every active member due. */
   manual?: boolean
+  /** A fresh OAuth grant makes only this account due, without resetting other members. */
+  connectedCredentialId?: string
   billingAttribution: BillingAttributionSnapshot
   /** The scheduled instant this dispatch was made for; a changed schedule makes it stale. */
   expectedNextMemberSyncAt?: Date
@@ -104,7 +107,8 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
 async function markMemberSyncPending(
   connectorId: string,
   expectedNextMemberSyncAt: Date | undefined,
-  manual: boolean
+  manual: boolean,
+  connectedCredentialId: string | undefined
 ): Promise<string | null> {
   const dispatchToken = generateId()
   const claim = async (tx: Pick<typeof db, 'select' | 'update'>) => {
@@ -134,20 +138,23 @@ async function markMemberSyncPending(
       )
       .returning({ id: knowledgeConnector.id })
     if (taken.length === 0) return null
-    if (manual) {
+    if (manual || connectedCredentialId) {
       await tx
         .update(knowledgeConnectorMember)
         .set({ nextAttemptAt: now, updatedAt: now })
         .where(
           and(
             eq(knowledgeConnectorMember.connectorId, connectorId),
-            eq(knowledgeConnectorMember.status, 'active')
+            eq(knowledgeConnectorMember.status, 'active'),
+            !manual && connectedCredentialId
+              ? eq(knowledgeConnectorMember.credentialId, connectedCredentialId)
+              : undefined
           )
         )
     }
     return dispatchToken
   }
-  return manual ? db.transaction(claim) : claim(db)
+  return manual || connectedCredentialId ? db.transaction(claim) : claim(db)
 }
 
 async function describeUnacceptedMemberSync(
@@ -267,6 +274,7 @@ export async function dispatchMemberSync(
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
+      isSearchIndex: knowledgeBase.isSearchIndex,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -277,6 +285,8 @@ export async function dispatchMemberSync(
     logger.warn('Skipping member sync dispatch: connector not found', { connectorId, requestId })
     return { queued: false, reason: 'Connector no longer exists' }
   }
+  if (!requiresConnectorIndexing(row.isSearchIndex))
+    return { queued: false, reason: 'This source is searched live and does not require indexing.' }
   if (row.kbDeletedAt) {
     logger.warn('Skipping member sync dispatch: knowledge base is deleted', {
       connectorId,
@@ -335,7 +345,8 @@ export async function dispatchMemberSync(
   const dispatchToken = await markMemberSyncPending(
     connectorId,
     options.expectedNextMemberSyncAt,
-    options.manual === true
+    options.manual === true,
+    options.connectedCredentialId
   )
   if (!dispatchToken) {
     const reason = await describeUnacceptedMemberSync(connectorId, options.expectedNextMemberSyncAt)
@@ -404,6 +415,7 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
   workspaceId?: string
   organizationId?: string
   credentialGroupOptionId: string
+  connectedCredentialId?: string
 }): Promise<void> {
   const connectors = await db
     .select({ id: knowledgeConnector.id })
@@ -428,7 +440,10 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
       : await resolveSystemBillingAttribution(scope.workspaceId)
   for (const connector of connectors) {
     try {
-      const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })
+      const dispatch = await dispatchMemberSync(connector.id, {
+        billingAttribution,
+        connectedCredentialId: input.connectedCredentialId,
+      })
       if (!dispatch.queued) {
         logger.info('Member sync after a member connected was not queued', {
           connectorId: connector.id,

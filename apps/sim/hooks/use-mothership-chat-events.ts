@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import {
   type MothershipChatHistory,
   type MothershipChatOwner,

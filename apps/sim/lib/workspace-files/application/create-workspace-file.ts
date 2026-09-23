@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  type ActiveWorkspaceContext,
   FileConflictError,
   loadActiveWorkspaceContext,
   uploadWorkspaceFile,
@@ -45,7 +46,8 @@ async function resolveCreateWorkspaceFileContext(workspaceId: string) {
   return workspace
 }
 
-async function createAuthorizedWorkspaceFile({
+/** Stores new file content in an already-authorized workspace; use cases own the authorization. */
+export async function createAuthorizedWorkspaceFile({
   principal,
   input,
   content,
@@ -54,7 +56,7 @@ async function createAuthorizedWorkspaceFile({
   principal: Principal
   input: Omit<CreateWorkspaceFileBufferInput, 'content'>
   content: Buffer
-  workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
+  workspace: ActiveWorkspaceContext
 }): Promise<CreateWorkspaceFileResult> {
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: workspace.billedAccountUserId,
@@ -92,7 +94,7 @@ async function createAuthorizedWorkspaceFile({
   return { file }
 }
 
-function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {
+export function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {
   return {
     action: AuditAction.FILE_UPLOADED,
     resourceType: AuditResourceType.FILE,

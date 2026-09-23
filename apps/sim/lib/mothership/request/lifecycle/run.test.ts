@@ -1,0 +1,3625 @@
+/**
+ * @vitest-environment node
+ */
+
+import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import { generateId } from '@sim/utils/id'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
+import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
+import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
+import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
+import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockMaterializeOrganizationSecrets, mockExecuteAppTool } = vi.hoisted(() => ({
+  mockMaterializeOrganizationSecrets: vi.fn(),
+  mockExecuteAppTool: vi.fn(),
+}))
+vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
+  materializeOrganizationCodeSecrets: mockMaterializeOrganizationSecrets,
+}))
+vi.mock('@/tools', () => ({ executeTool: mockExecuteAppTool }))
+
+const modelSelectorEnabled = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isMothershipModelSelectorEnabled: modelSelectorEnabled,
+}))
+const continuationAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
+  authorizeCopilotChatCallback: continuationAuth,
+  checkCopilotContinuationBilling: vi.fn().mockResolvedValue({ blocked: false }),
+}))
+
+afterAll(resetEnvironmentUtilsMock)
+
+const {
+  mockCreateRunSegment,
+  mockForceFailHungToolCall,
+  mockGetMothershipBaseURL,
+  mockGetMothershipSourceEnvHeaders,
+  mockLoadCopilotSearchIntegrations,
+  mockPrepareCopilotEnvironmentContext,
+  mockPrepareExecutionContext,
+  mockRunStreamLoop,
+  mockPendingToolWaitBudgetMs,
+  mockGetAutoAllowedTools,
+  mockGetUserPermissionConfig,
+  mockFilterModelSafeWorkspaceFileAttachments,
+  mockUpdateRunStatus,
+  mockCheckAttributedUsageLimits,
+  mockEnv,
+} = vi.hoisted(() => ({
+  mockCreateRunSegment: vi.fn(),
+  mockForceFailHungToolCall: vi.fn(),
+  mockGetMothershipBaseURL: vi.fn(),
+  mockGetMothershipSourceEnvHeaders: vi.fn(),
+  mockLoadCopilotSearchIntegrations: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
+  mockPrepareExecutionContext: vi.fn(),
+  mockRunStreamLoop: vi.fn(),
+  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string; status?: string }) => 60_000),
+  mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
+  mockGetUserPermissionConfig: vi.fn(async () => null),
+  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
+  mockUpdateRunStatus: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
+  mockEnv: {
+    INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
+    COPILOT_API_KEY: undefined as string | undefined,
+    MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
+  },
+}))
+
+vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
+  loadCopilotSearchIntegrations: mockLoadCopilotSearchIntegrations,
+}))
+
+vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  filterModelSafeWorkspaceFileAttachments: mockFilterModelSafeWorkspaceFileAttachments,
+}))
+
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
+  createRunSegment: mockCreateRunSegment,
+  updateRunStatus: mockUpdateRunStatus,
+}))
+
+vi.mock('@/lib/mothership/request/go/stream', () => {
+  class CopilotBackendError extends Error {
+    status?: number
+
+    constructor(message: string, options?: { status?: number }) {
+      super(message)
+      this.name = 'CopilotBackendError'
+      this.status = options?.status
+    }
+  }
+
+  class BillingLimitError extends Error {
+    userId: string
+
+    constructor(userId: string) {
+      super('Usage limit reached')
+      this.name = 'BillingLimitError'
+      this.userId = userId
+    }
+  }
+
+  const STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE =
+    'The assistant stopped before finishing this turn. The work it already completed has been saved — send a message to continue from there.'
+
+  class StreamEndedWithoutTerminalError extends Error {
+    path: string
+
+    constructor(path: string) {
+      super(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+      this.name = 'StreamEndedWithoutTerminalError'
+      this.path = path
+    }
+  }
+
+  return {
+    BillingLimitError,
+    CopilotBackendError,
+    STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
+    StreamEndedWithoutTerminalError,
+    runStreamLoop: mockRunStreamLoop,
+  }
+})
+
+vi.mock('@/lib/mothership/server/agent-url', () => ({
+  getMothershipBaseURL: mockGetMothershipBaseURL,
+  getMothershipSourceEnvHeaders: mockGetMothershipSourceEnvHeaders,
+}))
+
+vi.mock('@/lib/core/config/env', async (original) => ({
+  ...(await original<typeof import('@/lib/core/config/env')>()),
+  env: mockEnv,
+  envBoolean: vi.fn(() => undefined),
+  getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
+  isTruthy: vi.fn((value: string | undefined) => value === 'true'),
+  isFalsy: vi.fn((value: string | undefined) => value === 'false'),
+}))
+
+vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
+  getAutoAllowedTools: mockGetAutoAllowedTools,
+  addAutoAllowedTool: vi.fn(),
+  addChatAutoAllowedTool: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+}))
+
+vi.mock('@/lib/mothership/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
+}))
+
+vi.mock('@/lib/mothership/tools/handlers/context', () => ({
+  prepareExecutionContext: mockPrepareExecutionContext,
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
+  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
+  /**
+   * Faithful envelope replica: real protocol constant, real UUID request id, real
+   * URI-encoded serialization — the hosted-header tests below assert all three.
+   * Only the usage-limit check itself is controllable per-test.
+   */
+  assertBillingAttributionSnapshot: (value: unknown) => value,
+  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
+  createAttributedBillingRequestEnvelope: (attribution: unknown) => {
+    const billingRequestId = generateId()
+    const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
+    return {
+      billingRequestId,
+      serializedAttribution,
+      headers: {
+        'x-sim-billing-protocol': 'attribution-v1',
+        'x-sim-billing-request-id': billingRequestId,
+        'x-sim-billing-attribution': serializedAttribution,
+      },
+    }
+  },
+}))
+
+vi.mock('@/lib/mothership/request/tools/billing', () => ({
+  handleBillingLimitResponse: vi.fn(),
+}))
+
+vi.mock('@/lib/mothership/request/tools/executor', () => ({
+  executeToolAndReport: vi.fn(),
+  failPendingToolCall: mockForceFailHungToolCall,
+  pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
+}))
+
+const { mockResolveEnterpriseByokKey } = vi.hoisted(() => ({
+  mockResolveEnterpriseByokKey: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
+  resolveEnterpriseByokKey: mockResolveEnterpriseByokKey,
+}))
+
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1ToolOutcome,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  CopilotBackendError,
+  STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
+  StreamEndedWithoutTerminalError,
+} from '@/lib/mothership/request/go/stream'
+import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+
+afterAll(resetEnvFlagsMock)
+
+const SCHEMA_CONTROL_KEYS = [
+  '$schema',
+  'format',
+  'contentEncoding',
+  'contentMediaType',
+  'type',
+] as const
+
+describe('runCopilotLifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    modelSelectorEnabled.mockResolvedValue(false)
+    mockExecuteAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+    mockMaterializeOrganizationSecrets.mockResolvedValue({
+      envVars: { GRAFANA_API_KEY: 'test-org-token' },
+      catalogEntries: [
+        { name: 'GRAFANA_API_KEY', plaintext: 'test-org-token', encryptedValue: 'test-cipher' },
+      ],
+    })
+    mockCreateRunSegment.mockResolvedValue({ status: 'active' })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    continuationAuth.mockResolvedValue(undefined)
+    mockEnv.COPILOT_API_KEY = undefined
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
+    setEnvFlags({
+      isHosted: false,
+      isCopilotToolPermissionsEnabled: false,
+    })
+    mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
+    mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockPendingToolWaitBudgetMs.mockImplementation(() => 60_000)
+    mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
+    mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+    mockLoadCopilotSearchIntegrations.mockResolvedValue('{"connections":[],"available":[]}')
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+  })
+
+  it.each([
+    { surface: 'web Search', goRoute: '/api/mothership', interactive: true },
+    { surface: 'Slack Search', goRoute: '/api/mothership', interactive: false },
+    { surface: 'MCP Search', goRoute: '/api/mothership/execute', interactive: false },
+  ])(
+    'preserves the admitted canonical inventory for $surface without loading it again',
+    async ({ goRoute, interactive }) => {
+      mockRunStreamLoop.mockResolvedValue(undefined)
+      const inventory = [
+        { type: 'search_integrations', content: '{"connections":[],"available":[]}' },
+      ]
+      await runCopilotLifecycle(
+        { mode: 'assistant', message: 'Find the report', context: inventory },
+        {
+          userId: 'person-1',
+          organizationId: 'org-1',
+          chatId: 'private-chat-1',
+          executionId: 'execution-1',
+          runId: 'run-1',
+          goRoute,
+          interactive,
+        }
+      )
+      const body = JSON.parse(String(mockRunStreamLoop.mock.lastCall?.[1].body))
+      expect(body.context).toEqual(inventory)
+      expect(body).not.toHaveProperty('workspaceContext')
+      expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['agent', 'assistant', 'plan'] as const)(
+    'carries workspace %s mode to the resource receiver without relaxing target scope',
+    async (mode) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      await runCopilotLifecycle(
+        { mode, message: 'Open my file' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          goRoute: '/api/mothership',
+          interactive: true,
+        }
+      )
+      expect(captured?.requestMode).toBe(mode)
+      await expect(
+        openResourceServerTool.execute(
+          { workspaceId: 'other-workspace', resources: [{ type: 'file', id: 'file-1' }] },
+          {
+            ...captured!,
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            copilotToolExecution: true,
+            toolCallId: 'call-1',
+          }
+        )
+      ).rejects.toThrow(
+        mode !== 'assistant'
+          ? 'Workspace not found in this invocation'
+          : 'Resource panels require agent mode'
+      )
+    }
+  )
+
+  describe.each(['agent', 'plan'] as const)('organization %s secret execution', (mode) => {
+    it.each(['fresh', 'resume', 'recovery'] as const)(
+      'mounts explicit org secrets through both real code handlers after %s lifecycle setup',
+      async (phase) => {
+        let captured: ExecutionContext | undefined
+        mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+          captured = context
+        })
+        const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
+        await runCopilotLifecycle(
+          phase === 'resume'
+            ? { streamId: 'stream-1', checkpointId: 'checkpoint-1', results: [] }
+            : { mode, message: 'Inspect Grafana with the organization key' },
+          {
+            ...owner,
+            goRoute: phase === 'resume' ? '/api/tools/resume' : '/api/mothership',
+            ...(phase === 'resume'
+              ? {
+                  executionContext: {
+                    ...owner,
+                    workflowId: '',
+                    requestMode: mode,
+                    copilotToolExecution: true,
+                  },
+                }
+              : {}),
+            ...(phase === 'recovery'
+              ? { recovery: { streamId: 'stream-1', events: [], requestMode: mode } }
+              : {}),
+          }
+        )
+        expect(captured).toMatchObject({ ...owner, requestMode: mode })
+        if (!captured) throw new Error('Lifecycle did not dispatch')
+        for (const handler of [executeRunCode, executeFunctionExecute]) {
+          await expect(
+            handler(
+              { code: 'return 1', secrets: ['GRAFANA_API_KEY'], envVars: { FORGED: 'ignored' } },
+              { ...captured, toolCallId: 'org-code' }
+            )
+          ).resolves.toMatchObject({ success: true })
+        }
+        expect(mockMaterializeOrganizationSecrets).toHaveBeenCalledTimes(2)
+        expect(mockMaterializeOrganizationSecrets).toHaveBeenLastCalledWith(
+          expect.objectContaining({ ...owner, requestMode: mode }),
+          ['GRAFANA_API_KEY']
+        )
+        expect(mockExecuteAppTool).toHaveBeenLastCalledWith(
+          'function_execute',
+          expect.objectContaining({
+            envVars: { GRAFANA_API_KEY: 'test-org-token' },
+            secretScope: 'selected',
+            mountedSecrets: ['GRAFANA_API_KEY'],
+          }),
+          expect.objectContaining({
+            operationContext: expect.objectContaining({ ...owner, requestMode: mode }),
+            internalSandboxProfile: 'mothership',
+          })
+        )
+        expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', undefined, {
+          includeSecrets: false,
+        })
+      }
+    )
+
+    it.each([
+      { secretMountPolicy: { secretScope: 'selected' as const, mountedSecrets: [] } },
+      { secretActorUserId: null },
+    ])('preserves an explicit caller restriction %j', async (restriction) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      await runCopilotLifecycle(
+        { mode, message: 'Inspect Grafana' },
+        { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1', ...restriction }
+      )
+      if (!captured) throw new Error('Lifecycle did not dispatch')
+      await expect(
+        executeRunCode({ code: 'return 1', secrets: ['GRAFANA_API_KEY'] }, captured)
+      ).rejects.toThrow(/Secret access/)
+      expect(mockMaterializeOrganizationSecrets).not.toHaveBeenCalled()
+      expect(mockExecuteAppTool).not.toHaveBeenCalled()
+    })
+  })
+
+  it.each([false, true])(
+    'retains Assistant policy on a standalone resume (organization=%s)',
+    async (organization) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      const owner = organization ? { organizationId: 'org-1' } : { workspaceId: 'ws-1' }
+      await runCopilotLifecycle(
+        { streamId: 'stream-1', checkpointId: 'checkpoint-1', results: [] },
+        {
+          userId: 'user-1',
+          ...owner,
+          chatId: 'chat-1',
+          goRoute: '/api/tools/resume',
+          executionContext: {
+            userId: 'user-1',
+            ...owner,
+            chatId: 'chat-1',
+            workflowId: '',
+            requestMode: 'assistant',
+            assistantSearch: { source: 'slack' },
+            secretActorUserId: 'billing-owner',
+            secretMountPolicy: { secretScope: 'all', mountedSecrets: ['KEY'] },
+          },
+        }
+      )
+      expect(captured).toMatchObject({
+        ...owner,
+        requestMode: 'assistant',
+        assistantSearch: { source: 'slack' },
+        secretActorUserId: null,
+        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+      })
+      expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith(
+        'user-1',
+        owner.workspaceId,
+        { includeSecrets: false }
+      )
+      const body = JSON.parse(String(mockRunStreamLoop.mock.lastCall?.[1].body))
+      expect(body).not.toHaveProperty('mode')
+      if (organization) {
+        expect(body).not.toHaveProperty('organizationId')
+        expect(body).not.toHaveProperty('chatId')
+        expect(body).not.toHaveProperty('workspaceId')
+      }
+    }
+  )
+
+  it('restores Assistant mode before reconstructing the secret-free execution environment', async () => {
+    let captured: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+      captured = context
+    })
+    await runCopilotLifecycle(
+      { mode: 'assistant', message: 'Search', assistantSearch: { source: 'drive' } },
+      {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        chatId: 'chat-1',
+        recovery: { streamId: 'stream-1', events: [], requestMode: 'assistant' },
+        secretActorUserId: 'owner-1',
+        secretMountPolicy: { secretScope: 'all', mountedSecrets: ['KEY'] },
+      }
+    )
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', undefined, {
+      includeSecrets: false,
+    })
+    expect(captured).toMatchObject({
+      organizationId: 'org-1',
+      requestMode: 'assistant',
+      assistantSearch: { source: 'drive' },
+      secretActorUserId: null,
+      secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+    })
+    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+  })
+
+  it.each(['build', undefined])(
+    'rejects mismatched restored mode (%s) before loading execution context or dispatching',
+    async (mode) => {
+      await expect(
+        runCopilotLifecycle(
+          { mode, message: 'Search' },
+          {
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            recovery: { streamId: 'stream-1', events: [], requestMode: 'assistant' },
+          }
+        )
+      ).rejects.toThrow('Recovered execution mode does not match')
+      expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+      expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects organization execution context from a different actor before dispatch', async () => {
+    await expect(
+      runCopilotLifecycle(
+        { mode: 'assistant', message: 'Search' },
+        {
+          userId: 'user-1',
+          organizationId: 'org-1',
+          chatId: 'chat-1',
+          executionContext: {
+            userId: 'other-user',
+            organizationId: 'org-1',
+            chatId: 'chat-1',
+            workflowId: '',
+          },
+        }
+      )
+    ).rejects.toThrow('authenticated scope')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it('refuses a headless chat before worker dispatch when its run cannot be persisted', async () => {
+    mockCreateRunSegment.mockRejectedValueOnce(new Error('database failed with private parameters'))
+
+    await expect(
+      runCopilotLifecycle(
+        { message: 'update the report', messageId: 'stream-headless-admission' },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+    ).rejects.toThrow('Chat could not start because its execution record is unavailable')
+
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+  })
+
+  it('uses the persisted headless identity for tool execution', async () => {
+    let admittedIdentity: { id: string; executionId: string } | undefined
+    mockCreateRunSegment.mockImplementationOnce(async (input) => {
+      admittedIdentity = input
+      return { ...input, status: 'active' }
+    })
+    let executionContext: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _url: string,
+        _request: RequestInit,
+        _streamingContext: StreamingContext,
+        context: ExecutionContext
+      ) => {
+        expect(admittedIdentity).toBeDefined()
+        executionContext = context
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'stream-headless-owned' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+
+    expect(mockCreateRunSegment).toHaveBeenCalledOnce()
+    expect(executionContext?.runId).toBe(admittedIdentity?.id)
+    expect(executionContext?.executionId).toBe(admittedIdentity?.executionId)
+  })
+
+  it('honors pending Stop in headless admission before preparing context or dispatching a model', async () => {
+    mockCreateRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
+    const result = await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'stream-headless-stopped' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+    expect(result).toMatchObject({ success: false, cancelled: true, content: '', toolCalls: [] })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+  })
+
+  it('closes the run it creates for headless work when context preparation fails', async () => {
+    mockPrepareCopilotEnvironmentContext.mockRejectedValueOnce(new Error('context unavailable'))
+    await expect(
+      runCopilotLifecycle(
+        { message: 'read the report', messageId: 'headless-preparation-failure' },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+    ).rejects.toThrow('context unavailable')
+    const runId = mockCreateRunSegment.mock.calls[0]?.[0].id
+    expect(mockUpdateRunStatus).toHaveBeenCalledWith(runId, 'error', {
+      completedAt: expect.any(Date),
+    })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it.each(['complete', 'error', 'cancelled'] as const)(
+    'persists the headless %s outcome before returning',
+    async (status) => {
+      mockRunStreamLoop.mockImplementationOnce(
+        async (_url, _request, context: StreamingContext) => {
+          context.completionStatus = status
+          context.wasAborted = status === 'cancelled'
+          if (status === 'error') context.errors.push('backend failed')
+        }
+      )
+      await runCopilotLifecycle(
+        { message: 'read the report', messageId: `headless-${status}` },
+        { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+      )
+      expect(mockUpdateRunStatus).toHaveBeenCalledWith(
+        mockCreateRunSegment.mock.calls[0]?.[0].id,
+        status,
+        { completedAt: expect.any(Date) }
+      )
+    }
+  )
+
+  it('keeps performed headless work successful when terminal persistence is unavailable', async () => {
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context: StreamingContext) => {
+      context.completionStatus = 'complete'
+    })
+    mockUpdateRunStatus.mockRejectedValueOnce(new Error('database unavailable'))
+    const result = await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'headless-finished' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+    expect(result.success).toBe(true)
+    expect(mockUpdateRunStatus).toHaveBeenCalledOnce()
+  })
+
+  it('does not require a chat run record for a chatless one-shot', async () => {
+    await runCopilotLifecycle(
+      { message: 'summarize the input', messageId: 'stream-chatless' },
+      { userId: 'user-1', workspaceId: 'ws-1', interactive: false }
+    )
+
+    expect(mockCreateRunSegment).not.toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+  })
+
+  it('threads trace provenance through server execution context only', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+    }
+    let capturedExecutionContext: ExecutionContext | undefined
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _url: string,
+        request: RequestInit,
+        _streamingContext: StreamingContext,
+        context: ExecutionContext
+      ) => {
+        capturedExecutionContext = context
+        capturedRequestBody = String(request.body)
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-private-context' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(capturedExecutionContext?.resolvedSecretTraceRegistry).toBe(registry)
+    expect(capturedRequestBody).not.toContain('resolvedSecretTraceRegistry')
+    expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
+    expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
+  })
+
+  it('pins Assistant mode and Search scope over a supplied execution context', async () => {
+    let captured: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+      captured = context
+    })
+    const scope = { source: 'slack', documentIds: ['doc-1'] }
+    await runCopilotLifecycle(
+      { message: 'Summarize', mode: 'assistant', assistantSearch: scope },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: '',
+          requestMode: 'agent',
+          secretActorUserId: 'billing-owner',
+        },
+      }
+    )
+    expect(captured).toMatchObject({
+      requestMode: 'assistant',
+      assistantSearch: scope,
+      secretActorUserId: null,
+    })
+  })
+
+  it.each([
+    { interactive: true, expected: 'interactive' as const },
+    { interactive: false, expected: 'headless' as const },
+    { interactive: undefined, expected: 'headless' as const },
+  ])(
+    'stamps the trusted $expected lifecycle mode over supplied context',
+    async ({ interactive, expected }) => {
+      let capturedExecutionContext: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _url: string,
+          _request: RequestInit,
+          _streamingContext: StreamingContext,
+          context: ExecutionContext
+        ) => {
+          capturedExecutionContext = context
+        }
+      )
+
+      await runCopilotLifecycle(
+        {
+          message: 'hello',
+          messageId: `stream-${expected}-context`,
+          copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          interactive,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+          },
+        }
+      )
+
+      expect(capturedExecutionContext?.copilotInteractionMode).toBe(expected)
+    }
+  )
+
+  it.each([
+    { surface: undefined, expected: 'copilot' },
+    { surface: 'slack' as const, expected: 'slack' },
+  ])(
+    'stamps trusted Search provenance as $expected over payload and context',
+    async ({ surface, expected }) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      const supplied = expected === 'slack' ? 'copilot' : 'slack'
+      await runCopilotLifecycle(
+        { message: 'Search', mode: 'assistant', searchSurface: supplied },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          searchSurface: surface,
+          executionContext: {
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            workflowId: '',
+            searchSurface: supplied,
+          },
+        }
+      )
+      expect(captured?.searchSurface).toBe(expected)
+    }
+  )
+
+  it('forwards the configured Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-system-prompt-override' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody.systemPromptOverride).toBe(
+      'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
+    )
+  })
+
+  it('does not forward a blank Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = '   '
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-blank-system-prompt-override' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody).not.toHaveProperty('systemPromptOverride')
+  })
+
+  it('does not infer model provenance from a dormant environment catalog', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'RUNTIME_TOKEN',
+        plaintext: 'runtime-secret',
+        encryptedValue: 'runtime-ciphertext',
+      },
+    ])
+    mockPrepareCopilotEnvironmentContext.mockResolvedValueOnce({
+      resolvedSecretTraceRegistry: registry,
+    })
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      { message: 'Use runtime-secret', messageId: 'stream-reconstructed-egress' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+      }
+    )
+
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1', {
+      includeSecrets: true,
+    })
+    expect(JSON.parse(capturedRequestBody)).toMatchObject({
+      message: 'Use runtime-secret',
+    })
+  })
+
+  it('preserves ordinary initial Go payload fields that collide with a configured secret', async () => {
+    const secret = 'mothership-secret'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    const payload = {
+      message: `message ${secret} __var_FOREIGN`,
+      messages: [{ role: 'user', content: secret }],
+      context: [{ type: 'resource', content: secret }],
+      contexts: [{ type: 'mcp', content: secret }],
+      workspaceContext: `workspace ${secret}`,
+      integrationTools: [{ name: 'tool', description: secret }],
+      mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
+      fileAttachments: [
+        {
+          name: `${secret}.txt`,
+          key: 'raw-storage-key',
+          source: { type: 'base64', data: 'c2FmZQ==' },
+        },
+      ],
+      workspaceId: 'ws-1',
+      messageId: 'stream-model-projection',
+    }
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(payload, {
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      executionContext: {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+      },
+      resolvedSecretTraceRegistry: registry,
+    })
+
+    const sent = JSON.parse(capturedRequestBody)
+    /** Receipt metadata leaves ordinary caller content unchanged. */
+    expect(sent).not.toHaveProperty('byokApiKey')
+    expect(sent).toEqual({
+      ...payload,
+      receivedTextChars: 0,
+      simConnection: {
+        mode: 'checkpoint',
+        channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    })
+  })
+
+  it('stamps server-owned transport over caller claims without exposing the instance secret', async () => {
+    let captured = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      captured = String(request.body)
+    })
+    await runCopilotLifecycle(
+      { message: 'hello', simConnection: { mode: 'direct' } },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+    expect(JSON.parse(captured).simConnection).toEqual({
+      mode: 'checkpoint',
+      channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
+    expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
+  })
+
+  it.each([false, true])(
+    'attaches BYOK without letting a hidden hosted default override it (advanced=%s)',
+    async (advanced) => {
+      modelSelectorEnabled.mockResolvedValue(advanced)
+      mockResolveEnterpriseByokKey.mockResolvedValueOnce('sk-ant-enterprise-test')
+      const payload = {
+        message: 'hi',
+        workspaceId: 'ws-ent',
+        messageId: 'stream-byok-attach',
+        modelSelection: { model: advanced ? 'claude-opus-5-5' : 'gpt-6-astra', fastMode: false },
+      }
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-ent',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-ent' },
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+      })
+
+      const sent = JSON.parse(capturedRequestBody)
+      expect(sent.byokApiKey).toBe('sk-ant-enterprise-test')
+      if (advanced) expect(sent.modelSelection).toEqual(payload.modelSelection)
+      else expect(sent).not.toHaveProperty('modelSelection')
+    }
+  )
+
+  it('removes a previous key when fresh enterprise resolution returns none', async () => {
+    mockResolveEnterpriseByokKey.mockResolvedValueOnce(null)
+    const payload = {
+      message: 'hi',
+      workspaceId: 'ws-ent',
+      messageId: 'stream-byok-revoked',
+      byokApiKey: 'revoked-key',
+    }
+    await runCopilotLifecycle(payload, {
+      userId: 'user-1',
+      workspaceId: 'ws-ent',
+      executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-ent' },
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    })
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))).not.toHaveProperty(
+      'byokApiKey'
+    )
+  })
+
+  it('preserves large ordinary tool catalogs without scanning configured secret values', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },
+    ])
+    const toolCount = 4_000
+    const propertiesPerTool = 8
+    const integrationTools = Array.from({ length: toolCount }, (_, toolIndex) => {
+      const properties = Object.fromEntries(
+        Array.from({ length: propertiesPerTool }, (_, propertyIndex) => [
+          `field_${propertyIndex}`,
+          {
+            type: 'string',
+            description: `Field ${propertyIndex} for tool ${toolIndex}`,
+          },
+        ])
+      )
+
+      return {
+        name: `tool_${toolIndex}`,
+        description: `Tool ${toolIndex} uses catalog-secret`,
+        input_schema: {
+          type: 'object',
+          properties,
+          required: Object.keys(properties),
+        },
+      }
+    })
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    const result = await runCopilotLifecycle(
+      {
+        message: 'Use the integration catalog',
+        messageId: 'stream-large-tool-catalog',
+        integrationTools,
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.integrationTools).toEqual(integrationTools)
+  })
+
+  it('preserves ordinary JSON and attachment fields when plaintext overlaps its alias', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
+    ])
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'TOKEN',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'TOKEN',
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: 'TOKEN' }),
+            },
+            tool_calls: [
+              {
+                id: 'call-safe',
+                type: 'function',
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: 'TOKEN' }),
+                },
+              },
+            ],
+            files: [{ name: 'TOKEN.txt', context: 'Context TOKEN' }],
+          },
+        ],
+        fileAttachments: [{ name: 'TOKEN.txt', key: 'safe-key' }],
+        workspaceId: 'ws-1',
+        messageId: 'stream-overlapping-alias',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.message).toBe('TOKEN')
+    expect(sent.messages[0]).toMatchObject({
+      content: 'TOKEN',
+      function_call: { arguments: JSON.stringify({ value: 'TOKEN' }) },
+      tool_calls: [
+        {
+          function: { arguments: JSON.stringify({ value: 'TOKEN' }) },
+        },
+      ],
+      files: [
+        {
+          name: 'TOKEN.txt',
+          context: 'Context TOKEN',
+        },
+      ],
+    })
+    expect(sent.fileAttachments).toEqual([{ name: 'TOKEN.txt', key: 'safe-key' }])
+  })
+
+  it.each([
+    { key: 'attachments', includeSafeFile: false },
+    { key: 'attachments', includeSafeFile: true },
+    { key: 'fileAttachments', includeSafeFile: false },
+    { key: 'fileAttachments', includeSafeFile: true },
+  ])(
+    'continues with an error notice for refused $key (mixed=$includeSafeFile)',
+    async ({ key, includeSafeFile }) => {
+      const unsafe = {
+        id: 'wf-private',
+        name: 'private-filename.txt',
+        key: 'private-storage-key',
+        base64: 'private-bytes',
+      }
+      const safe = { id: 'wf-safe', name: 'safe.txt', key: 'workspace/ws-1/safe.txt' }
+      const safeFiles = includeSafeFile ? [safe] : []
+      mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
+      const onError = vi.fn()
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
+        context.accumulatedContent = 'I can continue with the available inputs.'
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      })
+      const payload = {
+        message: 'Review files',
+        [key]: [...safeFiles, unsafe],
+        workspaceId: 'ws-1',
+        messageId: 'stream-file-provenance',
+      }
+      const originalPayload = structuredClone(payload)
+
+      const result = await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        onError,
+      })
+
+      expect(result).toMatchObject({
+        success: true,
+        content: 'I can continue with the available inputs.',
+      })
+      expect(onError).not.toHaveBeenCalled()
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      const sent = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
+      expect(sent.message).toMatch(
+        /^Review files\n\nAttachment error: 1 requested file attachment was not provided/
+      )
+      expect(sent[key] ?? []).toEqual(safeFiles)
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
+        [...safeFiles, unsafe],
+        { workspaceId: 'ws-1' }
+      )
+      expect(payload).toEqual(originalPayload)
+    }
+  )
+
+  it.each(['messages', 'both', 'attachment-only', 'system-only'])(
+    'reports combined attachment refusals in %s payloads without changing history',
+    async (shape) => {
+      const history = {
+        role: 'assistant',
+        content: 'Previous response',
+        tool_calls: [{ id: 'existing-call' }],
+      }
+      const messages =
+        shape === 'system-only'
+          ? [{ role: 'system', content: 'System context' }]
+          : [history, { role: 'user', content: 'Review files' }]
+      const payload = {
+        ...(shape === 'both' ? { message: 'Review files' } : {}),
+        ...(shape === 'attachment-only' ? {} : { messages }),
+        attachments: [{ key: 'private-first-file' }],
+        fileAttachments: [{ key: 'private-second-file' }],
+      }
+      const original = structuredClone(payload)
+      mockFilterModelSafeWorkspaceFileAttachments
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+      mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+      const result = await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+      })
+
+      expect(result.success).toBe(true)
+      const sent = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
+      const notice = 'Attachment error: 2 requested file attachments were not provided'
+      if (shape === 'both' || shape === 'attachment-only') expect(sent.message).toContain(notice)
+      if (shape !== 'attachment-only') {
+        expect(sent.messages[0]).toEqual(messages[0])
+        expect(sent.messages.at(-1)).toMatchObject({
+          role: 'user',
+          content: expect.stringContaining(notice),
+        })
+      }
+      expect(sent).not.toHaveProperty('attachments')
+      expect(sent).not.toHaveProperty('fileAttachments')
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(payload).toEqual(original)
+    }
+  )
+
+  it('rejects when durable attachment provenance cannot be verified', async () => {
+    mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
+
+    const result = await runCopilotLifecycle(
+      {
+        message: 'Continue safely',
+        fileAttachments: [{ id: 'wf-file', name: 'file.txt', key: 'workspace/ws-1/file.txt' }],
+        workspaceId: 'ws-1',
+        messageId: 'stream-file-provenance-failure',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+    })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it.each(['123', 'true'])(
+    'preserves low-entropy configured-secret collisions across Copilot JSON (%s)',
+    async (secret) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      const converted = secret === '123' ? 123 : true
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      const payload = {
+        message: `Message ${secret}`,
+        messages: [
+          {
+            id: secret,
+            role: secret,
+            name: 'assistant-safe',
+            content: `Transcript ${secret}`,
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: secret, converted }),
+            },
+            tool_calls: [
+              {
+                id: secret,
+                type: secret,
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: secret, converted }),
+                },
+              },
+            ],
+            fileAttachments: [
+              {
+                id: secret,
+                key: secret,
+                filename: `${secret}.txt`,
+                media_type: secret,
+              },
+            ],
+            contexts: [{ kind: secret, label: `Label ${secret}`, serverId: secret }],
+            contentBlocks: [
+              {
+                type: secret,
+                content: `Block ${secret}`,
+                toolCall: {
+                  id: secret,
+                  name: 'nested-tool-safe',
+                  state: secret,
+                  params: { value: secret },
+                  result: { success: true, output: { value: secret, converted } },
+                  display: { title: `Title ${secret}` },
+                },
+              },
+            ],
+          },
+        ],
+        context: [
+          { type: secret, tag: secret, path: secret, content: `Unsafe ${secret}` },
+          {
+            type: secret,
+            tag: secret,
+            path: 'files/safe.txt',
+            content: `Context ${secret}`,
+          },
+        ],
+        contexts: [
+          {
+            kind: secret,
+            serverId: secret,
+            label: `Context label ${secret}`,
+          },
+        ],
+        integrationTools: [
+          {
+            name: 'safe_tool',
+            description: `Description ${secret}`,
+            input_schema: {
+              type: 'object',
+              properties: {
+                value: {
+                  type: 'string',
+                  title: `Title ${secret}`,
+                  description: `Field ${secret}`,
+                  enum: ['public'],
+                },
+              },
+              required: ['value'],
+            },
+            params: { runtimeControl: secret },
+            service: secret,
+            operation: secret,
+            oauth: { required: true, provider: secret },
+          },
+          {
+            name: 'unsafe_schema_tool',
+            description: 'Unsafe schema',
+            input_schema: {
+              type: 'object',
+              properties: { [secret]: { type: 'string' } },
+              required: [secret],
+            },
+          },
+          {
+            name: secret,
+            description: 'Unsafe name',
+            input_schema: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+        responseFormat: {
+          name: 'safe_response',
+          schema: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+                description: `Result ${secret}`,
+                enum: ['public'],
+              },
+            },
+            required: ['value'],
+          },
+        },
+        fileAttachments: [
+          {
+            id: secret,
+            name: `${secret}.txt`,
+            key: secret,
+            mimeType: secret,
+          },
+        ],
+        vfs: {
+          workspace: { id: secret, ownerId: secret, name: `Workspace ${secret}` },
+          files: [
+            {
+              id: secret,
+              path: secret,
+              folderPath: secret,
+              type: secret,
+              name: `File ${secret}`,
+            },
+            {
+              id: 'safe-file-id',
+              path: 'files/safe.txt',
+              folderPath: 'files',
+              type: 'text/plain',
+              name: `Safe ${secret}`,
+            },
+          ],
+          mcpServers: [
+            { id: secret, name: `Unsafe ${secret}`, url: `https://${secret}.example` },
+            {
+              id: 'safe-mcp-id',
+              name: `Safe MCP ${secret}`,
+              url: 'https://mcp.example',
+            },
+          ],
+        },
+        userTimezone: secret,
+        userMetadata: {
+          name: `User ${secret}`,
+          email: `owner+${secret}@example.com`,
+          timezone: secret,
+        },
+        desktopCapabilities: {
+          terminal: true,
+          terminals: [
+            {
+              id: secret,
+              cwd: `/workspace/${secret}`,
+              running: `command ${secret}`,
+              active: true,
+            },
+            {
+              id: 'safe-terminal-id',
+              cwd: '/workspace/safe',
+              running: `safe command ${secret}`,
+              active: true,
+            },
+          ],
+          browser: true,
+          browserSessions: [
+            { hostname: secret, evidence: 'cookies', lastObservedAt: '2026-01-01T00:00:00.000Z' },
+            {
+              hostname: 'safe.example',
+              evidence: 'sign-in-completed',
+              lastObservedAt: '2026-02-01T00:00:00.000Z',
+            },
+          ],
+        },
+        workspaceId: 'ws-1',
+        messageId: `stream-low-entropy-${secret}`,
+      }
+
+      await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      })
+
+      const sent = JSON.parse(capturedRequestBody)
+      expect(sent).not.toHaveProperty('byokApiKey')
+      expect(sent).toEqual({
+        ...payload,
+        receivedTextChars: 0,
+        simConnection: {
+          mode: 'checkpoint',
+          channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+        },
+      })
+    }
+  )
+
+  it.each(SCHEMA_CONTROL_KEYS)(
+    'preserves ordinary %s schema controls without scanning configured secret values',
+    async (controlKey) => {
+      const secret = `copilot-schema-control-secret-${controlKey}`
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      const schema = {
+        type: 'object',
+        properties: {},
+        [controlKey]: secret,
+      }
+      const integrationTools = [
+        {
+          name: 'schema_tool',
+          description: 'Schema with an ordinary configured-secret collision',
+          input_schema: schema,
+        },
+        {
+          name: 'safe_tool',
+          description: 'Safe schema',
+          input_schema: { type: 'object', properties: {} },
+        },
+      ]
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(
+        {
+          message: 'Use a safe tool',
+          messageId: `stream-schema-tool-${controlKey}`,
+          integrationTools,
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual(integrationTools)
+
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Use a response schema',
+          messageId: `stream-schema-response-${controlKey}`,
+          responseFormat: { name: 'ordinary_response', schema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.parse(capturedRequestBody).responseFormat).toEqual({
+        name: 'ordinary_response',
+        schema,
+      })
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('does not couple optional Copilot response schemas to secret provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    for (const [index, schema] of [
+      { properties: { field: 'not-a-schema' } },
+      { allOf: new Array(100_001) },
+    ].entries()) {
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Continue safely',
+          messageId: `stream-malformed-response-${index}`,
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.stringify(JSON.parse(capturedRequestBody).responseFormat)).toBe(
+        JSON.stringify({ name: 'unsafe_response', schema })
+      )
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  })
+
+  it.each([
+    ['string', { type: 'string' }],
+    ['true', { type: 'object', nullable: true }],
+  ])(
+    'preserves validated canonical schema controls when an active secret has value %s',
+    async (secret, schema) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', secret)
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(
+        {
+          message: 'Use a safe tool',
+          messageId: `stream-canonical-tool-${secret}`,
+          integrationTools: [
+            {
+              name: 'unsafe_tool',
+              description: 'Unsafe canonical control',
+              input_schema: schema,
+            },
+            {
+              name: 'safe_tool',
+              description: 'Safe schema',
+              input_schema: { type: 'object', properties: {} },
+            },
+          ],
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual([
+        expect.objectContaining({ name: 'unsafe_tool', input_schema: schema }),
+        expect.objectContaining({ name: 'safe_tool' }),
+      ])
+
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Use a response schema',
+          messageId: `stream-canonical-response-${secret}`,
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.parse(capturedRequestBody).responseFormat.schema).toEqual(schema)
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('forwards safe canonical schema controls byte-for-byte to Copilot', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
+    ])
+    const schema = {
+      type: ['object', 'null'],
+      nullable: true,
+      readOnly: false,
+      properties: { value: { type: 'string' } },
+    }
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'Use a safe response schema',
+        messageId: 'stream-safe-canonical-response',
+        responseFormat: { name: 'safe_response', schema },
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(JSON.parse(capturedRequestBody).responseFormat.schema).toEqual(schema)
+  })
+
+  it('does not block ordinary initial Go payloads on unrelated incomplete provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete('unspecified')
+
+    const result = await runCopilotLifecycle(
+      { message: 'possibly secret', messageId: 'stream-incomplete-projection' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))).toMatchObject({
+      message: 'possibly secret',
+      messageId: 'stream-incomplete-projection',
+    })
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+  })
+
+  it('isolates independent headless starts that reuse a client-supplied message ID', async () => {
+    const namespaces: string[] = []
+    const canonicalIds: string[] = []
+    mockRunStreamLoop.mockImplementation(
+      async (_url: string, _options: RequestInit, context: StreamingContext) => {
+        if (!context.providerToolCallIdentity) throw new Error('Identity map not initialized')
+        namespaces.push(context.providerToolCallIdentity.namespace)
+        canonicalIds.push(
+          scopeProviderToolCallId('shared-provider-id', context.providerToolCallIdentity)
+        )
+      }
+    )
+
+    for (const userId of ['first-user', 'second-user']) {
+      const result = await runCopilotLifecycle(
+        { message: 'find files', messageId: 'reused-client-message-id' },
+        {
+          userId,
+          executionContext: { userId, workflowId: '' },
+          interactive: false,
+        }
+      )
+      expect(result.success).toBe(true)
+    }
+
+    expect(namespaces).toHaveLength(2)
+    expect(namespaces[0]).not.toBe(namespaces[1])
+    expect(namespaces).not.toContain('reused-client-message-id')
+    expect(canonicalIds[0]).not.toBe(canonicalIds[1])
+  })
+
+  it('returns the original provider call ID at the shared Go resume boundary', async () => {
+    let canonicalId = ''
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _options: RequestInit, context: StreamingContext) => {
+        expect(context.providerToolCallIdentity).toBeDefined()
+        if (!context.providerToolCallIdentity) throw new Error('Identity map not initialized')
+        canonicalId = scopeProviderToolCallId(
+          'provider-shared-call',
+          context.providerToolCallIdentity
+        )
+        context.toolCalls.set(canonicalId, {
+          id: canonicalId,
+          name: 'glob',
+          status: 'success',
+          result: { success: true, output: { files: [] } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'identity-checkpoint',
+          pendingToolCallIds: [canonicalId],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(async () => {})
+
+    const result = await runCopilotLifecycle(
+      { message: 'find files', messageId: 'identity-stream' },
+      {
+        userId: 'user-1',
+        runId: 'identity-run',
+        executionContext: { userId: 'user-1', workflowId: '' },
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(canonicalId).not.toBe('provider-shared-call')
+    const resumeBody = JSON.parse(String(mockRunStreamLoop.mock.calls[1]?.[1].body))
+    expect(resumeBody.results).toEqual([
+      { callId: 'provider-shared-call', name: 'glob', data: { files: [] }, success: true },
+    ])
+  })
+
+  it('does not resume Go with a canonical ID after its reverse mapping is lost', async () => {
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _options: RequestInit, context: StreamingContext) => {
+        if (!context.providerToolCallIdentity) throw new Error('Identity map not initialized')
+        const canonicalId = scopeProviderToolCallId('call-lost', context.providerToolCallIdentity)
+        context.providerToolCallIdentity.providerIds.clear()
+        context.toolCalls.set(canonicalId, {
+          id: canonicalId,
+          name: 'glob',
+          status: 'success',
+          result: { success: true, output: { files: [] } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'lost-identity-checkpoint',
+          pendingToolCallIds: [canonicalId],
+        }
+      }
+    )
+    const result = await runCopilotLifecycle(
+      { message: 'find files', messageId: 'lost-identity-stream' },
+      {
+        userId: 'user-1',
+        runId: 'lost-identity-run',
+        executionContext: { userId: 'user-1', workflowId: '' },
+      }
+    )
+    expect(result.success).toBe(false)
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+  })
+
+  describe('tool permission feature flag', () => {
+    const runMothershipTurn = () =>
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          goRoute: '/api/mothership',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+
+    it('stays entirely inert while the flag is off', async () => {
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      // Never even reads the preference tables when disabled.
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    it('arms the gate and loads the allow list once the flag is on', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
+      expect(mockGetAutoAllowedTools).toHaveBeenCalledWith('user-1', 'chat-1')
+    })
+
+    /**
+     * The gate itself stays armed — every call still prompts. Only the memory
+     * that would silence it is withheld, and the stored list is not read at
+     * all, so an entry saved before the key was set cannot outlive it.
+     */
+    it('arms the gate but ignores stored auto-allows when the group withholds them', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: true })
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowPermitted).toBe(false)
+      expect(captured?.toolPermissions.autoAllowed.size).toBe(0)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A failed lookup is the endpoint's reading — withheld — not a rejection.
+     * Letting it throw would abort the turn before any card is drawn, over a
+     * database hiccup, on the one surface that has a human to ask.
+     */
+    it('reads a failed capability lookup as withheld instead of aborting the turn', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetUserPermissionConfig.mockRejectedValue(new Error('permission group lookup failed'))
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowPermitted).toBe(false)
+      expect(captured?.toolPermissions.autoAllowed.size).toBe(0)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    it('stays off for the workflow-scoped copilot even with the flag on', async () => {
+      // That panel has no permission card, so gating there would hang the turn
+      // on a prompt nothing draws.
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-flag-2' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          goRoute: '/api/copilot',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+
+      expect(captured?.toolPermissions.enabled).toBe(false)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+  })
+
+  it('runs cancelled completion persistence when a stream throws after abort', async () => {
+    const abortController = new AbortController()
+    const onComplete = vi.fn()
+    const onError = vi.fn()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'partial answer'
+        context.contentBlocks.push({
+          type: 'text',
+          content: 'partial answer',
+          timestamp: 1,
+        })
+        abortController.abort('stop')
+        throw new Error('publisher closed after stop')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: abortController.signal,
+        executionContext,
+        onComplete,
+        onError,
+      }
+    )
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+        chatId: 'chat-1',
+        requestId: undefined,
+        error: 'publisher closed after stop',
+        contentBlocks: [
+          expect.objectContaining({
+            type: 'text',
+            content: 'partial answer',
+          }),
+        ],
+      })
+    )
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+        chatId: 'chat-1',
+        error: 'publisher closed after stop',
+      })
+    )
+  })
+
+  it('returns the cancelled result when cancelled completion persistence fails', async () => {
+    const abortController = new AbortController()
+    const onComplete = vi.fn().mockRejectedValue(new Error('db unavailable'))
+    const onError = vi.fn()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'partial answer'
+        abortController.abort('stop')
+        throw new Error('publisher closed after stop')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: abortController.signal,
+        executionContext,
+        onComplete,
+        onError,
+      }
+    )
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+      })
+    )
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+        error: 'publisher closed after stop',
+      })
+    )
+  })
+
+  it('uses the final post-tool assistant content for headless results', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.Final answer only.'
+        context.finalAssistantContent = 'Final answer only.'
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: 'Final answer only.',
+      })
+    )
+  })
+
+  it('does not fall back to pre-tool narration when headless final content is empty', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.'
+        context.finalAssistantContent = ''
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: '',
+      })
+    )
+  })
+
+  it('does not trust payload userPermission when building the execution context', async () => {
+    let capturedExecContext: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        _context: StreamingContext,
+        execContext: ExecutionContext
+      ): Promise<void> => {
+        capturedExecContext = execContext
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1', userPermission: 'write' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(capturedExecContext).toEqual(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      })
+    )
+    expect(capturedExecContext).not.toHaveProperty('userPermission')
+  })
+
+  it('uses only the trusted lifecycle userPermission option', async () => {
+    let capturedExecContext: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        _context: StreamingContext,
+        execContext: ExecutionContext
+      ): Promise<void> => {
+        capturedExecContext = execContext
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1', userPermission: 'admin' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        userPermission: 'read',
+      }
+    )
+
+    expect(capturedExecContext?.userPermission).toBe('read')
+  })
+
+  it.each([
+    { workspaceId: 'ws-1', organizationId: undefined },
+    { workspaceId: undefined, organizationId: 'org-1' },
+  ])('uses immutable attribution on initial and resume legs for %j', async (owner) => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: owner.workspaceId ?? null,
+      billedAccountUserId: 'owner-1',
+      organizationId: 'org-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+    await runCopilotLifecycle(
+      {
+        message: 'hello',
+        ...(owner.organizationId ? { mode: 'assistant' } : {}),
+        messageId: 'message-1',
+        billingRequestId: 'caller-controlled',
+      },
+      {
+        userId: 'user-1',
+        ...owner,
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution,
+      }
+    )
+
+    const firstHeaders = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+    const billingRequestId = firstHeaders['x-sim-billing-request-id']
+    expect(billingRequestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(billingRequestId).not.toBe('caller-controlled')
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+    for (const call of mockRunStreamLoop.mock.calls) {
+      const body = JSON.parse(String(call[1].body))
+      if (call === mockRunStreamLoop.mock.calls[0]) {
+        expect(body).toMatchObject(
+          owner.organizationId
+            ? { organizationId: owner.organizationId }
+            : { workspaceId: owner.workspaceId }
+        )
+      } else {
+        expect(body).not.toHaveProperty('workspaceId')
+        expect(body).not.toHaveProperty('organizationId')
+        expect(body).not.toHaveProperty('checkpointId')
+      }
+      const headers = call[1].headers as Record<string, string>
+      expect(headers).toMatchObject({
+        'x-api-key': 'sim-agent-key',
+        'x-sim-billing-protocol': 'attribution-v1',
+        'x-sim-billing-request-id': billingRequestId,
+      })
+      expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
+        billingAttribution
+      )
+    }
+  })
+
+  it('cold recovery preserves billing identity and does not read spend again', async () => {
+    const attribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'original-owner',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true })
+    const billingRequestId = generateId()
+    const onBillingAdmission = vi.fn()
+    await runCopilotLifecycle(
+      { mode: 'assistant', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        runId: 'run-1',
+        billingAttribution: { ...attribution, billedAccountUserId: 'new-owner' },
+        recovery: {
+          streamId: 'message-1',
+          events: [],
+          billingAdmission: {
+            billingRequestId,
+            serializedAttribution: encodeURIComponent(JSON.stringify(attribution)),
+          },
+        },
+        onBillingAdmission,
+      }
+    )
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(onBillingAdmission).not.toHaveBeenCalled()
+    expect(continuationAuth).toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    expect(mockRunStreamLoop.mock.calls[0][1].headers['x-sim-billing-request-id']).toBe(
+      billingRequestId
+    )
+    expect(
+      JSON.parse(
+        decodeURIComponent(mockRunStreamLoop.mock.calls[0][1].headers['x-sim-billing-attribution'])
+      )
+    ).toEqual(attribution)
+  })
+
+  it('refuses dispatch at admission when hosted usage limits are exceeded', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'limit reached',
+      scope: 'payer',
+    })
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution,
+      }
+    )
+
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(billingAttribution)
+    expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(result.cancelled).not.toBe(true)
+  })
+
+  it('preserves a resume tool name that collides with a configured secret', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' },
+    ])
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'unsafe-tool',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: {} },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-unsafe-resume-name' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[1]?.[1].body))).toMatchObject({
+      results: [{ callId: 'tool-1', name: 'unsafe-tool', success: true }],
+    })
+  })
+
+  it('rejects hosted work without immutable billing attribution before egress', async () => {
+    setEnvFlags({ isHosted: true })
+
+    await expect(
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'message-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        }
+      )
+    ).rejects.toThrow('Billing attribution is required for hosted Copilot execution')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
+    mockEnv.COPILOT_API_KEY = 'user-or-self-hosted-key'
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1', billingRequestId: 'caller-controlled' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        billingAttribution: {
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
+          billedAccountUserId: 'owner-1',
+          organizationId: null,
+          billingEntity: { type: 'user', id: 'owner-1' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          payerSubscription: null,
+        },
+      }
+    )
+
+    const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+    expect(headers['x-sim-billing-protocol']).toBeUndefined()
+    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+    expect(headers['x-sim-billing-attribution']).toBeUndefined()
+  })
+
+  it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        requestBody = JSON.parse(String(fetchOptions.body))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(requestBody).toEqual(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+      })
+    )
+  })
+
+  it('sends resume identity, results and the received-text count', async () => {
+    const requestBodies: Record<string, unknown>[] = []
+    const fetchUrls: string[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+    expect(requestBodies[1]).toEqual({
+      streamId: 'stream-1',
+      results: [expect.objectContaining({ callId: 'tool-1', success: true })],
+      receivedTextChars: 0,
+    })
+  })
+
+  it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    // 1) Initial stream pauses on an async tool checkpoint with a resolved
+    //    tool result, so the lifecycle transitions into a resume leg.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // 2) First resume leg is refused before the backend takes it: it records an
+    //    error AND throws a retryable 5xx, which releases the claim in Go.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.errors.push('Copilot backend error (503): service unavailable')
+        throw new CopilotBackendError('Copilot backend error (503): service unavailable', {
+          status: 503,
+        })
+      }
+    )
+
+    // 3) Retry of the same resume leg succeeds cleanly.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'Recovered final answer.'
+        context.finalAssistantContent = 'Recovered final answer.'
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    // Three legs ran (initial + failed resume + retried resume), and the
+    // recovered retry must NOT inherit the failed attempt's error.
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(3)
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        errors: undefined,
+      })
+    )
+  })
+
+  it('bounds repeated unavailable responses by the leg timeout', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    // Initial leg pauses on a resolved async tool checkpoint → enters resume.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    /** The third backoff cannot fit inside the one-second budget. */
+    for (let i = 0; i < 3; i++) {
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.errors.push('Copilot backend error (503): service unavailable')
+          throw new CopilotBackendError('Copilot backend error (503): service unavailable', {
+            status: 503,
+          })
+        }
+      )
+    }
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        timeout: 1000,
+      }
+    )
+
+    /** Initial + three failed resume attempts fit within this leg's deadline. */
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
+    /** Recovery never asks the producer to suppress a terminal error. */
+    for (const body of bodies) {
+      expect(body.willRetryOnStreamError).toBeUndefined()
+    }
+  })
+
+  it('keeps the same request and partial response through the allowed reconnects', async () => {
+    vi.useFakeTimers()
+    try {
+      const bodies: Record<string, unknown>[] = []
+      const headers: Headers[] = []
+      for (let attempt = 0; attempt < 3; attempt++) {
+        mockRunStreamLoop.mockImplementationOnce(
+          async (_url, request, context: StreamingContext) => {
+            bodies.push(JSON.parse(String(request.body)))
+            headers.push(new Headers(request.headers))
+            context.accumulatedContent = 'Saved partial answer'
+            context.errors.push('connection interrupted')
+            throw new TypeError('fetch failed')
+          }
+        )
+      }
+      mockRunStreamLoop.mockImplementationOnce(async (_url, request, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(request.body)))
+        headers.push(new Headers(request.headers))
+        context.accumulatedContent += ' recovered'
+        context.streamComplete = true
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      })
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'outage-stream' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          simRequestId: 'outage-request',
+          timeout: 30_000,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(10_000)
+      const result = await pending
+      expect(result).toMatchObject({
+        success: true,
+        cancelled: false,
+        content: 'Saved partial answer recovered',
+      })
+      expect(result.errors).toBeUndefined()
+      expect(bodies).toHaveLength(4)
+      expect(bodies.map((body) => body.messageId)).toEqual(Array(4).fill('outage-stream'))
+      expect(headers.map((header) => header.get('X-Sim-Request-ID'))).toEqual(
+        Array(4).fill('outage-request')
+      )
+      expect(bodies.slice(1).map((body) => body.receivedTextChars)).toEqual(
+        Array(3).fill('Saved partial answer'.length)
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ends an empty-stream outage after the initial attempt and three reconnects', async () => {
+    vi.useFakeTimers()
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        mockRunStreamLoop.mockImplementationOnce(
+          async (_url, _request, context: StreamingContext) => {
+            context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+            throw new StreamEndedWithoutTerminalError('/api/mothership')
+          }
+        )
+      }
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'bounded-outage' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(await pending).toMatchObject({
+        success: false,
+        cancelled: false,
+        errors: [STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE],
+      })
+      expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('honors Stop while waiting to reconnect to the worker', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      mockRunStreamLoop.mockRejectedValueOnce(new TypeError('fetch failed'))
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stopped-outage' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          abortSignal: controller.signal,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(100)
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      controller.abort()
+      expect(await pending).toMatchObject({ success: false, cancelled: true })
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries an initial stream that ended before its checkpoint pause with one request identity', async () => {
+    const headers: Array<Record<string, string>> = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        headers.push(fetchOptions.headers as Record<string, string>)
+        context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+        throw new StreamEndedWithoutTerminalError('/api/mothership')
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        headers.push(fetchOptions.headers as Record<string, string>)
+        context.streamComplete = true
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-initial-retry' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        simRequestId: 'request-initial-retry',
+        executionContext,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(headers.map((value) => value['X-Sim-Request-ID'])).toEqual([
+      'request-initial-retry',
+      'request-initial-retry',
+    ])
+    expect(result).toEqual(
+      expect.objectContaining({ success: true, cancelled: false, errors: undefined })
+    )
+  })
+
+  it('retries an interrupted resume with the same identity and keeps prior content', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'Moved the files and updated the workflow.'
+        context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+        throw new StreamEndedWithoutTerminalError('/api/tools/resume')
+      }
+    )
+
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _options, context) => {
+      context.streamComplete = true
+    })
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(3)
+    expect(result.success).toBe(true)
+    expect(result.cancelled).toBe(false)
+    expect(result.error).toBeUndefined()
+    const firstResume = JSON.parse(String(mockRunStreamLoop.mock.calls[1]?.[1].body))
+    const retriedResume = JSON.parse(String(mockRunStreamLoop.mock.calls[2]?.[1].body))
+    expect(firstResume.receivedTextChars).toBe(0)
+    expect(retriedResume).toEqual({
+      ...firstResume,
+      receivedTextChars: 'Moved the files and updated the workflow.'.length,
+    })
+    // Everything that streamed before the leg died is still the user's answer.
+    expect(result.content).toBe('Moved the files and updated the workflow.')
+  })
+
+  it('resolves the turn normally when the backend completes it after an in-band failure', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.errors.push('Subagent build failed: workflow validation error')
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'The build step failed; here is what I changed anyway.'
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        content: 'The build step failed; here is what I changed anyway.',
+        errors: undefined,
+      })
+    )
+  })
+
+  it('keeps the request failed when the backend terminates the turn as an error', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.errors.push('The provider is overloaded')
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.errors).toEqual(['The provider is overloaded'])
+  })
+
+  it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchUrls: string[] = []
+      const bodies: Record<string, unknown>[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      // Mirror the real helper: settle the tool call into a terminal error
+      // state so the resume loop can serialize an error result for it.
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = 'Tool execution hung'
+        }
+      )
+
+      // Initial leg checkpoints on an async tool whose promise NEVER settles —
+      // the exact shape of the prod incident (claimed, marked running, hung).
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          fetchUrls.push(fetchUrl)
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-hung'],
+          }
+        }
+      )
+
+      // Resume leg completes normally with the error result delivered.
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          fetchUrls.push(fetchUrl)
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.accumulatedContent = 'The file read failed, but here is what I know.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      )
+
+      // Wait budget = watchdog (60s, mocked) + resume grace (30s). Advance past it.
+      await vi.advanceTimersByTimeAsync(91_000)
+      const result = await lifecycle
+
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-hung',
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1' })
+      )
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(bodies[1].results).toEqual([
+        expect.objectContaining({
+          callId: 'tool-hung',
+          name: 'read',
+          success: false,
+          data: { error: expect.stringContaining('hung') },
+        }),
+      ])
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels promptly while a sequential tool promise remains unsettled', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const fetchUrls: string[] = []
+      const captured: { context?: StreamingContext } = {}
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockReturnValue(3_600_000)
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          captured.context = context
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-hung'],
+          }
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-aborted-tool-wait' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+          abortSignal: controller.signal,
+        }
+      )
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockPendingToolWaitBudgetMs).toHaveBeenCalled()
+      controller.abort('user_stop')
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(result.success).toBe(false)
+      expect(result.cancelled).toBe(true)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(captured.context?.toolCalls.get('tool-hung')).toMatchObject({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
+
+      await vi.advanceTimersByTimeAsync(3_700_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('force-fails each hung tool on its own budget while awaiting a long approval', async () => {
+    vi.useFakeTimers()
+    try {
+      let releaseApproval = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
+        toolCall?.status === 'awaiting_approval' ? 3_600_000 : 60_000
+      )
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = 'Tool execution hung'
+        }
+      )
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          const approvalId = 'tool-approval'
+          context.toolCalls.set(approvalId, {
+            id: approvalId,
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set(
+            approvalId,
+            new Promise<{ status: 'success' }>((resolve) => {
+              releaseApproval = () => {
+                const tool = context.toolCalls.get(approvalId)
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { approved: true } }
+                }
+                context.pendingToolPromises.delete(approvalId)
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: [approvalId, 'tool-hung'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after approval.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-hung',
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1' })
+      )
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseApproval()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a stale watchdog fail or delete a replacement promise', async () => {
+    vi.useFakeTimers()
+    try {
+      let capturedContext: StreamingContext | null = null
+      let releaseReplacement = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-replaced', {
+            id: 'tool-replaced',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-replaced'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after the replacement completed.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      if (!capturedContext) throw new Error('Initial stream did not establish its context')
+      const context: StreamingContext = capturedContext
+      const replacement = new Promise<{ status: 'success' }>((resolve) => {
+        releaseReplacement = () => {
+          const tool = context.toolCalls.get('tool-replaced')
+          if (tool) {
+            tool.status = MothershipStreamV1ToolOutcome.success
+            tool.endTime = Date.now()
+            tool.result = { success: true, output: { replacement: true } }
+          }
+          context.pendingToolPromises.delete('tool-replaced')
+          resolve({ status: 'success' })
+        }
+      })
+      context.pendingToolPromises.set('tool-replaced', replacement)
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(context.pendingToolPromises.get('tool-replaced')).toBe(replacement)
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseReplacement()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds a replaced short promise without waiting for a parallel long approval', async () => {
+    vi.useFakeTimers()
+    try {
+      let capturedContext: StreamingContext | null = null
+      let releaseApproval = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
+        toolCall?.status === 'awaiting_approval' ? 3_600_000 : 60_000
+      )
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = 'Tool execution hung'
+        }
+      )
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-approval', {
+            id: 'tool-approval',
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set(
+            'tool-approval',
+            new Promise<{ status: 'success' }>((resolve) => {
+              releaseApproval = () => {
+                const tool = context.toolCalls.get('tool-approval')
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { approved: true } }
+                }
+                context.pendingToolPromises.delete('tool-approval')
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          context.toolCalls.set('tool-replaced', {
+            id: 'tool-replaced',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-approval', 'tool-replaced'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after approval.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      if (!capturedContext) throw new Error('Initial stream did not establish its context')
+      const context: StreamingContext = capturedContext
+      context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(lifecycleSettled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-replaced',
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1' })
+      )
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseApproval()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['main', 'subagent'])(
+    'does not invent a result for an unconfirmed %s tool',
+    async (lane) => {
+      const bodies: Array<Record<string, unknown>> = []
+      mockRunStreamLoop.mockImplementation(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          if (!fetchUrl.includes('/api/tools/resume')) {
+            context.toolCalls.set('tool-unconfirmed', {
+              id: 'tool-unconfirmed',
+              name: 'sim_cli',
+              status: 'executing',
+            })
+            context.awaitingAsyncContinuation = {
+              checkpointId: 'cp-root',
+              pendingToolCallIds: lane === 'main' ? ['tool-unconfirmed'] : [],
+              frames:
+                lane === 'subagent'
+                  ? [
+                      {
+                        parentToolCallId: 'subagent-file',
+                        parentToolName: 'file',
+                        pendingToolIds: ['tool-unconfirmed'],
+                        checkpointId: 'cp-file',
+                      },
+                    ]
+                  : [],
+            }
+            return
+          }
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.streamComplete = true
+          context.completionStatus = MothershipStreamV1CompletionStatus.complete
+        }
+      )
+
+      const result = await runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-missing-subagent-result' },
+        { userId: 'user-1', workspaceId: 'ws-1' }
+      )
+
+      expect(bodies).toHaveLength(0)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('No confirmed result is available')
+      expect(executeToolAndReport).not.toHaveBeenCalled()
+    }
+  )
+
+  it('cancels promptly while a per-subagent tool promise remains unsettled', async () => {
+    const controller = new AbortController()
+    const addAbortListener = vi.spyOn(controller.signal, 'addEventListener')
+    const fetchUrls: string[] = []
+    const captured: { context?: StreamingContext } = {}
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+        fetchUrls.push(fetchUrl)
+        captured.context = context
+        context.toolCalls.set('tool-hung', {
+          id: 'tool-hung',
+          name: 'read',
+          status: 'executing',
+        })
+        context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'cp-root',
+          pendingToolCallIds: ['tool-hung'],
+          frames: [
+            {
+              parentToolCallId: 'subagent-file',
+              parentToolName: 'file',
+              pendingToolIds: ['tool-hung'],
+              checkpointId: 'cp-file',
+            },
+          ],
+        }
+      }
+    )
+
+    const lifecycle = runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-aborted-subagent-wait' },
+      { userId: 'user-1', workspaceId: 'ws-1', abortSignal: controller.signal }
+    )
+
+    await vi.waitFor(() => {
+      expect(addAbortListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true })
+    })
+    controller.abort('user_stop')
+    const result = await lifecycle
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(true)
+    expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+    expect(captured.context?.toolCalls.get('tool-hung')).toMatchObject({
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: 'Stopped by user',
+    })
+  })
+
+  it('classifies a Stop landing during a subagent fanout as cancelled', async () => {
+    // Guards the trap in the fanout fix: `wasAborted` is now isolated per leg, so
+    // a user Stop must still reach the turn — via the abort signal or the folded
+    // turn-level abort — or a cancelled turn would be reported as a success.
+    const controller = new AbortController()
+    mockRunStreamLoop.mockImplementation(
+      async (
+        fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        if (!fetchUrl.includes('/api/tools/resume')) {
+          context.toolCalls.set('tool-done', {
+            id: 'tool-done',
+            name: 'read',
+            status: MothershipStreamV1ToolOutcome.success,
+            result: { success: true },
+            endTime: Date.now(),
+          })
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'cp-root',
+            pendingToolCallIds: [],
+            frames: [
+              {
+                parentToolCallId: 'subagent-file',
+                parentToolName: 'file',
+                pendingToolIds: ['tool-done'],
+                checkpointId: 'cp-file',
+              },
+            ],
+          }
+          return
+        }
+        // The user hits Stop mid-fanout. `wasAborted` is isolated per leg now, so
+        // the turn's own signal is what has to carry the cancellation into the
+        // classification — reading only `context.wasAborted` reports success.
+        controller.abort('user_stop')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-stop-during-fanout' },
+      { userId: 'user-1', workspaceId: 'ws-1', abortSignal: controller.signal }
+    )
+
+    expect(result.cancelled).toBe(true)
+    expect(result.success).toBe(false)
+  })
+})

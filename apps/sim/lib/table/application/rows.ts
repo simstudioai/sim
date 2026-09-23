@@ -10,7 +10,6 @@ import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
@@ -19,6 +18,7 @@ import type {
   Filter,
   ReplaceRowsResult,
   RowData,
+  RowExecutionMetadata,
   RowExecutions,
   Sort,
   SortSpec,
@@ -27,6 +27,7 @@ import type {
   TableRow,
   TableRowSecretProvenanceWrite,
   TableRowsCursor,
+  WorkflowGroup,
 } from '@/lib/table'
 import {
   batchInsertRows,
@@ -71,6 +72,10 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import {
+  getTableQueryAvailability,
+  TABLE_QUERY_UNAVAILABLE_REASON,
+} from '@/lib/table/query-availability'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -105,7 +110,7 @@ export class TableRowsValidationError extends OrchestrationError {
 
 export class TableV2FeatureDisabledError extends OrchestrationError {
   constructor() {
-    super('forbidden', 'The v2 table query API is not enabled for this workspace')
+    super('forbidden', TABLE_QUERY_UNAVAILABLE_REASON)
     this.name = 'TableV2FeatureDisabledError'
   }
 }
@@ -490,13 +495,15 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       if (input.requireV2Feature) {
         const orgId = await getWorkspaceOrganizationId(context.workspaceId)
         if (
-          !(await isFeatureEnabled('tables-v2-api', {
-            // An actorless run has no user to match a per-user rule against, and a
-            // missing one resolves the admin clause to `false` without a query — so
-            // the gate only ever narrows here, never widens.
-            userId: resolvePrincipalSubjectUserId(principal),
-            orgId,
-          }))
+          !(
+            await getTableQueryAvailability({
+              // An actorless run has no user to match a per-user rule against, and a
+              // missing one resolves the admin clause to `false` without a query — so
+              // the gate only ever narrows here, never widens.
+              userId: resolvePrincipalSubjectUserId(principal),
+              orgId,
+            })
+          ).enabled
         ) {
           throw new TableV2FeatureDisabledError()
         }
@@ -677,15 +684,23 @@ export interface ReadTableRowEnrichmentInput extends TableScopedInput {
 }
 
 export interface ReadTableRowEnrichmentResult extends TableResult {
+  /** The stored row, whose cells hold whatever the group's runs have written. */
+  row: TableRowSummary
+  /** The group asked about, resolved from the table schema. */
+  group: WorkflowGroup
+  /** The group's most recent run on this row, or null when it has never run. */
+  runState: RowExecutionMetadata | null
+  /** The enrichment cascade breakdown, or null when none was recorded. */
   detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
 }
 
 /**
- * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
- * cell. Deliberately kept off the hot grid read and fetched on demand by the
- * details panel; `null` for a cell with no recorded run, or a run predating the
- * feature. The row id and group id are validated first so an unknown id 404s
- * instead of being indistinguishable from "no enrichment run yet".
+ * One group's outcome on one row: its run state, the row it wrote into, and
+ * the enrichment cascade breakdown — provider outcomes, cost, timing — kept off
+ * the hot grid read and fetched on demand. The row id and group id are
+ * validated first so an unknown id 404s instead of being indistinguishable
+ * from "no run yet"; a row that exists always answers, with `runState: null`
+ * when the group has never run for it.
  *
  * Shares {@link tableOperations.readRow}: this is a projection of the same row,
  * under the same role, so it is not a second semantic operation.
@@ -695,17 +710,24 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
     resolveActiveTableContext(input),
   async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
-    const rowExists = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
-    if (!rowExists) throw new OrchestrationError('not_found', 'Row not found')
-    const groupExists = (context.table.schema.workflowGroups ?? []).some(
-      (group) => group.id === input.groupId
+    const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
+    if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    const group = (context.table.schema.workflowGroups ?? []).find(
+      (candidate) => candidate.id === input.groupId
     )
-    if (!groupExists) {
+    if (!group) {
       throw new OrchestrationError('not_found', 'Workflow group not found')
     }
+    const [executions, detail] = await Promise.all([
+      loadExecutionsForRow(db, input.rowId, { budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES }),
+      loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+    ])
     return {
       table: context.table,
-      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+      row,
+      group,
+      runState: executions[input.groupId] ?? null,
+      detail,
     }
   },
 })

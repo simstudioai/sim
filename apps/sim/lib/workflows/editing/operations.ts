@@ -3,7 +3,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { isEqual } from 'es-toolkit'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
-import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
@@ -20,6 +20,7 @@ import {
   normalizeTools,
   updateCanonicalModesForInputs,
 } from './builders'
+import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
 import type { EditWorkflowOperation, OperationContext } from './types'
 import { logSkippedItem } from './types'
 import {
@@ -35,9 +36,8 @@ const logger = createLogger('EditWorkflowServerTool')
  */
 function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
   if (params.type === 'loop') {
-    const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
     const loopType =
-      params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
+      params.inputs?.loopType && VALID_LOOP_TYPES.includes(params.inputs.loopType)
         ? params.inputs.loopType
         : 'for'
     block.data = {
@@ -52,9 +52,8 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
         params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
     }
   } else if (params.type === 'parallel') {
-    const validParallelTypes = ['count', 'collection']
     const parallelType =
-      params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
+      params.inputs?.parallelType && VALID_PARALLEL_TYPES.includes(params.inputs.parallelType)
         ? params.inputs.parallelType
         : 'count'
     block.data = {
@@ -111,7 +110,8 @@ function processNestedNodesForParent(
       parentBlockId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
       applyLoopOrParallelContainerData(childBlockState, childBlock)
@@ -207,7 +207,9 @@ function mergeNestedNodesForParent(
         const childValidation = validateInputsForBlock(
           existingBlock.type,
           childBlock.inputs,
-          existingId
+          existingId,
+          buildSubBlockValues(existingBlock.subBlocks),
+          ctx.enforceToolBindingContract
         )
         validationErrors.push(...childValidation.errors)
 
@@ -287,7 +289,8 @@ function mergeNestedNodesForParent(
       parentBlockId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
       applyLoopOrParallelContainerData(childBlockState, childBlock)
@@ -448,7 +451,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     const explicitInputKeys = new Set<string>()
 
     // Validate inputs against block configuration
-    const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
+    const validationResult = validateInputsForBlock(
+      block.type,
+      params.inputs,
+      block_id,
+      buildSubBlockValues(block.subBlocks),
+      ctx.enforceToolBindingContract
+    )
     validationErrors.push(...validationResult.errors)
 
     const isInputAllowed = createSubBlockInputGate({
@@ -845,7 +854,8 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     undefined,
     validationErrors,
     permissionConfig,
-    skippedItems
+    skippedItems,
+    ctx.enforceToolBindingContract
   )
 
   if (params.type === 'loop' || params.type === 'parallel') {
@@ -958,7 +968,13 @@ export function handleInsertIntoSubflowOperation(
     // Update inputs if provided (with validation)
     if (params.inputs) {
       // Validate inputs against block configuration
-      const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
+      const validationResult = validateInputsForBlock(
+        existingBlock.type,
+        params.inputs,
+        block_id,
+        buildSubBlockValues(existingBlock.subBlocks ?? {}),
+        ctx.enforceToolBindingContract
+      )
       validationErrors.push(...validationResult.errors)
 
       const isInputAllowed = createSubBlockInputGate({
@@ -1054,7 +1070,8 @@ export function handleInsertIntoSubflowOperation(
       subflowId,
       validationErrors,
       permissionConfig,
-      skippedItems
+      skippedItems,
+      ctx.enforceToolBindingContract
     )
     modifiedState.blocks[block_id] = newBlock
     if (params.type === 'loop' || params.type === 'parallel') {

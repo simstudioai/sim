@@ -248,6 +248,17 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
   const declarations: OperationDeclaration[] = []
   const unreadable: number[] = []
   const overridable: number[] = []
+  const bindings = new Map<string, OperationDeclaration>()
+  const registryMembers = parseOperationRegistryMembers(source)
+  /** Reused owner policies reference an already-declared operation; unresolved references still fail closed. */
+  function readField(call: string, field: 'id' | 'capability'): string | undefined {
+    const literal = new RegExp(`\\b${field}\\s*:\\s*'([^']+)'`).exec(call)?.[1]
+    if (literal) return literal
+    const reference = new RegExp(
+      `\\b${field}\\s*:\\s*([A-Za-z0-9_$]+(?:\\.[A-Za-z0-9_$]+)*)\\.${field}\\b`
+    ).exec(call)?.[1]
+    return reference ? bindings.get(reference)?.[field] : undefined
+  }
 
   /**
    * Domains that wrap a builder in a same-file factory declare the capability
@@ -299,16 +310,23 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     if (accepted.some(([start, end]) => openIndex > start && openIndex < end)) continue
     const call = balancedGroup(source, openIndex)
     accepted.push([openIndex, openIndex + call.length])
-    const id = /id\s*:\s*'([^']+)'/.exec(call)?.[1]
+    const id = readField(call, 'id')
     if (!id) {
       unreadable.push(lineAt(source, match.index))
       continue
     }
-    declarations.push({
+    const declaration = {
       id,
       line: lineAt(source, match.index),
-      capability: /capability\s*:\s*'([a-z0-9_.]+)'/.exec(call)?.[1],
-    })
+      capability: readField(call, 'capability'),
+    }
+    declarations.push(declaration)
+    const constant = /\bconst\s+([A-Za-z0-9_$]+)\s*=\s*$/.exec(source.slice(0, match.index))?.[1]
+    if (constant) bindings.set(constant, declaration)
+    const member = registryMembers.find(
+      (entry) => declaration.line >= entry.startLine && declaration.line <= entry.endLine
+    )
+    if (member) bindings.set(`${member.registry}.${member.member}`, declaration)
   }
 
   for (const [factory, capability] of factoryCapabilities) {
@@ -489,11 +507,14 @@ export function hasExemptAnnotation(source: string, line: number): boolean {
   for (let back = line - 2; back >= 0 && back >= line - 2 - MAX_ANNOTATION_LOOKBACK; back--) {
     const candidate = lines[back]?.trim() ?? ''
     if (candidate === '') continue
-    if (!candidate.startsWith('//') && !candidate.startsWith('*')) break
+    if (!candidate.startsWith('//') && !candidate.startsWith('*') && !candidate.startsWith('/*'))
+      break
     if (candidate.includes(EXEMPT_ANNOTATION)) {
       return (
-        candidate.slice(candidate.indexOf(EXEMPT_ANNOTATION) + EXEMPT_ANNOTATION.length).trim() !==
-        ''
+        candidate
+          .slice(candidate.indexOf(EXEMPT_ANNOTATION) + EXEMPT_ANNOTATION.length)
+          .replace(/\*\/$/, '')
+          .trim() !== ''
       )
     }
   }

@@ -55,6 +55,7 @@ import {
   createMcpServerUseCase,
   discoverMcpServerToolsUseCase,
   discoverMcpToolsUseCase,
+  getMcpServerUseCase,
   listMcpServersUseCase,
 } from '@/lib/mcp/application/use-cases'
 
@@ -111,6 +112,75 @@ describe('MCP server application use cases', () => {
     mocks.getServer.mockResolvedValue(server)
     mocks.listServers.mockResolvedValue({ data: [server], nextCursorKeys: null })
     mocks.discoverServerTools.mockResolvedValue([])
+  })
+
+  it('resolves a selected organization server through canonical scope and current permissions', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'org-1' })
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { organizationId: 'org-1', serverId: server.id },
+    }
+    await expect(getMcpServerUseCase.execute(args)).resolves.toMatchObject({
+      server: { id: server.id },
+    })
+    expect(mocks.getServer).toHaveBeenCalledWith({ serverId: server.id })
+    expect(mocks.loadContext).toHaveBeenCalledWith(server.workspaceId)
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'forbidden' })
+  })
+  it('conceals an organization-selected server in another organization before discovery', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'other' })
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { organizationId: 'org-1', serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+  it('reads disabled registration state without discovery or mutation', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...server, enabled: false })
+    mocks.resolvePermission.mockResolvedValueOnce('read')
+    const result = await getMcpServerUseCase.execute({
+      principal: { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
+      input: { workspaceId: workspace.workspaceId, serverId: server.id },
+    })
+    expect(result.server.enabled).toBe(false)
+    expect(mocks.getServer).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: workspace.workspaceId,
+      serverId: server.id,
+    })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'reader',
+      workspace.workspaceId,
+      null,
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+    expect(mocks.effects).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('does not return registration details after access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('distinguishes an absent scoped registration from a lookup outage', async () => {
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { workspaceId: workspace.workspaceId, serverId: 'foreign' },
+    }
+    mocks.getServer.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'not_found' })
+    mocks.getServer.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(getMcpServerUseCase.execute(args)).rejects.toThrow('database unavailable')
   })
 
   it('keeps strict creation, compatibility attribution, audit, and effects in order', async () => {

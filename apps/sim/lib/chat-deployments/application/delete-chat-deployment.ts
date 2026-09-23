@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   assertedChatDeploymentWorkspaceId,
   resolveActiveChatDeploymentApplicationContext,
@@ -38,7 +39,7 @@ export const deleteChatDeployment = defineAuthorizedWorkspaceUseCase({
       chatDeploymentId: input.chatDeploymentId,
       assertedWorkspaceId: assertedChatDeploymentWorkspaceId(principal, input.assertedWorkspaceId),
     }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, context }) {
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
