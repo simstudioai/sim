@@ -21,9 +21,13 @@ const PAGES: Record<string, string> = {
   '/login': '<!doctype html><html><body><h1 id="login">fixture-login</h1></body></html>',
 }
 
+/** `User-Agent` of every request the fixture origin has served, in arrival order. */
+const requestUserAgents: string[] = []
+
 function startFixtureServer(): Promise<{ server: Server; origin: string }> {
   return new Promise((resolvePromise) => {
     const server = createServer((request, response) => {
+      requestUserAgents.push(request.headers['user-agent'] ?? '')
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
       const sessionCookie = request.headers.cookie
         ?.split(';')
@@ -83,6 +87,21 @@ test.describe('desktop shell smoke', () => {
     const window = await app.firstWindow()
     await expect(window.locator('#app')).toHaveText('fixture-app')
     expect(window.url()).toBe(`${origin}/home`)
+  })
+
+  test('presents one stock Chrome user agent on every request from the first load', async () => {
+    requestUserAgents.length = 0
+    app = await launchApp(origin)
+    const window = await app.firstWindow()
+    await expect(window.locator('#app')).toHaveText('fixture-app')
+    await window.evaluate(() => fetch('/home').then((response) => response.text()))
+
+    const pageUserAgent = await window.evaluate(() => navigator.userAgent)
+    expect(pageUserAgent).toMatch(
+      /^Mozilla\/5\.0 \(.+\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/
+    )
+    expect(requestUserAgents.length).toBeGreaterThanOrEqual(2)
+    expect(new Set(requestUserAgents)).toEqual(new Set([pageUserAgent]))
   })
 
   test('internal window.open creates an independent full Sim window', async () => {
