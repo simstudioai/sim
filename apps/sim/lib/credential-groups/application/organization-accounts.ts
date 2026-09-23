@@ -21,10 +21,12 @@ import {
 } from '@/lib/credential-groups/enrollment-links'
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   ensureWorkspaceAccountsGroup,
   getOrganizationAccountsGroup,
@@ -239,7 +241,11 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     input,
     context,
   }: {
-    input: OrganizationAccountsInput & StartOrganizationAccountConnectionBody
+    input: OrganizationAccountsInput &
+      StartOrganizationAccountConnectionBody & {
+        oauthCompletionId?: string
+        connectionIntent?: CredentialGroupConnectionIntent
+      }
     context: OrganizationMembershipContext
   }) {
     const group = await getOrganizationAccountsGroup(context.organizationId)
@@ -262,6 +268,16 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
       !group.options.some((option) => option.id === input.optionId && option.status === 'active')
     ) {
       throw new OrchestrationError('not_found', 'This account option is no longer available')
+    }
+    if (input.oauthCompletionId) {
+      return startViewerCredentialGroupOAuth({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        credentialGroupId: group.id,
+        optionId: input.optionId,
+        completionId: input.oauthCompletionId,
+        connectionIntent: input.connectionIntent,
+      })
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({
       organizationId: context.organizationId,

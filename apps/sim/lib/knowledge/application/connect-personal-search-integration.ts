@@ -1,3 +1,4 @@
+import { startOrganizationAccountConnection } from '@/lib/credential-groups/application/organization-accounts'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -19,6 +20,25 @@ export const connectPersonalSearchIntegration = defineAuthorizedKnowledgeUseCase
     resolveKnowledgeOrganizationContext(input),
   async execute({ principal, input, request }) {
     const { target } = await resolvePersonalSearchConnection.execute({ principal, input })
+    if (target.connectionMode === 'live' && target.optionId) {
+      const result = await startOrganizationAccountConnection.execute({
+        principal,
+        request,
+        input: {
+          organizationId: input.organizationId,
+          optionId: target.optionId,
+          oauthCompletionId: input.oauthCompletionId,
+          connectionIntent: target.credentialId
+            ? { kind: 'reconnect', credentialId: target.credentialId }
+            : { kind: 'create' },
+        },
+      })
+      return {
+        url: result.authorizationUrl ?? result.invitationLink,
+        connectorId: undefined,
+        knowledgeBaseId: undefined,
+      }
+    }
     return connectSimSearchConnector.execute({
       principal,
       request,

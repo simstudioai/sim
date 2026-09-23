@@ -1476,3 +1476,17 @@ describe('source tag', () => {
     expect(hasPendingTag).toBe(true)
   })
 })
+
+it('renders a live Slack credential target as a visible Search connection card', () => {
+  const item = {
+    type: 'link',
+    provider: 'slack',
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+  } as const
+  const text = `Connect your Slack account below.\n<credential>${JSON.stringify(item)}</credential>`
+  const parsed = parseLastCredentialTag(text)
+  expect(parsed).toEqual([item])
+  expect(credentialTagHasVisibleCard(parsed!, false, 'assistant')).toBe(true)
+})

@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { user } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -9,7 +9,23 @@ const m = vi.hoisted(() => ({
   configuredTypes: vi.fn(),
   approvals: vi.fn(),
   availability: vi.fn(),
+  group: vi.fn(),
+  accounts: vi.fn(),
+  scoped: vi.fn(),
+  completion: vi.fn(),
 }))
+vi.mock('@/lib/credential-groups/service', () => ({ getOrganizationAccountsGroup: m.group }))
+vi.mock('@/lib/credential-groups/viewer-accounts', () => ({
+  listViewerOrganizationAccounts: m.accounts,
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: m.scoped,
+}))
+vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
+  readSearchConnectionCompletion: m.completion,
+}))
+vi.mock('@/lib/oauth/utils', () => ({ providerIdsForService: (id: string) => [id] }))
+
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: m.authorize,
 }))
@@ -78,6 +94,17 @@ const source = {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  resetEnvFlagsMock()
+  m.scoped.mockResolvedValue(true)
+  m.group.mockResolvedValue({
+    id: 'group',
+    status: 'active',
+    options: [
+      { id: 'slack-option', provider: 'slack', status: 'active', configurationStatus: 'ready' },
+    ],
+  })
+  m.accounts.mockResolvedValue([])
+  m.completion.mockResolvedValue(null)
   queueTableRows(user, [{ emailVerified: true }])
   m.authorize.mockResolvedValue(undefined)
   m.sources.mockResolvedValue({ sources: [source], nextCursor: null })
@@ -186,5 +213,118 @@ describe('personal Search inventory', () => {
     await expect(
       resolvePersonalSearchConnection.execute({ principal, input: { ...input, target: selected } })
     ).resolves.toEqual({ name: 'gmail', target: selected })
+  })
+})
+
+describe('live Search connection controls', () => {
+  const liveTarget = {
+    type: 'link',
+    provider: 'slack',
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+  } as const
+  beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: true }))
+
+  it('offers Slack without a knowledge base or indexed connector and round-trips the response', async () => {
+    const result = await listPersonalSearchIntegrations.execute({ principal, input })
+    expect(result.available).toEqual([{ name: 'slack', description: '', target: liveTarget }])
+    expect(result.connections).toEqual([])
+    expect(personalSearchIntegrationPageSchema.parse(result)).toEqual(result)
+    expect(m.sources).not.toHaveBeenCalled()
+    expect(m.configuredTypes).not.toHaveBeenCalled()
+    expect(m.accounts).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org', userId: 'person' })
+    )
+  })
+
+  it('keeps adding an account distinct from reconnecting an owned account', async () => {
+    m.accounts.mockResolvedValue([
+      { optionId: 'slack-option', credentialId: 'mine', displayName: 'My Slack', status: 'active' },
+    ])
+    const result = await listPersonalSearchIntegrations.execute({ principal, input })
+    expect(result.available[0].target).toEqual(liveTarget)
+    expect(result.connections[0].accounts[0].action).toEqual({
+      ...liveTarget,
+      credentialId: 'mine',
+    })
+    expect(result.connections[0].indexingStatus).toBeUndefined()
+    expect(personalSearchIntegrationPageSchema.safeParse(result).success).toBe(true)
+  })
+
+  it.each([
+    { ...liveTarget, credentialId: 'another-person' },
+    { ...liveTarget, optionId: 'another-option' },
+    { ...liveTarget, provider: 'gmail' },
+    { ...liveTarget, connectionMode: undefined, optionId: undefined },
+  ])('rejects a forged or stale live target: %j', async (target) => {
+    await expect(
+      resolvePersonalSearchConnection.execute({ principal, input: { ...input, target } })
+    ).rejects.toThrow('no longer available')
+  })
+
+  it.each(['disabled', 'unconfigured', 'unapproved', 'unverified', 'missing'])(
+    'withholds connection controls when %s',
+    async (state) => {
+      if (state === 'disabled')
+        m.group.mockResolvedValue({
+          id: 'group',
+          status: 'disabled',
+          options: [
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              status: 'active',
+              configurationStatus: 'ready',
+            },
+          ],
+        })
+      if (state === 'unconfigured')
+        m.group.mockResolvedValue({
+          id: 'group',
+          status: 'active',
+          options: [
+            {
+              id: 'slack-option',
+              provider: 'slack',
+              status: 'active',
+              configurationStatus: 'missing',
+            },
+          ],
+        })
+      if (state === 'unapproved') m.approvals.mockResolvedValue(new Map())
+      if (state === 'missing') m.group.mockResolvedValue(null)
+      if (state === 'unverified') {
+        resetDbChainMock()
+        queueTableRows(user, [{ emailVerified: false }])
+      }
+      expect(
+        (await listPersonalSearchIntegrations.execute({ principal, input })).available
+      ).toEqual([])
+    }
+  )
+
+  it('reads completion only in the current organization and user scope', async () => {
+    m.completion.mockResolvedValue('mine')
+    const result = await listPersonalSearchIntegrations.execute({
+      principal,
+      input: { ...input, completionId: 'attempt' },
+    })
+    expect(result.completedCredentialId).toBe('mine')
+    expect(m.completion).toHaveBeenCalledWith({
+      organizationId: 'org',
+      userId: 'person',
+      completionId: 'attempt',
+    })
+  })
+
+  it('rejects an indexed source target after switching to live search', async () => {
+    await expect(
+      listPersonalSearchIntegrations.execute({
+        principal,
+        input: { ...input, connectorId: 'stale-source' },
+      })
+    ).rejects.toThrow('Refresh your live account connections')
+    expect(m.group).not.toHaveBeenCalled()
   })
 })

@@ -36,19 +36,30 @@ export async function loadCopilotSearchIntegrations(
   await authorizeOrganizationChatDelegation.execute({ principal })
 
   if (isLiveEnterpriseSearchEnabled) {
-    const inventory = await listLiveSearchAccounts.execute({
-      principal,
-      input: { organizationId: context.organizationId },
-    })
-    return JSON.stringify({
+    const [inventory, connections] = await Promise.all([
+      listLiveSearchAccounts.execute({
+        principal,
+        input: { organizationId: context.organizationId },
+      }),
+      listPersonalSearchIntegrations.execute({
+        principal,
+        input: { organizationId: context.organizationId },
+      }),
+    ])
+    context.signal?.throwIfAborted()
+    const result = JSON.stringify({
       ...inventory,
-      connectionPath: `/o/${encodeURIComponent(context.organizationId)}/integrations`,
+      connections: connections.connections,
+      available: connections.available,
       connectionGuidance:
-        'Use this member integrations page to connect or reconnect accounts. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
+        'Offer the exact available target or account action in a terminal <credential> tag to connect or reconnect in chat. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
     })
+    if (Buffer.byteLength(result) > MAX_INVENTORY_BYTES)
+      throw new Error('Search integration inventory exceeds the prompt size limit')
+    return result
   }
 
-  const connections: IntegrationInventory['connections'] = []
+  const connections: Array<IntegrationInventory['connections'][number]> = []
   const available = new Map<string, IntegrationInventory['available'][number]>()
   const cursors = new Set<string>()
   let cursor: string | undefined

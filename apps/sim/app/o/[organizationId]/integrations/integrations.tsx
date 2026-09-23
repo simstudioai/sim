@@ -43,7 +43,7 @@ export function OrganizationIntegrations({
         )
       }
     >
-      {!features.liveEnterpriseSearch && connectionRequest && (
+      {connectionRequest && (
         <SearchIntegrationConnection
           organizationId={organization.id}
           {...connectionRequest}

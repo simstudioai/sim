@@ -17,7 +17,14 @@ const m = vi.hoisted(() => ({
   }>,
   queryError: null as Error | null,
   requestedTarget: undefined as
-    | { type: 'link'; provider: string; connectorType: string; connectorId?: string }
+    | {
+        type: 'link'
+        provider: string
+        connectorType: string
+        connectorId?: string
+        connectionMode?: 'live'
+        optionId?: string
+      }
     | undefined,
 }))
 const target = {
@@ -34,7 +41,9 @@ vi.mock('@/hooks/queries/personal-search-integrations', () => ({
   usePersonalSearchIntegrations: (query: { completionId?: string }) => ({
     data: {
       connections: [{ accounts: m.accounts }],
-      available: [{ target }],
+      available: [
+        { target: m.requestedTarget?.connectionMode === 'live' ? m.requestedTarget : target },
+      ],
       completedCredentialId: m.receipts.get(query.completionId ?? '') ?? null,
     },
     isSuccess: !m.queryError,
@@ -281,4 +290,30 @@ describe('Search connection card lifecycle', () => {
     expect(connection().pending).toBe(false)
     expect(connection().error).toContain('timed out')
   })
+})
+
+it('completes a live connection using its receipt without an indexed source', async () => {
+  m.requestedTarget = {
+    type: 'link',
+    provider: 'slack',
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+  }
+  m.mutate.mockResolvedValue({ url: 'https://provider.test/authorize' })
+  render()
+  expect(connection().available).toBe(true)
+  await act(async () => {
+    await connection().connect()
+  })
+  const request = m.mutate.mock.calls[0][0]
+  expect(request.target).toEqual(m.requestedTarget)
+  expect(connection().connected).toBe(false)
+  m.accounts = [{ credentialId: 'new-account', status: 'connected' }]
+  render()
+  expect(connection().connected).toBe(false)
+  m.receipts.set(request.oauthCompletionId, 'new-account')
+  render()
+  expect(connection().connected).toBe(true)
+  expect(m.connected).toHaveBeenCalled()
 })

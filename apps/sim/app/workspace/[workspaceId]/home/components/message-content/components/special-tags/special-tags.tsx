@@ -184,6 +184,8 @@ export interface CredentialItemData {
   /** Canonical Search source requested by an organization connection control. */
   connectorType?: string
   connectorId?: string
+  connectionMode?: 'live'
+  optionId?: string
 }
 
 /**

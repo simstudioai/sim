@@ -54,40 +54,45 @@ describe('executeOAuthGetAuthLink', () => {
     })
   })
 
-  it('returns the exact organization connection control without workspace authority', async () => {
-    const target = {
-      type: 'link',
-      provider: 'google-email',
-      connectorType: 'gmail',
-      connectorId: 'source',
-      credentialId: 'own',
+  it.each(['indexed', 'live'])(
+    'returns the exact %s organization connection control without workspace authority',
+    async (mode) => {
+      const target = {
+        type: 'link',
+        provider: 'google-email',
+        connectorType: 'gmail',
+        ...(mode === 'live'
+          ? { connectionMode: 'live', optionId: 'option' }
+          : { connectorId: 'source' }),
+        credentialId: 'own',
+      }
+      mocks.executeOrganization.mockResolvedValue({
+        provider: 'Gmail',
+        providerId: 'google-email',
+        target,
+      })
+      const organizationContext = {
+        ...context,
+        workflowId: '',
+        workspaceId: undefined,
+        organizationId: 'org',
+        requestMode: 'assistant',
+      }
+      const result = await executeOAuthGetAuthLink(
+        { providerName: 'Gmail', credentialId: 'own' },
+        organizationContext
+      )
+      expect(mocks.executeOrganization).toHaveBeenCalledWith(
+        organizationContext,
+        useCases.prepareOrganization,
+        { providerName: 'Gmail', credentialId: 'own' }
+      )
+      expect(result.output).toMatchObject({
+        instructions: expect.stringContaining(`<credential>${JSON.stringify(target)}</credential>`),
+      })
+      expect(mocks.execute).not.toHaveBeenCalled()
     }
-    mocks.executeOrganization.mockResolvedValue({
-      provider: 'Gmail',
-      providerId: 'google-email',
-      target,
-    })
-    const organizationContext = {
-      ...context,
-      workflowId: '',
-      workspaceId: undefined,
-      organizationId: 'org',
-      requestMode: 'assistant',
-    }
-    const result = await executeOAuthGetAuthLink(
-      { providerName: 'Gmail', credentialId: 'own' },
-      organizationContext
-    )
-    expect(mocks.executeOrganization).toHaveBeenCalledWith(
-      organizationContext,
-      useCases.prepareOrganization,
-      { providerName: 'Gmail', credentialId: 'own' }
-    )
-    expect(result.output).toMatchObject({
-      instructions: expect.stringContaining(`<credential>${JSON.stringify(target)}</credential>`),
-    })
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
+  )
 
   it('uses the credential application adapter for a new connection', async () => {
     const result = await executeOAuthGetAuthLink({ providerName: 'gmail' }, context)

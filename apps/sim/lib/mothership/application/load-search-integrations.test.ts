@@ -1,11 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authorizeChat, listIntegrations } = vi.hoisted(() => ({
+const { authorizeChat, listIntegrations, liveAccounts } = vi.hoisted(() => ({
   authorizeChat: vi.fn(),
+  liveAccounts: vi.fn(),
   listIntegrations: vi.fn(),
+}))
+
+vi.mock('@/lib/sim-search/live/application', () => ({
+  listLiveSearchAccounts: { execute: liveAccounts },
 }))
 
 vi.mock('@/lib/mothership/chat/organization-chats', () => ({
@@ -36,6 +42,7 @@ const emptyPage: InventoryPage = {
 describe('loadCopilotSearchIntegrations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     authorizeChat.mockResolvedValue(undefined)
     listIntegrations.mockResolvedValue(emptyPage)
   })
@@ -59,6 +66,34 @@ describe('loadCopilotSearchIntegrations', () => {
     expect(authorizeChat.mock.invocationCallOrder[0]).toBeLessThan(
       listIntegrations.mock.invocationCallOrder[0]
     )
+  })
+
+  it('includes exact live connection targets alongside current provider search accounts', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const target = {
+      type: 'link',
+      provider: 'slack',
+      connectorType: 'slack',
+      connectionMode: 'live',
+      optionId: 'slack-option',
+    }
+    listIntegrations.mockResolvedValue({
+      ...emptyPage,
+      available: [{ name: 'Slack', description: '', target }],
+    })
+    liveAccounts.mockResolvedValue({
+      backend: 'live',
+      accounts: [],
+      guidance: 'Search current sources',
+    })
+    const result = JSON.parse(await loadCopilotSearchIntegrations(context))
+    expect(result).toMatchObject({ backend: 'live', accounts: [], available: [{ target }] })
+    expect(result.connectionGuidance).toContain('<credential>')
+    expect(result).not.toHaveProperty('connectionPath')
+    expect(listIntegrations).toHaveBeenCalledWith({
+      principal: authorizeChat.mock.calls[0][0].principal,
+      input: { organizationId: 'org-1' },
+    })
   })
 
   it('loads every page and preserves account status and exact connection controls', async () => {

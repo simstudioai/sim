@@ -33,16 +33,6 @@ export async function executeOAuthGetAuthLink(
         prepareOrganizationPersonalConnection,
         { providerName, credentialId }
       )
-      if ('settingsPath' in result) {
-        return {
-          success: true,
-          output: {
-            message: 'Connect or reconnect your accounts in Integrations.',
-            url: result.settingsPath,
-            instructions: `Offer the exact link [Integrations](${result.settingsPath}). Account setup happens on this page.`,
-          },
-        }
-      }
       return {
         success: true,
         output: {

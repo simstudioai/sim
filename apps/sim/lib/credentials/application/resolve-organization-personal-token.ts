@@ -179,21 +179,6 @@ export const prepareOrganizationPersonalConnection = {
       organizationPersonalConnectionOperation,
       input
     )
-    if (isLiveEnterpriseSearchEnabled) {
-      if (input.credentialId) {
-        const accounts = await listLiveAccounts(
-          { organizationId: context.organizationId },
-          context.userId
-        )
-        if (!accounts.some((account) => account.id === input.credentialId))
-          throw new OrchestrationError('not_found', 'Personal account not found')
-      }
-      return {
-        provider: input.providerName,
-        providerId: input.providerName,
-        settingsPath: `/o/${encodeURIComponent(context.organizationId)}/integrations`,
-      }
-    }
     const requested = input.providerName.toLowerCase().trim()
     const connector = SEARCH_CONNECTORS.find((entry) =>
       [

@@ -123,7 +123,12 @@ describe('organization personal token authorization', () => {
       { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
     ])
     mocks.policies.mockResolvedValue({
-      drive: { ...defaultLiveSearchPolicy(), mode: 'selected', included: ['folder'] },
+      drive: {
+        ...defaultLiveSearchPolicy(),
+        accessMode: 'service_account',
+        mode: 'selected',
+        included: ['folder'],
+      },
     })
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
       'Use search_workspace'
@@ -229,6 +234,29 @@ describe('organization personal token authorization', () => {
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
       'insufficient scopes'
     )
+  })
+
+  it('returns the live account target for a connection request without an indexed source', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const target = {
+      type: 'link',
+      provider: 'google-drive',
+      connectorType: 'drive',
+      connectionMode: 'live',
+      optionId: 'option',
+    }
+    mocks.inventory.mockResolvedValue({
+      connections: [],
+      available: [{ target }],
+      nextCursor: null,
+    })
+    const result = await prepareOrganizationPersonalConnection.execute({
+      principal,
+      input: { organizationId: 'org', providerName: 'Google Drive' },
+    })
+    expect(result).toEqual({ provider: 'Google Drive', providerId: 'google-drive', target })
+    expect(result).not.toHaveProperty('settingsPath')
+    expect(mocks.liveAccounts).not.toHaveBeenCalled()
   })
 
   it('finds an exact reconnect control on a later inventory page', async () => {
