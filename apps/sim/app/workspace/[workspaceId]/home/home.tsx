@@ -21,6 +21,7 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { ChatFileDropZone } from '@/app/workspace/[workspaceId]/home/components/chat-file-drop-zone'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
@@ -431,7 +432,10 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           </div>
         )}
         {showEmptyState ? (
-          <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
+          <ChatFileDropZone
+            className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'
+            onFilesDrop={(files) => initialViewUserInputRef.current?.attachFiles(files)}
+          >
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
             <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
               <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
@@ -464,7 +468,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                 </div>
               </div>
             </div>
-          </div>
+          </ChatFileDropZone>
         ) : (
           <MothershipChat
             workspaceId={workspaceId}

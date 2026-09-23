@@ -18,6 +18,7 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/rea
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
+import { ChatFileDropZone } from '@/app/workspace/[workspaceId]/home/components/chat-file-drop-zone'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -814,7 +815,14 @@ export function MothershipChat({
       onContextRemove={onContextRemove}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
-      <div className={cn('flex h-full min-h-0 flex-col', className)}>
+      <ChatFileDropZone
+        className={cn('flex h-full min-h-0 flex-col', className)}
+        onFilesDrop={
+          !isLoading && composer == null
+            ? (files) => userInputRef.current?.attachFiles(files)
+            : undefined
+        }
+      >
         <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
@@ -909,7 +917,7 @@ export function MothershipChat({
               ))}
           </div>
         </div>
-      </div>
+      </ChatFileDropZone>
     </ChatSurfaceProvider>
   )
 }

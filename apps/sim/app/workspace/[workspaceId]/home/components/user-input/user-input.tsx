@@ -68,6 +68,8 @@ interface UserInputProps {
 }
 
 export interface UserInputHandle {
+  /** Attaches files dropped on the surrounding chat panel without submitting. */
+  attachFiles: (files: FileList) => void
   loadQueuedMessage: (msg: QueuedMessage) => void
   /** Populates the textarea with a CURATED prompt (suggested action, template,
    * etc. — never free-form user prose), running it through `mentionifyIntegrations`
@@ -337,6 +339,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   useImperativeHandle(
     ref,
     () => ({
+      attachFiles: (fileList: FileList) => {
+        void filesRef.current.processFiles(fileList)
+        requestAnimationFrame(() => textareaRef.current?.focus())
+      },
       loadQueuedMessage: (msg: QueuedMessage) => {
         const currentEditor = editorRef.current
         currentEditor.setValue(msg.content)
@@ -364,7 +370,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         editorRef.current.focusAtEnd()
       },
     }),
-    []
+    [textareaRef]
   )
 
   const handleFileSelectStable = useCallback(() => {

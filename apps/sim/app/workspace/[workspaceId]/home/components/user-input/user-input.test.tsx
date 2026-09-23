@@ -5,12 +5,14 @@ import { act, createRef } from 'react'
 import { NuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatFileDropZone } from '@/app/workspace/[workspaceId]/home/components/chat-file-drop-zone'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-const { mockSubmit, mockResetTranscript } = vi.hoisted(() => ({
+const { mockSubmit, mockResetTranscript, mockProcessFiles } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
   mockResetTranscript: vi.fn(),
+  mockProcessFiles: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -49,6 +51,7 @@ vi.mock(
         >([])
         return {
           attachedFiles,
+          processFiles: mockProcessFiles,
           restoreAttachedFiles,
           clearAttachedFiles: () => restoreAttachedFiles([]),
           fileInputRef: useRef<HTMLInputElement>(null),
@@ -122,13 +125,16 @@ function mount() {
         >
           Edit queued
         </button>
-        <UserInput
-          ref={inputRef}
-          defaultValue='Initial draft'
-          onSubmit={mockSubmit}
-          isSending={false}
-          onStopGeneration={vi.fn()}
-        />
+        <ChatFileDropZone onFilesDrop={(files) => inputRef.current?.attachFiles(files)}>
+          <div data-testid='transcript'>Conversation</div>
+          <UserInput
+            ref={inputRef}
+            defaultValue='Initial draft'
+            onSubmit={mockSubmit}
+            isSending={false}
+            onStopGeneration={vi.fn()}
+          />
+        </ChatFileDropZone>
       </>
     )
   }
@@ -168,9 +174,12 @@ async function clickButton(label: string) {
 }
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+  })
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   mockSubmit.mockClear()
+  mockProcessFiles.mockClear()
   mockUrlUpdate.mockClear()
   mockResetTranscript.mockClear()
 })
@@ -184,6 +193,29 @@ afterEach(() => {
 })
 
 describe('workspace composer', () => {
+  it.each(['transcript', 'composer'])(
+    'attaches a drop on the %s once, preserving the draft and caret without sending',
+    async (target) => {
+      mount()
+      textarea().setSelectionRange(3, 6)
+      const files = [new File(['image'], 'screenshot.png', { type: 'image/png' })]
+      const event = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files } })
+      const dropTarget =
+        target === 'composer' ? textarea() : container!.querySelector('[data-testid="transcript"]')!
+      await act(async () => {
+        dropTarget.dispatchEvent(event)
+        await vi.advanceTimersByTimeAsync(20)
+      })
+      expect(mockProcessFiles).toHaveBeenCalledExactlyOnceWith(files)
+      expect(document.activeElement).toBe(textarea())
+      expect(textarea().value).toBe('Initial draft')
+      expect(textarea().selectionStart).toBe(3)
+      expect(textarea().selectionEnd).toBe(6)
+      expect(mockSubmit).not.toHaveBeenCalled()
+    }
+  )
+
   it('keeps workspace controls and ignores legacy search-mode URLs', () => {
     mount()
     expect(textarea().value).toBe('Initial draft')

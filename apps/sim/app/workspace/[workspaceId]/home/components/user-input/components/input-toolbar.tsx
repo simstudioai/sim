@@ -36,14 +36,14 @@ export function InputToolbar({
     <div
       className={
         editor
-          ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-3'
-          : 'flex items-center justify-between'
+          ? '@container/input-toolbar grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-3'
+          : '@container/input-toolbar flex flex-wrap items-center justify-between gap-y-1'
       }
     >
       <div
         ref={leadingRef}
         className={cn(
-          'flex h-[30px] items-center gap-1',
+          'flex h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-1',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
@@ -60,7 +60,7 @@ export function InputToolbar({
       <div
         ref={trailingRef}
         className={cn(
-          'flex h-[30px] items-center gap-1.5',
+          'ml-auto flex h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-3',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
@@ -68,7 +68,7 @@ export function InputToolbar({
         {trailingControls ?? (
           <>
             {(selectionControl || showModelSelector || voiceControl) && (
-              <div className='flex items-center'>
+              <div className='flex items-center gap-[inherit]'>
                 {selectionControl ?? (showModelSelector && <ModelSelector />)}
                 {voiceControl}
               </div>
