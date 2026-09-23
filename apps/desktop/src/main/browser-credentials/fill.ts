@@ -19,16 +19,18 @@ interface FormState extends CredentialFormReport {
   generation: number
 }
 
+interface PickerHost {
+  window: BrowserWindow
+  anchor: CredentialFieldBounds
+}
+
 export interface FillCoordinatorDeps {
   vault: CredentialVault
   getActiveContents: (scopeId?: string) => WebContents | null
   scopeOwnsContents: (scopeId: string, contents: WebContents) => boolean
   onAvailabilityChanged: (available: boolean, contents: WebContents | null) => void
   /** Screen coordinates for the focused field, only while its native page is visible. */
-  pickerHost?: (
-    contents: WebContents,
-    bounds: CredentialFieldBounds
-  ) => { window: BrowserWindow; anchor: CredentialFieldBounds } | null
+  pickerHost?: (contents: WebContents, bounds: CredentialFieldBounds) => PickerHost | null
 }
 
 interface SelectionAuthorization {
@@ -233,12 +235,16 @@ export class FillCoordinator {
       return
     }
     const state = this.states.get(contents)
-    if (!state?.bounds) return
-    const host = this.deps.pickerHost?.(contents, state.bounds)
-    if (!host) return
-    if (!this.picker || this.picker.targetId !== state.targetId)
-      await this.openPicker(contents, host.window, host.anchor)
-    if (action === 'focus') this.picker?.view.focus()
+    if (!state || !this.fieldPickerHost(contents)) return
+    if (!this.picker || this.picker.targetId !== state.targetId) {
+      if (!(await this.openPicker(contents, () => this.fieldPickerHost(contents)))) return
+    }
+    if (
+      action === 'focus' &&
+      this.picker?.contents === contents &&
+      this.picker.targetId === state.targetId
+    )
+      this.picker.view.focus()
   }
 
   /** Older hosted clients retain a functional chooser during independent desktop/web rollouts. */
@@ -249,13 +255,18 @@ export class FillCoordinator {
   ): Promise<boolean> {
     const contents = this.deps.getActiveContents(scopeId)
     if (!contents) return false
-    const state = this.states.get(contents)
-    const host = state?.bounds ? this.deps.pickerHost?.(contents, state.bounds) : null
-    const bounds = window.getContentBounds()
+    const useFieldHost = Boolean(this.fieldPickerHost(contents))
     const opened = await this.openPicker(
       contents,
-      host?.window ?? window,
-      host?.anchor ?? { x: bounds.x + anchor.x, y: bounds.y + anchor.y, width: 1, height: 1 },
+      () => {
+        if (useFieldHost) return this.fieldPickerHost(contents)
+        if (window.isDestroyed()) return null
+        const bounds = window.getContentBounds()
+        return {
+          window,
+          anchor: { x: bounds.x + anchor.x, y: bounds.y + anchor.y, width: 1, height: 1 },
+        }
+      },
       scopeId
     )
     if (opened) this.picker?.view.focus()
@@ -264,8 +275,7 @@ export class FillCoordinator {
 
   private async openPicker(
     contents: WebContents,
-    window: BrowserWindow,
-    anchor: CredentialFieldBounds,
+    resolveHost: () => PickerHost | null,
     scopeId?: string
   ): Promise<boolean> {
     this.dismissPicker()
@@ -274,8 +284,7 @@ export class FillCoordinator {
     if (
       version !== this.pickerVersion ||
       this.deps.getActiveContents(scopeId) !== contents ||
-      contents.isDestroyed() ||
-      window.isDestroyed()
+      contents.isDestroyed()
     )
       return false
     const state = this.states.get(contents)
@@ -287,6 +296,18 @@ export class FillCoordinator {
     )
       return false
     if (!matches.length) return false
+    const host = resolveHost()
+    if (
+      !host ||
+      host.window.isDestroyed() ||
+      !host.window.isVisible() ||
+      host.window.isMinimized() ||
+      !host.window.isFocused()
+    ) {
+      this.dismissPicker()
+      return false
+    }
+    const { window, anchor } = host
     const view = new CredentialPicker({
       parent: window,
       anchor,
@@ -295,6 +316,21 @@ export class FillCoordinator {
         accounts: matches.map(({ id, username }) => ({ id, username })),
       },
       select: (id) => this.fillSelected(id, scopeId, authorization),
+      restoreFocus: () => {
+        if (
+          !window.isDestroyed() &&
+          window.isVisible() &&
+          !window.isMinimized() &&
+          this.isStillAuthorized(
+            contents,
+            { generation: authorization.generation, targetId: authorization.targetId },
+            scopeId
+          )
+        ) {
+          window.focus()
+          contents.focus()
+        }
+      },
       closed: () => {
         if (this.picker?.view === view) this.dismissPicker()
         if (this.selectionAuthorizations.get(contents) === authorization)
@@ -303,6 +339,11 @@ export class FillCoordinator {
     })
     this.picker = { view, contents, targetId: state.targetId }
     return true
+  }
+
+  private fieldPickerHost(contents: WebContents): PickerHost | null {
+    const bounds = this.states.get(contents)?.bounds
+    return bounds ? (this.deps.pickerHost?.(contents, bounds) ?? null) : null
   }
 
   dismissPicker(): void {

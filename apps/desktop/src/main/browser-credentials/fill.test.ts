@@ -3,20 +3,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { sleep } from '@sim/utils/helpers'
-import type { BrowserWindow, WebContents } from 'electron'
-import { FillCoordinator } from '@/main/browser-credentials/fill'
+import { BrowserWindow, type WebContents } from 'electron'
+import { FillCoordinator, type FillCoordinatorDeps } from '@/main/browser-credentials/fill'
 import type { CredentialPicker } from '@/main/browser-credentials/picker'
 import type { CredentialVault } from '@/main/browser-credentials/vault'
 import type { CredentialFormReport } from '@/shared/browser-credentials'
 
 const ORIGIN = 'https://example.com'
 const SCOPE = 'chat-a'
-const WINDOW = {
-  getContentBounds: () => ({ x: 0, y: 0 }),
+const WINDOW = Object.assign(new BrowserWindow(), {
+  getContentBounds: () => ({ x: 0, y: 0, width: 1200, height: 800 }),
   isDestroyed: () => false,
-} as BrowserWindow
+  isVisible: () => true,
+  isMinimized: () => false,
+  isFocused: () => true,
+  focus: vi.fn(),
+})
 
-const { pickerOptions } = vi.hoisted(() => ({ pickerOptions: vi.fn() }))
+const { pickerOptions, pickerFocus } = vi.hoisted(() => ({
+  pickerOptions: vi.fn(),
+  pickerFocus: vi.fn(),
+}))
 vi.mock('@/main/browser-credentials/picker', () => ({
   CredentialPicker: class {
     constructor(private readonly options: ConstructorParameters<typeof CredentialPicker>[0]) {
@@ -26,7 +33,9 @@ vi.mock('@/main/browser-credentials/picker', () => ({
       this.options.closed()
     }
     position() {}
-    focus() {}
+    focus() {
+      pickerFocus()
+    }
   },
 }))
 
@@ -35,6 +44,7 @@ function fakeContents(url = `${ORIGIN}/login`) {
     getURL: vi.fn(() => url),
     isDestroyed: vi.fn(() => false),
     send: vi.fn(),
+    focus: vi.fn(),
   }
 }
 
@@ -58,7 +68,19 @@ function fakeVault(overrides: Partial<Record<string, unknown>> = {}) {
 
 type Contents = ReturnType<typeof fakeContents>
 
-function setup(contents: Contents = fakeContents(), vault = fakeVault()) {
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+function setup(
+  contents: Contents = fakeContents(),
+  vault = fakeVault(),
+  pickerHost?: FillCoordinatorDeps['pickerHost']
+) {
   const onAvailabilityChanged = vi.fn()
   let active: Contents | null = contents
   let activeScope = SCOPE
@@ -70,6 +92,7 @@ function setup(contents: Contents = fakeContents(), vault = fakeVault()) {
       !scopeId || scopeId === activeScope ? (active as unknown as WebContents | null) : null,
     scopeOwnsContents: (scopeId, candidate) => contentsScopes.get(candidate) === scopeId,
     onAvailabilityChanged,
+    pickerHost,
   })
   return {
     coordinator,
@@ -124,6 +147,7 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   pickerOptions.mockClear()
+  pickerFocus.mockClear()
 })
 
 describe('fill availability', () => {
@@ -259,6 +283,91 @@ describe('fill availability', () => {
 })
 
 describe('credential chooser', () => {
+  it.each(['hidden', 'minimized', 'unfocused'])(
+    'does not open when the parent becomes %s during a metadata lookup',
+    async (state) => {
+      const context = setup()
+      context.coordinator.noteFormState(
+        context.contents as unknown as WebContents,
+        loginFormState()
+      )
+      const matches = await context.vault.listForOrigin()
+      const pending = deferred<typeof matches>()
+      context.vault.listForOrigin.mockReturnValueOnce(pending.promise)
+      let available = true
+      const window = Object.assign(new BrowserWindow(), {
+        ...WINDOW,
+        isVisible: () => state !== 'hidden' || available,
+        isMinimized: () => state === 'minimized' && !available,
+        isFocused: () => state !== 'unfocused' || available,
+      })
+      const opened = context.coordinator.showChooser(window, { x: 0, y: 0 })
+      available = false
+      pending.resolve(matches)
+      await expect(opened).resolves.toBe(false)
+      expect(pickerOptions).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['disappears', 'moves'])(
+    'rechecks the field host when it %s during a metadata lookup',
+    async (change) => {
+      const anchor = { x: 10, y: 20, width: 200, height: 30 }
+      const pickerHost = vi.fn<NonNullable<FillCoordinatorDeps['pickerHost']>>(() => ({
+        window: WINDOW,
+        anchor,
+      }))
+      const context = setup(fakeContents(), fakeVault(), pickerHost)
+      context.coordinator.noteFormState(
+        context.contents as unknown as WebContents,
+        loginFormState({ bounds: anchor })
+      )
+      const matches = await context.vault.listForOrigin()
+      const pending = deferred<typeof matches>()
+      context.vault.listForOrigin.mockReturnValueOnce(pending.promise)
+      const opened = context.coordinator.showChooser(WINDOW, { x: 0, y: 0 })
+      const moved = { ...anchor, x: 90, y: 100 }
+      pickerHost.mockReturnValue(change === 'disappears' ? null : { window: WINDOW, anchor: moved })
+      pending.resolve(matches)
+      await expect(opened).resolves.toBe(change === 'moves')
+      if (change === 'disappears') expect(pickerOptions).not.toHaveBeenCalled()
+      else expect(pickerOptions).toHaveBeenCalledWith(expect.objectContaining({ anchor: moved }))
+    }
+  )
+
+  it.each(['navigation', 'tab change'])('does not restore focus after %s', async (change) => {
+    const context = setup()
+    await openChooser(context)
+    const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
+      typeof CredentialPicker
+    >[0]
+    if (change === 'navigation') {
+      context.coordinator.noteNavigation(context.contents as unknown as WebContents)
+    } else context.setActive(fakeContents())
+    options.restoreFocus()
+    expect(context.contents.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not let a superseded keyboard request focus a newer picker', async () => {
+    const anchor = { x: 0, y: 0, width: 200, height: 30 }
+    const context = setup(fakeContents(), fakeVault(), () => ({ window: WINDOW, anchor }))
+    const contents = context.contents as unknown as WebContents
+    context.coordinator.noteFormState(contents, loginFormState({ bounds: anchor }))
+    const matches = await context.vault.listForOrigin()
+    const pending = deferred<typeof matches>()
+    context.vault.listForOrigin.mockReturnValueOnce(pending.promise)
+    const first = context.coordinator.requestPicker(contents, 'focus')
+    context.coordinator.noteFormState(
+      contents,
+      loginFormState({ bounds: anchor, targetId: 'next' })
+    )
+    await context.coordinator.requestPicker(contents, 'open')
+    expect(pickerOptions).toHaveBeenCalledOnce()
+    pending.resolve(matches)
+    await first
+    expect(pickerFocus).not.toHaveBeenCalled()
+  })
+
   it('lists usernames without reading any password', async () => {
     const context = setup()
     const template = await openChooser(context)

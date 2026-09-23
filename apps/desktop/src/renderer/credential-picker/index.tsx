@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  OverflowText,
 } from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
 import { initializeShellPage } from '@/renderer/shell'
@@ -73,7 +74,9 @@ function CredentialPicker({ configuration, api }: CredentialPickerProps) {
           return () => observer.disconnect()
         }}
       >
-        <DropdownMenuLabel>{new URL(configuration.origin).host}</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          <OverflowText label={new URL(configuration.origin).host} />
+        </DropdownMenuLabel>
         {configuration.accounts.map((account, index) => (
           <DropdownMenuItem
             ref={index === 0 ? firstItem : undefined}
@@ -88,7 +91,7 @@ function CredentialPicker({ configuration, api }: CredentialPickerProps) {
           </DropdownMenuItem>
         ))}
         {error && (
-          <p role='alert' className='px-2 py-1 text-[var(--text-error)] text-xs'>
+          <p role='alert' className='px-2 py-1 text-[var(--text-error)] text-caption'>
             {error}
           </p>
         )}
