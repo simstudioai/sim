@@ -92,7 +92,8 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
+vi.mock('@/lib/uploads/utils/file-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/utils/file-utils')>()),
   inferContextFromKey: mockInferContextFromKey,
 }))
 

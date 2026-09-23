@@ -7,8 +7,11 @@ import {
   readWorkspaceFileContract,
 } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { isMarkdownFile, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import {
+  isMarkdownFile,
+  needsRenderedArtifact,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/uploads/utils/file-utils'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
 export interface FileDownloadSource {

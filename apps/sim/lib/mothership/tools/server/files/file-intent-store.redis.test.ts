@@ -7,6 +7,7 @@ import {
   type PendingFileIntent,
   peekFileIntent,
   storeFileIntent,
+  waitForLatestFileIntent,
 } from '@/lib/mothership/tools/server/files/file-intent-store'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -65,10 +66,15 @@ describe.skipIf(!socket)('file intent atomic Redis claims', () => {
 
   it('claims an intent exactly once across simultaneous consumers', async () => {
     await storeFileIntent(workspaceId, 'file', intent())
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       Array.from({ length: 20 }, () => consumeLatestFileIntent(workspaceId, scope))
     )
-    expect(results.filter(Boolean)).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'fulfilled' && result.value)).toHaveLength(
+      1
+    )
+    for (const result of results) {
+      if (result.status === 'rejected') expect(result.reason).toMatchObject({ code: 'conflict' })
+    }
     expect(await peekFileIntent(workspaceId, 'file', scope)).toBeUndefined()
   })
 
@@ -96,7 +102,9 @@ describe.skipIf(!socket)('file intent atomic Redis claims', () => {
       await storeFileIntent(workspaceId, 'file', prepared)
       return observed
     })
-    expect(await consumeLatestFileIntent(workspaceId, scope)).toBeUndefined()
+    await expect(
+      waitForLatestFileIntent(workspaceId, scope, { timeoutMs: 100, intervalMs: 1 })
+    ).rejects.toMatchObject({ code: 'conflict' })
     spy.mockRestore()
     expect(await consumeLatestFileIntent(workspaceId, scope)).toMatchObject({ fileId: 'file' })
   })
@@ -138,7 +146,7 @@ describe.skipIf(!socket)('file intent atomic Redis claims', () => {
     }
   )
 
-  it('does not retry a claim when Redis committed it but the response was lost', async () => {
+  it('does not retry selection when Redis committed a claim but the response was lost', async () => {
     await storeFileIntent(workspaceId, 'file', intent())
     const client = state.redis!
     const evaluate = client.eval.bind(client)
@@ -146,11 +154,71 @@ describe.skipIf(!socket)('file intent atomic Redis claims', () => {
       await evaluate(...args)
       throw new Error('Connection lost after claim')
     })
-    await expect(consumeLatestFileIntent(workspaceId, scope)).rejects.toThrow(
+    await expect(waitForLatestFileIntent(workspaceId, scope)).rejects.toThrow(
       'Connection lost after claim'
     )
     expect(spy).toHaveBeenCalledTimes(1)
     spy.mockRestore()
     expect(await consumeLatestFileIntent(workspaceId, scope)).toBeUndefined()
+  })
+
+  it('fails waiting competitors instead of selecting a later preparation', async () => {
+    await storeFileIntent(workspaceId, 'file', intent())
+    const client = state.redis!
+    const read = client.hgetall.bind(client)
+    const evaluate = client.eval.bind(client)
+    let releaseReads!: () => void
+    const allObserved = new Promise<void>((resolve) => {
+      releaseReads = resolve
+    })
+    let observed = 0
+    const reads = vi.spyOn(client, 'hgetall').mockImplementation(async (key) => {
+      const entries = await read(key)
+      if (++observed === 20) releaseReads()
+      await allObserved
+      return entries
+    })
+    const claim = vi.spyOn(client, 'eval').mockImplementationOnce(async (...args) => {
+      const result = await evaluate(...args)
+      await storeFileIntent(workspaceId, 'replacement', intent({ fileId: 'replacement' }))
+      return result
+    })
+    const results = await Promise.allSettled(
+      Array.from({ length: 20 }, () =>
+        waitForLatestFileIntent(workspaceId, scope, { timeoutMs: 100, intervalMs: 1 })
+      )
+    )
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    for (const result of results) {
+      if (result.status === 'fulfilled') expect(result.value?.fileId).toBe('file')
+      else expect(result.reason).toMatchObject({ code: 'conflict' })
+    }
+    expect(reads).toHaveBeenCalledTimes(20)
+    reads.mockRestore()
+    claim.mockRestore()
+    expect(await peekFileIntent(workspaceId, 'replacement', scope)).toMatchObject({
+      fileId: 'replacement',
+    })
+  })
+
+  it('fails the waiting apply after a lost acknowledgement is replayed by the Redis transport', async () => {
+    await storeFileIntent(workspaceId, 'file', intent())
+    const client = state.redis!
+    const evaluate = client.eval.bind(client)
+    const claim = vi.spyOn(client, 'eval').mockImplementationOnce(async (...args) => {
+      await evaluate(...args)
+      await storeFileIntent(workspaceId, 'replacement', intent({ fileId: 'replacement' }))
+      /** ioredis can replay the same command after losing its committed response. */
+      return evaluate(...args)
+    })
+    await expect(
+      waitForLatestFileIntent(workspaceId, scope, { timeoutMs: 100, intervalMs: 1 })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(claim).toHaveBeenCalledOnce()
+    claim.mockRestore()
+    expect(await peekFileIntent(workspaceId, 'file', scope)).toBeUndefined()
+    expect(await peekFileIntent(workspaceId, 'replacement', scope)).toMatchObject({
+      fileId: 'replacement',
+    })
   })
 })

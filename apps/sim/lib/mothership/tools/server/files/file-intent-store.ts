@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 export type PendingFileIntent = {
@@ -299,12 +300,18 @@ export async function consumeLatestFileIntent(
     : staleEntries
   if (observedEntries.length === 0) return undefined
 
-  /** An uncertain claim must not be retried against a newer intent. */
+  /** Transport replay retains the observed identity guard; never select a new intent after losing it. */
   const claimed = await redis.eval(
     DELETE_OBSERVED_INTENTS_SCRIPT,
     1,
     getWorkspaceRedisKey(workspaceId),
     ...observedEntries
   )
-  return latestField && claimed === 1 ? latest : undefined
+  if (latestField && claimed !== 1) {
+    throw new OrchestrationError(
+      'conflict',
+      'The prepared edit was replaced or already claimed. Read the file and call prepare_file_edit again.'
+    )
+  }
+  return latest
 }

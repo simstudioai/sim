@@ -107,6 +107,7 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
             transfer,
             size,
             completionStatuses: null,
+            completionReplayable: true,
           },
           path
         )

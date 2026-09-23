@@ -204,6 +204,23 @@ describe('prepared file write across tool invocations', () => {
     expect(extractResourcesFromToolResult('apply_file_edit', {}, applied)).toEqual([])
   })
 
+  it('projects a lost preparation claim as a conflict without compiling or writing', async () => {
+    const intentStore = await import('@/lib/mothership/tools/server/files/file-intent-store')
+    const claim = vi
+      .spyOn(intentStore, 'waitForLatestFileIntent')
+      .mockRejectedValueOnce(new OrchestrationError('conflict', 'Preparation already claimed'))
+    try {
+      const applied = await editContentServerTool.execute({ content: 'content for A' }, context())
+      expect(applied).toMatchObject({ success: false, errorCode: 'conflict' })
+      expect(applied.message).toContain('prepare_file_edit again')
+      expect(executeFileUseCase).not.toHaveBeenCalled()
+      expect(compileDoc).not.toHaveBeenCalled()
+      expect(runSandboxTask).not.toHaveBeenCalled()
+    } finally {
+      claim.mockRestore()
+    }
+  })
+
   it('refuses legacy preparations without a revision before compiling or writing', async () => {
     const ctx = context()
     const original = file('notes.md', ctx.workspaceId!)

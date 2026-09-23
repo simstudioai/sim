@@ -42,6 +42,7 @@ import {
   isAudioFileType,
   isVideoFileType,
   resolveEffectiveMimeType,
+  SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/uploads/utils/file-utils'
 import {
   isSupportedExtension,
@@ -52,7 +53,6 @@ import {
   SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type {

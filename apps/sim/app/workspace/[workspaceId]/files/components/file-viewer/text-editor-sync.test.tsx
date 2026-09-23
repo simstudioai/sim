@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/uploads/utils/file-utils'
 import { TextEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor'
 import { useFileViewerStore } from '@/stores/file-viewer/store'
 

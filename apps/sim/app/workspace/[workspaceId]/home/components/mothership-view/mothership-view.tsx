@@ -7,8 +7,7 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { getFileExtension, SIM_PAGE_CONTENT_TYPE } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,

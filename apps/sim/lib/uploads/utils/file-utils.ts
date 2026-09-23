@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { isValidUuid } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
 import {
@@ -7,7 +8,6 @@ import {
   SUPPORTED_ARCHIVE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
-import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 interface FileAttachment {
@@ -215,6 +215,12 @@ export function isMarkdownFile(file: { type?: string | null; name: string }): bo
   const ext = getFileExtension(file.name)
   return ext === 'md' || ext === 'markdown'
 }
+
+/**
+ * Identifies Sim page source before its bytes load. Previews and downloads render
+ * it as HTML, while editors use this type to select the page-specific controls.
+ */
+export const SIM_PAGE_CONTENT_TYPE = 'text/x-sim-page'
 
 /**
  * Extensions whose stored bytes may be a generation source that renders to a larger
@@ -1169,7 +1175,7 @@ export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
 
   if (segments[0] === 'execution' && segments.length >= 5) {
     const workspaceId = segments[1]
-    if (workspaceId && isUuid(workspaceId)) {
+    if (workspaceId && isValidUuid(workspaceId)) {
       return workspaceId
     }
   }
@@ -1196,7 +1202,7 @@ export function extractWorkspaceIdFromStorageKey(key: string): string | null {
 
   if (segments[0] === 'workspace' && segments.length >= 3) {
     const workspaceId = segments[1]
-    return workspaceId && isUuid(workspaceId) ? workspaceId : null
+    return workspaceId && isValidUuid(workspaceId) ? workspaceId : null
   }
 
   return extractWorkspaceIdFromExecutionKey(key)

@@ -252,6 +252,8 @@ export function attachTableImport(tables: Command): void {
             transfer: started.data.transfer,
             size: local.size,
             completionStatuses: ['processing', 'completed'],
+            /** Import dispatch is not atomically claimed with upload completion. */
+            completionReplayable: false,
           },
           path
         )

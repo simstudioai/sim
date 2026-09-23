@@ -47,6 +47,7 @@ export function attachFileUpload(files: Command): void {
           transfer,
           size,
           completionStatuses: ['completed'],
+          completionReplayable: true,
         },
         path
       )

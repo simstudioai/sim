@@ -15,19 +15,22 @@ import {
 } from '@/lib/mothership/tools/server/base-tool'
 import { getE2BDocFormat } from '@/lib/mothership/tools/server/files/doc-compile'
 import { buildEmbeddedImageRefWarning } from '@/lib/mothership/tools/server/files/embedded-image-refs'
-import { waitForLatestFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
+import {
+  type PendingFileIntent,
+  waitForLatestFileIntent,
+} from '@/lib/mothership/tools/server/files/file-intent-store'
 import {
   compileDocForWrite,
   getDocumentFormatInfo,
   inferContentType,
 } from '@/lib/mothership/tools/server/files/workspace-file'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/uploads/utils/file-utils'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
   collectSimPageDiagnostics,
   HAND_WRITTEN_PAGE_MESSAGE,
   isHandWrittenCompiledPage,
   isSimPageSource,
-  SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
 
 const logger = createLogger('EditContentServerTool')
@@ -69,26 +72,22 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return { success: false, message: 'content is required for apply_file_edit' }
     }
 
-    // Consume the intent from THIS file subagent's channel (its outer tool_use
-    // id), not just the latest in the message — otherwise two file agents
-    // writing concurrently would each grab whichever prepare_file_edit landed last
-    // and write their content into the wrong file. Falls back to latest-in-
-    // message when no channel id is present (main-agent / legacy calls).
-    // Waits briefly: a prepare batched into the same round may still be running.
-    const intent = await waitForLatestFileIntent(workspaceId, {
-      chatId: context.chatId,
-      messageId: context.messageId,
-      channelId: context.parentToolCallId,
-    })
-    if (!intent) {
-      return {
-        success: false,
-        message:
-          'No prepare_file_edit context found. Call prepare_file_edit first, wait for it to succeed, then call apply_file_edit in the next step. Do not emit apply_file_edit in parallel or in the same batch as prepare_file_edit.',
-      }
-    }
-
+    let intent: PendingFileIntent | undefined
     try {
+      /** Wait only until a preparation appears; a lost claim must fail before compiling or writing. */
+      intent = await waitForLatestFileIntent(workspaceId, {
+        chatId: context.chatId,
+        messageId: context.messageId,
+        channelId: context.parentToolCallId,
+      })
+      if (!intent) {
+        return {
+          success: false,
+          message:
+            'No prepare_file_edit context found. Call prepare_file_edit first, wait for it to succeed, then call apply_file_edit in the next step. Do not emit apply_file_edit in parallel or in the same batch as prepare_file_edit.',
+        }
+      }
+
       const { operation, fileRecord } = intent
       if (!intent.expectedRevision) {
         throw new OrchestrationError(
@@ -362,14 +361,14 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           success: false,
           errorCode: 'conflict',
           message:
-            'The file changed or the prepared edit has no valid revision. Read the current file, call prepare_file_edit again, then apply the revised edit. No content was written.',
+            'The file or its prepared edit changed, or the edit has no valid revision. Read the current file, call prepare_file_edit again, then apply the revised edit. No content was written.',
         }
       }
       const safeMessage = messageForCopilotFileError(error, 'Failed to edit file content')
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in apply_file_edit tool', {
-        operation: intent.operation,
-        fileId: intent.fileId,
+        operation: intent?.operation,
+        fileId: intent?.fileId,
         error: errorMessage,
         userId: context.userId,
       })

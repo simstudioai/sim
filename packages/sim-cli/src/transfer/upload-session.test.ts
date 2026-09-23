@@ -33,6 +33,7 @@ function session(multipart = false): UploadSession {
     uploadToken: 'private-token',
     size: 18,
     completionStatuses: ['completed'],
+    completionReplayable: true,
     transfer: multipart
       ? { method: 'multipart', partSize: 2, partCount: 9 }
       : { method: 'put', url: 'https://storage.test/object?signature=private', headers: {} },
@@ -346,9 +347,12 @@ describe('upload session transfers', () => {
       if (status === 'processing') {
         transfer.basePath = '/api/v2/tables/imports/session'
         transfer.completionStatuses = ['processing', 'completed']
+        transfer.completionReplayable = false
       }
       await expect(finishUploadSession(client, 'ws', transfer, path)).resolves.toEqual(current)
-      expect(requests.map((request) => request.method)).toEqual(['POST', 'POST', 'POST', 'GET'])
+      expect(requests.map((request) => request.method)).toEqual(
+        status === 'processing' ? ['POST', 'GET'] : ['POST', 'POST', 'POST', 'GET']
+      )
     }
   )
 

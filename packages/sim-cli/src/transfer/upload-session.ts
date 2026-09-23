@@ -39,6 +39,8 @@ export interface UploadSession {
   size: number
   /** GET basePath statuses confirming publication; null when the domain exposes no status endpoint. */
   completionStatuses: readonly string[] | null
+  /** True only when replaying completion cannot race or duplicate domain finalization. */
+  completionReplayable: boolean
 }
 
 const PART_URL_BATCH = 100
@@ -265,7 +267,7 @@ export async function finishUploadSession<T>(
           query: { workspaceId },
           headers: { 'upload-token': session.uploadToken },
         }),
-      { signal: client.signal }
+      { signal: client.signal, replayable: session.completionReplayable }
     )
     return completed.data
   } catch (error) {
