@@ -10,6 +10,7 @@ import {
 import {
   clearDeadFlag,
   getRecentTerminalError,
+  isCredentialRevocationError,
   isTerminalRefreshError,
   markCredentialDead,
 } from '@/lib/oauth/terminal-errors'
@@ -69,6 +70,47 @@ describe('isTerminalRefreshError', () => {
     'returns false for %s',
     (code) => {
       expect(isTerminalRefreshError(code as string | undefined | null)).toBe(false)
+    }
+  )
+})
+
+describe('isCredentialRevocationError', () => {
+  it.each([
+    'invalid_refresh_token',
+    'bad_refresh_token',
+    'invalid_grant',
+    'access_denied',
+    'token_revoked',
+  ])('treats %s as a revoked credential', (code) => {
+    expect(isCredentialRevocationError(code)).toBe(true)
+  })
+
+  it.each(['invalid_client', 'bad_client_secret', 'invalid_client_id', 'bad_redirect_uri'])(
+    'treats the app-registration fault %s as terminal but not a revocation',
+    (code) => {
+      expect(isTerminalRefreshError(code, 'confluence')).toBe(true)
+      expect(isCredentialRevocationError(code, 'confluence')).toBe(false)
+    }
+  )
+
+  it.each(['confluence', 'jira'])(
+    'treats unauthorized_client as a revocation for %s',
+    (providerId) => {
+      expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(true)
+    }
+  )
+
+  it.each([undefined, 'microsoft', 'salesforce', 'constructor', '__proto__'])(
+    'does not treat unauthorized_client as a revocation for %s',
+    (providerId) => {
+      expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(false)
+    }
+  )
+
+  it.each(['ratelimited', 'internal_error', undefined, null, ''])(
+    'returns false for %s',
+    (code) => {
+      expect(isCredentialRevocationError(code as string | undefined | null)).toBe(false)
     }
   )
 })

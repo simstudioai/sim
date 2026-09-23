@@ -3009,6 +3009,9 @@ describe('executeSync heartbeats during the listing phase', () => {
     }
   )
 
+  /** A revoked grant recorded against the credential's account. */
+  const INVALID_GRANT = { errorCode: 'invalid_grant', providerId: 'google-drive' } as const
+
   /** A locked OAuth connector whose token resolution the test controls. */
   function primeOAuthRunUpToToken() {
     const oauthConnector = {
@@ -3043,8 +3046,8 @@ describe('executeSync heartbeats during the listing phase', () => {
     const restore = primeOAuthRunUpToToken()
     /** Rejected at token resolution and still rejected when the run records its outcome. */
     authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
-      .mockResolvedValueOnce('invalid_grant')
-      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce(INVALID_GRANT)
+      .mockResolvedValueOnce(INVALID_GRANT)
     try {
       const result = await executeSync('c-1', {
         billingAttribution: { workspaceId: 'ws-1' } as never,
@@ -3075,7 +3078,7 @@ describe('executeSync heartbeats during the listing phase', () => {
     const restore = primeOAuthRunUpToToken()
     /** Rejected at token resolution, repaired by the time the run records its outcome. */
     authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
-      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce(INVALID_GRANT)
       .mockResolvedValueOnce(null)
     try {
       const result = await executeSync('c-1', {
@@ -3098,8 +3101,8 @@ describe('executeSync heartbeats during the listing phase', () => {
     const restore = primeOAuthRunUpToToken()
     /** Rejected at token resolution and still rejected when the run records its outcome. */
     authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
-      .mockResolvedValueOnce('invalid_grant')
-      .mockResolvedValueOnce('invalid_grant')
+      .mockResolvedValueOnce(INVALID_GRANT)
+      .mockResolvedValueOnce(INVALID_GRANT)
     /** The terminal write fails after the lock CAS consumed the first result. */
     dbChainMockFns.returning.mockReset()
     dbChainMockFns.returning.mockResolvedValueOnce([
@@ -3116,6 +3119,54 @@ describe('executeSync heartbeats during the listing phase', () => {
       restore()
     }
   })
+
+  it('unschedules a Confluence connector whose refresh token the source rejected as unauthorized_client', async () => {
+    const restore = primeOAuthRunUpToToken()
+    const rejection = { errorCode: 'unauthorized_client', providerId: 'confluence' }
+    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
+      .mockResolvedValueOnce(rejection)
+      .mockResolvedValueOnce(rejection)
+    try {
+      const result = await executeSync('c-1', {
+        billingAttribution: { workspaceId: 'ws-1' } as never,
+      })
+      expect(result.skipReason).toBe('credential_revoked')
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ nextSyncAt: null, lastSyncError: CREDENTIAL_REVOKED_SYNC_ERROR })
+      )
+    } finally {
+      restore()
+    }
+  })
+
+  it.each([
+    { errorCode: 'invalid_client', providerId: 'google-drive' },
+    { errorCode: 'bad_client_secret', providerId: 'slack' },
+    { errorCode: 'invalid_client', providerId: 'confluence' },
+    { errorCode: 'unauthorized_client', providerId: 'microsoft' },
+  ])(
+    'keeps the failure ladder when the refresh failed on an app-registration fault: %j',
+    async (rejection) => {
+      const restore = primeOAuthRunUpToToken()
+      authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError.mockResolvedValue(rejection)
+      try {
+        const result = await executeSync('c-1', {
+          billingAttribution: { workspaceId: 'ws-1' } as never,
+        })
+        expect(result.skipReason).toBeUndefined()
+        expect(result.error).toContain('Failed to obtain access token')
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'error', consecutiveFailures: 1 })
+        )
+        expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+          expect.objectContaining({ lastSyncError: CREDENTIAL_REVOKED_SYNC_ERROR })
+        )
+      } finally {
+        authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError.mockResolvedValue(null)
+        restore()
+      }
+    }
+  )
 
   it('keeps the failure ladder for a credential that resolved no token without a terminal error', async () => {
     const restore = primeOAuthRunUpToToken()
