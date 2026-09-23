@@ -58,18 +58,21 @@ function updatedDocumentAcl(access: ConnectorAccessMode) {
  * whatever a mode switch or an interrupted rewrite left behind. Idempotent and
  * a no-op on a healthy connector. Paged in short transactions that each prove
  * the connector is still in workspace mode, so it never holds the connector row
- * across the projection fan-out of a large restore.
+ * across the projection fan-out of a large restore. Stops between pages once
+ * `deadlineAt` passes and reports it unfinished; a later walk resumes by
+ * rewriting whatever is still off the workspace ACL.
  */
 export async function restoreWorkspaceDocumentAcls(
   connectorId: string,
   transaction: LeaseTransaction,
-  beforePage?: () => Promise<void>
-): Promise<number> {
-  const { rewritten } = await rewriteConnectorDocumentAcls({
+  options: { beforePage?: () => Promise<void>; deadlineAt?: number } = {}
+): Promise<{ restored: number; finished: boolean }> {
+  const { rewritten, finished } = await rewriteConnectorDocumentAcls({
     connectorId,
     target: WORKSPACE_ACL,
     transaction,
-    beforePage,
+    beforePage: options.beforePage,
+    deadlineAt: options.deadlineAt,
     guard: exists(
       db
         .select({ one: sql`1` })
@@ -82,7 +85,7 @@ export async function restoreWorkspaceDocumentAcls(
         )
     ),
   })
-  return rewritten
+  return { restored: rewritten, finished }
 }
 
 export interface DocumentAclWriteResult {
@@ -193,7 +196,7 @@ export async function persistDocumentAcls(
       })
       updated += refreshed
       for (const page of pagesByProjectionRows(changed)) {
-        updated += await writeProjectionPages(
+        const { written } = await writeProjectionPages(
           page,
           transaction,
           async (tx, locked) =>
@@ -205,6 +208,7 @@ export async function persistDocumentAcls(
                 .returning({ id: document.id })
             ).length
         )
+        updated += written
       }
     }
   }

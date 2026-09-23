@@ -411,19 +411,23 @@ export async function lockProjectionPage(
 
 /**
  * Writes `documentIds` one page per `transaction`, each page sized by the chunk counts it reads
- * under {@link lockProjectionPage}; whatever no longer fits waits for the next page. Returns the
- * rows `write` reports.
+ * under {@link lockProjectionPage}; whatever no longer fits waits for the next page. Stops before
+ * the next transaction once `deadlineAt` passes, so one planned page that splits into many cannot
+ * run past a caller's budget; `finished` is then false and the caller must not record the
+ * documents as written. Returns the rows `write` reports.
  */
 export async function writeProjectionPages(
   documentIds: readonly string[],
   transaction: LeaseTransaction,
   write: (tx: DbOrTx, page: string[]) => Promise<number>,
-  beforePage?: () => Promise<void>
-): Promise<number> {
+  options: { beforePage?: () => Promise<void>; deadlineAt?: number } = {}
+): Promise<{ written: number; finished: boolean }> {
   let pending = [...documentIds]
   let written = 0
   while (pending.length > 0) {
-    await beforePage?.()
+    if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt)
+      return { written, finished: false }
+    await options.beforePage?.()
     const { rows, rest } = await transaction(async (tx) => {
       const { page, rest } = await lockProjectionPage(tx, pending)
       return { rows: page.length > 0 ? await write(tx, page) : 0, rest }
@@ -431,7 +435,7 @@ export async function writeProjectionPages(
     written += rows
     pending = rest
   }
-  return written
+  return { written, finished: true }
 }
 
 /**
@@ -514,7 +518,7 @@ export async function rewriteConnectorDocumentAcls(input: {
     }
     for (const page of pagesByProjectionRows(window.filter((row) => row.aclDiffers))) {
       if (expired()) return { rewritten, finished: false }
-      rewritten += await writeProjectionPages(
+      const written = await writeProjectionPages(
         page,
         transaction,
         async (tx, locked) =>
@@ -532,8 +536,10 @@ export async function rewriteConnectorDocumentAcls(input: {
               )
               .returning({ id: document.id })
           ).length,
-        input.beforePage
+        { beforePage: input.beforePage, deadlineAt: input.deadlineAt }
       )
+      rewritten += written.written
+      if (!written.finished) return { rewritten, finished: false }
     }
     const last = window.at(-1)
     if (window.length < ACL_WRITE_BATCH_SIZE || !last?.externalId)
@@ -630,12 +636,13 @@ export async function rematerializeDocumentAcls(
         )
       )
     for (const page of pagesByProjectionRows(stale)) {
-      updated += await writeProjectionPages(
+      const { written } = await writeProjectionPages(
         page,
         transaction,
         (tx, locked) => materializeDocumentAcls(connectorId, locked, tx),
-        beforePage
+        { beforePage }
       )
+      updated += written
     }
   }
   return updated

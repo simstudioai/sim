@@ -28,6 +28,7 @@ import {
   rewriteConnectorAcls,
   staleMemberWindowMs,
   sweepStaleMemberObservations,
+  writeProjectionPages,
 } from '@/lib/knowledge/connectors/member-observations'
 import {
   MEMBER_OBSERVATION_STALE_AFTER_HOURS,
@@ -496,6 +497,54 @@ describe('rematerializeDocumentAcls', () => {
   })
 })
 
+describe('writeProjectionPages', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /** A planned page that splits under the locked reread stops at the budget, not after it. */
+  it('stops before the next page once the deadline passes and reports it unfinished', async () => {
+    let clock = Date.now()
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    try {
+      queueTableRows(schemaMock.document, [
+        { id: 'a', chunkCount: 200 },
+        { id: 'b', chunkCount: 200 },
+        { id: 'c', chunkCount: 200 },
+      ])
+      const write = vi.fn(async (_tx: unknown, page: string[]) => {
+        clock += 2_000
+        return page.length
+      })
+
+      await expect(
+        writeProjectionPages(['a', 'b', 'c'], (fn) => fn(db), write, {
+          deadlineAt: clock + 1_000,
+        })
+      ).resolves.toEqual({ written: 1, finished: false })
+      expect(write).toHaveBeenCalledOnce()
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('writes every page when no deadline is given', async () => {
+    queueTableRows(schemaMock.document, [
+      { id: 'a', chunkCount: 200 },
+      { id: 'b', chunkCount: 200 },
+    ])
+    queueTableRows(schemaMock.document, [{ id: 'b', chunkCount: 200 }])
+    const write = vi.fn(async (_tx: unknown, page: string[]) => page.length)
+
+    await expect(writeProjectionPages(['a', 'b'], (fn) => fn(db), write)).resolves.toEqual({
+      written: 2,
+      finished: true,
+    })
+    expect(write.mock.calls.map(([, page]) => page)).toEqual([['a'], ['b']])
+  })
+})
+
 describe('rewriteConnectorAcls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -627,6 +676,34 @@ describe('rewriteConnectorAcls', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     /** A full window is followed by the next one, from the last key read. */
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+  })
+
+  /** A planned page that splits under the locked reread still stops at the deadline. */
+  it('stops unfinished when a split page reaches the deadline', async () => {
+    let clock = Date.now()
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    try {
+      queueTableRows(schemaMock.document, [
+        stale('d-1', true, false, 1),
+        stale('d-2', true, false, 1),
+      ])
+      queueTableRows(schemaMock.document, [
+        { id: 'd-1', chunkCount: 200 },
+        { id: 'd-2', chunkCount: 200 },
+      ])
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+      dbChainMockFns.returning.mockImplementationOnce(async () => {
+        clock += 2_000
+        return [{ id: 'd-1' }]
+      })
+
+      await expect(
+        rewriteConnectorAcls('c-1', [], { lease: held, deadlineAt: clock + 1_000 })
+      ).resolves.toBe(false)
+      expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('stops unfinished at the deadline before the next page', async () => {

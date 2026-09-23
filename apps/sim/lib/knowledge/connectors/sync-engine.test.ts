@@ -2447,6 +2447,49 @@ describe('completeSuccessfulSync', () => {
     }
   )
 
+  /** An unfinished pending rewrite keeps its flag and comes straight back, instead of clearing it. */
+  it('keeps the pending access rewrite and re-runs at once when the walk did not finish', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(
+      completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null, undefined, null, true)
+    ).resolves.toBe(true)
+
+    const logUpdate = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => 'completedAt' in value)
+    const connectorUpdate = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.status === 'active')
+    expect(logUpdate?.status).toBe('partial')
+    expect(connectorUpdate).not.toHaveProperty('accessRewritePending')
+    expect((connectorUpdate?.nextSyncAt as Date).getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('clears the pending access rewrite once the walk finished', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', accessRewritePending: false })
+    )
+  })
+
   it('counts the documents before taking the completion locks', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])

@@ -7,6 +7,7 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeConnectorMemberSyncLog,
@@ -45,6 +46,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import * as memberAccess from '@/lib/knowledge/connectors/member-access'
+import * as memberObservations from '@/lib/knowledge/connectors/member-observations'
 import {
   materializeDocumentAcls,
   recordMemberObservations,
@@ -56,6 +58,7 @@ import {
   resumeMembershipRewrites,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import { PROJECTION_ROW_BATCH_SIZE } from '@/lib/knowledge/connectors/sync-limits'
 import {
   createMemberSyncLease,
   type LeaseTransaction,
@@ -103,6 +106,26 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     await db.execute(sql`DROP TRIGGER IF EXISTS log_lease_page_acl_write ON document`)
     await db.execute(sql`CREATE TRIGGER log_lease_page_acl_write AFTER UPDATE OF acl ON document
       FOR EACH ROW EXECUTE FUNCTION log_lease_page_acl_write()`)
+    /** Records, for every projection row the document trigger rewrites, its table and transaction. */
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS lease_page_projection_writes (
+      projection text NOT NULL, document_id text NOT NULL, xact text NOT NULL
+    )`)
+    await db.execute(
+      sql.raw(`CREATE OR REPLACE FUNCTION log_lease_page_projection_write() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        INSERT INTO lease_page_projection_writes VALUES (TG_TABLE_NAME, NEW.document_id, pg_current_xact_id()::text);
+        RETURN NEW;
+      END $$`)
+    )
+    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+      await db.execute(
+        sql.raw(`DROP TRIGGER IF EXISTS log_lease_page_projection_write ON ${projection}`)
+      )
+      await db.execute(
+        sql.raw(`CREATE TRIGGER log_lease_page_projection_write AFTER UPDATE OF acl ON ${projection}
+          FOR EACH ROW EXECUTE FUNCTION log_lease_page_projection_write()`)
+      )
+    }
   })
 
   beforeEach(async () => {
@@ -114,6 +137,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
   afterEach(async () => {
     await db.execute(sql`DROP TRIGGER IF EXISTS fail_after_acl_writes ON document`)
     await db.execute(sql`DELETE FROM lease_page_acl_writes`)
+    await db.execute(sql`DELETE FROM lease_page_projection_writes`)
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
@@ -124,6 +148,12 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     await db.execute(sql`DROP FUNCTION IF EXISTS log_lease_page_acl_write()`)
     await db.execute(sql`DROP FUNCTION IF EXISTS fail_after_acl_writes()`)
     await db.execute(sql`DROP TABLE IF EXISTS lease_page_acl_writes`)
+    for (const projection of ['embedding_search', 'embedding_keyword_tin'])
+      await db.execute(
+        sql.raw(`DROP TRIGGER IF EXISTS log_lease_page_projection_write ON ${projection}`)
+      )
+    await db.execute(sql`DROP FUNCTION IF EXISTS log_lease_page_projection_write()`)
+    await db.execute(sql`DROP TABLE IF EXISTS lease_page_projection_writes`)
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     await db.$client.end()
@@ -236,6 +266,112 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       const acls = await storedAcls(ids.connectorId)
       expect(acls.filter((acl) => acl.join() === bob())).toHaveLength(PAGE)
       expect(acls.filter((acl) => acl.join() === alice())).toHaveLength(DOCUMENTS - PAGE)
+    })
+  })
+
+  describe('search projection fan-out', () => {
+    const CHUNKS = 20
+
+    /** Real chunks: the installed triggers create each chunk's search and keyword projection rows. */
+    const seedChunks = async (documents: { id: string }[]) => {
+      const rows = documents.flatMap((entry) =>
+        Array.from({ length: CHUNKS }, (_unused, chunkIndex) => ({
+          id: generateId(),
+          knowledgeBaseId: ids.knowledgeBaseId,
+          documentId: entry.id,
+          chunkIndex,
+          chunkHash: `${entry.id}-${chunkIndex}`,
+          content: `lease page chunk ${chunkIndex}`,
+          contentLength: 20,
+          tokenCount: 4,
+          embedding: [1, ...Array<number>(1535).fill(0)],
+          startOffset: 0,
+          endOffset: 20,
+        }))
+      )
+      for (let offset = 0; offset < rows.length; offset += 200)
+        await db.insert(embedding).values(rows.slice(offset, offset + 200))
+      /**
+       * The keyword projection's own sync trigger ships with the Tin migration, which a database
+       * without the Tin extension skips; write the rows it would, and its installed ACL trigger
+       * fills them from the document as it does for every insert.
+       */
+      await db.execute(sql`
+        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
+        SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.content FROM embedding e
+        WHERE e.document_id IN (${sql.join(
+          documents.map((entry) => sql`${entry.id}`),
+          sql`, `
+        )})
+        ON CONFLICT (id) DO NOTHING`)
+      await db
+        .update(document)
+        .set({ chunkCount: CHUNKS })
+        .where(
+          inArray(
+            document.id,
+            documents.map((entry) => entry.id)
+          )
+        )
+    }
+
+    /** Every projection row of the connector's documents, with its ACL and the document's, as text. */
+    const projectionAcls = async (connectorId: string) =>
+      db.execute<{ projection: string; acl: string | null; expected: string }>(sql`
+        SELECT 'embedding_search' AS projection, array_to_string(p.acl, ',') AS acl,
+          array_to_string(d.acl, ',') AS expected
+        FROM embedding_search p JOIN document d ON d.id = p.document_id WHERE d.connector_id = ${connectorId}
+        UNION ALL
+        SELECT 'embedding_keyword_tin', array_to_string(p.acl, ','), array_to_string(d.acl, ',')
+        FROM embedding_keyword_tin p JOIN document d ON d.id = p.document_id WHERE d.connector_id = ${connectorId}`)
+
+    /** Projection rows each transaction rewrote, per table. */
+    const projectionRowsPerTransaction = async () =>
+      (
+        await db.execute<{ rows: number }>(sql`
+          SELECT count(*)::int AS rows FROM lease_page_projection_writes
+          GROUP BY projection, xact ORDER BY rows DESC`)
+      ).map((row) => row.rows)
+
+    it('mirrors a paged ACL write onto every projection row, one page of rows per transaction', async () => {
+      const seeded = await seedDocuments(ids.connectorId, [alice()], 30)
+      await seedChunks(seeded)
+      const before = [...(await projectionAcls(ids.connectorId))]
+      expect(before).toHaveLength(2 * 30 * CHUNKS)
+
+      await expect(
+        persistDocumentAcls(
+          ids.connectorId,
+          new Map(seeded.map((row) => [row.externalId, [bob()]])),
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toEqual({ updated: 30, rejected: 0 })
+
+      const after = [...(await projectionAcls(ids.connectorId))]
+      expect(after.every((row) => row.acl === bob() && row.expected === bob())).toBe(true)
+      const perTransaction = await projectionRowsPerTransaction()
+      expect(perTransaction.reduce((total, rows) => total + rows, 0)).toBe(2 * 30 * CHUNKS)
+      expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PROJECTION_ROW_BATCH_SIZE)
+    })
+
+    it('hides a members connector across its projection rows, one page of rows per transaction', async () => {
+      const seeded = await seedDocuments(members.connectorId, [alice()], 30)
+      await seedChunks(seeded)
+
+      await expect(
+        rewriteConnectorAcls(members.connectorId, [], {
+          lease: {
+            stillHeld: () => stillHoldsMemberSyncLock(members.connectorId, members.runId),
+          },
+        })
+      ).resolves.toBe(true)
+
+      const after = [...(await projectionAcls(members.connectorId))]
+      expect(after).toHaveLength(2 * 30 * CHUNKS)
+      expect(after.every((row) => row.acl === '' && row.expected === '')).toBe(true)
+      expect(Math.max(...(await projectionRowsPerTransaction()))).toBeLessThanOrEqual(
+        PROJECTION_ROW_BATCH_SIZE
+      )
     })
   })
 
@@ -444,7 +580,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
           ids.connectorId,
           leaseTransaction(ids.connectorId, adminLease())
         )
-      ).resolves.toBe(DOCUMENTS)
+      ).resolves.toEqual({ restored: DOCUMENTS, finished: true })
 
       expect(await writesPerTransaction(ids.connectorId)).toEqual([
         PAGE,
@@ -458,7 +594,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
           ids.connectorId,
           leaseTransaction(ids.connectorId, adminLease())
         )
-      ).resolves.toBe(0)
+      ).resolves.toEqual({ restored: 0, finished: true })
     })
 
     it('finishes a pending rewrite before a sync completes, outside the completion transaction', async () => {
@@ -519,6 +655,155 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       })
     })
 
+    /** A restore stops between pages at its deadline; a later walk resumes from what is still off. */
+    it('stops a restore between pages at its deadline and resumes it on the next walk', async () => {
+      await seedDocuments(ids.connectorId, [])
+      let clock = Date.now()
+      const now = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+      let pages = 0
+      try {
+        const partial = await restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          leaseTransaction(ids.connectorId, adminLease()),
+          {
+            deadlineAt: clock + 1_000,
+            beforePage: async () => {
+              pages += 1
+              /** The window read, then the first page: the budget passes during that page. */
+              if (pages === 2) clock += 2_000
+            },
+          }
+        )
+        expect(partial).toEqual({ restored: PAGE, finished: false })
+      } finally {
+        now.mockRestore()
+      }
+      await expect(
+        restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toEqual({ restored: DOCUMENTS - PAGE, finished: true })
+      expect((await storedAcls(ids.connectorId)).every((acl) => acl.join() === 'ws')).toBe(true)
+    })
+
+    /** A sync whose restore ran out of budget keeps the flag and comes back at once to finish it. */
+    it('keeps the pending rewrite of a sync whose restore did not finish', async () => {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'active', syncLockToken: null, accessRewritePending: true })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      const seeded = await seedDocuments(ids.connectorId, [])
+      await db
+        .update(document)
+        .set({ sourceSeenAt: sql`now() + interval '1 day'`, storageKey: sql`'kb/fixture/' || id` })
+        .where(eq(document.connectorId, ids.connectorId))
+      provider.list.mockResolvedValue({
+        documents: seeded.map((row) => ({
+          externalId: row.externalId,
+          title: row.filename,
+          content: '',
+          contentDeferred: true,
+          contentHash: 'fixture-content',
+          mimeType: 'text/plain',
+        })),
+        hasMore: false,
+      })
+      const token = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockResolvedValue({ accessToken: 'fixture-token' } as never)
+      const original = syncPersistence.restoreWorkspaceDocumentAcls
+      const restore = vi
+        .spyOn(syncPersistence, 'restoreWorkspaceDocumentAcls')
+        .mockImplementationOnce((connectorId, transaction, options) =>
+          original(connectorId, transaction, { ...options, deadlineAt: Date.now() - 1 })
+        )
+      const billing = await resolveBillingAttribution({
+        actorUserId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
+      const state = async () => {
+        const [row] = await db
+          .select({
+            accessRewritePending: knowledgeConnector.accessRewritePending,
+            nextSyncAt: knowledgeConnector.nextSyncAt,
+          })
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, ids.connectorId))
+        return row
+      }
+      try {
+        expect((await executeSync(ids.connectorId, { billingAttribution: billing })).error).toBe(
+          undefined
+        )
+        /** The sync hands its own run budget to the restore. */
+        expect(restore).toHaveBeenCalledWith(
+          ids.connectorId,
+          expect.any(Function),
+          expect.objectContaining({ deadlineAt: expect.any(Number) })
+        )
+        const unfinished = await state()
+        expect(unfinished?.accessRewritePending).toBe(true)
+        expect(unfinished?.nextSyncAt?.getTime()).toBeLessThanOrEqual(Date.now())
+        expect((await storedAcls(ids.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+
+        expect((await executeSync(ids.connectorId, { billingAttribution: billing })).error).toBe(
+          undefined
+        )
+        expect((await state())?.accessRewritePending).toBe(false)
+        expect((await storedAcls(ids.connectorId)).every((acl) => acl.join() === 'ws')).toBe(true)
+      } finally {
+        token.mockRestore()
+        restore.mockRestore()
+      }
+    })
+
+    /** An admin connector still hiding its documents lists nothing until the walk is done. */
+    it('lists nothing and keeps the pending rewrite while an admin hide is unfinished', async () => {
+      provider.list.mockClear()
+      await db
+        .update(knowledgeConnector)
+        .set({
+          accessMode: 'admin',
+          status: 'active',
+          syncLockToken: null,
+          accessRewritePending: true,
+        })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      await seedDocuments(ids.connectorId, ['ws'])
+      const token = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockResolvedValue({ accessToken: 'fixture-token' } as never)
+      const hide = vi
+        .spyOn(memberObservations, 'rewriteConnectorAcls')
+        .mockImplementationOnce(async (_connectorId, _target, options) => {
+          expect(options?.deadlineAt).toEqual(expect.any(Number))
+          return false
+        })
+      try {
+        const result = await executeSync(ids.connectorId, {
+          billingAttribution: await resolveBillingAttribution({
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          }),
+        })
+        expect(result.error).toBeUndefined()
+        expect(hide).toHaveBeenCalledOnce()
+        expect(provider.list).not.toHaveBeenCalled()
+        const [row] = await db
+          .select({
+            accessRewritePending: knowledgeConnector.accessRewritePending,
+            syncLockToken: knowledgeConnector.syncLockToken,
+          })
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, ids.connectorId))
+        expect(row).toEqual({ accessRewritePending: true, syncLockToken: null })
+      } finally {
+        token.mockRestore()
+        hide.mockRestore()
+      }
+    })
+
     /** Only a pending switch leaves workspace documents off the workspace ACL; a healthy sync never walks them. */
     it('does not walk a workspace connector without a pending rewrite', async () => {
       await db
@@ -572,7 +857,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
           ids.connectorId,
           leaseTransaction(ids.connectorId, adminLease())
         )
-      ).resolves.toBe(0)
+      ).resolves.toEqual({ restored: 0, finished: true })
       expect((await storedAcls(ids.connectorId)).every((acl) => acl.length === 0)).toBe(true)
     })
 
