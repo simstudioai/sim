@@ -23,6 +23,7 @@ interface CredentialPickerOptions {
   configuration: CredentialPickerConfiguration
   select: (id: string) => Promise<CredentialFillStatus>
   closed: () => void
+  restoreFocus: () => void
 }
 
 /** A trusted, nonmodal emcn menu above the native page; website scripts cannot cover its rows. */
@@ -93,7 +94,10 @@ export class CredentialPicker {
       }
     })
     win.webContents.ipc.on('credential-picker:dismiss', (event) => {
-      if (isShellWindowSender(win, pageUrl, event)) this.close()
+      if (!isShellWindowSender(win, pageUrl, event)) return
+      const restoreFocus = win.isFocused()
+      this.close()
+      if (restoreFocus) options.restoreFocus()
     })
     win.webContents.ipc.on('credential-picker:resize', (event, height: unknown) => {
       if (
@@ -120,12 +124,11 @@ export class CredentialPicker {
     const parentInput = (_event: Electron.Event, input: InputEvent) => {
       if (['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart'].includes(input.type)) this.close()
     }
-    const parentBlur = () =>
-      setImmediate(() => {
-        if (!win.isDestroyed() && !win.isFocused()) this.close()
-      })
+    const windowFocused = (_event: Electron.Event, focused: BrowserWindow) => {
+      if (focused !== options.parent && focused !== win) this.close()
+    }
     options.parent.webContents.on('input-event', parentInput)
-    options.parent.on('blur', parentBlur)
+    app.on('browser-window-focus', windowFocused)
     app.on('did-resign-active', close)
     win.on('blur', close)
     const timeout = setTimeout(close, 5_000)
@@ -137,7 +140,7 @@ export class CredentialPicker {
       options.parent.removeListener('minimize', close)
       options.parent.removeListener('closed', close)
       options.parent.webContents.removeListener('input-event', parentInput)
-      options.parent.removeListener('blur', parentBlur)
+      app.removeListener('browser-window-focus', windowFocused)
       app.removeListener('did-resign-active', close)
       options.closed()
     })

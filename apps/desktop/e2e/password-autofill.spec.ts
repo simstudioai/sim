@@ -122,13 +122,13 @@ test.describe('saved password autofill', () => {
     )
   })
 
-  async function seed(count: number) {
+  async function seed(count: number, prefix = 'account') {
     const ciphertext = await app.evaluate(
-      ({ safeStorage }, { site, count }) => {
+      ({ safeStorage }, { site, count, prefix }) => {
         const records = Array.from({ length: count }, (_, index) => ({
           id: `account-${index}`,
           origin: site,
-          username: `account${index + 1}@example.test`,
+          username: `${prefix}${index + 1}@example.test`,
           password: `fixture-secret-${index}`,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
@@ -136,7 +136,7 @@ test.describe('saved password autofill', () => {
         }))
         return safeStorage.encryptString(JSON.stringify(records)).toString('base64')
       },
-      { site, count }
+      { site, count, prefix }
     )
     writeFileSync(
       join(userData, 'browser-credentials.json'),
@@ -319,6 +319,57 @@ test.describe('saved password autofill', () => {
       .toBe(false)
   })
 
+  for (const count of [1, 3]) {
+    test(`keeps full account tooltips inside a ${count}-account picker`, async () => {
+      const prefix = 'person.with.a.long.name.and.department.for.signin'
+      await seed(count, prefix)
+      await clickField()
+      const menu = await picker()
+      await menu.getByRole('menuitem').first().hover()
+      const tooltip = menu.locator('body > [data-native-surface-overlay][aria-hidden="true"]')
+      await expect(tooltip).toBeVisible()
+      await expect(tooltip).toHaveText(`${prefix}1@example.test`)
+      await expect
+        .poll(() =>
+          tooltip.evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return (
+              rect.left >= 0 &&
+              rect.top >= 0 &&
+              rect.right <= innerWidth &&
+              rect.bottom <= innerHeight
+            )
+          })
+        )
+        .toBe(true)
+      if (SCREENSHOTS) {
+        await menu.screenshot({ path: join(SCREENSHOTS, `password-picker-long-${count}.png`) })
+      }
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()
+          .find((window) => window.webContents.getURL().includes('credential-picker.html'))!
+          .setContentSize(800, 600)
+      })
+      await menu
+        .getByRole('menuitem')
+        .first()
+        .hover({ position: { x: 100, y: 14 } })
+      await expect
+        .poll(() =>
+          tooltip.evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return (
+              rect.left >= 100 &&
+              rect.top >= 0 &&
+              rect.right <= innerWidth &&
+              rect.bottom <= innerHeight
+            )
+          })
+        )
+        .toBe(true)
+    })
+  }
+
   test('dismisses an inactive picker on outside input and hides it when its page disappears', async () => {
     await clickField()
     await picker()
@@ -326,6 +377,7 @@ test.describe('saved password autofill', () => {
     await expect
       .poll(() => app.windows().some((page) => page.url().includes('credential-picker.html')))
       .toBe(false)
+    await expect(host.getByRole('button', { name: 'Outside the browser' })).toBeFocused()
     await clickField()
     await picker()
     await host.evaluate((scope) => {
@@ -337,6 +389,45 @@ test.describe('saved password autofill', () => {
       .poll(() => app.windows().some((page) => page.url().includes('credential-picker.html')))
       .toBe(false)
     expect(await pageScript('document.getElementById("pass").value')).toBe('')
+  })
+
+  test('returns keyboard focus to the login after dismissal and selection', async () => {
+    await clickField()
+    await picker()
+    await app.evaluate(({ webContents }, site) => {
+      const page = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL().startsWith(`${site}/login`))!
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'Down' })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'Down' })
+    }, site)
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getFocusedWindow()?.webContents.getURL().includes('credential-picker.html')
+        )
+      )
+      .toBe(true)
+    await pickerKey('Escape')
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow, webContents }) => ({
+          window: BrowserWindow.getFocusedWindow()?.webContents.getURL(),
+          page: webContents.getFocusedWebContents()?.getURL(),
+        }))
+      )
+      .toEqual({ window: host.url(), page: `${site}/login` })
+    await app.evaluate(({ webContents }) => {
+      const page = webContents.getFocusedWebContents()!
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+    })
+    await expect.poll(() => pageScript('document.activeElement.id')).toBe('pass')
+    const menu = await picker()
+    await menu.getByRole('menuitem').first().click()
+    await expect
+      .poll(() => app.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL()))
+      .toBe(`${site}/login`)
   })
 
   test('rejects replaced fields and excludes account creation', async () => {
@@ -354,11 +445,18 @@ test.describe('saved password autofill', () => {
   })
   test('offers a focused manual chooser with one account', async () => {
     await seed(1)
+    await host.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      await api.browserAgent.capturePanelSnapshot(scope)
+      if (!(await api.browserAgent.setPanelOccluded(true, scope))) {
+        throw new Error('Could not open the toolbar overlay')
+      }
+    }, SCOPE)
     await host.evaluate((scope) => {
-      document.getElementById('outside')!.onclick = () => {
-        void (
-          globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-        ).simDesktop.browserCredentials.showChooser({ x: 20, y: 80 }, scope)
+      document.getElementById('outside')!.onclick = async () => {
+        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        await api.browserAgent.setPanelOccluded(false, scope)
+        await api.browserCredentials.showChooser({ x: 20, y: 80 }, scope)
       }
     }, SCOPE)
     await host.getByRole('button', { name: 'Outside the browser' }).click()
