@@ -285,6 +285,14 @@ export function Composer({
     </ComposerActionButton>
   )
 
+  const attachmentList = files.attachedFiles.length ? (
+    <AttachedFilesList
+      attachedFiles={files.attachedFiles}
+      onFileClick={files.handleFileClick}
+      onRemoveFile={files.removeFile}
+    />
+  ) : null
+
   return (
     <div
       onDragEnter={files.handleDragEnter}
@@ -298,16 +306,13 @@ export function Composer({
         !imagesOnly && isInitialView && 'shadow-ambient'
       )}
     >
-      <AttachedFilesList
-        attachedFiles={files.attachedFiles}
-        onFileClick={files.handleFileClick}
-        onRemoveFile={files.removeFile}
-      />
+      {!imagesOnly && attachmentList}
       {!imagesOnly && promptEditor}
 
       {imagesOnly ? (
         <SearchInputBar
           floating={isInitialView}
+          attachments={attachmentList}
           inputRef={textareaRef}
           value={editor.value}
           onChange={(text) => editor.setValue(text)}

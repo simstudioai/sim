@@ -21,6 +21,7 @@ interface SearchInputBarProps {
   placeholder?: string
   'aria-label'?: string
   leadingControls?: ReactNode
+  attachments?: ReactNode
   selectionControl?: ReactNode
   voiceControl?: ReactNode
   submitControl: ReactNode
@@ -30,6 +31,7 @@ interface SearchInputBarProps {
 /** Canonical Search bar shared by raw search and conversational Search. */
 export function SearchInputBar({
   leadingControls,
+  attachments,
   inputRef,
   value,
   onChange,
@@ -47,6 +49,7 @@ export function SearchInputBar({
   const trailingRef = useRef<HTMLDivElement>(null)
   const textMeasureRef = useRef<HTMLSpanElement>(null)
   const [expanded, setExpanded] = useState(value.includes('\n'))
+  const hasAttachments = Boolean(attachments)
 
   /** Measure against the compact width so expanding the field cannot cause a wrap/collapse loop. */
   useLayoutEffect(() => {
@@ -72,16 +75,18 @@ export function SearchInputBar({
     const observer = new ResizeObserver(measure)
     for (const element of [bar, leading, trailing]) observer.observe(element)
     return () => observer.disconnect()
-  }, [value])
+  }, [value, hasAttachments])
 
   return (
     <div
       ref={scrollerRef}
       className={cn(
         'relative min-h-[46px] w-full rounded-[23px] border border-[var(--border-1)] bg-[var(--white)] py-[7px] pr-2.5 pl-4 dark:bg-[var(--surface-4)]',
+        hasAttachments && 'rounded-2xl px-2.5 py-2',
         floating && 'shadow-ambient'
       )}
     >
+      {attachments}
       <InputToolbar
         leadingRef={leadingRef}
         trailingRef={trailingRef}
@@ -92,13 +97,14 @@ export function SearchInputBar({
         selectionControl={selectionControl}
         voiceControl={voiceControl}
         submitControl={submitControl}
-        expanded={expanded}
+        expanded={hasAttachments || expanded}
         editor={
           <GrowingTextarea
             inputRef={inputRef}
             scrollerRef={scrollerRef}
             value={value}
-            compact={!expanded}
+            compact={!hasAttachments && !expanded}
+            className={hasAttachments ? 'min-h-[56px]' : undefined}
             maxHeight={200}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {

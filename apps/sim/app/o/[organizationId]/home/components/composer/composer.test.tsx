@@ -321,6 +321,11 @@ describe('organization image composer', () => {
         })
       )
       expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
+      const searchBar = container
+        .querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .closest('div.rounded-2xl')
+      expect(searchBar?.contains(container.querySelector('img'))).toBe(true)
+      expect(searchBar?.querySelector('textarea')?.className).toContain('min-h-[56px]')
       await act(async () =>
         container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
       )
