@@ -201,6 +201,33 @@ describe('performCreateKnowledgeConnector', () => {
     }
   )
 
+  it.each(['result', 'exception'])(
+    'redacts credentials from provider validation %s errors',
+    async (failure) => {
+      const token = 'private/value'
+      const message = `Invalid credential ${token} (${encodeURIComponent(token)})`
+      if (failure === 'result')
+        mockValidateGitHub.mockResolvedValueOnce({ valid: false, error: message })
+      else mockValidateGitHub.mockRejectedValueOnce(new OrchestrationError('validation', message))
+      const request = performCreateKnowledgeConnector({
+        ...createParams,
+        connectorType: 'github',
+        apiKey: token,
+      })
+      const expected = {
+        errorCode: 'validation',
+        error: 'Invalid credential [REDACTED] ([REDACTED])',
+      }
+      if (failure === 'result') await expect(request).resolves.toMatchObject(expected)
+      else
+        await expect(request).rejects.toMatchObject({
+          code: expected.errorCode,
+          message: expected.error,
+        })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
   it('validates and encrypts a GitHub PAT without resolving an OAuth account or returning the secret', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([

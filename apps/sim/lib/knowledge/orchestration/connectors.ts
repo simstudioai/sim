@@ -9,7 +9,7 @@ import {
   knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
@@ -32,6 +32,7 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -342,14 +343,17 @@ export async function performCreateKnowledgeConnector(
       ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
     }
     params.permissionChange?.populateSyncContext(validationContext, 'setup')
-    const configValidation = await connectorConfig.validateConfig(
-      accessToken,
-      sourceConfig,
-      validationContext
-    )
+    const configValidation = await connectorConfig
+      .validateConfig(accessToken, sourceConfig, validationContext)
+      .catch((error: unknown) => {
+        const sanitized = toError(error)
+        sanitized.message = redactKnownSensitiveValues(sanitized.message, [accessToken])
+        throw sanitized
+      })
     if (!configValidation.valid) {
       return fail(
-        configValidation.error ||
+        (configValidation.error &&
+          redactKnownSensitiveValues(configValidation.error, [accessToken])) ||
           `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
         'validation'
       )

@@ -140,7 +140,8 @@ export function ConnectorAccessField({
   for (const entry of modes)
     entry.allowed &&= supportsConnectorAccessMode(connectorConfig, entry.mode)
   if (
-    connectorConfig.supportedAccessModes?.length === 1 &&
+    connectorConfig.supportedAccessModes?.filter((mode) => allowWorkspace || mode !== 'workspace')
+      .length === 1 &&
     modes.some((entry) => entry.mode === value.accessMode && entry.allowed)
   )
     return canAdmin && footer ? <div className='px-2'>{footer}</div> : null

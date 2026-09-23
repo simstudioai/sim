@@ -11,6 +11,7 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
@@ -26,8 +27,10 @@ import {
   resourceScopeFields,
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
@@ -496,14 +499,21 @@ export async function validateConnectorSourceConfig(input: {
       )
     }
   }
-  const validation = await connectorConfig.validateConfig(
-    resolved.accessToken,
-    input.sourceConfig,
-    validationContext
-  )
+  const validation = await connectorConfig
+    .validateConfig(resolved.accessToken, input.sourceConfig, validationContext)
+    .catch((error: unknown) => {
+      const sanitized = toError(error)
+      sanitized.message = redactKnownSensitiveValues(sanitized.message, [resolved.accessToken])
+      throw sanitized
+    })
   return validation.valid
     ? null
-    : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
+    : {
+        message: redactKnownSensitiveValues(validation.error || 'Invalid source configuration', [
+          resolved.accessToken,
+        ]),
+        errorCode: 'validation',
+      }
 }
 
 export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
@@ -768,6 +778,26 @@ async function summarizeConnectorMembers(
   return { active: row?.active ?? 0, suspended: row?.suspended ?? 0, stale: row?.stale ?? 0 }
 }
 
+/** Resolves a secret reference at setup time; the connector stores an encrypted token snapshot. */
+async function resolveConnectorApiKey(
+  apiKey: string | undefined,
+  principal: Principal,
+  workspaceId: string | undefined
+): Promise<string | undefined> {
+  const name = apiKey?.trim().match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)?.[1]
+  if (!name) return apiKey
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) {
+    throw new OrchestrationError('forbidden', 'Secret references require a user identity')
+  }
+  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
+  const value = Object.hasOwn(variables, name) ? variables[name].value : undefined
+  if (!value) {
+    throw new OrchestrationError('validation', `Secret "${name}" is unavailable or empty`)
+  }
+  return value
+}
+
 async function executeCreateKnowledgeConnector(
   {
     principal,
@@ -882,19 +912,20 @@ async function executeCreateKnowledgeConnector(
     sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
   })
   if (membersBinding) membersBinding = { ...membersBinding, sourceConfig }
+  const apiKey = await resolveConnectorApiKey(input.apiKey, principal, workspaceId)
   const permissionChange = input.permissionConfig
     ? await prepareConnectorPermissions(input.connectorType, {
         accessMode: input.accessMode ?? 'workspace',
         sourceConfig,
         permissionConfig: input.permissionConfig,
-        apiKey: input.apiKey,
+        apiKey,
       })
     : undefined
   const outcome = await performCreateKnowledgeConnector({
     knowledgeBase: connectorTarget(context),
     connectorType: input.connectorType,
     credentialId: input.credentialId,
-    apiKey: input.apiKey,
+    apiKey,
     permissionChange,
     /** Members mode stores the config with its listing caps cleared. */
     sourceConfig,
@@ -1089,7 +1120,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         accessMode: connector.accessMode,
         sourceConfig: updates.sourceConfig ?? (connector.sourceConfig as Record<string, unknown>),
         permissionConfig,
-        apiKey,
+        apiKey: await resolveConnectorApiKey(apiKey, principal, context.workspaceId),
         existing: connector,
       })
       if (permissionChange && !permissionConfig && apiKey === undefined) {
