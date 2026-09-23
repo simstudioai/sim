@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   isCredentialInvalidError: vi.fn(),
   observe: vi.fn(),
   removeUnseen: vi.fn(),
+  removeForDocuments: vi.fn(),
   materialize: vi.fn(),
   lifecycle: vi.fn(),
   credentials: vi.fn(),
@@ -60,10 +61,12 @@ vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   applyMemberDocumentLifecycle: mocks.lifecycle,
   materializeDocumentAcls: mocks.materialize,
   recordMemberObservations: mocks.observe,
-  removeMemberObservationsForDocuments: vi.fn(async () => []),
+  removeMemberObservationsForDocuments: mocks.removeForDocuments,
   removeUnseenMemberObservations: mocks.removeUnseen,
   renewMemberObservationsInScopes: mocks.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
+  tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
+  resurrectObservedDocuments: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: mocks.add,
@@ -317,6 +320,7 @@ function arrange(
   mocks.dispatch.mockResolvedValue({ accepted: 1, failed: 0 })
   mocks.observe.mockResolvedValue(1)
   mocks.removeUnseen.mockResolvedValue({ removed: 0, finished: true })
+  mocks.removeForDocuments.mockResolvedValue([])
   mocks.getChangeCursor.mockResolvedValue('new-cursor')
   mocks.listChanges.mockResolvedValue({ changes: [], hasMore: false, nextCursor: 'drained' })
   mocks.supportsChangeFeed.mockReturnValue(true)
@@ -680,6 +684,41 @@ describe('member engine with a dedicated content credential', () => {
     expect(mocks.materialize).toHaveBeenCalledWith('connector', ['stored-file'], expect.anything())
     expect(mocks.lifecycle).not.toHaveBeenCalled()
     expect(result.docsDeleted).toBe(0)
+  })
+
+  it('hands the documents whose observations a complete listing removed to the member lifecycle', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.list.mockResolvedValue({ documents: [], hasMore: false })
+    mocks.removeUnseen.mockImplementation(async (_tx, _member, _runId, onRemoved) => {
+      await onRemoved(['no-longer-listed'])
+      return { removed: 1, finished: true }
+    })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRemoved).toBe(1)
+    expect(mocks.lifecycle).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(
+      new Set(['no-longer-listed'])
+    )
+  })
+
+  it('hands the documents a change feed withdrew to the member lifecycle', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(mocks.removeForDocuments).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(new Set(['stored-file']))
   })
 
   it('fully lists scopes whose ancestor moves cannot be represented by the change feed', async () => {

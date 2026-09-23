@@ -140,6 +140,7 @@ import {
   performDeleteKnowledgeConnector,
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
+  withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
 
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
@@ -1789,5 +1790,19 @@ describe('members-mode connectors', () => {
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
     expect(mockGrant).not.toHaveBeenCalled()
+  })
+})
+
+describe('withoutSecret', () => {
+  it('drops the stored API key and the members-mode reconcile cursor from what callers receive', () => {
+    const row = {
+      id: 'conn-1',
+      connectorType: 'notion',
+      encryptedApiKey: 'cipher',
+      memberTombstoneCursor: { externalId: 'hidden-document' },
+    } as unknown as Parameters<typeof withoutSecret>[0]
+    const presented = withoutSecret(row)
+    expect(presented).toEqual({ id: 'conn-1', connectorType: 'notion' })
+    expect(presented).not.toHaveProperty('memberTombstoneCursor')
   })
 })

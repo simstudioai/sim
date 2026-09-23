@@ -2633,6 +2633,13 @@
       "when": 1790115308709,
       "tag": "0376_knowledge_connector_detached_at",
       "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1790119588517,
+      "tag": "0377_member_tombstone_cursor",
+      "breakpoints": true
     }
   ]
 }
