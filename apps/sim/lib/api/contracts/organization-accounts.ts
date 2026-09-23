@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/credential-groups'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT } from '@/lib/credential-groups/api-key-constants'
 import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import {
   ORGANIZATION_ACCOUNT_INDEXING_SOURCE_LIMIT,
@@ -59,6 +60,15 @@ export const getOrganizationAccountsContract = defineRouteContract({
           })
         )
         .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+        .optional(),
+      viewerApiKeys: z
+        .array(
+          z.object({
+            credentialId: z.string().min(1).max(128),
+            optionId: z.string().min(1).max(128),
+          })
+        )
+        .max(CREDENTIAL_GROUP_API_KEY_OPTION_LIMIT)
         .optional(),
     }),
   },

@@ -106,7 +106,12 @@ describe('organization workspace sharing administration', () => {
 
   it('returns only the acting member account metadata for the canonical organization group, even when providers are disabled', async () => {
     queueTableRows(schemaMock.member, [{ role: 'member' }])
-    mocks.accountsGroup.mockResolvedValue({ id: 'group-1', status: 'disabled', options: [] })
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'disabled',
+      options: [],
+      apiKeyOptions: [],
+    })
     const account = {
       credentialId: 'credential-1',
       displayName: 'My GitHub',
@@ -127,12 +132,38 @@ describe('organization workspace sharing administration', () => {
     expect(eq).toHaveBeenCalledWith(schemaMock.credential.organizationId, 'org-1')
   })
 
+  it('returns only personal API-key identities without selecting ciphertext', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'active',
+      options: [],
+      apiKeyOptions: [{ id: 'search-option', name: 'Search API key', description: 'For search' }],
+    })
+    queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.credential, [
+      { credentialId: 'personal-key', optionId: 'search-option' },
+    ])
+    const result = await getOrganizationAccountsSettings.execute({
+      principal,
+      input: { organizationId: 'org-1' },
+    })
+    expect(result.viewerApiKeys).toEqual([
+      { credentialId: 'personal-key', optionId: 'search-option' },
+    ])
+    expect(dbChainMockFns.select).not.toHaveBeenCalledWith(
+      expect.objectContaining({ encryptedApiKey: expect.anything() })
+    )
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'admin-user')
+  })
+
   it('starts an active account through the existing enrollment OAuth boundary', async () => {
     queueTableRows(schemaMock.member, [{ role: 'member' }])
     mocks.accountsGroup.mockResolvedValue({
       id: 'group-1',
       status: 'active',
       options: [{ id: 'option-1', status: 'active' }],
+      apiKeyOptions: [],
     })
     mocks.invite.mockResolvedValue({
       invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
@@ -155,12 +186,35 @@ describe('organization workspace sharing administration', () => {
     })
   })
 
+  it('starts a requested API key through personal enrollment without an OAuth URL', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.accountsGroup.mockResolvedValue({
+      id: 'group-1',
+      status: 'active',
+      options: [],
+      apiKeyOptions: [{ id: 'search-option', name: 'Search API key', description: null }],
+    })
+    mocks.invite.mockResolvedValue({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
+    await expect(
+      startOrganizationAccountConnection.execute({
+        principal,
+        input: { organizationId: 'org-1', optionId: 'search-option' },
+      })
+    ).resolves.toEqual({
+      invitationLink:
+        'https://sim.test/credential-groups/enroll/fixture-token?optionId=search-option',
+    })
+  })
+
   it('does not issue a direct authorization link when enrollment access was revoked', async () => {
     queueTableRows(schemaMock.member, [{ role: 'member' }])
     mocks.accountsGroup.mockResolvedValue({
       id: 'group-1',
       status: 'active',
       options: [{ id: 'option-1', status: 'active' }],
+      apiKeyOptions: [],
     })
     mocks.invite.mockRejectedValue(new OrchestrationError('forbidden', 'Enrollment revoked'))
     await expect(

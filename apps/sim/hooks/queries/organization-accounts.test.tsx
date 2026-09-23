@@ -10,10 +10,12 @@ vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }))
 
 import { ApiClientError } from '@/lib/api/client/errors'
+import { saveCredentialGroupApiKeyContract } from '@/lib/api/contracts/credential-groups'
 import {
   disconnectPersonalOrganizationAccountContract,
   listOrganizationAccountPeopleContract,
   revokeOrganizationAccountEnrollmentContract,
+  startOrganizationAccountConnectionContract,
   updateOrganizationAccountsContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
@@ -22,12 +24,57 @@ import {
   useDisconnectPersonalOrganizationAccount,
   useOrganizationAccountPeople,
   useRevokeOrganizationAccountEnrollment,
+  useSaveOrganizationAccountApiKey,
   useUpdateOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { selectorKeys, selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
+
+describe('personal API key connection', () => {
+  it('mints personal enrollment and submits the key to its write endpoint', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    mocks.request.mockReset()
+    mocks.request
+      .mockResolvedValueOnce({
+        invitationLink:
+          'https://sim.test/credential-groups/enroll/personal-token?optionId=search-option',
+      })
+      .mockResolvedValueOnce({ connected: true })
+    const client = new QueryClient()
+    const root = createRoot(document.createElement('div'))
+    let mutation: ReturnType<typeof useSaveOrganizationAccountApiKey>
+    function Probe() {
+      mutation = useSaveOrganizationAccountApiKey('org-1', 'search-option')
+      return null
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+      await act(async () => {
+        await mutation!.mutateAsync({ value: 'synthetic-test-key' })
+      })
+      expect(mocks.request).toHaveBeenNthCalledWith(1, startOrganizationAccountConnectionContract, {
+        params: { id: 'org-1' },
+        body: { optionId: 'search-option' },
+      })
+      expect(mocks.request).toHaveBeenNthCalledWith(2, saveCredentialGroupApiKeyContract, {
+        params: { token: 'personal-token', optionId: 'search-option' },
+        body: { value: 'synthetic-test-key' },
+      })
+    } finally {
+      await act(async () => root.unmount())
+      client.clear()
+      vi.unstubAllGlobals()
+    }
+  })
+})
 
 describe('personal account disconnect', () => {
   it.each([true, false])(

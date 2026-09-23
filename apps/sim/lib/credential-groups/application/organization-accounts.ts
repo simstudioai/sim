@@ -29,7 +29,10 @@ import type {
   CredentialGroupOptionInput,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
-import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
+import {
+  listViewerOrganizationAccounts,
+  listViewerOrganizationApiKeys,
+} from '@/lib/credential-groups/viewer-accounts'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 
 export const organizationAccountOperations = {
@@ -143,6 +146,13 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
             matching: eq(credentialGroupTable.id, credentialGroup.id),
           })
         : [],
+      viewerApiKeys: credentialGroup
+        ? await listViewerOrganizationApiKeys({
+            organizationId: context.organizationId,
+            credentialGroupId: credentialGroup.id,
+            userId: context.userId,
+          })
+        : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
       canManage: context.role === 'owner' || context.role === 'admin',
       indexingAvailable: await isKnowledgeMemberAccessAvailable({
@@ -218,9 +228,11 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     const group = await getOrganizationAccountsGroup(context.organizationId)
     if (!group || group.status !== 'active')
       throw new OrchestrationError('not_found', 'Ask an organization admin to set up this source')
-    if (
-      !group.options.some((option) => option.id === input.optionId && option.status === 'active')
-    ) {
+    const oauthOption = group.options.some(
+      (option) => option.id === input.optionId && option.status === 'active'
+    )
+    const apiKeyOption = group.apiKeyOptions.some((option) => option.id === input.optionId)
+    if (!oauthOption && !apiKeyOption) {
       throw new OrchestrationError('not_found', 'This account option is no longer available')
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({
@@ -230,14 +242,18 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     })
     const url = new URL(invitationLink)
     url.searchParams.set('optionId', input.optionId)
-    url.searchParams.set('returnTo', 'search')
+    if (oauthOption) url.searchParams.set('returnTo', 'search')
     return {
       invitationLink: url.toString(),
-      authorizationUrl: createCredentialGroupOAuthStartUrl({
-        invitationLink,
-        optionId: input.optionId,
-        returnTo: 'search',
-      }),
+      ...(oauthOption
+        ? {
+            authorizationUrl: createCredentialGroupOAuthStartUrl({
+              invitationLink,
+              optionId: input.optionId,
+              returnTo: 'search',
+            }),
+          }
+        : {}),
     }
   },
 })

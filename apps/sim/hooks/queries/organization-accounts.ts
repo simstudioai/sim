@@ -11,6 +11,10 @@ import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type SaveCredentialGroupApiKeyBody,
+  saveCredentialGroupApiKeyContract,
+} from '@/lib/api/contracts/credential-groups'
+import {
   type AddOrganizationAccountMcpProviderBody,
   addOrganizationAccountMcpProviderContract,
   type ConfigureOrganizationMcpBody,
@@ -206,6 +210,36 @@ export function useConnectOrganizationAccount() {
         params: { id: organizationId },
         body: { optionId },
       }),
+  })
+}
+
+function enrollmentTokenFromLink(invitationLink: string): string {
+  const match = new URL(invitationLink).pathname.match(/^\/credential-groups\/enroll\/([^/]+)$/)
+  if (!match) throw new Error('Credential Group enrollment link is invalid')
+  return decodeURIComponent(match[1])
+}
+
+export function useSaveOrganizationAccountApiKey(organizationId: string, optionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async (body: SaveCredentialGroupApiKeyBody) => {
+      const { invitationLink } = await requestJson(startOrganizationAccountConnectionContract, {
+        params: { id: organizationId },
+        body: { optionId },
+      })
+      return requestJson(saveCredentialGroupApiKeyContract, {
+        params: { token: enrollmentTokenFromLink(invitationLink), optionId },
+        body,
+      })
+    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+      ]),
   })
 }
 

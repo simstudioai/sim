@@ -29,7 +29,7 @@ export function OrganizationIntegrations({
   return (
     <OrganizationPage
       title='Integrations'
-      description='Connect your accounts for Sim Search'
+      description='Connect your accounts and API keys for Sim Search, workflows, and Chat'
       searchMode='expanded'
       searchPlaceholder='Search integrations'
       action={

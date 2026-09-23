@@ -12,6 +12,7 @@ import {
 } from '@/lib/sim-search/connectors'
 import { GitHubMemberIntegration } from '@/app/o/[organizationId]/integrations/github-member-integration'
 import { MemberIntegrationRow } from '@/app/o/[organizationId]/integrations/member-integration-row'
+import { OrganizationApiKeyIntegration } from '@/app/o/[organizationId]/integrations/organization-api-key-integration'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import {
@@ -101,6 +102,9 @@ export function MemberIntegrationsList({
       (provider.type === 'github' &&
         githubAccounts.some((account) => account.displayName.toLowerCase().includes(query)))
   )
+  const apiKeyGroup = organizationAccounts.data?.credentialGroup
+  const visibleApiKeys =
+    apiKeyGroup?.apiKeyOptions.filter((option) => option.name.toLowerCase().includes(query)) ?? []
   const githubProvider = visible.find((provider) => provider.type === 'github')
   const githubRow =
     githubProvider && usesGitHubInventory ? (
@@ -171,8 +175,23 @@ export function MemberIntegrationsList({
                 )}
               </div>
             ))}
+            {visibleApiKeys.map((option) => (
+              <OrganizationApiKeyIntegration
+                key={option.id}
+                organizationId={organization.id}
+                option={option}
+                credentialId={
+                  organizationAccounts.data?.viewerApiKeys?.find(
+                    (entry) => entry.optionId === option.id
+                  )?.credentialId
+                }
+                available={apiKeyGroup?.status === 'active'}
+              />
+            ))}
             {showEmpty &&
               visible.length === 0 &&
+              visibleApiKeys.length === 0 &&
+              !organizationAccounts.isPending &&
               !availability.integrationAvailabilityError &&
               !showSlackSetupError && (
                 <SettingsEmptyState variant='inline'>
@@ -187,6 +206,15 @@ export function MemberIntegrationsList({
           </>
         )}
       </div>
+      {organizationAccounts.isError && (
+        <SettingsQueryErrorState
+          error={organizationAccounts.error}
+          fallback='Could not load API key requests'
+          isRetrying={organizationAccounts.isFetching}
+          onRetry={() => void organizationAccounts.refetch()}
+          variant='inline'
+        />
+      )}
     </>
   )
 }

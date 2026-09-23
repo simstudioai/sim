@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   organizationAccounts: vi.fn(),
   connectOrganizationAccount: vi.fn(),
   reconnectOrganizationAccount: vi.fn(),
+  saveApiKey: vi.fn(),
+  disconnectApiKey: vi.fn(),
   refetchAccounts: vi.fn(),
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => ({
@@ -40,6 +42,16 @@ vi.mock('@/hooks/queries/organization-accounts', () => ({
   useReconnectPersonalOrganizationAccount: () => ({
     mutate: mocks.reconnectOrganizationAccount,
     isPending: false,
+  }),
+  useSaveOrganizationAccountApiKey: () => ({
+    mutate: mocks.saveApiKey,
+    isPending: false,
+    error: null,
+  }),
+  useDisconnectPersonalOrganizationAccount: () => ({
+    mutate: mocks.disconnectApiKey,
+    isPending: false,
+    error: null,
   }),
 }))
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
@@ -299,6 +311,7 @@ describe('GitHub member account inventory', () => {
     id: 'accounts-group',
     status: 'active',
     options: [{ id: 'github-option', provider: 'github-repositories', status: 'active' }],
+    apiKeyOptions: [],
   }
 
   beforeEach(() => {
@@ -498,6 +511,81 @@ describe('GitHub member account inventory', () => {
       expect.objectContaining({ accounts: [githubAccount] })
     )
     expect(buttons('Connect')).toHaveLength(0)
+  })
+})
+
+describe('requested API key integrations', () => {
+  beforeEach(() => {
+    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mocks.integrations.mockReturnValue({ data: [], isPending: false })
+    mocks.organizationAccounts.mockReturnValue({
+      data: {
+        credentialGroup: {
+          id: 'accounts-group',
+          status: 'active',
+          options: [],
+          apiKeyOptions: [
+            {
+              id: 'search-option',
+              name: 'Search API key',
+              description: 'Get a key from the provider.',
+            },
+          ],
+        },
+        viewerAccounts: [],
+        viewerApiKeys: [],
+      },
+      isPending: false,
+      isError: false,
+    })
+  })
+
+  it('shows a named integration and opens its description and masked key field on Connect', async () => {
+    await render()
+    expect(container.textContent).toContain('Search API key')
+    expect(container.textContent).toContain('Not connected')
+    expect(container.textContent).not.toContain('Get a key from the provider.')
+    expect(buttons('Connect')).toHaveLength(1)
+    await act(async () => buttons('Connect')[0].click())
+    const modal = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(modal.textContent).toContain('Get a key from the provider.')
+    expect(modal.textContent).toContain('Enter at least 8 characters to connect.')
+    const input = modal.querySelector<HTMLInputElement>('input[placeholder="Enter your API key"]')!
+    const connect = [...modal.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent?.trim() === 'Connect'
+    )!
+    expect(connect.disabled).toBe(true)
+    await act(async () => {
+      input.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'synthetic-test-key'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(connect.disabled).toBe(false)
+    await act(async () => connect.click())
+    expect(mocks.saveApiKey).toHaveBeenCalledExactlyOnceWith(
+      { value: 'synthetic-test-key' },
+      expect.any(Object)
+    )
+  })
+
+  it('shows Replace and Disconnect when the viewer has supplied a key', async () => {
+    const inventory = mocks.organizationAccounts()
+    mocks.organizationAccounts.mockReturnValue({
+      ...inventory,
+      data: {
+        ...inventory.data,
+        viewerApiKeys: [{ optionId: 'search-option', credentialId: 'personal-key' }],
+      },
+    })
+    await render()
+    expect(container.textContent).toContain('Connected')
+    expect(buttons('Replace')).toHaveLength(1)
+    await openMenu('Search API key')
+    await act(async () => menuItem('Disconnect').click())
+    expect(mocks.disconnectApiKey).toHaveBeenCalledExactlyOnceWith('personal-key')
   })
 })
 
