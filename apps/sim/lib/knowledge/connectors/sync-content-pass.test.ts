@@ -208,7 +208,10 @@ describe('completed listing removal counts', () => {
     ])
     queueTableRows(schemaMock.document, options.revoked ?? [])
     if (options.revoked?.length) {
-      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+      /** Every revocation batch is its own lease-proving transaction: one evidence clear, then acl batches. */
+      const batches = 1 + Math.ceil(options.revoked.length / 25)
+      for (let batch = 0; batch < batches; batch++)
+        queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
       queueTableRows(schemaMock.document, [])
     }
     if (!options.fullSync) {
@@ -322,6 +325,9 @@ describe('completed listing removal counts', () => {
     ).toEqual([25, 5])
     expect(writes.every(({ conditions }) => conditions.some(grantsSomeone))).toBe(true)
     expect(result.docsDeleted).toBe(0)
+    /** One lease-proving, bounded transaction per revocation batch, never one across the page. */
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
   })
 
   it('does not report a full-sync removal when the guarded delete removed no live rows', async () => {
@@ -828,6 +834,19 @@ describe('permission refresh through the shared content pass', () => {
     const revocations = aclAssignments().filter(({ values }) => values.acl.length === 0)
     expect(revocations).toHaveLength(1)
     expect(revocations[0].conditions.some(grantsSomeone)).toBe(true)
+    /** The evidence clear and the revocation are separate lease transactions, never one across both. */
+    const setOrder = (matches: (values: Record<string, unknown>) => boolean) =>
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.findIndex(([values]) => matches(values))
+      ]
+    const cleared = setOrder((values) => !('acl' in values) && 'aclRequirements' in values)
+    const revoked = setOrder((values) => Array.isArray(values.acl) && values.acl.length === 0)
+    expect(cleared).toBeLessThan(revoked)
+    expect(
+      dbChainMockFns.transaction.mock.invocationCallOrder.some(
+        (order) => order > cleared && order < revoked
+      )
+    ).toBe(true)
   })
 
   it('never renews a changed body after its hydration fails', async () => {

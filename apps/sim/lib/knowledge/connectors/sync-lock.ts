@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } from '@/lib/knowledge/connectors/sync-limits'
 
 /**
@@ -233,6 +234,40 @@ export async function assertSyncLeaseHeldInTx(
     .where(lease.stillHeld())
     .for('share')
   if (!held) throw new SyncLockLostException(connectorId)
+}
+
+/**
+ * The bounds of a transaction that holds a connector row lock while it writes documents. The
+ * `document` ACL trigger rewrites every filled search projection row of a document whose ACL is
+ * assigned, so one page of ACL writes can outlast the role's statement timeout under I/O pressure.
+ * A page that waits on a lock or runs long fails in seconds and rolls back only itself, instead of
+ * holding the connector row, and the table lock a migration queues behind, for a minute.
+ */
+export async function boundLeaseTransaction(tx: Pick<DbOrTx, 'execute'>): Promise<void> {
+  await tx.execute(
+    sql`SELECT set_config('lock_timeout', '5s', true), set_config('statement_timeout', '30s', true)`
+  )
+}
+
+/** Runs one bounded page of writes in a short transaction of its own. */
+export type LeaseTransaction = <T>(write: (tx: DbOrTx) => Promise<T>) => Promise<T>
+
+/**
+ * One short, bounded transaction per call that proves `lease` before `write` runs, so a run that
+ * lost its lease between pages writes nothing further. Without a lease the page is only bounded:
+ * callers outside a sync run have no lease to prove.
+ */
+export function leaseTransaction(
+  connectorId: string,
+  lease?: SyncWriteLease,
+  executor: Pick<typeof db, 'transaction'> = db
+): LeaseTransaction {
+  return (write) =>
+    executor.transaction(async (tx) => {
+      await boundLeaseTransaction(tx)
+      if (lease) await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+      return write(tx)
+    })
 }
 
 /**

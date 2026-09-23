@@ -2196,7 +2196,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
       const directoryNotice =
@@ -2266,7 +2265,6 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2299,7 +2297,6 @@ describe('completeSuccessfulSync', () => {
       )
     )
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2332,8 +2329,6 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      /** The workspace ACL restore finds nothing drifted. */
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2373,7 +2368,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2420,7 +2414,6 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
     const holdNotice = 'Source listing is incomplete; unlisted documents were kept.'
@@ -2488,7 +2481,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -3223,6 +3215,59 @@ describe('executeSync heartbeats during the listing phase', () => {
       }
     }
   )
+
+  it('proves the lease inside each bounded transaction that writes mirrored permissions', async () => {
+    const contentPass = await import('@/lib/knowledge/connectors/sync-content-pass')
+    primeSyncUpToListing()
+    dbChainMockFns.returning.mockReset()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+    const pass = vi
+      .spyOn(contentPass, 'runConnectorContentPass')
+      .mockImplementation(async (input) => {
+        await input.onPage?.(
+          [
+            {
+              externalId: 'page-1',
+              title: 'Page',
+              content: 'Body',
+              mimeType: 'text/plain',
+              acl: ['u:reader@example.com'],
+            },
+          ],
+          new Date()
+        )
+        throw new Error('Stopped after permission persistence')
+      })
+    try {
+      await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+      const writeIndex = dbChainMockFns.set.mock.calls.findIndex(([values]) => 'acl' in values)
+      expect(writeIndex).toBeGreaterThanOrEqual(0)
+      const written = dbChainMockFns.set.mock.invocationCallOrder[writeIndex]
+      const opened = Math.max(
+        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < written)
+      )
+      const between = (orders: number[]) =>
+        orders.some((order) => order > opened && order < written)
+      const leaseChecks = dbChainMockFns.for.mock.calls
+        .map(([mode], index) => ({
+          mode,
+          order: dbChainMockFns.for.mock.invocationCallOrder[index],
+        }))
+        .filter(({ mode }) => mode === 'share')
+        .map(({ order }) => order)
+      expect(between(leaseChecks)).toBe(true)
+      const bounds = dbChainMockFns.execute.mock.calls
+        .map(([query], index) => ({
+          query,
+          order: dbChainMockFns.execute.mock.invocationCallOrder[index],
+        }))
+        .filter(({ query }) => JSON.stringify(query).includes('lock_timeout'))
+        .map(({ order }) => order)
+      expect(between(bounds)).toBe(true)
+    } finally {
+      pass.mockRestore()
+    }
+  })
 
   it('beats between pages and abandons the run when the lock was reclaimed', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')

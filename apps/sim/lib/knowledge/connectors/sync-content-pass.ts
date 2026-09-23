@@ -26,7 +26,11 @@ import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
-import { assertSyncLeaseHeldInTx, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  type LeaseTransaction,
+  leaseTransaction,
+  type SyncRunLease,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   type KnowledgeBaseOwner,
   persistSourceDocumentFailures,
@@ -87,11 +91,8 @@ interface ContentPassInput {
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
 export async function runConnectorContentPass(input: ContentPassInput) {
   const { matchContentHash } = input.connectorConfig
-  const withLease = <T>(fn: (tx: DbOrTx) => Promise<T>) =>
-    db.transaction(async (tx) => {
-      await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
-      return fn(tx)
-    })
+  /** Every lease-fenced write of the pass is one short, bounded transaction. */
+  const withLease = leaseTransaction(input.connectorId, input.lease)
   const readGenerationStartedAt = async (tx: DbOrTx): Promise<Date> => {
     const [clock] = await tx.execute<{ startedAt: string }>(
       sql`SELECT statement_timestamp()::text AS "startedAt"`
@@ -180,17 +181,15 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         })
         /** Revoke grants without matching stored content, retaining the content crawl's observation for EOF reconciliation. */
         if (changed.length)
-          await withLease((tx) =>
-            revokeDocumentAcls(
-              tx,
-              changed.map((item) => item.externalId),
-              (batch) =>
-                and(
-                  eq(document.connectorId, input.connectorId),
-                  inArray(document.externalId, batch),
-                  isNull(document.archivedAt)
-                )
-            )
+          await revokeDocumentAcls(
+            withLease,
+            changed.map((item) => item.externalId),
+            (batch) =>
+              and(
+                eq(document.connectorId, input.connectorId),
+                inArray(document.externalId, batch),
+                isNull(document.archivedAt)
+              )
           )
       }
       const state = createSyncRunState(input.result)
@@ -349,7 +348,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
 async function reconcileCompletedListing(
   input: ContentPassInput,
   checkpoint: ListingCheckpoint,
-  withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
+  withLease: LeaseTransaction
 ): Promise<{ finished: boolean; notice: string | null }> {
   if (checkpoint.unsafe || (checkpoint.listingFailures?.count ?? 0) > 0)
     return {
@@ -426,12 +425,10 @@ async function reconcileCompletedListing(
       await input.lease.beatIfDue()
       const rows = await loadBatch(and(absent, sql`cardinality(${document.acl}) > 0`), 500, after)
       if (rows.length === 0) break
-      await withLease((tx) =>
-        revokeDocumentAcls(
-          tx,
-          rows.map((row) => row.id),
-          (batch) => and(absent, inArray(document.id, batch))
-        )
+      await revokeDocumentAcls(
+        withLease,
+        rows.map((row) => row.id),
+        (batch) => and(absent, inArray(document.id, batch))
       )
       after = rows.at(-1)
     }

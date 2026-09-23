@@ -32,6 +32,7 @@ const schema = await import('@sim/db/schema')
 const { beginListingCheckpoint } = await import('@/lib/knowledge/connectors/listing-checkpoint')
 const { runConnectorContentPass } = await import('@/lib/knowledge/connectors/sync-content-pass')
 const { revokeDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
+const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 const { confluenceConnector } = await import('@/connectors/confluence/confluence')
 
 const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
@@ -274,8 +275,10 @@ describe.runIf(Boolean(databaseUrl))('completed listing reconciliation in Postgr
     await sql`UPDATE document SET acl_requirements = '[[], ["g:confluence:tenant:space"]]'
       WHERE id = 'stale-evidence'`
 
-    await revokeDocumentAcls(holder.db as never, ['stale-evidence', 'granted'], (batch) =>
-      inArray(schema.document.id, batch)
+    await revokeDocumentAcls(
+      leaseTransaction(CONNECTOR, undefined, holder.db as never),
+      ['stale-evidence', 'granted'],
+      (batch) => inArray(schema.document.id, batch)
     )
 
     expect(await fannedOut()).toEqual(['granted'])

@@ -155,3 +155,22 @@ export const SOURCE_PERMISSION_ERROR =
 /** Source downloads are retried by connector listing, never by parsing the retained file again. */
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
+
+/**
+ * Documents whose permission evidence is refreshed per statement. Documents are
+ * grouped by identical ACL first — files under one folder overwhelmingly share
+ * theirs — so a crawl of thousands usually resolves to a handful of statements.
+ * A refresh never assigns `acl`, so it fires no projection fan-out.
+ */
+export const ACL_WRITE_BATCH_SIZE = 500
+
+/**
+ * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
+ * document trigger that copies it onto every chunk's search projection rows, and
+ * each of those rows is re-inserted into the vector index, so one statement costs
+ * the chunks of every document in it rather than the documents. Kept small so a
+ * page of changed documents cannot outrun the statement timeout. Also the most
+ * documents one connector-lease transaction assigns an ACL to, so no transaction
+ * holds the connector row across more fan-out than one statement's.
+ */
+export const ACL_CHANGE_BATCH_SIZE = 25

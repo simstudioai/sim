@@ -1,0 +1,653 @@
+/**
+ * Real PostgreSQL coverage for the connector-lease ACL writers: every transaction that holds the
+ * connector row assigns at most one page of ACLs, a lease lost between pages stops the writes that
+ * follow, and an interrupted member-sync disable resumes to a disabled connector with every ACL
+ * revoked. The `document` ACL trigger installed by the migrations fires on every page.
+ */
+import { db } from '@sim/db'
+import {
+  document,
+  knowledgeConnector,
+  knowledgeConnectorMember,
+  organization,
+  resourcePolicy,
+  user,
+  workspace,
+} from '@sim/db/schema'
+import { generateId } from '@sim/utils/id'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const provider = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), changes: vi.fn() }))
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    google_drive: {
+      id: 'google_drive',
+      name: 'Fixture Drive',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
+      listDocuments: provider.list,
+      getDocument: provider.get,
+      getChangeCursor: async () => 'fixture-start',
+      listChanges: provider.changes,
+    },
+  },
+}))
+
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
+import {
+  createKnowledgeAclFixtureIds,
+  seedKnowledgeAclFixture,
+  seedKnowledgeMemberFixture,
+} from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
+import * as memberAccess from '@/lib/knowledge/connectors/member-access'
+import {
+  materializeDocumentAcls,
+  recordMemberObservations,
+  rewriteConnectorAcls,
+} from '@/lib/knowledge/connectors/member-observations'
+import {
+  executeMemberSync,
+  resumeMembershipRewrites,
+} from '@/lib/knowledge/connectors/member-sync-engine'
+import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import {
+  createMemberSyncLease,
+  type LeaseTransaction,
+  leaseTransaction,
+  SyncLockLostException,
+  stillHoldsMemberSyncLock,
+  stillHoldsSyncLock,
+} from '@/lib/knowledge/connectors/sync-lock'
+import {
+  persistDocumentAcls,
+  restoreWorkspaceDocumentAcls,
+} from '@/lib/knowledge/connectors/sync-persistence'
+
+const PAGE = 25
+const DOCUMENTS = 60
+
+describe('connector lease ACL pages in PostgreSQL', () => {
+  let ids: ReturnType<typeof createKnowledgeAclFixtureIds>
+  let members: Awaited<ReturnType<typeof seedKnowledgeMemberFixture>>
+  const alice = () => `u:${ids.aliceId}@fixture.test`
+  const bob = () => `u:${ids.bobId}@fixture.test`
+
+  beforeAll(async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('Unexpected provider request in the lease page fixture')
+    })
+    vi.spyOn(memberAccess, 'mintKnowledgeConnectorMemberToken').mockResolvedValue({
+      accessToken: 'fixture-token',
+      refreshed: false,
+    })
+    /** Records, for every ACL assignment, the transaction that made it. */
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS lease_page_acl_writes (
+      document_id text NOT NULL, connector_id text, xact text NOT NULL,
+      lock_timeout text NOT NULL, statement_timeout text NOT NULL
+    )`)
+    await db.execute(
+      sql.raw(`CREATE OR REPLACE FUNCTION log_lease_page_acl_write() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        INSERT INTO lease_page_acl_writes VALUES (NEW.id, NEW.connector_id, pg_current_xact_id()::text,
+          current_setting('lock_timeout'), current_setting('statement_timeout'));
+        RETURN NEW;
+      END $$`)
+    )
+    await db.execute(sql`DROP TRIGGER IF EXISTS log_lease_page_acl_write ON document`)
+    await db.execute(sql`CREATE TRIGGER log_lease_page_acl_write AFTER UPDATE OF acl ON document
+      FOR EACH ROW EXECUTE FUNCTION log_lease_page_acl_write()`)
+  })
+
+  beforeEach(async () => {
+    ids = createKnowledgeAclFixtureIds()
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
+    members = await seedKnowledgeMemberFixture(ids)
+  })
+
+  afterEach(async () => {
+    await db.execute(sql`DROP TRIGGER IF EXISTS fail_after_acl_writes ON document`)
+    await db.execute(sql`DELETE FROM lease_page_acl_writes`)
+    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await db.delete(organization).where(eq(organization.id, ids.organizationId))
+    await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+  })
+
+  afterAll(async () => {
+    await db.execute(sql`DROP TRIGGER IF EXISTS log_lease_page_acl_write ON document`)
+    await db.execute(sql`DROP FUNCTION IF EXISTS log_lease_page_acl_write()`)
+    await db.execute(sql`DROP FUNCTION IF EXISTS fail_after_acl_writes()`)
+    await db.execute(sql`DROP TABLE IF EXISTS lease_page_acl_writes`)
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    await db.$client.end()
+  })
+
+  const seedDocuments = async (connectorId: string, acl: string[], count = DOCUMENTS) => {
+    const rows = Array.from({ length: count }, (_unused, index) => ({
+      id: generateId(),
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId,
+      externalId: `file-${String(index).padStart(3, '0')}`,
+      filename: `file-${index}`,
+      fileUrl: '',
+      fileSize: 0,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+      contentHash: 'fixture-content',
+      acl,
+    }))
+    await db.insert(document).values(rows)
+    return rows
+  }
+
+  const storedAcls = async (connectorId: string) =>
+    (
+      await db
+        .select({ externalId: document.externalId, acl: document.acl })
+        .from(document)
+        .where(eq(document.connectorId, connectorId))
+    ).map((row) => row.acl)
+
+  /** ACL assignments per transaction, for one connector. */
+  const writesPerTransaction = async (connectorId: string) =>
+    (
+      await db.execute<{ writes: number }>(sql`
+        SELECT count(*)::int AS writes FROM lease_page_acl_writes
+        WHERE connector_id = ${connectorId} GROUP BY xact ORDER BY writes DESC`)
+    ).map((row) => row.writes)
+
+  /** Every ACL assignment ran under the bounds of a connector-lease transaction. */
+  const expectBounded = async (connectorId: string) => {
+    const bounds = await db.execute<{ lock: string; statement: string }>(sql`
+      SELECT DISTINCT lock_timeout AS lock, statement_timeout AS statement
+      FROM lease_page_acl_writes WHERE connector_id = ${connectorId}`)
+    expect([...bounds]).toEqual([{ lock: '5s', statement: '30s' }])
+  }
+
+  /** Takes the lease away once `held` pages have committed, as a reclaim between pages would. */
+  const losingAfter = (held: number, inner: LeaseTransaction, lose: () => Promise<unknown>) => {
+    let opened = 0
+    const lossy: LeaseTransaction = async (write) => {
+      opened += 1
+      if (opened === held + 1) await lose()
+      return inner(write)
+    }
+    return lossy
+  }
+
+  const adminLease = () => ({ stillHeld: () => stillHoldsSyncLock(ids.connectorId, ids.lockId) })
+  const reclaimAdmin = () =>
+    db
+      .update(knowledgeConnector)
+      .set({ syncLockToken: generateId() })
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+
+  describe('persistDocumentAcls', () => {
+    const changed = () =>
+      new Map(
+        Array.from({ length: DOCUMENTS }, (_u, i) => [
+          `file-${String(i).padStart(3, '0')}`,
+          [bob()],
+        ])
+      )
+
+    it('assigns at most one page of ACLs per lease transaction, with unchanged results', async () => {
+      await seedDocuments(ids.connectorId, [alice()])
+
+      await expect(
+        persistDocumentAcls(
+          ids.connectorId,
+          changed(),
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toEqual({ updated: DOCUMENTS, rejected: 0 })
+
+      expect(await writesPerTransaction(ids.connectorId)).toEqual([
+        PAGE,
+        PAGE,
+        DOCUMENTS - 2 * PAGE,
+      ])
+      await expectBounded(ids.connectorId)
+      expect((await storedAcls(ids.connectorId)).every((acl) => acl.join() === bob())).toBe(true)
+    })
+
+    it('writes nothing further once the lease is lost between pages, keeping the pages that landed', async () => {
+      await seedDocuments(ids.connectorId, [alice()])
+      /** Page one is the evidence refresh (nothing unchanged), page two the first ACL batch. */
+      const transaction = losingAfter(
+        2,
+        leaseTransaction(ids.connectorId, adminLease()),
+        reclaimAdmin
+      )
+
+      await expect(
+        persistDocumentAcls(ids.connectorId, changed(), transaction)
+      ).rejects.toBeInstanceOf(SyncLockLostException)
+
+      const acls = await storedAcls(ids.connectorId)
+      expect(acls.filter((acl) => acl.join() === bob())).toHaveLength(PAGE)
+      expect(acls.filter((acl) => acl.join() === alice())).toHaveLength(DOCUMENTS - PAGE)
+    })
+  })
+
+  describe('restoreWorkspaceDocumentAcls', () => {
+    beforeEach(async () => {
+      await db
+        .update(knowledgeConnector)
+        .set({ accessMode: 'workspace' })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    })
+
+    it('restores a hidden connector one page per transaction and reports every document', async () => {
+      await seedDocuments(ids.connectorId, [])
+
+      await expect(
+        restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toBe(DOCUMENTS)
+
+      expect(await writesPerTransaction(ids.connectorId)).toEqual([
+        PAGE,
+        PAGE,
+        DOCUMENTS - 2 * PAGE,
+      ])
+      await expectBounded(ids.connectorId)
+      expect((await storedAcls(ids.connectorId)).every((acl) => acl.join() === 'ws')).toBe(true)
+      await expect(
+        restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toBe(0)
+    })
+
+    it('restores drift before a sync completes, outside the completion transaction', async () => {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'active', syncLockToken: null })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      const seeded = await seedDocuments(ids.connectorId, [])
+      await db
+        .update(document)
+        .set({ sourceSeenAt: sql`now() + interval '1 day'`, storageKey: sql`'kb/fixture/' || id` })
+        .where(eq(document.connectorId, ids.connectorId))
+      provider.list.mockResolvedValue({
+        documents: seeded.map((row) => ({
+          externalId: row.externalId,
+          title: row.filename,
+          content: '',
+          contentDeferred: true,
+          contentHash: 'fixture-content',
+          mimeType: 'text/plain',
+        })),
+        hasMore: false,
+      })
+      const token = vi
+        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
+        .mockResolvedValue({ accessToken: 'fixture-token' } as never)
+      try {
+        const result = await executeSync(ids.connectorId, {
+          billingAttribution: await resolveBillingAttribution({
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          }),
+        })
+        expect(result.error).toBeUndefined()
+      } finally {
+        token.mockRestore()
+      }
+
+      expect((await storedAcls(ids.connectorId)).every((acl) => acl.join() === 'ws')).toBe(true)
+      expect(await writesPerTransaction(ids.connectorId)).toEqual([
+        PAGE,
+        PAGE,
+        DOCUMENTS - 2 * PAGE,
+      ])
+      await expectBounded(ids.connectorId)
+      const [connector] = await db
+        .select({
+          status: knowledgeConnector.status,
+          syncLockToken: knowledgeConnector.syncLockToken,
+        })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      expect(connector).toEqual({ status: 'active', syncLockToken: null })
+    })
+
+    it('restores nothing once the connector has left workspace mode', async () => {
+      await seedDocuments(ids.connectorId, [])
+      await db
+        .update(knowledgeConnector)
+        .set({ accessMode: 'admin' })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+
+      await expect(
+        restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          leaseTransaction(ids.connectorId, adminLease())
+        )
+      ).resolves.toBe(0)
+      expect((await storedAcls(ids.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+    })
+
+    it('stops at the first page after the lease is lost', async () => {
+      await seedDocuments(ids.connectorId, [])
+
+      await expect(
+        restoreWorkspaceDocumentAcls(
+          ids.connectorId,
+          losingAfter(1, leaseTransaction(ids.connectorId, adminLease()), reclaimAdmin)
+        )
+      ).rejects.toBeInstanceOf(SyncLockLostException)
+
+      expect((await storedAcls(ids.connectorId)).filter((acl) => acl.length > 0)).toHaveLength(PAGE)
+    })
+  })
+
+  describe('rewriteConnectorAcls', () => {
+    const memberLease = () => ({
+      stillHeld: () => stillHoldsMemberSyncLock(members.connectorId, members.runId),
+    })
+
+    it('hides a members connector one page per transaction', async () => {
+      await seedDocuments(members.connectorId, [alice()])
+
+      await expect(
+        rewriteConnectorAcls(members.connectorId, [], { lease: memberLease() })
+      ).resolves.toBe(true)
+
+      expect(await writesPerTransaction(members.connectorId)).toEqual([
+        PAGE,
+        PAGE,
+        DOCUMENTS - 2 * PAGE,
+      ])
+      await expectBounded(members.connectorId)
+      expect((await storedAcls(members.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+    })
+
+    it('stops writing once the lease is lost between pages', async () => {
+      await seedDocuments(members.connectorId, [alice()])
+      let pages = 0
+
+      await expect(
+        rewriteConnectorAcls(members.connectorId, [], {
+          lease: memberLease(),
+          beforeBatch: async () => {
+            pages += 1
+            /** The first beat precedes the window read, the second the first page. */
+            if (pages === 3)
+              await db
+                .update(knowledgeConnector)
+                .set({ memberSyncLockToken: generateId() })
+                .where(eq(knowledgeConnector.id, members.connectorId))
+          },
+        })
+      ).rejects.toBeInstanceOf(SyncLockLostException)
+
+      const acls = await storedAcls(members.connectorId)
+      expect(acls.filter((acl) => acl.length === 0)).toHaveLength(PAGE)
+      expect(acls.filter((acl) => acl.length > 0)).toHaveLength(DOCUMENTS - PAGE)
+    })
+  })
+
+  describe('resumeMembershipRewrites', () => {
+    it('rematerialises a changed member one page per lease transaction', async () => {
+      const seeded = await seedDocuments(members.connectorId, [])
+      const [member] = members.members
+      await recordMemberObservations(
+        db,
+        member.id,
+        seeded.map((row) => row.id),
+        members.runId
+      )
+      await db
+        .update(knowledgeConnectorMember)
+        .set({ listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false } })
+        .where(eq(knowledgeConnectorMember.id, member.id))
+
+      await expect(
+        resumeMembershipRewrites({
+          connectorId: members.connectorId,
+          runId: members.runId,
+          deadlineAt: Date.now() + 60_000,
+          lease: createMemberSyncLease(members.connectorId, members.runId),
+        })
+      ).resolves.toBe(true)
+
+      expect(
+        (await storedAcls(members.connectorId)).every((acl) => acl.join() === member.subjectToken)
+      ).toBe(true)
+      expect(await writesPerTransaction(members.connectorId)).toEqual([
+        PAGE,
+        PAGE,
+        DOCUMENTS - 2 * PAGE,
+      ])
+      await expectBounded(members.connectorId)
+    })
+  })
+
+  describe('member listing materialisation', () => {
+    beforeEach(async () => {
+      provider.list.mockReset()
+      provider.get.mockReset()
+      provider.changes.mockReset()
+      await db
+        .insert(resourcePolicy)
+        .values({
+          id: generateId(),
+          workspaceId: ids.workspaceId,
+          resourceType: 'credential_group',
+          resourceId: members.groupId,
+          document: compileCredentialGroupWorkflowAccessPolicy({
+            credentialGroupId: members.groupId,
+            allowedWorkflowIds: [],
+          }),
+          createdBy: ids.aliceId,
+          updatedBy: ids.aliceId,
+        })
+        .onConflictDoNothing()
+      await memberAccess.grantKnowledgeConnectorCredentialAccess(
+        {
+          workspaceId: ids.workspaceId,
+          credentialGroupId: members.groupId,
+          credentialGroupOptionId: members.optionId,
+          connectorId: members.connectorId,
+        },
+        ids.aliceId
+      )
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'active', memberSyncStatus: 'idle', memberSyncLockToken: null })
+        .where(eq(knowledgeConnector.id, members.connectorId))
+    })
+
+    it('observes and materialises a large listing one page per lease transaction', async () => {
+      const seeded = await seedDocuments(members.connectorId, [])
+      /** Content this run already read stays unchanged, so only visibility is written. */
+      await db
+        .update(document)
+        .set({ sourceSeenAt: sql`now() + interval '1 day'` })
+        .where(eq(document.connectorId, members.connectorId))
+      provider.list.mockResolvedValue({
+        documents: seeded.map((row) => ({
+          externalId: row.externalId,
+          title: row.filename,
+          content: '',
+          contentDeferred: true,
+          contentHash: 'fixture-content',
+          mimeType: 'text/plain',
+        })),
+        hasMore: false,
+      })
+
+      const result = await executeMemberSync(members.connectorId, {
+        billingAttribution: await resolveBillingAttribution({
+          actorUserId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+        }),
+      })
+
+      expect(result.error).toBeUndefined()
+      expect(result.membersCompleted).toBe(2)
+      expect(provider.get).not.toHaveBeenCalled()
+      const tokens = members.members.map((member) => member.subjectToken).sort()
+      expect(
+        (await storedAcls(members.connectorId)).every((acl) => acl.join() === tokens.join())
+      ).toBe(true)
+      const perTransaction = await writesPerTransaction(members.connectorId)
+      expect(perTransaction.reduce((total, writes) => total + writes, 0)).toBe(2 * DOCUMENTS)
+      expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PAGE)
+      await expectBounded(members.connectorId)
+    })
+
+    it('rematerialises what a change feed withdrew one page per lease transaction', async () => {
+      const tokens = members.members.map((member) => member.subjectToken).sort()
+      const seeded = await seedDocuments(members.connectorId, tokens)
+      for (const member of members.members)
+        await recordMemberObservations(
+          db,
+          member.id,
+          seeded.map((row) => row.id),
+          members.runId
+        )
+      await db
+        .update(knowledgeConnectorMember)
+        .set({
+          changeCursor: 'fixture-start',
+          lastCompleteListingAt: new Date(),
+          memberSyncedThrough: new Date(),
+        })
+        .where(eq(knowledgeConnectorMember.connectorId, members.connectorId))
+      provider.changes.mockResolvedValue({
+        changes: seeded.map((row) => ({ kind: 'removed', externalId: row.externalId })),
+        hasMore: false,
+        nextCursor: 'fixture-drained',
+      })
+
+      const result = await executeMemberSync(members.connectorId, {
+        billingAttribution: await resolveBillingAttribution({
+          actorUserId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+        }),
+      })
+
+      expect(result.error).toBeUndefined()
+      expect(result.observationsRemoved).toBe(2 * DOCUMENTS)
+      expect((await storedAcls(members.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+      const perTransaction = await writesPerTransaction(members.connectorId)
+      expect(perTransaction.reduce((total, writes) => total + writes, 0)).toBe(2 * DOCUMENTS)
+      expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PAGE)
+      await expectBounded(members.connectorId)
+    })
+  })
+
+  describe('member sync disable', () => {
+    const billing = () =>
+      resolveBillingAttribution({ actorUserId: ids.aliceId, workspaceId: ids.workspaceId })
+    const connectorState = async () => {
+      const [row] = await db
+        .select({
+          memberSyncStatus: knowledgeConnector.memberSyncStatus,
+          memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
+        })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, members.connectorId))
+      return row
+    }
+
+    beforeEach(async () => {
+      /** The option the connector synced through is gone, and no run holds the lease. */
+      await db
+        .update(knowledgeConnector)
+        .set({
+          credentialGroupOptionId: null,
+          memberSyncStatus: 'idle',
+          memberSyncLockToken: null,
+        })
+        .where(eq(knowledgeConnector.id, members.connectorId))
+    })
+
+    it('resumes an interrupted disable and ends disabled with every ACL revoked', async () => {
+      const tokens = members.members.map((member) => member.subjectToken).sort()
+      const seeded = await seedDocuments(members.connectorId, tokens)
+      await recordMemberObservations(
+        db,
+        members.members[0].id,
+        seeded.map((row) => row.id),
+        members.runId
+      )
+      /** The third page fails, as a statement timeout would: two pages have committed. */
+      await db.execute(
+        sql.raw(`CREATE OR REPLACE FUNCTION fail_after_acl_writes() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN
+          IF (SELECT count(*) FROM lease_page_acl_writes WHERE connector_id = NEW.connector_id) >= 30
+          THEN RAISE EXCEPTION 'fixture statement failure'; END IF;
+          RETURN NEW;
+        END $$`)
+      )
+      await db.execute(
+        sql`CREATE TRIGGER fail_after_acl_writes BEFORE UPDATE OF acl ON document FOR EACH ROW
+          WHEN (NEW.connector_id = ${sql.raw(`'${members.connectorId}'`)})
+          EXECUTE FUNCTION fail_after_acl_writes()`
+      )
+
+      const interrupted = await executeMemberSync(members.connectorId, {
+        billingAttribution: await billing(),
+      })
+
+      expect(interrupted.error).toBeTruthy()
+      expect((await connectorState())?.memberSyncStatus).not.toBe('disabled')
+      const midway = await storedAcls(members.connectorId)
+      expect(midway.filter((acl) => acl.length === 0)).toHaveLength(2 * PAGE)
+      /** A document not yet revoked keeps only the grant it had; nothing is broadened. */
+      expect(
+        midway.filter((acl) => acl.length > 0).every((acl) => acl.join() === tokens.join())
+      ).toBe(true)
+      /** Members are suspended first, so a rematerialisation in the meantime grants nobody. */
+      const suspended = await db
+        .select({ status: knowledgeConnectorMember.status })
+        .from(knowledgeConnectorMember)
+        .where(eq(knowledgeConnectorMember.connectorId, members.connectorId))
+      expect(suspended.every((row) => row.status === 'suspended')).toBe(true)
+
+      await db.execute(sql`DROP TRIGGER fail_after_acl_writes ON document`)
+      const unrevoked = seeded.at(-1)!.id
+      expect(
+        await leaseTransaction(members.connectorId)((tx) =>
+          materializeDocumentAcls(members.connectorId, [unrevoked], tx)
+        )
+      ).toBe(1)
+      const [rematerialized] = await db
+        .select({ acl: document.acl })
+        .from(document)
+        .where(eq(document.id, unrevoked))
+      expect(rematerialized.acl).toEqual([])
+      const resumed = await executeMemberSync(members.connectorId, {
+        billingAttribution: await billing(),
+      })
+
+      expect(resumed.skipReason).toBe('connector_not_syncable')
+      expect(await connectorState()).toEqual({
+        memberSyncStatus: 'disabled',
+        memberSyncLockToken: null,
+      })
+      expect((await storedAcls(members.connectorId)).every((acl) => acl.length === 0)).toBe(true)
+      expect(Math.max(...(await writesPerTransaction(members.connectorId)))).toBeLessThanOrEqual(
+        PAGE
+      )
+      await expectBounded(members.connectorId)
+      const [{ granted }] = await db
+        .select({ granted: sql<number>`count(*)::int` })
+        .from(document)
+        .where(
+          and(eq(document.connectorId, members.connectorId), sql`cardinality(${document.acl}) > 0`)
+        )
+      expect(granted).toBe(0)
+    })
+  })
+})

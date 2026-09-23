@@ -68,6 +68,7 @@ import {
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
+  leaseTransaction,
   RUNNABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   type SyncRunLease,
@@ -186,12 +187,13 @@ async function applySourceMirroredAcls(input: {
    */
   const unlisted = hideUnlistedDocuments(acls, input.ownedExternalIds)
 
-  const written = input.lease
-    ? await db.transaction(async (tx) => {
-        await assertSyncLeaseHeldInTx(tx, connectorId, input.lease!)
-        return persistDocumentAcls(connectorId, acls, tx, evidence)
-      })
-    : await persistDocumentAcls(connectorId, acls, db, evidence)
+  /** One short transaction per batch, each proving the lease, rather than one across all of them. */
+  const written = await persistDocumentAcls(
+    connectorId,
+    acls,
+    leaseTransaction(connectorId, input.lease),
+    evidence
+  )
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
     listed,
@@ -448,21 +450,6 @@ export async function completeSuccessfulSync(
         .for('update')
       if (!lockedConnector) throw new SyncCompletionOwnershipLost()
 
-      /**
-       * Self-healing invariant of workspace mode: a mode switch back from
-       * members that was interrupted, or any other drift, leaves no document
-       * of this connector hidden from the workspace once a sync completes.
-       * Inside the completion transaction, after the lock is proven held, so a
-       * reclaimed run cannot rewrite a connector that has since changed mode.
-       */
-      const restoredAcls = await restoreWorkspaceDocumentAcls(tx, connectorId)
-      if (restoredAcls > 0) {
-        logger.warn('Restored workspace access on connector documents that had drifted', {
-          connectorId,
-          restoredAcls,
-        })
-      }
-
       const now = new Date()
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
@@ -516,7 +503,7 @@ export async function completeSuccessfulSync(
             completionNotice,
             result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
           ),
-          /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
+          /** Restored before completion under this run's lease, or hidden by the admin pass before the ACLs it wrote. */
           accessRewritePending: false,
           ...(contentPass?.complete ? { listingCheckpoint: null } : {}),
           ...(contentPass && !isContentPassIncomplete(contentPass) && result.docsFailed === 0
@@ -1331,6 +1318,31 @@ export async function executeSync(
         result,
         lease,
       })
+
+      /**
+       * Self-healing invariant of workspace mode: a mode switch back from
+       * members that was interrupted, or any other drift, leaves no document
+       * of this connector hidden from the workspace once a sync completes.
+       * Before the completion transaction, one short lease-proving transaction
+       * per page that also re-checks the mode, so a reclaimed run cannot
+       * rewrite a connector that has since changed mode, and a large restore
+       * never holds the connector row across its projection fan-out. Nothing
+       * can change the mode while this run holds its lease, and the completion
+       * write proves it still does.
+       */
+      if (accessMode === 'workspace') {
+        const restoredAcls = await restoreWorkspaceDocumentAcls(
+          connectorId,
+          leaseTransaction(connectorId, lease),
+          lease.beatIfDue
+        )
+        if (restoredAcls > 0) {
+          logger.warn('Restored workspace access on connector documents that had drifted', {
+            connectorId,
+            restoredAcls,
+          })
+        }
+      }
 
       const completionLanded = await completeSuccessfulSync(
         connectorId,

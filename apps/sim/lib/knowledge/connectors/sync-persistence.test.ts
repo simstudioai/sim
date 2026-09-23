@@ -49,6 +49,7 @@ vi.mock('@/connectors/registry.server', () => ({
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { type LeaseTransaction, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
   persistDocumentAcls,
@@ -58,6 +59,23 @@ import {
 } from '@/lib/knowledge/connectors/sync-persistence'
 
 const CONNECTOR = 'connector-1'
+
+/** Runs each page straight on the mocked client, counting the transactions a writer opens. */
+const pages = vi.fn()
+const direct: LeaseTransaction = (write) => {
+  pages()
+  return write(db)
+}
+
+/** A lease that holds for `held` pages and is lost from then on. */
+function losingLease(held: number): LeaseTransaction {
+  let opened = 0
+  return (write) => {
+    opened += 1
+    if (opened > held) return Promise.reject(new SyncLockLostException(CONNECTOR))
+    return write(db)
+  }
+}
 
 /** Each `update(...).where(...)` chain ends in `returning()`; one row per changed document. */
 function queueUpdatedCounts(...counts: number[]) {
@@ -291,6 +309,46 @@ describe('persistDocumentAcls', () => {
   })
 })
 
+describe('persistDocumentAcls paging', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const changedGroup = (count: number) =>
+    new Map(
+      Array.from({ length: count }, (_unused, index) => [`file-${index}`, ['u:bob@corp.com']])
+    )
+
+  /** One transaction per statement: a lease lock held across batches outlasted the statement timeout. */
+  it('writes every batch in a transaction of its own', async () => {
+    await persistDocumentAcls(CONNECTOR, changedGroup(60), direct)
+
+    const assignments = dbChainMockFns.set.mock.calls.filter(([values]) => 'acl' in values)
+    expect(assignments).toHaveLength(3)
+    expect(pages).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
+  })
+
+  it('writes nothing further once the lease is lost between batches', async () => {
+    await expect(
+      persistDocumentAcls(CONNECTOR, changedGroup(60), losingLease(2))
+    ).rejects.toBeInstanceOf(SyncLockLostException)
+
+    /** The evidence refresh and the first change batch landed; the rest never ran. */
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds each batch in a transaction of its own by default', async () => {
+    await persistDocumentAcls(CONNECTOR, changedGroup(30))
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
+    const bounds = dbChainMockFns.execute.mock.calls.filter(([query]) =>
+      JSON.stringify(query).includes('lock_timeout')
+    )
+    expect(bounds).toHaveLength(dbChainMockFns.transaction.mock.calls.length)
+  })
+})
+
 describe('revokeDocumentAcls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -320,7 +378,7 @@ describe('revokeDocumentAcls', () => {
    * document that already grants nobody must never be in an `acl` assignment.
    */
   it('assigns acl only to documents that still grant someone', async () => {
-    await revokeDocumentAcls(db, ['a', 'b'], scope)
+    await revokeDocumentAcls(direct, ['a', 'b'], scope)
 
     const writes = statements().filter(({ values }) => 'acl' in values)
     expect(writes).toHaveLength(1)
@@ -329,7 +387,7 @@ describe('revokeDocumentAcls', () => {
   })
 
   it('clears leftover evidence on an already-empty ACL without assigning acl', async () => {
-    await revokeDocumentAcls(db, ['a', 'b'], scope)
+    await revokeDocumentAcls(direct, ['a', 'b'], scope)
 
     const clears = statements().filter(({ values }) => !('acl' in values))
     expect(clears).toHaveLength(1)
@@ -345,7 +403,7 @@ describe('revokeDocumentAcls', () => {
   it('assigns acl in batches of 25 and clears evidence in batches of 500', async () => {
     const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
 
-    await revokeDocumentAcls(db, ids, scope)
+    await revokeDocumentAcls(direct, ids, scope)
 
     const batchSizes = (writesAcl: boolean) =>
       statements()
@@ -356,6 +414,25 @@ describe('revokeDocumentAcls', () => {
         })
     expect(batchSizes(true)).toEqual([25, 25, 10])
     expect(batchSizes(false)).toEqual([60])
+  })
+
+  it('runs every batch in a transaction of its own', async () => {
+    const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+
+    await revokeDocumentAcls(direct, ids, scope)
+
+    expect(pages).toHaveBeenCalledTimes(dbChainMockFns.set.mock.calls.length)
+    expect(pages).toHaveBeenCalledTimes(4)
+  })
+
+  it('stops writing at the first batch whose lease is gone', async () => {
+    const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+
+    await expect(revokeDocumentAcls(losingLease(2), ids, scope)).rejects.toBeInstanceOf(
+      SyncLockLostException
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
   })
 })
 
