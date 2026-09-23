@@ -150,6 +150,18 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: uploadWorkflowInputMock,
 }))
 
+const { storedFileByKeyMock, presignStoredFileMock } = vi.hoisted(() => ({
+  storedFileByKeyMock: vi.fn(),
+  presignStoredFileMock: vi.fn(),
+}))
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  getFileMetadataById: vi.fn(),
+  getFileMetadataByKey: storedFileByKeyMock,
+}))
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  generatePresignedDownloadUrl: presignStoredFileMock,
+}))
+
 vi.mock('@/serializer', () => ({
   Serializer: class {
     serializeWorkflow = serializeWorkflowMock
@@ -443,6 +455,85 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         ...input,
         documents: [file],
       })
+    }
+  )
+
+  it.each([
+    {
+      name: 'rejects for an anonymous public API caller',
+      principal: {
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: '22222222-2222-4222-8222-222222222222',
+        workflowId: 'workflow-1',
+      },
+      granted: false,
+    },
+    {
+      name: 'resolves and grants for a workspace member',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      granted: true,
+    },
+  ] satisfies Array<{ name: string; principal: WorkflowExecutionPrincipal; granted: boolean }>)(
+    "a prior run's stored file reference $name",
+    async ({ principal, granted }) => {
+      const workspaceId = '22222222-2222-4222-8222-222222222222'
+      const key = `execution/${workspaceId}/other-workflow/old-run/secret.txt`
+      storedFileByKeyMock.mockResolvedValue({
+        id: 'secret',
+        key,
+        workspaceId,
+        context: 'execution',
+        originalName: 'secret.txt',
+        contentType: 'text/plain',
+        sizeBytes: 6,
+        deletedAt: null,
+      })
+      presignStoredFileMock.mockResolvedValue('https://signed.example.com/secret.txt')
+      serializeWorkflowMock.mockReturnValue({
+        blocks: [
+          {
+            id: 'start-block',
+            metadata: { id: 'start_trigger' },
+            config: { params: { inputFormat: [{ name: 'documents', type: 'file[]' }] } },
+          },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+      })
+      const snapshot = createSnapshot()
+      const execution = executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: {
+            ...snapshot.metadata,
+            workspaceId,
+            principal,
+            triggerBlockId: 'start-block',
+          },
+          input: { documents: [{ key }] },
+        } as unknown as ExecutionSnapshot,
+        callbacks: {},
+        loggingSession: loggingSession as unknown as LoggingSession,
+      })
+      if (granted) {
+        await execution
+        expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.fileKeys).toEqual([
+          key,
+        ])
+      } else {
+        await expect(execution).rejects.toThrow(
+          'Stored file references require workspace member access'
+        )
+        expect(executorConstructorMock).not.toHaveBeenCalled()
+        expect(presignStoredFileMock).not.toHaveBeenCalled()
+      }
     }
   )
 

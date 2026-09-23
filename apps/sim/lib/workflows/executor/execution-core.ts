@@ -25,7 +25,7 @@ import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
-import { processInputFileFields } from '@/lib/execution/files'
+import { getStoredFileReferenceScope, processInputFileFields } from '@/lib/execution/files'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -759,7 +759,8 @@ async function executeWorkflowCoreImpl(
             resolvedTriggerBlockId,
             (file) => {
               if (file.key) inputFileKeys.add(file.key)
-            }
+            },
+            getStoredFileReferenceScope(metadata.principal)
           )
 
     // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
