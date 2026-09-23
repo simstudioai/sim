@@ -424,6 +424,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/coda.mdx',
   'search/confluence.mdx',
   'search/connect-your-account.mdx',
+  'search/generic-secrets.mdx',
   'search/github.mdx',
   'search/gitlab.mdx',
   'search/gmail.mdx',

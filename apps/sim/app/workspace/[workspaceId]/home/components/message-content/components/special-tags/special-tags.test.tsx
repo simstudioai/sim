@@ -3,6 +3,7 @@
  * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
 import { act, type ReactNode } from 'react'
+import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -292,7 +293,7 @@ describe('CredentialDisplay link tag', () => {
       expect(container.textContent).toContain('Loading Generic Secrets')
       await act(async () => {
         await queryClient.refetchQueries({ queryKey: organizationSecretKeys.source('org') })
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await sleep(0)
       })
       expect(fetch).toHaveBeenCalledExactlyOnceWith(
         '/api/organizations/org/secret-source',
@@ -344,7 +345,7 @@ describe('CredentialDisplay link tag', () => {
       enter()
       await act(async () => {
         setSource({ id: 'replacement-source', mode: 'organization' })
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await sleep(0)
       })
       expect(container.textContent).toContain('shared with Example')
       expect(container.querySelector('input')?.value).toBe('')

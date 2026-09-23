@@ -88,7 +88,7 @@ const CONTRACT_KEY_RE = /\n\s{2}contract:\s*([A-Za-z0-9_$]+)\s*,/
 /** How far past the builder's `({` to look for the `contract:` key. */
 const OPTIONS_SCAN_CHARS = 4000
 
-/** Resolves a traced export through its local handler without importing server code. */
+/** Resolves traced and conditionally selected exports without importing server code. */
 export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
   const handlers = new Map<string, number>()
@@ -120,13 +120,22 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
         continue
       const verb = declaration.id.name
       const found = new Set<number>()
-      const visit = (value: unknown): void => {
+      const visit = (value: unknown, handlerReference = false): void => {
         if (!value || typeof value !== 'object') return
         if (Array.isArray(value)) {
-          value.forEach(visit)
+          value.forEach((child) => visit(child))
           return
         }
         const node = value as Record<string, unknown>
+        if (handlerReference && node.type === 'Identifier' && typeof node.name === 'string') {
+          const start = handlers.get(node.name)
+          if (start !== undefined) found.add(start)
+        }
+        if (handlerReference && node.type === 'ConditionalExpression') {
+          visit(node.consequent, true)
+          visit(node.alternate, true)
+          return
+        }
         if (node.type === 'CallExpression' && node.callee && typeof node.callee === 'object') {
           const callee = node.callee as Record<string, unknown>
           const start =
@@ -135,9 +144,9 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
               : undefined
           if (start !== undefined) found.add(start)
         }
-        Object.values(node).forEach(visit)
+        Object.values(node).forEach((child) => visit(child))
       }
-      visit(declaration.init)
+      visit(declaration.init, true)
       for (const optionsStart of found) sites.push({ verb, optionsStart })
     }
   }
