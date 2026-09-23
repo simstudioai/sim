@@ -27,8 +27,9 @@ import { isRecordLike } from '@sim/utils/object'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** The TINQL `resolveTinKeywordQuery` renders for `fixture`: its `english` stem, quoted. */
 vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
-  resolveTinKeywordQuery: async () => 'fixture',
+  resolveTinKeywordQuery: async () => '"fixtur"',
 }))
 
 import {
@@ -284,13 +285,6 @@ beforeAll(async () => {
     embeddingModel: 'text-embedding-3-small',
     embedding: [1, ...Array<number>(1535).fill(0)],
   })
-  await db.insert(embeddingKeywordTin).values({
-    id: embeddingId,
-    knowledgeBaseId: ids.knowledgeBaseId,
-    documentId,
-    enabled: true,
-    content: 'fixture readme',
-  })
   const [tin] = await db.execute<{ present: boolean }>(
     sql`SELECT to_regnamespace('tin') IS NOT NULL AS present`
   )
@@ -300,10 +294,21 @@ beforeAll(async () => {
       sql.raw(`CREATE SCHEMA tin;
       CREATE FUNCTION tin.full_score(tid) RETURNS double precision LANGUAGE sql IMMUTABLE AS 'SELECT 1.0::float8';
       CREATE FUNCTION knowledge_tin_base_token(text) RETURNS text LANGUAGE sql IMMUTABLE AS $$SELECT 'kb'$$;
+      CREATE FUNCTION knowledge_tin_stream(vector tsvector) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+        SELECT coalesce(string_agg(entry.lexeme, ' ' ORDER BY position), '')
+        FROM unnest(vector) AS entry(lexeme, positions, weights), unnest(entry.positions) AS position
+      $$;
       CREATE FUNCTION tin_fixture_match(text, text) RETURNS boolean LANGUAGE sql IMMUTABLE AS 'SELECT true';
       CREATE OPERATOR ==> (LEFTARG = text, RIGHTARG = text, FUNCTION = tin_fixture_match);`)
     )
   }
+  /** Written as the projection trigger writes it, so real Tin scopes the row to its base. */
+  await db.execute(sql`
+    INSERT INTO ${embeddingKeywordTin} (id, knowledge_base_id, document_id, enabled, content)
+    SELECT id, knowledge_base_id, document_id, enabled,
+      knowledge_tin_base_token(knowledge_base_id) || ' ' || knowledge_tin_stream(content_tsv)
+    FROM ${embedding} WHERE id = ${embeddingId}
+    ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content`)
 })
 
 afterAll(async () => {
@@ -312,6 +317,7 @@ afterAll(async () => {
       sql.raw(`DROP OPERATOR IF EXISTS ==> (text, text);
       DROP FUNCTION IF EXISTS tin_fixture_match(text, text);
       DROP FUNCTION IF EXISTS knowledge_tin_base_token(text);
+      DROP FUNCTION IF EXISTS knowledge_tin_stream(tsvector);
       DROP SCHEMA IF EXISTS tin CASCADE;`)
     )
   }

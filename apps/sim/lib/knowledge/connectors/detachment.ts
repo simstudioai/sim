@@ -6,7 +6,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -76,6 +76,101 @@ export function keptDocumentBytes() {
 }
 
 const SEARCH_PROJECTIONS = [embeddingSearch, embeddingKeywordTin] as const
+
+/**
+ * Settles what is left of a detached connector's reservation: an unreleased remainder is refunded,
+ * and an overdraft, released bytes beyond what removal charged, is charged as already admitted.
+ * Returns the payer's updated usage when it grew, for a storage-limit notification after commit.
+ */
+async function settleDetachReservationInTx(
+  tx: DbOrTx,
+  storageContext: StorageBillingContext,
+  reservedBytes: number
+): Promise<number | undefined> {
+  if (reservedBytes > 0) {
+    await decrementStorageUsageForBillingContextInTx(tx, storageContext, reservedBytes)
+    return undefined
+  }
+  if (reservedBytes < 0) {
+    return incrementAdmittedStorageUsageForBillingContextInTx(tx, storageContext, -reservedBytes)
+  }
+  return undefined
+}
+
+/**
+ * Settles the reservations of detached connectors on knowledge bases about to be hard-deleted.
+ *
+ * Purging a base cascades its connectors away, and with them the reservation a detached connector
+ * still holds for documents it never released; its pending detach job then finds no base and
+ * settles nothing. So before the purge deletes the bases, each base's detached connectors are
+ * locked in the detach job's order (base, then connector), their remaining reservation is settled
+ * exactly as the job's final transaction would, and zeroed in the same transaction, so a retried
+ * purge or a detach run that still reaches the connector settles nothing twice.
+ */
+export async function settleDetachedConnectorReservations(
+  knowledgeBaseIds: string[]
+): Promise<void> {
+  for (const knowledgeBaseId of knowledgeBaseIds) {
+    const [owner] = await db
+      .select({ workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+    if (!owner?.workspaceId) continue
+    const storageContext = await resolveStorageBillingContext(owner.workspaceId)
+
+    const updatedUsage = await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+      await tx.execute(sql`SET LOCAL statement_timeout = '30s'`)
+      const [lockedOwner] = await tx
+        .select({ workspaceId: knowledgeBase.workspaceId })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+        .for('share')
+        .limit(1)
+      if (!lockedOwner) return undefined
+      if (lockedOwner.workspaceId !== owner.workspaceId) {
+        throw new Error('Knowledge base workspace changed during detach reservation settlement')
+      }
+      const reserved = await tx
+        .select({
+          id: knowledgeConnector.id,
+          reservedBytes: knowledgeConnector.detachReservedBytes,
+        })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+            isNotNull(knowledgeConnector.detachedAt),
+            ne(knowledgeConnector.detachReservedBytes, 0)
+          )
+        )
+        .orderBy(asc(knowledgeConnector.id))
+        .for('update')
+      if (reserved.length === 0) return undefined
+
+      let grownUsage: number | undefined
+      for (const connector of reserved) {
+        grownUsage =
+          (await settleDetachReservationInTx(tx, storageContext, connector.reservedBytes)) ??
+          grownUsage
+      }
+      await tx
+        .update(knowledgeConnector)
+        .set({ detachReservedBytes: 0 })
+        .where(
+          inArray(
+            knowledgeConnector.id,
+            reserved.map(({ id }) => id)
+          )
+        )
+      return grownUsage
+    })
+    if (updatedUsage !== undefined) {
+      await maybeNotifyStorageLimitForBillingContext(storageContext, updatedUsage)
+    }
+  }
+}
 
 /**
  * Releases a detached connector's documents as standalone entries, then deletes the connector.
@@ -165,21 +260,13 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
           context.signal
         )
         if (drained === 'complete' && storageContext) {
-          if (connector.reservedBytes > 0) {
-            await decrementStorageUsageForBillingContextInTx(
-              tx,
-              storageContext,
-              connector.reservedBytes
-            )
-          } else if (connector.reservedBytes < 0) {
-            const updatedUsage = await incrementAdmittedStorageUsageForBillingContextInTx(
-              tx,
-              storageContext,
-              -connector.reservedBytes
-            )
-            if (updatedUsage !== undefined) {
-              storageNotification = { context: storageContext, updatedUsage }
-            }
+          const updatedUsage = await settleDetachReservationInTx(
+            tx,
+            storageContext,
+            connector.reservedBytes
+          )
+          if (updatedUsage !== undefined) {
+            storageNotification = { context: storageContext, updatedUsage }
           }
         }
         return drained
