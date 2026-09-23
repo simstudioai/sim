@@ -111,7 +111,7 @@ For administrators, the controls have different scopes:
 - **One pool per organization:** there are no additional groups, per-workflow grants, or per-account workspace allowlists.
 - **One Databricks configuration:** multiple tenant endpoints cannot be added as separate Databricks providers in the same pool.
 - **Organization operations are missing:** confirm the feature is enabled for the organization and the workflow's workspace is allowed.
-- **An invitation rejects your sign-in:** use the verified Sim account matching the invitation email. For OAuth providers, connect the provider account with that same email.
+- **An invitation rejects your sign-in:** use the verified Sim account matching the invitation email. The provider account can have a different email; the invitation stays bound to the verified Sim user.
 - **A Find operation fails:** it requires exactly one active matching connection. Check the invitation email, provider, connection status, and workspace access. It never chooses an arbitrary account when there are zero or multiple matches.
 - **A list seems incomplete:** organization list operations return up to 100 connections per page. Follow `nextCursor` while `hasMore` is true.
 - **A legacy Credential Group block fails:** replace it with the appropriate Credential block operation or trigger, update its output references, and redeploy the workflow.

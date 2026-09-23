@@ -5,17 +5,17 @@ description: Search connected sources live with each person's current access
 
 Search queries your connected providers when you ask a question. It does not copy their documents into a Sim vector index or wait for a background sync.
 
-An organization admin adds integrations under **Settings → Sources**. Teammates connect their accounts under **Integrations** in the main sidebar. Credential Groups remain a separate feature for sharing account connections with workflows.
+An organization admin adds sources under **Settings → Sources**. Teammates connect their provider accounts under **Integrations** in the main sidebar. Credential Groups remain a separate feature for sharing account connections with workflows.
 
 ## Add your first source
 
-1. Open **Settings → Sources → Add source** and choose an integration.
-2. Choose **Member accounts** or, when supported, **Service account**. GitHub calls the second mode **GitHub App**. Slack and Jira use member accounts; GitLab uses a service account.
-3. For member mode, save the source. For service mode, add or select a connection and configure its resources. GitHub uses **Add repository** for each repository; GitLab uses **Add project** for each project.
-4. Open **Integrations** and connect your personal account, including when you are the admin. GitLab is the exception: its configured project permissions identify readers without a personal connection.
-5. Open **Search**, or ask the assistant on **Home** about a document you can access.
+1. Open **Settings → Sources → Add source** and choose a provider or Generic Secrets.
+2. For a searchable provider, choose **Member accounts** or, when supported, **Service account**. GitHub calls the second mode **GitHub App**. Slack and Jira use member accounts; GitLab uses a service account. [Generic Secrets](/search/generic-secrets) instead offers **Organization** and **Member**.
+3. For provider member mode, save the source. For service mode, add or select a connection and configure its resources. GitHub uses **Add repository** for each repository; GitLab uses **Add project** for each project.
+4. For provider sources, open **Integrations** and connect your personal account, including when you are the admin. GitLab is the exception: its configured project permissions identify readers without a personal connection. Generic Secrets uses its built-in editor and needs no provider authorization.
+5. For a provider source, open **Search** or ask the assistant on **Home** about a document you can access. For Generic Secrets, use [Build or Plan](/search/generic-secrets).
 
-Adding a source makes that integration available for members to connect. A provider that needs deployment or app configuration must have that configuration completed before account authorization can succeed.
+Adding a member-account provider source makes that integration available for members to connect. A provider that needs deployment or app configuration must have that configuration completed before account authorization can succeed.
 
 ## Choose the right connection method
 
@@ -46,7 +46,7 @@ These nine providers support live Search. Google Docs, Sheets, and Slides are ac
 | [Jira](/search/jira) | Jira Cloud JQL and issue APIs | Member only |
 | [Slack](/search/slack) | Slack real-time search with the member's user token | Member only |
 
-**Generic Secrets** is also available as a source, but does not add searchable documents. Organization mode makes its secrets available across the organization; Member mode lets each person manage their own secrets in Integrations. The Build assistant can use these secrets for requests. Search mode cannot use them to run arbitrary integration calls.
+[Generic Secrets](/search/generic-secrets) is also available as a source, but does not add searchable documents. Organization mode makes its secrets available across the organization; Member mode lets each person manage their own secrets in Integrations. Build and Plan can use these secrets for requests; Search cannot mount them.
 
 ## Access and freshness
 
