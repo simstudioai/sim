@@ -134,7 +134,6 @@ describe('organization Search Assistant chat', () => {
       mode: 'assistant',
       assistantSearch: filters,
       context: [{ type: 'search_integrations', content: '{"connections":[],"available":[]}' }],
-      integrationCatalog: { mcpServerIds: [] },
       clientCapabilities: [],
     })
     expect(options).toMatchObject({

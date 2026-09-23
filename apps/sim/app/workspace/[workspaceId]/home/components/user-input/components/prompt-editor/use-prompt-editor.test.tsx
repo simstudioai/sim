@@ -595,6 +595,7 @@ it('auto-registers unique organization skill names with their owner but leaves a
     workspaceId: '',
     organizationId: 'org-1',
     initialValue: '/Review ',
+    initialContexts: [{ kind: 'skill', skillId: skill.id, label: skill.name }],
     availableSkills: [skill],
   })
   try {

@@ -53,14 +53,15 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  await prefetchOrganizationSidebar(
-    queryClient,
-    organizationId,
-    { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-    getActiveOrganizationId(session)
-  )
-
-  const tableRowTtlEnabled = await isTableRowTtlEnabled()
+  const [, tableRowTtlEnabled] = await Promise.all([
+    prefetchOrganizationSidebar(
+      queryClient,
+      organizationId,
+      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      getActiveOrganizationId(session)
+    ),
+    isTableRowTtlEnabled(),
+  ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (

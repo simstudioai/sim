@@ -259,6 +259,20 @@ describe('organization Agent attachment parity', () => {
       signal: undefined,
     })
   })
+  it('uses the transfer budget for downloads while default reads retain the extraction limit', async () => {
+    const largeSession = { ...agentSession, fileSize: 30 * 1024 * 1024 }
+    dbChainMockFns.limit.mockResolvedValueOnce([largeSession])
+    await expect(readOrganizationChatAttachment({ principal, key })).rejects.toMatchObject({
+      code: 'payload_too_large',
+    })
+    expect(mocks.download).not.toHaveBeenCalled()
+    dbChainMockFns.limit.mockResolvedValueOnce([largeSession])
+    mocks.download.mockResolvedValue(Buffer.from('downloaded'))
+    await readOrganizationChatAttachment({ principal, key, maxBytes: 100 * 1024 * 1024 })
+    expect(mocks.download).toHaveBeenCalledWith(
+      expect.objectContaining({ maxBytes: 100 * 1024 * 1024 })
+    )
+  })
   it('bounds normalized Assistant bytes by the caller limit when an image expands', async () => {
     const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
     dbChainMockFns.limit.mockResolvedValueOnce([

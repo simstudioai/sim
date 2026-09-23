@@ -311,7 +311,7 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
-  it.each(['complete', 'split', 'ambiguous'])(
+  it.each(['complete', 'split', 'worker', 'detached', 'ambiguous'])(
     'routes OOPIF evaluation through its session (%s tree)',
     async (treeKind) => {
       const contents = new WebContentsView().webContents
@@ -338,9 +338,20 @@ describe('browser-agent CDP instrumentation', () => {
         { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
         'child-session'
       )
+      if (treeKind === 'worker' || treeKind === 'detached') {
+        listener?.({}, 'Target.attachedToTarget', {
+          sessionId: 'unavailable-session',
+          targetInfo: {
+            targetId: 'unavailable',
+            type: treeKind === 'worker' ? 'worker' : 'iframe',
+          },
+        })
+      }
       vi.mocked(contents.debugger.sendCommand).mockClear()
       vi.mocked(contents.debugger.sendCommand).mockImplementation((method, _params, sessionId) => {
         if (method === 'Page.getFrameTree') {
+          if (sessionId === 'unavailable-session')
+            return Promise.reject(new Error('Target unavailable'))
           return Promise.resolve({
             frameTree:
               treeKind === 'complete'

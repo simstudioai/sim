@@ -53,6 +53,21 @@ export function resolveResourceSelectionUpdate(
   return typeof update === 'function' ? update(currentResourceId) : update
 }
 
+/** Match attention to the existing tab's canonical address without inventing an owner. */
+export function resolveFileResourceSelectionId(
+  resources: readonly MothershipResource[],
+  fileId: string,
+  workspaceId?: string
+): string {
+  const resource = resources.find(
+    (item) =>
+      item.type === 'file' &&
+      item.id === fileId &&
+      (!workspaceId || !item.workspaceId || item.workspaceId === workspaceId)
+  )
+  return resource ? getChatResourceSelectionId(resource) : fileId
+}
+
 export interface ResourceEventPresentationInput {
   activeResourceId: string | null
   activationRequested: boolean

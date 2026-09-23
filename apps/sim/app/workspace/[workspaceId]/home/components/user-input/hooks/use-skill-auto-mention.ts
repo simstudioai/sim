@@ -132,8 +132,21 @@ export function useSkillAutoMention({
     (additions: SlashContext[]) => {
       if (additions.length === 0) return
       setSelectedContexts((prev) => {
+        const ownedSkills = new Map(
+          additions
+            .filter(
+              (context): context is SkillContext =>
+                context.kind === 'skill' && !!context.workspaceId
+            )
+            .map((context) => [context.skillId, context.workspaceId])
+        )
+        const normalized = prev.map((context) => {
+          if (context.kind !== 'skill' || context.workspaceId) return context
+          const owner = ownedSkills.get(context.skillId)
+          return owner ? { ...context, workspaceId: owner } : context
+        })
         const existing = new Set(
-          prev
+          normalized
             .filter(
               (context): context is SlashContext =>
                 context.kind === 'skill' || context.kind === 'mcp'
@@ -141,7 +154,11 @@ export function useSkillAutoMention({
             .map(slashContextKey)
         )
         const fresh = additions.filter((context) => !existing.has(slashContextKey(context)))
-        return fresh.length > 0 ? [...prev, ...fresh] : prev
+        return fresh.length > 0
+          ? [...normalized, ...fresh]
+          : normalized.some((context, index) => context !== prev[index])
+            ? normalized
+            : prev
       })
     },
     [setSelectedContexts]

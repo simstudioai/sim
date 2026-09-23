@@ -10,6 +10,7 @@ import type { Session, WebContents } from 'electron'
  * navigation time, so the post-construction registration races nothing.
  */
 const agentContents = new WeakSet<WebContents>()
+const agentSessions = new WeakSet<Session>()
 const appOrigins = new WeakMap<WebContents, string>()
 const navigations = new WeakMap<WebContents, (url: string, method: string) => boolean>()
 const permissions = new WeakMap<WebContents, BrowserPermissionHandlers>()
@@ -25,8 +26,14 @@ export function registerAgentWebContents(
   handlers?: BrowserPermissionHandlers
 ): void {
   agentContents.add(contents)
+  agentSessions.add(contents.session)
   if (appOrigin) appOrigins.set(contents, appOrigin)
   if (handlers) permissions.set(contents, handlers)
+}
+
+/** Worker requests can outlive their originating tab and omit webContents. */
+export function hasAgentSession(session: Session): boolean {
+  return agentSessions.has(session)
 }
 
 export function isAgentWebContents(contents: WebContents): boolean {

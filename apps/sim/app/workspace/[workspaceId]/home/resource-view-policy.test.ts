@@ -5,6 +5,7 @@ import {
 } from '@/lib/mothership/resources/types'
 import {
   resolveEffectiveResourceId,
+  resolveFileResourceSelectionId,
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
@@ -198,4 +199,21 @@ describe('resolveResourceEventPresentation', () => {
       revealPanel: false,
     })
   })
+})
+
+it('normalizes file attention using the actual tab owner while preserving new unowned tabs', () => {
+  const resource: MothershipResource = {
+    type: 'file',
+    id: 'wf_file',
+    title: 'File',
+    workspaceId: 'owner',
+  }
+  expect(resolveFileResourceSelectionId([resource], resource.id, 'owner')).toBe(
+    getChatResourceSelectionId(resource)
+  )
+  expect(resolveFileResourceSelectionId([resource], resource.id, 'foreign')).toBe(resource.id)
+  expect(resolveFileResourceSelectionId([], resource.id, 'owner')).toBe(resource.id)
+  expect(
+    resolveFileResourceSelectionId([{ ...resource, workspaceId: undefined }], resource.id, 'owner')
+  ).toBe(resource.id)
 })

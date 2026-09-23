@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { resolveSearchLevel, type SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 
 const SEARCH_LEVELS = [
@@ -24,7 +24,7 @@ interface SearchLevelSelectorProps {
 }
 
 export function SearchLevelSelector({ value, onChange }: SearchLevelSelectorProps) {
-  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch === true
   const selected = resolveSearchLevel(value, liveSearch)
   const levels = liveSearch
     ? SEARCH_LEVELS.filter((level) => level.value !== 'adaptive').map((level) =>

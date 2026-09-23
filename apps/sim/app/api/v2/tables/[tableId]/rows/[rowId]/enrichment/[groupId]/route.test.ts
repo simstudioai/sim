@@ -169,8 +169,8 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
     workflowId: 'workflow-1',
     type: 'enrichment' as const,
     outputs: [
-      { blockId: 'b1', path: 'email', columnName: 'email' },
-      { blockId: 'b1', path: 'title', columnName: 'title' },
+      { blockId: 'b1', path: 'email', columnName: 'col-email' },
+      { blockId: 'b1', path: 'title', columnName: 'col-title' },
     ],
   }
   const ROW = {

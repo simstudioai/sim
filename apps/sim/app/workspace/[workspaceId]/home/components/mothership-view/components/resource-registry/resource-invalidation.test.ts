@@ -26,6 +26,16 @@ describe('resource cache reconciliation', () => {
     expect(client.getQueryState(tableKeys.views('other'))?.isInvalidated).toBe(false)
   })
 
+  it('refreshes active and archived workflow lists only for the addressed workspace', () => {
+    const client = new QueryClient()
+    const affected = [workflowKeys.list('w', 'active'), workflowKeys.list('w', 'archived')]
+    const other = workflowKeys.list('other', 'archived')
+    for (const key of [...affected, other]) client.setQueryData(key, {})
+    invalidateResourceQueries(client, 'w', 'workflow', 'wf')
+    for (const key of affected) expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(other)?.isInvalidated).toBe(false)
+  })
+
   it('covers knowledge documents, chunks, tags and connectors through the parent key', () => {
     const client = new QueryClient()
     const affected = [

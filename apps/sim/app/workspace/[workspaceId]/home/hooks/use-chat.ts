@@ -816,6 +816,7 @@ export function useChat(
     onPreviewPhase,
   } = useFilePreviewController({
     workspaceId,
+    resourcesRef,
     setResources,
     setActiveResourceId,
     activeResourceIdRef,

@@ -33,7 +33,7 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, workspaceFilesKeys.storageInfo())
   },
   workflow: (qc, wId, id) => {
-    void invalidateWorkflowLists(qc, wId)
+    void invalidateWorkflowLists(qc, wId, ['active', 'archived'])
     invalidate(qc, id ? workflowKeys.state(id) : workflowKeys.states())
     if (id) void invalidateDeploymentQueries(qc, id)
     else invalidate(qc, deploymentKeys.all)

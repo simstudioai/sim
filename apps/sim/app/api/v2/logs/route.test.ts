@@ -162,6 +162,7 @@ describe('GET /api/v2/logs', () => {
       [log.startedAt.toISOString(), 'run-1'],
       cursorScopeKey(cursorRoute(v2ListLogsContract), {
         workspaceId: WORKSPACE_ID,
+        level: 'error',
         includeHandledErrors: true,
       })
     )
@@ -174,6 +175,27 @@ describe('GET /api/v2/logs', () => {
     expect(replayed.status).toBe(400)
     expect(mocks.execute).not.toHaveBeenCalled()
   })
+
+  it.each(['', '&level=info'])(
+    'ignores handled-error flags outside error filters (%s)',
+    async (level) => {
+      const cursor = encodeSortedCursor(
+        cursorSortKey('startedAt', 'desc'),
+        [log.startedAt.toISOString(), 'run-1'],
+        cursorScopeKey(cursorRoute(v2ListLogsContract), {
+          workspaceId: WORKSPACE_ID,
+          level: level ? 'info' : undefined,
+        })
+      )
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}${level}&includeHandledErrors=true&cursor=${encodeURIComponent(cursor)}`
+        )
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.execute).toHaveBeenCalled()
+    }
+  )
 
   it('publishes durationMs on included trace spans from the stored duration', async () => {
     mocks.execute.mockResolvedValue({

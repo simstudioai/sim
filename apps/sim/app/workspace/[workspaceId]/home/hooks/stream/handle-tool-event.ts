@@ -29,6 +29,7 @@ import {
   resolveToolId,
   type ToolNode,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
+import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
@@ -107,7 +108,9 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
         deps.previewSessionRef.current?.fileName ??
         'File'
       deps.promoteFileResource(editedFileId, editedFileName)
-      deps.onResourceEventRef.current?.(editedFileId)
+      deps.onResourceEventRef.current?.(
+        resolveFileResourceSelectionId(deps.resourcesRef.current, editedFileId, deps.workspaceId)
+      )
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', editedFileId)
     }
   }
@@ -135,7 +138,9 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
     const fileResource = extractedResources.find((r) => r.type === 'file')
     if (fileResource) {
       deps.promoteFileResource(fileResource.id, fileResource.title)
-      deps.onResourceEventRef.current?.(fileResource.id)
+      deps.onResourceEventRef.current?.(
+        resolveFileResourceSelectionId(deps.resourcesRef.current, fileResource.id, deps.workspaceId)
+      )
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', fileResource.id)
     } else if (calledBy !== FILE_SUBAGENT_ID) {
       deps.setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))

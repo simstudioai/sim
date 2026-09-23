@@ -8,7 +8,7 @@ import {
   customBlockSettingsOperations,
   readCustomBlockUsages,
 } from '@/lib/workflows/custom-blocks/application/settings'
-import { customBlockError } from '@/app/api/custom-blocks/errors'
+import { customBlockResourceErrorPolicy } from '@/app/api/custom-blocks/errors'
 
 export const GET = defineInternalJsonRoute({
   contract: getCustomBlockUsageCountsContract,
@@ -17,7 +17,7 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing custom block usage read policy.',
   }),
-  errorPolicy: { project: customBlockError },
+  errorPolicy: customBlockResourceErrorPolicy,
   mapInput: ({ params }) => params,
   useCase: readCustomBlockUsages,
 })

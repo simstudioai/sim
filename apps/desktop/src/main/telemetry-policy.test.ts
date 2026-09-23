@@ -62,5 +62,13 @@ describe('attachTelemetryPolicy', () => {
     listener(request, callback)
     expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledExactlyOnceWith(request, callback)
     expect(callback).not.toHaveBeenCalled()
+    requestPolicy.handleBrowserRequest.mockClear()
+    const workerRequest = { ...request, webContents: undefined, resourceType: 'other' as const }
+    listener(workerRequest, callback)
+    expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledExactlyOnceWith(
+      workerRequest,
+      callback
+    )
+    expect(callback).not.toHaveBeenCalled()
   })
 })

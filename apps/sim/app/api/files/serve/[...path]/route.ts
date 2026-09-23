@@ -285,6 +285,7 @@ export const GET = withRouteHandler(
         const image = await readOrganizationChatAttachment({
           principal,
           key: cloudKey,
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
           signal: request.signal,
         })
         return createFileResponse({

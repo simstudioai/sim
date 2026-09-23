@@ -91,7 +91,7 @@ function logCursorFilters(query: {
     includeJobRuns: query.includeJobRuns || undefined,
     // Same rule: it widens what `level=error` selects, so it is bound, and only
     // stamped when on so cursors minted before it existed still decode.
-    includeHandledErrors: query.includeHandledErrors || undefined,
+    includeHandledErrors: (query.level === 'error' && query.includeHandledErrors) || undefined,
   })
 }
 

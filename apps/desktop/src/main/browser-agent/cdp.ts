@@ -308,7 +308,7 @@ export async function evaluateInIsolatedFrame(
   if (!protocolFrame) {
     /** Chromium omits out-of-process frames from the root target's tree. */
     const childSessions = [...(childSessionsByContents.get(contents)?.values() ?? [])]
-    const trees = await Promise.all(
+    const results = await Promise.allSettled(
       childSessions.map(async (sessionId) => {
         const result = await send<{ frameTree?: ProtocolFrameTree }>(
           contents,
@@ -318,6 +318,9 @@ export async function evaluateInIsolatedFrame(
         )
         return result.frameTree
       })
+    )
+    const trees = results.flatMap((result) =>
+      result.status === 'fulfilled' && result.value ? [result.value] : []
     )
     const nodes = new Map<string, ProtocolFrameTree>()
     const visit = (tree: ProtocolFrameTree) => {

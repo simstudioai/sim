@@ -44,7 +44,7 @@ export default async function OrganizationChatPage({
       <OrganizationHome
         userName={session.user.name ?? undefined}
         chatId={chatId}
-        requestMode='agent'
+        requestMode={chat.mode}
       />
     </Suspense>
   )

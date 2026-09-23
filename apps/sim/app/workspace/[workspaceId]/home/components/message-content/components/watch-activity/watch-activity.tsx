@@ -1,3 +1,4 @@
+import { useParams } from 'next/navigation'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { resolveResourceDisplayName } from '@/lib/mothership/tools/client/resource-display'
@@ -7,11 +8,11 @@ interface WatchActivityProps {
   task: TaskBlockInfo
 }
 
-function watchLabel(task: TaskBlockInfo): string {
+function watchLabel(task: TaskBlockInfo, routedWorkspaceId?: string): string {
   const status = task.status ?? 'pending'
   if (task.kind === 'workflow_run') {
     const workspaceId =
-      typeof task.target.workspaceId === 'string' ? task.target.workspaceId : undefined
+      typeof task.target.workspaceId === 'string' ? task.target.workspaceId : routedWorkspaceId
     const name = resolveResourceDisplayName('workflow', task.target.workflowId, { workspaceId })
     const target = name ? `workflow run: ${name}` : 'workflow run'
     return {
@@ -39,6 +40,7 @@ function watchLabel(task: TaskBlockInfo): string {
 
 /** A watch uses the normal tool row, but remains pending independently of the turn. */
 export function WatchActivity({ task: recorded }: WatchActivityProps) {
+  const params = useParams<{ workspaceId?: string }>()
   const { data } = useMothershipTaskStatus(recorded)
   const task =
     data && (!recorded.status || recorded.status === 'pending')
@@ -47,7 +49,7 @@ export function WatchActivity({ task: recorded }: WatchActivityProps) {
   const pending = task.status === undefined || task.status === 'pending'
   return (
     <div aria-busy={pending} title={[task.summary, task.note].filter(Boolean).join('\n')}>
-      <ActivityStatus label={watchLabel(task)} isActive={pending} />
+      <ActivityStatus label={watchLabel(task, params?.workspaceId)} isActive={pending} />
     </div>
   )
 }

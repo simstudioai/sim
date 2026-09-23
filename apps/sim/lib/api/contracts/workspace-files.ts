@@ -160,6 +160,7 @@ export const workspaceFileRecordSchema = z.object({
   updatedAt: z.coerce.date(),
   /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
   contentUpdatedAt: z.coerce.date().nullable().optional(),
+  revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
   vfsNamespace: z.literal('uploads').optional(),
   share: shareRecordSchema.nullable().optional(),

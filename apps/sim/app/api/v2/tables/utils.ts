@@ -238,12 +238,14 @@ export interface RowGroupEnrichmentInput {
  */
 export function toApiRowGroupEnrichment(
   input: RowGroupEnrichmentInput,
-  toNamedRow: (data: RowData) => RowData
+  toNamedRow: (data: RowData) => RowData,
+  toColumnName: (id: string) => string
 ): V2RowGroupEnrichment {
   const named = toNamedRow(input.row.data)
   const outputs: RowData = {}
   for (const output of input.group.outputs) {
-    outputs[output.columnName] = named[output.columnName] ?? null
+    const name = toColumnName(output.columnName)
+    outputs[name] = named[name] ?? null
   }
   return {
     groupId: input.group.id,

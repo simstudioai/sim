@@ -1,4 +1,7 @@
-import { internalErrorResponse } from '@/lib/api/server/routes'
+import {
+  createInternalResourceConcealmentPolicy,
+  internalErrorResponse,
+} from '@/lib/api/server/routes'
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
 import {
   InsufficientWorkspacePermissionsError,
@@ -23,3 +26,8 @@ export function customBlockError(error: unknown, read = false) {
     return internalErrorResponse(statusForOrchestrationError(error.code), { error: error.message })
   return null
 }
+
+export const customBlockResourceErrorPolicy = createInternalResourceConcealmentPolicy({
+  base: { project: customBlockError },
+  notFoundMessage: 'Custom block not found',
+})

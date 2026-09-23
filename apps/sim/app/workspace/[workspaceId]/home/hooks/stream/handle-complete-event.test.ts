@@ -94,6 +94,20 @@ describe('completed answer source panel', () => {
       revealCitedSources: true,
     })
   })
+  it('publishes evidence when a successful terminal event recovers an inline error', () => {
+    const ctx = context()
+    ctx.state.sawStreamError = true
+    handleCompleteEvent(ctx, event())
+    expect(ctx.deps.addResource).toHaveBeenCalledWith(expect.objectContaining({ type: 'sources' }))
+  })
+  it('uses cited fallback text when the main text block is empty', () => {
+    expect(
+      collectCitedMessageSources(
+        [blocks[0], { type: 'text', content: '  ' }],
+        `<source>${JSON.stringify({ id: citationId })}</source>`
+      )
+    ).toHaveLength(1)
+  })
   it('replaces a search streamed before the panel has rendered it', () => {
     const ctx = context()
     ctx.state.liveSearchResource = {

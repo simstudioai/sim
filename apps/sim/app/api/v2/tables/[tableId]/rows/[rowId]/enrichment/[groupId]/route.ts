@@ -8,7 +8,7 @@ import { tableOperations } from '@/lib/table/application/operations'
 import { readTableRowEnrichmentDetail } from '@/lib/table/application/rows'
 import { startTableRun } from '@/lib/table/application/runs'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import { toApiRowGroupEnrichment } from '@/app/api/v2/tables/utils'
+import { columnNameById, toApiRowGroupEnrichment } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -45,7 +45,8 @@ export const GET = defineV2JsonRoute({
   present: ({ table, row, group, runState, detail }) => ({
     data: toApiRowGroupEnrichment(
       { row, group, runState, detail },
-      namedRowMapper(table.schema.columns)
+      namedRowMapper(table.schema.columns),
+      columnNameById(table.schema)
     ),
   }),
 })

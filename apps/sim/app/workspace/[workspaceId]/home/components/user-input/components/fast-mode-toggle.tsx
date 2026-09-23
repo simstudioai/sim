@@ -20,7 +20,7 @@ export function FastModeToggle({
   description,
 }: FastModeToggleProps) {
   return (
-    <Tooltip.Root>
+    <Tooltip.Root preferAbove>
       <Tooltip.Trigger asChild>
         <Chip
           shape='round'
@@ -36,7 +36,7 @@ export function FastModeToggle({
           }
         />
       </Tooltip.Trigger>
-      <Tooltip.Content side='top'>
+      <Tooltip.Content>
         {description ?? (enabled ? 'Turn off Fast mode' : 'Turn on Fast mode')}
       </Tooltip.Content>
     </Tooltip.Root>

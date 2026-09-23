@@ -16,6 +16,7 @@ import {
   ASSISTANT_IMAGE_MAX_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { createUploadSession, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
@@ -203,7 +204,7 @@ export async function readOrganizationChatAttachment(
 ) {
   const { session, binding } = await authorizeOrganizationChatAttachment(input)
   const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES)
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BUFFERED_TRANSFER_BYTES)
     throw new OrchestrationError('validation', 'Invalid attachment byte limit')
   if (session.fileSize > maxBytes)
     throw new OrchestrationError('payload_too_large', 'Attachment exceeds the read byte limit')

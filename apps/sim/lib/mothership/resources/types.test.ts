@@ -88,6 +88,7 @@ describe('client and server agree on what can be persisted', () => {
         type,
         id: 'r1',
         title: 'Thing',
+        ...(type === 'sources' ? { sources: { messageId: 'message-1' } } : {}),
         ...(type === 'search'
           ? { search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } } }
           : {}),

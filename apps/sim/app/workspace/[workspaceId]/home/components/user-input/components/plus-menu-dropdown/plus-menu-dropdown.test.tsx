@@ -221,6 +221,30 @@ describe('PlusMenuDropdown desktop resources', () => {
     expect(headings).toEqual(['Integrations', ...browseOrder])
   })
 
+  it('keeps global native tabs in organization mentions with no workspaces', () => {
+    fixtures.browserTabs.push({
+      tabId: '7',
+      title: 'Test page',
+      url: 'https://example.com',
+      loading: false,
+      active: true,
+    })
+    fixtures.tabs.push({
+      terminalId: '9',
+      title: 'Test terminal',
+      cwd: null,
+      running: null,
+      interactive: false,
+      active: true,
+    })
+    openMenu(true, undefined, 'org-1')
+    const text = menuItems()
+      .map((item) => item.textContent)
+      .join(' ')
+    expect(text).toContain('Test page')
+    expect(text).toContain('Test terminal')
+  })
+
   it('lists a live page under the Browser category in browse mode', () => {
     fixtures.browserTabs.push({
       tabId: '7',

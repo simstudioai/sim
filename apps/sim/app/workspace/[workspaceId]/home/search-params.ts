@@ -70,11 +70,15 @@ export function searchFiltersFromParams(
   searchedAt: number
 ): WorkspaceSearchFilters {
   const days = UPDATED_WINDOWS.find((entry) => entry.id === params.updated)?.days
+  const [from, to] =
+    params.from && params.to && params.from > params.to
+      ? [params.to, params.from]
+      : [params.from, params.to]
   return {
-    ...(params.updated === 'custom' && params.from && params.to
+    ...(params.updated === 'custom' && from && to
       ? {
-          modifiedAfter: startOfLocalDay(params.from).toISOString(),
-          modifiedBefore: endOfLocalDay(params.to).toISOString(),
+          modifiedAfter: startOfLocalDay(from).toISOString(),
+          modifiedBefore: endOfLocalDay(to).toISOString(),
         }
       : {}),
     ...(params.source ? { source: params.source } : {}),

@@ -81,7 +81,8 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const pathname = usePathname()
   const posthog = usePostHog()
-  const { organization, viewer, searchAccess, mothershipAvailable } = useOrganizationContext()
+  const { organization, viewer, searchAccess, mothershipAvailable, canBuild } =
+    useOrganizationContext()
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
   const showCollapsedTooltips = useCollapsedTooltips(isCollapsed)
@@ -94,7 +95,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const navItems = buildOrganizationNavItems(
     organization.id,
     searchAccess.memberScoped,
-    mothershipAvailable
+    mothershipAvailable && (canBuild || searchAccess.memberScoped)
   )
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)

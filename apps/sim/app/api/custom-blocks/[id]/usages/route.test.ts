@@ -17,7 +17,11 @@ const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
 vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
   resolveEffectiveWorkspacePermission: async (...args: unknown[]) =>
-    (await mockHasWorkspaceAdminAccess(...args)) ? 'admin' : 'read',
+    (await mockHasWorkspaceAdminAccess(...args)) === null
+      ? null
+      : (await mockHasWorkspaceAdminAccess(...args))
+        ? 'admin'
+        : 'read',
 }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
@@ -66,6 +70,13 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockOperations.getCustomBlockManageContext.mockResolvedValue(null)
     const response = await callRoute()
     expect(response.status).toBe(404)
+  })
+
+  it('conceals a block in an inaccessible workspace', async () => {
+    mockHasWorkspaceAdminAccess.mockResolvedValue(null)
+    const response = await callRoute()
+    expect(response.status).toBe(404)
+    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
   })
 
   it('returns 403 for a non-admin of the source workspace', async () => {

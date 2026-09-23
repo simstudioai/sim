@@ -22,6 +22,7 @@ import {
   OrganizationResourceInventory,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
 import {
+  byResourceMenuOrder,
   getResourceConfig,
   MENTION_PREVIEW_DEFAULT_LIMIT,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -116,8 +117,8 @@ export const PlusMenuDropdown = React.memo(
     })
 
     const inventoryEnabled = open || !!warm
-    const workspaceInventory = useAvailableResources(workspaceId, {
-      enabled: inventoryEnabled && !organizationId,
+    const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
+      enabled: inventoryEnabled,
       includeFolderMentions: true,
     })
     const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(
@@ -135,7 +136,15 @@ export const PlusMenuDropdown = React.memo(
     const combined = organizationId
       ? mergeOrganizationResourceInventories(workspaces, inventories)
       : workspaceInventory
-    const { groups: availableResources, structureFolders } = combined
+    const { structureFolders } = combined
+    const availableResources = organizationId
+      ? [
+          ...combined.groups,
+          ...workspaceInventory.groups.filter(
+            (group) => group.type === 'browser' || group.type === 'terminal'
+          ),
+        ].sort(byResourceMenuOrder)
+      : combined.groups
     const isHydrating = combined.isHydrating || Boolean(organizationId && workspacesPending)
 
     const doOpen = useCallback(

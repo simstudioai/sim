@@ -19,7 +19,6 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
   if (
     !ctx.deps.citedSourcesEnabled ||
     parsed.payload.status !== 'complete' ||
-    ctx.state.sawStreamError ||
     ctx.deps.options.deferFlushes ||
     ctx.ops.isStale()
   )

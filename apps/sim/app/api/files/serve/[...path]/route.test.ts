@@ -275,6 +275,7 @@ describe('File Serve API Route', () => {
     expect(mockReadOrganizationAssistantImage).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       key,
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       signal: expect.any(AbortSignal),
     })
     expect(mockCreateFileResponse).toHaveBeenCalledWith(

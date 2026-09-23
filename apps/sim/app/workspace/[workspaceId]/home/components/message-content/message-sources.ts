@@ -32,5 +32,6 @@ export function collectCitedMessageSources(
   const texts = resolved.blocks
     .filter((block) => block.type === 'text' && !block.parentToolCallId && !block.subagent)
     .map((block) => block.content ?? '')
+    .filter((text) => text.trim().length > 0)
   return collectMessageSources(texts.length ? texts : [resolved.fallbackContent])
 }

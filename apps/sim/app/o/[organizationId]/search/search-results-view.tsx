@@ -1,6 +1,6 @@
 import { type ReactNode, useRef } from 'react'
 import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
@@ -36,7 +36,9 @@ export function SearchResultsView({
   })
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR} />
+      <div className={PAGE_HEADER_BAR}>
+        <div className={HEADER_ACTION_CLUSTER} />
+      </div>
       {searching ? (
         <>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
