@@ -104,7 +104,8 @@ export function UsageCredits({
   const { layers, legend } = useMemo(() => toCreditLayers(current?.series ?? []), [current])
   const used = current?.totals.credits ?? 0
   const previous = current?.previousTotals?.credits ?? 0
-  const delta = current && previous > 0 ? ((used - previous) / previous) * 100 : null
+  /** Rounded once, so the arrow and the figure never disagree about a sub-percent change. */
+  const delta = current && previous > 0 ? Math.round(((used - previous) / previous) * 100) : null
   const limit = current?.limitCredits ?? null
   const highlight = useLegendHighlight(legend.map((item) => item.id))
 
@@ -122,8 +123,12 @@ export function UsageCredits({
             <Badge
               variant={delta > 0 ? 'amber' : 'gray-secondary'}
               size='sm'
-              aria-label={`${Math.abs(delta).toFixed(0)}% ${delta > 0 ? 'increase' : delta < 0 ? 'decrease' : 'change'} compared with the previous period`}
-            >{`${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}%`}</Badge>
+              aria-label={
+                delta === 0
+                  ? 'No change compared with the previous period'
+                  : `${Math.abs(delta)}% ${delta > 0 ? 'increase' : 'decrease'} compared with the previous period`
+              }
+            >{`${delta > 0 ? '↑ ' : delta < 0 ? '↓ ' : ''}${Math.abs(delta)}%`}</Badge>
           )}
           {limit !== null && used > limit && (
             <Badge variant='red' size='sm'>

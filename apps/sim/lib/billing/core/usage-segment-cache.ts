@@ -60,6 +60,21 @@ async function readStored(keys: string[]): Promise<(string | null)[]> {
   }
 }
 
+/**
+ * A stored value, or `undefined` for a miss. An entry that does not parse — written by
+ * an older shape, or corrupted — is a miss too: the ledger answers instead of a failed
+ * page, and the fresh value overwrites it.
+ */
+function parseStored<T>(key: string, value: string | null | undefined): T | undefined {
+  if (value == null) return undefined
+  try {
+    return JSON.parse(value) as T
+  } catch (error) {
+    logger.warn('Discarding unreadable usage segment', { key, error: getErrorMessage(error) })
+    return undefined
+  }
+}
+
 /** Fire-and-forget: a page never waits on, or fails because of, a cache write. */
 function writeStored(entries: { key: string; value: string; ttlMs: number }[]): void {
   if (entries.length === 0) return
@@ -141,14 +156,16 @@ export async function readThroughSegments<T>({
   const writes: { key: string; value: string; ttlMs: number }[] = []
   const cached = new Map<UsageSegment, T>()
   settled.forEach((segment, index) => {
-    const value = stored[index]
-    if (value != null) cached.set(segment, JSON.parse(value) as T)
+    const value = parseStored<T>(keyOf(segment.key), stored[index])
+    if (value !== undefined) cached.set(segment, value)
   })
   assemblable.forEach((segment, index) => {
     if (cached.has(segment)) return
-    const hours = storedHours.slice(index * 24, index * 24 + 24)
-    if (hours.some((hour) => hour == null)) return
-    const value = combine(hours.map((hour) => JSON.parse(hour as string) as T))
+    const hours = storedHours
+      .slice(index * 24, index * 24 + 24)
+      .map((hour, offset) => parseStored<T>(keyOf(usageHourKey(segment.day, offset)), hour))
+    if (hours.some((hour) => hour === undefined)) return
+    const value = combine(hours as T[])
     cached.set(segment, value)
     writes.push({ key: keyOf(segment.key), value: JSON.stringify(value), ttlMs })
   })

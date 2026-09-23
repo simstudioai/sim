@@ -34,6 +34,18 @@ describe('UsageCredits', () => {
     expect(failed).toContain('load credits.')
   })
 
+  it('shows an unchanged period as neutral, not as a decrease', () => {
+    const markup = renderToStaticMarkup(
+      <UsageCredits
+        overview={{ ...overview, totals: { credits: 100 }, previousTotals: { credits: 100 } }}
+        isLoading={false}
+        isError={false}
+      />
+    )
+    expect(markup).toContain('No change compared with the previous period')
+    expect(markup).not.toContain('↓')
+  })
+
   it('omits the allowance outside the organization period', () => {
     const markup = renderToStaticMarkup(
       <UsageCredits

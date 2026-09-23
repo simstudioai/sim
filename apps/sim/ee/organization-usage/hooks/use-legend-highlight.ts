@@ -5,15 +5,16 @@ import { useState } from 'react'
 /**
  * Hover and click highlighting shared by a chart and its legend.
  *
- * A selection whose series the current window no longer draws is ignored: otherwise
- * every layer would stay dimmed after a period change, with no legend entry left to
- * clear it.
+ * A hover or selection whose series the current window no longer draws is ignored:
+ * otherwise every layer would stay dimmed after a period change, with no legend entry
+ * left to clear it.
  */
 export function useLegendHighlight(seriesIds: readonly string[]) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const activeSelection = selectedId !== null && seriesIds.includes(selectedId) ? selectedId : null
-  const highlightedId = hoveredId ?? activeSelection
+  const isDrawn = (id: string | null): id is string => id !== null && seriesIds.includes(id)
+  const activeSelection = isDrawn(selectedId) ? selectedId : null
+  const highlightedId = isDrawn(hoveredId) ? hoveredId : activeSelection
   return {
     highlightedId,
     legendProps: {

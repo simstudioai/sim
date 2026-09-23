@@ -6,6 +6,7 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 /**
@@ -487,10 +488,11 @@ export function usageBucketTimestamps(
  * How long after a stretch of time ends before its ledger rows are final.
  *
  * Rows are stamped when inserted, but a cumulative model charge tops up its row's
- * cost in place for as long as the stream runs. Past this lag a day or hour is
- * treated as settled.
+ * cost in place for as long as its stream runs — which {@link STREAM_TIMEOUT_MS}
+ * caps — plus the retry flushes that follow it. Past the cap and this margin a day or
+ * hour can no longer change and is treated as settled.
  */
-export const USAGE_SETTLE_MS = 3 * 60 * 60 * 1000
+export const USAGE_SETTLE_MS = STREAM_TIMEOUT_MS + 2 * 60 * 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
