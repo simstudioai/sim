@@ -35,38 +35,6 @@ describe('getDocuments pagination', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
   })
 
-  it('lists when a pending document was queued and when its deferred retry is due', async () => {
-    const queuedAt = new Date('2026-08-01T00:00:00.000Z')
-    const deferredUntil = new Date('2026-08-01T00:02:00.000Z')
-    queueTableRows(document, [{ count: 1 }])
-    queueTableRows(document, [
-      {
-        id: 'document-1',
-        processingStatus: 'pending',
-        processingQueuedAt: queuedAt,
-        processingDeferredUntil: deferredUntil,
-      },
-    ])
-
-    const result = await getDocuments(
-      'knowledge-1',
-      { limit: 5 },
-      'request-1',
-      WORKSPACE_ACCESS_SCOPE
-    )
-
-    expect(dbChainMockFns.select).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingQueuedAt: document.processingQueuedAt,
-        processingDeferredUntil: document.processingDeferredUntil,
-      })
-    )
-    expect(result.documents[0]).toMatchObject({
-      processingQueuedAt: queuedAt,
-      processingDeferredUntil: deferredUntil,
-    })
-  })
-
   it('reads a newly admitted candidate even when the earlier count admitted no documents', async () => {
     const identity: KnowledgeAccessScope = { kind: 'user', userId: 'reader', tokens: [] }
     const resolve = vi.fn(async () => identity)

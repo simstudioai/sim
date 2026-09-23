@@ -293,8 +293,6 @@ export const documentDataSchema = z
     processingOutcome: z.literal('skipped').nullable().default(null),
     /** When indexing was last dispatched to a worker, which precedes a worker starting it. */
     processingQueuedAt: nullableWireDateSchema.optional(),
-    /** When a deferred retry of a `pending` document is due. */
-    processingDeferredUntil: nullableWireDateSchema.optional(),
     processingStartedAt: nullableWireDateSchema.optional(),
     processingCompletedAt: nullableWireDateSchema.optional(),
     processingError: z.string().nullable().optional(),

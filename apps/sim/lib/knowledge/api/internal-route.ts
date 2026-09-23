@@ -89,7 +89,6 @@ export function toInternalKnowledgeDocument<
   T extends {
     uploadedAt: Date | string
     processingQueuedAt?: Date | string | null
-    processingDeferredUntil?: Date | string | null
     processingStartedAt?: Date | string | null
     processingCompletedAt?: Date | string | null
     date1?: Date | string | null
@@ -100,7 +99,6 @@ export function toInternalKnowledgeDocument<
     ...document,
     uploadedAt: serializeDate(document.uploadedAt),
     processingQueuedAt: serializeNullableDate(document.processingQueuedAt ?? null),
-    processingDeferredUntil: serializeNullableDate(document.processingDeferredUntil ?? null),
     processingStartedAt: serializeNullableDate(document.processingStartedAt ?? null),
     processingCompletedAt: serializeNullableDate(document.processingCompletedAt ?? null),
     date1: serializeNullableDate(document.date1 ?? null),
