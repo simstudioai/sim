@@ -569,6 +569,7 @@ describe('Chat Identifier API Route', () => {
       await vi.mocked(executeWorkflow).mock.calls[0][4]?.onBlockComplete?.('block-1', {
         output: { value: 'public output' },
         outputBlockId: 'child:block-1',
+        childWorkflowInstanceId: 'custom-invocation-1',
         resolvedSecretTraceProvenance: {
           version: 1,
           complete: true,
@@ -583,7 +584,8 @@ describe('Chat Identifier API Route', () => {
       expect(onBlockComplete).toHaveBeenCalledExactlyOnceWith(
         'block-1',
         { value: 'public output' },
-        'child:block-1'
+        'child:block-1',
+        'custom-invocation-1'
       )
     })
 

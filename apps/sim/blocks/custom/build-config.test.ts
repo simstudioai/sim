@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import {
   assembleCustomBlockInputMapping,
+  assertCustomBlockStreamingOutputs,
   buildCustomBlockConfig,
   CUSTOM_BLOCK_TILE_COLOR,
   type CustomBlockRow,
+  isCustomBlockStreamSource,
   isCustomBlockType,
   isReservedOutputName,
 } from '@/blocks/custom/build-config'
@@ -109,6 +111,22 @@ describe('buildCustomBlockConfig', () => {
     expect(config.outputs.result).toBeUndefined()
     expect(config.outputs.childWorkflowId).toBeUndefined()
     expect(config.outputs.childTraceSpans).toBeUndefined()
+  })
+
+  it('advertises a live public field as text for deployment output pickers', () => {
+    const config = buildCustomBlockConfig(
+      {
+        ...row,
+        exposedOutputs: [{ blockId: 'agent', path: 'content', name: 'answer', streaming: true }],
+      },
+      [],
+      { icon }
+    )
+    expect(config.outputs.answer).toEqual({
+      type: 'string',
+      description: 'Streaming text output',
+      streaming: true,
+    })
   })
 
   it('exposes only curated outputs as named fields', () => {
@@ -251,5 +269,51 @@ describe('assembleCustomBlockInputMapping field decoding', () => {
     expect(JSON.parse(assembleCustomBlockInputMapping({ flag: 'false' }))).toEqual({
       flag: 'false',
     })
+  })
+})
+
+describe('custom block streaming output validation', () => {
+  const answer = { blockId: 'private-agent', path: 'content', name: 'answer_text', streaming: true }
+
+  it.each(['agent', 'pi'])('accepts unstructured %s content', (type) => {
+    expect(
+      isCustomBlockStreamSource({ type, subBlocks: { responseFormat: { value: '' } } }, 'content')
+    ).toBe(true)
+  })
+
+  it('rejects unsupported, removed, and structured sources', () => {
+    for (const blocks of [
+      {},
+      { 'private-agent': { type: 'api' } },
+      {
+        'private-agent': {
+          type: 'agent',
+          subBlocks: { responseFormat: { value: '{"type":"object"}' } },
+        },
+      },
+    ]) {
+      expect(() => assertCustomBlockStreamingOutputs([answer], blocks)).toThrow('must reference')
+    }
+    expect(() =>
+      assertCustomBlockStreamingOutputs([{ ...answer, path: 'thinking' }], {
+        'private-agent': { type: 'agent' },
+      })
+    ).toThrow('must reference')
+  })
+
+  it('rejects ambiguous mappings and nested public names', () => {
+    const blocks = { 'private-agent': { type: 'agent' } }
+    expect(() =>
+      assertCustomBlockStreamingOutputs([answer, { ...answer, name: 'other' }], blocks)
+    ).toThrow('only once')
+    expect(() =>
+      assertCustomBlockStreamingOutputs([{ ...answer, name: 'answer.text' }], blocks)
+    ).toThrow('single output field')
+  })
+
+  it('leaves final-only outputs compatible with arbitrary source types', () => {
+    expect(() =>
+      assertCustomBlockStreamingOutputs([{ ...answer, streaming: false }], {})
+    ).not.toThrow()
   })
 })

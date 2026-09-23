@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  createBlock,
   encryptionMockFns,
   environmentUtilsMockFns,
   loggerMock,
@@ -17,11 +18,12 @@ import {
   remapCustomBlockInputKeys,
   WorkflowBlockHandler,
 } from '@/executor/handlers/workflow/workflow-handler'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import type { AgentStreamEvent, AgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockWorkflowLogger = vi.mocked(loggerMock.createLogger).mock.results[
@@ -1396,6 +1398,217 @@ describe('WorkflowBlockHandler', () => {
       })
       mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+    })
+
+    describe('public output streaming', () => {
+      const exposedOutputs = [{ blockId: 'b1', path: 'content', name: 'answer', streaming: true }]
+
+      beforeEach(() => {
+        mockGetCustomBlockAuthority.mockResolvedValue({
+          workflowId: 'source-workflow-id',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-9',
+          exposedOutputs,
+          requiredInputIds: [],
+          traceChildRuns: false,
+        })
+        mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
+          workflow: {
+            id: 'source-workflow-id',
+            name: 'Private workflow',
+            workspaceId: 'workspace-source',
+            variables: {},
+          },
+          workspaceId: 'workspace-source',
+          state: {
+            deploymentVersionId: 'deployment-version-1',
+            blocks: { b1: createBlock({ id: 'b1', type: 'agent', name: 'Private agent' }) },
+            edges: [],
+            loops: {},
+            parallels: {},
+          },
+        })
+      })
+
+      it('maps a selected public output with tracing off and keeps private metadata out', async () => {
+        const received: StreamingExecution[] = []
+        const chunks: string[] = []
+        const onBlockStart = vi.fn()
+        const onBlockComplete = vi.fn()
+        const events: AgentStreamEvent[] = []
+        const subscribe = vi.fn((sink: AgentStreamSink) => {
+          void sink.onEvent({ type: 'thinking_delta', text: 'private thinking' })
+          void sink.onEvent({ type: 'tool_call_start', id: 'private-id', name: 'private-tool' })
+          void sink.onEvent({ type: 'text_delta', text: 'public answer', turn: 'final' })
+          void sink.onEvent({ type: 'turn_end', turn: 'final' })
+          return vi.fn()
+        })
+        const onStream = vi.fn(async (stream: StreamingExecution) => {
+          received.push(stream)
+          stream.subscribe?.({
+            onEvent: (event) => {
+              events.push(event)
+            },
+          })
+          chunks.push(await new Response(stream.stream).text())
+        })
+        mockExecutorExecute.mockImplementation(async () => {
+          const extensions = executorOptions.at(-1)!.contextExtensions as ExecutionContext
+          expect(extensions.selectedOutputs).toEqual(['b1_content'])
+          expect(extensions.stream).toBe(true)
+          await extensions.onStream?.({
+            blockId: 'b1',
+            executionOrder: 99,
+            streamFormat: 'text',
+            subscribe,
+            stream: new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('public answer'))
+                controller.close()
+              },
+            }),
+            execution: {
+              success: true,
+              output: { content: 'public answer', thinking: 'private thinking' },
+            },
+            displayResolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [{ encryptedValue: 'sealed', name: 'PRIVATE_KEY' }],
+              scope: { userId: 'owner-9' },
+            },
+          })
+          return {
+            success: true,
+            output: {},
+            logs: [{ blockId: 'b1', success: true, output: { content: 'public answer' } }],
+          }
+        })
+        const ctx = customBlockContext({
+          stream: true,
+          selectedOutputs: [`${mockBlock.id}_answer`],
+          onStream,
+          onBlockStart,
+          onBlockComplete,
+        })
+        const output = await handler.executeWithNode(
+          ctx,
+          customBlock(),
+          {},
+          { nodeId: mockBlock.id, executionOrder: 7 }
+        )
+
+        expect(chunks).toEqual(['public answer'])
+        expect(received[0]).toMatchObject({
+          blockId: mockBlock.id,
+          outputPath: 'answer',
+          executionOrder: 7,
+          streamId: expect.any(String),
+          childWorkflowInstanceId: expect.any(String),
+          execution: { success: true, output: {} },
+        })
+        expect(received[0].displayResolvedSecretTraceProvenance).toEqual({
+          version: 1,
+          complete: true,
+          entries: [{ encryptedValue: 'sealed' }],
+        })
+        expect(events).toEqual([
+          { type: 'text_delta', text: 'public answer', turn: 'final' },
+          { type: 'turn_end', turn: 'final' },
+        ])
+        expect(subscribe).toHaveBeenCalledOnce()
+        expect(onBlockStart).not.toHaveBeenCalled()
+        expect(onBlockComplete).not.toHaveBeenCalled()
+        expect(output).toMatchObject({
+          answer: 'public answer',
+          success: true,
+          _childWorkflowInstanceId: received[0].childWorkflowInstanceId,
+        })
+        expect(output).not.toHaveProperty('childTraceSpans')
+      })
+
+      it('does not enable a live source unless its public output is selected', async () => {
+        await handler.execute(
+          customBlockContext({ stream: true, selectedOutputs: [`${mockBlock.id}_success`] }),
+          customBlock(),
+          {}
+        )
+        expect(executorOptions[0].contextExtensions.stream).toBe(false)
+        expect(executorOptions[0].contextExtensions.selectedOutputs).toEqual([])
+      })
+
+      it('still rejects selectors targeting private child outputs', async () => {
+        await expect(
+          handler.execute(
+            customBlockContext({
+              stream: true,
+              selectedOutputs: ['source-workflow-id.b1_content'],
+            }),
+            customBlock(),
+            {}
+          )
+        ).rejects.toThrow()
+        expect(mockExecutorExecute).not.toHaveBeenCalled()
+      })
+
+      it('fails if a source deployment changes to an unsupported block', async () => {
+        mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
+          workflow: {
+            id: 'source-workflow-id',
+            name: 'Private workflow',
+            workspaceId: 'workspace-source',
+            variables: {},
+          },
+          workspaceId: 'workspace-source',
+          state: {
+            deploymentVersionId: 'deployment-version-1',
+            blocks: { b1: createBlock({ id: 'b1', type: 'api' }) },
+            edges: [],
+            loops: {},
+            parallels: {},
+          },
+        })
+        await expect(
+          handler.execute(
+            customBlockContext({ stream: true, selectedOutputs: [`${mockBlock.id}_answer`] }),
+            customBlock(),
+            {}
+          )
+        ).rejects.toThrow()
+        expect(mockExecutorExecute).not.toHaveBeenCalled()
+      })
+
+      it('redacts a source stream error at the custom block boundary', async () => {
+        const onStream = vi.fn(async (stream: StreamingExecution) => {
+          await expect(new Response(stream.stream).text()).rejects.toThrow(
+            'Custom block output stream failed'
+          )
+        })
+        mockExecutorExecute.mockImplementation(async () => {
+          const extensions = executorOptions[0].contextExtensions as ExecutionContext
+          await extensions.onStream?.({
+            blockId: 'b1',
+            streamFormat: 'text',
+            stream: new ReadableStream({
+              start(controller) {
+                controller.error(new Error('PRIVATE_PROVIDER_SECRET'))
+              },
+            }),
+            execution: { success: false, output: {} },
+          })
+          return { success: true, output: {} }
+        })
+        await handler.execute(
+          customBlockContext({
+            stream: true,
+            selectedOutputs: [`${mockBlock.id}_answer`],
+            onStream,
+          }),
+          customBlock(),
+          {}
+        )
+        expect(onStream).toHaveBeenCalledOnce()
+      })
     })
 
     describe('live child spans for the terminal reconcile', () => {

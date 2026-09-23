@@ -8,6 +8,7 @@ import {
   ChipConfirmModal,
   ChipInput,
   ChipModalField,
+  ChipSwitch,
   ChipTextarea,
   type ComboboxOptionGroup,
   cn,
@@ -35,6 +36,7 @@ import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
+  isCustomBlockStreamSource,
   isReservedOutputName,
 } from '@/blocks/custom/build-config'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -266,7 +268,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   const visibleOutputs = useMemo(
     () =>
       deployedLoaded
-        ? outputs.filter((o) => labelByKey.has(encodeOutput(o.blockId, o.path)))
+        ? outputs.filter((o) => o.streaming || labelByKey.has(encodeOutput(o.blockId, o.path)))
         : outputs,
     [outputs, deployedLoaded, labelByKey]
   )
@@ -681,7 +683,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
           <SettingRow
             label='Outputs'
-            description='Pick which workflow outputs consumers see and name each one. At least one is required.'
+            description='Pick which workflow outputs consumers see and name each one. Enable streaming for text answers to use them live in deployed chat and Slack.'
           >
             <ChipCombobox
               multiSelect
@@ -724,6 +726,31 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         maxLength={60}
                         disabled={!canManageBlock}
                       />
+                      {canManageBlock &&
+                      (o.streaming ||
+                        isCustomBlockStreamSource(deployed.data?.blocks?.[o.blockId], o.path)) ? (
+                        <ChipSwitch
+                          value={o.streaming ? 'live' : 'final'}
+                          aria-label={`Stream ${o.name}`}
+                          options={[
+                            { value: 'final', label: 'Final' },
+                            { value: 'live', label: 'Live' },
+                          ]}
+                          onChange={(value) =>
+                            setOutputs((current) =>
+                              current.map((output) =>
+                                encodeOutput(output.blockId, output.path) === key
+                                  ? { ...output, streaming: value === 'live' }
+                                  : output
+                              )
+                            )
+                          }
+                        />
+                      ) : (
+                        <span className='text-[var(--text-muted)] text-caption'>
+                          {o.streaming ? 'Live' : 'Final'}
+                        </span>
+                      )}
                     </div>
                   )
                 })}
