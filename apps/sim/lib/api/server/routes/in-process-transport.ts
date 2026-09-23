@@ -24,6 +24,8 @@ type RouteHandler = (
 ) => Promise<Response>
 
 interface CompiledRoute {
+  /** The generated route pattern, e.g. `/api/v2/tables/{tableId}/rows`. */
+  pattern: string
   regex: RegExp
   params: string[]
   /** Literal segments — a more specific pattern wins over a parameterized one. */
@@ -32,6 +34,7 @@ interface CompiledRoute {
 }
 
 interface MatchedRoute {
+  pattern: string
   params: Record<string, string>
   literals: number
   load: () => Promise<object>
@@ -52,7 +55,13 @@ const COMPILED: CompiledRoute[] = V2_ROUTES.map((route) => {
       return '([^/]+)'
     })
     .join('/')
-  return { regex: new RegExp(`^${source}$`), params, literals, load: route.load }
+  return {
+    pattern: route.pattern,
+    regex: new RegExp(`^${source}$`),
+    params,
+    literals,
+    load: route.load,
+  }
 })
 
 export function matchV2Route(pathname: string): MatchedRoute | null {
@@ -65,7 +74,7 @@ export function matchV2Route(pathname: string): MatchedRoute | null {
     route.params.forEach((name, index) => {
       params[name] = decodeURIComponent(match[index + 1] ?? '')
     })
-    best = { params, literals: route.literals, load: route.load }
+    best = { pattern: route.pattern, params, literals: route.literals, load: route.load }
   }
   return best
 }

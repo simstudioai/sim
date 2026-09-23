@@ -11,6 +11,7 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
+import { createTableReadTransport } from '@/lib/mothership/agent-cli/table-read-transport'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -80,10 +81,14 @@ async function executeBoundAgentCliRequest(
   const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
   const reads = createFileReadTransport({
     endpoint,
-    transport: createTracedCliTransport(
+    transport: createTableReadTransport({
       endpoint,
-      createScopedCliTransport(endpoint, invocationIdentity)
-    ),
+      transport: createTracedCliTransport(
+        endpoint,
+        createScopedCliTransport(endpoint, invocationIdentity)
+      ),
+      registry: context.resolvedSecretTraceRegistry,
+    }),
     userId: context.userId,
     invocation: invocationIdentity,
     registry: context.resolvedSecretTraceRegistry,

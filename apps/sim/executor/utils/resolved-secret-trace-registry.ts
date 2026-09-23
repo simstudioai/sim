@@ -70,6 +70,11 @@ export type ResolvedSecretIncompletenessReason =
   | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
   | 'table-result-provenance-unavailable'
+  /**
+   * A table result carried run-state or enrichment error text, captured from executor output that
+   * can hold resolved secret plaintext, with no provenance persisted beside it.
+   */
+  | 'table-run-state-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
   | 'file-source-unidentified'
