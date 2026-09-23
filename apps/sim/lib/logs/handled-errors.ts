@@ -12,12 +12,11 @@ const HANDLED_ERROR_SPAN_PATH = '$.traceSpans.** ? (@.status == "error" && @.err
 /**
  * Whether a run's stored execution data holds a handled block error.
  *
- * Reads the inline `execution_data` column only: a trace externalized to the
- * blob store is slimmed to its marker keys in the row, so its spans are not
- * visible to this predicate and such a run answers `false`. Null execution
- * data answers `false` rather than null so the value can be published as a
- * boolean and counted with `FILTER`.
+ * Uses the inline marker retained during trace externalization and compaction,
+ * falling back to trace inspection for older inline rows. This keeps filtering
+ * and pagination in SQL without loading archived trace payloads. Older archives
+ * without a marker cannot be classified here. Null data answers `false`.
  */
 export function handledErrorSpanCondition(): SQL<boolean> {
-  return sql<boolean>`COALESCE(jsonb_path_exists(${workflowExecutionLogs.executionData}, ${HANDLED_ERROR_SPAN_PATH}::jsonpath), false)`
+  return sql<boolean>`COALESCE(${workflowExecutionLogs.executionData}->'hasHandledErrors' = 'true'::jsonb, jsonb_path_exists(${workflowExecutionLogs.executionData}, ${HANDLED_ERROR_SPAN_PATH}::jsonpath), false)`
 }

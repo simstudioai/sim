@@ -1,13 +1,14 @@
 import {
   createInternalResourceConcealmentPolicy,
   internalErrorResponse,
+  internalOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
 import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
 } from '@/lib/core/application/workspace-authorization'
-import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CustomBlockValidationError } from '@/lib/workflows/custom-blocks/operations'
 
 export function customBlockError(error: unknown, read = false) {
@@ -22,8 +23,7 @@ export function customBlockError(error: unknown, read = false) {
     })
   if (error instanceof CustomBlockValidationError)
     return internalErrorResponse(400, { error: error.message })
-  if (error instanceof OrchestrationError)
-    return internalErrorResponse(statusForOrchestrationError(error.code), { error: error.message })
+  if (error instanceof OrchestrationError) return internalOrchestrationErrorPolicy.project(error)
   return null
 }
 

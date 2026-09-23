@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Session } from 'electron'
-import { hasAgentSession, isAgentWebContents } from '@/main/browser-agent/registry'
+import { isAgentWebContents, shouldGuardUnownedAgentRequest } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
 import { matchesHostList } from '@/main/navigation'
 
@@ -41,7 +41,9 @@ export function attachTelemetryPolicy(session: Session, enabled: boolean): void 
     if (enabled && shouldBlockRequest(details.url)) {
       callback({ cancel: true })
     } else if (
-      details.webContents ? isAgentWebContents(details.webContents) : hasAgentSession(session)
+      details.webContents
+        ? isAgentWebContents(details.webContents)
+        : shouldGuardUnownedAgentRequest(session, details.url)
     ) {
       handleBrowserRequest(details, callback)
     } else {

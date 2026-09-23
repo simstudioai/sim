@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentProps, memo, useCallback, useRef, useState } from 'react'
+import { type ComponentProps, memo, useRef, useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -92,11 +92,8 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   })
 
   const isMac = isMacPlatform()
-  const navItems = buildOrganizationNavItems(
-    organization.id,
-    searchAccess.memberScoped,
-    mothershipAvailable && (canBuild || searchAccess.memberScoped)
-  )
+  const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
+  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped, canUseHome)
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
@@ -110,13 +107,10 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     closeMenu: closeHrefMenu,
   } = useContextMenu()
 
-  const handleHrefContextMenu = useCallback(
-    (e: React.MouseEvent, href: string) => {
-      setMenuHref(href)
-      openHrefMenu(e)
-    },
-    [openHrefMenu]
-  )
+  const handleHrefContextMenu = (e: React.MouseEvent, href: string) => {
+    setMenuHref(href)
+    openHrefMenu(e)
+  }
 
   const handleHrefMenuClose = () => {
     closeHrefMenu()
@@ -272,7 +266,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     isCollapsed={isCollapsed}
                     pathname={pathname}
                   />
-                  {(mothershipAvailable || searchAccess.memberScoped) && (
+                  {canUseHome && (
                     <OrganizationChats
                       key={organization.id}
                       organizationId={organization.id}

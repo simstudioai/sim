@@ -1,4 +1,5 @@
 import type { Session, WebContents } from 'electron'
+import { isAppOrigin } from '@/main/navigation'
 
 /**
  * Registry of WebContents that belong to the agent browser (the browser-agent
@@ -10,7 +11,7 @@ import type { Session, WebContents } from 'electron'
  * navigation time, so the post-construction registration races nothing.
  */
 const agentContents = new WeakSet<WebContents>()
-const agentSessions = new WeakSet<Session>()
+const agentSessions = new WeakMap<Session, string | undefined>()
 const appOrigins = new WeakMap<WebContents, string>()
 const navigations = new WeakMap<WebContents, (url: string, method: string) => boolean>()
 const permissions = new WeakMap<WebContents, BrowserPermissionHandlers>()
@@ -26,14 +27,19 @@ export function registerAgentWebContents(
   handlers?: BrowserPermissionHandlers
 ): void {
   agentContents.add(contents)
-  agentSessions.add(contents.session)
+  agentSessions.set(contents.session, appOrigin)
   if (appOrigin) appOrigins.set(contents, appOrigin)
   if (handlers) permissions.set(contents, handlers)
 }
 
-/** Worker requests can outlive their originating tab and omit webContents. */
-export function hasAgentSession(session: Session): boolean {
-  return agentSessions.has(session)
+/**
+ * Unattributed workers retain network guards, but a shared session's configured
+ * app origin remains reachable for ordinary app workers on self-hosted networks.
+ */
+export function shouldGuardUnownedAgentRequest(session: Session, url: string): boolean {
+  if (!agentSessions.has(session)) return false
+  const appOrigin = agentSessions.get(session)
+  return !appOrigin || !isAppOrigin(url, appOrigin)
 }
 
 export function isAgentWebContents(contents: WebContents): boolean {

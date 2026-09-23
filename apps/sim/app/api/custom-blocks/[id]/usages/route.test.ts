@@ -3,6 +3,7 @@
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
   mockHasWorkspaceAdminAccess: vi.fn(),
@@ -103,5 +104,14 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
       'org-1',
       'custom_block_abc123'
     )
+  })
+
+  it('conceals internal orchestration diagnostics', async () => {
+    mockOperations.getCustomBlockUsageCounts.mockRejectedValue(
+      new OrchestrationError('internal', 'Database driver diagnostic')
+    )
+    const response = await callRoute()
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal server error' })
   })
 })

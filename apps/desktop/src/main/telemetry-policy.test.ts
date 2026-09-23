@@ -63,12 +63,47 @@ describe('attachTelemetryPolicy', () => {
     expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledExactlyOnceWith(request, callback)
     expect(callback).not.toHaveBeenCalled()
     requestPolicy.handleBrowserRequest.mockClear()
-    const workerRequest = { ...request, webContents: undefined, resourceType: 'other' as const }
+    const workerRequest = {
+      ...request,
+      url: 'http://169.254.169.254/metadata',
+      webContents: undefined,
+      resourceType: 'other' as const,
+    }
     listener(workerRequest, callback)
     expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledExactlyOnceWith(
       workerRequest,
       callback
     )
     expect(callback).not.toHaveBeenCalled()
+  })
+
+  it('preserves ordinary workers on the exact configured LAN app origin', () => {
+    const contents = new WebContentsView().webContents
+    const onBeforeRequest = vi.mocked(contents.session.webRequest.onBeforeRequest)
+    onBeforeRequest.mockClear()
+    requestPolicy.handleBrowserRequest.mockClear()
+    registerAgentWebContents(contents, 'http://192.168.1.10:3000')
+    attachTelemetryPolicy(contents.session, false)
+    const listener = onBeforeRequest.mock.calls[0][0]
+    if (typeof listener !== 'function') throw new Error('Missing request policy')
+    const request: OnBeforeRequestListenerDetails = {
+      id: 1,
+      url: 'http://192.168.1.10:3000/editor.worker.js',
+      method: 'GET',
+      resourceType: 'script',
+      referrer: '',
+      timestamp: 0,
+      uploadData: [],
+    }
+    const callback = vi.fn()
+    listener(request, callback)
+    expect(callback).toHaveBeenCalledExactlyOnceWith({ cancel: false })
+    expect(requestPolicy.handleBrowserRequest).not.toHaveBeenCalled()
+
+    for (const url of ['http://192.168.1.11/data', 'http://192.168.1.10:4000/data']) {
+      const otherRequest = { ...request, url }
+      listener(otherRequest, callback)
+      expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledWith(otherRequest, callback)
+    }
   })
 })

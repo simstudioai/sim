@@ -63,6 +63,7 @@ describe('trace archive storage round trip', () => {
       traceSpans: [{ id: 'span-1', output: 'é'.repeat(MAX_DURABLE_LARGE_VALUE_BYTES) }],
       traceSpanCount: 1,
       hasTraceSpans: true,
+      hasHandledErrors: false,
     }
     const json = JSON.stringify(data)
     const size = Buffer.byteLength(json, 'utf8')
@@ -79,6 +80,7 @@ describe('trace archive storage round trip', () => {
       [TRACE_STORE_REF_KEY]: expect.objectContaining({ size, key: expect.any(String) }),
       traceSpanCount: 1,
       hasTraceSpans: true,
+      hasHandledErrors: false,
     })
     expect(mockRegisterOwner).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -128,7 +130,7 @@ describe('trace archive storage round trip', () => {
         },
         CONTEXT
       )
-    ).resolves.toEqual({ hasTraceSpans: false })
+    ).resolves.toEqual({ hasTraceSpans: false, hasHandledErrors: false })
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 })
