@@ -15,6 +15,8 @@ export interface CollapsibleCardProps
   badge?: React.ReactNode
   /** Header actions, outside the collapse target and arranged with standard spacing. */
   actions?: React.ReactNode
+  /** Prevent header activation and remove it from tab order; independent actions stay available. */
+  disabled?: boolean
   collapsed: boolean
   onToggleCollapse: () => void
   /** Animate expansion using the shared Expandable height transition. */
@@ -42,6 +44,7 @@ export function CollapsibleCard({
   badge,
   actions,
   collapsed,
+  disabled = false,
   onToggleCollapse,
   animated = false,
   contentProps,
@@ -58,16 +61,18 @@ export function CollapsibleCard({
         <>
           <div
             role='button'
-            tabIndex={0}
+            tabIndex={disabled ? -1 : 0}
             aria-expanded={!collapsed}
+            aria-disabled={disabled || undefined}
             aria-controls={contentProps?.id}
             className={cn(
-              'flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2.5 py-[5px]',
+              'flex min-w-0 flex-1 items-center gap-2 px-2.5 py-[5px]',
+              !disabled && 'cursor-pointer',
               actions && 'pr-2'
             )}
-            onClick={onToggleCollapse}
+            onClick={disabled ? undefined : onToggleCollapse}
             onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return
+              if (disabled || event.target !== event.currentTarget) return
               handleKeyboardActivation(event, onToggleCollapse)
             }}
           >
