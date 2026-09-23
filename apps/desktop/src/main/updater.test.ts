@@ -24,7 +24,7 @@ const autoUpdaterMock = {
   quitAndInstall: vi.fn(),
 }
 
-import { app, dialog, shell } from 'electron'
+import { app, dialog, shell, autoUpdater as squirrelUpdater } from 'electron'
 import {
   checkForUpdatesInteractive,
   feedUrlForOrigin,
@@ -153,6 +153,24 @@ describe('initUpdater state machine', () => {
     }
   }
 
+  /** Replays a native Squirrel.Mac event, e.g. `update-downloaded` once a bundle is staged. */
+  function emitSquirrel(event: string) {
+    for (const [name, listener] of vi.mocked(squirrelUpdater.on).mock.calls) {
+      if (name === event) {
+        ;(listener as () => void)()
+      }
+    }
+  }
+
+  /** Drives a fresh updater to a Squirrel-staged `ready` update for `version`. */
+  async function stageUpdate(handle: UpdaterHandle, version: string) {
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version })
+    emit('update-downloaded', { version })
+    emitSquirrel('update-downloaded')
+  }
+
   async function createUpdater(options?: {
     autoDownload?: boolean
     feedAvailable?: boolean | 'no-release'
@@ -183,6 +201,7 @@ describe('initUpdater state machine', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     autoUpdaterMock.on.mockClear()
+    vi.mocked(squirrelUpdater.on).mockClear()
     autoUpdaterMock.setFeedURL.mockClear()
     autoUpdaterMock.checkForUpdates.mockClear()
     autoUpdaterMock.checkForUpdates.mockImplementation(() => new Promise(() => {}))
@@ -443,6 +462,228 @@ describe('initUpdater state machine', () => {
     expect(events.record).toHaveBeenCalledWith('update_error', {
       message: 'native staging failed',
     })
+  })
+
+  it('replaces a staged update with a newer release instead of installing the stale build', async () => {
+    const { handle, states } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    states.length = 0
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
+    emit('checking-for-update')
+    emit('update-available', { version: '2.1.0' })
+    emit('download-progress', { percent: 50 })
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
+
+    emit('update-downloaded', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+
+    emitSquirrel('update-downloaded')
+    expect(states).toEqual([{ status: 'ready', version: '2.1.0' }])
+    expect(events.record).toHaveBeenCalledWith('update_downloaded', { version: '2.1.0' })
+  })
+
+  it('does not re-check a ready update until Squirrel has staged it', async () => {
+    const { handle } = await createUpdater()
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.0.0' })
+    emit('update-downloaded', { version: '2.0.0' })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    emitSquirrel('update-downloaded')
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a staged update when a background re-check finds nothing newer or fails', async () => {
+    const { handle, states } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    states.length = 0
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('update-available', { version: '2.0.0' })
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
+    emit('update-not-available')
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    emit('error', new Error('net::ERR_NETWORK_CHANGED'))
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    emit('update-available', { version: '2.1.0' })
+    emit('error', new Error('download interrupted'))
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    emit('update-available', { version: '2.2.0' })
+    emit('update-downloaded', { version: '2.2.0' })
+    emit('error', new Error('Squirrel could not verify the replacement'))
+
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(6)
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(3)
+    expect(states).toEqual([])
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+
+    emitSquirrel('update-downloaded')
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+  })
+
+  it('does not replace a staged update when background downloads are disabled', async () => {
+    const { handle } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    handle.setAutoDownload(false)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(1)
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+  })
+
+  it('completes a confirmed restart when a background re-check fails during teardown', async () => {
+    let finishTeardown: (() => void) | undefined
+    const setRelaunchPending = vi.fn()
+    const { handle } = await createUpdater({
+      beforeInstall: () =>
+        new Promise<void>((resolve) => {
+          finishTeardown = resolve
+        }),
+      setRelaunchPending,
+    })
+    await stageUpdate(handle, '2.0.0')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
+
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+      response: 1,
+      checkboxChecked: false,
+    })
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('error', new Error('net::ERR_NETWORK_CHANGED'))
+    finishTeardown?.()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    expect(setRelaunchPending).toHaveBeenCalledWith(true)
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a relaunch failure after a confirmed restart', async () => {
+    const setRelaunchPending = vi.fn()
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+      response: 1,
+      checkboxChecked: false,
+    })
+    const { handle } = await createUpdater({ beforeInstall: async () => {}, setRelaunchPending })
+    await stageUpdate(handle, '2.0.0')
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
+
+    emit('error', new Error('ShipIt could not launch'))
+
+    expect(handle.getState()).toEqual({ status: 'error', version: '2.0.0' })
+    expect(setRelaunchPending).toHaveBeenLastCalledWith(false)
+  })
+
+  it('installs a replacement that finished staging while the restart prompt was open', async () => {
+    let resolveConfirmation: (result: { response: number; checkboxChecked: boolean }) => void =
+      () => {
+        throw new Error('Restart confirmation did not initialize')
+      }
+    const { handle } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('update-available', { version: '2.1.0' })
+
+    vi.mocked(dialog.showMessageBox).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConfirmation = resolve
+        })
+    )
+    handle.install()
+    emit('update-downloaded', { version: '2.1.0' })
+    emitSquirrel('update-downloaded')
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.1.0' })
+    resolveConfirmation({ response: 1, checkboxChecked: false })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes an offered update to a newer release before it is downloaded', async () => {
+    const { handle } = await createUpdater({ autoDownload: false })
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.0.0' })
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.0.0' })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('checking-for-update')
+    emit('error', new Error('net::ERR_INTERNET_DISCONNECTED'))
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.0.0' })
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
+    emit('update-not-available')
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.0.0' })
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    emit('update-available', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.1.0' })
+    expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it('resumes refreshing after a replacement download is cancelled without an error event', async () => {
+    const { handle } = await createUpdater()
+    await stageUpdate(handle, '2.0.0')
+    await vi.advanceTimersByTimeAsync(10_000)
+    autoUpdaterMock.downloadUpdate.mockImplementationOnce(() =>
+      Promise.reject(new Error('cancelled'))
+    )
+    emit('update-available', { version: '2.1.0' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(3)
+    emit('update-available', { version: '2.1.0' })
+    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(3)
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+  })
+
+  it('follows the feed when a re-check rolls an offered release back', async () => {
+    const { handle } = await createUpdater({ autoDownload: false })
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.2.0' })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('update-available', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.1.0' })
+
+    handle.check()
+    emit('update-downloaded', { version: '2.1.0' })
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.1.0' })
+  })
+
+  it('withdraws an offered update once a re-check stores a blocked candidate', async () => {
+    const { handle } = await createUpdater({ autoDownload: false })
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.0.0' })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    emit('update-available', { version: '2.1.0-dev.1' })
+
+    expect(handle.getState()).toEqual({ status: 'idle' })
+    handle.check()
+    expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled()
   })
 
   it('checks from idle and ignores re-entrant checks while busy', async () => {
@@ -1033,6 +1274,31 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     handle.check()
     await vi.advanceTimersByTimeAsync(0)
     expect(handle.getState()).toEqual({ status: 'error', manual: true })
+  })
+
+  it('replaces an offered manual download with a newer release', async () => {
+    let feedVersion: string | null = '2.0.0'
+    const fetchManifest = vi.fn(async () => {
+      if (feedVersion === null) throw new Error('network down')
+      return manifest(feedVersion)
+    })
+    const { handle } = await createManualUpdater(fetchManifest)
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.0.0', manual: true })
+
+    feedVersion = null
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.0.0', manual: true })
+
+    feedVersion = '2.1.0'
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    expect(handle.getState()).toEqual({ status: 'available', version: '2.1.0', manual: true })
+
+    handle.install()
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim/releases/download/v2.1.0/Sim-2.1.0-universal.dmg'
+    )
   })
 
   it('checks on the scheduled interval', async () => {
