@@ -42,6 +42,8 @@ vi.mock('@/lib/embeddings', async () => ({
 }))
 
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
@@ -119,22 +121,58 @@ afterAll(async () => {
   await db.$client.end()
 })
 
-it.each([input.apiKey, '{{GITLAB_PAT}}'])(
-  'creates, syncs, edits, and searches a workspace GitLab source using %s',
-  async (apiKey) => {
-    const { connector } = await createKnowledgeConnector.execute({
-      principal,
-      input: { ...input, apiKey },
-    })
-    expect(connector.accessMode).toBe('workspace')
-    expect(JSON.stringify(connector)).not.toContain(input.apiKey)
+it.each([
+  { surface: 'application', apiKey: input.apiKey },
+  { surface: 'application', apiKey: '{{GITLAB_PAT}}' },
+  { surface: 'mothership', apiKey: input.apiKey },
+  { surface: 'mothership', apiKey: '{{GITLAB_PAT}}' },
+])(
+  'creates, syncs, edits, and searches a workspace GitLab source through $surface using $apiKey',
+  async ({ surface, apiKey }) => {
+    let connectorId: string
+    if (surface === 'mothership') {
+      const result = await knowledgeBaseServerTool.execute(
+        {
+          operation: 'add_connector',
+          args: {
+            knowledgeBaseId: ids.knowledgeBaseId,
+            connectorType: 'gitlab',
+            apiKey,
+            sourceConfig,
+          },
+        },
+        {
+          userId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+          chatId: generateId(),
+          executionId: generateId(),
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          billingAttribution: await resolveBillingAttribution({
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          }),
+        }
+      )
+      expect(result.success, result.message).toBe(true)
+      expect(JSON.stringify(result)).not.toContain(input.apiKey)
+      if (typeof result.data?.id !== 'string') throw new Error('Expected a connector ID')
+      connectorId = result.data.id
+    } else {
+      const { connector } = await createKnowledgeConnector.execute({
+        principal,
+        input: { ...input, apiKey },
+      })
+      expect(JSON.stringify(connector)).not.toContain(input.apiKey)
+      connectorId = connector.id
+    }
     await expect
       .poll(
         async () => {
           const [row] = await db
             .select()
             .from(knowledgeConnector)
-            .where(eq(knowledgeConnector.id, connector.id))
+            .where(eq(knowledgeConnector.id, connectorId))
           return { status: row.status, error: row.lastSyncError, synced: Boolean(row.lastSyncAt) }
         },
         { timeout: 15000 }
@@ -143,7 +181,8 @@ it.each([input.apiKey, '{{GITLAB_PAT}}'])(
     const [stored] = await db
       .select()
       .from(knowledgeConnector)
-      .where(eq(knowledgeConnector.id, connector.id))
+      .where(eq(knowledgeConnector.id, connectorId))
+    expect(stored.accessMode).toBe('workspace')
     expect(stored.syncIntervalMinutes).toBe(1440)
     expect(stored.encryptedApiKey).not.toBe(input.apiKey)
     expect((await decryptApiKey(stored.encryptedApiKey!)).decrypted).toBe(input.apiKey)
@@ -151,12 +190,12 @@ it.each([input.apiKey, '{{GITLAB_PAT}}'])(
       await db
         .select()
         .from(knowledgeConnectorPermissionSnapshot)
-        .where(eq(knowledgeConnectorPermissionSnapshot.connectorId, connector.id))
+        .where(eq(knowledgeConnectorPermissionSnapshot.connectorId, connectorId))
     ).toEqual([])
     const docs = await db
       .select()
       .from(document)
-      .where(and(eq(document.connectorId, connector.id), isNull(document.deletedAt)))
+      .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
     expect(docs).toHaveLength(1)
     expect(docs[0].externalId).toBe('file:orion.md')
     expect(docs[0].acl).toEqual(['ws'])
@@ -198,7 +237,7 @@ it.each([input.apiKey, '{{GITLAB_PAT}}'])(
     await updateKnowledgeConnector.execute({
       principal,
       input: {
-        connectorId: connector.id,
+        connectorId,
         updates: { sourceConfig: { ...sourceConfig, ref: 'master' } },
       },
     })
@@ -208,7 +247,7 @@ it.each([input.apiKey, '{{GITLAB_PAT}}'])(
           const [row] = await db
             .select()
             .from(knowledgeConnector)
-            .where(eq(knowledgeConnector.id, connector.id))
+            .where(eq(knowledgeConnector.id, connectorId))
           return {
             status: row.status,
             error: row.lastSyncError,
