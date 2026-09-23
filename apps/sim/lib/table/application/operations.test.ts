@@ -58,7 +58,7 @@ describe('table operation registry', () => {
   })
 
   it('admits executor delegation only for the intentional internal route operations', () => {
-    const executorOnlyOperations = new Set([
+    const uploadAndExportOperations = new Set([
       tableOperations.createImport.id,
       tableOperations.readImport.id,
       tableOperations.createImportParts.id,
@@ -93,19 +93,17 @@ describe('table operation registry', () => {
 
     for (const operation of Object.values(tableOperations)) {
       expect(operation.delegatedServices).toEqual(
-        executorOnlyOperations.has(operation.id)
-          ? ['executor']
-          : sharedToolOperations.has(operation.id)
-            ? ['copilot', 'executor']
-            : ['copilot']
+        uploadAndExportOperations.has(operation.id) || sharedToolOperations.has(operation.id)
+          ? ['copilot', 'executor']
+          : ['copilot']
       )
     }
   })
 
-  it('separates Copilot workspace-file imports from the credential-bound upload lifecycle', () => {
-    expect(tableOperations.createImport.delegatedServices).toEqual(['executor'])
-    expect(tableOperations.createImportParts.delegatedServices).toEqual(['executor'])
-    expect(tableOperations.completeImport.delegatedServices).toEqual(['executor'])
+  it('admits Copilot staged imports alongside its workspace-file import operations', () => {
+    expect(tableOperations.createImport.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(tableOperations.createImportParts.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(tableOperations.completeImport.delegatedServices).toEqual(['copilot', 'executor'])
     expect(tableOperations.createFromWorkspaceFile.principalKinds).toEqual(['delegated'])
     expect(tableOperations.createFromWorkspaceFile.delegatedServices).toEqual(['copilot'])
     expect(tableOperations.importWorkspaceFile.principalKinds).toEqual(['delegated'])

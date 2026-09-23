@@ -74,6 +74,23 @@ export interface SandboxExecutionRequest {
   signal?: AbortSignal
   /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
+  /** See {@link SandboxSessionRequest} — reuses one sandbox across executions. */
+  session?: SandboxSessionRequest
+}
+
+/**
+ * Opts an execution into a reusable session sandbox: the first execution
+ * creates and tags the sandbox, later ones reconnect to it, and each one
+ * refreshes its idle deadline instead of killing it. Mothership owns the session;
+ * metered calls still report execution cost to its normal usage settlement.
+ */
+export interface SandboxSessionRequest {
+  /** Stable identity of the session (e.g. one per Mothership chat). */
+  key: string
+  /** Deployment-owned CLI artifact. Its versioned directory is prepended to this execution's PATH. */
+  cli?: { path: string; content: string; runtime?: { path: string; content: string } }
+  /** Extra environment variables present on every execution in the session. */
+  envs?: Record<string, string>
 }
 
 export interface SandboxShellExecutionRequest {
@@ -101,12 +118,21 @@ export interface SandboxShellExecutionRequest {
   signal?: AbortSignal
   /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
+  /** See {@link SandboxSessionRequest} — reuses one sandbox across executions. */
+  session?: SandboxSessionRequest
 }
 
 export interface SandboxExecutionCost {
   input: number
   output: number
+  /** What the platform bills: the provider cost with the cost multiplier applied. */
   total: number
+  /**
+   * The provider cost before the multiplier. The copilot settles through the worker,
+   * which applies its own platform multiplier to every raw charge (model tokens, web
+   * research, and now sandbox time), so it must receive the unmarked amount.
+   */
+  raw?: number
 }
 
 /**
@@ -139,6 +165,13 @@ export interface SandboxExecutionResult {
    */
   collectedFiles?: SandboxCollectedFile[]
   cost?: SandboxExecutionCost
+  /**
+   * Present when the execution ran in a session sandbox: `reused` means prior
+   * session state (files, installed packages) was still there; `created` means
+   * this execution started a fresh sandbox — anything earlier executions wrote
+   * is gone.
+   */
+  sandboxSession?: 'created' | 'reused'
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -211,7 +244,8 @@ export interface SandboxHandle {
    * Language is bound at creation rather than per call because Daytona applies it
    * as a sandbox label (`code-toolbox-language`) and silently ignores a per-call
    * override — passing `javascript` to its `codeRun` executes the source through
-   * Python instead. We create one sandbox per execution, so binding costs nothing.
+   * Python instead. Reconnecting a session returns a handle bound to the requested
+   * language; the underlying filesystem remains shared.
    */
   runCode(
     code: string,
@@ -224,9 +258,19 @@ export interface SandboxHandle {
     }
   ): Promise<SandboxCodeResult>
   runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult>
+  /**
+   * Pushes the provider's reaping deadline out for a session sandbox that just
+   * served an execution. Absent on providers without session support.
+   */
+  extendLifetime?(lifetimeMs: number): Promise<void>
   /** Reads provider metadata without materializing the file contents. */
   getFileSize(path: string): Promise<number>
   readFile(path: string): Promise<string>
+  /** Session snapshots are consumed incrementally; the caller owns limits and stream cancellation. */
+  readFileStream?(
+    path: string,
+    options: { signal: AbortSignal }
+  ): Promise<ReadableStream<Uint8Array>>
   /**
    * Streams a regular file with a cumulative byte limit applied while reading.
    * Metadata checks are advisory; this method must independently enforce the
@@ -246,6 +290,14 @@ export interface SandboxHandle {
    * delivered without any shell parsing.
    */
   writeFile(path: string, content: string | ArrayBuffer): Promise<void>
+  /** Session file transfers stream with backpressure and cancellation, without a buffered fallback. */
+  writeFileStream?(
+    path: string,
+    content: ReadableStream<Uint8Array>,
+    options: { signal: AbortSignal }
+  ): Promise<void>
+  /** Removes a caller-owned temporary file through the provider filesystem API. */
+  removeFile(path: string): Promise<void>
   /**
    * Lists regular files under a directory, recursively to `depth`.
    *
@@ -306,6 +358,11 @@ export interface CreateSandboxOptions {
    * and creates the sandbox as ephemeral.
    */
   lifetimeMs?: number
+  /**
+   * Tags the sandbox as a reusable session sandbox so a later execution can
+   * find and reconnect to it via {@link SandboxProvider.findSessionSandbox}.
+   */
+  sessionKey?: string
   /** Reports the instant immediately before the provider SDK create request is dispatched. */
   onProviderRequestStarted?: (startedAtMs: number) => void
 }
@@ -398,4 +455,15 @@ export interface SandboxProvider {
   /** Resolves the provider's rounded lifetime for both creation and metering. */
   resolveLifetimeMs(lifetimeMs: number): number
   create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle>
+  /**
+   * Reconnects to a live sandbox previously created with
+   * {@link CreateSandboxOptions.sessionKey}, or resolves null when none is
+   * available. Lookup failures must throw rather than masquerade as absence.
+   * Providers without session support omit this method; callers then
+   * run every execution in a fresh sandbox.
+   */
+  findSessionSandbox?(
+    key: string,
+    options: { language?: CodeLanguage }
+  ): Promise<SandboxHandle | null>
 }

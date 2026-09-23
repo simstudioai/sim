@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
   buildOAuthChatCompleteAuthorizeUrl,
@@ -24,6 +23,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { isAppSurfacePath } from '@/lib/navigation/paths'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
@@ -177,7 +177,7 @@ export function useOAuthChipConnection({
   controlId,
   onConnected,
 }: UseOAuthChipConnectionParams): OAuthChipConnection {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
 
   // A connect URL carrying a credentialId re-authorizes that existing
   // credential in place (reconnect) rather than creating a new one.

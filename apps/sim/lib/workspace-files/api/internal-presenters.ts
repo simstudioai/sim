@@ -2,10 +2,18 @@ import { workspaceFileStyleContract } from '@/lib/api/contracts/workspace-files'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { DownloadWorkspaceFileResult } from '@/lib/workspace-files/application/download-workspace-file'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 
 export const internalFilePresenters = {
   successFile({ file }: { file: WorkspaceFileRecord }) {
-    return { success: true as const, file: { ...file, folderId: file.folderId ?? null } }
+    return {
+      success: true as const,
+      file: {
+        ...file,
+        folderId: file.folderId ?? null,
+        ...(file.contentUpdatedAt ? workspaceFileRevisionField(file) : {}),
+      },
+    }
   },
   successFiles({ files }: { files: WorkspaceFileRecord[] }) {
     return {

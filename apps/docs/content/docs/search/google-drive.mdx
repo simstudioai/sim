@@ -1,177 +1,79 @@
 ---
 title: Google Drive
-description: Connect personal Drive accounts or index your company with a delegated service account
+description: Search Drive files through member accounts with optional service-source restrictions
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Google Drive supports **Member accounts** and **Service account**. Each reader connects their own Drive account in Integrations. Google Docs, Sheets, and Slides are discovered through Drive rather than separate Search sources.
 
-Search Google Docs, Sheets, Slides, and supported files in Drive. Members can connect their own accounts after an admin allows Google Drive, or an admin can configure a central service-account crawl.
+## Member accounts
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar.
+An admin adds **Google Drive** under **Settings → Sources**, chooses **Member accounts**, and saves. Members select **Integrations → Google Drive → Connect** and authorize their own accounts.
 
-## Choose your setup
-
-| Method | Use it when | What teammates do |
-| --- | --- | --- |
-| **Member accounts** | Each person connects their own Drive access. No domain-wide delegation is needed; your Google Workspace app policy may require administrator approval. | Connect their own Google Drive accounts. |
-| **Service account** | A Google Workspace administrator can configure delegation and directory access for a central crawl. | Join the Sim organization with matching verified email addresses; no personal Drive connection is needed for this source. |
-
-These are alternative setup paths. When only a central Drive source is configured, Integrations does not offer a personal Drive **Connect** action. Teammates use Search or Home directly. Existing member-account sources keep their connection actions.
-
-<Callout type="info">
-  A central crawl includes each selected employee's private My Drive files and shared-drive files they can access. Files keep their original user and group permissions; indexing a private file does not make it visible to other employees.
-</Callout>
-
-## Connect member accounts
-
-<Steps>
-<Step>
-
-### Allow Google Drive
-
-An admin selects **Settings → Sources → Add source → Google Drive**, chooses **Sync using → Member accounts**, sets any filters, and selects **Set up member accounts**.
-
-</Step>
-<Step>
-
-### Connect your account
-
-Join the Sim organization, then open **Integrations** and select **Connect** for Google Drive. Use the Google account matching your verified Sim email. Google Drive has one row even when the admin configures several folder selections; its row shows your connection and indexing status. Members do not re-enter the admin's folder filters.
-
-</Step>
-<Step>
-
-### Adjust filters if needed
-
-An admin opens **Settings → Sources → Google Drive**, selects the connection, then opens **Settings**. Leave **Folders** empty to include supported files each member can access, or narrow the source to folders. **Account for browsing** helps select folders; manual **Folder IDs** work without it. Browsing does not connect that account to Search.
-
-Keep **Sync documents with → Connected members** unless a dedicated account should fetch content. Members still connect to establish access. If the dedicated account is a delegated service account, **Crawl as** selects the Google Workspace user whose files it fetches. Save the source settings when finished.
-
-</Step>
-</Steps>
-
-Admins can request member connections from **Settings → Sources → People → Request connections** (filter by the integration first). These requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the shared connection and recovery steps.
+Search calls Drive with that member's grant. No organization folder, file-type, or user selection applies in member mode. Provider permissions and native Drive search determine what can match.
 
 ## Set up a central service account
 
-Open **Settings → Sources → Add source** and select **Google Drive**. This opens **Connect Google Drive service account**. To add another connection later, open **Google Drive** from the Sources list and select **Connect service account**.
-
-This requires a Google Workspace domain and a Workspace super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-drive-setup.png" alt="Google Drive setup with a selected service account, directory administrator email, and folder filters" width={515} height={541} />
-
-<Steps>
-<Step>
-
-### Prepare the service account
-
-In [Google Cloud Console](https://console.cloud.google.com/), select your project and enable **Google Drive API** and **Admin SDK API** under **APIs & Services → Library**. Then open **IAM & Admin → Service Accounts → Create service account**, enter a name, and finish creation. Google Cloud project roles do not grant access to Workspace files; they are not required for this crawl.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/google-create-service-account.png" alt="Google Cloud Console form for creating a service account" width={1024} height={735} />
-
-Open the service account's **Keys** tab and choose **Add key → Create new key → JSON**, then select **Create** to download the key. Store it securely; you will add it to Sim next. See [Google's key creation guide](https://docs.cloud.google.com/iam/docs/keys-create-delete#creating).
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/google-create-private-key.png" alt="Google Cloud Create private key dialog with JSON selected" width={1024} height={502} />
-
-</Step>
-<Step>
-
-### Authorize domain-wide delegation
-
-In the service account's **Details**, expand **Advanced settings** and copy its numeric **Client ID**. Sign in to the [Workspace Admin Console](https://admin.google.com/ac/owl/domainwidedelegation) as a super administrator. Open **Security → Access and data control → API controls → Manage Domain Wide Delegation → Add new**.
-
-Paste that Client ID into **Client ID**, then enter these exact scopes as a comma-separated list under **OAuth scopes**:
+1. Enable **Google Drive API** and **Admin SDK API** in Google Cloud. Create a service account and download its JSON key.
+2. Authorize domain-wide delegation in Google Workspace Admin for the key's numeric client ID. The shared Drive service-credential configuration declares these scopes:
 
 ```text
-https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.group.readonly,https://www.googleapis.com/auth/admin.directory.domain.readonly
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/admin.directory.user.readonly
+https://www.googleapis.com/auth/admin.directory.group.readonly
+https://www.googleapis.com/auth/admin.directory.domain.readonly
 ```
 
-Select **Authorize**, then **View details** to confirm all four scopes were saved. If you reuse a Gmail or Calendar service account, retain those services' required scopes and add any missing Drive scopes. If your organization requires multi-party approval, another super administrator must approve the request. Delegation changes can take up to 24 hours to propagate. See Google's [Admin Console delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
+The live verifier checks active users through Directory and reads file metadata through delegated Drive tokens. It does not run the legacy group/domain ACL indexing process. Retain the configured credential scopes when using the shared connector or the legacy backend.
 
-These are Search's central crawl scopes. The general [Google service account guide](/integrations/google-service-account) includes broader scopes for workflow actions; do not copy those into this Search setup.
+3. In **Settings → Sources → Google Drive**, choose **Service account**, then **Add connection**. Add or select the Google service credential.
+4. Set **Delegated administrator** to an active Workspace administrator with the required Directory access. Optionally choose **Users**, folders, and a file type. Save and select the connection as Drive's service source.
+5. Every reader connects their own Google Drive account under **Integrations**.
 
-The **Directory administrator email** must belong to an active Workspace administrator with permission to read users, groups, group memberships, and domains. A super administrator has these privileges; a custom administrator role can supply them instead. This identity enumerates the directory. Sim obtains separate read-only Drive tokens for the selected users.
+The folder picker uses the source credential; the paired folder-ID field remains available. Selected folders and accessible descendants define the boundary. Leaving folders empty removes that folder restriction, but never removes provider access checks.
 
-Group permissions require groups and memberships that this administrator can read in this Google Workspace customer. External groups and unresolvable nested groups are not supported. Google Drive target-audience shares are not mapped; use explicit user, supported group, or domain permissions instead.
+## How filtering works
 
-</Step>
-<Step>
+Sim searches with the member's OAuth token. In service mode, it narrows retrieval to the source's folder scope where possible, then verifies each candidate's current source-side visibility, folder ancestry, shared-drive identity, and file type as applicable. The member must also be able to read the file.
 
-### Add the credential in Sim
+For an explicit source Users list, verification tries up to six selected users through domain-wide delegation. With no list, it verifies the connected member's active identity in the same Workspace customer and delegates to that user. If an external connected reader cannot be delegated in that customer, source verification can use the verified source administrator and report incomplete coverage. It does not enumerate every employee's private Drive.
 
-Under **Service account**, choose **Add service account**, or select an existing service account. Paste the JSON key into **Add Google service account**, give it a name, and select **Add service account**. Sim returns you to the source form with that credential selected.
+A member's personal file outside the source boundary is excluded even when their token can read it. Folder traversal, provider pagination, and verification budgets are bounded. Reads resolve current grants and repeat the source checks.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-service-account.jpg" alt="Add Google Service Account credential modal in Sim" width={520} height={562} />
+## Content and limits
 
-</Step>
-<Step>
+Drive search discovers matching files. Reads export Google Docs and Slides as text, read supported text/JSON files directly, and read formatted Sheet values from up to 20 sheets, 1,000 rows, and 52 columns per sheet. Other file types return metadata and a source link. Live Search does not run background attachment parsing or OCR.
 
-### Choose the directory administrator and users
-
-After selecting the service account, **Directory administrator email** appears. Enter the Workspace administrator described above. Under **More options**, leave **Users** blank for everyone, or enter up to 100 primary Workspace email addresses separated by commas. Suspended, archived, and guest accounts are excluded.
-
-Leave **Folders** empty to include supported files each selected user can access. To narrow the source, select folders visible to the Directory administrator or enter **Folder IDs** manually. The same folder filter applies to each selected user and does not grant access. Choose **Connect & Sync**. Sim validates the administrator and any selected users, and probes Drive access for an active user, before accepting the connection.
-
-The crawl includes shared-drive files even if a selected user has never opened them. A selected user must be able to download each file and Sim must verify its permissions before showing it in Search; this also applies to shortcut targets. If a reader can download a file but cannot list its permissions, include its owner or another user who can read those permissions.
-
-Invite teammates through **Settings → Members → Invite**, using their Google Workspace email addresses. They accept, sign in with those matching verified emails, and open **Search** or **Home**. They do not connect personal Google accounts for this central source.
-
-</Step>
-</Steps>
+Google's own search freshness, export limits, and access settings determine availability. Link sharing alone does not make a file an unrestricted Search result; the current member and configured service boundary must authorize it.
 
 ## One service account for Drive, Gmail, and Calendar
 
-You can reuse one JSON key for all three central connectors. Authorize this combined list on the same numeric **Client ID**, and enable **Google Drive API**, **Gmail API**, **Google Calendar API**, and **Admin SDK API** in its Cloud project:
+One JSON key can be used for all three service sources. Enable Drive, Gmail, Calendar, and Admin SDK APIs, then authorize the union of the configured scopes:
 
 ```text
-https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.events.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.group.readonly,https://www.googleapis.com/auth/admin.directory.domain.readonly
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/calendar.events.readonly
+https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/admin.directory.user.readonly
+https://www.googleapis.com/auth/admin.directory.group.readonly
+https://www.googleapis.com/auth/admin.directory.domain.readonly
 ```
 
-Under **View details**, verify all six scopes are saved. Gmail and Calendar succeeding does not verify Drive's group and domain permissions. Each connector still needs its own source configuration in Sim.
-
-## Source options
-
-An admin opens **Settings → Sources → Google Drive** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a connection's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed files and **Sync history** shows recent runs.
-
-**Sync using** identifies the configuration's fixed connection method. To replace a central credential, choose another **Service account** and select **Change service account**.
-
-Use **Sync now** to request an update, **Pause syncing** to stop scheduled syncs, and **Resume syncing** to restart them. **Remove connection** deletes the configuration and its indexed documents from Sim; it does not delete Drive files. These actions belong to the admin connection page. Members use **Connect**, **Reconnect**, or **Disconnect** on their Integrations row.
-
-| Option | Behavior |
-| --- | --- |
-| Folders / Folder IDs | Optional. Includes files in each selected folder and its accessible subfolders. A folder selection does not grant access. |
-| File Type | All supported files by default, or only Google Docs, Sheets, Slides, or text formats. **Plain text files only** also includes CSV, HTML, Markdown, JSON, and XML. |
-| Directory administrator email | Required for central indexing. Supplies Directory access for user enumeration and permission groups; it does not limit the crawl to this administrator's files. |
-| Users | Central indexing only. Optional primary email addresses (up to 100); blank includes all active users in this Workspace customer. This selects which users' Drives to crawl, not who may search the resulting files. |
-| Crawl as | In Member accounts, optionally supplies the impersonated user when a dedicated service account fetches content. It has no effect on ordinary OAuth accounts. |
-| Openly shared files | Applies only to central crawls; it has no effect in Member accounts. **Keep out of search** by default. You can include discoverable domain shares or discoverable public shares. Link-only sharing does not grant Search access; named user and group permissions still apply. |
-| Metadata tags | Optional owner, file type, modification date, and starred metadata. In the add-source form, these, **Users**, and **File Type** are under **More options**. |
-
-Sim exports Docs and Slides as text and Sheets as XLSX spreadsheets. Supported uploaded files use the knowledge-base document pipeline, including PDF and Office formats. Unsupported files and oversized exports cannot be indexed; Google limits Workspace exports to 10 MB. See [Drive export formats](https://developers.google.com/workspace/drive/api/guides/ref-export-formats) and [download limits](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
-
-Search schedules syncs hourly. Central crawls save each user's progress separately, so a large Drive or an account-specific access failure does not hold up other users. Temporary failures retry automatically. Sim continues discovering users and refreshing files and permissions while unfinished work resumes. Unread files are not treated as deleted, and results with stale or unverified permissions remain hidden. Results are not a live read from Drive. **People** on the Sources settings page shows personal account connections; it does not list the central service-account credential.
+Use comma-separated values in the Workspace delegation form. Each source still needs its own configuration, and each member still connects each Google service separately. Delegation does not replace those personal grants.
 
 ## Troubleshooting
 
-Directory permission warnings mean Sim could not fully verify group membership. When other groups refresh successfully and only nested groups outside your Workspace customer deny access or cannot be found, Sim continues syncing content and reports a partial permission sync. An incomplete membership read does not replace or refresh the last verified membership, which remains subject to freshness checks. Directory-wide failures still stop the sync. Check the Directory administrator’s access to the affected group and nested groups; this is separate from file-download access.
-
 | Problem | Next step |
 | --- | --- |
-| Google rejects authorization (`unauthorized_client`) | In **Manage Domain Wide Delegation**, verify the numeric **Client ID** matches `client_id` in the JSON key uploaded to Sim and all required scopes appear under **View details**. Check pending approval and allow time for recent changes to propagate. Changing the OAuth consent screen alone does not authorize delegation. |
-| Directory access failed | Check all four delegated scopes and the **Directory administrator email** user's administrator privileges. A normal Google OAuth credential cannot supply this central Search path. |
-| Missing files in a central crawl | Check **Users**, folder and file-type filters, and whether selected active Workspace users can download the file and read its permissions. Opening a file alone does not prove either. Check Sync history for errors. Files reachable only by excluded or inactive accounts are not crawled; files with unverified permissions stay hidden. |
-| No text could be extracted | Images and scanned PDFs use OCR, but files with no extractable text cannot be indexed. Check whether the original contains readable text; a successful download does not guarantee searchable content. |
-| File contains a Git LFS pointer | The uploaded file references content stored elsewhere instead of containing the actual image or PDF. Replace it in Drive with the original file content, then sync again. Retrying the unchanged pointer cannot recover the content. |
-| User not found or inactive | Use a primary email in the same Google Workspace customer. Aliases, external or guest accounts, suspended users, and archived users cannot be selected for crawling. |
-| A teammate sees no results | Confirm they have joined the Sim organization and their verified Sim email matches the Drive permission or group membership. For member accounts, finish their personal Drive connection too. |
-| A public or shared-link file is missing | Check **Openly shared files**. Link-only sharing does not grant Search access. A named user or group permission can still make the file searchable. |
-| Reconnect or credential error | Reauthorize the member account, or replace the service-account credential and verify delegation, as applicable. |
+| Delegation is rejected | Verify the numeric client ID, JSON key, approved scopes, and any pending Workspace approval. |
+| Directory identity is unavailable | Check the administrator's access and that selected primary users are active in the same Workspace customer. |
+| Member can open a file but Search excludes it | Check source folders, selected users, file type, and whether the delegated source identity can read the file. |
+| Coverage is incomplete | Narrow the folder or query scope; bounded user and folder verification does not imply that missing files are absent. |
+| File cannot be read as text | Open the original file. Live Search does not run the knowledge-base attachment parser or OCR retry flow. |
 
 ## Self-hosted OAuth configuration
 
-The deployment operator configures Google OAuth for member accounts and **Account for browsing**. This is separate from the central service account above.
+Configure the deployment’s Google OAuth client for every member’s personal connection, including members using a service-account source. This is separate from domain-wide delegation.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project and enable **Google Drive API** under **APIs & Services → Library**.
 2. Open **Google Auth platform → Branding** and configure the app name and contact details. Under **Audience**, choose **Internal** for your Google Workspace organization only, or **External** for other users, adding test users while testing. Review **Data Access → Add or remove scopes** using the current Sim scopes below. See Google's [consent guidance](https://developers.google.com/workspace/guides/configure-oauth-consent).
@@ -181,11 +83,10 @@ The deployment operator configures Google OAuth for member accounts and **Accoun
 https://<your-sim-domain>/api/auth/oauth2/callback/google-drive
 ```
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
 
-This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
+One OAuth client can register callbacks for all three Google services. Use your exact Sim origin and add only the callbacks for services you enable.
 
-Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin selects **Settings → Sources → More → Update sign-in settings**, then affected teammates reconnect.
+Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin updates the provider configuration and affected teammates reconnect.
 
 The current Sim Drive OAuth connection uses these scopes:
 
@@ -197,6 +98,4 @@ https://www.googleapis.com/auth/drive
 https://www.googleapis.com/auth/drive.file
 ```
 
-<Callout type="info">
-  Google's `drive.readonly` scope covers Search's file reads. Sim's existing OAuth connection also supports workflow actions and requires the broader scopes above; do not substitute read-only scopes for member OAuth. The central service account uses the four separate read-only Drive and Directory scopes listed earlier. Adding company-wide indexing requires the Directory user-read scope in the service account's domain-wide delegation; it does not change the member OAuth app scopes. See [Google's Drive scope descriptions](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
-</Callout>
+The personal OAuth connection also supports workflow actions, so its declared scopes can be broader than Search’s read-only requests. The service credential uses the separate delegation scopes above.

@@ -1120,6 +1120,12 @@ async function executeWebhookJobInternal(
           })
         : null
 
+      if (slackStreamConfig) {
+        metadata.agentEvents = true
+        metadata.includeThinking = slackStreamConfig.includeThinking
+        metadata.includeToolCalls = slackStreamConfig.includeToolCalls
+      }
+
       const snapshot = new ExecutionSnapshot(
         metadata,
         workflowRecord,
@@ -1134,6 +1140,14 @@ async function executeWebhookJobInternal(
         executionResult = await executeWorkflowCore({
           snapshot,
           callbacks: slackStreamController?.callbacks ?? {},
+          ...(slackStreamController
+            ? {
+                finalizeDelivery: async (result: ExecutionResult) => {
+                  await slackStreamController.finalize(result)
+                  slackStreamController.assertSucceeded()
+                },
+              }
+            : {}),
           loggingSession,
           trustedInitialResolvedSecretTraceProvenance:
             resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
@@ -1151,11 +1165,6 @@ async function executeWebhookJobInternal(
         }
         throw error
       }
-      if (slackStreamController) {
-        await slackStreamController.finalize(executionResult)
-        slackStreamController.assertSucceeded()
-      }
-
       await handleExecutionResult(executionResult, {
         loggingSession,
         timeoutController,

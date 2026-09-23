@@ -87,6 +87,8 @@ import { getCatalogBlock } from '@/lib/catalog/application/get-block'
 import { getCatalogTool } from '@/lib/catalog/application/get-tool'
 import { listCatalogBlocks } from '@/lib/catalog/application/list-blocks'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
+import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
+import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import type { BlockConfig } from '@/blocks/types'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
@@ -286,17 +288,96 @@ describe('catalog block and tool reads', () => {
 
     expect(result.entries.map((entry) => entry.id)).toEqual([
       'custom_block_reports',
+      'loop',
       'notion',
+      'parallel',
       'slack',
     ])
     expect(result.hasMore).toBe(false)
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  it('returns the authorable list with the same full details as individual reads', async () => {
+    const snapshot = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(mocks.getAllBlocks).toHaveBeenCalledTimes(1)
+    expect(mocks.getBlockVisibility).toHaveBeenCalledTimes(1)
+    const list = await listCatalogBlocks.execute({ principal: session, input: listInput })
+    expect(snapshot.blocks.map((block) => block.id)).toEqual(list.entries.map((block) => block.id))
+    for (const block of snapshot.blocks) {
+      const single = await getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: block.id },
+      })
+      expect(block).toEqual(single.block)
+    }
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('runs the actual block grep through one current authorized catalog read', async () => {
+    const request = vi.fn()
+    const result = await universalGrepCommand.execute(
+      ['Message'],
+      {
+        client: { request },
+        workspaceId: WORKSPACE_ID,
+        userId: session.userId,
+        principal: session,
+      },
+      { scope: 'blocks', in: 'slack' }
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Message')
+    expect(request).not.toHaveBeenCalled()
+    expect(mocks.getAllBlocks).toHaveBeenCalledTimes(1)
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
+    expect(mocks.getBlockVisibility).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes visibility and allowlist for every bulk read', async () => {
+    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
+    setVisibility({
+      revealed: new Set(['preview_thing']),
+      disabled: new Set(),
+      previewTagged: new Set(),
+    })
+    const before = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(before.blocks.map((block) => block.id)).toContain('preview_thing')
+    setVisibility(NOTHING_GATED)
+    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['notion']))
+    const after = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(after.blocks.map((block) => block.id)).toEqual(['loop', 'parallel'])
+  })
+
+  it('denies a revoked bulk reader before resolving catalog policies or data', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow()
+    expect(mocks.getBlockVisibility).not.toHaveBeenCalled()
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
+  })
+
+  it('does not convert a bulk catalog policy outage into an empty catalog', async () => {
+    mocks.allowedIntegrationTypes.mockRejectedValue(new Error('permission store unavailable'))
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow('permission store unavailable')
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
+  })
+
   it('accepts a workspace API key, which has no user for permission groups to key on', async () => {
     const result = await listCatalogBlocks.execute({ principal: workspaceKey, input: listInput })
 
-    expect(result.entries).toHaveLength(3)
+    expect(result.entries).toHaveLength(5)
     expect(mocks.allowedIntegrationTypes).toHaveBeenCalledWith(workspaceKey, WORKSPACE_ID)
     expect(mocks.getBlockVisibility).toHaveBeenCalledWith({ orgId: 'org-1' })
   })
@@ -313,7 +394,9 @@ describe('catalog block and tool reads', () => {
     const sources = Object.fromEntries(result.entries.map((entry) => [entry.id, entry.source]))
     expect(sources).toEqual({
       custom_block_reports: 'custom',
+      loop: 'builtin',
       notion: 'builtin',
+      parallel: 'builtin',
       slack: 'builtin',
     })
   })
@@ -338,7 +421,7 @@ describe('catalog block and tool reads', () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -346,6 +429,64 @@ describe('catalog block and tool reads', () => {
         input: { workspaceId: WORKSPACE_ID, blockId: 'preview_thing' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
+  })
+
+  it('leaves a sunset block out of the list unless asked, while its detail leads with the state', async () => {
+    const legacyTable = block({
+      type: 'table',
+      name: 'Table',
+      description: 'Read and write table rows.',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'table_v2' },
+    })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, legacyTable])
+    mocks.getBlock.mockImplementation((type: string) =>
+      [slackBlock, legacyTable].find((entry) => entry.type === type)
+    )
+    mocks.getLatestBlockForViewer.mockImplementation((type: string) =>
+      resolveLatestForViewer(type, [slackBlock, legacyTable])
+    )
+
+    const listed = await listCatalogBlocks.execute({ principal: session, input: listInput })
+    expect(listed.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
+
+    const included = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, includeSunset: true },
+    })
+    expect(included.entries.map((entry) => entry.id)).toEqual([
+      'loop',
+      'parallel',
+      'slack',
+      'table',
+    ])
+
+    const table = included.entries.find((entry) => entry.id === 'table')
+    expect(table?.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
+
+    /** The detail read applies the list's default gate: a hidden legacy block stays 404. */
+    await expect(
+      getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: 'table' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('keeps a kill-switched sunset block hidden even when sunset blocks are asked for', async () => {
+    const legacyTable = block({
+      type: 'table',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'table_v2' },
+    })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, legacyTable])
+    setVisibility({ ...NOTHING_GATED, disabled: new Set(['table']) })
+
+    const included = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, includeSunset: true },
+    })
+    expect(included.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
   })
 
   it('reveals a preview block once the visibility document names it', async () => {
@@ -387,7 +528,7 @@ describe('catalog block and tool reads', () => {
     mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['slack_v2']))
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -401,7 +542,12 @@ describe('catalog block and tool reads', () => {
     mocks.isDeploymentAvailable.mockImplementation((type: string) => type !== 'notion')
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual([
+      'custom_block_reports',
+      'loop',
+      'parallel',
+      'slack',
+    ])
   })
 
   it('narrows to trigger-capable blocks without a second endpoint', async () => {
@@ -424,15 +570,35 @@ describe('catalog block and tool reads', () => {
       principal: session,
       input: { ...listInput, limit: 2 },
     })
-    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'notion'])
+    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'loop'])
     expect(first.hasMore).toBe(true)
 
     const second = await listCatalogBlocks.execute({
       principal: session,
       input: { ...listInput, limit: 2, offset: 2 },
     })
-    expect(second.entries.map((entry) => entry.id)).toEqual(['slack'])
-    expect(second.hasMore).toBe(false)
+    expect(second.entries.map((entry) => entry.id)).toEqual(['notion', 'parallel'])
+    expect(second.hasMore).toBe(true)
+  })
+
+  it('answers for the loop and parallel containers with their authoring shape', async () => {
+    const { block: loop } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'loop' },
+    })
+    expect(loop.id).toBe('loop')
+    expect(
+      loop.inputSchema.find((field) => field.id === 'loopType')?.options?.map((o) => o.id)
+    ).toEqual(['for', 'forEach', 'while', 'doWhile'])
+    expect(Object.keys(loop.outputs)).toContain('results')
+
+    const { block: parallel } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'parallel' },
+    })
+    expect(
+      parallel.inputSchema.find((field) => field.id === 'parallelType')?.options?.map((o) => o.id)
+    ).toEqual(['count', 'collection'])
   })
 
   it('reads one block with its operations and tools resolved from metadata', async () => {
@@ -566,7 +732,12 @@ describe('catalog block and tool reads', () => {
      * positive by code unit. Pinning the code-unit answer is what makes an
      * offset cursor name the same row on every instance, whatever its `LANG`.
      */
-    expect(result.entries.map((entry) => entry.name)).toEqual(['Banana', 'apple'])
+    expect(result.entries.map((entry) => entry.name)).toEqual([
+      'Banana',
+      'Loop',
+      'Parallel',
+      'apple',
+    ])
   })
 
   it('reports no hosted key on a deployment that supplies none', async () => {

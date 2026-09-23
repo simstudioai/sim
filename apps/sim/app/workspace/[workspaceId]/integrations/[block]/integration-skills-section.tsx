@@ -5,7 +5,7 @@ import { Chip, toast } from '@sim/emcn'
 import { Check, Plus } from '@sim/emcn/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,

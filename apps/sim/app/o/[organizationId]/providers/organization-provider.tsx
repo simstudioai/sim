@@ -1,7 +1,9 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
+import { useSession } from '@/lib/auth/auth-client'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { SocketProvider } from '@/app/workspace/providers/socket-provider'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
 
@@ -20,14 +22,29 @@ interface OrganizationProviderProps {
  * organization's name, logo, and which features this deployment serves.
  */
 export function OrganizationProvider({ children, context }: OrganizationProviderProps) {
+  const { data: session } = useSession()
   useSeedDeploymentShape(context.deployment)
   useMothershipChatEvents(
-    context.searchAccess.memberScoped ? { organizationId: context.organization.id } : undefined,
+    context.mothershipAvailable || context.searchAccess.memberScoped
+      ? { organizationId: context.organization.id }
+      : undefined,
     context.deployment.chatEnabled
   )
   return (
     <OrganizationContextValue.Provider value={context}>
-      {children}
+      <SocketProvider
+        user={
+          session?.user
+            ? {
+                id: session.user.id,
+                name: session.user.name ?? undefined,
+                email: session.user.email,
+              }
+            : undefined
+        }
+      >
+        {children}
+      </SocketProvider>
     </OrganizationContextValue.Provider>
   )
 }

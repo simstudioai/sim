@@ -23,16 +23,29 @@ async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettin
   return mapGeneralSettingsResponse(data)
 }
 
+const generalSettingsQuery = {
+  queryKey: generalSettingsKeys.settings(),
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchGeneralSettings(signal),
+  staleTime: GENERAL_SETTINGS_STALE_TIME,
+}
+
+/** Organization chat may have no mounted settings consumer; apply the current theme explicitly. */
+export async function refreshGeneralSettings(queryClient: QueryClient): Promise<void> {
+  try {
+    await queryClient.invalidateQueries({ queryKey: generalSettingsKeys.all, refetchType: 'none' })
+    const settings = await queryClient.fetchQuery(generalSettingsQuery)
+    syncThemeToNextThemes(settings.theme)
+  } catch (error) {
+    logger.error('Failed to refresh general settings', { error })
+  }
+}
+
 /**
  * Hook to fetch general settings.
  * TanStack Query is now the single source of truth for general settings.
  */
 export function useGeneralSettings() {
-  const query = useQuery({
-    queryKey: generalSettingsKeys.settings(),
-    queryFn: ({ signal }) => fetchGeneralSettings(signal),
-    staleTime: GENERAL_SETTINGS_STALE_TIME,
-  })
+  const query = useQuery(generalSettingsQuery)
 
   useEffect(() => {
     if (query.data?.theme) syncThemeToNextThemes(query.data.theme)
@@ -46,11 +59,7 @@ export function useGeneralSettings() {
  * Use on hover to warm data before navigation.
  */
 export function prefetchGeneralSettings(queryClient: QueryClient) {
-  queryClient.prefetchQuery({
-    queryKey: generalSettingsKeys.settings(),
-    queryFn: ({ signal }) => fetchGeneralSettings(signal),
-    staleTime: GENERAL_SETTINGS_STALE_TIME,
-  })
+  queryClient.prefetchQuery(generalSettingsQuery)
 }
 
 /**

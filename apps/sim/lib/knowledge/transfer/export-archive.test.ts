@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { createReadStream } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
@@ -215,6 +219,62 @@ describe('buildKnowledgeBundleArchive', () => {
     )
 
     await expect(readArchive(archive)).rejects.toThrow(`more than ${MAX_DOCUMENT_CHUNKS} chunks`)
+  })
+
+  it('rejects the archive reader when an original disappears before its stream opens', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'knowledge-export-missing-'))
+    const source = createReadStream(join(directory, 'absent.txt'))
+    mocks.downloadFileStream.mockResolvedValue(source)
+    const archive = buildKnowledgeBundleArchive(bundle())
+    try {
+      await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(source.destroyed).toBe(true)
+      expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
+    } finally {
+      archive.destroy()
+      source.destroy()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a partially streamed original rather than publishing a truncated bundle', async () => {
+    const source = Readable.from(
+      (async function* () {
+        yield Buffer.from('partial original')
+        throw new Error('Original source failed')
+      })()
+    )
+    mocks.downloadFileStream.mockResolvedValue(source)
+    const archive = buildKnowledgeBundleArchive(bundle())
+    await expect(readArchive(archive)).rejects.toThrow('Original source failed')
+    expect(source.destroyed).toBe(true)
+    expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects an original that closes before its readable end', async () => {
+    const source = new Readable({
+      read() {
+        this.destroy()
+      },
+    })
+    mocks.downloadFileStream.mockResolvedValue(source)
+    const archive = buildKnowledgeBundleArchive(bundle())
+    await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ERR_STREAM_PREMATURE_CLOSE' })
+    expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
+  })
+
+  it('propagates chunk iterator failure through the same entry settlement path', async () => {
+    const chunks = async function* () {
+      yield chunk(0, null)
+      throw new Error('Chunk source failed')
+    }
+    const archive = buildKnowledgeBundleArchive(
+      bundle({
+        documents: [exportableDocument({ file: null })],
+        chunks,
+      })
+    )
+    await expect(readArchive(archive)).rejects.toThrow('Chunk source failed')
   })
 
   /** A browser that abandons the download must not leave the append loop or its blob stream hanging. */

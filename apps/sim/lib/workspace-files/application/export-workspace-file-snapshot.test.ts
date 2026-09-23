@@ -107,7 +107,10 @@ describe('exportWorkspaceFileSnapshot', () => {
       '![A](./assets/image-1.png)\n<img src="./assets/image-2.png">'
     )
     expect(await zip.file('assets/image-1.png')?.async('string')).toBe('image bytes')
-    expect(mocks.getFile).toHaveBeenCalledWith(WORKSPACE_ID, 'image-1', { throwOnError: true })
+    expect(mocks.getFile).toHaveBeenCalledWith(WORKSPACE_ID, 'image-1', {
+      throwOnError: true,
+      includeChatUploads: true,
+    })
     expect(mocks.resolvePermission).toHaveBeenCalledTimes(3)
     expect(mocks.audit).toHaveBeenCalledOnce()
   })

@@ -9,6 +9,7 @@ const { mocks } = vi.hoisted(() => ({
     loadContext: vi.fn(),
     resolvePermission: vi.fn(),
     getAvailableTool: vi.fn(),
+    listAvailable: vi.fn(),
     getByTitle: vi.fn(),
     getWorkspaceTool: vi.fn(),
     updateWorkspaceTool: vi.fn(),
@@ -41,7 +42,7 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getCustomToolById: vi.fn(),
   getWorkspaceCustomTool: mocks.getWorkspaceTool,
   getWorkspaceCustomToolByTitle: mocks.getByTitle,
-  listCustomTools: vi.fn(),
+  listCustomTools: mocks.listAvailable,
   listWorkspaceCustomTools: vi.fn(),
   updateCustomTool: vi.fn(),
   updateWorkspaceCustomTool: mocks.updateWorkspaceTool,
@@ -52,6 +53,7 @@ import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   createWorkspaceCustomToolUseCase,
+  listAvailableCustomToolsUseCase,
   readAvailableCustomToolByIdOrTitleUseCase,
   saveWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
@@ -82,6 +84,51 @@ describe('custom tool application use cases', () => {
     mocks.getByTitle.mockResolvedValue(null)
     mocks.getAvailableTool.mockResolvedValue(tool)
     mocks.upsert.mockResolvedValue([tool])
+    mocks.listAvailable.mockResolvedValue([
+      tool,
+      { ...tool, id: 'personal-tool', workspaceId: null },
+    ])
+  })
+
+  it.each([
+    { kind: 'session' as const, userId: 'reader' },
+    { kind: 'personal_api_key' as const, userId: 'reader', keyId: 'key-1' },
+  ])(
+    'reads available tools as the $kind actor without billing-owner substitution',
+    async (principal) => {
+      mocks.resolvePermission.mockResolvedValueOnce('read')
+      const result = await listAvailableCustomToolsUseCase.execute({
+        principal,
+        input: { workspaceId: workspace.workspaceId },
+      })
+      expect(result.tools.map((entry) => entry.id)).toEqual([tool.id, 'personal-tool'])
+      expect(mocks.listAvailable).toHaveBeenCalledExactlyOnceWith({
+        userId: 'reader',
+        workspaceId: workspace.workspaceId,
+      })
+      expect(mocks.audit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses an available-tool inventory after current access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      listAvailableCustomToolsUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listAvailable).not.toHaveBeenCalled()
+  })
+
+  it('propagates an available-tool inventory outage', async () => {
+    mocks.listAvailable.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(
+      listAvailableCustomToolsUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toThrow('database unavailable')
   })
 
   describe('delegated custom-tool resolution', () => {

@@ -1,0 +1,465 @@
+// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/protocol.ts
+// Regenerate with `bun run contracts:sync` in the worker.
+
+/**
+ * The sim⇄worker wire protocol surface — THE shared source of truth (P3, S31).
+ *
+ * This file is COPIED VERBATIM into the sim repo by `bun run contracts:sync`
+ * (`apps/sim/lib/mothership/generated/protocol.ts`); `check:contract-sync` fails the build
+ * when the copies drift (S39). Sim imports these types, so schema skew is a compile error
+ * on either side; the worker's zod validators are type-asserted against these shapes in
+ * http/server.ts, so the runtime contract cannot drift from this file either.
+ *
+ * PROTOCOL_VERSION gates self-hosted version skew (S43): bump it on ANY breaking change to
+ * the payloads or frames below. The worker answers a mismatched client with an honest 426
+ * instead of undefined behavior.
+ */
+
+import { z } from "zod";
+import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
+import { IntegrationCatalogContext } from "./integration-catalog";
+import { SimConnection } from "./sim-transport";
+
+export const PROTOCOL_VERSION = 2;
+
+/** Model-authored intent labels for one top-level tool activity, carried in tool arguments. */
+export const ToolActivity = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  id: z.string().trim().min(1).max(64),
+  completedTitle: z.string().trim().min(1).max(120).optional(),
+});
+export type ToolActivity = z.infer<typeof ToolActivity>;
+
+/** Existing Sim secret names; plaintext credentials never enter this tool's arguments. */
+export const ConnectSlackBotInputSchema = z.strictObject({
+  displayName: z.string().trim().min(1).max(255),
+  description: z.string().max(1_000).optional(),
+  signingSecretEnvVar: z.string().trim().min(1).max(1_024),
+  botTokenEnvVar: z.string().trim().min(1).max(1_024),
+});
+
+/** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
+export interface StreamActivityReceipt {
+  emitterId: string;
+  sequence: number;
+}
+
+/** Applied response state: text uses UTF-16 units; activity positions belong to their emitter. */
+export interface StreamResponseReceipt {
+  receivedTextChars?: number | undefined;
+  receivedActivity?: StreamActivityReceipt | undefined;
+}
+
+const ActivityReceiptSchema = z.object({
+  emitterId: z.string().min(1).max(128),
+  sequence: z.number().int().nonnegative().safe(),
+}) satisfies z.ZodType<StreamActivityReceipt>;
+
+/** HTTP and fleet delivery accept the same bounded response receipt. */
+export const ResponseReceiptSchema = z.object({
+  receivedTextChars: z.number().int().nonnegative().safe().optional(),
+  receivedActivity: ActivityReceiptSchema.optional(),
+}) satisfies z.ZodType<StreamResponseReceipt>;
+
+const InventoryNamed = z.object({ id: z.string(), name: z.string() });
+const WorkspaceInventorySchema = z.object({
+  workspaceName: z.string().optional(),
+  workflows: z.array(
+    z.object({ id: z.string(), name: z.string(), folder: z.string().optional(), deployed: z.boolean() }),
+  ),
+  tables: z.array(InventoryNamed),
+  knowledgeBases: z.array(InventoryNamed),
+  files: z.array(z.object({ path: z.string(), size: z.number().optional() })),
+  skills: z.array(z.object({ name: z.string() })),
+  customTools: z.array(z.object({ id: z.string(), title: z.string() })),
+  mcpServers: z.array(InventoryNamed),
+  credentials: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      provider: z.string().optional(),
+      type: z.string().optional(),
+    }),
+  ),
+  secrets: z.array(z.string()),
+  truncated: z.array(z.string()),
+});
+
+/** Composer choices are a closed catalog; credentials and provider routes stay server-owned. */
+export const ModelSelectionSchema = z
+  .object({
+    model: z.enum(["gpt-6-astra", "gpt-6-sol", "claude-opus-5-5", "claude-opus-5"]),
+    fastMode: z.boolean().default(false),
+  })
+  .refine(
+    (selection) =>
+      !selection.fastMode || selection.model === "gpt-6-astra" || selection.model === "gpt-6-sol",
+    {
+      message: "Fast mode is available only for GPT-6 Astra and GPT-6 Sol",
+    },
+  );
+export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
+
+/** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
+export const DesktopContextSchema = z.object({
+  localFiles: z.boolean().optional(),
+  browser: z.boolean().default(false),
+  terminal: z.boolean().default(false),
+  terminals: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(64),
+        cwd: z.string().max(1024).optional(),
+        running: z.string().max(1024).optional(),
+        interactive: z.boolean().optional(),
+        active: z.boolean().optional(),
+      }),
+    )
+    .max(20)
+    .default([]),
+  browserSessions: z
+    .array(
+      z.object({
+        hostname: z.string().max(253),
+        evidence: z.enum(["cookies", "sign-in-completed"]),
+        lastObservedAt: z.string().max(64),
+      }),
+    )
+    .max(20)
+    .default([]),
+});
+export type DesktopContext = z.infer<typeof DesktopContextSchema>;
+
+export const ChatPayloadSchema = z
+  .strictObject({
+    desktop: DesktopContextSchema.optional(),
+    simConnection: SimConnection.optional(),
+    message: z.string().min(1),
+    ...ResponseReceiptSchema.shape,
+    userId: z.string().min(1),
+    /** Bump-gated (S43): when present and mismatched the worker answers 426, never undefined behavior. */
+    protocolVersion: z.number().int().optional(),
+    messageId: z.uuid().optional(),
+    chatId: z.uuid().optional(),
+    /** Every chat has exactly one authoritative workspace or organization owner. */
+    workspaceId: z.uuid().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    mode: z.enum(["agent", "assistant", "plan"]).optional(),
+    assistantSearch: AssistantSearch.optional(),
+    assistantFast: z.boolean().optional(),
+    assistantSearchLevel: AssistantSearchLevel.optional(),
+    assistantImages: z.array(AssistantImage).max(5).optional(),
+    /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
+    workflowId: z.string().optional(),
+    integrationCatalog: IntegrationCatalogContext.optional(),
+    /** Accepted for wire compatibility with current sim builds; unused — the CLI now
+     * executes on the sim side under sim's own authentication, so no credential crosses. */
+    delegationToken: z.string().optional(),
+    /** Enterprise BYOK: the customer's own Anthropic key. Pins the native backend for the
+     * run; in-memory only — never persisted, logged, or on spans (S27). */
+    byokApiKey: z.string().optional(),
+    /** User attachments / @-mentions the UI packed with the message. */
+    context: z
+      .array(
+        z.object({
+          type: z.string(),
+          content: z.string(),
+          tag: z.string().optional(),
+          path: z.string().optional(),
+        }),
+      )
+      .default([]),
+    userTimezone: z.string().optional(),
+    /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
+     * the worker accepts and ignores it — dispatch semantics live on the sim side. */
+    clientCapabilities: z.array(z.string()).default([]),
+    /** "task": sim opened this turn for a background-task notification, not for a typed
+     * message (21-background-tasks.md); recorded on the turn's user_message event. */
+    origin: z.enum(["task"]).optional(),
+    /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
+    effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
+    modelSelection: ModelSelectionSchema.optional(),
+    /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
+    inventory: WorkspaceInventorySchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
+      ctx.addIssue({
+        code: "custom",
+        path: ["effort"],
+        message: "None effort is available only for GPT-6 Sol",
+      });
+    if (value.assistantSearchLevel !== undefined && value.mode !== "assistant")
+      ctx.addIssue({ code: "custom", message: "Search levels require Assistant mode" });
+    if (value.assistantSearchLevel && (value.modelSelection || value.assistantFast !== undefined))
+      ctx.addIssue({
+        code: "custom",
+        message: "Search level cannot include another model selection or Fast flag",
+      });
+    if (value.assistantFast !== undefined && value.mode !== "assistant")
+      ctx.addIssue({ code: "custom", message: "Fast Search requires Assistant mode" });
+    if (value.assistantFast && value.modelSelection)
+      ctx.addIssue({ code: "custom", message: "Fast Search cannot include another model selection" });
+    if (Boolean(value.workspaceId) === Boolean(value.organizationId))
+      ctx.addIssue({ code: "custom", message: "Exactly one workspaceId or organizationId is required" });
+    if (value.organizationId && !value.mode)
+      ctx.addIssue({ code: "custom", message: "Organization chats require an explicit mode" });
+    if ((value.organizationId || value.mode === "assistant") && value.workflowId)
+      ctx.addIssue({ code: "custom", message: "Organization and Assistant chats cannot select a workflow" });
+    if (value.assistantImages?.length && !value.organizationId)
+      ctx.addIssue({ code: "custom", message: "Assistant images require organization scope" });
+    if (
+      value.mode !== "assistant" &&
+      !value.organizationId &&
+      (value.assistantSearch || value.assistantImages)
+    )
+      ctx.addIssue({ code: "custom", message: "Assistant context requires Assistant mode" });
+  });
+
+/** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
+export interface StreamActivityCheckpoint {
+  activityReceipt?: StreamActivityReceipt | undefined;
+}
+
+/** Main-assistant text position within this run, measured in UTF-16 code units. */
+export interface StreamTextPosition {
+  textOffset?: number | undefined;
+}
+
+/** Successful completion states the complete main-answer size, including any replayed prefix. */
+export interface StreamTextCompletion {
+  textLength?: number | undefined;
+}
+
+/** Replayed tool activity is presentation only; it never authorizes execution or approval. */
+export interface StreamToolReplay {
+  replay?: true | undefined;
+  /** Requested operation target, authorized independently by Sim. */
+  workspaceId?: string | undefined;
+}
+
+/** POST /api/mothership — the chat request sim sends. */
+export interface ChatRequest extends StreamResponseReceipt {
+  desktop?: DesktopContext | undefined;
+  effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+  modelSelection?: ModelSelection | undefined;
+  simConnection?: SimConnection | undefined;
+  message: string;
+  userId: string;
+  /** Bump-gated (S43): senders include it; the worker 426s on mismatch. */
+  protocolVersion?: number | undefined;
+  messageId?: string | undefined;
+  chatId?: string | undefined;
+  /** Exactly one owner is required, independently of the selected mode. */
+  workspaceId?: string | undefined;
+  organizationId?: string | undefined;
+  mode?: "agent" | "assistant" | "plan" | undefined;
+  assistantSearch?: AssistantSearch | undefined;
+  assistantFast?: boolean | undefined;
+  assistantSearchLevel?: AssistantSearchLevel | undefined;
+  assistantImages?: AssistantImage[] | undefined;
+  /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
+  workflowId?: string | undefined;
+  /** Authorized discovery selectors; schemas stay in Sim's catalog. */
+  integrationCatalog?: IntegrationCatalogContext | undefined;
+  /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
+   * credential crosses the wire); accepted so current senders keep validating. */
+  delegationToken?: string | undefined;
+  /** Enterprise BYOK: customer's own key; per-run instance, zero retention (S27). */
+  byokApiKey?: string | undefined;
+  /** User attachments / @-mentions packed with the message. */
+  context?: ChatContextItem[] | undefined;
+  userTimezone?: string | undefined;
+  /**
+   * What the CALLER can execute client-side. PRESENT = an explicit declaration — an
+   * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
+   * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
+   * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
+   * this field still gets waited on). Known capability: "workflow-tool-pickup".
+   */
+  clientCapabilities?: string[] | undefined;
+  /**
+   * What exists in the workspace, by name and id, so the agent orients without a round
+   * of listings per world (an orientation turn on dev spent nine tool rounds and ~20K
+   * tokens learning this). Names and ids only — never a tree, never contents — and each
+   * world capped; a capped world is named in `truncated` so the agent lists it itself.
+   * Rendered as a request-local trailing message, never into the transcript.
+   */
+  inventory?: WorkspaceInventory | undefined;
+}
+
+export interface WorkspaceInventory {
+  workspaceName?: string | undefined;
+  workflows: { id: string; name: string; folder?: string | undefined; deployed: boolean }[];
+  tables: { id: string; name: string }[];
+  knowledgeBases: { id: string; name: string }[];
+  /** `files/...` paths as the CLI prints them. */
+  files: { path: string; size?: number | undefined }[];
+  skills: { name: string }[];
+  customTools: { id: string; title: string }[];
+  mcpServers: { id: string; name: string }[];
+  credentials: { id: string; name: string; provider?: string | undefined; type?: string | undefined }[];
+  /** Names only, by construction. */
+  secrets: string[];
+  /** Worlds with more entries than listed. */
+  truncated: string[];
+}
+
+export interface ChatContextItem {
+  type: string;
+  content: string;
+  tag?: string | undefined;
+  path?: string | undefined;
+}
+
+/** POST /api/tools/resume — deferred tool results. */
+export interface ResumeRequest extends StreamResponseReceipt {
+  streamId: string;
+  results: ResumeResult[];
+  /**
+   * Enterprise BYOK, re-resolved by sim per call (S27: context-only, zero retention).
+   * A LIVE run keeps its key inside the loop closure and ignores this; a DEAD run's
+   * continuation leg has no closure, so without it that leg would silently fall back
+   * to the hosted key mid-chat.
+   */
+  byokApiKey?: string | undefined;
+}
+
+export interface ResumeResult {
+  callId: string;
+  name?: string | undefined;
+  data?: unknown | undefined;
+  success?: boolean | undefined;
+}
+
+/** POST /api/streams/explicit-abort */
+export const AbortRequest = z.strictObject({ messageId: z.uuid() });
+export type AbortRequest = z.infer<typeof AbortRequest>;
+
+/** Accepted Stop intent is distinct from an observed terminal worker run. */
+export interface AbortResponse {
+  stopped: boolean;
+  settled: boolean;
+}
+
+/** POST /api/streams/steer. Acceptance means "queued"; application is acknowledged by a
+ * `run`/`steering_applied` frame carrying the steeringId — a caller that never sees the
+ * ack re-sends the content as an ordinary message (loss-free without liveness proof). */
+export interface SteerRequest {
+  messageId: string;
+  steeringId?: string | undefined;
+  content: string;
+}
+
+/** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
+export const ForkChatRequest = z
+  .strictObject({
+    sourceChatId: z.uuid(),
+    newChatId: z.uuid(),
+    workspaceId: z.uuid().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    userId: z.string().min(1),
+    upToMessageId: z.string().min(1),
+    includeResponse: z.boolean(),
+    fileIds: z.record(z.string().min(1), z.string().min(1)),
+    fileKeys: z.record(z.string().min(1), z.string().min(1)),
+  })
+  .refine((scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId), {
+    message: "Exactly one workspaceId or organizationId is required",
+  });
+export type ForkChatRequest = z.infer<typeof ForkChatRequest>;
+
+export const ForkChatResponse = z.strictObject({
+  chatId: z.uuid(),
+  sourceThroughSeq: z.number().int().positive(),
+});
+export type ForkChatResponse = z.infer<typeof ForkChatResponse>;
+
+/** POST /api/generate-chat-title */
+export const TitleRequest = z.strictObject({
+  message: z.string().min(1),
+  /** Bounded, authorized scope and resource names for disambiguating the user's topic. */
+  context: z.string().max(6_000).optional(),
+  /** Enterprise BYOK pins the title call because it reads user content. */
+  byokApiKey: z.string().optional(),
+  /** Optional metering identity for callers without a persisted chat yet. */
+  chatId: z.uuid().optional(),
+  workspaceId: z.uuid().optional(),
+  organizationId: z.string().min(1).max(200).optional(),
+  userId: z.string().optional(),
+});
+export type TitleRequest = z.infer<typeof TitleRequest>;
+
+/** The 409 body for a duplicate send while a sibling instance streams (S32). */
+export interface ActiveStreamConflict {
+  error: "active_stream";
+  streamId: string;
+  status: string;
+}
+
+/** The 426 body for protocol version skew (S43). */
+export interface ProtocolMismatch {
+  error: "protocol_version_mismatch";
+  expected: number;
+  got: number;
+  message: string;
+}
+
+/**
+ * POST /api/mothership/execute — headless execution, with optional conversation replay.
+ * The caller supplies the conversation and authorized catalog selectors. The worker
+ * runs one bounded loop and streams mothership-stream-v1 frames. No skills or CLI;
+ * discovery and execution resolve selected operations through Sim.
+ */
+export interface ExecuteRequest extends StreamResponseReceipt {
+  simConnection?: SimConnection | undefined;
+  effort?: ChatRequest["effort"];
+  modelSelection?: ModelSelection | undefined;
+  messages: ExecuteMessage[];
+  /** Replay stored turns before one new user message (optionally preceded by a system prompt). */
+  useConversationHistory?: boolean | undefined;
+  /** JSON schema for structured output; enforced by instruction + caller-side validation. */
+  responseFormat?: unknown | undefined;
+  userId: string;
+  protocolVersion?: number | undefined;
+  workspaceId?: string | undefined;
+  chatId?: string | undefined;
+  messageId?: string | undefined;
+  integrationCatalog?: IntegrationCatalogContext | undefined;
+  delegationToken?: string | undefined;
+  /** Enterprise BYOK: one-shot executions pin the customer key like chat turns (S27). */
+  byokApiKey?: string | undefined;
+}
+
+export interface ExecuteMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/**
+ * The response half of the wire: every SSE `data:` line is one StreamEnvelope (the
+ * mothership-stream-v1 shape), terminated by a literal `data: [DONE]` line per leg. The
+ * worker's emitter is compile-locked to this; sim's parser adopts it at the client rework.
+ */
+export interface StreamEnvelope {
+  v: 1;
+  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
+  seq: number;
+  /** ISO timestamp. */
+  ts: string;
+  stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined };
+  trace?: { requestId?: string | undefined } | undefined;
+  /** Subagent-lane attribution (mothership-stream-v1 scope): frames carrying it render
+   * inside the named root-level lane instead of the main transcript. */
+  scope?: StreamScope | undefined;
+  payload: Record<string, unknown>;
+}
+
+/** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */
+export interface StreamScope {
+  lane: "subagent";
+  agentId?: string | undefined;
+  parentToolCallId?: string | undefined;
+  spanId?: string | undefined;
+  parentSpanId?: string | undefined;
+}

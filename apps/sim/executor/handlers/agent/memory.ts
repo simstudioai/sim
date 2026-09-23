@@ -14,7 +14,7 @@ import {
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { mergeFileKeys } from '@/lib/execution/payloads/access-keys'
+import { getExecutionKeyParts, mergeFileKeys } from '@/lib/execution/payloads/access-keys'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -279,10 +279,19 @@ export class Memory {
         return this.projectMessageForModel(modelRegistry, message, projectedNameByFile)
       })
     )
-    /** Saved references admit only these files; materialization still enforces their scope. */
+    /** Memory may renew exact references from this workflow, never mint cross-workflow grants. */
     mergeFileKeys(
       ctx,
-      projectedMessages.flatMap((message) => message.files?.map((file) => file.key) ?? [])
+      projectedMessages.flatMap((message) =>
+        (message.files ?? []).flatMap((file) => {
+          const scope = getExecutionKeyParts(file.key)
+          return scope &&
+            scope.workspaceId === ctx.workspaceId &&
+            scope.workflowId === ctx.workflowId
+            ? [file.key]
+            : []
+        })
+      )
     )
     if (stored.historyTruncated) {
       const notice: Message = {

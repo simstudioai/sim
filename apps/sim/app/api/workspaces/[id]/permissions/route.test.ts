@@ -46,8 +46,24 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
 }))
 
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-user',
+  }),
+}))
+
+vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
+  resolveEffectiveWorkspacePermission: async () =>
+    (await permissionsMockFns.mockHasWorkspaceAdminAccess()) ? 'admin' : null,
+}))
+
 import { ForbiddenOperationError } from '@/lib/core/application'
-import { PATCH } from '@/app/api/workspaces/[id]/permissions/route'
+import { getWorkspacePermissionsForViewer } from '@/lib/workspaces/permissions/utils'
+import { GET, PATCH } from '@/app/api/workspaces/[id]/permissions/route'
 
 const mockGetSession = authMockFns.mockGetSession
 
@@ -123,11 +139,44 @@ describe('workspace permissions route', () => {
     vi.clearAllMocks()
     resetDbChainMock()
 
-    mockGetSession.mockResolvedValue({ user: { id: ADMIN_ID, name: 'Admin', email: 'a@b.co' } })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'session-1' },
+      user: { id: ADMIN_ID, name: 'Admin', email: 'a@b.co' },
+    })
     permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     permissionsMockFns.mockGetUsersWithPermissions.mockResolvedValue([])
     mockSyncWorkspaceEnvCredentials.mockResolvedValue(undefined)
     mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
+  })
+
+  it('reads the same member and viewer payload through the shared application operation', async () => {
+    const result = {
+      users: [],
+      total: 0,
+      viewer: { userId: ADMIN_ID, isAdmin: true, permissionType: 'admin' as const },
+    }
+    vi.mocked(getWorkspacePermissionsForViewer).mockResolvedValue(result)
+    const response = await GET(createMockRequest('GET'), routeContext)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject(result)
+    expect(getWorkspacePermissionsForViewer).toHaveBeenCalledWith(WORKSPACE_ID, ADMIN_ID)
+  })
+
+  it('conceals an inaccessible member roster', async () => {
+    permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(false)
+    const response = await GET(createMockRequest('GET'), routeContext)
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ error: 'Workspace not found or access denied' })
+    expect(getWorkspacePermissionsForViewer).not.toHaveBeenCalled()
+  })
+
+  it('rejects unauthenticated mutation requests before parsing their body', async () => {
+    mockGetSession.mockResolvedValue(null)
+    const request = createMockRequest('PATCH', { updates: [] })
+    const readBody = vi.spyOn(request, 'json')
+    const response = await PATCH(request, routeContext)
+    expect(response.status).toBe(401)
+    expect(readBody).not.toHaveBeenCalled()
   })
 
   describe('PATCH', () => {
@@ -142,6 +191,28 @@ describe('workspace permissions route', () => {
 
       expect(response.status).toBe(200)
       expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.permissions)
+    })
+
+    it('keeps the committed and audited result when credential reconciliation fails', async () => {
+      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
+      queueTableRows(schemaMock.workspaceEnvironment, [{ variables: { API_TOKEN: 'encrypted' } }])
+      mockSyncWorkspaceEnvCredentials.mockRejectedValue(new Error('Credential storage unavailable'))
+
+      const response = await PATCH(
+        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
+        routeContext
+      )
+
+      expect(response.status).toBe(200)
+      expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
+      expect(mockSyncWorkspaceEnvCredentials).toHaveBeenCalledWith({
+        workspaceId: WORKSPACE_ID,
+        envKeys: ['API_TOKEN'],
+        actingUserId: ADMIN_ID,
+      })
+      expect(auditMockFns.mockRecordAudit.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSyncWorkspaceEnvCredentials.mock.invocationCallOrder[0]
+      )
     })
 
     /**

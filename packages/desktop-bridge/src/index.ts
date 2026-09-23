@@ -1,3 +1,13 @@
+import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
+
+export type {
+  DesktopLocalFileEntry,
+  DesktopLocalFileManifest,
+  DesktopLocalFileRead,
+  DesktopLocalFileRequest,
+  DesktopLocalFileResponse,
+} from './local-files'
+
 import type {
   BrowserDataKind,
   BrowserFindRequest,
@@ -314,7 +324,7 @@ export interface BrowserDownloadsState {
 }
 
 /** Renderer navigation requested by the native browser toolbar menu. */
-export type BrowserToolbarCommand = 'browser-settings' | 'import'
+export type BrowserToolbarCommand = 'browser-settings' | 'import' | 'passwords'
 
 /** Selected text and live page identity handed from the native browser to Sim. */
 export interface BrowserAddToChatPayload {
@@ -1088,6 +1098,8 @@ export interface SimDesktopApi {
    */
   server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
+  /** Optional so older installed shells do not advertise the new native tools. */
+  localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void
   windowState: SimDesktopWindowStateApi
@@ -1105,6 +1117,7 @@ export interface SimDesktopApi {
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
+export { MAX_DESKTOP_IMPORT_FILE_BYTES } from './local-files'
 export {
   applyDesktopTitleBarMode,
   DESKTOP_TITLE_BAR_ATTRIBUTE,

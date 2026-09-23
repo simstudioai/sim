@@ -84,7 +84,7 @@ vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
 vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
 vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/copilot/request/otel', () => ({
+vi.mock('@/lib/mothership/request/otel', () => ({
   withIncomingGoSpan: (
     _headers: unknown,
     _name: unknown,

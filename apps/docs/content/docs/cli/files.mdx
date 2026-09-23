@@ -21,7 +21,7 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -486,7 +486,7 @@ sim files read <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
 
 </CommandTable>
 

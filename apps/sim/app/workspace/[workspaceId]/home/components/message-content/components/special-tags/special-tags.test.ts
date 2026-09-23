@@ -43,6 +43,25 @@ function renderedText(segments: ContentSegment[]): string {
 }
 
 describe('parseCredentialTagBody', () => {
+  it('accepts organization secret inputs without model-supplied values or workspace targets', () => {
+    const item = { type: 'secret_input', name: 'TOKEN', scope: 'organization' } as const
+    expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
+    expect(parseCredentialTagBody(JSON.stringify({ ...item, workspaceId: 'workspace' }))).toBeNull()
+    expect(parseCredentialTagBody(JSON.stringify({ ...item, value: 'secret' }))).toBeNull()
+    for (const name of ['API-KEY', ' KEY', '1KEY', 'x'.repeat(1025)])
+      expect(parseCredentialTagBody(JSON.stringify({ ...item, name }))).toBeNull()
+    expect(credentialTagHasVisibleCard([item], false, 'agent')).toBe(true)
+    expect(credentialTagHasVisibleCard([item], false, 'plan')).toBe(true)
+    expect(credentialTagHasVisibleCard([item], true, 'assistant')).toBe(false)
+  })
+  it('retains an explicit workspace target and rejects malformed targets', () => {
+    const item = { type: 'secret_input', name: 'TOKEN', workspaceId: 'workspace-a' }
+    expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
+    for (const workspaceId of ['', ' ', 42, ' workspace-a', 'a'.repeat(257)]) {
+      expect(parseCredentialTagBody(JSON.stringify({ ...item, workspaceId }))).toBeNull()
+    }
+  })
+
   const secret: CredentialItemData = { type: 'secret_input', name: 'OPENAI_API_KEY' }
   const oauth: CredentialItemData = {
     type: 'link',
@@ -1456,4 +1475,18 @@ describe('source tag', () => {
     expect(segments).toEqual([{ type: 'text', content: 'Block them. ' }])
     expect(hasPendingTag).toBe(true)
   })
+})
+
+it('renders a live Slack credential target as a visible Search connection card', () => {
+  const item = {
+    type: 'link',
+    provider: 'slack',
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+  } as const
+  const text = `Connect your Slack account below.\n<credential>${JSON.stringify(item)}</credential>`
+  const parsed = parseLastCredentialTag(text)
+  expect(parsed).toEqual([item])
+  expect(credentialTagHasVisibleCard(parsed!, false, 'assistant')).toBe(true)
 })

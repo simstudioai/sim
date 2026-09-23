@@ -4,16 +4,20 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment } = vi.hoisted(() => ({
-  claimPendingAsyncToolCall: vi.fn(),
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-}))
+const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment, resolveInvocationWorkspace } =
+  vi.hoisted(() => ({
+    claimPendingAsyncToolCall: vi.fn(),
+    resolveInvocationWorkspace: vi.fn(),
+    getAsyncToolCall: vi.fn(),
+    getRunSegment: vi.fn(),
+  }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimPendingAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
@@ -21,10 +25,10 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
 
 import { POST } from './route'
 
-function request(toolCallId: unknown): NextRequest {
+function request(toolCallId: unknown, claim = false): NextRequest {
   return new NextRequest('http://localhost:3000/api/desktop/tool/authorize', {
     method: 'POST',
-    body: JSON.stringify({ toolCallId }),
+    body: JSON.stringify({ toolCallId, claim }),
     headers: { 'Content-Type': 'application/json' },
   })
 }
@@ -32,6 +36,7 @@ function request(toolCallId: unknown): NextRequest {
 describe('desktop tool authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resolveInvocationWorkspace.mockResolvedValue({ workspaceId: 'target' })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -161,6 +166,72 @@ describe('desktop tool authorization', () => {
       status: 'complete',
     })
     expect((await POST(request('completed-run-tool'))).status).toBe(404)
+  })
+
+  it('reads a normal OS path without a workspace or a Sim folder grant', async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'read-1',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'read_local_file',
+      args: { path: '/Users/person/Documents/report.pdf' },
+    })
+    const response = await POST(request('read-1'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      args: { path: '/Users/person/Documents/report.pdf' },
+    })
+    expect(resolveInvocationWorkspace).not.toHaveBeenCalled()
+    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+  })
+
+  it('claims an org-view import once and permits chunks only under that claim', async () => {
+    const args = { path: '~/Documents/project', targetWorkspaceId: 'target' }
+    const tool = {
+      toolCallId: 'import-1',
+      runId: 'run-1',
+      toolName: 'import_local_files',
+      args,
+      status: 'pending',
+    }
+    getAsyncToolCall.mockResolvedValue(tool)
+    getRunSegment.mockResolvedValue({
+      id: 'run-1',
+      userId: 'user-1',
+      chatId: 'chat-1',
+      organizationId: 'org-1',
+      status: 'active',
+    })
+    expect((await POST(request('import-1'))).status).toBe(404)
+    expect((await POST(request('import-1', true))).status).toBe(200)
+    expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
+      { userId: 'user-1', chatId: 'chat-1', organizationId: 'org-1', workspaceId: undefined },
+      'target'
+    )
+    expect(claimPendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith('import-1', 'desktop-files')
+    getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'desktop-files' })
+    expect((await POST(request('import-1', true))).status).toBe(409)
+    expect((await POST(request('import-1'))).status).toBe(200)
+    getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'sim-stream' })
+    expect((await POST(request('import-1'))).status).toBe(404)
+    expect(claimPendingAsyncToolCall).toHaveBeenCalledOnce()
+  })
+
+  it('rejects inaccessible destinations and lost import claims before exposing files', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      toolCallId: 'import-1',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'import_local_files',
+      args: { path: '~/file', targetWorkspaceId: 'outside-org' },
+    })
+    resolveInvocationWorkspace.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workspace not found')
+    )
+    expect((await POST(request('import-1', true))).status).toBe(404)
+    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+    claimPendingAsyncToolCall.mockResolvedValueOnce(null)
+    expect((await POST(request('import-1', true))).status).toBe(409)
   })
 
   it('authenticates before parsing and rejects malformed IDs', async () => {

@@ -1,5 +1,5 @@
 /**
- * Functions injected into automated pages via `webContents.executeJavaScript`.
+ * Functions injected into automated pages through a CDP isolated execution world.
  * The driver serializes each function's source (`String(fn)`) and calls it
  * with JSON-encoded arguments, so every function here MUST be fully
  * self-contained: no imports, no closed-over variables, only its own
@@ -463,9 +463,8 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
       // widening this cannot expose a credential field.
       const value = (el as HTMLInputElement).value
       const inputType = tag === 'INPUT' ? (el as HTMLInputElement).type : ''
-      if (inputType === 'file') {
-        parts.push('upload-unsupported')
-      } else if (inputType !== 'checkbox' && inputType !== 'radio') {
+      // A chosen file input reads as Chromium's C:\fakepath\<name>, which confirms an upload.
+      if (inputType !== 'checkbox' && inputType !== 'radio') {
         if (value && isSensitiveValueField(el)) parts.push('value-withheld')
         else if (value) parts.push(`value=${quote(cut(String(value), 120))}`)
       }
@@ -3297,6 +3296,63 @@ export function readPageText(id?: number): unknown {
     text: trimmed.slice(0, maxChars).replace(/[\uD800-\uDBFF]$/, ''),
     truncated: trimmed.length > maxChars,
   }
+}
+
+/**
+ * Resolves the exact file input and its document for an isolated CDP object handle. The ref may be the
+ * input itself, its label, or a visible upload control (button, dropzone) whose hidden input sits
+ * inside it or within a few ancestors — the nearest level with exactly one file input wins.
+ */
+export function resolveFileInputTarget(id: number): {
+  input: HTMLInputElement
+  document: Document
+} {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!el || !el.isConnected) {
+    throw new Error(
+      window.__simAgentStaleReason || 'The upload target is stale. Take a fresh snapshot.'
+    )
+  }
+  const isFileInput = (node: Element | null | undefined): node is HTMLInputElement =>
+    Boolean(
+      node &&
+        String(node.tagName || '').toUpperCase() === 'INPUT' &&
+        String((node as HTMLInputElement).type || '').toLowerCase() === 'file'
+    )
+  const fileInputsWithin = (root: Element): HTMLInputElement[] => {
+    const found: HTMLInputElement[] = []
+    const visit = (scope: Element | ShadowRoot) => {
+      for (const node of Array.from(scope.querySelectorAll('*'))) {
+        if (isFileInput(node)) found.push(node)
+        if (node.shadowRoot) visit(node.shadowRoot)
+      }
+    }
+    if (isFileInput(root)) return [root]
+    visit(root)
+    return found
+  }
+  let input: HTMLInputElement | null = null
+  if (isFileInput(el)) input = el
+  else if (String(el.tagName || '').toUpperCase() === 'LABEL') {
+    const control = (el as HTMLLabelElement).control
+    if (isFileInput(control)) input = control
+  }
+  let scope: Element | null = el
+  for (let depth = 0; !input && scope && depth <= 3; depth++) {
+    const candidates = fileInputsWithin(scope)
+    if (candidates.length > 1)
+      throw new Error(
+        'The upload target contains multiple file inputs. Select one input explicitly.'
+      )
+    if (candidates.length === 1) input = candidates[0]
+    const root = scope.getRootNode()
+    scope = scope.parentElement ?? (root instanceof ShadowRoot ? root.host : null)
+  }
+  if (!input) throw new Error('The selected element has no nearby file input.')
+  if (input.matches(':disabled')) throw new Error('The file input is disabled.')
+  return { input, document: input.ownerDocument }
 }
 
 export function pageContainsText(text: string): boolean {

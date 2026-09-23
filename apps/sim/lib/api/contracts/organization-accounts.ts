@@ -47,6 +47,17 @@ export const getOrganizationAccountsContract = defineRouteContract({
       availableProviders: z.array(credentialGroupProviderSchema),
       canManage: z.boolean(),
       indexingAvailable: z.boolean(),
+      viewerMcpAccounts: z
+        .array(
+          z.object({
+            credentialId: z.string().min(1).max(128),
+            displayName: z.string().max(512),
+            mcpServerId: z.string().min(1).max(128),
+            status: z.enum(['active', 'needs_reauth']),
+          })
+        )
+        .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+        .optional(),
       viewerAccounts: z
         .array(
           z.object({
@@ -63,11 +74,15 @@ export const getOrganizationAccountsContract = defineRouteContract({
     }),
   },
 })
+export const ensureOrganizationAccountsBodySchema = z
+  .object({ option: credentialGroupOptionInputSchema.optional() })
+  .strict()
+
 export const ensureOrganizationAccountsContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts',
   params: organizationAccountsParamsSchema,
-  body: z.object({ option: credentialGroupOptionInputSchema.optional() }).strict(),
+  body: ensureOrganizationAccountsBodySchema,
   response: { mode: 'json', schema: organizationAccountsResponseSchema },
 })
 export const updateOrganizationAccountsContract = defineRouteContract({
@@ -85,11 +100,19 @@ export type OrganizationAccountConnectionResponse = z.output<
   typeof organizationAccountConnectionResponseSchema
 >
 
+export const startOrganizationAccountConnectionBodySchema = z.union([
+  z.object({ optionId: z.string().min(1).max(128) }).strict(),
+  z.object({ mcpServerId: z.string().min(1).max(128) }).strict(),
+])
+export type StartOrganizationAccountConnectionBody = z.input<
+  typeof startOrganizationAccountConnectionBodySchema
+>
+
 export const startOrganizationAccountConnectionContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/connect',
   params: organizationAccountsParamsSchema,
-  body: z.object({ optionId: z.string().min(1, 'Account option is required').max(128) }).strict(),
+  body: startOrganizationAccountConnectionBodySchema,
   response: { mode: 'json', schema: organizationAccountConnectionResponseSchema },
 })
 
@@ -106,16 +129,18 @@ export type OrganizationAccountsSettings = z.output<
   typeof getOrganizationAccountsContract.response.schema
 >
 
+export const updateOrganizationAccountIndexingBodySchema = z
+  .object({
+    optionId: z.string().min(1, 'Provider option is required').max(128),
+    enabled: z.boolean(),
+  })
+  .strict()
+
 export const updateOrganizationAccountIndexingContract = defineRouteContract({
   method: 'PUT',
   path: '/api/organizations/[id]/connected-accounts/indexing',
   params: organizationAccountsParamsSchema,
-  body: z
-    .object({
-      optionId: z.string().min(1, 'Provider option is required').max(128),
-      enabled: z.boolean(),
-    })
-    .strict(),
+  body: updateOrganizationAccountIndexingBodySchema,
   response: {
     mode: 'json',
     schema: z.object({
@@ -156,11 +181,14 @@ export const getOrganizationAccountWorkspaceAccessContract = defineRouteContract
     }),
   },
 })
+export const updateOrganizationAccountWorkspaceAccessBodySchema =
+  organizationAccountWorkspaceAccessSchema.strict()
+
 export const updateOrganizationAccountWorkspaceAccessContract = defineRouteContract({
   method: 'PUT',
   path: '/api/organizations/[id]/connected-accounts/workspace-access',
   params: organizationAccountsParamsSchema,
-  body: organizationAccountWorkspaceAccessSchema.strict(),
+  body: updateOrganizationAccountWorkspaceAccessBodySchema,
   response: { mode: 'json', schema: organizationAccountWorkspaceAccessSchema },
 })
 export type OrganizationAccountWorkspaceAccess = z.output<
@@ -170,17 +198,19 @@ export type UpdateOrganizationAccountWorkspaceAccessBody = z.input<
   NonNullable<typeof updateOrganizationAccountWorkspaceAccessContract.body>
 >
 
+export const listOrganizationAccountPeopleQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().min(1).max(512).optional(),
+  email: z.string().trim().max(320).optional(),
+  search: z.string().trim().max(320).optional(),
+  optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
+})
+
 export const listOrganizationAccountPeopleContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/connected-accounts/people',
   params: organizationAccountsParamsSchema,
-  query: z.object({
-    limit: z.coerce.number().int().min(1).max(100).default(50),
-    cursor: z.string().min(1).max(512).optional(),
-    email: z.string().trim().max(320).optional(),
-    search: z.string().trim().max(320).optional(),
-    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
-  }),
+  query: listOrganizationAccountPeopleQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({
@@ -189,13 +219,16 @@ export const listOrganizationAccountPeopleContract = defineRouteContract({
     }),
   },
 })
+export const inviteOrganizationAccountPeopleBodySchema =
+  inviteCredentialGroupEnrollmentsBodySchema.extend({
+    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
+  })
+
 export const inviteOrganizationAccountPeopleContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/people',
   params: organizationAccountsParamsSchema,
-  body: inviteCredentialGroupEnrollmentsBodySchema.extend({
-    optionId: z.string().min(1, 'Provider option is required').max(128).optional(),
-  }),
+  body: inviteOrganizationAccountPeopleBodySchema,
   response: inviteCredentialGroupEnrollmentsContract.response,
 })
 const organizationAccountEnrollmentParamsSchema = organizationAccountsParamsSchema.extend({

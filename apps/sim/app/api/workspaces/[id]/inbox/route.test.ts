@@ -36,6 +36,17 @@ vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
+vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
+  resolveEffectiveWorkspacePermission: mockGetUserEntityPermissions,
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  }),
+}))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -48,7 +59,10 @@ describe('Inbox config secret policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'admin-1' },
+      session: { id: 'session' },
+    })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockHasWorkspaceInboxAccess.mockResolvedValue(true)
     resolveGroupConfigMock.mockResolvedValue(null)
@@ -132,7 +146,10 @@ describe('Inbox inbox.use capability gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'admin-1' },
+      session: { id: 'session' },
+    })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockHasWorkspaceInboxAccess.mockResolvedValue(true)
   })

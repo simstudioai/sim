@@ -18,6 +18,7 @@ import {
 } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import {
@@ -108,14 +109,25 @@ export interface ApplyWorkflowOperationsResult {
   skipped: SkippedItem[]
   deferred: SkippedItem[]
   inputValidationErrors: ValidationError[]
-  /** Requested `block_id` -> the id the block was given, when they differ. */
+  /** Requested `block_id` -> the id the block was given, when they differ. Empty on a dry run. */
   mintedBlockIds: Record<string, string>
+  /**
+   * Dry run only: requested `block_id` -> the provisional id the evaluation
+   * assigned. Reported apart from `mintedBlockIds` because they are not the
+   * ids a committed apply produces — the real apply mints new ones — and a
+   * caller that wired a later request against them would reference nothing.
+   */
+  previewBlockIds?: Record<string, string>
   lint: WorkflowLintReport
   warnings: string[]
   needsRedeployment: boolean
   /** True when nothing was persisted because the caller asked for a dry run. */
   dryRun: boolean
 }
+
+/** Raised on a dry run that assigned provisional block ids. */
+export const DRY_RUN_PREVIEW_BLOCK_IDS_WARNING =
+  'Dry run: block ids are previews — the real apply mints new ones; wire edges by slug within one batch or by the ids the real apply returns.'
 
 /**
  * The engine models a graph as an open record; the layout helpers want the
@@ -258,147 +270,198 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     }
     await requireMutableWorkflow(context.workflowId)
 
-    if (
-      operationsReferenceSimSandbox(input.operations) &&
-      !(await hasWorkspaceSandboxAccess(context.workspaceId))
-    ) {
-      throw new ForbiddenOperationError('WORKSPACE_PLAN_CAPABILITY_REQUIRED', MAX_PLAN_REQUIRED)
-    }
+    return withWorkflowBlockScope(context, async () => {
+      if (
+        operationsReferenceSimSandbox(input.operations) &&
+        !(await hasWorkspaceSandboxAccess(context.workspaceId))
+      ) {
+        throw new ForbiddenOperationError('WORKSPACE_PLAN_CAPABILITY_REQUIRED', MAX_PLAN_REQUIRED)
+      }
 
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
-    const subjectUserId = attribution.attributedUserId
-
-    input.checkAborted?.()
-    const baseGraph = await resolveBaseGraph(principal, input, context)
-
-    const [permissionConfig, blockVisibility] = await Promise.all([
-      resolvePermissionGroupConfig(
-        subjectUserId,
-        context.workspaceId,
-        context.workspaceOrganizationId
-      ),
-      getBlockVisibility({ userId: subjectUserId, orgId: context.workspaceOrganizationId }),
-    ])
-
-    const { filteredOperations, errors: credentialErrors } = await preValidateCredentialInputs(
-      input.operations,
-      { userId: subjectUserId, workspaceId: context.workspaceId },
-      baseGraph
-    )
-
-    const {
-      state: modifiedGraph,
-      validationErrors,
-      skippedItems,
-      mintedBlockIds,
-    } = await withBlockVisibility(blockVisibility, async () =>
-      applyOperationsToWorkflowState(baseGraph, filteredOperations, permissionConfig)
-    )
-    validationErrors.push(...credentialErrors)
-
-    /**
-     * Counted directly rather than as `operations - skipped`. The enablement
-     * slice pushes its own refusals into the same `skippedItems` array, so
-     * subtracting the whole array from the operation count charged enablement
-     * refusals against operations and could go negative.
-     */
-    const appliedOperations = filteredOperations.length - countOperationSkips(skippedItems)
-
-    const enablement = applyBlockEnabledChanges(
-      modifiedGraph.blocks as Record<string, BlockState>,
-      input.blockEnabledChanges ?? [],
-      skippedItems
-    )
-    modifiedGraph.blocks = enablement.blocks
-    const applied = appliedOperations + enablement.applied
-
-    const validation = validateWorkflowState(modifiedGraph, { sanitize: true })
-    if (!validation.valid) {
-      throw new OrchestrationError(
-        'validation',
-        `Invalid edited workflow: ${validation.errors.join('; ')}`
-      )
-    }
-
-    const genuineSkippedItems = skippedItems.filter((item) => !isDeferredSkippedItem(item))
-    const deferredItems = skippedItems.filter(isDeferredSkippedItem)
-    /**
-     * A dropped input refuses the batch as surely as a declined operation does.
-     * `preValidateCredentialInputs` and the engine both delete fields rather
-     * than fail, so an atomic batch that only reads `skipped` would commit a
-     * block whose credential or API key was silently stripped — the opposite of
-     * what all-or-nothing promises.
-     */
-    if (input.atomic && (genuineSkippedItems.length > 0 || validationErrors.length > 0)) {
-      throw new WorkflowOperationsNotAppliedError(genuineSkippedItems, validationErrors)
-    }
-
-    const finalGraph = validation.sanitizedState || modifiedGraph
-    const blocks: Record<string, BlockState> =
-      input.layout === 'none'
-        ? (finalGraph.blocks as Record<string, BlockState>)
-        : layoutChangedBlocks(context.workflowId, asGraph(baseGraph), asGraph(finalGraph))
-
-    const graph = {
-      blocks,
-      edges: finalGraph.edges as WorkflowState['edges'],
-      loops: generateLoopBlocks(blocks),
-      parallels: generateParallelBlocks(blocks),
-    }
-
-    /**
-     * Linted on the graph that is about to be persisted, so every finding
-     * describes what the caller will actually have. This operation denies
-     * workspace API keys, so the acting principal always has a human subject.
-     */
-    const lint = await buildWorkflowLintReport(graph, {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      subjectUserId,
-    })
-
-    input.checkAborted?.()
-
-    /**
-     * A dry run still runs the whole engine — operations are applied, refusals
-     * collected, the result validated and linted — and stops at the write. An
-     * atomic batch has already thrown by here if anything was refused, so a
-     * dry run reports precisely what a committed apply of the same body would.
-     */
-    if (input.dryRun) {
-      /**
-       * The same preparation the committed write runs, so a dry run checks the
-       * ids that write would actually insert — the prepared graph, not the
-       * engine's output — and reports the notes that write would raise. Without
-       * it a dry run could report success, and no warnings, for a body whose
-       * commit is refused with a conflict or silently sanitized.
-       *
-       * `prepareWorkflowStateForPersistence` is **not** pure: its sanitization
-       * step rewrites nested sub-block objects in place, and `graph.blocks`
-       * holds the very objects this response returns. That is safe only because
-       * `validateWorkflowState(..., { sanitize: true })` above already ran the
-       * same sanitizer over these blocks, so this second pass writes back the
-       * values that are already there. Keep that call ahead of this one.
-       */
-      const prepared = prepareWorkflowStateForPersistence({
-        blocks: graph.blocks,
-        edges: graph.edges,
+      const attribution = resolvePrincipalAttribution(principal, {
+        workspaceBillingOwnerUserId: context.billedAccountUserId,
       })
-      await assertWorkflowGraphIdsUnclaimed(
-        db,
-        context.workflowId,
-        collectWorkflowGraphIds(prepared.state)
+      const subjectUserId = attribution.attributedUserId
+
+      input.checkAborted?.()
+      const baseGraph = await resolveBaseGraph(principal, input, context)
+
+      const [permissionConfig, blockVisibility] = await Promise.all([
+        resolvePermissionGroupConfig(
+          subjectUserId,
+          context.workspaceId,
+          context.workspaceOrganizationId
+        ),
+        getBlockVisibility({ userId: subjectUserId, orgId: context.workspaceOrganizationId }),
+      ])
+
+      const { filteredOperations, errors: credentialErrors } = await preValidateCredentialInputs(
+        input.operations,
+        { userId: subjectUserId, workspaceId: context.workspaceId },
+        baseGraph
       )
 
-      logger.info('Evaluated workflow operations without persisting', {
+      const {
+        state: modifiedGraph,
+        validationErrors,
+        skippedItems,
+        mintedBlockIds,
+      } = await withBlockVisibility(blockVisibility, async () =>
+        applyOperationsToWorkflowState(
+          baseGraph,
+          filteredOperations,
+          permissionConfig,
+          principal.kind === 'delegated' && principal.serviceId === 'copilot'
+        )
+      )
+      validationErrors.push(...credentialErrors)
+
+      /**
+       * Counted directly rather than as `operations - skipped`. The enablement
+       * slice pushes its own refusals into the same `skippedItems` array, so
+       * subtracting the whole array from the operation count charged enablement
+       * refusals against operations and could go negative.
+       */
+      const appliedOperations = filteredOperations.length - countOperationSkips(skippedItems)
+
+      const enablement = applyBlockEnabledChanges(
+        modifiedGraph.blocks as Record<string, BlockState>,
+        input.blockEnabledChanges ?? [],
+        skippedItems
+      )
+      modifiedGraph.blocks = enablement.blocks
+      const applied = appliedOperations + enablement.applied
+
+      const validation = validateWorkflowState(modifiedGraph, { sanitize: true })
+      if (!validation.valid) {
+        throw new OrchestrationError(
+          'validation',
+          `Invalid edited workflow: ${validation.errors.join('; ')}`
+        )
+      }
+
+      const genuineSkippedItems = skippedItems.filter((item) => !isDeferredSkippedItem(item))
+      const deferredItems = skippedItems.filter(isDeferredSkippedItem)
+      /**
+       * A dropped input refuses the batch as surely as a declined operation does.
+       * `preValidateCredentialInputs` and the engine both delete fields rather
+       * than fail, so an atomic batch that only reads `skipped` would commit a
+       * block whose credential or API key was silently stripped — the opposite of
+       * what all-or-nothing promises.
+       */
+      if (input.atomic && (genuineSkippedItems.length > 0 || validationErrors.length > 0)) {
+        throw new WorkflowOperationsNotAppliedError(genuineSkippedItems, validationErrors)
+      }
+
+      const finalGraph = validation.sanitizedState || modifiedGraph
+      const blocks: Record<string, BlockState> =
+        input.layout === 'none'
+          ? (finalGraph.blocks as Record<string, BlockState>)
+          : layoutChangedBlocks(context.workflowId, asGraph(baseGraph), asGraph(finalGraph))
+
+      const graph = {
+        blocks,
+        edges: finalGraph.edges as WorkflowState['edges'],
+        loops: generateLoopBlocks(blocks),
+        parallels: generateParallelBlocks(blocks),
+      }
+
+      /**
+       * Linted on the graph that is about to be persisted, so every finding
+       * describes what the caller will actually have. This operation denies
+       * workspace API keys, so the acting principal always has a human subject.
+       */
+      const lint = await buildWorkflowLintReport(graph, {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        subjectUserId,
+      })
+
+      input.checkAborted?.()
+
+      /**
+       * A dry run still runs the whole engine — operations are applied, refusals
+       * collected, the result validated and linted — and stops at the write. An
+       * atomic batch has already thrown by here if anything was refused, so a
+       * dry run reports precisely what a committed apply of the same body would.
+       */
+      if (input.dryRun) {
+        /**
+         * The same preparation the committed write runs, so a dry run checks the
+         * ids that write would actually insert — the prepared graph, not the
+         * engine's output — and reports the notes that write would raise. Without
+         * it a dry run could report success, and no warnings, for a body whose
+         * commit is refused with a conflict or silently sanitized.
+         *
+         * `prepareWorkflowStateForPersistence` is **not** pure: its sanitization
+         * step rewrites nested sub-block objects in place, and `graph.blocks`
+         * holds the very objects this response returns. That is safe only because
+         * `validateWorkflowState(..., { sanitize: true })` above already ran the
+         * same sanitizer over these blocks, so this second pass writes back the
+         * values that are already there. Keep that call ahead of this one.
+         */
+        const prepared = prepareWorkflowStateForPersistence({
+          blocks: graph.blocks,
+          edges: graph.edges,
+        })
+        await assertWorkflowGraphIdsUnclaimed(
+          db,
+          context.workflowId,
+          collectWorkflowGraphIds(prepared.state)
+        )
+
+        logger.info('Evaluated workflow operations without persisting', {
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          operationCount: input.operations.length,
+          applied,
+          principalKind: principal.kind,
+        })
+        return {
+          workflowId: context.workflowId,
+          workflowName: context.workflow.name,
+          workspaceId: context.workspaceId,
+          graph,
+          operationCount: input.operations.length,
+          applied,
+          skipped: genuineSkippedItems,
+          deferred: deferredItems,
+          inputValidationErrors: validationErrors,
+          mintedBlockIds: {},
+          previewBlockIds: mintedBlockIds,
+          lint,
+          warnings: [
+            ...validation.warnings,
+            ...prepared.warnings,
+            ...(Object.keys(mintedBlockIds).length > 0 ? [DRY_RUN_PREVIEW_BLOCK_IDS_WARNING] : []),
+          ],
+          needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+          dryRun: true,
+        }
+      }
+
+      const persisted = await replaceWorkflowNormalizedState({
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        attributedUserId: subjectUserId,
+        /**
+         * The same id line 287 already resolves the permission config against.
+         * This operation denies workspace API keys, so the attribution and the
+         * governed subject are the same human and cannot diverge here.
+         */
+        subjectUserId,
+        state: { blocks: graph.blocks, edges: graph.edges },
+      })
+
+      logger.info('Applied workflow operations', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         operationCount: input.operations.length,
         applied,
+        skipped: genuineSkippedItems.length,
         principalKind: principal.kind,
       })
+
       return {
         workflowId: context.workflowId,
         workflowName: context.workflow.name,
@@ -411,50 +474,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         inputValidationErrors: validationErrors,
         mintedBlockIds,
         lint,
-        warnings: [...validation.warnings, ...prepared.warnings],
+        warnings: [...validation.warnings, ...persisted.warnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
-        dryRun: true,
+        dryRun: false,
       }
-    }
-
-    const persisted = await replaceWorkflowNormalizedState({
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      attributedUserId: subjectUserId,
-      /**
-       * The same id line 287 already resolves the permission config against.
-       * This operation denies workspace API keys, so the attribution and the
-       * governed subject are the same human and cannot diverge here.
-       */
-      subjectUserId,
-      state: { blocks: graph.blocks, edges: graph.edges },
     })
-
-    logger.info('Applied workflow operations', {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      operationCount: input.operations.length,
-      applied,
-      skipped: genuineSkippedItems.length,
-      principalKind: principal.kind,
-    })
-
-    return {
-      workflowId: context.workflowId,
-      workflowName: context.workflow.name,
-      workspaceId: context.workspaceId,
-      graph,
-      operationCount: input.operations.length,
-      applied,
-      skipped: genuineSkippedItems,
-      deferred: deferredItems,
-      inputValidationErrors: validationErrors,
-      mintedBlockIds,
-      lint,
-      warnings: [...validation.warnings, ...persisted.warnings],
-      needsRedeployment: await checkNeedsRedeployment(context.workflowId),
-      dryRun: false,
-    }
   },
   /** A dry run changes nothing, so it projects no audit entry. */
   projectAudit: ({ principal, context, result }) =>

@@ -793,6 +793,45 @@ export const v2AddTableColumnContract = defineRouteContract({
   },
 })
 
+/**
+ * A workflow Table block a column rename could not migrate. Rows, views, and
+ * workflow-group references key on the column's stable id and follow a rename;
+ * a Table block's authored `filter`, `order`, and `data` name columns by name
+ * and live in workflow state the rename does not rewrite.
+ */
+export const v2UnmigratedTableBlockReferenceSchema = z
+  .object({
+    workflowId: z.string().describe('Workflow holding the Table block.'),
+    workflowName: z.string().describe('Display name of that workflow.'),
+    blockId: z.string().describe('Table block whose configuration still names the old column.'),
+    blockName: z.string().describe('Display name of that block.'),
+    fields: z
+      .array(z.enum(['filter', 'order', 'data']))
+      .describe('Sub-block fields that still reference the old column name.'),
+  })
+  .meta({
+    id: 'V2UnmigratedTableBlockReference',
+    title: 'Unmigrated table block reference',
+    description: 'A workflow Table block still configured against a renamed column.',
+  })
+export type V2UnmigratedTableBlockReference = z.output<typeof v2UnmigratedTableBlockReferenceSchema>
+
+export const v2UpdateTableColumnDataSchema = v2TableColumnsDataSchema
+  .extend({
+    unmigrated: z
+      .array(v2UnmigratedTableBlockReferenceSchema)
+      .describe(
+        'Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten here — edit those blocks with Apply Workflow Operations or their next run fails on the old name.'
+      ),
+  })
+  .meta({
+    id: 'V2UpdateTableColumnData',
+    title: 'Update table column data',
+    description:
+      'The table column list after the update, plus any workflow Table blocks a rename left pointing at the old column name.',
+  })
+export type V2UpdateTableColumnData = z.output<typeof v2UpdateTableColumnDataSchema>
+
 export const v2UpdateTableColumnContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/columns',
@@ -801,7 +840,7 @@ export const v2UpdateTableColumnContract = defineRouteContract({
   body: v2UpdateTableColumnBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableColumnsDataSchema),
+    schema: v2DataResponse(v2UpdateTableColumnDataSchema),
   },
 })
 
@@ -1097,11 +1136,15 @@ export const v2CreateTableRowsContract = defineRouteContract({
   },
 })
 
-/** Bulk update body — v2 accepts ONLY the predicate tree as the filter. */
+/**
+ * Bulk update body. `filter` speaks the same grammar as the rows query and
+ * count `predicate`: a bare `{ field, op, value }` condition or an `all`/`any`
+ * group, normalized to a group. The legacy `$`-operator dialect stays v1-only.
+ */
 export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
-    filter: predicateSchema,
+    filter: predicateInputSchema,
     data: v2RowDataSchema.describe('Row-data patch applied to every matching row.'),
   })
   .strict()
@@ -1124,11 +1167,11 @@ export const v2UpdateRowsByFilterContract = defineRouteContract({
   },
 })
 
-/** Bulk delete body — either row ids or a predicate-tree filter, never both. */
+/** Bulk delete body — either row ids or a predicate filter, never both. */
 export const v2DeleteTableRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    filter: predicateSchema.optional(),
+    filter: predicateInputSchema.optional(),
     limit: z
       .number({ error: 'Limit must be a number' })
       .int('Limit must be an integer')
@@ -1577,7 +1620,11 @@ export const v2WorkflowGroupSchema = z
       )
       .optional()
       .describe('Workflow inputs mapped from table columns.'),
-    deploymentMode: z.enum(['live', 'deployed']).optional().describe('Workflow execution mode.'),
+    deploymentMode: z
+      .enum(['live', 'deployed'])
+      .describe(
+        'Which workflow state per-cell runs execute against. `deployed` (the default when a group was created without one) runs the latest active deployment and refuses to run while the workflow is undeployed; `live` runs the editable draft.'
+      ),
     /** When `false` the group never auto-fires; it runs only on an explicit request. */
     autoRun: z.boolean().optional().describe('Whether the group automatically runs for new rows.'),
   })
@@ -1689,10 +1736,19 @@ export const v2AddWorkflowGroupBodySchema = z
           ),
       })
       .describe('Workflow or enrichment producer definition.'),
+    /**
+     * `min(1)` here, together with the service refusing any name the table
+     * already had, made it impossible to attach a group to existing columns:
+     * `[]` was rejected as too small and a matching entry as a duplicate.
+     * Existing columns are attached rather than recreated, and an output whose
+     * column already exists needs no entry at all.
+     */
     outputColumns: z
       .array(v2WorkflowGroupOutputColumnSchema)
-      .min(1)
-      .describe('Columns created for producer outputs.'),
+      .default([])
+      .describe(
+        'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.'
+      ),
     autoRun: z
       .boolean()
       .optional()
@@ -1790,11 +1846,12 @@ export const v2DeleteWorkflowGroupContract = defineRouteContract({
 
 /**
  * Run-column body. Identical to the first-party shape except `filter`, which v2
- * narrows to the typed predicate tree — the legacy `$`-operator dialect stays
- * v1-only across the whole v2 surface.
+ * narrows to the typed predicate grammar — a bare condition or a group, as on
+ * every other rows endpoint. The legacy `$`-operator dialect stays v1-only
+ * across the whole v2 surface.
  */
 export const v2RunColumnBodySchema = runColumnBodyBaseSchema
-  .extend({ filter: predicateSchema.optional() })
+  .extend({ filter: predicateInputSchema.optional() })
   .strict()
   .refine(...runColumnScopeMutexRefine)
   .refine(...runColumnExcludeMutexRefine)
@@ -1934,12 +1991,42 @@ export const v2EnrichmentRunDetailSchema = z
 export type V2EnrichmentRunDetail = z.output<typeof v2EnrichmentRunDetailSchema>
 
 /**
+ * One workflow/enrichment group's outcome on one row: the run state
+ * `includeRunState` reports on the row reads, the output cells that run
+ * populated, and — for an enrichment group — the provider cascade behind them.
+ *
+ * Never a bare `null` for a row that exists: an existing row and group always
+ * answer with this shape, and a group that has never run for the row reports
+ * `runState: null` with its output cells still present. A 404 means the table,
+ * row, or group does not exist.
+ */
+export const v2RowGroupEnrichmentSchema = z
+  .object({
+    groupId: z.string().describe('Workflow or enrichment group this answers for.'),
+    runState: v2RowRunStateSchema
+      .nullable()
+      .describe(
+        'Most recent run of this group on this row — the same shape `includeRunState` reports — or null when the group has never run for the row.'
+      ),
+    outputs: v2RowDataSchema.describe(
+      "The group's output cells keyed by column name. A column the run has not populated is null."
+    ),
+    cascade: v2EnrichmentRunDetailSchema
+      .nullable()
+      .describe(
+        'Provider cascade behind the cell, or null when none was recorded — a manual workflow group, a group that has not run, or a run predating the breakdown.'
+      ),
+  })
+  .meta({
+    id: 'V2RowGroupEnrichment',
+    title: 'Row group enrichment',
+    description: 'Run state, output cells, and provider cascade for one group on one row.',
+  })
+export type V2RowGroupEnrichment = z.output<typeof v2RowGroupEnrichmentSchema>
+
+/**
  * The deep read deliberately kept off the paged row surface: `includeRunState`
  * on the row reads reports the cell's status, this reports how it got there.
- *
- * `null` is a real answer — the cell has never run, or it ran before the
- * cascade breakdown was recorded — and is distinct from a 404, which means the
- * table, row, or group does not exist.
  */
 export const v2GetRowEnrichmentContract = defineRouteContract({
   method: 'GET',
@@ -1948,7 +2035,7 @@ export const v2GetRowEnrichmentContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2EnrichmentRunDetailSchema.nullable()),
+    schema: v2DataResponse(v2RowGroupEnrichmentSchema),
   },
 })
 
@@ -1968,7 +2055,7 @@ export const v2SearchRowsBodySchema = z
       .min(1, 'q must be a non-empty search string')
       .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
       .describe('Case-insensitive cell substring to find.'),
-    predicate: predicateSchema.optional(),
+    predicate: predicateInputSchema.optional(),
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
   })
   .strict()
@@ -2465,10 +2552,10 @@ export const v2TableExportDownloadContract = defineRouteContract({
 
 /**
  * Cancel-runs body. Identical to the first-party shape except `filter`, which
- * v2 narrows to the typed predicate tree.
+ * v2 narrows to the typed predicate grammar shared by every rows endpoint.
  */
 export const v2CancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema
-  .extend({ filter: predicateSchema.optional() })
+  .extend({ filter: predicateInputSchema.optional() })
   .strict()
   .superRefine((value, ctx) => {
     for (const issue of refineCancelTableRunsScope(value)) {
@@ -2626,12 +2713,13 @@ export const v2CancelTableDispatchContract = defineRouteContract({
 })
 
 /**
- * What is currently running on one table. Returns only the in-flight
- * dispatches (`pending`, `dispatching`); a settled one is reachable by id.
+ * The dispatches on one table, most recent first. Settled dispatches
+ * (`complete`, `canceled`) are listed alongside the in-flight ones, so a run
+ * that finished between two polls is still visible next to the `dispatchId`
+ * its create returned rather than vanishing into an empty list.
  *
- * Unpaged: the dispatcher keeps at most a handful of active dispatches per
- * table, so the set is bounded by construction the same way a table's saved
- * views and workflow groups are.
+ * Unpaged: the list is capped at the 100 most recent dispatches, which bounds
+ * it the same way a table's saved views and workflow groups are bounded.
  */
 export const v2ListTableDispatchesContract = defineRouteContract({
   method: 'GET',

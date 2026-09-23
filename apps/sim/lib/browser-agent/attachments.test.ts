@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const DOCS_TAB: MothershipResource = { type: 'browser', id: '1', title: 'Docs' }
 const DASHBOARD_TAB: MothershipResource = { type: 'browser', id: '2', title: 'Dashboard' }
 
 describe('buildResourceAttachments', () => {
+  it('keeps the selected saved table view in the chat request', () => {
+    expect(
+      buildResourceAttachments(
+        [{ type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' }],
+        'table-1',
+        'chat-test'
+      )
+    ).toEqual([
+      { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view', active: true },
+    ])
+  })
   beforeEach(() => {
     const session = {
       pageState: null,

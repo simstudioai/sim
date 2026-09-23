@@ -1,142 +1,77 @@
 ---
 title: Search
-description: Connect your team's sources and search the documents each person can access
+description: Search connected sources live with each person's current access
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Search queries your connected providers when you ask a question. It does not copy their documents into a Sim vector index or wait for a background sync.
 
-Search brings your connected sources into one place. An organization admin allows integrations and configures their sources. Teammates then [connect their accounts](/search/connect-your-account) when required. Each person searches with their own access.
+An organization admin adds sources under **Settings → Sources**. Teammates connect their provider accounts under **Integrations** in the main sidebar. Credential Groups remain a separate feature for sharing account connections with workflows.
 
 ## Add your first source
 
-<Steps>
-<Step>
+1. Open **Settings → Sources → Add source** and choose a provider or Generic Secrets.
+2. For a searchable provider, choose **Member accounts** or, when supported, **Service account**. GitHub calls the second mode **GitHub App**. Slack and Jira use member accounts; GitLab uses a service account. [Generic Secrets](/search/generic-secrets) instead offers **Organization** and **Member**.
+3. For provider member mode, save the source. For service mode, add or select a connection and configure its resources. GitHub uses **Add repository** for each repository; GitLab uses **Add project** for each project.
+4. For provider sources, open **Integrations** and connect your personal account, including when you are the admin. GitLab is the exception: its configured project permissions identify readers without a personal connection. Generic Secrets uses its built-in editor and needs no provider authorization.
+5. For a provider source, open **Search** or ask the assistant on **Home** about a document you can access. For Generic Secrets, use [Build or Plan](/search/generic-secrets).
 
-### Choose an integration
-
-Open **Settings → Sources → Add source** and choose an integration. Unavailable integrations need deployment configuration before they can be connected.
-
-</Step>
-<Step>
-
-### Connect the content
-
-Follow the integration's **Setup guide**. Confluence connects a site and selected spaces; Jira adds projects; GitHub adds a repository; GitLab adds a project; Slack configures its app, then channels or DMs. Google service-account setup connects Drive, Gmail, or Calendar with the selected users and filters.
-
-Select **Connect & Sync** for a central account, or the form’s **Add** or **Set up member accounts** action for member accounts. **More options** contains additional filters. Saving a connection does not invite teammates or authorize their accounts.
-
-</Step>
-<Step>
-
-### Connect and search
-
-For member-account sources, open **Integrations** in the main sidebar and select **Connect** for the integration if prompted—even if you created the source. Complete authorization in the new tab. Central Google sources need no personal connection: join with a matching verified Workspace email and open **Search** to find documents, or **Home** to ask the assistant about them. Documents become available as background indexing progresses.
-
-</Step>
-</Steps>
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-settings.png" alt="Organization Sources with Add source, connection status, People, and Stats" width={1037} height={714} />
-
-Source availability depends on the deployment and organization policy. An unavailable source needs operator configuration before setup can continue. If an existing provider asks for a configuration update after a deployment change, an admin selects **More → Update sign-in settings** on this page, then affected teammates reconnect.
+Adding a member-account provider source makes that integration available for members to connect. A provider that needs deployment or app configuration must have that configuration completed before account authorization can succeed.
 
 ## Choose the right connection method
 
-Sources can use member accounts or a central connection. Gmail, Google Calendar, and Google Drive support Google Workspace service accounts with domain-wide delegation. Confluence supports a central service account with a personal identity connection for each reader. GitHub supports an App installation. GitLab supports a self-managed instance administrator token, or a non-admin token with uploaded CSV permissions.
-
-| Method | What the admin does | What teammates do |
+| Mode | Admin configuration | How a search is restricted |
 | --- | --- | --- |
-| **Member accounts** | Allows the provider and adjusts shared filters when needed. | Connect their own accounts. Sim lists documents using each member's access. |
-| **GitHub App installation** | Installs the App, selects it under **Sync documents with**, and adds repository sources. | Connect GitHub once. Sim checks each reader's current repository access before returning installation-indexed content. |
-| **Google Workspace service account** | Configures domain-wide delegation, supplies a Directory administrator email, and selects users and content filters. | Join with a matching verified email. No personal Google connection is needed for that source. Gmail remains private to the mailbox owner; Calendar preserves each person's event view; Drive uses file permissions. |
-| **Confluence service account** | Connects an account that can read the selected content and its permissions. | Join the organization and connect Confluence to establish identity. |
-| **Administrator token / Non-admin token** (GitLab) | Connects one self-managed project. Administrator tokens refresh permissions from GitLab; non-admin tokens use uploaded CSV permissions. | Join with a verified email matching GitLab or the uploaded user mapping. No personal connection is needed. |
+| **Member accounts** | Add the integration. There are no organization resource filters in this mode. | The provider searches what the connected member's account can access. |
+| **Service account** | Select a service connection and its resources, such as folders, labels, spaces, or documents. | The member's provider results must also be readable by the service connection and match its current resource settings. |
+| **GitHub App** | Connect an installation and add repositories individually. | Each repository must be allowed by both the App installation and the member's connected GitHub account. |
+| **GitLab service account** | Add a self-managed project with an administrator token, or a non-admin token and CSV permissions. | The configured token retrieves content; Sim separately verifies the reader against current GitLab permissions or the uploaded grants. |
 
-Open an integration from the Sources list to manage its connections. Use **Connect service account** for Google, **Add Confluence site**, **Add projects** for Jira, **Add repository** for GitHub, **Add project** for GitLab, or **Add channels or DMs** for Slack.
+A service account limits the searchable resources; it does not grant members access they lack. For example, a Gmail source limited to **INBOX** returns only matching messages from the connected member's own mailbox. A personal message outside that source's settings remains excluded. See the [Gmail example](/search/gmail#how-inbox-filtering-works).
 
-For personal connections, teammates select **Connect** beside the integration in the main **Integrations** page. Existing sources reuse the admin's content selection. If no source exists yet, setup may ask for content after account authorization. Admins can edit connection filters afterward in **Settings**.
-
-Some member sources offer **Sync documents with**, either directly in setup or under **More options**. **Connected members** uses members' accounts for both content and access checks. Selecting a dedicated account uses it to fetch content; members still connect to establish which documents they may search. For GitHub organization sources, choose **Connect GitHub App** in this field to [connect an installation](/search/github#add-a-repository). **Account for browsing** only helps an admin pick source options—it does not enroll that account for Search.
-
-<Callout type="info">
-  An administrator connection does not grant everyone access to everything. Search applies the source's supported permission rules.
-</Callout>
+In Sources, open an integration to manage its connection and resource settings. Removing a source stops it from authorizing subsequent Search requests. Account connections and source configuration are distinct: connecting an account does not create additional resource selections or start indexing.
 
 ## Connector guides
 
-| Source | Content | Connection in Search |
+These nine providers support live Search. Google Docs, Sheets, and Slides are accessed through Drive. Other [knowledge-base connectors](/knowledgebase/connectors) do not automatically become Search integrations.
+
+| Source | Search path | Modes |
 | --- | --- | --- |
-| [Confluence](/search/confluence) | Pages and blog posts | Service account or member accounts; each teammate connects |
-| [GitHub](/search/github) | Repository text files | App installation or member indexing; each teammate connects |
-| [GitLab](/search/gitlab) | Repository files, wikis, issues, merge requests | Self-managed administrator token, or non-admin token with CSV permissions; no member connection |
-| [Gmail](/search/gmail) | Email thread text | Delegated service account or member accounts |
-| [Google Calendar](/search/google-calendar) | Meetings | Delegated service account or member accounts |
-| [Google Drive](/search/google-drive) | Supported Drive files | Delegated service account or member accounts |
-| [Jira](/search/jira) | Issues | Each member's Jira account |
-| [Slack](/search/slack) | Channel messages and threads | Slack app installation plus each member's authorization |
+| [Coda](/search/coda) | Personal Coda MCP; legacy REST connections search document titles | Member or service |
+| [Confluence](/search/confluence) | Confluence Cloud CQL and content APIs | Member or service |
+| [GitHub](/search/github) | GitHub issue, code, and repository search | Member or GitHub App |
+| [GitLab](/search/gitlab) | Configured self-managed project's search and read APIs | Service only; admin or CSV permissions |
+| [Gmail](/search/gmail) | Gmail message search and message reads | Member or service |
+| [Google Calendar](/search/google-calendar) | Calendar lists and event APIs | Member or service |
+| [Google Drive](/search/google-drive) | Drive search plus supported file reads/exports | Member or service |
+| [Jira](/search/jira) | Jira Cloud JQL and issue APIs | Member only |
+| [Slack](/search/slack) | Slack real-time search with the member's user token | Member only |
 
-## Bring your team
+[Generic Secrets](/search/generic-secrets) is also available as a source, but does not add searchable documents. Organization mode makes its secrets available across the organization; Member mode lets each person manage their own secrets in Integrations. Build and Plan can use these secrets for requests; Search cannot mount them.
 
-Invite people through the organization's **Settings → Members**, or use your organization's [SSO provisioning](/platform/enterprise/sso). Share the organization's **Home** or **Integrations** URL. People need their own Sim account and organization membership; they do not need access to a workspace. Connecting an external account alone does not grant organization membership.
+## Access and freshness
 
-Open **Settings → Sources → People** to view account contributors and their connection status. Choose an integration in the filter to inspect its connections or send a targeted **Request connections** invitation. **All integrations** shows each person's connected providers and accounts needing reconnection.
+Search authorizes your current Sim membership, resolves your current provider connection, and applies the current source policy on each request. Document reads repeat those checks. Source admins follow the same reader rules as other members.
 
-Connection requests do not grant organization membership. See [Connect your account](/search/connect-your-account) for the teammate walkthrough.
+There is no background per-document ACL index to build for live Search. Providers enforce normal member access directly. Service sources add live resource checks. GitLab administrator sources reconstruct the required permission evidence during the request; non-admin sources use the administrator's saved CSV grants. Update CSV grants when membership changes.
 
-**Revoke all account access** withdraws every account that person contributed to the organization, including other providers. It does not remove their organization membership.
+Results follow the provider's search behavior. A provider can delay visibility of newly edited content, limit search types, or return only a page of matches. Rate limits and bounded permission checks can produce incomplete coverage. An empty result is not proof that a document does not exist, and an unavailable provider is not an indexing failure.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/request-connections.jpg" alt="Request Gmail connections with an Emails field and Send requests action" width={520} height={290} />
+## Search, Assistant, Slack, and MCP
 
-## Manage sources and documents
+Organization **Search** finds documents directly. The assistant on **Home**, [Sim Search in Slack](/search/slack), and [Search MCP](/search/mcp) use the same live retrieval and access rules. The Search assistant can search and read; it does not expose arbitrary integration tools.
 
-Open **Settings → Sources**, choose the integration, then select its site, project, repository, or account connection. Each row identifies its account method and shows its sync status.
-
-Edit **Settings** to change an existing connection's filters. Adding another connection creates a separate selection. For Gmail, one member-account connection is usually enough: its filters apply separately to each connected mailbox, including accounts connected later. A central Google connection applies to its selected **Users**, or all active users when that field is blank.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/integration-provider.png" alt="Gmail connections with the Connect service account action" width={1049} height={258} />
-
-| Connection tab | What you can do |
-| --- | --- |
-| **Documents** | Find indexed documents, inspect processing status, retry failed indexing, or exclude and restore documents. |
-| **Settings** | Edit the source's scope, filters, and supported indexing credentials. Select **Save** to apply changes or **Discard** to undo them. |
-| **Sync history** | Review run dates, document changes, and any sync or account errors. |
-
-**Sync using** shows the method selected when the source was created. Add a new connection to change that method. To replace a supported indexing credential, select its replacement and use **Change service account** or **Change account**, as shown.
-
-The connection header offers **Sync now**, **Pause syncing** or **Resume syncing**, and **Remove connection**. Manual runs have a 60-second cooldown after a successful sync finishes; failed or partial runs can be retried immediately. **Pause syncing** becomes available when the current sync finishes.
-
-To deactivate an entire integration, open it from **Settings → Sources**, select **Deactivate**, and confirm. Its content becomes unavailable in Search, Assistant, and MCP; saved connections remain. Select **Activate** on that integration to enable it again.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-sync-history.jpg" alt="Gmail Sync history showing run dates and document additions, deletions, or no changes" width={824} height={446} />
-
-## Usage stats
-
-**Settings → Sources → Stats** shows successful Search invocations, active people, and results returned. Filter by entry point and a preset or custom date range of up to 90 days. Dates use UTC. Source usage counts requests that returned content from each integration; it is not a click or citation count. Tracking starts when enabled and does not backfill earlier activity.
-
-## Search, Assistant, and MCP
-
-**Search** in the organization sidebar finds documents directly. The assistant on **Home** can search and read the same sources to answer questions with citations. Conversations are private to their author, including when another organization member is an admin.
-
-To use these sources from Claude, Codex, Claude Code, Cursor, or another compatible app, open **Settings → Search MCP**. Each person signs in with their own Sim account. The server provides `search`, `read_document`, and `chat`; `chat` starts a new private Sim conversation. See [Search MCP](/search/mcp) for app setup, permissions, and limits.
+Conversations remain private to their author. Connecting an external account does not grant Sim organization membership: invite teammates through **Settings → Members** or your organization's SSO.
 
 ## Check that it works
 
-1. Let the first sync finish, then search for a distinctive phrase in a document you can open in the source.
-2. Open the result's source link and confirm the document is the expected one.
-3. Ask a teammate with different source access to repeat the search. Documents restricted to you should not appear for them.
-4. Change or remove a test document's access in the source and check again after the next completed content and permission refresh.
+1. Connect an account and search for a distinctive phrase in a supported document that account can open.
+2. Read the result and follow its source link.
+3. Repeat as a teammate with different access; private content must remain private.
+4. For a service source, search for content both inside and outside its configured boundary.
+5. Revoke access at the provider, or update GitLab CSV permissions, and repeat the search and read. There is no Sim content sync to wait for.
 
-Search runs background syncs on an hourly schedule. Large sources, provider limits, and indexing queues can delay completion. Results are indexed copies, so edits appear after syncing. Permission refresh behavior depends on the connector: GitHub sources indexed through an App installation also check the reader's current repository access before returning indexed content.
+## Legacy indexing and workspace knowledge bases
 
-## If indexing needs attention
+Live Search is the default. An operator can explicitly set `SIM_SEARCH_LIVE=false` to restore the legacy indexed Search backend. Its content sync, document processing, and stored permission maintenance are specific to that mode. These guides describe live Search.
 
-A completed sync means the source was checked; some documents may still be indexing. The main **Integrations** page shows one row per integration with a connection or indexing status. Sources that do not require personal authorization remain searchable without a **Connect** step. Detailed document counts and errors are available to admins under **Settings → Sources**.
-
-As an admin, open **Settings → Sources**, select the integration, then open its connection. In **Documents**, select **Failed** from the status dropdown to inspect those files. Use the search field to find a document by name. Select **Retry indexing** beside a file to try again. **Exclude** removes a file from search; select **Excluded** and then **Restore** to include it again. Fix a disconnected account or source configuration before retrying a sync that needs attention.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/source-documents.jpg" alt="Empty source Documents tab with search and an Included status filter" width={1049} height={350} />
-
-Temporary indexing-capacity waits retry automatically in the background. If automatic retries are exhausted, the document appears as failed so an admin can retry it. Other searchable documents remain available while this work finishes.
-
-These guides cover permission-aware Search sources. For a general knowledge base used by workflows, see [Knowledge-base connectors](/knowledgebase/connectors); its workspace access settings are a separate choice.
+Ordinary workspace [knowledge bases](/knowledgebase) still ingest, chunk, and index documents for their own features. Their connector setup, processing status, and access settings remain separate.

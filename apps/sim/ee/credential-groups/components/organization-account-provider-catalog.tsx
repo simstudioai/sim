@@ -35,6 +35,7 @@ export type OrganizationAccountProviderChoice =
 interface OrganizationAccountProviderCatalogProps {
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
   availableProviders: CredentialGroupProvider[]
+  availableMcpConnectors?: readonly ManagedMcpConnectorId[]
   pending: boolean
   error: string | undefined
   onClose: () => void
@@ -44,6 +45,7 @@ interface OrganizationAccountProviderCatalogProps {
 export function OrganizationAccountProviderCatalog({
   group,
   availableProviders,
+  availableMcpConnectors = MANAGED_MCP_CONNECTOR_IDS,
   pending,
   error,
   onClose,
@@ -58,16 +60,18 @@ export function OrganizationAccountProviderCatalog({
         ...getCredentialGroupProviderService(provider),
         choice: { kind: 'oauth', provider } as const,
       })),
-    ...MANAGED_MCP_CONNECTOR_IDS.filter(
-      (id) =>
-        !group.mcpServers.some(
-          (server) => server.managedConnectorId === id && (id !== 'databricks' || server.enabled)
-        )
-    ).map((connectorId) => ({
-      name: MANAGED_MCP_CONNECTORS[connectorId].name,
-      icon: getManagedMcpConnectorIcon(connectorId),
-      choice: { kind: 'mcp', connectorId } as const,
-    })),
+    ...availableMcpConnectors
+      .filter(
+        (id) =>
+          !group.mcpServers.some(
+            (server) => server.managedConnectorId === id && (id !== 'databricks' || server.enabled)
+          )
+      )
+      .map((connectorId) => ({
+        name: MANAGED_MCP_CONNECTORS[connectorId].name,
+        icon: getManagedMcpConnectorIcon(connectorId),
+        choice: { kind: 'mcp', connectorId } as const,
+      })),
   ]
     .filter((provider) => provider.name.toLowerCase().includes(query))
     .sort((left, right) => left.name.localeCompare(right.name))

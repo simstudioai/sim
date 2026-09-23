@@ -12,7 +12,7 @@ export function hasAgentGroupItemContent(item: AgentGroupItem): boolean {
     case 'text':
       return item.content.trim().length > 0
     case 'agent_group':
-      return item.group.items.some(hasAgentGroupItemContent)
+      return Boolean(item.group.error) || item.group.items.some(hasAgentGroupItemContent)
   }
 }
 

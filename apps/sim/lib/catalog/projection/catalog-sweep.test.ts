@@ -39,6 +39,7 @@ import { projectToolDetail, projectToolSummaryById } from '@/lib/catalog/project
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { getBlockRegistry } from '@/blocks/registry'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { getHostedModels } from '@/providers/models'
 import { getToolIds } from '@/tools/tool-ids'
 
 /**
@@ -134,10 +135,94 @@ describe('block catalog projection sweep', () => {
 })
 
 /**
+ * Pinned shapes of two real registry blocks, where a projection rule is only
+ * visible against an authored block rather than a synthetic fixture.
+ */
+describe('block detail regressions', () => {
+  const registry = getBlockRegistry()
+  const registered = (type: string) => {
+    const block = registry[type]
+    if (!block) throw new Error(`block ${type} is not registered`)
+    return block
+  }
+
+  it('keys operation inputs by the sub-block id an apply accepts, not the canonical param id', () => {
+    const detail = projectBlockDetail(registered('table_v2'), { deployment: HOSTED })
+    const inputKeys = Object.keys(detail.operations.query_rows?.inputs ?? {})
+    expect(inputKeys).toContain('filter')
+    expect(inputKeys).not.toContain('filterInput')
+    expect(inputKeys).not.toContain('sortInput')
+  })
+
+  /**
+   * `blocks get agent` reported `apiKey`, `vertexCredential`, `bedrockAccessKeyId`,
+   * `conversationId`, … as `required: true`, because each is authored
+   * `required: true` behind a condition the projection flattened away. A field
+   * required only under some configuration is optional at the block level, and
+   * the condition that requires it is published alongside.
+   */
+  it('publishes the agent’s conditionally required fields as optional with their condition', () => {
+    const detail = projectBlockDetail(registered('agent'), { deployment: HOSTED })
+    const byId = new Map(detail.inputSchema.map((field) => [field.id, field]))
+
+    for (const id of ['apiKey', 'vertexCredential', 'vertexProject', 'bedrockAccessKeyId']) {
+      const field = byId.get(id)
+      expect(field, id).toBeDefined()
+      expect(field?.required, id).toBe(false)
+      expect(field?.requiredWhen, id).toMatchObject({ field: expect.any(String) })
+    }
+    expect(byId.get('conversationId')).toMatchObject({
+      required: false,
+      requiredWhen: { field: expect.any(String) },
+    })
+    expect(detail.inputSchema.some((field) => field.required === true)).toBe(true)
+  })
+
+  it('publishes the agent model picker’s options with the hosted models marked', () => {
+    const detail = projectBlockDetail(registered('agent'), { deployment: HOSTED })
+    const model = detail.inputSchema.find((field) => field.id === 'model')
+    const hosted = new Set(getHostedModels().map((id) => id.toLowerCase()))
+
+    expect(model?.options?.length).toBeGreaterThan(10)
+    expect(model?.options?.some((option) => option.hosted === true)).toBe(true)
+    for (const option of model?.options ?? []) {
+      expect(option.hosted === true, option.id).toBe(hosted.has(option.id.toLowerCase()))
+    }
+  })
+
+  /**
+   * `blocks get table` handed an agent a detail whose `sunset` sat below the
+   * operations it had already read, and it built with the superseded block.
+   */
+  it('leads a sunset block’s detail with its lifecycle state and successor', () => {
+    const detail = projectBlockDetail(registered('table'), { deployment: HOSTED })
+    expect(Object.keys(detail)[0]).toBe('sunset')
+    expect(detail.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
+    expect(detail.description.startsWith('Legacy — replaced by table_v2. ')).toBe(true)
+    // utils-lint-allow: verify the actual JSON wire representation, including dropped undefined fields.
+    expect(v2BlockDetailSchema.parse(JSON.parse(JSON.stringify(detail))).description).toBe(
+      detail.description
+    )
+
+    const current = projectBlockDetail(registered('table_v2'), { deployment: HOSTED })
+    expect(current.sunset).toBeUndefined()
+    expect(current.description.startsWith('Legacy')).toBe(false)
+  })
+
+  it('publishes a triggers-category block’s trigger-mode fields as its input schema', () => {
+    const detail = projectBlockDetail(registered('schedule'), { deployment: HOSTED })
+    const ids = detail.inputSchema.map((field) => field.id)
+    expect(ids).toEqual(expect.arrayContaining(['scheduleType', 'cronExpression', 'timezone']))
+    expect(ids).not.toContain('scheduleInfo')
+  })
+})
+
+/**
  * Custom (deploy-as-block) blocks, which the registry sweep above cannot reach.
  *
- * `projectCustomBlockDetail` is a separate branch with its own field set — and
- * the only one whose `inputSchema` includes `mode: 'trigger'` sub-blocks — yet
+ * `projectCustomBlockDetail` is a separate branch with its own field set — it
+ * publishes `mode: 'trigger'` sub-blocks in `inputSchema`, as the main branch
+ * does only for `triggers`-category blocks — yet
  * it is caller-reachable through `GET /api/v2/blocks/custom_block_*`. Built from
  * the same `buildCustomBlockConfig` the overlay uses, so a change to the synthesized
  * shape shows up here rather than as a 500 on a well-formed request.

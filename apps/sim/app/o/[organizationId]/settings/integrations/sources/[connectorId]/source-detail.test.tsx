@@ -9,6 +9,7 @@ import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   admin: true,
   index: vi.fn(),
   detail: vi.fn(),
@@ -23,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   dirty: false,
   saving: false,
   save: vi.fn(),
+}))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
@@ -131,6 +135,7 @@ describe('organization source detail navigation', () => {
     vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.admin = true
+    mocks.live = false
     mocks.dirty = false
     mocks.saving = false
     mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
@@ -189,6 +194,41 @@ describe('organization source detail navigation', () => {
     await act(async () => button!.click())
   }
 
+  it('uses the GitLab settings view in live mode and hides indexing controls', async () => {
+    mocks.live = true
+    mocks.detail.mockReturnValue({ data: { ...connector, connectorType: 'gitlab' } })
+    await render()
+    expect(container.textContent).toContain('Organization-managed GitLab')
+    expect(container.textContent).not.toContain('Sync history')
+    expect(container.textContent).not.toContain('Documents')
+    expect(mocks.documents).not.toHaveBeenCalled()
+    expect(mocks.history).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('Sync now')
+    expect(document.body.textContent).toContain('Pause search')
+  })
+  it('edits service-account resources directly without indexed-document views', async () => {
+    mocks.live = true
+    await render()
+    expect(container.textContent).toContain('Source configuration')
+    expect(container.textContent).not.toContain('Sync history')
+    expect(mocks.documents).not.toHaveBeenCalled()
+    expect(mocks.form).toHaveBeenCalled()
+  })
+  it('opens a live GitHub App repository source for editing', async () => {
+    mocks.live = true
+    mocks.detail.mockReturnValue({
+      data: {
+        ...connector,
+        connectorType: 'github',
+        accessMode: 'members',
+        sourceConfig: { repository: 'acme/project', githubRepositoryId: '123' },
+      },
+    })
+    await render()
+    expect(container.textContent).toContain('Source configuration')
+    expect(container.textContent).not.toContain('Member accounts')
+    expect(mocks.form).toHaveBeenCalled()
+  })
   it('passes live sync status to the form without replacing its settings baseline', async () => {
     await render('?view=settings')
     const baseline = mocks.form.mock.lastCall![0].connector

@@ -27,6 +27,13 @@ const loginSchema = z.string().regex(/^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i)
 const permissionsSchema = z.object({
   contents: z.enum(['read', 'write']).optional(),
   metadata: z.literal('read').optional(),
+  members: z.enum(['read', 'write']).optional(),
+})
+const membershipSchema = z.object({
+  state: z.enum(['active', 'pending']),
+  role: z.enum(['admin', 'member', 'billing_manager']),
+  organization: z.object({ id: apiIdSchema }),
+  user: z.object({ id: apiIdSchema }),
 })
 const installationSchema = z.object({
   id: apiIdSchema,
@@ -75,6 +82,7 @@ export class GitHubInstallationError extends Error {
 type GitHubInstallationOperation =
   | 'user'
   | 'memberships'
+  | 'membership-permissions'
   | 'installations'
   | 'installation'
   | 'repository'
@@ -231,16 +239,8 @@ async function adminAccountIds(userAccessToken: string, signal: AbortSignal) {
     .object({ id: apiIdSchema, type: z.literal('User') })
     .parse(await request('/user', userAccessToken, signal, undefined, 'user'))
   const organizations = new Set<string>()
-  const membershipsSchema = z
-    .array(
-      z.object({
-        state: z.enum(['active', 'pending']),
-        role: z.enum(['admin', 'member', 'billing_manager']),
-        organization: z.object({ id: apiIdSchema }),
-        user: z.object({ id: apiIdSchema }),
-      })
-    )
-    .max(PAGE_SIZE)
+  const knownOrganizations = new Set<string>()
+  const membershipsSchema = z.array(membershipSchema).max(PAGE_SIZE)
   for (let page = 1; page <= MAX_PAGES; page++) {
     const memberships = membershipsSchema.parse(
       await request(
@@ -256,10 +256,12 @@ async function adminAccountIds(userAccessToken: string, signal: AbortSignal) {
         throw new GitHubInstallationError(
           'GitHub membership identity does not match the connected account'
         )
+      knownOrganizations.add(String(membership.organization.id))
       if (membership.state === 'active' && membership.role === 'admin')
         organizations.add(String(membership.organization.id))
     }
-    if (memberships.length < PAGE_SIZE) return { userId: String(user.id), organizations }
+    if (memberships.length < PAGE_SIZE)
+      return { userId: String(user.id), organizations, knownOrganizations }
   }
   throw new GitHubInstallationError(
     'GitHub organization membership listing exceeds the supported limit'
@@ -275,6 +277,7 @@ export async function listUserAdminGitHubInstallations(
   const signal = operationSignal(options)
   const accounts = await adminAccountIds(userAccessToken, signal)
   const result: GitHubInstallationSummary[] = []
+  let missingMembershipPermission = false
   const pageSchema = z.object({
     total_count: z
       .number()
@@ -294,14 +297,57 @@ export async function listUserAdminGitHubInstallations(
       )
     )
     for (const installation of data.installations) {
+      if (!installationIsReady(installation, configuration)) continue
+      const accountId = String(installation.account.id)
+      /** GitHub App tokens can omit organizations from the general membership listing. */
+      if (
+        installation.account.type === 'Organization' &&
+        !accounts.knownOrganizations.has(accountId)
+      ) {
+        if (!installation.permissions.members) missingMembershipPermission = true
+        else {
+          let membership
+          try {
+            membership = membershipSchema.parse(
+              await request(
+                `/user/memberships/orgs/${installation.account.login}`,
+                userAccessToken,
+                signal,
+                undefined,
+                'memberships'
+              )
+            )
+          } catch (error) {
+            if (error instanceof GitHubInstallationError && error.status === 404) continue
+            throw error
+          }
+          if (
+            String(membership.user.id) !== accounts.userId ||
+            String(membership.organization.id) !== accountId
+          )
+            throw new GitHubInstallationError(
+              'GitHub membership identity does not match the connected account'
+            )
+          accounts.knownOrganizations.add(accountId)
+          if (membership.state === 'active' && membership.role === 'admin')
+            accounts.organizations.add(accountId)
+        }
+      }
       const ownsAccount =
         installation.account.type === 'User'
-          ? String(installation.account.id) === accounts.userId
-          : accounts.organizations.has(String(installation.account.id))
-      if (ownsAccount && installationIsReady(installation, configuration))
-        result.push(summary(installation, configuration.clientId))
+          ? accountId === accounts.userId
+          : accounts.organizations.has(accountId)
+      if (ownsAccount) result.push(summary(installation, configuration.clientId))
     }
-    if (data.installations.length < PAGE_SIZE) return result
+    if (data.installations.length < PAGE_SIZE) {
+      if (result.length === 0 && missingMembershipPermission)
+        throw new GitHubInstallationError(
+          'The GitHub App cannot verify organization ownership. Ask its administrator to enable Organization Members read-only access and approve the updated installation permissions, then check the connection again.',
+          403,
+          'membership-permissions'
+        )
+      return result
+    }
   }
   throw new GitHubInstallationError('GitHub installation listing exceeds the supported limit')
 }

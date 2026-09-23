@@ -1,0 +1,86 @@
+// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/agent-cli.ts
+// Regenerate with `bun run contracts:sync` in the worker.
+
+/**
+ * The mothership↔sim wire for one Sim CLI invocation (docs/revamp/18-agent-surface.md
+ * §4, Phase A0). The worker's translation layer decides everything — which command,
+ * which augmentation, whether the result lands on the caller's machine — and sim
+ * executes exactly what it is handed: no re-parsing, no policy. Slicing (`| grep`,
+ * `| jq`, `| outline`) never crosses this wire: the worker applies it to whatever comes
+ * back, so every command pipes the same way regardless of where it is answered.
+ */
+
+import { z } from "zod";
+import { ArtifactObservations } from "./observations";
+import { ResourceChanges } from "./resources";
+
+/** Relative sink paths resolve under the chat workbench home. */
+export const AgentCliSandboxFileSink = z.object({
+  kind: z.literal("sandbox-file"),
+  path: z.string().min(1).max(300),
+});
+export type AgentCliSandboxFileSink = z.infer<typeof AgentCliSandboxFileSink>;
+export type AgentCliSink = AgentCliSandboxFileSink;
+
+export const AgentCliCliInvocation = z.object({
+  kind: z.literal("cli"),
+  argv: z.array(z.string()).min(1).max(64),
+});
+export type AgentCliCliInvocation = z.infer<typeof AgentCliCliInvocation>;
+
+export const AgentCliAugmentationInvocation = z.object({
+  kind: z.literal("augmentation"),
+  name: z.string().min(1),
+  positionals: z.array(z.string()),
+  flags: z.record(z.string(), z.union([z.string(), z.literal(true)])),
+});
+export type AgentCliAugmentationInvocation = z.infer<typeof AgentCliAugmentationInvocation>;
+
+/** Already-executed output: apply only the requested sink, never repeat its source command. */
+export const AgentCliStdoutInvocation = z.object({
+  kind: z.literal("stdout"),
+  stdout: z.string().max(50_000_000),
+});
+export type AgentCliStdoutInvocation = z.infer<typeof AgentCliStdoutInvocation>;
+
+/** Internal product operations reuse Sim's authorized handlers; public CLI operations stay native. */
+export const AgentCliServiceInvocation = z.object({
+  kind: z.literal("service"),
+  name: z.enum([
+    "list_workspaces",
+    "search_workspace",
+    "read_document",
+    "settings",
+    "search_sources",
+    "workspaces",
+  ]),
+  input: z.record(z.string(), z.json()),
+  inputFiles: z.partialRecord(z.enum(["input", "changes"]), z.string().min(1).max(1000)).optional(),
+});
+export type AgentCliServiceInvocation = z.infer<typeof AgentCliServiceInvocation>;
+
+export const AgentCliInvocation = z.discriminatedUnion("kind", [
+  AgentCliCliInvocation,
+  AgentCliAugmentationInvocation,
+  AgentCliStdoutInvocation,
+  AgentCliServiceInvocation,
+]);
+export type AgentCliInvocation = z.infer<typeof AgentCliInvocation>;
+
+export const AgentCliRequest = z.object({
+  workspaceId: z.uuid().optional(),
+  invocation: AgentCliInvocation,
+  sink: AgentCliSandboxFileSink.optional(),
+  curate: z.enum(["block", "knowledge-documents"]).optional(),
+});
+export type AgentCliRequest = z.infer<typeof AgentCliRequest>;
+
+export const AgentCliRawResult = z.object({
+  sinkError: z.string().optional(),
+  exitCode: z.number().int(),
+  stdout: z.string(),
+  stderr: z.string().default(""),
+  observations: ArtifactObservations.optional(),
+  resources: ResourceChanges.optional(),
+});
+export type AgentCliRawResult = z.infer<typeof AgentCliRawResult>;

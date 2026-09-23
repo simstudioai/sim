@@ -3,7 +3,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import {
   createMockRequest,
   dbChainMockFns,
@@ -86,7 +86,11 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
   SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
-vi.mock('@/lib/copilot/request/tools/files', () => ({
+vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
+  buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
+}))
+
+vi.mock('@/lib/mothership/request/tools/files', () => ({
   FORMAT_TO_CONTENT_TYPE: {
     json: 'application/json',
     csv: 'text/csv',
@@ -126,7 +130,7 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
   }),
 }))
 
-vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
+vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   validateWorkspaceFileWriteTarget: mockValidateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
@@ -598,6 +602,43 @@ describe('Function execution request', () => {
     })
 
     it.each([
+      {
+        language: 'javascript',
+        code: 'return { template: "{{API_KEY}}", name: "environmentVariables" }',
+      },
+      { language: 'python', code: '__sim_result__ = {"template": "{{API_KEY}}"}' },
+      { language: 'shell', code: "printf '%s' '{{API_KEY}}'" },
+    ])(
+      'preserves literal $language templates in trusted Mothership code with an explicitly mounted secret',
+      async ({ language, code }) => {
+        envFlagsMock.isMothershipSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+        const secret = 'private-test-value-938'
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            envVars: { API_KEY: secret },
+            secretScope: 'selected',
+            mountedSecrets: ['API_KEY'],
+          })
+        )
+        expect(response.status).toBe(200)
+        const request =
+          language === 'shell'
+            ? mockExecuteShellInSandbox.mock.calls.at(-1)?.[0]
+            : mockExecuteInSandbox.mock.calls.at(-1)?.[0]
+        expect(request.code).toContain('{{API_KEY}}')
+        expect(request.code).not.toContain(secret)
+      }
+    )
+
+    it.each([
       { language: 'javascript', code: 'return 42' },
       { language: 'python', code: '__sim_result__ = 42' },
     ])(
@@ -954,12 +995,195 @@ describe('Function execution request', () => {
           }),
         })
       )
-      expect(data.output.result.files).toHaveLength(2)
+      expect(data.output.result).toBe('done')
+      expect(data.output.exported.files).toHaveLength(2)
+      expect(data.output.message).toContain('Exported 2 sandbox files')
+      expect(data.output.exported.message).toBe(data.output.message)
       expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
       expect(data.resources).toEqual([
         expect.objectContaining({ path: 'files/reports/chart.png' }),
         expect.objectContaining({ path: 'files/reports/summary.json' }),
       ])
+    })
+
+    it('exports a .jpg declared without a format as image/jpeg bytes, never as base64 text', async () => {
+      // The sandbox reads a .jpg back as base64; the exporter used to classify it by its
+      // (unknown) output format, default to json, and store the base64 string verbatim.
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64')
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.0001 },
+        exportedFiles: {
+          '/home/user/thumbs/01.jpg': jpegBase64,
+          '/home/user/summary.json': '{"ok":true}',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/thumbs/01.jpg',
+              mode: 'create',
+              sandboxPath: '/home/user/thumbs/01.jpg',
+            },
+            { path: 'files/summary.json', mode: 'create', sandboxPath: '/home/user/summary.json' },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+      const [jpgCall, jsonCall] = mockWriteWorkspaceFileByPath.mock.calls.map((call) => call[0])
+      expect(jpgCall.target).toEqual(expect.objectContaining({ path: 'files/thumbs/01.jpg' }))
+      expect(jpgCall.inferredMimeType).toBe('image/jpeg')
+      expect(Buffer.from(jpgCall.buffer).equals(Buffer.from(jpegBase64, 'base64'))).toBe(true)
+      expect(jsonCall.target).toEqual(expect.objectContaining({ path: 'files/summary.json' }))
+      expect(jsonCall.inferredMimeType).toBe('application/json')
+      expect(Buffer.from(jsonCall.buffer).toString('utf-8')).toBe('{"ok":true}')
+    })
+
+    it('exports a single .jpg declared without a format as image/jpeg bytes (single-file path)', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64')
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.0001 },
+        exportedFiles: { '/home/user/thumbs/02.jpg': jpegBase64 },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/thumbs/02.jpg',
+              mode: 'create',
+              sandboxPath: '/home/user/thumbs/02.jpg',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+      const call = mockWriteWorkspaceFileByPath.mock.calls[0]?.[0]
+      expect(call.target).toEqual(expect.objectContaining({ path: 'files/thumbs/02.jpg' }))
+      expect(call.inferredMimeType).toBe('image/jpeg')
+      expect(Buffer.from(call.buffer).equals(Buffer.from(jpegBase64, 'base64'))).toBe(true)
+    })
+
+    it("keeps the code's returned rows beside the sandbox export receipt", async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: rows,
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/report.txt': 'name\nAda\nGrace\n' },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: '__sim_result__ = [{"name": "Ada"}, {"name": "Grace"}]',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/report.txt',
+                sandboxPath: '/home/user/report.txt',
+                mimeType: 'text/plain',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // The table writer and the returned-value file writer both read
+      // `output.result`, so the export receipt must not displace the rows.
+      expect(data.output.result).toEqual(rows)
+      expect(data.output.exported).toEqual({
+        message: expect.stringContaining('Sandbox file exported to files/report.txt'),
+        files: [
+          expect.objectContaining({
+            fileId: 'wf_report_txt',
+            vfsPath: 'files/report.txt',
+            sandboxPath: '/home/user/report.txt',
+          }),
+        ],
+      })
+      expect(data.output.message).toBe(data.output.exported.message)
+      expect(data.resources).toEqual([expect.objectContaining({ path: 'files/report.txt' })])
+    })
+
+    it('keeps the export receipt and stdout beside returned rows on the JavaScript sandbox path', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: rows,
+        stdout: 'wrote 2 rows\n',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/report.csv': 'name\nAda\nGrace\n' },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'console.log("wrote 2 rows"); return [{ name: "Ada" }, { name: "Grace" }]',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/report.csv',
+                sandboxPath: '/home/user/report.csv',
+                mimeType: 'text/csv',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          language: 'javascript',
+          outputSandboxPaths: ['/home/user/report.csv'],
+        })
+      )
+      // Both outputs survive: the table writer reads `result`, the receipt
+      // rides in `exported`, and stdout is the agent's only diagnostic.
+      expect(data.output.result).toEqual(rows)
+      expect(data.output.exported.files).toHaveLength(1)
+      expect(data.output.exported.files[0]).toEqual(
+        expect.objectContaining({
+          vfsPath: 'files/report.csv',
+          sandboxPath: '/home/user/report.csv',
+        })
+      )
+      expect(data.output.stdout).toBe('wrote 2 rows')
+      expect(data.output.message).toBe(data.output.exported.message)
     })
 
     it('atomically classifies text exports and acknowledges the durable v2 capability', async () => {
@@ -1315,9 +1539,9 @@ describe('Function execution request', () => {
       )
 
       expect(response.status).toBe(200)
-      expect((await response.json()).output.result).toEqual(
-        expect.objectContaining({ fileId: 'wf_output_txt', vfsPath: 'files/output.txt' })
-      )
+      expect((await response.json()).output.exported.files).toEqual([
+        expect.objectContaining({ fileId: 'wf_output_txt', vfsPath: 'files/output.txt' }),
+      ])
       expect(mockExecuteInSandbox).toHaveBeenCalledOnce()
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2372,6 +2596,111 @@ describe('Function execution request', () => {
       expect(runtimePayload).not.toContain('__simSandboxFileMount')
     })
 
+    it.each(['python', 'javascript', 'shell'])(
+      'exports a chat %s harvest through workspace policy without workflow context',
+      async (language) => {
+        envFlagsMock.isMothershipSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+        const bytes = Buffer.from([0, 255, 13, 10, 42])
+        const runtimeResult = {
+          result: 'kept-result',
+          stdout: 'kept-stdout',
+          sandboxId: 'sbx',
+          collectedFiles: [
+            {
+              path: '/tmp/sim/outputs/call-test/report.txt',
+              relativePath: 'report.txt',
+              contentBase64: bytes.toString('base64'),
+              byteLength: bytes.length,
+            },
+          ],
+        }
+        const sandbox = language === 'shell' ? mockExecuteShellInSandbox : mockExecuteInSandbox
+        sandbox.mockResolvedValueOnce(runtimeResult)
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'x',
+            language,
+            workspaceId: 'workspace-1',
+            sandboxSessionKey: 'same-chat',
+          })
+        )
+        const data = await response.json()
+        expect(response.status).toBe(200)
+        expect(data.output.result).toBe('kept-result')
+        expect(data.output.stdout).toBe('kept-stdout')
+        expect(data.resources).toEqual([
+          expect.objectContaining({ type: 'file', path: 'files/report.txt' }),
+        ])
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspaceId: 'workspace-1',
+            target: expect.objectContaining({ path: 'files/report.txt', mode: 'create' }),
+            buffer: bytes,
+          })
+        )
+        expect(mockUploadFile).not.toHaveBeenCalled()
+      }
+    )
+
+    it('still requires workflow context for ordinary Function file harvests', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/a.txt',
+            relativePath: 'a.txt',
+            contentBase64: 'YQ==',
+            byteLength: 1,
+          },
+        ],
+      })
+      const response = await POST(
+        createMockRequest('POST', { code: 'x', language: 'python', workspaceId: 'workspace-1' })
+      )
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toContain('workflow, and execution context')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+      const responses = await Promise.all(
+        ['python', 'shell'].map((language) =>
+          POST(
+            createMockRequest('POST', {
+              code: 'x',
+              language,
+              workspaceId: 'workspace-1',
+              sandboxSessionKey: 'same-chat',
+            })
+          )
+        )
+      )
+      expect(responses.map((response) => response.status)).toEqual([200, 200])
+      const python = mockExecuteInSandbox.mock.calls.at(-1)?.[0]
+      const shell = mockExecuteShellInSandbox.mock.calls.at(-1)?.[0]
+      expect(python.session.key).toBe('same-chat')
+      expect(shell.session.key).toBe('same-chat')
+      expect(python.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
+      expect(shell.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
+      expect(python.outputSandboxDir).not.toBe(shell.outputSandboxDir)
+    })
+
     it('harvests the output directory on every remote run, with no toggle', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 
@@ -2479,9 +2808,10 @@ describe('Function execution request', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
-      expect(data.output.result.unchanged).toBe(true)
-      expect(data.output.result.message).toContain('byte-identical to the previous version')
-      expect(data.output.result.message).toContain('/home/user/doc.md')
+      expect(data.output.result).toBe('done')
+      expect(data.output.exported.files[0].unchanged).toBe(true)
+      expect(data.output.message).toContain('byte-identical to the previous version')
+      expect(data.output.message).toContain('/home/user/doc.md')
     })
 
     it('continues an overwrite when the advisory comparison fails', async () => {
@@ -2519,8 +2849,8 @@ describe('Function execution request', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
-      expect(data.output.result).toMatchObject({ unchanged: false })
-      expect(data.output.result).not.toHaveProperty('previousSize')
+      expect(data.output.exported.files[0]).toMatchObject({ unchanged: false })
+      expect(data.output.exported.files[0]).not.toHaveProperty('previousSize')
     })
 
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
@@ -2562,12 +2892,13 @@ describe('Function execution request', () => {
       expect(data.success).toBe(true)
       // Sizes differ, so the current content is never downloaded for comparison.
       expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
-      expect(data.output.result.size).toBe(Buffer.byteLength(newContent, 'utf-8'))
-      expect(data.output.result.previousSize).toBe(36728)
-      expect(data.output.result.sha256).toMatch(/^[0-9a-f]{64}$/)
-      expect(data.output.result.unchanged).toBe(false)
-      expect(data.output.result.message).toContain('replaced 36728 bytes')
-      expect(data.output.result.message).toContain('sha256:')
+      const [exportedFile] = data.output.exported.files
+      expect(exportedFile.size).toBe(Buffer.byteLength(newContent, 'utf-8'))
+      expect(exportedFile.previousSize).toBe(36728)
+      expect(exportedFile.sha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(exportedFile.unchanged).toBe(false)
+      expect(data.output.message).toContain('replaced 36728 bytes')
+      expect(data.output.message).toContain('sha256:')
       // The python wrapper prints the marker with a leading \n so it always
       // starts a fresh line even after non-newline-terminated user output.
       const e2bCode = mockExecuteInSandbox.mock.calls[0][0].code as string
@@ -2607,7 +2938,7 @@ describe('Function execution request', () => {
       const archiveBase64 =
         'UEsDBBQAAAAIAAAAIQAcWyFBIAAAAB8AAAAMAAAAcHJldmlldy5odG1ss8kwtHNLzcnJLy9WcM4vzUvOzFEIT03Nzqm00QdKAQBQSwECFAMUAAAACAAAACEAHFshQSAAAAAfAAAADAAAAAAAAAAAAAAAgAEAAAAAcHJldmlldy5odG1sUEsFBgAAAAABAAEAOgAAAEoAAAAAAA=='
       const source = readFileSync(
-        resolve(process.cwd(), 'lib/execution/remote-sandbox/fixtures/fellows-council-weekly.py'),
+        new URL('../execution/remote-sandbox/fixtures/fellows-council-weekly.py', import.meta.url),
         'utf8'
       )
       mockExecuteInSandbox.mockResolvedValueOnce({
@@ -2775,6 +3106,7 @@ describe('Function execution request', () => {
       mockExecuteInSandbox.mockImplementationOnce(
         ({ signal }: { signal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
+            signal.throwIfAborted()
             signal.addEventListener('abort', () => reject(signal.reason), { once: true })
           })
       )
@@ -3212,6 +3544,29 @@ describe('Function execution request', () => {
       expect(request.code).toContain(`new ${runtimeBinding.name}.RegExp`)
       expect(request.code).not.toContain('secret')
     })
+
+    it.each(['console.log("checked")', 'console.log("checked"); return undefined'])(
+      'serializes a JavaScript call without a result as valid JSON: %s',
+      async (code) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const response = await POST(
+          createMockRequest('POST', {
+            code: `import fs from 'node:fs'\n${code}`,
+            language: 'javascript',
+          })
+        )
+        expect(response.status).toBe(200)
+        const [request] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+        const source: string = request.code
+        const wrapper = source.slice(source.indexOf(';(async () => {'))
+        const lines: string[] = []
+        await runInNewContext(wrapper, { console: { log: (value: string) => lines.push(value) } })
+        expect(lines[0]).toBe('checked')
+        const marker = lines.at(-1)?.trim()
+        expect(marker).toBe('__SIM_RESULT__=null')
+        expect(JSON.parse(marker!.slice('__SIM_RESULT__='.length))).toBeNull()
+      }
+    )
 
     it('captures regex constructors in the remote preload before static imports execute', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true

@@ -101,16 +101,8 @@ async function creationPolicy(workspace: ForkApplicationContext['workspace'], us
 
 export const previewWorkspaceFork = defineForkUseCase({
   operation: forkOperations.preview,
-  async execute({
-    principal,
-    input,
-    context,
-  }: {
-    principal: { userId: string }
-    input: ForkInput
-    context: ForkApplicationContext
-  }) {
-    await creationPolicy(context.workspace, principal.userId)
+  async execute({ input, context }: { input: ForkInput; context: ForkApplicationContext }) {
+    await creationPolicy(context.workspace, context.userId)
     const revision = await loadForkPreviewRevision(
       db,
       { sourceWorkspaceId: context.workspaceId },
@@ -136,7 +128,7 @@ export const forkWorkspace = defineForkUseCase<
   Awaited<ReturnType<typeof createFork>>
 >({
   operation: forkOperations.create,
-  async execute({ principal, input, context, request }) {
+  async execute({ input, context, request }) {
     const choices = forkChoices(input)
     const admission =
       input.requestId && input.previewFingerprint
@@ -159,12 +151,12 @@ export const forkWorkspace = defineForkUseCase<
         'requestId and previewFingerprint are required together'
       )
     const apply = async () => {
-      const policy = await creationPolicy(context.workspace, principal.userId)
+      const policy = await creationPolicy(context.workspace, context.userId)
       return createFork({
         source: context.workspace,
         policy,
-        userId: principal.userId,
-        actorName: await loadActorName(principal.userId),
+        userId: context.userId,
+        actorName: await loadActorName(context.userId),
         name: input.name,
         selection: choices.copy,
         requestId: input.requestId ?? request?.headers.get('x-request-id') ?? generateShortId(),
@@ -216,7 +208,8 @@ export const previewWorkspaceSync = defineForkUseCase({
     previewForkSync(
       { ...syncContext(input, context), ...syncChoices(input) },
       syncChoices(input),
-      principal
+      principal,
+      context.workspacePrincipals
     ),
 })
 
@@ -252,13 +245,18 @@ export const syncWorkspace = defineForkUseCase<
       )
     const apply = async () => {
       if (admission)
-        await previewForkSync({ ...syncContext(input, context), ...choices }, choices, principal)
+        await previewForkSync(
+          { ...syncContext(input, context), ...choices },
+          choices,
+          principal,
+          context.workspacePrincipals
+        )
       return promoteFork({
         ...syncContext(input, context),
         ...choices,
         dependentValues: input.dependentValues,
-        userId: principal.userId,
-        actorName: await loadActorName(principal.userId),
+        userId: context.userId,
+        actorName: await loadActorName(context.userId),
         otherWorkspaceName: context.other!.name,
         requestId: input.requestId ?? request?.headers.get('x-request-id') ?? generateShortId(),
         admission,

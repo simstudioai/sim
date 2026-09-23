@@ -169,6 +169,38 @@ describe('readUserFileContent', () => {
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
   })
 
+  it('allows only explicitly granted prior-run files within the same workspace', async () => {
+    const key = 'execution/workspace-1/source-workflow/old-run/alpha.txt'
+    const file = {
+      id: 'alpha',
+      name: 'alpha.txt',
+      size: 5,
+      type: 'text/plain',
+      url: '',
+      key,
+      context: 'execution' as const,
+    }
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'consumer-workflow',
+      executionId: 'new-run',
+      encoding: 'text' as const,
+    }
+    mockDownloadServableFileFromStorage.mockResolvedValue({ buffer: Buffer.from('alpha') })
+    await expect(readUserFileContent(file, scope)).rejects.toThrow()
+    await expect(readUserFileContent(file, { ...scope, fileKeys: [key] })).resolves.toBe('alpha')
+    await expect(
+      readUserFileContent(
+        { ...file, key: key.replace('alpha.txt', 'other.txt') },
+        { ...scope, fileKeys: [key] }
+      )
+    ).rejects.toThrow()
+    await expect(
+      readUserFileContent(file, { ...scope, workspaceId: 'foreign', fileKeys: [key] })
+    ).rejects.toThrow()
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['profile-pictures', 'og-images', 'workspace-logos'] as const)(
     'authorizes actorless reads from the trusted public %s context',
     async (context) => {

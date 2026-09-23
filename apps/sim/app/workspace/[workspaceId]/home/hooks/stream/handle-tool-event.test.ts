@@ -3,11 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/copilot/resources/extraction', () => ({
+vi.mock('@/lib/mothership/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
   extractResourcesFromToolResult: vi.fn(() => []),
 }))
-vi.mock('@/lib/copilot/tools/workflow-tools', () => ({
+vi.mock('@/lib/mothership/tools/workflow-tools', () => ({
   isWorkflowToolName: vi.fn(() => false),
 }))
 vi.mock(
@@ -15,8 +15,12 @@ vi.mock(
   () => ({ invalidateResourceQueries: vi.fn() })
 )
 
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -83,6 +87,60 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  it.each([false, true])(
+    'refreshes credential lists and selectors after Slack connection (replay=%s)',
+    (replay) => {
+      const deps = makeStreamLoopDeps()
+      const ctx = createStreamLoopContext(deps)
+      dispatchStreamEvent(ctx, toolCall('slack', 'connect_slack_bot'))
+      expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+      const result = toolResult('slack', true, 'connect_slack_bot')
+      dispatchStreamEvent(ctx, replay ? toStreamBatchEvent(result).event : result)
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: workspaceCredentialKeys.lists(),
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: oauthCredentialKeys.lists(),
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: selectorQueryRoots.selectors,
+      })
+      expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: selectorQueryRoots.workflowSearchReplace,
+      })
+    }
+  )
+
+  it('does not refresh credentials after a failed Slack connection', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(ctx, toolCall('slack', 'connect_slack_bot'))
+    dispatchStreamEvent(ctx, toolResult('slack', false, 'connect_slack_bot'))
+    expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it('replays a completed file write without reopening its tab or preview', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({ onResourceEventRef: ref(onResourceEvent) })
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(ctx, toolCall('file-replay', 'apply_file_edit'))
+    const result = toolEnv({
+      phase: 'result',
+      executor: 'sim',
+      mode: 'async',
+      toolCallId: 'file-replay',
+      toolName: 'apply_file_edit',
+      success: true,
+      status: 'success',
+      output: { success: true, data: { id: 'file', name: 'Report.md' } },
+    })
+    dispatchStreamEvent(ctx, toStreamBatchEvent(result).event)
+    expect(toolNode(ctx, 'file-replay').status).toBe('success')
+    expect(deps.promoteFileResource).not.toHaveBeenCalled()
+    expect(onResourceEvent).not.toHaveBeenCalled()
+    expect(deps.setResources).not.toHaveBeenCalled()
+  })
+
   it('runs a tool then settles success, firing the onToolResult side effect', () => {
     const onToolResult = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ onToolResultRef: ref(onToolResult) }))

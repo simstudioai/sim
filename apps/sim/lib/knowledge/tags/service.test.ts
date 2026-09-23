@@ -18,6 +18,7 @@ import {
   createTagDefinition,
   getDocumentTagDefinitions,
   getDocumentTagDefinitionsByKnowledgeBaseIds,
+  getTagUsageStats,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 
@@ -338,6 +339,42 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
 
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+})
+
+describe('getTagUsageStats', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * `knowledge tags usage` reported a `chunkCount` that lagged behind a chunk
+   * just added to a tagged document. The count is read live, per request, and
+   * through the document slot the chunk inherits — never from a stored counter
+   * or the per-chunk copy of the tag.
+   */
+  it('counts chunks live through the document slot they inherit', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [existingDefinition({})])
+    queueTableRows(document, [{ count: 2 }])
+    queueTableRows(embedding, [{ count: 7 }])
+
+    const [usage] = await getTagUsageStats(
+      'kb-1',
+      { kind: 'user', userId: 'user-1', tokens: ['pub', 'u:user-1', 'ws'] },
+      'req-1'
+    )
+
+    expect(usage).toMatchObject({
+      id: 'tag-def-1',
+      tagSlot: 'tag1',
+      displayName: 'clitest-score',
+      documentCount: 2,
+      chunkCount: 7,
+    })
+    const chunkWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
+    expect(chunkWhere).toContain('document.tag1')
+    expect(chunkWhere).not.toContain('embedding.tag1')
   })
 })
 

@@ -1,8 +1,10 @@
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 
 /**
  * Available panel tabs
  */
+
 export type PanelTab = 'copilot' | 'editor' | 'toolbar'
 
 /**
@@ -37,7 +39,13 @@ export type ChatContext =
   | { kind: 'logs'; executionId?: string; label: string }
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
-  | { kind: 'table'; tableId: string; label: string }
+  | {
+      kind: 'table'
+      tableId: string
+      viewId?: string
+      currentView?: MothershipTableViewContext
+      label: string
+    }
   | {
       kind: 'table_selection'
       tableId: string
@@ -90,7 +98,7 @@ export type ChatContext =
   | { kind: 'terminal_tab'; terminalId: string; label: string; selection?: TerminalTextSelection }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
-  | { kind: 'skill'; skillId: string; label: string }
+  | { kind: 'skill'; skillId: string; label: string; workspaceId?: string }
   | {
       kind: 'mcp'
       serverId: string

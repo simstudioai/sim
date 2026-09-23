@@ -17,7 +17,13 @@ export const POST = defineV2JsonRoute({
   useCase: cancelWorkflowRun,
   present: (result) => ({
     data: {
-      success: result.success,
+      /**
+       * `success` on this surface means "this request cancelled something".
+       * A run that was already terminal is a satisfied no-op — still `200`,
+       * not an error — but answering `true` with every action flag false told
+       * a caller its cancel had done something.
+       */
+      success: result.success && result.cancelled,
       runId: result.executionId,
       redisAvailable: result.redisAvailable,
       durablyRecorded: result.durablyRecorded,

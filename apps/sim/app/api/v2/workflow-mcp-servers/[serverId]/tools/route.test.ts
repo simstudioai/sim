@@ -50,7 +50,7 @@ vi.mock('@/lib/mcp/queries', async (importOriginal) => ({
   getWorkflowMcpServerById: mocks.getServer,
   getLiveWorkflowMcpTool: mocks.getLiveTool,
   getWorkflowMcpToolIncludingArchived: mocks.getLiveTool,
-  listLiveWorkflowMcpTools: mocks.listTools,
+  listWorkflowMcpToolsIncludingArchived: mocks.listTools,
   getWorkflowMcpPublishableWorkflow: mocks.getWorkflow,
 }))
 vi.mock('@/lib/mcp/orchestration', () => ({
@@ -323,6 +323,38 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
         workflowId: WORKFLOW_ID,
         toolName: 'triage_ticket',
       })
+    })
+
+    /**
+     * An undeploy archives the workflow's registrations rather than deleting
+     * them. Omitting those rows made `tools list` answer `[]` for a server whose
+     * only workflow was undeployed, with nothing to say the tool still existed.
+     */
+    it('lists an archived registration as inactive rather than omitting it', async () => {
+      mocks.getServer.mockResolvedValue(serverRow)
+      mocks.listTools.mockResolvedValue({
+        tools: [
+          toolRow,
+          {
+            ...toolRow,
+            id: 'wfmcptool-2',
+            workflowId: 'workflow-2',
+            toolName: 'close_ticket',
+            archivedAt: new Date('2026-06-13T10:30:00.000Z'),
+          },
+        ],
+        truncated: false,
+      })
+
+      const body = await (await get()).json()
+
+      expect(
+        body.data.map((tool: { toolName: string; status: string }) => [tool.toolName, tool.status])
+      ).toEqual([
+        ['triage_ticket', 'active'],
+        ['close_ticket', 'inactive'],
+      ])
+      expect(body.data[1]).not.toHaveProperty('archivedAt')
     })
 
     /** `updated` reports what a publish did; a read has no publish to report. */

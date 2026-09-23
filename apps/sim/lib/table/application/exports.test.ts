@@ -43,6 +43,8 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   generatePresignedDownloadUrl: vi.fn(),
 }))
 
+import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableExportUseCase,
@@ -136,6 +138,26 @@ describe('table export application use cases', () => {
     ).resolves.toEqual({ export: record })
 
     expect(record.startedAt).toBeInstanceOf(Date)
+  })
+
+  it('exports through admitted Copilot scope and rejects a different table binding', async () => {
+    const delegated = createCopilotChatPrincipal(
+      { userId: 'actor', workspaceId: 'workspace-1', chatId: 'chat' },
+      'sim:tables'
+    )
+    markCopilotWorkspaceInvocation(delegated)
+    const input = { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' as const }
+    await expect(
+      createTableExportUseCase.execute({ principal: delegated, input })
+    ).resolves.toEqual({ export: record })
+    expect(createTableExportUseCase.delegationAudience).toBe('sim:tables')
+    const narrower = { ...delegated, resourceScope: { chatId: 'chat', tableId: 'other-table' } }
+    markCopilotWorkspaceInvocation(narrower)
+    mocks.create.mockClear()
+    await expect(
+      createTableExportUseCase.execute({ principal: narrower, input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   it('returns the authoritative canceled domain record', async () => {

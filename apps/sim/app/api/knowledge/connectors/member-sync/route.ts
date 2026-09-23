@@ -13,6 +13,7 @@ import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import { sweepStaleMemberObservations } from '@/lib/knowledge/connectors/member-observations'
 import {
   dispatchMemberSync,
@@ -187,6 +188,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           lte(knowledgeConnector.nextMemberSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
+          connectorIndexingCondition(),
           isNull(knowledgeBase.deletedAt)
         )
       )

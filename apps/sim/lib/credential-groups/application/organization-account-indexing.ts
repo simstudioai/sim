@@ -10,7 +10,9 @@ import { setOrganizationAccountIndexing } from '@/lib/knowledge/connectors/organ
 export const updateOrganizationAccountIndexingOperation = defineOrganizationOperation({
   id: 'organization_accounts.indexing.update',
   minimumRole: 'admin',
-  principalKinds: ['session'],
+  principalKinds: ['session', 'organization_delegated'],
+  delegationAudience: 'sim:settings',
+  delegatedServices: ['copilot'],
   capability: 'knowledge.use',
 })
 

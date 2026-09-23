@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { escapeRegExp } from '@sim/utils/string'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
-} from '@/lib/copilot/chat/selection-clipboard'
+} from '@/lib/mothership/chat/selection-clipboard'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,
@@ -116,6 +117,8 @@ export interface UsePromptEditorProps {
   contextsEnabled?: boolean
   /** Workspace whose resources, integrations, and skills the editor mentions. */
   workspaceId: string
+  /** Keeps organization chat context references explicitly workspace-addressed. */
+  organizationId?: string
   /** Initial text. Chipified (`@`-mentions / `/`-skills converted) on mount. */
   initialValue?: string
   /**
@@ -126,6 +129,7 @@ export interface UsePromptEditorProps {
    * post-mount `setContexts` would clobber those auto-registered contexts.
    */
   initialContexts?: ChatContext[]
+  availableSkills?: (SkillDefinition & { workspaceName?: string })[]
   /**
    * Notified when a context is added through an interactive path — a mention
    * pick, a resource drop, or a skill pick. Paste re-registration is
@@ -164,15 +168,22 @@ export type PromptEditorInstance = ReturnType<typeof usePromptEditor>
 export function usePromptEditor({
   contextsEnabled = true,
   workspaceId,
+  organizationId,
   initialValue = '',
   initialContexts,
+  availableSkills,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
-  const { data: skills = [] } = useSkills(workspaceId)
-  const { data: allMcpServers = [] } = useMcpToolServers(workspaceId)
+  const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
+    contextsEnabled ? workspaceId : ''
+  )
+  const skills = availableSkills ?? (organizationId && skillsAreStale ? [] : queriedSkills)
+  const { data: allMcpServers = [] } = useMcpToolServers(
+    contextsEnabled && !organizationId ? workspaceId : ''
+  )
   const mcpServers = useMemo(
     () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
     [allMcpServers, workspaceId]
@@ -238,6 +249,17 @@ export function usePromptEditor({
 
   const textareaRef = mentionMenu.textareaRef
 
+  // Commit the inserted token's caret with its controlled value. Waiting for
+  // Radix's delayed close autofocus can rewind past a character already typed.
+  useLayoutEffect(() => {
+    const position = pendingCursorRef.current
+    const textarea = textareaRef.current
+    if (position === null || !textarea) return
+    textarea.setSelectionRange(position, position)
+    // Keep the target until the menu has returned focus. Some browsers restore
+    // the pre-menu caret on focus; a later input invalidates this target below.
+  }, [value, textareaRef])
+
   const mentionTokens = useMentionTokens({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
@@ -252,6 +274,8 @@ export function usePromptEditor({
   const skillAutoMention = useSkillAutoMention({
     skills,
     mcpServers,
+    workspaceId: organizationId ? workspaceId : undefined,
+    organizationScoped: Boolean(organizationId),
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
@@ -426,9 +450,13 @@ export function usePromptEditor({
 
   const insertResource = useCallback(
     (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
-      const candidate = mapResourceToContext(resource)
+      const mapped = mapResourceToContext(resource)
+      if (!mapped) return
+      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
+      const candidate =
+        organizationId && ownerWorkspaceId ? { ...mapped, workspaceId: ownerWorkspaceId } : mapped
       const context =
-        candidate.kind === 'folder' || candidate.kind === 'filefolder'
+        organizationId || candidate.kind === 'folder' || candidate.kind === 'filefolder'
           ? (selected.find(
               (current) => current.kind === candidate.kind && areContextsEqual(current, candidate)
             ) ?? { ...candidate, label: uniqueContextLabel(candidate.label, selected) })
@@ -471,7 +499,7 @@ export function usePromptEditor({
       addContextNotified(context)
       return context
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
   )
 
   /**
@@ -483,7 +511,7 @@ export function usePromptEditor({
       let selected = contextManagementRef.current.selectedContexts
       for (const resource of resources) {
         const context = insertResource(resource, selected)
-        selected = [...selected, context]
+        if (context) selected = [...selected, context]
       }
       atInsertPosRef.current = null
     },
@@ -491,7 +519,18 @@ export function usePromptEditor({
   )
 
   const handleSkillSelect = useCallback(
-    (skill: SkillDefinition) => {
+    (skill: SkillDefinition, ownerWorkspaceId?: string) => {
+      const owner = isBuiltinSkillId(skill.id)
+        ? undefined
+        : (ownerWorkspaceId ?? skill.workspaceId ?? workspaceIdRef.current)
+      const selected = contextManagementRef.current.selectedContexts
+      const existing = selected.find(
+        (context) =>
+          context.kind === 'skill' &&
+          context.skillId === skill.id &&
+          context.workspaceId === (organizationId ? owner : undefined)
+      )
+      const label = existing?.label ?? uniqueContextLabel(skill.name, selected)
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -506,12 +545,12 @@ export function usePromptEditor({
           after = currentValue.slice(range.end)
           const needsSpaceBefore =
             range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${label} `
           newPos = before.length + insertText.length
         } else {
           const insertAt = textarea.selectionStart ?? currentValue.length
           const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${label} `
           before = currentValue.slice(0, insertAt)
           after = currentValue.slice(insertAt)
           newPos = before.length + insertText.length
@@ -526,9 +565,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({ kind: 'skill', skillId: skill.id, label: skill.name })
+      addContextNotified({
+        kind: 'skill',
+        skillId: skill.id,
+        label,
+        ...(organizationId && owner ? { workspaceId: owner } : {}),
+      })
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
   )
 
   const handleMcpSelect = useCallback(
@@ -750,6 +794,8 @@ export function usePromptEditor({
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      // A newer edit owns the caret; delayed menu cleanup must not rewind it.
+      pendingCursorRef.current = null
       const previousValue = valueRef.current
       const nextValue = e.target.value
 
@@ -963,11 +1009,16 @@ export function usePromptEditor({
   const prevSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
 
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    let lastTextarea = textareaRef.current
     let last = { start: 0, end: 0 }
     const onSelectionChange = () => {
-      if (document.activeElement !== textarea) return
+      const textarea = textareaRef.current
+      if (!textarea || document.activeElement !== textarea) return
+      // Mode changes can replace the node without replacing the shared editor.
+      if (textarea !== lastTextarea) {
+        lastTextarea = textarea
+        last = { start: textarea.selectionStart, end: textarea.selectionEnd }
+      }
       prevSelectionRef.current = last
       last = { start: textarea.selectionStart ?? 0, end: textarea.selectionEnd ?? 0 }
     }
@@ -1034,10 +1085,9 @@ export function usePromptEditor({
     // is already attached there is nothing to add, and claiming the event anyway
     // would swallow the keystroke entirely — no chip and no text. Falling through
     // pastes the selection's plain text, which is what the user asked for.
-    const selectionContext = readSelectionContextFromClipboard(
-      e.clipboardData,
-      workspaceIdRef.current
-    )
+    const selectionContext = contextsEnabledRef.current
+      ? readSelectionContextFromClipboard(e.clipboardData, workspaceIdRef.current)
+      : null
     const preparedSelection = selectionContext
       ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
       : null
@@ -1081,7 +1131,7 @@ export function usePromptEditor({
     // space is REQUIRED so useContextManagement's sync effect doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
-    const links = parseChipLinks(pastedText)
+    const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
     if (links.length > 0) {
       e.preventDefault()
 
@@ -1251,6 +1301,8 @@ export function usePromptEditor({
 
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     workspaceId,
+    organizationId,
+    contextsEnabled,
     /** @internal */
     skills,
     /** @internal */

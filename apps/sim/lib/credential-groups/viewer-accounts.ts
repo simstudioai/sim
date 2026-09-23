@@ -55,3 +55,49 @@ export async function listViewerOrganizationAccounts(input: {
     }
   })
 }
+
+/** Own grant metadata remains manageable even while provider setup or enrollment is disabled. */
+export async function listViewerOrganizationMcpAccounts(input: {
+  organizationId: string
+  userId: string
+  matching: SQL
+}) {
+  const scope = { kind: 'organization', organizationId: input.organizationId } as const
+  const accounts = await db
+    .select({
+      credentialId: credential.id,
+      displayName: credential.displayName,
+      status: credential.managedOauthStatus,
+      groupId: credentialGroup.id,
+      mcpServerId: credential.mcpServerId,
+    })
+    .from(credential)
+    .innerJoin(
+      credentialGroupEnrollment,
+      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+    )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
+    .where(
+      and(
+        resourceScopeCondition(credential, scope),
+        resourceScopeCondition(credentialGroup, scope),
+        eq(credentialGroupEnrollment.userId, input.userId),
+        eq(credential.type, 'managed_mcp'),
+        inArray(credential.managedOauthStatus, ['active', 'needs_reauth']),
+        isNull(credential.revokedAt),
+        input.matching
+      )
+    )
+    .limit(ORGANIZATION_VIEWER_ACCOUNT_LIMIT + 1)
+  if (accounts.length > ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+    throw new Error('Too many personal accounts for this organization')
+  return accounts.map((account) => {
+    if (!account.mcpServerId || (account.status !== 'active' && account.status !== 'needs_reauth'))
+      throw new Error('Invalid personal account metadata')
+    return {
+      ...account,
+      mcpServerId: account.mcpServerId,
+      status: account.status,
+    }
+  })
+}

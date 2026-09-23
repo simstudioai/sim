@@ -3,7 +3,7 @@ title: Search MCP
 description: Search your organization's sources from Claude, Codex, Cursor, and other MCP apps
 ---
 
-Use Sim Search from another app to find and read your organization's indexed documents, or ask the Sim Assistant for cited answers. Your Sim permissions apply.
+Use Sim Search from another app to search and read your organization's sources through their live APIs, or ask the Sim Assistant for cited answers. Your current Sim membership, provider access, and source restrictions apply.
 
 ## Connect an app
 
@@ -27,25 +27,30 @@ Ask your app: “Use Sim Search to find our launch checklist, read the relevant 
 
 | Tool | Behavior |
 | --- | --- |
-| `search` | Finds matching passages. Filter by `source` (such as `jira`), `modifiedAfter` (an ISO timestamp), or `documentIds`. Use the returned `citationUrl` when citing a result. |
-| `read_document` | Reads an indexed document using either its returned `documentId` or original URL. Use `aroundChunkIndex` for context around a search hit, or `offset` to page through it. It does not fetch arbitrary web pages. |
-| `chat` | Asks the Sim Assistant a question using your accessible sources and returns an answer with citations. Each call creates a new private Sim conversation. It accepts the same filters as `search`. |
+| `search` | Searches the live providers. Use `source`, date filters, or `documentIds` to narrow results. `nativeQueries` supports provider syntax and pagination. Inspect `live.accounts` for provider status and cursors, and `live.guidance` for syntax. |
+| `read_document` | Reads fresh content using the exact opaque `documentId` returned by Search. When `hasMore` is true, pass the returned `next.startChunkIndex` and `next.startOffset` into the next read. It does not accept an arbitrary URL. |
+| `chat` | Asks the Sim Assistant a question using accessible sources and returns an answer with citations. Each call creates a new private Sim conversation. It accepts shared source and date filters; provider-native queries belong to `search`. |
 
+Cite the returned `citationUrl` when one is available. Keep `documentId` unchanged: it binds the result to your account, source, and organization. A title or a provider's raw document ID is not a substitute.
 The tools do not edit source content. Assistant policy and usage limits apply to `chat`.
 
 ## Access and limits
 
-The connection applies to the organization whose URL you copied. Sim checks your current membership and source access on each request. Connecting MCP does not add sources, connect provider accounts, or grant additional document permissions. Source edits and permission changes follow the same sync behavior as regular Search.
+The connection applies to the organization whose URL you copied. Sim checks current membership, source settings, and provider access on search and read. Connecting MCP does not add sources, connect provider accounts, or grant extra permissions. Live results do not depend on a Sim content or permission sync.
 
-Search returns 10 passages by default, with `topK` up to 50. Document reads return 20 chunks by default, with `limit` up to 50. When `pagination.hasMore` is true, continue at `pagination.offset + pagination.limit`; use either `offset` or `aroundChunkIndex`, not both. Documents still indexing return metadata only.
+`search` returns up to 20 results by default, with `topK` from 1 to 50. Its query allows up to 2,000 characters. A query may be empty when a date bound is supplied. Provider limits and filtering can return fewer results. Use a provider's returned continuation cursor with the same query and account; an empty page does not establish complete coverage.
 
-Queries allow up to 8,192 characters; `documentIds` accepts up to 20 IDs. Responses are limited to 1 MiB. Request fewer passages or smaller document pages if a result is too large. API rate limits also apply; follow the retry delay returned by the tool.
+`read_document` accepts `limit` from 1 to 8 (default 3). The live backend returns bounded text pages and may return fewer chunks. Follow its `next` object rather than calculating offsets yourself. Live document IDs may be up to 4,000 characters. There is no pending-index metadata state.
+
+`chat` accepts questions up to 8,192 characters. Tool responses are limited to 1 MiB. API rate limits apply; follow any retry delay. Provider failures or incomplete retrieval are reported explicitly, and the tools do not fall back to an old index when a live provider is unavailable.
+
+These are the live-backend schemas. If an operator explicitly selects legacy Search with `SIM_SEARCH_LIVE=false`, the server advertises its indexed search/read schemas instead. Refresh your MCP client's tool discovery after changing backends.
 
 ## Reconnect or revoke access
 
 If sign-in expires or access is revoked, reconnect in your app. To withdraw its Sim authorization, open **Settings → General → Authorized apps**, find the app, and revoke it. This stops future requests; it does not remove content already returned to that app.
 
-If Search MCP is unavailable, ask an organization admin to check the organization's Search availability and MCP policy. If results are missing, check the same query in Sim Search, your provider connection, and source sync status first.
+If Search MCP is unavailable, ask an organization admin to check the organization's Search availability and MCP policy. If results are missing, check the same query in Sim Search, your provider connection, and the current source settings first.
 
 ## Workspace MCP is separate
 

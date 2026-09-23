@@ -1,8 +1,9 @@
 import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type {
   StreamEventScope,
   StreamLoopContext,
@@ -91,7 +92,7 @@ export function handleSpanEvent(
       )
       deps.setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
       if (lastFileResource) {
-        deps.onResourceEventRef.current?.(lastFileResource.id)
+        deps.onResourceEventRef.current?.(getChatResourceSelectionId(lastFileResource))
       }
     }
     ops.flush()

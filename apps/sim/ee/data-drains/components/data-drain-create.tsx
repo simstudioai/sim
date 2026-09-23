@@ -8,11 +8,11 @@ import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { CADENCE_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { DESTINATION_TYPES } from '@/lib/data-drains/types'
-import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
   UnsavedChangesModal,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

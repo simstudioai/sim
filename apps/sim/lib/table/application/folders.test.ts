@@ -55,7 +55,13 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 
-import { listTableFoldersUseCase } from '@/lib/table/application/folders'
+import { relocateFolderByPathTransition, restoreFolder } from '@/lib/folders/orchestration'
+import { findArchivedFolderIdByPath } from '@/lib/folders/queries'
+import {
+  listTableFoldersUseCase,
+  restoreTableFolderUseCase,
+  updateTableFolderUseCase,
+} from '@/lib/table/application/folders'
 
 const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 
@@ -102,5 +108,120 @@ describe('listTableFoldersUseCase', () => {
 
     expect(result.folders).toEqual([])
     expect(mocks.listRows).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreTableFolderUseCase', () => {
+  const restoredRow = {
+    id: 'folder-1',
+    name: 'xp-explore-renamed',
+    parentId: null,
+    workspaceId: 'ws-1',
+    resourceType: 'table',
+    deletedAt: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'ws-1',
+      billedAccountUserId: 'owner-1',
+    })
+    mocks.resolvePermission.mockResolvedValue('admin')
+    vi.mocked(findArchivedFolderIdByPath).mockResolvedValue('folder-1')
+    vi.mocked(restoreFolder).mockResolvedValue({
+      success: true,
+      restoredItems: { folders: 1, tables: 2 },
+    })
+    mocks.loadFolderIndex.mockResolvedValue({
+      idByPath: new Map([['/xp-explore-renamed', 'folder-1']]),
+      pathById: new Map([['folder-1', '/xp-explore-renamed']]),
+      rowById: new Map([['folder-1', restoredRow]]),
+    })
+  })
+
+  /**
+   * The folder is addressed by the path it held when the recursive delete archived it, which
+   * only an archived-aware lookup can resolve — the active index no longer knows it. The id
+   * that lookup yields is what the orchestration restores; the path itself never reaches it.
+   */
+  it('restores the archived folder resolved from its delete-time path and reports what came back', async () => {
+    const result = await restoreTableFolderUseCase.execute({
+      principal,
+      input: { workspaceId: 'ws-1', path: '/xp-explore-renamed' },
+    })
+
+    expect(findArchivedFolderIdByPath).toHaveBeenCalledWith(
+      'ws-1',
+      'table',
+      '/xp-explore-renamed',
+      expect.objectContaining({ maxRows: expect.any(Number) })
+    )
+    expect(restoreFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: 'table', workspaceId: 'ws-1', folderId: 'folder-1' }),
+      { projectAudit: false }
+    )
+    expect(result.folder).toBe(restoredRow)
+    expect(result.restoredItems).toEqual({ folders: 1, tables: 2 })
+    expect(result.requestedPath).toBe('/xp-explore-renamed')
+  })
+
+  it('reports a path no archived folder held as not found without touching the tree', async () => {
+    vi.mocked(findArchivedFolderIdByPath).mockResolvedValue(null)
+
+    await expect(
+      restoreTableFolderUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', path: '/never-existed' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(restoreFolder).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateTableFolderUseCase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'ws-1',
+      billedAccountUserId: 'owner-1',
+    })
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.loadFolderIndex.mockResolvedValue({
+      idByPath: new Map(),
+      pathById: new Map(),
+      rowById: new Map(),
+    })
+  })
+
+  /**
+   * `mv` semantics are decided in the shared orchestration, under its lock, so
+   * the use case reports where the folder actually landed rather than echoing
+   * the destination it was asked for.
+   */
+  it('reports the resolved path when the destination named an existing folder', async () => {
+    const folder = { id: 'folder-1', name: 'xp-files', parentId: 'folder-2' }
+    vi.mocked(relocateFolderByPathTransition).mockResolvedValue({
+      success: true,
+      folder,
+      path: '/fx-archive/xp-files',
+    } as never)
+
+    const result = await updateTableFolderUseCase.execute({
+      principal,
+      input: { workspaceId: 'ws-1', path: '/xp-files', destinationPath: '/fx-archive' },
+    })
+
+    expect(relocateFolderByPathTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: 'table',
+        path: '/xp-files',
+        destinationPath: '/fx-archive',
+      })
+    )
+    expect(result.path).toBe('/fx-archive/xp-files')
+    expect(result.sourcePath).toBe('/xp-files')
+    expect(result.folder).toBe(folder)
   })
 })

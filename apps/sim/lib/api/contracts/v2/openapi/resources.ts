@@ -177,6 +177,13 @@ const BLOCK_DETAIL_EXAMPLE = {
   outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
 } as const
 
+const CONNECTOR_TYPE_SUMMARY_EXAMPLE = {
+  connectorType: 'google_drive',
+  name: 'Google Drive',
+  description: 'Sync documents from a Google Drive folder.',
+  auth: { mode: 'oauth' },
+} as const
+
 const CONNECTOR_TYPE_EXAMPLE = {
   connectorType: 'google_drive',
   name: 'Google Drive',
@@ -283,9 +290,12 @@ const WORKFLOW_MCP_TOOL_EXAMPLE = {
   updatedAt: '2026-06-12T10:30:00.000Z',
 } as const
 
-/** The publish example as a read returns it: `updated` is a publish outcome, not a field of the tool. */
+/**
+ * The publish example as a read returns it: `updated` is a publish outcome, not
+ * a field of the tool, and `status` is a fact only a read can report.
+ */
 function omitUpdated({ updated: _updated, ...tool }: typeof WORKFLOW_MCP_TOOL_EXAMPLE) {
-  return tool
+  return { ...tool, status: 'active' as const }
 }
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
@@ -1808,7 +1818,8 @@ const declaredRoutes = [
       applicationOperation: mcpServerOperations.listWorkflowDeploymentTools,
       operationId: 'listWorkflowMcpTools',
       summary: 'List Workflow MCP Tools',
-      description: `List a server's published tools by name, including workflow IDs used to unpublish them. Returns up to 2,000 tools with \`nextCursor: null\`; \`truncated\` indicates an incomplete inventory that cannot be paginated. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List published tools ordered by name, including the \`workflowId\` used to delete each registration. Undeploying a workflow makes its registrations \`inactive\`; redeploying reactivates them. Results are capped at 2,000 tools: \`nextCursor\` is always null, and \`truncated\` marks an incomplete inventory that cannot be paginated. ${WORKSPACE_API_KEY_DENIED}`,
+
       errors: RESOURCE_ERRORS,
       success: { description: 'The tools this server publishes.' },
     }),
@@ -2134,23 +2145,26 @@ const declaredRoutes = [
       applicationOperation: catalogOperations.listConnectorTypes,
       operationId: 'listConnectorTypes',
       summary: 'List Connector Types',
-      description: `List connector types and accepted source configuration. A field with \`multi: true\` stores \`string[]\`. \`canonicalParamId\` links picker and manual fields that write the same key; send exactly one, keyed by \`canonicalParamId\` rather than its own \`id\`. ${FULL_SET_LIST}`,
+      description: `List knowledge-base connector types with opaque cursors, defaulting to 25 summaries per page: identifier, name, description, and auth mode. \`detail=full\` adds accepted source configuration fields. Fields with \`multi: true\` accept \`string[]\` instead of \`string\`. A \`canonicalParamId\` pairs a picker with manual entry for the same configuration key: send exactly one value, keyed by \`canonicalParamId\` rather than the field’s \`id\`.`,
       errors: RESOURCE_ERRORS,
-      success: { description: 'The connector-type catalog.' },
+      success: { description: 'One page of the connector-type catalog.' },
     }),
     {
       query: documentedSchema(
         v2ListConnectorTypesContract.query,
         'ListConnectorTypesQuery',
         'List connector types query',
-        'Workspace scope and optional connector-name search.'
+        'Workspace scope, projection, optional connector-name search, and pagination.'
       ),
       response: documentedSchema(
         v2ListConnectorTypesContract.response.schema,
         'ListConnectorTypesResponse',
         'List connector types response',
-        'Knowledge-base connector types and their configuration fields.',
-        [{ data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null }]
+        'Knowledge-base connector types, as summaries or with their configuration fields.',
+        [
+          { data: [CONNECTOR_TYPE_SUMMARY_EXAMPLE], nextCursor: null },
+          { data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null },
+        ]
       ),
     }
   ),

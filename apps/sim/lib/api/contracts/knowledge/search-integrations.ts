@@ -2,10 +2,12 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { successResponseSchema } from '@/lib/api/contracts/knowledge/shared'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { liveSearchPolicySchema } from '@/lib/sim-search/live/policy-schema'
 
 export const searchIntegrationApprovalSchema = z.object({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
   approved: z.boolean(),
+  policy: liveSearchPolicySchema.optional(),
 })
 export type SearchIntegrationApproval = z.output<typeof searchIntegrationApprovalSchema>
 

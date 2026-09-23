@@ -3,9 +3,9 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
-import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import type {
   BlockChildWorkflowStartedData,
   BlockCompletedData,
@@ -964,6 +964,8 @@ export interface WorkflowExecutionOptions {
   runFromBlock?: {
     startBlockId: string
     executionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid server-side. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -1037,6 +1039,9 @@ export async function executeWorkflowWithFullLogging(
           runFromBlock: {
             startBlockId: options.runFromBlock.startBlockId,
             executionId: options.runFromBlock.executionId || 'latest',
+            ...(options.runFromBlock.variableInputs
+              ? { variableInputs: options.runFromBlock.variableInputs }
+              : {}),
           },
         }
       : {}),

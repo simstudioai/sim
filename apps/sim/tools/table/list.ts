@@ -1,3 +1,4 @@
+import { tableSuccess } from '@/tools/table/response'
 import type { TableListParams, TableListResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -23,13 +24,10 @@ export const tableListTool: InternalToolConfig<TableListParams, TableListRespons
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        tables: data.tables,
-        totalCount: data.totalCount,
-      },
-    }
+    return tableSuccess({
+      tables: data.tables,
+      totalCount: data.totalCount,
+    })
   },
 
   outputs: {

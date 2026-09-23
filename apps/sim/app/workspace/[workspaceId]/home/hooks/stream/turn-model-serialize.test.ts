@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { resolveStreamingToolDisplayTitle } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 import {
   type AgentNode,
@@ -43,6 +43,89 @@ function build(events: PersistedStreamEventEnvelope[]): TurnModel {
   for (const e of events) reduceEvent(m, e)
   return m
 }
+
+describe('activity metadata replay', () => {
+  it('carries hidden discovery labels onto later visible calls without crossing agent lanes', () => {
+    const activity = {
+      id: 'inputs',
+      completedTitle: 'Checked invoice requirements',
+    }
+    const childActivity = {
+      id: 'inputs',
+      completedTitle: 'Checked customer requirements',
+    }
+    const model = build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'skill',
+        toolName: 'load_skill',
+        arguments: { name: 'build-workflow', activity },
+        ui: { hidden: true },
+      }),
+      env(
+        2,
+        'tool',
+        {
+          phase: 'call',
+          toolCallId: 'child-skill',
+          toolName: 'load_skill',
+          arguments: { name: 'build-workflow', activity: childActivity },
+          ui: { hidden: true },
+        },
+        { lane: 'subagent', spanId: 'child' }
+      ),
+      env(3, 'text', { channel: 'assistant', text: 'Now inspecting the inputs.' }),
+      env(4, 'tool', {
+        phase: 'call',
+        toolCallId: 'read',
+        toolName: 'sim_cli',
+        arguments: { args: ['blocks', 'get', 'start_trigger'], activity: { id: 'inputs' } },
+      }),
+    ])
+    const blocks = modelToContentBlocks(model)
+    expect(blocks.filter((block) => block.toolCall)).toHaveLength(1)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+    const replay = modelToContentBlocks(contentBlocksToModel(blocks))
+    expect(replay.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+  })
+
+  it('keeps the gateway activity when its concrete tool arguments replace the outer call', () => {
+    const activity = {
+      id: 'search',
+      completedTitle: 'Checked search results',
+    }
+    const model = build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'gateway',
+        toolName: 'call_integration_tool',
+        arguments: { activity, toolId: 'exa_search', arguments: { query: 'Sim' } },
+      }),
+      env(2, 'tool', {
+        phase: 'call',
+        toolCallId: 'gateway',
+        toolName: 'exa_search',
+        arguments: { query: 'Sim' },
+      }),
+      env(3, 'tool', {
+        phase: 'result',
+        toolCallId: 'gateway',
+        toolName: 'exa_search',
+        result: { success: true },
+      }),
+    ])
+    const blocks = modelToContentBlocks(model)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.params).toEqual({
+      query: 'Sim',
+      activity,
+    })
+    const replay = modelToContentBlocks(contentBlocksToModel(blocks))
+    expect(replay.find((block) => block.toolCall)?.toolCall?.params).toEqual({
+      query: 'Sim',
+      activity,
+    })
+  })
+})
 
 describe('streaming resource titles', () => {
   it('includes resource names as soon as they appear in streamed arguments', () => {
@@ -489,6 +572,49 @@ describe('modelToContentBlocks', () => {
         }),
       })
     )
+  })
+})
+
+describe('background task pill', () => {
+  it('folds task_armed into a task block, resolves it on task_delivered, and survives the round-trip', () => {
+    const armed = build([
+      env(1, 'run', {
+        kind: 'task_armed',
+        taskId: 'task-1',
+        taskKind: 'workflow_run',
+        target: { executionId: 'exec-9' },
+        note: 'check the errors',
+      }),
+    ])
+    const blocks = modelToContentBlocks(armed)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'task',
+      task: { taskId: 'task-1', kind: 'workflow_run', status: 'pending', note: 'check the errors' },
+    })
+
+    reduceEvent(
+      armed,
+      env(2, 'run', {
+        kind: 'task_delivered',
+        taskId: 'task-1',
+        status: 'failed',
+        summary: 'Slack block failed',
+      })
+    )
+    const delivered = modelToContentBlocks(armed)
+    expect(delivered[0]).toMatchObject({
+      type: 'task',
+      task: { status: 'failed', summary: 'Slack block failed' },
+    })
+
+    const rebuilt = contentBlocksToModel(delivered)
+    const node = rebuilt.nodes.get('task:task-1')
+    expect(node?.kind).toBe('task')
+    expect(node?.kind === 'task' && node.task).toMatchObject({
+      status: 'failed',
+      summary: 'Slack block failed',
+    })
   })
 })
 

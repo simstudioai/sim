@@ -10,10 +10,9 @@ import type {
   SelectorScope,
 } from '@/lib/selectors/types'
 
-export type SelectorPrincipal = Extract<
-  Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
->
+export type SelectorPrincipal =
+  | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
+  | (Extract<Principal, { kind: 'delegated' }> & { serviceId: 'copilot' })
 
 export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-controlled'
 

@@ -141,7 +141,7 @@ describe('GET Search sources', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     const body = await response.json()
     expect(body).toMatchObject({ success: true, data: { sources: [source], nextCursor: null } })
-    expect(body.data.sources[0]).toEqual(source)
+    expect(body.data.sources[0]).toEqual({ ...source, isGitHubInstallation: false })
     expect(mocks.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: { kind: 'session', userId: 'reader', sessionId: 'session' },

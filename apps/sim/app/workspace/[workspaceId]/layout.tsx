@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -48,7 +49,14 @@ export default async function WorkspaceLayout({
   }
 
   const activeOrganizationId = getActiveOrganizationId(session)
-  const [cookieStore, initialOrgSettings, , tableRowTtlEnabled] = await Promise.all([
+  const [
+    cookieStore,
+    initialOrgSettings,
+    ,
+    tableRowTtlEnabled,
+    modelSelectorEnabled,
+    planModeEnabled,
+  ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
       ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
@@ -61,6 +69,8 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isTableRowTtlEnabled(),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
     prefetchWorkspaceAccess(queryClient, workspaceId, {
       kind: 'session',
       userId: session.user.id,
@@ -71,7 +81,13 @@ export default async function WorkspaceLayout({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <FeatureFlagsProvider flags={{ 'table-row-ttl': tableRowTtlEnabled }}>
+      <FeatureFlagsProvider
+        flags={{
+          'table-row-ttl': tableRowTtlEnabled,
+          'mothership-model-selector': modelSelectorEnabled,
+          'mothership-plan-mode': planModeEnabled,
+        }}
+      >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
           <BrandingProvider
             hostOrganizationId={hostContext.hostOrganizationId}

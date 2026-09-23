@@ -7,10 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 
 const mocks = vi.hoisted(() => ({
+  live: false,
   update: vi.fn(),
   applyAccess: vi.fn(),
   settingsPending: false,
   accessPending: false,
+}))
+
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
 }))
 
 vi.mock('@/hooks/queries/kb/connectors', () => ({
@@ -107,6 +112,7 @@ describe('shared connector settings form', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.live = false
     mocks.settingsPending = false
     mocks.accessPending = false
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -121,6 +127,20 @@ describe('shared connector settings form', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it.each([false, true])('only offers sync recovery for indexed sources, live=%s', (live) => {
+    mocks.live = live
+    render(
+      connector({
+        connectorType: 'github',
+        credentialId: 'installation-1',
+        sourceConfig: { repository: 'acme/platform', githubRepositoryId: '9010' },
+        memberSyncStatus: 'disabled',
+      }),
+      'github-disabled-sync'
+    )
+    expect(form.fieldsProps.canReenableMemberSync).toBe(!live)
   })
 
   it.each([

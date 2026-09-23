@@ -1,5 +1,6 @@
 import {
   deleteWorkspaceFileContract,
+  readWorkspaceFileContract,
   renameWorkspaceFileContract,
 } from '@/lib/api/contracts/workspace-files'
 import {
@@ -15,9 +16,22 @@ import {
 } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContentRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 
 export const dynamic = 'force-dynamic'
+
+/** Read canonical file metadata for a workspace member, including addressed chat uploads. */
+export const GET = defineInternalJsonRoute({
+  contract: readWorkspaceFileContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.readContent,
+  rateLimit: internalRateLimits.none({ reason: 'Session-scoped canonical file metadata read' }),
+  errorPolicy: internalFileErrorPolicies.concealResourceAuthorization,
+  mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
+  useCase: readWorkspaceFileContentRecord,
+  present: internalFilePresenters.successFile,
+})
 
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]

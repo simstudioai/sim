@@ -8,7 +8,9 @@ function definePermissionGroupOperation<const Id extends string>(
   return defineOrganizationOperation({
     id,
     minimumRole: 'admin',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     oauthScope,
     capability: 'none',
   })

@@ -3,10 +3,12 @@
  */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 class FakeDocNotReadyError extends Error {}
 
 const mocks = vi.hoisted(() => ({
+  provenance: vi.fn(),
   downloadStream: vi.fn(),
   fetchServable: vi.fn(),
   getFile: vi.fn(),
@@ -120,6 +122,26 @@ describe('workspace file downloads', () => {
       buffer: Buffer.from('%PDF-compiled'),
       contentType: 'application/pdf',
     })
+  })
+
+  it('observes canonical private provenance before returning while keeping public results unchanged', async () => {
+    const provenance = { status: 'exact', entries: [] }
+    mocks.provenance.mockResolvedValue(provenance)
+    const observe = vi.fn(async () => {})
+    const result = await observeWorkspaceFileDelivery(observe, () => downloadStream('file-2'))
+    expect(observe).toHaveBeenCalledWith(provenance)
+    expect(result.secretProvenance).toBeUndefined()
+  })
+  it('does not return content if the private delivery observer refuses', async () => {
+    mocks.provenance.mockResolvedValue({ status: 'unknown' })
+    await expect(
+      observeWorkspaceFileDelivery(
+        async () => {
+          throw new Error('no evidence')
+        },
+        () => downloadStream('file-2')
+      )
+    ).rejects.toThrow('no evidence')
   })
 
   it('returns the authoritative file and records its semantic download audit', async () => {
@@ -241,3 +263,7 @@ describe('workspace file downloads', () => {
     )
   })
 })
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
+}))

@@ -19,6 +19,7 @@ vi.mock('@/lib/core/utils/theme', () => ({
   syncThemeToNextThemes: mockSyncTheme,
 }))
 
+import { refreshSettings } from '@/app/workspace/[workspaceId]/home/hooks/stream/refresh-settings'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 
@@ -75,5 +76,45 @@ describe('useGeneralSettings', () => {
 
     expect(mockSyncTheme).toHaveBeenCalledWith('dark')
     expect(mockRequestJson).not.toHaveBeenCalled()
+  })
+  it('applies settings on an organization surface with no mounted settings hook', async () => {
+    queryClient.setQueryData(generalSettingsKeys.settings(), HYDRATED_SETTINGS)
+    mockRequestJson.mockResolvedValue({ data: { ...HYDRATED_SETTINGS, theme: 'light' } })
+    refreshSettings(queryClient, { type: 'settings', scope: 'account', id: 'preferences' })
+    await vi.waitFor(() => expect(mockSyncTheme).toHaveBeenLastCalledWith('light'))
+    expect(queryClient.getQueryData(generalSettingsKeys.settings())).toMatchObject({
+      theme: 'light',
+    })
+  })
+
+  it('applies a Mothership preference write to the mounted UI without reloading or replaying old values', async () => {
+    queryClient.setQueryData(generalSettingsKeys.settings(), HYDRATED_SETTINGS)
+    act(() =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    )
+    mockRequestJson.mockResolvedValue({ data: { ...HYDRATED_SETTINGS, theme: 'light' } })
+    await act(async () => {
+      refreshSettings(queryClient, { type: 'settings', scope: 'account', id: 'preferences' })
+      await vi.waitFor(() =>
+        expect(queryClient.getQueryData(generalSettingsKeys.settings())).toMatchObject({
+          theme: 'light',
+        })
+      )
+    })
+    expect(mockSyncTheme).toHaveBeenLastCalledWith('light')
+    mockRequestJson.mockResolvedValue({ data: { ...HYDRATED_SETTINGS, theme: 'system' } })
+    await act(async () => {
+      refreshSettings(queryClient, { type: 'settings', scope: 'account', id: 'preferences' })
+      await vi.waitFor(() =>
+        expect(queryClient.getQueryData(generalSettingsKeys.settings())).toMatchObject({
+          theme: 'system',
+        })
+      )
+    })
+    expect(mockSyncTheme).toHaveBeenLastCalledWith('system')
   })
 })

@@ -47,6 +47,7 @@ import {
   pickLatestStartedMarker,
 } from '@/lib/logs/execution/progress-markers'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
+import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/handled-errors'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   copyTraceSpansWithoutCosts,
@@ -498,6 +499,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         : {}),
       hasTraceSpans: executionData.hasTraceSpans,
       traceSpanCount: executionData.traceSpanCount,
+      hasHandledErrors: executionData.hasHandledErrors,
       traceSpans: summarizeTraceSpansWithoutIo(executionData.traceSpans),
       finalOutput: summarizeValueForExecutionData(executionData.finalOutput, MAX_TRACE_IO_BYTES) as
         | BlockOutputData
@@ -526,6 +528,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ...(executionData.correlation ? { correlation: executionData.correlation } : {}),
         hasTraceSpans: executionData.hasTraceSpans,
         traceSpanCount: executionData.traceSpanCount,
+        hasHandledErrors: executionData.hasHandledErrors,
         tokens: executionData.tokens,
         models: executionData.models,
         executionDataTruncated: true,
@@ -633,6 +636,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       ...(finalizationPath ? { finalizationPath } : {}),
       hasTraceSpans: traceSpanCount > 0,
       traceSpanCount,
+      hasHandledErrors: traceSpansHaveHandledErrors(traceSpans),
       traceSpans,
       finalOutput,
       tokens: {

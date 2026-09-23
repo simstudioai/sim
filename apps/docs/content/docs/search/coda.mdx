@@ -1,88 +1,50 @@
 ---
 title: Coda
-description: Connect Coda documents while preserving each teammate's access
+description: Search pages and table rows through your personal Coda MCP connection
 ---
 
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Coda supports **Member accounts** and **Service account**. The preferred personal connection uses Coda MCP OAuth. Every reader connects their own Coda account, including when an administrator configures a service source.
 
-An organization admin connects Coda once. Teammates search using their verified Sim email address; they do not need a personal Coda connection. Their email must match the address Coda reports.
+## Connect member accounts
 
-## Connect Coda
+1. An admin adds **Coda** under **Settings → Sources** and chooses **Member accounts**.
+2. Each teammate opens **Integrations → Coda → Connect** and completes Coda authorization.
+3. Search for text in a page or table row the connected account can access.
 
-<Steps>
-<Step>
+Coda may send you to Superhuman sign-in: [Coda now uses Superhuman's identity service](https://help.coda.io/en/articles/5473507-reset-your-password).
 
-### Create an API token
+Coda's managed MCP provider must be configured before Connect is available. The member authorizes that provider; they do not choose an arbitrary MCP server URL during Search.
 
-Sign in to Coda with a dedicated integration account that can read the documents and their sharing permissions. Open **Account settings → API connections → Generate API token**, name the token, and copy it. Coda's current app may be labeled **Superhuman Docs**.
+## Add a service boundary
 
-Use a standard REST API token. Do not select the MCP restriction.
+Choose **Service account** in Sources, then **Add connection** or an existing Coda source.
 
-<Image className="mx-auto h-auto w-full max-w-xl" loading="eager" src="/static/search/coda-token-creation.jpg" alt="Coda Generate new token dialog with a name and no restriction selected" width={600} height={281} />
+1. Add a Coda REST API token owned by an account that can read the allowed documents. Use the source form's **Service account → Add API token** action. The source token is distinct from each reader's MCP OAuth connection.
+2. Select **Documents**, or use the paired document-ID field for documents absent from the picker. The picker lists documents the token owner has opened. Leaving the selection empty does not bypass the token's access checks.
+3. Optionally set an **Enterprise organization ID**. This requires an Enterprise organization administrator token; ordinary workspace-admin access is insufficient.
+4. Save and select the source connection. Members still connect personally in Integrations.
 
-</Step>
-<Step>
+A standard REST token is needed for the service boundary. Do not substitute an MCP-restricted token in that field. To rotate it, add the replacement credential and update the source.
 
-### Add the credential
+## How search and reads work
 
-In Sim, open **Settings → Sources → Add source → Coda**. If Coda is already listed, open it and select **Add connection**.
+Sim proxies Coda's advertised MCP `search` tool using the member's current managed grant. Text search covers pages and table rows. A query can target a document URI such as `superhuman://docs/DOC_ID` (or an older `coda://docs/DOC_ID` URI); date-bounded requests without terms can use Coda's recency listing. Coda does not accept these date bounds directly, so Sim checks returned timestamps and reports limited coverage.
 
-Open **Service account → Add API token**. Paste the token, give it a recognizable display name, then select **Add API token**. You can also choose an existing Coda credential.
+Reads use a fixed read-only tool allowlist: `url_convert`, `content_read`, `document_outline`, and `table_rows_read`, alongside `search`. Sim discovers and validates the server's tool schemas and reloads the member's current grant before calls. Search cannot invoke Coda write tools or choose a different server URL.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/coda-credential.jpg" alt="Add Coda API token form with token, display name, and optional description fields" width={516} height={435} />
+In service mode, each result's parent document must be in the selected document scope and currently readable by the service token. With an Enterprise organization ID, Sim also verifies that exact document against the configured organization's Admin API. The member's MCP access remains necessary. There is no background document ACL or directory build for live Coda Search.
 
-</Step>
-<Step>
-
-### Choose documents
-
-Select the documents to index, or leave the selection empty for discovery.
-
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/coda-setup.jpg" alt="Coda connection setup with a saved credential, Documents selector, and optional Enterprise organization ID" width={516} height={458} />
-
-| Field | What to enter |
-|---|---|
-| Documents | Select documents, or switch to **Document IDs** and enter up to 100 IDs separated by commas. For `https://coda.io/d/_dAbCDeFGH`, the ID is `AbCDeFGH`. |
-| Enterprise organization ID | Leave blank for ordinary access. For organization-wide indexing, enter the ID from Coda's [List organizations API](https://coda.io/developers/apis/admin/v1#operation/listOrganizations) and use an Enterprise organization administrator's token. Workspace admin access alone is insufficient. |
-
-The picker shows accessible documents the token owner has opened. Use IDs for other accessible documents. With no selection, Sim discovers the token owner's opened documents, or the organization's documents in Enterprise mode. Use explicit IDs when deleted documents must reliably be removed from the index; discovery listings alone are not authoritative for deletion.
-
-</Step>
-<Step>
-
-### Sync and verify
-
-Select **Connect & Sync**. Open the source's **Documents** and **Sync history** to check indexing. Content and permission changes appear after synchronization. Have a teammate with a matching verified email search for a shared document, and confirm that an unshared teammate cannot find it.
-
-To rotate the token, add the replacement credential, update the source, and verify a sync before revoking the old token.
-
-</Step>
-</Steps>
-
-## Content and access
-
-Ordinary connections index visible canvas text and base-table rows. Enterprise connections index the Admin API's plaintext page exports; tables are included only as represented in those exports. Attachments, comments, images, and remote embeds are not extracted.
-
-| Permission | Ordinary connection | Enterprise connection |
-|---|---|---|
-| Owner or direct email share | Matching verified Sim email | Matching active organization user |
-| Group, workspace, or domain share | Not expanded | Resolved through the Admin API |
-| Anyone with the link | Does not grant Search access | Does not grant Search access |
-
-Enterprise mode excludes deactivated and deleted users. Direct-share guests absent from the organization directory are excluded; guests explicitly listed in a group or workspace may receive that membership's access. Ordinary connections cannot check Coda organization deactivation, so manage departing users' Sim membership too.
-
-Sim refreshes permissions even when content is unchanged. Unverified permissions never become broad access, and Sim admin status does not override Coda sharing.
-
-These access rules apply to organization Search and **Admin access** sources. In a regular knowledge base, **Workspace access** shares all indexed content with that Sim workspace and ignores the Enterprise organization ID.
+An existing personal REST-token connection can search document titles as a compatibility path. This legacy personal-token path requires Coda’s reported account email to match the reader’s verified Sim email. It does not provide MCP's page and table-row full-content search. Provider results and reads are bounded and support continuation where advertised.
 
 ## Troubleshooting
 
 | Problem | Next step |
-|---|---|
-| Document missing from the picker | Open it in Coda with the token owner, or enter its document ID. |
-| Enterprise setup fails | Confirm the organization ID and Enterprise org-admin role. A workspace admin token is insufficient. |
-| Teammate sees no results | Check organization membership, their verified Sim email, the Coda share, and **Sync history**. |
-| Token expired or revoked | Replace the credential in the connection's **Settings**, then verify a sync. |
+| --- | --- |
+| Coda shows Not configured | Ask an admin to configure the managed Coda MCP provider. |
+| Only document titles match | Check that your connection uses personal Coda MCP OAuth rather than a legacy REST token. |
+| Service picker omits a document | Open it with the token owner or use its document ID. |
+| Member search finds nothing | Confirm the member's Coda access and, in service mode, the selected document scope and service token's access. |
+| Enterprise source fails | Check the exact organization ID, Enterprise org-admin role, and token validity. |
+| MCP schema or authorization changed | Reconnect or update the managed provider; Search reports the failure instead of invoking unknown tools. |
 
-See Coda's [public API](https://coda.io/developers/apis/v1) and [Enterprise Admin API](https://coda.io/developers/apis/admin/v1).
+See the [Coda public API](https://coda.io/developers/apis/v1) and [Enterprise Admin API](https://coda.io/developers/apis/admin/v1). Ordinary [knowledge-base connectors](/knowledgebase/connectors) still use their separate REST ingestion path.

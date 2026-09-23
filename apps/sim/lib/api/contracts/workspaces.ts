@@ -1,10 +1,8 @@
 import { z } from 'zod'
-import {
-  nonEmptyIdSchema,
-  organizationRoleSchema,
-  requiredFieldSchema,
-} from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
+import { workspacePermissionUpdatesSchema } from '@/lib/workspaces/permissions/input'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
 export const workspaceModeSchema = z.enum(['personal', 'organization', 'grandfathered_shared'])
@@ -64,10 +62,7 @@ export const listWorkspacesQuerySchema = z.object({
 
 export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuerySchema>['scope']>
 
-export const createWorkspaceBodySchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  skipDefaultWorkflow: z.boolean().optional().default(false),
-})
+export const createWorkspaceBodySchema = createWorkspaceInputSchema
 
 export const workspaceParamsSchema = z.object({
   id: z.string().min(1),
@@ -125,37 +120,7 @@ export type WorkspacePermissions = z.output<typeof workspacePermissionsResponseS
  * collaborator goes through the invitation flow, which owns the plan, seat, and
  * consent gates this endpoint has no way to apply.
  */
-export const updateWorkspacePermissionsBodySchema = z.object({
-  updates: z
-    .array(
-      z.object({
-        userId: requiredFieldSchema('User ID is required').max(128, 'User ID is too long'),
-        permissions: workspacePermissionSchema,
-      })
-    )
-    .min(1, 'updates must contain at least one permission change')
-    .max(100, 'Cannot update more than 100 permissions at once')
-    /**
-     * One entry per user. Repeating a userId made the batch self-contradictory:
-     * the route's guards inspect the first matching entry while the write loop
-     * applied every entry in order, so a second entry could carry a role the
-     * guards had already vetted the first one against.
-     */
-    .superRefine((updates, ctx) => {
-      const seen = new Set<string>()
-      for (const [index, update] of updates.entries()) {
-        if (seen.has(update.userId)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [index, 'userId'],
-            message: 'Each user may appear only once in updates',
-          })
-          return
-        }
-        seen.add(update.userId)
-      }
-    }),
-})
+export const updateWorkspacePermissionsBodySchema = workspacePermissionUpdatesSchema
 
 export const workspaceMemberSchema = z.object({
   userId: z.string(),
@@ -238,6 +203,7 @@ export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
  * these only off-hosted, where no subscription plan exists to decide entitlement.
  */
 export const deploymentFeaturesSchema = z.object({
+  liveEnterpriseSearch: z.boolean().optional(),
   accessControl: z.boolean(),
   auditLogs: z.boolean(),
   customBlocks: z.boolean(),

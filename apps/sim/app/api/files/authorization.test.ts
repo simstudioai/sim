@@ -72,6 +72,15 @@ function grantAccess(cloudKey: string) {
 
 describe('verifyKBFileAccess (binding-only)', () => {
   it.each(['mothership', 'profile-pictures', 'general'] as const)(
+    'refuses private chat image keys even with misleading %s context',
+    async (context) => {
+      await expect(
+        verifyFileAccess('chat-images/chat/request/image.webp', USER_ID, undefined, context)
+      ).resolves.toBe(false)
+    }
+  )
+
+  it.each(['mothership', 'profile-pictures', 'general'] as const)(
     'refuses organization image keys through legacy %s authorization',
     async (context) => {
       await expect(

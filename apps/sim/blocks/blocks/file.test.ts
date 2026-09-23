@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { fileManageWriteBodySchema } from '@/lib/api/contracts/tools/file'
 import { FileV4Block, FileV5Block } from '@/blocks/blocks/file'
+import { fileWriteTool } from '@/tools/file/write'
 
 describe('FileV4Block', () => {
   const buildParams = FileV4Block.tools.config.params
@@ -53,6 +55,72 @@ describe('FileV4Block', () => {
 
 describe('FileV5Block', () => {
   const buildParams = FileV5Block.tools.config.params
+
+  it.each([
+    [null, null],
+    ['', null],
+    [undefined, undefined],
+    ['', 'image/png'],
+  ])(
+    'writes a produced file with blank content %s and MIME override %s',
+    (content, contentType) => {
+      const file = {
+        id: 'file_execution-output',
+        name: 'test-card-160x90.png',
+        url: '/api/files/serve/execution-output.png',
+        key: 'execution/workspace-1/workflow-1/run-1/output.png',
+        context: 'execution',
+        type: 'image/png',
+        size: 514,
+      }
+      const inputs = {
+        operation: 'file_write',
+        fileName: 'test-card-160x90.png',
+        writeFolderRef: '/Media%20Studio%20Tests',
+        writeFileInput: file,
+        content,
+        contentType,
+        overwrite: false,
+        _context: { workspaceId: 'workspace-1' },
+      }
+      // GenericBlockHandler retains raw inputs when applying a block's transform.
+      const params = { ...inputs, ...buildParams(inputs) }
+      const parsed = fileManageWriteBodySchema.parse(fileWriteTool.operation.input(params))
+      expect(parsed.fileInput).toEqual(file)
+      expect(parsed.content).toBeUndefined()
+      expect(parsed.contentType).toBe(contentType ?? undefined)
+      expect(parsed.folderPath).toBe('/Media%20Studio%20Tests')
+    }
+  )
+
+  it('preserves empty text writes and rejects a file combined with nonempty text', () => {
+    const text = { operation: 'file_write', fileName: 'empty.txt', content: '', contentType: null }
+    const parsed = fileManageWriteBodySchema.parse(
+      fileWriteTool.operation.input({ ...text, ...buildParams(text) })
+    )
+    expect(parsed.content).toBe('')
+    expect(parsed.fileInput).toBeUndefined()
+    const both = { ...text, content: 'conflict', writeFileInput: { id: 'file-output' } }
+    expect(
+      fileManageWriteBodySchema.safeParse(
+        fileWriteTool.operation.input({ ...both, ...buildParams(both) })
+      ).success
+    ).toBe(false)
+  })
+
+  it('rejects invalid non-string MIME values at the existing contract', () => {
+    const inputs = {
+      operation: 'file_write',
+      fileName: 'note.txt',
+      content: 'keep this text',
+      contentType: 42,
+    }
+    expect(
+      fileManageWriteBodySchema.safeParse(
+        fileWriteTool.operation.input({ ...inputs, ...buildParams(inputs) })
+      ).success
+    ).toBe(false)
+  })
 
   it('maps each operation directly to its tool', () => {
     expect(FileV5Block.tools.config.tool({ operation: 'file_read' })).toBe('file_read')

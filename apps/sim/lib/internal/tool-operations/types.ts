@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { InternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
@@ -15,11 +16,14 @@ export type InternalToolOperationImplementation<P> = (
 export interface InternalToolOperationContext {
   workflowId: string
   workspaceId?: string
+  organizationId?: string
   executionId?: string
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
   /** Trusted source block for saved MCP operation restrictions. */
   mcpBlockId?: string
+  /** Authenticated direct caller, supplied by an authorized use case, never tool input. */
+  callerPrincipal?: Principal
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'
   requestMode?: string

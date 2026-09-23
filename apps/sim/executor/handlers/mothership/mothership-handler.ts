@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import type {
+  MothershipExecuteResult,
+  MothershipExecuteStreamEvent,
+} from '@/lib/api/contracts/mothership-chats'
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import {
   projectModelSchemaAnnotations,
@@ -25,6 +28,8 @@ import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-to
 import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
+import { ChatPayloadSchema, ModelSelectionSchema } from '@/lib/mothership/generated/protocol'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   areModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -36,6 +41,7 @@ import {
   type RawFileInput,
 } from '@/lib/uploads/utils/file-utils'
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import { resolveAgentToolUsageControl } from '@/lib/workflows/tool-input/usage-control'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
@@ -51,6 +57,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { type AgentStreamEvent, isAgentStreamEvent } from '@/providers/stream-events'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
@@ -93,23 +100,6 @@ interface IndexedMothershipSkillContext {
   context: MothershipSkillContext
   hasExplicitLabel: boolean
 }
-
-type MothershipExecuteResult = {
-  content?: string
-  model?: string
-  conversationId?: string
-  tokens?: Record<string, unknown>
-  toolCalls?: Array<Record<string, unknown>>
-  cost?: unknown
-} & Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>
-
-type MothershipExecuteStreamEvent =
-  | { type: 'heartbeat'; timestamp?: string }
-  | { type: 'chunk'; content?: string }
-  | { type: 'final'; data: MothershipExecuteResult }
-  | ({ type: 'error'; error?: string } & Partial<
-      Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
-    >)
 
 function selectIndexedMothershipMcpTools(tools: unknown): IndexedMothershipMcpToolSelection[] {
   if (!Array.isArray(tools)) return []
@@ -488,7 +478,7 @@ function formatMothershipBlockOutput(
   result: MothershipExecuteResult,
   conversationId: string
 ): NormalizedBlockOutput {
-  const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
+  const formattedList = (result.toolCalls || []).map((tc) => ({
     name: typeof tc.name === 'string' ? tc.name : String(tc.name ?? ''),
     ...(typeof tc.status === 'string' ? { status: tc.status } : {}),
     arguments: (tc.arguments || tc.params || tc.input || {}) as Record<string, unknown>,
@@ -557,7 +547,7 @@ async function readMothershipExecuteResponse(
     const event = parseMothershipExecuteStreamLine(line)
     if (!event) return
 
-    if (event.type === 'heartbeat' || event.type === 'chunk') {
+    if (event.type === 'heartbeat' || event.type === 'chunk' || event.type === 'agent_event') {
       return
     }
 
@@ -609,6 +599,7 @@ function createMothershipStreamingExecution(
   conversationId: string,
   blockId: string,
   options: {
+    agentEvents?: boolean
     onCancel?: (reason?: unknown) => void
     onDone?: () => void
     registry?: ResolvedSecretTraceRegistry
@@ -629,13 +620,14 @@ function createMothershipStreamingExecution(
     options.onDone?.()
   }
 
-  const stream = new ReadableStream<Uint8Array>({
+  const stream = new ReadableStream<Uint8Array | AgentStreamEvent>({
     async start(controller) {
       reader = response.body!.getReader()
       const decoder = new TextDecoder()
       const encoder = new TextEncoder()
       let buffer = ''
       let sawFinal = false
+      let pendingText = ''
       let receivedTerminalProvenance = false
 
       const processLine = async (line: string): Promise<void> => {
@@ -648,7 +640,36 @@ function createMothershipStreamingExecution(
 
         if (event.type === 'chunk') {
           if (event.content) {
-            controller.enqueue(encoder.encode(event.content))
+            if (!options.agentEvents && event.turn === 'pending') {
+              pendingText += event.content
+              return
+            }
+            controller.enqueue(
+              options.agentEvents
+                ? {
+                    type: 'text_delta',
+                    text: event.content,
+                    ...(event.turn ? { turn: event.turn } : {}),
+                  }
+                : encoder.encode(event.content)
+            )
+          }
+          return
+        }
+
+        if (event.type === 'agent_event') {
+          if ((event.v !== undefined && event.v !== 1) || !isAgentStreamEvent(event.event)) {
+            throw new Error('Sim execution stream returned an invalid agent event')
+          }
+          if (options.agentEvents) controller.enqueue(event.event)
+          else if (event.event.type === 'text_delta') {
+            if (event.event.turn === 'pending') pendingText += event.event.text
+            else if (event.event.turn !== 'intermediate')
+              controller.enqueue(encoder.encode(event.event.text))
+          } else if (event.event.type === 'turn_end') {
+            if (event.event.turn === 'final' && pendingText)
+              controller.enqueue(encoder.encode(pendingText))
+            pendingText = ''
           }
           return
         }
@@ -716,6 +737,7 @@ function createMothershipStreamingExecution(
 
   return {
     stream,
+    streamFormat: options.agentEvents ? 'agent-events-v1' : 'text',
     execution: {
       success: true,
       output,
@@ -855,13 +877,24 @@ export class MothershipBlockHandler implements BlockHandler {
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
     }
-    const metadataInputPaths = selectMothershipMetadataModelInputPaths(inputs.tools, requestSkills)
+    const requestTools = Array.isArray(inputs.tools)
+      ? inputs.tools.map((tool: unknown, index: number) => {
+          if (!isPlainRecord(tool)) throw new Error(`Tool ${index + 1} must be a tool binding.`)
+          const usageControl = resolveAgentToolUsageControl(tool, index, block.canonicalModes)
+          if (!usageControl)
+            throw new Error(
+              `Tool ${index + 1} mode must resolve to Auto, Force, or None before Sim Chat can run.`
+            )
+          return { ...tool, usageControl }
+        })
+      : inputs.tools
+    const metadataInputPaths = selectMothershipMetadataModelInputPaths(requestTools, requestSkills)
     if (ctx.resolvedSecretTraceRegistry) {
       assertMothershipStructuralInputsDoNotResolveSecrets(
         ctx.resolvedSecretTraceRegistry,
         metadataInputPaths.structuralInputPaths
       )
-      assertMothershipToolSchemaProjectionsAreSafe(ctx.resolvedSecretTraceRegistry, inputs.tools)
+      assertMothershipToolSchemaProjectionsAreSafe(ctx.resolvedSecretTraceRegistry, requestTools)
     }
     const modelInputPaths: ResolvedSecretInputPath[] = [
       ['prompt'],
@@ -874,7 +907,7 @@ export class MothershipBlockHandler implements BlockHandler {
     ]
     const modelInputProjection = projectResolvedModelInput(
       sourceRegistry,
-      { prompt, files: inputs.files, tools: inputs.tools, skills: requestSkills },
+      { prompt, files: inputs.files, tools: requestTools, skills: requestSkills },
       modelInputPaths
     )
     if (!modelInputProjection.complete || typeof modelInputProjection.value.prompt !== 'string') {
@@ -934,8 +967,16 @@ export class MothershipBlockHandler implements BlockHandler {
       ctx.metadata.billingAttribution
     )
 
+    const modelSelection = ModelSelectionSchema.parse({
+      model: inputs.model ?? 'gpt-6-astra',
+      fastMode: inputs.model === 'claude-opus-5' ? false : (inputs.fastMode ?? false),
+    })
+    const effort = ChatPayloadSchema.shape.effort.parse(inputs.effort ?? 'high')
     const body: Record<string, unknown> = {
       messages,
+      useConversationHistory: true,
+      modelSelection,
+      effort,
       workspaceId: ctx.workspaceId || '',
       userId: ctx.userId || '',
       chatId,
@@ -1010,6 +1051,7 @@ export class MothershipBlockHandler implements BlockHandler {
           conversationId,
           block.id,
           {
+            agentEvents: ctx.metadata.agentEvents === true,
             onCancel: (reason) => {
               if (!abortController.signal.aborted) {
                 abortController.abort(reason ?? 'mothership_stream_cancelled')

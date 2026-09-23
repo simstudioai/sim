@@ -84,6 +84,7 @@ function mockDiscovery(
     const path = new URL(String(input)).pathname
     if (path === '/user') return json(user)
     if (path === '/user/memberships/orgs') return json(memberships)
+    if (path === '/user/memberships/orgs/team') return json(membership)
     if (path === '/user/installations')
       return json({ total_count: installs.length, installations: installs })
     if (path === '/app/installations/21') return json(installation)
@@ -242,6 +243,67 @@ describe('GitHub installation setup', () => {
     mockDiscovery([installation], [{ ...membership, role: 'member' }])
     await expect(verifyGitHubInstallationBinding('ghu_user', '21')).rejects.toThrow(
       'Only the GitHub account owner'
+    )
+  })
+
+  it('reports missing membership permission instead of treating an installed app as absent', async () => {
+    mockDiscovery([installation], [])
+    await expect(listUserAdminGitHubInstallations('ghu_user')).rejects.toMatchObject({
+      operation: 'membership-permissions',
+      status: 403,
+      message: expect.stringContaining('Organization Members read-only'),
+    })
+  })
+
+  it('verifies ownership directly when the membership listing omits an installed organization', async () => {
+    mockDiscovery(
+      [{ ...installation, permissions: { ...installation.permissions, members: 'read' } }],
+      []
+    )
+    expect(
+      (await listUserAdminGitHubInstallations('ghu_user')).map((i) => i.installationId)
+    ).toEqual(['21'])
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith('/user/memberships/orgs/team'))
+    ).toBe(true)
+  })
+
+  it.each([
+    { ...membership, role: 'member' },
+    { ...membership, state: 'pending' },
+  ])(
+    'does not grant an installation to an unverified owner in a direct lookup',
+    async (directMembership) => {
+      mockDiscovery(
+        [{ ...installation, permissions: { ...installation.permissions, members: 'read' } }],
+        []
+      )
+      const discovery = fetchMock.getMockImplementation()!
+      fetchMock.mockImplementation(async (input, init) =>
+        String(input).endsWith('/user/memberships/orgs/team')
+          ? json(directMembership)
+          : discovery(input, init)
+      )
+      expect(await listUserAdminGitHubInstallations('ghu_user')).toEqual([])
+    }
+  )
+
+  it.each([
+    { ...membership, user: { id: 99 } },
+    { ...membership, organization: { id: 99 } },
+  ])('rejects a mismatched direct membership identity', async (directMembership) => {
+    mockDiscovery(
+      [{ ...installation, permissions: { ...installation.permissions, members: 'read' } }],
+      []
+    )
+    const discovery = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/user/memberships/orgs/team')
+        ? json(directMembership)
+        : discovery(input, init)
+    )
+    await expect(listUserAdminGitHubInstallations('ghu_user')).rejects.toThrow(
+      'identity does not match'
     )
   })
 

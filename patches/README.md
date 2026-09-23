@@ -45,3 +45,28 @@ run it manually.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.
+
+# Drizzle development push policy
+
+`drizzle-kit@0.31.10` prompts when it sees both additions and removals, even with
+`--force`. Its PostgreSQL push path also catches errors and exits successfully,
+which lets post-push work run against a schema that was not applied.
+
+The pinned CLI patch adds an opt-in create/drop policy to the existing rename
+resolvers and makes PostgreSQL push failures and cancellations return nonzero.
+`packages/db/scripts/push.ts` enables the policy only in its Drizzle subprocess
+using `SIM_DB_PUSH_RENAME_MODE=create`. `--interactive-renames` selects the native
+chooser and requires a terminal. Normal migration generation keeps its rename
+prompts. Data-loss confirmations, table filters, introspection, and generated SQL
+remain owned by Drizzle; `--force` still controls data-loss approval.
+
+`packages/db/scripts/push.test.ts` covers argument forwarding and stopping before
+reconciliation on failure. `packages/db/scripts/push.postgres.test.ts` exercises
+the installed CLI against PostgreSQL, including multiple column changes, table
+and enum replacement, schema replacement, preservation of the excluded script
+ledger, and database errors. Set `DB_PUSH_TEST_DATABASE_URL` to a disposable local
+PostgreSQL database and run these tests from `packages/db` with `bun run test`.
+
+Remove the patch when Drizzle provides an explicit noninteractive create/drop
+policy and propagates push failures. Keep Drizzle pinned until the replacement
+passes these regression tests.

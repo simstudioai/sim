@@ -1,6 +1,6 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import type { QueryClient } from '@tanstack/react-query'
-import { listOrganizationChats } from '@/lib/copilot/chat/organization-chats'
+import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
 import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { seedWorkspaceList } from '@/lib/workspaces/seed-workspace-list'
 import {

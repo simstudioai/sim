@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { sleep } from '../helpers'
-import { USER_AGENT } from '../version'
+import { userAgent } from '../version'
 import {
   formatApiErrorDetails,
   redirectEndpoint,
@@ -546,10 +546,10 @@ describe('request identity', () => {
     await client().request('/api/v2/workflows')
 
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
-    expect(headers['user-agent']).toBe(USER_AGENT)
-    expect(USER_AGENT).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
-    expect(USER_AGENT).toContain(`node/${process.versions.node}`)
-    expect(USER_AGENT).toContain(process.platform)
+    expect(headers['user-agent']).toBe(userAgent())
+    expect(userAgent()).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
+    expect(userAgent()).toContain(`node/${process.versions.node}`)
+    expect(userAgent()).toContain(process.platform)
   })
 })
 
@@ -1387,5 +1387,37 @@ describe('OAuth bearer credentials', () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(init.headers).toMatchObject({ 'x-api-key': 'sim_from_env' })
     expect(init.headers).not.toHaveProperty('authorization')
+  })
+})
+
+describe('transport', () => {
+  it('sends every request through the profile transport when one is set', async () => {
+    // An embedding server answers its own v2 routes in-process by supplying the
+    // transport; the request it receives carries the same URL, key, and headers the
+    // network path would have sent.
+    const transport = vi.fn(async () =>
+      Response.json({ data: { id: 'agent' } }, { headers: { 'content-type': 'application/json' } })
+    )
+    const inProcess = new SimClient({
+      name: 'embedded',
+      authProfile: 'embedded',
+      oauth: null,
+      endpoint: 'http://internal',
+      apiKey: 'key',
+      workspaceId: 'ws-1',
+      output: 'json',
+      transport,
+      sources: { endpoint: 'flag', credential: 'flag', workspaceId: 'flag', output: 'flag' },
+    })
+
+    const result = await inProcess.request<{ data: { id: string } }>('/api/v2/blocks/agent', {
+      query: { workspaceId: 'ws-1' },
+    })
+
+    expect(result).toEqual({ data: { id: 'agent' } })
+    expect(transport).toHaveBeenCalledTimes(1)
+    const [url, init] = transport.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('http://internal/api/v2/blocks/agent?workspaceId=ws-1')
+    expect((init.headers as Record<string, string>)['x-api-key']).toBe('key')
   })
 })

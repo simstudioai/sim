@@ -363,9 +363,10 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteTableView: { confirm: 'This deletes the saved view and its filters.' },
   deleteWorkflowGroup: {
-    // Not just the grouping: the documented behaviour is that every column the
-    // group fed goes with it, values included.
-    confirm: 'This deletes the group, every column it fed, and the values in them.',
+    // Not just the grouping: the group's output columns go with it, row data
+    // included. The workflow it dispatched to is a separate resource and stays.
+    confirm:
+      'This deletes the group AND its output columns with all of their row data; the workflow it pointed at is untouched.',
     fields: [
       { header: 'id' },
       { header: 'deleted', format: 'bool' },
@@ -529,7 +530,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
-    confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
+    confirm:
+      'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
       operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
       setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
@@ -1902,14 +1904,13 @@ export const CLI_CONTRACT: CliContract = {
         hidden: true,
         describe: 'Low-level workflow state and entry-point selection',
       },
-      // Stream-only on the wire, so the requirement is stated where the flag
-      // is read rather than left to the 400. The dialect differs from the one
-      // `workflows runs get` takes, which is why both describes name theirs.
+      // `workflows runs get` takes the same names (`workflow-run-get.ts` resolves
+      // them against the draft graph), which is why both describes name theirs.
       selectedOutputs: {
         name: 'select-output',
         list: true,
         describe:
-          'Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow',
+          'Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to
@@ -1943,14 +1944,14 @@ export const CLI_CONTRACT: CliContract = {
         boolean: true,
         describe: 'Include the final output in JSON or YAML output',
       },
-      // A finished run is read back without loading the workflow, so the
-      // recorded block ids are all there is to match against — the block names
-      // `workflows run --select-output` accepts are rejected here.
+      // The run resource matches recorded block ids only, so block names are
+      // resolved against the workflow's blocks before the request is made
+      // (`workflow-run-get.ts`) — the flag reads like `workflows run`'s.
       selectedOutputs: {
         name: 'select-output',
         list: true,
         describe:
-          'Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run',
+          'Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted',
       },
     },
     fields: [

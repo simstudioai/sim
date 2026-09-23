@@ -126,6 +126,7 @@ export async function uploadExecutionFile(
       customKey: storageKey, // Use exact execution-scoped key
       cleanupOnMetadataFailure: true,
       metadata, // Pass metadata for cloud storage and database tracking
+      metadataId: fileId,
       ...(secretProvenance ? { persistMetadata: false } : {}),
     })
     uploadedKey = fileInfo.key

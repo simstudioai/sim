@@ -4,9 +4,11 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'es-toolkit'
 import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { readSourceSelectionLabels, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
 import {
   derivedAclCapFieldIds,
@@ -135,7 +137,16 @@ export function useConnectorSettingsForm({
   onSaved,
   syncing = isConnectorSyncingOrPending(connector),
 }: UseConnectorSettingsFormOptions) {
-  const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
+  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const connectorConfig = liveSearchSourceMeta(
+    CONNECTOR_META_REGISTRY[connector.connectorType] ?? null,
+    Boolean(liveSearch),
+    {
+      githubInstallation:
+        connector.connectorType === 'github' &&
+        typeof connector.sourceConfig.githubRepositoryId === 'string',
+    }
+  )
 
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => currentAccess(connector))
@@ -298,7 +309,10 @@ export function useConnectorSettingsForm({
     (!accessDirty || !needsWorkspaceCredential || Boolean(workspaceCredentialId))
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
-    !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
+    !liveSearch &&
+    !accessDirty &&
+    connector.accessMode === 'members' &&
+    connector.memberSyncStatus === 'disabled'
   const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   const settingsComplete = connectorConfig?.configFields.every(
     (field) =>

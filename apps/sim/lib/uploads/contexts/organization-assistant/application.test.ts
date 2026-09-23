@@ -16,6 +16,7 @@ import {
   createOrganizationAssistantAttachment,
   finalizeOrganizationAssistantAttachment,
   readOrganizationAssistantImage,
+  readOrganizationChatAttachment,
 } from '@/lib/uploads/contexts/organization-assistant/application'
 import { ASSISTANT_IMAGE_MAX_BYTES } from '@/lib/uploads/shared/assistant-images'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
@@ -222,5 +223,75 @@ describe('private organization Assistant images', () => {
       key,
       path: `/api/files/serve/s3/${encodeURIComponent(key)}?context=mothership`,
     })
+  })
+})
+
+describe('organization Agent attachment parity', () => {
+  const agentSession = {
+    ...session,
+    contentType: 'text/csv',
+    fileName: 'records.csv',
+    metadata: {
+      organizationAttachment: {
+        organizationId: 'org-1',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        requestMode: 'agent',
+      },
+    },
+  }
+  it('finalizes non-image Agent uploads without running the image decoder', async () => {
+    mocks.download.mockRejectedValue(new Error('Image decode must not run'))
+    await expect(
+      finalizeOrganizationAssistantAttachment(principal, agentSession)
+    ).resolves.toMatchObject({ type: 'text/csv', name: 'records.csv' })
+    expect(mocks.download).not.toHaveBeenCalled()
+  })
+  it('reads the original Agent file with a bounded storage read', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([agentSession])
+    mocks.download.mockResolvedValue(Buffer.from('a,b'))
+    const result = await readOrganizationChatAttachment({ principal, key, maxBytes: 1024 })
+    expect(result).toMatchObject({ contentType: 'text/csv', buffer: Buffer.from('a,b') })
+    expect(mocks.download).toHaveBeenCalledWith({
+      key,
+      context: 'mothership',
+      maxBytes: 1024,
+      signal: undefined,
+    })
+  })
+  it('uses the transfer budget for downloads while default reads retain the extraction limit', async () => {
+    const largeSession = { ...agentSession, fileSize: 30 * 1024 * 1024 }
+    dbChainMockFns.limit.mockResolvedValueOnce([largeSession])
+    await expect(readOrganizationChatAttachment({ principal, key })).rejects.toMatchObject({
+      code: 'payload_too_large',
+    })
+    expect(mocks.download).not.toHaveBeenCalled()
+    dbChainMockFns.limit.mockResolvedValueOnce([largeSession])
+    mocks.download.mockResolvedValue(Buffer.from('downloaded'))
+    await readOrganizationChatAttachment({ principal, key, maxBytes: 100 * 1024 * 1024 })
+    expect(mocks.download).toHaveBeenCalledWith(
+      expect.objectContaining({ maxBytes: 100 * 1024 * 1024 })
+    )
+  })
+  it('bounds normalized Assistant bytes by the caller limit when an image expands', async () => {
+    const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...session, contentType: 'image/gif', fileName: 'pixel.gif', fileSize: gif.length },
+    ])
+    mocks.download.mockResolvedValue(gif)
+    await expect(
+      readOrganizationChatAttachment({ principal, key, maxBytes: gif.length })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+    expect(mocks.download).toHaveBeenCalledWith({
+      key,
+      context: 'mothership',
+      maxBytes: gif.length,
+      signal: undefined,
+    })
+  })
+  it('keeps the Assistant image route image-only even when an Agent upload exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([agentSession])
+    await expect(read()).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.download).not.toHaveBeenCalled()
   })
 })

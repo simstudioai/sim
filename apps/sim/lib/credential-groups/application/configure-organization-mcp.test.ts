@@ -180,7 +180,11 @@ describe('organization Databricks setup', () => {
       expect.objectContaining({
         actorId: 'admin-user',
         resourceId: 'customer-group',
-        metadata: { organizationId: 'customer-org' },
+        metadata: {
+          organizationId: 'customer-org',
+          actor: { kind: 'session', userId: 'admin-user' },
+          operation: 'organization_accounts.mcp.configure',
+        },
       })
     )
     expect(mocks.clear).toHaveBeenCalledWith(['server-old'])
@@ -221,7 +225,11 @@ describe('organization Databricks setup', () => {
       expect.objectContaining({
         actorId: 'admin-user',
         resourceId: 'customer-group',
-        metadata: { organizationId: 'customer-org' },
+        metadata: {
+          organizationId: 'customer-org',
+          actor: { kind: 'session', userId: 'admin-user' },
+          operation: 'organization_accounts.mcp.add',
+        },
       })
     )
   })

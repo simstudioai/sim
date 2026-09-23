@@ -10,6 +10,8 @@ import {
 describe('managed MCP connectors', () => {
   it('uses immutable URLs for fixed connectors', () => {
     expect(requireManagedMcpConnectorUrl('fireflies')).toBe('https://api.fireflies.ai/mcp')
+    expect(requireManagedMcpConnectorUrl('coda')).toBe('https://docs.superhuman.com/apis/mcp')
+    expect(() => requireManagedMcpConnectorUrl('coda', 'https://example.com/mcp')).toThrow()
     expect(requireManagedMcpConnectorUrl('granola')).toBe('https://mcp.granola.ai/mcp')
     expect(() => requireManagedMcpConnectorUrl('fireflies', 'https://example.com/mcp')).toThrow(
       'Fireflies uses the fixed MCP URL'

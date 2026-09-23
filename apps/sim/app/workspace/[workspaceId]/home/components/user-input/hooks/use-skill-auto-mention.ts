@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react'
 import { escapeRegExp } from '@sim/utils/string'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -18,7 +19,9 @@ type McpContext = Extract<ChatContext, { kind: 'mcp' }>
 type SlashContext = SkillContext | McpContext
 
 function slashContextKey(context: SlashContext): string {
-  return context.kind === 'skill' ? `skill:${context.skillId}` : `mcp:${context.serverId}`
+  return context.kind === 'skill'
+    ? `skill:${context.workspaceId ?? ''}:${context.skillId}`
+    : `mcp:${context.serverId}`
 }
 
 /**
@@ -35,7 +38,9 @@ function isTriggerPrefixAt(text: string, index: number): boolean {
 }
 
 interface UseSkillAutoMentionProps {
+  workspaceId?: string
   /** Skills available in the current workspace. */
+  organizationScoped?: boolean
   skills: SkillDefinition[]
   /** MCP servers available in the current workspace. */
   mcpServers: McpServer[]
@@ -67,7 +72,9 @@ interface ProcessChangeArgs {
  */
 export function useSkillAutoMention({
   skills,
+  organizationScoped = false,
   mcpServers,
+  workspaceId,
   setSelectedContexts,
 }: UseSkillAutoMentionProps) {
   /**
@@ -77,10 +84,21 @@ export function useSkillAutoMention({
    */
   const matcher = useMemo(() => {
     const byName = new Map<string, SlashContext>()
+    const nameCounts = new Map<string, number>()
+    for (const skill of skills)
+      nameCounts.set(skill.name.toLowerCase(), (nameCounts.get(skill.name.toLowerCase()) ?? 0) + 1)
     for (const skill of skills) {
+      // A bare name must not silently choose between organization workspaces.
+      if (organizationScoped && nameCounts.get(skill.name.toLowerCase()) !== 1) continue
+      const ownerWorkspaceId = isBuiltinSkillId(skill.id)
+        ? undefined
+        : organizationScoped
+          ? skill.workspaceId
+          : workspaceId
       byName.set(skill.name.toLowerCase(), {
         kind: 'skill',
         skillId: skill.id,
+        ...(ownerWorkspaceId ? { workspaceId: ownerWorkspaceId } : {}),
         label: skill.name,
       })
     }
@@ -105,7 +123,7 @@ export function useSkillAutoMention({
     const trigger = `(?:/|${escapeRegExp(SKILL_CHIP_TRIGGER)})`
     const pattern = `${trigger}(${names.map(escapeRegExp).join('|')})(?![A-Za-z0-9_-])`
     return { regex: new RegExp(pattern, 'gi'), byName }
-  }, [skills, mcpServers])
+  }, [skills, mcpServers, workspaceId, organizationScoped])
 
   const matcherRef = useRef(matcher)
   matcherRef.current = matcher
@@ -114,8 +132,21 @@ export function useSkillAutoMention({
     (additions: SlashContext[]) => {
       if (additions.length === 0) return
       setSelectedContexts((prev) => {
+        const ownedSkills = new Map(
+          additions
+            .filter(
+              (context): context is SkillContext =>
+                context.kind === 'skill' && !!context.workspaceId
+            )
+            .map((context) => [context.skillId, context.workspaceId])
+        )
+        const normalized = prev.map((context) => {
+          if (context.kind !== 'skill' || context.workspaceId) return context
+          const owner = ownedSkills.get(context.skillId)
+          return owner ? { ...context, workspaceId: owner } : context
+        })
         const existing = new Set(
-          prev
+          normalized
             .filter(
               (context): context is SlashContext =>
                 context.kind === 'skill' || context.kind === 'mcp'
@@ -123,7 +154,11 @@ export function useSkillAutoMention({
             .map(slashContextKey)
         )
         const fresh = additions.filter((context) => !existing.has(slashContextKey(context)))
-        return fresh.length > 0 ? [...prev, ...fresh] : prev
+        return fresh.length > 0
+          ? [...normalized, ...fresh]
+          : normalized.some((context, index) => context !== prev[index])
+            ? normalized
+            : prev
       })
     },
     [setSelectedContexts]
