@@ -56,3 +56,17 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 - Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.
+
+
+## Ordinary Button action geometry
+
+`Button` retains its existing appearance variants. For square actions use `iconSize`:
+`compact` (24px on the spacing scale), `compact-fixed` (24px), `regular` (28px),
+`roomy` (32px), or `touch` (40px). These values follow the root spacing scale;
+only `compact-fixed` stays fixed when root text is enlarged.
+Use `{ base: 'touch', sm: 'regular' }` for mobile/desktop targets. These props own
+geometry only; colour, radius and SVG stroke continue to come from the selected
+`variant` and `size`. `iconPadding` explicitly overrides the zero-padding geometry.
+Use `shape='round'` for circular actions, or omit it to retain the current radius.
+`size='inline'` is a 20px-high action with caption typography and compact horizontal
+padding. Prefer these supported props to size, padding and radius overrides.
