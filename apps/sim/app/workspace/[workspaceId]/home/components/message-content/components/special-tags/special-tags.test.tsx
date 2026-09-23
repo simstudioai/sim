@@ -16,6 +16,7 @@ const {
   mockParams,
   mockCredentialHost,
   mockOrganizationContext,
+  mockSession,
   mockRefetchPersonalEnvironment,
   mockRefetchWorkspaceCredentials,
   mockIsBrowserAgentAvailable,
@@ -29,6 +30,7 @@ const {
 } = vi.hoisted(() => ({
   mockParams: vi.fn(() => ({ workspaceId: 'workspace-1' })),
   mockOrganizationContext: vi.fn(() => null),
+  mockSession: vi.fn(() => ({ data: { user: { id: 'person' } } })),
   mockCredentialHost: vi.fn(({ children }: { children: ReactNode }) => children),
   mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
@@ -69,7 +71,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'person' } } }),
+  useSession: mockSession,
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
   useChatSurface: () => ({
@@ -151,6 +153,7 @@ describe('CredentialDisplay link tag', () => {
     vi.clearAllMocks()
     mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
     mockOrganizationContext.mockReturnValue(null)
+    mockSession.mockReturnValue({ data: { user: { id: 'person' } } })
     mockCredentialHost.mockImplementation(({ children }: { children: ReactNode }) => children)
     window.localStorage.clear()
     window.history.replaceState({}, '', '/workspace/workspace-1/chat/chat-1')
@@ -324,6 +327,170 @@ describe('CredentialDisplay link tag', () => {
       )
       expect(container.querySelector('input')).toBeNull()
       expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it.each(['restricted', 'missing'] as const)(
+      'keeps personal credentials usable when organization secrets are %s',
+      async (availability) => {
+        setSource(availability === 'missing' ? null : { id: 'source', mode: 'organization' })
+        mockOrganizationContext.mockReturnValue({
+          organization: { id: 'org', name: 'Example' },
+          viewer: { isAdmin: false },
+        } as never)
+        render([secret, { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal' }])
+        expect(container.textContent).toContain('Ask an organization admin')
+        expect(container.querySelector('input[aria-label="SERVICE_API_KEY"]')).toBeNull()
+        enter('PERSONAL_KEY', 'personal-only')
+        await submit()
+        expect(mockSavePersonalEnvironment).toHaveBeenCalledExactlyOnceWith({
+          variables: { PERSONAL_KEY: 'personal-only' },
+        })
+        expect(fetch).not.toHaveBeenCalled()
+        expect(onContinue).toHaveBeenCalledWith(
+          'Credential setup submitted — {"integrations":[],"secrets":[{"name":"SERVICE_API_KEY","status":"skipped"},{"name":"PERSONAL_KEY","status":"saved"}]}'
+        )
+      }
+    )
+
+    it('preserves personal drafts while loading and changing the organization source', async () => {
+      vi.mocked(fetch).mockReturnValue(new Promise(() => {}))
+      render([secret, { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal' }])
+      expect(container.textContent).toContain('Loading Generic Secrets')
+      enter('PERSONAL_KEY', 'personal-only')
+      await act(async () => {
+        setSource({ id: 'source', mode: 'member' })
+        await sleep(0)
+      })
+      expect(
+        container.querySelector<HTMLInputElement>('input[aria-label="PERSONAL_KEY"]')?.value
+      ).toBe('personal-only')
+      enter()
+      await act(async () => {
+        setSource({ id: 'replacement', mode: 'organization' })
+        await sleep(0)
+      })
+      expect(
+        container.querySelector<HTMLInputElement>('input[aria-label="SERVICE_API_KEY"]')?.value
+      ).toBe('')
+      await submit()
+      expect(mockSavePersonalEnvironment).toHaveBeenCalledExactlyOnceWith({
+        variables: { PERSONAL_KEY: 'personal-only' },
+      })
+      expect(
+        vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')
+      ).toHaveLength(0)
+      expect(onContinue.mock.calls[0][0]).toContain('"name":"SERVICE_API_KEY","status":"skipped"')
+      expect(onContinue.mock.calls[0][0]).toContain('"name":"PERSONAL_KEY","status":"saved"')
+    })
+
+    it('keeps personal and integration controls visible when organization metadata fails', async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error('Metadata unavailable'))
+      mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+      render([
+        secret,
+        { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal' },
+        {
+          type: 'link',
+          provider: 'slack',
+          value: 'https://example.test/connect?workspaceId=target',
+          workspaceId: 'target',
+          scope: 'organization',
+        },
+      ])
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: organizationSecretKeys.source('org') })
+        await sleep(0)
+      })
+      expect(container.textContent).toContain('Could not load Generic Secrets')
+      expect(container.querySelector('input[aria-label="PERSONAL_KEY"]')).not.toBeNull()
+      expect(container.querySelector('input[aria-label="SERVICE_API_KEY"]')).toBeNull()
+      expect(
+        container.querySelector('a[href="https://example.test/connect?workspaceId=target"]')
+      ).not.toBeNull()
+    })
+
+    it('keeps organization recap rows after submission when no input host is mounted', () => {
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <SpecialTags
+              segment={{ type: 'credential', data: [secret] }}
+              requestMode='plan'
+              credentialSubmission={{
+                integrations: [],
+                secrets: [{ name: 'SERVICE_API_KEY', status: 'saved' }],
+              }}
+            />
+          </QueryClientProvider>
+        )
+      )
+      expect(container.textContent).toContain('SERVICE_API_KEY')
+      expect(container.textContent).toContain('Added')
+      expect(container.querySelector('input')).toBeNull()
+    })
+
+    it('clears every draft when the authenticated user changes', () => {
+      setSource({ id: 'source', mode: 'member' })
+      const data: CredentialItemData[] = [
+        secret,
+        { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal' },
+      ]
+      render(data)
+      enter()
+      enter('PERSONAL_KEY', 'personal-only')
+      mockSession.mockReturnValue({ data: { user: { id: 'another-person' } } })
+      render(data)
+      expect(
+        container.querySelector<HTMLInputElement>('input[aria-label="SERVICE_API_KEY"]')?.value
+      ).toBe('')
+      expect(
+        container.querySelector<HTMLInputElement>('input[aria-label="PERSONAL_KEY"]')?.value
+      ).toBe('')
+    })
+
+    it('does not complete the new source with an old pending save or discard unrelated saved progress', async () => {
+      let finishSave: (response: Response) => void = () => {
+        throw new Error('Save not started')
+      }
+      vi.mocked(fetch).mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishSave = resolve
+          })
+      )
+      setSource({ id: 'source', mode: 'member' })
+      render([secret, { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal' }])
+      enter()
+      enter('PERSONAL_KEY', 'personal-only')
+      act(() => {
+        Array.from(container.querySelectorAll('button'))
+          .find((button) => button.textContent === 'Submit')
+          ?.click()
+      })
+      await act(async () => {
+        await sleep(0)
+        setSource({ id: 'replacement', mode: 'organization' })
+        await sleep(0)
+      })
+      await act(async () => {
+        finishSave(new Response(JSON.stringify({ success: true }), { status: 200 }))
+        await sleep(0)
+      })
+      expect(onContinue).not.toHaveBeenCalled()
+      expect(
+        container.querySelector<HTMLInputElement>('input[aria-label="SERVICE_API_KEY"]')?.value
+      ).toBe('')
+      expect(container.querySelector('input[aria-label="PERSONAL_KEY"]')).toBeNull()
+      expect(container.textContent).toContain('PERSONAL_KEY')
+      expect(container.textContent).toContain('Added')
+      enter('SERVICE_API_KEY', 'new-source-only')
+      await submit()
+      expect(mockSavePersonalEnvironment).toHaveBeenCalledOnce()
+      expect(onContinue).toHaveBeenCalledOnce()
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.body))).toMatchObject({
+        sourceId: 'replacement',
+        upsert: { SERVICE_API_KEY: 'new-source-only' },
+      })
     })
 
     it('never renders organization inputs in Search mode or a workspace conversation', () => {

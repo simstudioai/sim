@@ -11,6 +11,7 @@ import {
 } from '@/hooks/queries/organization-secrets'
 
 interface OrganizationSecretInputContextValue {
+  sourceKey: string
   isSaving: boolean
   save(variables: Record<string, string>): Promise<void>
 }
@@ -36,14 +37,28 @@ export function OrganizationSecretInputHost({
   const matchesOrganization = organizationContext?.organization.id === organizationId
   const sourceQuery = useOrganizationSecretSource(matchesOrganization ? organizationId : '')
   const mutation = useSaveOrganizationSecrets(organizationId)
+  const renderContent = (value: OrganizationSecretInputContextValue | null, status?: ReactNode) => (
+    <OrganizationSecretInputContext.Provider
+      key={`${organizationId}:${session?.user?.id ?? ''}`}
+      value={value}
+    >
+      <div className='space-y-3'>
+        {status}
+        {children}
+      </div>
+    </OrganizationSecretInputContext.Provider>
+  )
 
   if (!organizationContext || !matchesOrganization || !session?.user?.id)
-    return (
+    return renderContent(
+      null,
       <p role='status'>Open this request in an organization conversation to add Generic Secrets.</p>
     )
-  if (sourceQuery.isPending) return <p role='status'>Loading Generic Secrets…</p>
+  if (sourceQuery.isPending)
+    return renderContent(null, <p role='status'>Loading Generic Secrets…</p>)
   if (sourceQuery.isError)
-    return (
+    return renderContent(
+      null,
       <p role='status'>
         Could not load Generic Secrets.{' '}
         <button type='button' className='underline' onClick={() => void sourceQuery.refetch()}>
@@ -54,7 +69,8 @@ export function OrganizationSecretInputHost({
 
   const source = sourceQuery.data?.source
   if (!source)
-    return (
+    return renderContent(
+      null,
       <p role='status'>
         {organizationContext.viewer.isAdmin ? (
           <>
@@ -73,7 +89,10 @@ export function OrganizationSecretInputHost({
       </p>
     )
   if (source.mode === 'organization' && !organizationContext.viewer.isAdmin)
-    return <p role='status'>Ask an organization admin to add these shared Generic Secrets.</p>
+    return renderContent(
+      null,
+      <p role='status'>Ask an organization admin to add these shared Generic Secrets.</p>
+    )
 
   const save = async (variables: Record<string, string>) => {
     try {
@@ -84,8 +103,7 @@ export function OrganizationSecretInputHost({
         remove: [],
       })
     } catch (error) {
-      // The server compares this source under lock. Refreshing a changed source
-      // remounts the form below, discarding drafts instead of redirecting them.
+      /** The server compares this source under lock; a new source key invalidates its drafts. */
       if (error instanceof ApiClientError && (error.status === 409 || error.status === 404))
         await sourceQuery.refetch()
       throw error
@@ -94,12 +112,9 @@ export function OrganizationSecretInputHost({
     }
   }
 
-  return (
-    <OrganizationSecretInputContext.Provider
-      key={`${organizationId}:${session.user.id}:${source.id}:${source.mode}`}
-      value={{ save, isSaving: mutation.isPending }}
-    >
-      {children}
-    </OrganizationSecretInputContext.Provider>
-  )
+  return renderContent({
+    sourceKey: `${organizationId}:${session.user.id}:${source.id}:${source.mode}`,
+    save,
+    isSaving: mutation.isPending,
+  })
 }

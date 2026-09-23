@@ -1,6 +1,15 @@
 'use client'
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from '@sim/emcn'
 import {
   ArrowRight,
@@ -10,7 +19,7 @@ import {
   SquareArrowUpRight,
   TerminalWindow,
 } from '@sim/emcn/icons'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
@@ -2792,6 +2801,7 @@ function CredentialItemDisplay({
   const { organizationId } = useParams<{ organizationId?: string }>()
   const { SearchConnectionComponent } = useChatSurface()
   const { data: session } = useSession()
+  const organizationSecretInput = useOrganizationSecretInput()
   if (
     requestMode === 'assistant' &&
     data.type !== 'link' &&
@@ -2814,7 +2824,13 @@ function CredentialItemDisplay({
       )
     }
     return (
-      <SecretInputDisplay data={data} embedded={embedded} divided={divided} onSaved={onSaved} />
+      <SecretInputDisplay
+        key={data.scope === 'organization' ? organizationSecretInput?.sourceKey : undefined}
+        data={data}
+        embedded={embedded}
+        divided={divided}
+        onSaved={onSaved}
+      />
     )
   }
 
@@ -2919,14 +2935,28 @@ function CredentialInputCard({
       data.some((item) => item.type === 'secret_input' && item.scope === 'personal'),
   })
   const attachDescriptions = useWorkspaceSecretDescriptions(requestMode === 'assistant' ? [] : data)
-  const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
-  const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
+  const organizationSourceKey = organizationSecretInput?.sourceKey
+  const currentOrganizationSource = useRef(organizationSourceKey)
+  const [secretState, setSecretState] = useState(() => ({
+    organizationSourceKey,
+    drafts: {} as Record<number, string>,
+    savedRows: new Set<number>(),
+  }))
+  const { drafts: secretDrafts, savedRows: savedSecretRows } = secretState
   const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
     () => new Set()
   )
   const [locallySubmitted, setLocallySubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const controlIdPrefix = interactionId ?? 'credential-card'
+
+  /** Async submissions compare against the committed source, including unmount. */
+  useLayoutEffect(() => {
+    currentOrganizationSource.current = organizationSourceKey
+    return () => {
+      currentOrganizationSource.current = undefined
+    }
+  }, [organizationSourceKey])
 
   /**
    * An abandoned card recaps from progress its rows made, but it replaces those
@@ -3001,8 +3031,32 @@ function CredentialInputCard({
       item.type === 'link' || item.type === 'service_account' ? integrationIndex++ : undefined,
     secretIndex: item.type === 'secret_input' ? secretIndex++ : undefined,
   }))
-  const visibleRows = indexedRows.filter(({ item }) =>
-    isCredentialCardItemVisible(item, canEdit, requestMode)
+  const organizationSecretIndexes = indexedRows.flatMap(({ item, secretIndex }) =>
+    item.type === 'secret_input' && item.scope === 'organization' && secretIndex !== undefined
+      ? [secretIndex]
+      : []
+  )
+  if (secretState.organizationSourceKey !== organizationSourceKey) {
+    setSecretState({
+      organizationSourceKey,
+      drafts: omit(secretDrafts, organizationSecretIndexes),
+      savedRows:
+        submitted || abandoned || locallySubmitted
+          ? savedSecretRows
+          : new Set(
+              [...savedSecretRows].filter((index) => !organizationSecretIndexes.includes(index))
+            ),
+    })
+  }
+  const visibleRows = indexedRows.filter(
+    ({ item }) =>
+      isCredentialCardItemVisible(item, canEdit, requestMode) &&
+      (item.type !== 'secret_input' ||
+        item.scope !== 'organization' ||
+        organizationSecretInput ||
+        submitted ||
+        abandoned ||
+        locallySubmitted)
   )
   if (visibleRows.length === 0) return null
 
@@ -3062,9 +3116,9 @@ function CredentialInputCard({
           onSecretValueChange={
             item.type === 'secret_input' && secretIndex !== undefined
               ? (value) =>
-                  setSecretDrafts((current) => ({
+                  setSecretState((current) => ({
                     ...current,
-                    [secretIndex]: value,
+                    drafts: { ...current.drafts, [secretIndex]: value },
                   }))
               : undefined
           }
@@ -3142,14 +3196,27 @@ function CredentialInputCard({
       )
     }
     const results = await Promise.allSettled(saves)
-    setSavedSecretRows(nextSavedSecretRows)
-    setSecretDrafts((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(([index]) => !nextSavedSecretRows.has(Number(index)))
+    setSecretState((current) => {
+      const completedRows = [...nextSavedSecretRows].filter(
+        (index) =>
+          current.organizationSourceKey === organizationSourceKey ||
+          !organizationSecretIndexes.includes(index)
       )
-    )
+      return {
+        ...current,
+        savedRows: new Set([...current.savedRows, ...completedRows]),
+        drafts: omit(current.drafts, completedRows),
+      }
+    })
     if (results.some((result) => result.status === 'rejected')) {
       toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
+      return false
+    }
+    if (
+      currentOrganizationSource.current !== organizationSourceKey &&
+      organizationSecretIndexes.some((index) => nextSavedSecretRows.has(index))
+    ) {
+      toast.error('Generic Secrets changed. Review the remaining entries before submitting.')
       return false
     }
 
