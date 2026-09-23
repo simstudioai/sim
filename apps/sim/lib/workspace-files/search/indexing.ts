@@ -1,10 +1,15 @@
 import { Buffer } from 'node:buffer'
 import { createLogger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
+import { describeError, getPostgresCancellationReason } from '@sim/utils/errors'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
+  FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
+  FILE_SEARCH_INDEX_MAX_ATTEMPTS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
   FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
@@ -153,4 +158,34 @@ export async function markWorkspaceFileSearchIndexFailed(
   if (!payload.dispatchToken || Number.isNaN(new Date(payload.sourceContentUpdatedAt).getTime()))
     return
   await failFileSearchRevision(parseRevision(payload), payload.dispatchToken)
+}
+
+const CAPACITY_CANCELLATIONS = new Set(['statement_timeout', 'lock_timeout', 'transaction_timeout'])
+
+export type WorkspaceFileSearchRetryDecision =
+  | { retryAt: Date }
+  | { skipRetrying: true }
+  | undefined
+
+/**
+ * Chooses the next attempt after `attempt` (1-based) failed. A statement, lock, or transaction
+ * timeout means the database had no capacity for this build right now, not that the file is bad:
+ * those back off for minutes so the retries outlast a slow window instead of all landing inside
+ * it. Anything else keeps the ordinary short retries. `undefined` keeps the runner's default delay.
+ */
+export function getWorkspaceFileSearchRetry(
+  error: unknown,
+  attempt: number,
+  now = Date.now()
+): WorkspaceFileSearchRetryDecision {
+  const reason = getPostgresCancellationReason(error)
+  if (reason && CAPACITY_CANCELLATIONS.has(reason)) {
+    if (attempt >= FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS) return { skipRetrying: true }
+    const delayMs = backoffWithJitter(attempt, null, {
+      baseMs: FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
+      maxMs: FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
+    })
+    return { retryAt: new Date(now + delayMs) }
+  }
+  return attempt >= FILE_SEARCH_INDEX_MAX_ATTEMPTS ? { skipRetrying: true } : undefined
 }
