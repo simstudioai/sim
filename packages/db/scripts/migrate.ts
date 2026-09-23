@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
 import { runScriptMigrations } from '../script-migrations/index'
+import { retryOnLockTimeout } from './lock-timeout-retry'
 
 /**
  * Concurrent-index convention: plain `CREATE INDEX` write-blocks large/hot
@@ -77,7 +78,14 @@ const LOCK_RETRY_INTERVAL_MS = 5_000
  * query on the table behind it — a table-wide stall for the whole wait.
  */
 const DDL_LOCK_TIMEOUT = '5s'
-const MAX_MIGRATE_ATTEMPTS = 8
+/**
+ * Total time to keep retrying lock timeouts. A table held continuously by
+ * transactions that each outlive `DDL_LOCK_TIMEOUT` frees up only in short
+ * windows, so the budget is time-based rather than a small attempt count. It
+ * stays under `LOCK_ACQUIRE_DEADLINE_MS` so a runner waiting on the advisory
+ * lock sees this one finish, one way or the other, before its own deadline.
+ */
+const MIGRATE_LOCK_RETRY_BUDGET_MS = 20 * 60_000
 const MIGRATE_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
 const CONNECT_MAX_ATTEMPTS = 10
@@ -183,14 +191,6 @@ async function acquireMigrationLock(): Promise<void> {
 }
 
 /**
- * Run pending migrations, retrying on lock timeout (55P03, found anywhere in
- * the wrapped `cause` chain). Each attempt re-verifies the lock session (pid)
- * and re-asserts the session timeouts — a migration file may have changed them,
- * and `SET` cannot be parameterized, hence `client.unsafe` with constants.
- * Replays are safe: drizzle rolls the batch back on failure, and post-COMMIT
- * CONCURRENTLY statements are idempotent by convention.
- */
-/**
  * Verify the session still holds the migration advisory lock: a changed
  * backend pid means the connection was recycled and the lock silently dropped.
  * Only sound on a direct connection — see `hasDirectMigrationUrl`.
@@ -206,25 +206,34 @@ async function assertLockSessionHeld(): Promise<void> {
   }
 }
 
+/**
+ * Run pending migrations, retrying lock timeouts within
+ * `MIGRATE_LOCK_RETRY_BUDGET_MS` (see `retryOnLockTimeout`). Each attempt re-verifies the lock session (pid)
+ * and re-asserts the session timeouts — a migration file may have changed them,
+ * and `SET` cannot be parameterized, hence `client.unsafe` with constants.
+ * Replays are safe: drizzle rolls the batch back on failure, and post-COMMIT
+ * CONCURRENTLY statements are idempotent by convention.
+ */
 async function runMigrationsWithRetry(): Promise<void> {
-  for (let attempt = 1; ; attempt++) {
-    await assertLockSessionHeld()
-    await client.unsafe('SET statement_timeout = 0')
-    await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
-    try {
+  await retryOnLockTimeout(
+    async () => {
+      await assertLockSessionHeld()
+      await client.unsafe('SET statement_timeout = 0')
+      await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
       await migrate(drizzle(client), { migrationsFolder: './migrations' })
-      return
-    } catch (error) {
-      const isLockTimeout = getPostgresErrorCode(error) === '55P03'
-      if (!isLockTimeout || attempt >= MAX_MIGRATE_ATTEMPTS) throw error
-      const delayMs = backoffWithJitter(attempt, null, MIGRATE_RETRY_BACKOFF)
-      console.warn(
-        `WARN: migration DDL hit lock_timeout (attempt ${attempt}/${MAX_MIGRATE_ATTEMPTS}); ` +
-          `retrying in ${Math.round(delayMs)}ms.`
-      )
-      await sleep(delayMs)
+    },
+    {
+      budgetMs: MIGRATE_LOCK_RETRY_BUDGET_MS,
+      backoff: MIGRATE_RETRY_BACKOFF,
+      onRetry: ({ attempt, delayMs, elapsedMs, budgetMs }) => {
+        console.warn(
+          `WARN: migration DDL hit lock_timeout (attempt ${attempt}, ` +
+            `${Math.round(elapsedMs / 1000)}s of ${Math.round(budgetMs / 1000)}s budget); ` +
+            `retrying in ${Math.round(delayMs)}ms.`
+        )
+      },
     }
-  }
+  )
 }
 
 /**
