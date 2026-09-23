@@ -334,6 +334,7 @@ function hideAttachedView(): void {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  host.onGeometryChanged?.()
 }
 
 /**
