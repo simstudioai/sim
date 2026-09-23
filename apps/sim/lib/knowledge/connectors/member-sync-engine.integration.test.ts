@@ -66,6 +66,7 @@ vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   renewMemberObservationsInScopes: mocks.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
   tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
+  resurrectObservedDocuments: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: mocks.add,

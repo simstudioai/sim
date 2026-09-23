@@ -250,6 +250,58 @@ describe('member document lifecycle in PostgreSQL', () => {
     expect(await tombstonedIds()).toEqual(afterRemoval)
   })
 
+  it('brings back what a withdrawn removal tombstoned within the same run, and nothing else', async () => {
+    const [member] = members.members
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true } })
+      .where(eq(knowledgeConnectorMember.id, member.id))
+    const walked = Array.from({ length: 600 }, (_, index) => row(`walked-${index}`))
+    const excluded = { ...row('excluded'), userExcluded: true, deletedAt }
+    const archived = { ...row('archived'), archivedAt: new Date(), deletedAt }
+    const noContent = { ...row('no-content'), contentHash: null, deletedAt }
+    await insertRows([...walked, excluded, archived, noContent])
+    await observe([...walked, excluded, archived, noContent].map(({ id }) => id))
+    const walk = (stopAfterFirstPage: boolean) => {
+      const lease = createMemberSyncLease(members.connectorId, members.runId)
+      const input: Parameters<typeof resumeMembershipRewrites>[0] = {
+        connectorId: members.connectorId,
+        runId: members.runId,
+        deadlineAt: Date.now() + 60_000,
+        tombstonesUnobserved: true,
+        lease: {
+          ...lease,
+          beatIfDue: async () => {
+            await lease.beatIfDue()
+            if (stopAfterFirstPage) input.deadlineAt = Date.now() - 1
+          },
+        },
+      }
+      return resumeMembershipRewrites(input)
+    }
+
+    expect(await walk(true)).toBe(false)
+    const tombstonedByRemoval = await tombstonedIds()
+    const walkedIds = new Set(walked.map(({ id }) => id))
+    const removedPage = [...tombstonedByRemoval].filter((id) => walkedIds.has(id))
+    expect(removedPage.length).toBeGreaterThan(0)
+    expect(removedPage.length).toBeLessThan(walked.length)
+
+    /** Directory re-listing withdraws the removal: the member is active again and its walk restarts. */
+    await db
+      .update(knowledgeConnectorMember)
+      .set({
+        status: 'active',
+        listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
+      })
+      .where(eq(knowledgeConnectorMember.id, member.id))
+    expect(await walk(false)).toBe(true)
+
+    const after = await tombstonedIds()
+    expect(walked.every(({ id }) => !after.has(id))).toBe(true)
+    for (const kept of [excluded, archived, noContent]) expect(after.has(kept.id)).toBe(true)
+  })
+
   it('leaves a service-owned corpus alone when a member is removed', async () => {
     const [removedMember] = members.members
     await db

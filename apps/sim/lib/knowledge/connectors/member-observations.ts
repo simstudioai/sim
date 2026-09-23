@@ -433,6 +433,46 @@ interface MemberDocumentLifecycleInput {
   unobservedDocumentIds: Iterable<string>
 }
 
+/**
+ * A tombstoned, eligible document of the connector that someone observes again
+ * and whose stored content is current: what the lifecycle resurrects.
+ */
+function resurrectableDocument(connectorId: string) {
+  return and(
+    eq(document.connectorId, connectorId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNotNull(document.deletedAt),
+    isNotNull(document.contentHash),
+    hasObservation()
+  )
+}
+
+/**
+ * Resurrects, among `documentIds`, what the lifecycle would resurrect, in the
+ * caller's transaction. A membership walk that stops removing a member (its
+ * removal was withdrawn mid-walk) uses it so the pages that removal already
+ * tombstoned come back with the member's restored ACLs, rather than waiting
+ * for a lifecycle run the member loop may starve.
+ */
+export async function resurrectObservedDocuments(
+  executor: DbOrTx,
+  connectorId: string,
+  documentIds: readonly string[]
+): Promise<number> {
+  let resurrected = 0
+  for (let offset = 0; offset < documentIds.length; offset += OBSERVATION_BATCH_SIZE) {
+    const batch = documentIds.slice(offset, offset + OBSERVATION_BATCH_SIZE)
+    const rows = await executor
+      .update(document)
+      .set({ deletedAt: null })
+      .where(and(resurrectableDocument(connectorId), inArray(document.id, batch)))
+      .returning({ id: document.id })
+    resurrected += rows.length
+  }
+  return resurrected
+}
+
 /** A live, eligible document of the connector that nobody observes: what a tombstone removes. */
 function unobservedLiveDocument(connectorId: string) {
   return and(
@@ -610,14 +650,7 @@ export async function applyMemberDocumentLifecycle(
   for (;;) {
     if (Date.now() >= input.deadlineAt) return result
     await input.lease.beatIfDue()
-    const condition = and(
-      eq(document.connectorId, connectorId),
-      eq(document.userExcluded, false),
-      isNull(document.archivedAt),
-      isNotNull(document.deletedAt),
-      isNotNull(document.contentHash),
-      hasObservation()
-    )
+    const condition = resurrectableDocument(connectorId)
     /** Materialize the limited IDs before UPDATE so its observation check stays batch-bound. */
     const candidates = await db
       .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })

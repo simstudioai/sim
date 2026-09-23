@@ -59,6 +59,7 @@ import {
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
   renewMemberObservationsInScopes,
+  resurrectObservedDocuments,
   rewriteConnectorAcls,
   tombstoneDocumentsObservedOnlyBy,
 } from '@/lib/knowledge/connectors/member-observations'
@@ -541,7 +542,9 @@ function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
  * records which documents it alone kept alive, and the absence reconcile does
  * not run once no member with a completed listing remains. Only where
  * observations decide existence (`tombstonesUnobserved`); a service-owned
- * corpus outlives its last observer.
+ * corpus outlives its last observer. A walk that is not a removal resurrects
+ * what the lifecycle would on each page, so pages a withdrawn removal already
+ * tombstoned come back with the member's restored ACLs in the same run.
  */
 export async function resumeMembershipRewrites(
   run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'> &
@@ -594,6 +597,14 @@ export async function resumeMembershipRewrites(
           documents.map((row) => row.documentId)
         )
         if (run.result) run.result.docsTombstoned += tombstoned
+      }
+      if (!checkpoint.removeMember && run.tombstonesUnobserved && documents.length > 0) {
+        const resurrected = await resurrectObservedDocuments(
+          tx,
+          run.connectorId,
+          documents.map((row) => row.documentId)
+        )
+        if (run.result) run.result.docsResurrected += resurrected
       }
       if (documents.length === 0 && checkpoint.removeMember) {
         await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
@@ -2314,7 +2325,7 @@ export async function executeMemberSync(
           unobservedDocumentIds: run.unobservedDocumentIds,
         })
         result.docsTombstoned += lifecycle.tombstoned
-        result.docsResurrected = lifecycle.resurrected
+        result.docsResurrected += lifecycle.resurrected
         result.docsPurged = lifecycle.purged
         result.docsDeleted = lifecycle.purged
         result.membersRemaining = !lifecycle.finished
