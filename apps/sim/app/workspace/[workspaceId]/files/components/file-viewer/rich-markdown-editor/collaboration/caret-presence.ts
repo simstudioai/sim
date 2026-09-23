@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Awareness } from 'y-protocols/awareness'
+import { USER_COLORS } from '@/lib/workspaces/colors'
 
 /**
  * Remote-collaborator caret presence for the file editor: the name label's
@@ -17,8 +18,23 @@ import type { Awareness } from 'y-protocols/awareness'
  */
 export const CARET_LABEL_HOLD_MS = 2000
 
-/** Fallback caret color when a peer's awareness carries no `color`. */
-export const DEFAULT_CARET_COLOR = 'var(--color-black)'
+/** Earlier clients published these fixed palette values in awareness. Match them by slot only. */
+const LEGACY_USER_COLORS = [
+  '#4ADE80',
+  '#F472B6',
+  '#60C5FF',
+  '#FF8533',
+  '#C084FC',
+  '#FCD34D',
+] as const
+
+export function caretColorSlot(color: unknown): number {
+  if (typeof color !== 'string') return -1
+  const current = USER_COLORS.findIndex((value) => value === color)
+  return current >= 0
+    ? current
+    : LEGACY_USER_COLORS.findIndex((value) => value === color.toUpperCase())
+}
 
 /**
  * The active-state class {@link activateCaretLabel} toggles on the caret node to reveal the
@@ -76,13 +92,12 @@ export function activateCaretLabel(caret: HTMLElement, editorRight?: number) {
  * `doc.clientID`; see `use-file-doc-collaboration.ts`).
  */
 export function renderCaret(user: Record<string, unknown>): HTMLElement {
-  const color = typeof user.color === 'string' ? user.color : DEFAULT_CARET_COLOR
+  const slot = caretColorSlot(user.color)
   const name = typeof user.name === 'string' && user.name ? user.name : 'Collaborator'
   const clientId = typeof user.clientId === 'number' ? user.clientId : undefined
   const caret = document.createElement('span')
   caret.className = 'collaboration-carets__caret'
-  // One inline var drives the caret bar, the dormant cap, and the name tag (all in CSS).
-  caret.style.setProperty('--caret-color', color)
+  if (slot >= 0) caret.dataset.colorSlot = String(slot)
   if (clientId !== undefined) caret.dataset.caretClientId = String(clientId)
   // The visible caret bar is a SEPARATE, absolutely-positioned child — never an inline border on the
   // caret span. The caret is a ProseMirror inline widget inserted between characters; an in-flow bar
