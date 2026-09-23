@@ -608,8 +608,6 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   sixtyfour: SixtyfourIcon,
   slack: SlackIcon,
   slack_app: SlackIcon,
-  slack_canvas: SlackIcon,
-  slack_lists: SlackIcon,
   slack_v2: SlackIcon,
   smartlead: SmartleadIcon,
   smtp: SmtpIcon,

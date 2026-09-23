@@ -3,7 +3,12 @@ import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  normalizeFileInput,
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
@@ -19,6 +24,21 @@ const SLACK_V2_AGENT_OPERATIONS = [
   'set_agent_suggested_prompts',
   'set_agent_session_status',
   'rename_agent_session',
+] as const
+
+const SLACK_V2_LIST_OPERATIONS = [
+  'create_list',
+  'rename_list',
+  'list_items',
+  'get_list_item',
+  'create_list_item',
+  'update_list_items',
+  'delete_list_item',
+] as const
+
+const SLACK_V2_CUSTOM_BOT_OPERATIONS = [
+  ...SLACK_V2_AGENT_OPERATIONS,
+  ...SLACK_V2_LIST_OPERATIONS,
 ] as const
 
 const SLACK_V2_SESSION_OPERATIONS = ['set_agent_session_status', 'rename_agent_session'] as const
@@ -2958,14 +2978,14 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
         serviceAccountGroup: 'Custom bots',
         serviceAccountConnect: 'Set up a custom bot',
       },
-      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'manualCredential') {
     return {
       ...rest,
       placeholder: 'Enter credential ID',
-      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'channel' || sb.id === 'manualChannel') {
@@ -2973,8 +2993,8 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       ...sb,
       dependsOn: ['credential'],
       condition: (values?: Record<string, unknown>) => {
-        if (SLACK_V2_AGENT_OPERATIONS.includes(values?.operation as never)) {
-          return { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true }
+        if (SLACK_V2_CUSTOM_BOT_OPERATIONS.includes(values?.operation as never)) {
+          return { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true }
         }
         if (typeof condition !== 'function') {
           throw new Error(`Slack ${sb.id} condition must be a function`)
@@ -2983,7 +3003,7 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       },
       required: {
         field: 'operation',
-        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_AGENT_OPERATIONS],
+        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_CUSTOM_BOT_OPERATIONS],
         not: true,
       },
     }
@@ -3160,13 +3180,236 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
   ]
 }
 
+function mapSlackListParams(params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    credential: params.listCredentialId,
+    listId: params.listId,
+  }
+  const optional = (field: string) => {
+    const value = params[field]
+    return value === '' || value === null ? undefined : value
+  }
+  const boolean = (field: string) => {
+    const value = optional(field)
+    const parsed = parseOptionalBooleanInput(value)
+    if (parsed === undefined && value !== undefined) throw new Error(`${field} must be a boolean`)
+    return parsed
+  }
+  switch (params.operation) {
+    case 'create_list':
+      result.name = params.listName
+      result.schema = parseOptionalJsonInput(params.listSchema, 'Column Schema')
+      result.description = optional('listDescription')
+      result.todoMode = boolean('listTodoMode')
+      break
+    case 'rename_list':
+      result.name = params.listName
+      break
+    case 'list_items':
+      result.limit = parseOptionalNumberInput(params.listLimit, 'Page Size', {
+        integer: true,
+        min: 1,
+      })
+      result.cursor = optional('listCursor')
+      result.archived = boolean('listArchived')
+      result.includeList = boolean('listIncludeSchema')
+      break
+    case 'get_list_item':
+    case 'delete_list_item':
+      result.itemId = params.listItemId
+      break
+    case 'create_list_item':
+      result.initialFields = parseOptionalJsonInput(params.listInitialFields, 'Initial Fields')
+      result.parentItemId = optional('listParentItemId')
+      result.duplicatedItemId = optional('listDuplicatedItemId')
+      break
+    case 'update_list_items':
+      result.cells = parseOptionalJsonInput(params.listCells, 'Cells')
+      break
+    default:
+      throw new Error(`Invalid Slack List operation: ${params.operation}`)
+  }
+  return result
+}
+
+function getSlackV2ListSubBlocks(): SubBlockConfig[] {
+  return [
+    {
+      id: 'listBotCredential',
+      title: 'Custom Slack Bot',
+      type: 'oauth-input',
+      canonicalParamId: 'listCredentialId',
+      serviceId: 'slack',
+      credentialKind: 'service-account',
+      requiredScopes: getScopesForService('slack'),
+      placeholder: 'Select custom Slack bot',
+      credentialLabels: {
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+      condition: { field: 'operation', value: [...SLACK_V2_LIST_OPERATIONS] },
+      required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'manualListBotCredential',
+      title: 'Custom Slack Bot Credential ID',
+      type: 'short-input',
+      canonicalParamId: 'listCredentialId',
+      placeholder: 'Enter custom bot credential ID',
+      condition: { field: 'operation', value: [...SLACK_V2_LIST_OPERATIONS] },
+      required: true,
+      mode: 'advanced',
+    },
+    {
+      id: 'listId',
+      title: 'List ID',
+      type: 'short-input',
+      placeholder: 'F0123456789 (from the Slack List URL)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'rename_list',
+          'list_items',
+          'get_list_item',
+          'create_list_item',
+          'update_list_items',
+          'delete_list_item',
+        ],
+      },
+    },
+    {
+      id: 'listName',
+      title: 'Name',
+      type: 'short-input',
+      required: true,
+      condition: { field: 'operation', value: ['create_list', 'rename_list'] },
+    },
+    {
+      id: 'listItemId',
+      title: 'Row ID',
+      type: 'short-input',
+      placeholder: 'Rec0123456789',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['get_list_item', 'delete_list_item'],
+      },
+    },
+    {
+      id: 'listInitialFields',
+      title: 'Initial Fields',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{"column_id":"Col...","rich_text":[{"type":"rich_text","elements":[{"type":"rich_text_section","elements":[{"type":"text","text":"New task"}]}]}]}]',
+      condition: { field: 'operation', value: 'create_list_item' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return a JSON array of Slack List initial_fields. Use real column_id values supplied by the user or schema. Text cells use Block Kit rich_text arrays, number/date/select/user are arrays, checkbox is a boolean. Never invent column IDs.',
+      },
+    },
+    {
+      id: 'listCells',
+      title: 'Cells',
+      type: 'code',
+      language: 'json',
+      required: true,
+      placeholder: '[{"row_id":"Rec...","column_id":"Col...","checkbox":true}]',
+      condition: { field: 'operation', value: 'update_list_items' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return a JSON array of Slack List cell updates. Each needs a real row_id, column_id and one typed value. Text uses Block Kit rich_text arrays; checkbox is a boolean. Never invent IDs.',
+      },
+    },
+    {
+      id: 'listSchema',
+      title: 'Column Schema',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"key":"title","name":"Title","type":"text","is_primary_column":true}]',
+      condition: { field: 'operation', value: 'create_list' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return Slack List column definitions as a JSON array with key, name, type, optional is_primary_column and options. Only one text column may be primary. Select options use choices with value, label and color.',
+      },
+    },
+    {
+      id: 'listDescription',
+      title: 'Description',
+      type: 'long-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list' },
+    },
+    {
+      id: 'listTodoMode',
+      title: 'Task Tracking Fields',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list' },
+    },
+    {
+      id: 'listParentItemId',
+      title: 'Parent Row ID',
+      type: 'short-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list_item' },
+    },
+    {
+      id: 'listDuplicatedItemId',
+      title: 'Duplicate Row ID',
+      type: 'short-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list_item' },
+    },
+    {
+      id: 'listLimit',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '100',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from the previous page',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listArchived',
+      title: 'Archived Rows',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listIncludeSchema',
+      title: 'Include List Schema',
+      type: 'switch',
+      defaultValue: true,
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+  ]
+}
+
 export function getSlackV2ActionSubBlocks(): SubBlockConfig[] {
   const sharedSubBlocks = SlackBlock.subBlocks.flatMap((sb) => {
     if (SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS.has(sb.id)) return []
     if (sb.id === 'operation' || sb.id === 'authMethod') return []
     return [adaptSubBlockForV2(sb)]
   })
-  return [...sharedSubBlocks, ...getSlackV2AgentSubBlocks()]
+  return [...sharedSubBlocks, ...getSlackV2AgentSubBlocks(), ...getSlackV2ListSubBlocks()]
 }
 
 export function getSlackV2ToolAccess(): string[] {
@@ -3180,6 +3423,23 @@ export function getSlackV2OperationSentences() {
   }
   return {
     ...operationSentences,
+    create_list: [{ text: 'Create list', field: 'listName', core: true }],
+    rename_list: [
+      { text: 'Rename list', field: 'listId', core: true },
+      { text: 'to', field: 'listName' },
+    ],
+    list_items: [{ text: 'Read rows from', field: 'listId', core: true }],
+    get_list_item: [
+      { text: 'Read row', field: 'listItemId', core: true },
+      { text: 'in', field: 'listId', core: true },
+    ],
+    create_list_item: [{ text: 'Create a row in', field: 'listId', core: true }],
+    update_list_items: [{ text: 'Update cells in', field: 'listId', core: true }],
+    delete_list_item: [
+      { text: 'Delete row', field: 'listItemId', core: true },
+      { text: 'from', field: 'listId', core: true },
+    ],
+
     set_agent_suggested_prompts: [
       {
         text: 'Set agent suggested prompts in',
@@ -3217,9 +3477,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   ...SlackBlock,
   type: 'slack_v2',
   description:
-    'Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases',
+    'Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, Lists, and canvases',
   longDescription:
-    'Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.',
+    'Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Lists operations require a custom Slack bot with lists:read/lists:write scopes and a paid Slack plan. Standard messaging and Canvas operations support both the Sim app and custom bot credentials.',
   hideFromToolbar: false,
   sunset: undefined,
   canvasPresentation: {
@@ -3286,6 +3546,14 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'List Canvases', id: 'list_canvases' },
         { label: 'Lookup Canvas Sections', id: 'lookup_canvas_sections' },
         { label: 'Delete Canvas', id: 'delete_canvas' },
+        { label: 'Create List', id: 'create_list' },
+        { label: 'Rename List', id: 'rename_list' },
+        { label: 'Read List Items', id: 'list_items' },
+        { label: 'Get List Item', id: 'get_list_item' },
+        { label: 'Create List Item', id: 'create_list_item' },
+        { label: 'Update List Items', id: 'update_list_items' },
+        { label: 'Delete List Item', id: 'delete_list_item' },
+
         { label: 'Create Conversation', id: 'create_conversation' },
         { label: 'Invite to Conversation', id: 'invite_to_conversation' },
         { label: 'Open View', id: 'open_view' },
@@ -3340,6 +3608,14 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_list_canvases',
       'slack_lookup_canvas_sections',
       'slack_delete_canvas',
+      'slack_lists_create',
+      'slack_lists_update',
+      'slack_lists_items_list',
+      'slack_lists_items_info',
+      'slack_lists_items_create',
+      'slack_lists_items_update',
+      'slack_lists_items_delete',
+
       'slack_create_conversation',
       'slack_invite_to_conversation',
       'slack_open_view',
@@ -3357,6 +3633,21 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'create_list':
+            return 'slack_lists_create'
+          case 'rename_list':
+            return 'slack_lists_update'
+          case 'list_items':
+            return 'slack_lists_items_list'
+          case 'get_list_item':
+            return 'slack_lists_items_info'
+          case 'create_list_item':
+            return 'slack_lists_items_create'
+          case 'update_list_items':
+            return 'slack_lists_items_update'
+          case 'delete_list_item':
+            return 'slack_lists_items_delete'
+
           case 'set_suggested_prompts':
             return 'slack_set_suggested_prompts'
           case 'set_agent_suggested_prompts':
@@ -3373,6 +3664,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         }
       },
       params: (params) => {
+        if (SLACK_V2_LIST_OPERATIONS.includes(params.operation as never)) {
+          return mapSlackListParams(params)
+        }
         const mapParams = SlackBlock.tools.config?.params
         if (!mapParams) throw new Error('Slack parameter mapper is required')
         const baseParams = mapParams(params)
@@ -3397,6 +3691,22 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   },
   inputs: {
     ...slackV2Inputs,
+    listCredentialId: { type: 'string', description: 'Custom Slack bot credential' },
+    listId: { type: 'string', description: 'Slack List ID' },
+    listItemId: { type: 'string', description: 'Slack row ID' },
+    listName: { type: 'string', description: 'List name' },
+    listSchema: { type: 'json', description: 'Column definitions' },
+    listInitialFields: { type: 'json', description: 'Initial typed cell values' },
+    listCells: { type: 'json', description: 'Typed cell updates with row_id and column_id' },
+    listDescription: { type: 'string', description: 'List description' },
+    listTodoMode: { type: 'boolean', description: 'Add task tracking columns' },
+    listParentItemId: { type: 'string', description: 'Parent row for a subtask' },
+    listDuplicatedItemId: { type: 'string', description: 'Row to copy' },
+    listLimit: { type: 'number', description: 'Page size' },
+    listCursor: { type: 'string', description: 'Pagination cursor' },
+    listArchived: { type: 'boolean', description: 'Read archived rows' },
+    listIncludeSchema: { type: 'boolean', description: 'Include List schema' },
+
     oauthCredential: { type: 'string', description: 'Slack credential (OAuth account or bot)' },
     agentCredentialId: { type: 'string', description: 'Custom Slack bot credential ID' },
     agentChannelId: { type: 'string', description: 'Agent session channel ID' },
@@ -3407,6 +3717,28 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     agentIconEmoji: { type: 'string', description: 'Custom agent icon emoji' },
     agentIconUrl: { type: 'string', description: 'Custom agent icon URL' },
     agentUsername: { type: 'string', description: 'Custom agent display name' },
+  },
+  outputs: {
+    ...SlackBlock.outputs,
+    listId: { type: 'string', description: 'Created List ID' },
+    schema: {
+      type: 'json',
+      description: 'Created column schema (id, key, name, type, options); null when Slack omits it',
+    },
+    list: {
+      type: 'json',
+      description: 'List metadata (id, title, schema); null when not included',
+    },
+    items: {
+      type: 'json',
+      description: 'Page of rows (id, list_id, fields, timestamps, parent_record_id)',
+    },
+    item: {
+      type: 'json',
+      description: 'One row (id, list_id, fields, timestamps, parent_record_id)',
+    },
+    nextCursor: { type: 'string', description: 'Continuation cursor; empty or null when finished' },
+    ok: { type: 'boolean', description: 'Whether Slack completed the operation' },
   },
   triggers: {
     enabled: true,
