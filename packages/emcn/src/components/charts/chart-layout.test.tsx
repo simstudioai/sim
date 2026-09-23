@@ -121,7 +121,7 @@ describe('BarChart rendered geometry', () => {
         height={160}
       />
     )
-    const bars = [...svg.querySelectorAll('rect')]
+    const bars = [...svg.querySelectorAll('rect')].filter((rect) => !rect.closest('clipPath'))
     expect(bars.length).toBeGreaterThan(0)
     const svgWidth = Number(svg.getAttribute('width'))
     for (const bar of bars) {
@@ -349,10 +349,10 @@ describe('BarChart stacked mode', () => {
     data: buckets.map((timestamp, index) => ({ timestamp, value: values[index] ?? 0 })),
   })
 
-  /** Segment rects are the filled ones; tracks are painted with the border token. */
+  /** Segment rects are the filled ones; tracks are painted with the border token, and a column's clip outline is not drawn. */
   function segments(svg: SVGSVGElement) {
     return [...svg.querySelectorAll('rect')].filter(
-      (rect) => rect.getAttribute('fill') !== 'var(--border)'
+      (rect) => rect.getAttribute('fill') !== 'var(--border)' && !rect.closest('clipPath')
     )
   }
 
@@ -370,6 +370,25 @@ describe('BarChart stacked mode', () => {
     expect(drawn.map((rect) => rect.getAttribute('fill'))).toEqual(['red', 'blue', 'blue', 'red'])
     const [firstA, firstB] = drawn
     expect(Number(firstA.getAttribute('y'))).toBeGreaterThan(Number(firstB.getAttribute('y')))
+  })
+
+  it('draws a column as one bar: flush square segments inside one rounded outline', () => {
+    const svg = mountAtWidth(
+      680,
+      <BarChart
+        label=''
+        height={200}
+        series={[layer('a', 'red', [30, 0, 10]), layer('b', 'blue', [10, 5, 0])]}
+      />
+    )
+    const [bottom, top] = segments(svg)
+    expect(Number(top.getAttribute('y')) + Number(top.getAttribute('height'))).toBeGreaterThan(
+      Number(bottom.getAttribute('y'))
+    )
+    expect(bottom.hasAttribute('rx')).toBe(false)
+    const outline = svg.querySelector('clipPath rect')
+    expect(outline?.getAttribute('rx')).toBe('2')
+    expect(Number(outline?.getAttribute('y'))).toBeCloseTo(Number(top.getAttribute('y')), 5)
   })
 
   it('stacks each column to the height a single bar of its total would reach', () => {

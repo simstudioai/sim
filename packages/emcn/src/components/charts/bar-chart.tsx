@@ -72,9 +72,6 @@ interface StackedBarChartProps extends BarChartBaseProps {
 
 export type BarChartProps = SingleSeriesBarChartProps | StackedBarChartProps
 
-/** Surface gap between stacked segments, so adjacent fills never merge. */
-const STACK_GAP = 1
-
 /**
  * Tick and tooltip text for a bucket's value, in the caller's unit. `exact` is for
  * the tooltip, where a figure is read in full rather than fitted to the axis gutter.
@@ -177,7 +174,7 @@ function BarChartComponent(props: BarChartProps) {
           cursor -= segmentHeight
           return [{ layer, y: cursor, height: segmentHeight }]
         })
-        return { x, top, point, segments }
+        return { x, top, height: columnHeight, point, segments }
       }),
     [
       buckets,
@@ -323,26 +320,50 @@ function BarChartComponent(props: BarChartProps) {
             ))}
           </g>
 
-          <g style={{ mixBlendMode: isDark && !isStacked ? 'screen' : 'normal' }}>
-            {columns.flatMap((column, index) =>
-              column.segments.map((segment, segmentIndex) => {
-                /** Every segment but the topmost gives up a sliver so neighbours stay distinct. */
-                const gap = segmentIndex < column.segments.length - 1 ? STACK_GAP : 0
-                return (
+          {/**
+           * Each column is one bar: its segments are square and clipped to a single
+           * rounded outline, so only the bar's ends are rounded and a stack reads as one
+           * shape split by color. A segment reaches half a pixel below its own bottom so
+           * the one beneath never shows an anti-aliased seam through the join.
+           */}
+          <defs>
+            {columns.map((column, index) =>
+              column.segments.length === 0 ? null : (
+                <clipPath
+                  key={`${uniqueId}-column-${column.point.timestamp}`}
+                  id={`${uniqueId}-column-${index}`}
+                >
                   <rect
-                    key={`${uniqueId}-bar-${column.point.timestamp}-${segment.layer.id}`}
                     x={column.x}
-                    y={segment.y + gap}
+                    y={column.top}
                     width={barWidth}
-                    height={Math.max(0, segment.height - gap)}
+                    height={column.height}
                     rx='2'
+                  />
+                </clipPath>
+              )
+            )}
+          </defs>
+          <g style={{ mixBlendMode: isDark && !isStacked ? 'screen' : 'normal' }}>
+            {columns.map((column, index) => (
+              <g
+                key={`${uniqueId}-bar-${column.point.timestamp}`}
+                clipPath={`url(#${uniqueId}-column-${index})`}
+              >
+                {column.segments.map((segment) => (
+                  <rect
+                    key={segment.layer.id}
+                    x={column.x}
+                    y={segment.y}
+                    width={barWidth}
+                    height={segment.height + 0.5}
                     fill={isStacked ? segment.layer.color : `url(#bar-${uniqueId})`}
                     className='transition-opacity duration-150 motion-reduce:transition-none'
                     opacity={segmentOpacity(segment.layer.id, index)}
                   />
-                )
-              })
-            )}
+                ))}
+              </g>
+            ))}
           </g>
 
           {tickIndices.map((index) => {
