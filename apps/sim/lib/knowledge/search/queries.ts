@@ -369,6 +369,8 @@ export interface SearchParams {
   permitted?: PermittedDocuments
   /** Connector state resolved once per search, so no candidate re-derives it. */
   accessPlan?: SearchAccessPlan
+  /** Every searched base is a Sim Search index; ordinary KBs use document-backed pages. */
+  searchIndexOnly?: boolean
 }
 
 /** All valid tag slot keys */
@@ -1832,7 +1834,9 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         const plan = params.access.kind === 'user' ? params.accessPlan : undefined
         /** Two remembered facts, read together when neither is remembered. */
         const [filled, plannedIndexedSources] = await Promise.all([
-          isProjectionFilled('embedding_search', 'vector.projection_filled', params.budget),
+          params.searchIndexOnly === true
+            ? isProjectionFilled('embedding_search', 'vector.projection_filled', params.budget)
+            : false,
           plan?.memberSources.length ? indexedVectorSources(params.budget) : undefined,
         ])
         /**
