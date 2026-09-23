@@ -3425,6 +3425,24 @@ describe('credential protection', () => {
     expect(second).not.toMatchObject({ result: { notices: expect.anything() } })
   })
 
+  it('keeps element ids valid when an observed action is refused before dispatch', async () => {
+    const contents = await openPage()
+    respondWith(contents, { clickElement: { error: 'obstructed', blocker: 'IMG' } })
+
+    const refused = await driver.executeTool('chat-test', 'browser_click', {
+      elementId: 0,
+      observe: {},
+    })
+    respondWith(contents, {})
+    const retried = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(refused).toEqual({
+      ok: false,
+      error: expect.stringContaining('That element is covered by IMG'),
+    })
+    expect(retried).toMatchObject({ ok: true, result: { dispatched: true } })
+  })
+
   it('invalidates element ids when the active tab changes', async () => {
     await openPage()
     await driver.executeTool('chat-test', 'browser_open_tab', {})

@@ -313,6 +313,14 @@ function createDriverScopeState(): DriverScopeState {
 function invalidateSnapshot(state = driverScopeState()): void {
   state.snapshotTabId = null
   state.snapshotTargets.clear()
+  cancelPendingSnapshotCapture(state)
+}
+
+/**
+ * Keeps the current refs but stops any in-flight capture from committing its own. A capture
+ * clears the refs when it starts, so this is all a failed action with a pending observation needs.
+ */
+function cancelPendingSnapshotCapture(state: DriverScopeState): void {
   state.snapshotCaptureEpoch++
 }
 
@@ -5002,7 +5010,10 @@ export async function executeTool(
           try {
             observedResult = await guardedExecution
           } catch (error) {
-            if (!actionOutcome) throw error
+            if (!actionOutcome) {
+              if (params.observe !== undefined) cancelPendingSnapshotCapture(state)
+              throw error
+            }
             invalidateSnapshot(state)
             observedResult =
               actionOutcome.status === 'pending'
@@ -5049,12 +5060,7 @@ export async function executeTool(
       // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
       // capture token before releasing the queue so a late snapshot cannot
       // overwrite refs belonging to a newer tab or snapshot.
-      if (
-        tool === 'browser_snapshot' ||
-        tool === 'browser_open_url' ||
-        tool === 'browser_find' ||
-        params.observe !== undefined
-      ) {
+      if (tool === 'browser_snapshot' || tool === 'browser_open_url' || tool === 'browser_find') {
         invalidateSnapshot(state)
       }
       const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
