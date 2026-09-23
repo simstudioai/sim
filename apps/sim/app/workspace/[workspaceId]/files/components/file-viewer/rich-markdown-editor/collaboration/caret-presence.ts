@@ -28,6 +28,10 @@ const LEGACY_USER_COLORS = [
   '#FCD34D',
 ] as const
 
+/**
+ * Maps a current token, resolved CSS value, or historical collaborator colour
+ * to its stable palette slot. Returns `-1` for missing or unrecognized colours.
+ */
 export function caretColorSlot(color: unknown): number {
   if (typeof color !== 'string') return -1
   const current = USER_COLORS.findIndex((value) => value === color)
