@@ -10,7 +10,9 @@
  */
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
@@ -294,17 +296,10 @@ function locateProtocolFrame(
   return tree.frame
 }
 
-/**
- * Executes code in a persistent isolated world belonging to one child frame.
- * WebFrameMain.executeJavaScript runs in the untrusted page's main world,
- * where the page can replace the ref registry and built-ins between tools.
- */
-export async function evaluateInIsolatedFrame(
+async function isolatedFrameContext(
   contents: WebContents,
-  frame: WebFrameMain,
-  expression: string,
-  userGesture = false
-): Promise<unknown> {
+  frame: WebFrameMain
+): Promise<{ contextId: number; sessionId?: string }> {
   const { frameTree } = await send<{ frameTree?: ProtocolFrameTree }>(contents, 'Page.getFrameTree')
   if (!frameTree) throw new Error('Chromium did not return a frame tree')
   let protocolFrame = locateProtocolFrame(frameTree, frame)
@@ -374,7 +369,21 @@ export async function evaluateInIsolatedFrame(
   if (contextId === undefined) {
     throw lastError instanceof Error ? lastError : new Error('Could not create an isolated world')
   }
+  return { contextId, sessionId: selectedSession }
+}
 
+/**
+ * Executes code in a persistent isolated world belonging to one frame.
+ * WebFrameMain.executeJavaScript runs in the untrusted page's main world,
+ * where the page can replace the ref registry and built-ins between tools.
+ */
+export async function evaluateInIsolatedFrame(
+  contents: WebContents,
+  frame: WebFrameMain,
+  expression: string,
+  userGesture = false
+): Promise<unknown> {
+  const { contextId, sessionId } = await isolatedFrameContext(contents, frame)
   const evaluation = await send<{
     result?: { type?: string; value?: unknown; unserializableValue?: string }
     exceptionDetails?: { text?: string; exception?: { description?: string } }
@@ -388,7 +397,7 @@ export async function evaluateInIsolatedFrame(
       awaitPromise: true,
       userGesture,
     },
-    selectedSession
+    sessionId
   )
   if (evaluation.exceptionDetails) {
     throw new Error(
@@ -714,41 +723,194 @@ export async function captureScreenshot(
   }
 }
 
-/**
- * Sets local files on the one file input carrying `marker`, searching the root target and then
- * each out-of-process frame session. `DOM.setFileInputFiles` fires the input's own input and
- * change events, so the page reacts exactly as it would to a user's file choice.
- */
-export async function setMarkedFileInputFiles(
-  contents: WebContents,
-  marker: string,
-  files: readonly string[]
-): Promise<void> {
-  const sessions = [undefined, ...(childSessionsByContents.get(contents)?.values() ?? [])]
-  for (const sessionId of sessions) {
-    await send(contents, 'DOM.getDocument', { depth: 0 }, sessionId)
-    const { searchId, resultCount } = await send<{ searchId: string; resultCount: number }>(
-      contents,
-      'DOM.performSearch',
-      { query: `[data-sim-agent-upload="${marker}"]` },
-      sessionId
-    )
-    try {
-      if (resultCount === 0) continue
-      if (resultCount !== 1) throw new Error('More than one file input carries the upload marker')
-      const { nodeIds } = await send<{ nodeIds: number[] }>(
-        contents,
-        'DOM.getSearchResults',
-        { searchId, fromIndex: 0, toIndex: 1 },
-        sessionId
-      )
-      await send(contents, 'DOM.setFileInputFiles', { files, nodeId: nodeIds[0] }, sessionId)
-      return
-    } finally {
-      await send(contents, 'DOM.discardSearchResults', { searchId }, sessionId).catch(() => {})
+/** Opaque isolated-world wrapper retaining one input and its original owner document. */
+export interface FileInputHandle {
+  readonly objectId: string
+  readonly sessionId?: string
+  readonly multiple: boolean
+  readonly accept?: string
+}
+
+interface RemoteObject {
+  objectId?: string
+  value?: unknown
+}
+
+interface RemoteEvaluation {
+  result?: RemoteObject
+  exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
+}
+
+interface CapturedFileInput {
+  input: HTMLInputElement
+  document: Document
+}
+
+/** Runs in the wrapper's isolated world; owner documents may belong to same-origin child frames. */
+function inspectFileInput(
+  this: CapturedFileInput,
+  mode: 'metadata' | 'input' | 'files',
+  fileCount: number
+): unknown {
+  const { input, document: capturedDocument } = this
+  if (mode === 'files') {
+    return {
+      files: Array.from(input.files ?? [], (file) => ({ name: file.name, size: file.size })),
     }
   }
-  throw new Error('The marked file input is no longer in the page')
+  if (!input || String(input.tagName).toUpperCase() !== 'INPUT' || input.type !== 'file') {
+    throw new Error('The upload target is no longer a file input')
+  }
+  if (
+    !input.isConnected ||
+    input.ownerDocument !== capturedDocument ||
+    !capturedDocument.defaultView ||
+    capturedDocument.defaultView.document !== capturedDocument
+  ) {
+    throw new Error('The upload input or its document changed. Inspect the page before uploading.')
+  }
+  if (input.matches(':disabled')) throw new Error('The upload input is disabled')
+  if (fileCount > 1 && !input.multiple) {
+    throw new Error('The upload input no longer accepts multiple files')
+  }
+  return mode === 'input' ? input : { multiple: input.multiple, accept: input.accept || undefined }
+}
+
+async function releaseRemoteObject(
+  contents: WebContents,
+  objectId: string | undefined,
+  sessionId?: string
+): Promise<void> {
+  if (objectId) {
+    await send(contents, 'Runtime.releaseObject', { objectId }, sessionId).catch(() => {})
+  }
+}
+
+async function checkedRemoteResult(
+  contents: WebContents,
+  evaluation: RemoteEvaluation,
+  sessionId?: string
+): Promise<RemoteObject> {
+  if (evaluation.exceptionDetails) {
+    const ids = new Set([
+      evaluation.result?.objectId,
+      evaluation.exceptionDetails.exception?.objectId,
+    ])
+    await Promise.all([...ids].map((id) => releaseRemoteObject(contents, id, sessionId)))
+    throw new Error(
+      evaluation.exceptionDetails.exception?.description ||
+        evaluation.exceptionDetails.text ||
+        'File input evaluation failed'
+    )
+  }
+  if (!evaluation.result) throw new Error('Chromium returned no file input evaluation result')
+  return evaluation.result
+}
+
+async function callFileInput(
+  contents: WebContents,
+  handle: Pick<FileInputHandle, 'objectId' | 'sessionId'>,
+  mode: 'metadata' | 'input' | 'files',
+  fileCount = 0
+): Promise<RemoteObject> {
+  const evaluation = await send<RemoteEvaluation>(
+    contents,
+    'Runtime.callFunctionOn',
+    {
+      objectId: handle.objectId,
+      functionDeclaration: inspectFileInput.toString(),
+      arguments: [{ value: mode }, { value: fileCount }],
+      returnByValue: mode !== 'input',
+    },
+    handle.sessionId
+  )
+  return checkedRemoteResult(contents, evaluation, handle.sessionId)
+}
+
+/** Captures a trusted isolated-world expression's input/document wrapper without exposing a DOM marker. */
+export async function resolveFileInput(
+  contents: WebContents,
+  frame: WebFrameMain,
+  expression: string
+): Promise<FileInputHandle> {
+  const { contextId, sessionId } = await isolatedFrameContext(contents, frame)
+  const evaluation = await send<RemoteEvaluation>(
+    contents,
+    'Runtime.evaluate',
+    { expression, contextId, returnByValue: false, awaitPromise: true, userGesture: false },
+    sessionId
+  )
+  const remote = await checkedRemoteResult(contents, evaluation, sessionId)
+  if (!remote.objectId) throw new Error('Chromium did not retain the upload input')
+  const handle = { objectId: remote.objectId, sessionId }
+  try {
+    const { value } = await callFileInput(contents, handle, 'metadata')
+    if (
+      !isRecordLike(value) ||
+      typeof value.multiple !== 'boolean' ||
+      (value.accept !== undefined && typeof value.accept !== 'string')
+    ) {
+      throw new Error('Chromium did not return valid upload input metadata')
+    }
+    return { ...handle, multiple: value.multiple, accept: value.accept }
+  } catch (error) {
+    await releaseRemoteObject(contents, handle.objectId, sessionId)
+    throw error
+  }
+}
+
+/** Releases the captured input/document wrapper after upload preparation or dispatch finishes. */
+export async function releaseFileInput(
+  contents: WebContents,
+  handle: FileInputHandle
+): Promise<void> {
+  await releaseRemoteObject(contents, handle.objectId, handle.sessionId)
+}
+
+/** Sets files on the captured input in its original CDP session, then reads that exact input. */
+export async function setFileInputFiles(
+  contents: WebContents,
+  handle: FileInputHandle,
+  files: readonly string[],
+  signal?: AbortSignal,
+  onDispatched?: () => void
+): Promise<{ files: Array<{ name: string; size: number }> } | { readbackError: string }> {
+  signal?.throwIfAborted()
+  const input = await callFileInput(contents, handle, 'input', files.length)
+  if (!input.objectId) throw new Error('Chromium did not retain the upload input node')
+  try {
+    signal?.throwIfAborted()
+    await send(
+      contents,
+      'DOM.setFileInputFiles',
+      { files, objectId: input.objectId },
+      handle.sessionId
+    )
+    onDispatched?.()
+    try {
+      const { value } = await callFileInput(contents, handle, 'files')
+      if (!isRecordLike(value) || !Array.isArray(value.files)) {
+        throw new Error('Chromium did not confirm the uploaded files')
+      }
+      const uploaded = value.files.map((file: unknown) => {
+        if (
+          !isRecordLike(file) ||
+          typeof file.name !== 'string' ||
+          typeof file.size !== 'number' ||
+          !Number.isFinite(file.size) ||
+          file.size < 0
+        ) {
+          throw new Error('Chromium did not confirm the uploaded files')
+        }
+        return { name: file.name, size: file.size }
+      })
+      return { files: uploaded }
+    } catch (error) {
+      return { readbackError: getErrorMessage(error) }
+    }
+  } finally {
+    await releaseRemoteObject(contents, input.objectId, handle.sessionId)
+  }
 }
 
 /** One half of a trusted key press (`Input.dispatchKeyEvent` params). */

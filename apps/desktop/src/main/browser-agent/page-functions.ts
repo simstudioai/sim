@@ -1,5 +1,5 @@
 /**
- * Functions injected into automated pages via `webContents.executeJavaScript`.
+ * Functions injected into automated pages through a CDP isolated execution world.
  * The driver serializes each function's source (`String(fn)`) and calls it
  * with JSON-encoded arguments, so every function here MUST be fully
  * self-contained: no imports, no closed-over variables, only its own
@@ -3299,15 +3299,22 @@ export function readPageText(id?: number): unknown {
 }
 
 /**
- * Marks the file input a ref stands for so the driver can target it over CDP. The ref may be the
+ * Resolves the exact file input and its document for an isolated CDP object handle. The ref may be the
  * input itself, its label, or a visible upload control (button, dropzone) whose hidden input sits
  * inside it or within a few ancestors — the nearest level with exactly one file input wins.
  */
-export function markFileInput(id: number, marker: string): unknown {
+export function resolveFileInputTarget(id: number): {
+  input: HTMLInputElement
+  document: Document
+} {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+  if (!el || !el.isConnected) {
+    throw new Error(
+      window.__simAgentStaleReason || 'The upload target is stale. Take a fresh snapshot.'
+    )
+  }
   const isFileInput = (node: Element | null | undefined): node is HTMLInputElement =>
     Boolean(
       node &&
@@ -3335,34 +3342,17 @@ export function markFileInput(id: number, marker: string): unknown {
   let scope: Element | null = el
   for (let depth = 0; !input && scope && depth <= 3; depth++) {
     const candidates = fileInputsWithin(scope)
-    if (candidates.length > 1) return { error: 'ambiguous-file-input', count: candidates.length }
+    if (candidates.length > 1)
+      throw new Error(
+        'The upload target contains multiple file inputs. Select one input explicitly.'
+      )
     if (candidates.length === 1) input = candidates[0]
     const root = scope.getRootNode()
     scope = scope.parentElement ?? (root instanceof ShadowRoot ? root.host : null)
   }
-  if (!input) return { error: 'no-file-input' }
-  if (input.matches(':disabled')) return { error: 'disabled' }
-  input.setAttribute('data-sim-agent-upload', marker)
-  return { marked: true, multiple: input.multiple, accept: input.accept || undefined }
-}
-
-/** Reads back, and clears the marker from, the file input {@link markFileInput} tagged. */
-export function readMarkedFileInput(marker: string): unknown {
-  const visit = (scope: Document | ShadowRoot): HTMLInputElement | null => {
-    const direct = scope.querySelector(`[data-sim-agent-upload="${marker}"]`)
-    if (direct) return direct as HTMLInputElement
-    for (const node of Array.from(scope.querySelectorAll('*'))) {
-      const nested = node.shadowRoot ? visit(node.shadowRoot) : null
-      if (nested) return nested
-    }
-    return null
-  }
-  const input = visit(document)
-  if (!input) return { error: 'stale' }
-  input.removeAttribute('data-sim-agent-upload')
-  return {
-    files: Array.from(input.files ?? []).map((file) => ({ name: file.name, size: file.size })),
-  }
+  if (!input) throw new Error('The selected element has no nearby file input.')
+  if (input.matches(':disabled')) throw new Error('The file input is disabled.')
+  return { input, document: input.ownerDocument }
 }
 
 export function pageContainsText(text: string): boolean {

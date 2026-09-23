@@ -11,16 +11,15 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
-  markFileInput,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
-  readMarkedFileInput,
   readPageActionState,
   readPageText,
   readSelectElementState,
+  resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
   setFocusedInputValue,
@@ -818,7 +817,7 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref)).toEqual({ error: 'file-input' })
   })
 
-  it('marks the file input behind a drop zone, label, or the input itself', () => {
+  it('pins the file input behind a drop zone, label, or the input itself', () => {
     document.body.innerHTML = `<div id="zone">Drop files<input type="file" id="hidden" multiple hidden accept=".png"></div>
       <label id="label" for="labelled">Resume</label><input type="file" id="labelled">
       <section id="two"><input type="file"><input type="file"></section>`
@@ -829,12 +828,20 @@ describe('collectSnapshot', () => {
       document.getElementById('two') as HTMLElement
     )
 
-    expect(markFileInput(0, 'm0')).toEqual({ marked: true, multiple: true, accept: '.png' })
-    expect(document.getElementById('hidden')?.getAttribute('data-sim-agent-upload')).toBe('m0')
-    expect(markFileInput(1, 'm1')).toMatchObject({ marked: true, multiple: false })
-    expect(document.getElementById('labelled')?.getAttribute('data-sim-agent-upload')).toBe('m1')
-    expect(markFileInput(2, 'm2')).toMatchObject({ marked: true })
-    expect(markFileInput(3, 'm3')).toEqual({ error: 'ambiguous-file-input', count: 2 })
+    expect(resolveFileInputTarget(0)).toEqual({
+      input: document.getElementById('hidden'),
+      document,
+    })
+    expect(resolveFileInputTarget(1)).toEqual({
+      input: document.getElementById('labelled'),
+      document,
+    })
+    expect(resolveFileInputTarget(2)).toEqual({
+      input: document.getElementById('labelled'),
+      document,
+    })
+    expect(() => resolveFileInputTarget(3)).toThrow('multiple file inputs')
+    expect(document.querySelector('[data-sim-agent-upload]')).toBeNull()
   })
 
   it('reports an element with no nearby file input', () => {
@@ -842,7 +849,7 @@ describe('collectSnapshot', () => {
       '<main><div><div><div><button id="b">Upload</button></div></div></div></main>'
     register(document.getElementById('b') as HTMLElement)
 
-    expect(markFileInput(0, 'm')).toEqual({ error: 'no-file-input' })
+    expect(() => resolveFileInputTarget(0)).toThrow('no nearby file input')
   })
 
   it.each([
@@ -860,12 +867,12 @@ describe('collectSnapshot', () => {
       'disabled fieldset within an exempt legend',
       '<fieldset disabled><legend><fieldset disabled><input type="file"></fieldset></legend></fieldset>',
     ],
-  ])('refuses to mark an upload in a %s', (_label, html) => {
+  ])('refuses to resolve an upload in a %s', (_label, html) => {
     document.body.innerHTML = html
     const input = document.querySelector('input') as HTMLInputElement
     register(input)
 
-    expect(runSerialized(markFileInput, [0, 'disabled-upload'])).toEqual({ error: 'disabled' })
+    expect(() => runSerialized(resolveFileInputTarget, [0])).toThrow('disabled')
     expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
   })
 
@@ -875,11 +882,10 @@ describe('collectSnapshot', () => {
     const input = document.querySelector('input') as HTMLInputElement
     register(document.querySelector('label') as HTMLLabelElement)
 
-    expect(runSerialized(markFileInput, [0, 'legend-upload'])).toMatchObject({ marked: true })
-    expect(input.getAttribute('data-sim-agent-upload')).toBe('legend-upload')
+    expect(runSerialized(resolveFileInputTarget, [0])).toEqual({ input, document })
   })
 
-  it('reads back and clears the marked input, including inside open shadow roots', () => {
+  it('pins the original input inside an open shadow root without modifying the DOM', () => {
     const host = document.createElement('div')
     document.body.append(host)
     const input = document.createElement('input')
@@ -887,10 +893,30 @@ describe('collectSnapshot', () => {
     host.attachShadow({ mode: 'open' }).append(input)
     register(host)
 
-    expect(markFileInput(0, 'shadow')).toMatchObject({ marked: true })
-    expect(readMarkedFileInput('shadow')).toEqual({ files: [] })
+    expect(runSerialized(resolveFileInputTarget, [0])).toEqual({ input, document })
     expect(input.hasAttribute('data-sim-agent-upload')).toBe(false)
-    expect(readMarkedFileInput('shadow')).toEqual({ error: 'stale' })
+  })
+
+  it('captures the actual owner document for an input reached through a same-origin frame', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const childDocument = frame.contentDocument as Document
+    childDocument.body.innerHTML = '<input type="file">'
+    const input = childDocument.querySelector('input') as HTMLInputElement
+    register(input)
+
+    const captured = resolveFileInputTarget(0)
+    expect(captured).toEqual({ input, document: childDocument })
+    document.body.append(input)
+    expect(captured.document).toBe(childDocument)
+    expect(captured.input.ownerDocument).toBe(document)
+  })
+
+  it('refuses a disconnected or stale upload reference', () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    register(input)
+    expect(() => resolveFileInputTarget(0)).toThrow('stale')
   })
 
   it('sets a complete multiple selection atomically and can clear it', () => {

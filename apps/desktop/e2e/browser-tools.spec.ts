@@ -62,6 +62,34 @@ const CAPABILITIES_FIXTURE = `<!doctype html><title>Capabilities fixture</title>
 const POPUP_FIXTURE = `<!doctype html><title>Authorize fixture</title>
 <button onclick="window.opener.postMessage('granted', '*'); window.close()">Allow</button>`
 
+const UPLOAD_TARGET_FIXTURE = `<!doctype html><title>Upload target fixture</title>
+<div id="surface"></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const surface = document.getElementById('surface');
+  const root = params.get('shadow') === '1' ? surface.attachShadow({ mode: 'open' }) : surface;
+  root.innerHTML = '<div role="button" aria-label="Upload original">Attach file<input id="original" type="file" hidden></div><input id="decoy" type="file" hidden>';
+  const original = root.querySelector('#original');
+  const decoy = root.querySelector('#decoy');
+  window.uploadTestState = async () => ({
+    original: await Promise.all(Array.from(original.files, async (file) => ({ name: file.name, text: await file.text() }))),
+    decoy: await Promise.all(Array.from(decoy.files, async (file) => ({ name: file.name, text: await file.text() }))),
+    currentCount: root.querySelector('#original').files.length,
+  });
+  window.mutateUploadTarget = (mutation) => {
+    if (mutation === 'replace') original.replaceWith(original.cloneNode(true));
+    if (mutation === 'disable') original.disabled = true;
+  };
+  if (params.get('steal') === '1') {
+    new MutationObserver(() => {
+      const marker = original.getAttribute('data-sim-agent-upload');
+      if (!marker) return;
+      original.removeAttribute('data-sim-agent-upload');
+      decoy.setAttribute('data-sim-agent-upload', marker);
+    }).observe(root, { subtree: true, attributes: true, attributeFilter: ['data-sim-agent-upload'] });
+  }
+</script>`
+
 test.describe('browser tools', () => {
   const calls = new Map<
     string,
@@ -76,6 +104,7 @@ test.describe('browser tools', () => {
   let app: ElectronApplication
   let window: Page
   let callCount = 0
+  let beforeUploadResponse: (() => Promise<void>) | undefined
 
   test.beforeAll(async () => {
     server = createServer(async (request, response) => {
@@ -129,11 +158,31 @@ test.describe('browser tools', () => {
         const { toolCallId, index } = JSON.parse(body)
         const reference = claimed.get(toolCallId)?.args.paths
         const found = Array.isArray(reference) && reference[index] === 'files/receipt.txt'
+        const beforeResponse = beforeUploadResponse
+        beforeUploadResponse = undefined
+        try {
+          await beforeResponse?.()
+        } catch (error) {
+          response.writeHead(500, { 'Content-Type': 'text/plain' })
+          response.end(String(error))
+          return
+        }
         response.writeHead(found ? 200 : 404, {
           'Content-Type': found ? 'application/octet-stream' : 'application/json',
           ...(found ? { 'Content-Disposition': 'attachment; filename="receipt.txt"' } : {}),
         })
         response.end(found ? 'receipt-bytes' : JSON.stringify({ error: 'File not found' }))
+        return
+      }
+      if (path === '/upload-target' || path === '/upload-host') {
+        const params = new URL(request.url ?? '/', 'http://127.0.0.1').searchParams
+        const frameOrigin = params.get('kind') === 'oopif' ? origin : site
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(
+          path === '/upload-target'
+            ? UPLOAD_TARGET_FIXTURE
+            : `<!doctype html><title>Upload frame fixture</title><iframe src="${frameOrigin}/upload-target" title="Upload frame"></iframe>`
+        )
         return
       }
       if (path === '/doc.pdf') {
@@ -226,6 +275,7 @@ test.describe('browser tools', () => {
   })
 
   test.afterEach(async () => {
+    beforeUploadResponse = undefined
     await app?.close()
     calls.clear()
     claimed.clear()
@@ -329,6 +379,136 @@ test.describe('browser tools', () => {
     })
     await expect.poll(dataset).toMatchObject({ upload: 'receipt.txt:receipt-bytes' })
   })
+
+  async function openUploadTarget(
+    kind: 'root' | 'same-origin' | 'oopif' | 'shadow',
+    steal = false
+  ) {
+    const framed = kind === 'same-origin' || kind === 'oopif'
+    const url = framed
+      ? `${site}/upload-host?kind=${kind}`
+      : `${site}/upload-target?shadow=${kind === 'shadow' ? '1' : '0'}&steal=${steal ? '1' : '0'}`
+    const response = await execute('browser_open_url', { url })
+    expect(response.ok, response.error).toBe(true)
+    const evaluate = (expression: string, inTopFrame = false) =>
+      app.evaluate(
+        ({ webContents }, { url, framed, expression }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+          const frame = framed ? contents?.mainFrame.frames[0] : contents?.mainFrame
+          if (!frame) throw new Error('Missing upload fixture frame')
+          return frame.executeJavaScript(expression)
+        },
+        { url, framed: framed && !inTopFrame, expression }
+      )
+    await expect.poll(() => evaluate('typeof window.uploadTestState')).toBe('function')
+    if (kind === 'oopif') {
+      expect(
+        await app.evaluate(({ webContents }, url) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+          const child = contents?.mainFrame.frames[0]
+          return child && child.processId !== contents?.mainFrame.processId
+        }, url)
+      ).toBe(true)
+    }
+    const snapshot = await execute('browser_snapshot', {})
+    expect(snapshot.ok, snapshot.error).toBe(true)
+    const outline = (snapshot.result as { outline: string }).outline
+    const match = outline
+      .split('\n')
+      .find((line) => line.includes('"Upload original"'))
+      ?.match(/\[ref=(\d+)\]/)
+    expect(match, outline).toBeTruthy()
+    return { elementId: Number(match?.[1]), evaluate }
+  }
+
+  test('pins uploads to the original input when page code steals a DOM marker', async () => {
+    const { elementId, evaluate } = await openUploadTarget('root', true)
+    const upload = await execute('browser_upload_file', { elementId, paths: ['files/receipt.txt'] })
+
+    expect(upload.ok, upload.error).toBe(true)
+    expect(await evaluate('window.uploadTestState()')).toEqual({
+      original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+      decoy: [],
+      currentCount: 1,
+    })
+  })
+
+  for (const mutation of ['replace', 'disable', 'navigate-frame'] as const) {
+    test(`refuses uploads when the target changes during staging: ${mutation}`, async () => {
+      const { elementId, evaluate } = await openUploadTarget(
+        mutation === 'navigate-frame' ? 'same-origin' : 'root'
+      )
+      let mutated = false
+      beforeUploadResponse = async () => {
+        if (mutation === 'navigate-frame') {
+          await evaluate('parent.previousUploadInput = document.querySelector("#original")')
+          await evaluate('location.replace("/upload-target?after=1")')
+          await expect.poll(() => evaluate('location.search')).toBe('?after=1')
+          await expect.poll(() => evaluate('typeof window.uploadTestState')).toBe('function')
+        } else {
+          await evaluate(`window.mutateUploadTarget(${JSON.stringify(mutation)})`)
+        }
+        mutated = true
+      }
+      const upload = await execute('browser_upload_file', {
+        elementId,
+        paths: ['files/receipt.txt'],
+      })
+
+      expect(mutated).toBe(true)
+      expect(upload.ok, JSON.stringify(upload)).toBe(false)
+      expect(await evaluate('window.uploadTestState()')).toEqual({
+        original: [],
+        decoy: [],
+        currentCount: 0,
+      })
+      if (mutation === 'navigate-frame') {
+        expect(await evaluate('parent.previousUploadInput.files.length')).toBe(0)
+      }
+    })
+  }
+
+  test('refuses uploads after their same-origin frame is removed during staging', async () => {
+    const { elementId, evaluate } = await openUploadTarget('same-origin')
+    let removed = false
+    beforeUploadResponse = async () => {
+      await evaluate(
+        'window.removedUploadInput = document.querySelector("iframe").contentDocument.querySelector("#original"); document.querySelector("iframe").remove()',
+        true
+      )
+      removed = true
+    }
+    const upload = await execute('browser_upload_file', {
+      elementId,
+      paths: ['files/receipt.txt'],
+    })
+
+    expect(removed).toBe(true)
+    expect(upload.ok, JSON.stringify(upload)).toBe(false)
+    expect(await evaluate('window.removedUploadInput.files.length', true)).toBe(0)
+  })
+
+  for (const kind of ['same-origin', 'oopif', 'shadow'] as const) {
+    test(`uploads through a pinned input in a ${kind} context`, async () => {
+      const { elementId, evaluate } = await openUploadTarget(kind)
+      const upload = await execute('browser_upload_file', {
+        elementId,
+        paths: ['files/receipt.txt'],
+      })
+
+      expect(upload.ok, upload.error).toBe(true)
+      expect(upload.result).toMatchObject({ uploaded: [{ name: 'receipt.txt', size: 13 }] })
+      expect(await evaluate('window.uploadTestState()')).toEqual({
+        original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+        decoy: [],
+        currentCount: 1,
+      })
+    })
+  }
 
   test('keeps window.opener for page popups and returns to the opener when they close', async () => {
     const { ref, dataset } = await openCapabilities()

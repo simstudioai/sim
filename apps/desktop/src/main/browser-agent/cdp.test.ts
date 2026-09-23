@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -15,7 +16,10 @@ import {
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
+  releaseFileInput,
+  resolveFileInput,
   setColorScheme,
+  setFileInputFiles,
 } from '@/main/browser-agent/cdp'
 
 function createOopifFrameFixture() {
@@ -535,6 +539,305 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+})
+
+describe('browser-agent file input handles', () => {
+  async function fileInputFixture(childSession = false) {
+    const contents = new WebContentsView().webContents
+    const { child, frameTree } = createOopifFrameFixture()
+    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    if (childSession) {
+      const onMessage = vi.mocked(contents.debugger.on).mock.calls[0]?.[1] as
+        | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+        | undefined
+      onMessage?.({}, 'Target.attachedToTarget', {
+        sessionId: 'child-session',
+        targetInfo: { targetId: 'child', type: 'iframe' },
+      })
+    }
+    const document: { defaultView: { document: unknown } | null } = { defaultView: null }
+    document.defaultView = { document }
+    const input = {
+      tagName: 'INPUT',
+      type: 'file',
+      isConnected: true,
+      ownerDocument: document,
+      multiple: true,
+      accept: 'application/pdf',
+      matches: vi.fn(() => false),
+      files: [] as Array<{ name: string; size: number }>,
+    }
+    const wrapper = { input, document }
+    const behavior = {
+      rejectEvaluation: false,
+      rejectSet: false,
+      rejectReadback: false,
+      beforeSet: async () => {},
+      beforeReadback: async () => {},
+      afterInputValidation: () => {},
+      afterSet: () => {},
+    }
+    const send = vi.mocked(contents.debugger.sendCommand)
+    send.mockClear().mockImplementation(async (method, params) => {
+      if (method === 'Page.getFrameTree') return { frameTree }
+      if (method === 'Page.createIsolatedWorld') return { executionContextId: 42 }
+      if (method === 'Runtime.evaluate') {
+        if (behavior.rejectEvaluation) {
+          return {
+            result: { objectId: 'exception' },
+            exceptionDetails: { exception: { objectId: 'exception', description: 'Ref expired' } },
+          }
+        }
+        return { result: { objectId: 'wrapper' } }
+      }
+      if (method === 'Runtime.callFunctionOn') {
+        expect(params?.objectId).toBe('wrapper')
+        const args = params?.arguments as Array<{ value: unknown }>
+        if (args[0].value === 'files') await behavior.beforeReadback()
+        if (behavior.rejectReadback && args[0].value === 'files') {
+          throw new Error('Execution context was destroyed')
+        }
+        try {
+          const inspect = new Function(`return (${params?.functionDeclaration})`)() as (
+            ...args: unknown[]
+          ) => unknown
+          const result = inspect.apply(
+            wrapper,
+            args.map((arg) => arg.value)
+          )
+          if (result === input) {
+            behavior.afterInputValidation()
+            return { result: { objectId: 'original-input' } }
+          }
+          return { result: { value: result } }
+        } catch (error) {
+          return {
+            result: { objectId: 'exception' },
+            exceptionDetails: {
+              exception: { objectId: 'exception', description: getErrorMessage(error) },
+            },
+          }
+        }
+      }
+      if (method === 'DOM.setFileInputFiles') {
+        await behavior.beforeSet()
+        if (behavior.rejectSet) throw new Error('Input target disappeared')
+        expect(params).toEqual({ files: ['/staged/a.pdf'], objectId: 'original-input' })
+        input.files = [{ name: 'a.pdf', size: 12 }]
+        behavior.afterSet()
+      }
+      return {}
+    })
+    return {
+      contents,
+      frame: childSession ? child : child.parent!,
+      input,
+      document,
+      send,
+      behavior,
+    }
+  }
+
+  it.each([false, true])(
+    'keeps capture, dispatch, readback and release in the original session (OOPIF: %s)',
+    async (childSession) => {
+      const { contents, frame, input, send } = await fileInputFixture(childSession)
+      const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+      expect(handle).toMatchObject({ multiple: true, accept: 'application/pdf' })
+      expect(input.matches).toHaveBeenCalledWith(':disabled')
+
+      try {
+        await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+          files: [{ name: 'a.pdf', size: 12 }],
+        })
+      } finally {
+        await releaseFileInput(contents, handle)
+      }
+
+      const sessionId = childSession ? 'child-session' : undefined
+      const protocolCalls = send.mock.calls.filter(([method]) => method !== 'Page.getFrameTree')
+      expect(protocolCalls.every((call) => call[2] === sessionId)).toBe(true)
+      expect(send.mock.calls.some(([method]) => /Search|DOM.getDocument/.test(method))).toBe(false)
+      expect(send.mock.calls.find(([method]) => method === 'Runtime.evaluate')?.[1]).toEqual({
+        expression: 'captureUploadInput(4)',
+        contextId: 42,
+        returnByValue: false,
+        awaitPromise: true,
+        userGesture: false,
+      })
+      expect(
+        send.mock.calls
+          .filter(([method]) => method === 'Runtime.releaseObject')
+          .map(([, params]) => params?.objectId)
+      ).toEqual(['original-input', 'wrapper'])
+    }
+  )
+
+  it.each([
+    'detached',
+    'disabled',
+    'adopted',
+    'document-replaced',
+    'document-closed',
+    'type',
+    'multiple',
+  ])('refuses a captured input changed before dispatch (%s)', async (change) => {
+    const { contents, frame, input, document, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    if (change === 'detached') input.isConnected = false
+    if (change === 'disabled') input.matches.mockReturnValue(true)
+    if (change === 'adopted') input.ownerDocument = { defaultView: null }
+    if (change === 'document-replaced') document.defaultView = { document: {} }
+    if (change === 'document-closed') document.defaultView = null
+    if (change === 'type') input.type = 'text'
+    if (change === 'multiple') input.multiple = false
+    try {
+      await expect(
+        setFileInputFiles(contents, handle, ['/staged/a.pdf', '/staged/b.pdf'])
+      ).rejects.toThrow(/upload input|upload target/)
+      expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'wrapper' })
+    expect(
+      send.mock.calls.filter(
+        ([method, params]) => method === 'Runtime.releaseObject' && params?.objectId === 'exception'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('supports a same-origin child document and XHTML input captured by its parent world', async () => {
+    const { contents, frame, input } = await fileInputFixture()
+    input.tagName = 'input'
+    const handle = await resolveFileInput(contents, frame, 'captureSameOriginChildInput()')
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        files: [{ name: 'a.pdf', size: 12 }],
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it.each(['evaluation', 'metadata'] as const)('releases handles when %s fails', async (phase) => {
+    const { contents, frame, input, behavior, send } = await fileInputFixture()
+    if (phase === 'evaluation') behavior.rejectEvaluation = true
+    else input.matches.mockReturnValue(true)
+
+    await expect(resolveFileInput(contents, frame, 'captureUploadInput(4)')).rejects.toThrow()
+    const released = send.mock.calls
+      .filter(([method]) => method === 'Runtime.releaseObject')
+      .map(([, params]) => params?.objectId)
+    expect(released).toEqual(phase === 'evaluation' ? ['exception'] : ['exception', 'wrapper'])
+  })
+
+  it('releases the transient node when cancellation arrives during validation', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    const controller = new AbortController()
+    const onDispatched = vi.fn()
+    behavior.afterInputValidation = () => controller.abort()
+    try {
+      await expect(
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], controller.signal, onDispatched)
+      ).rejects.toThrow()
+      expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(false)
+      expect(onDispatched).not.toHaveBeenCalled()
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'original-input' })
+  })
+
+  it('releases the transient node when Chromium rejects the file assignment', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture(true)
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.rejectSet = true
+    const onDispatched = vi.fn()
+    try {
+      await expect(
+        setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatched)
+      ).rejects.toThrow('disappeared')
+      expect(onDispatched).not.toHaveBeenCalled()
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send).toHaveBeenCalledWith(
+      'Runtime.releaseObject',
+      { objectId: 'original-input' },
+      'child-session'
+    )
+    expect(send).toHaveBeenCalledWith(
+      'Runtime.releaseObject',
+      { objectId: 'wrapper' },
+      'child-session'
+    )
+  })
+
+  it('reads the original input even when its change handler removes it', async () => {
+    const { contents, frame, input, behavior } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.afterSet = () => {
+      input.isConnected = false
+    }
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        files: [{ name: 'a.pdf', size: 12 }],
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it('reports dispatch only after acknowledgement and before a pending readback', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    let acknowledge: () => void = () => {}
+    let releaseReadback: () => void = () => {}
+    const acknowledgement = new Promise<void>((resolve) => {
+      acknowledge = resolve
+    })
+    const readback = new Promise<void>((resolve) => {
+      releaseReadback = resolve
+    })
+    behavior.beforeSet = () => acknowledgement
+    behavior.beforeReadback = () => readback
+    const onDispatched = vi.fn()
+    const pending = setFileInputFiles(contents, handle, ['/staged/a.pdf'], undefined, onDispatched)
+    try {
+      await vi.waitFor(() =>
+        expect(send.mock.calls.some(([method]) => method === 'DOM.setFileInputFiles')).toBe(true)
+      )
+      expect(onDispatched).not.toHaveBeenCalled()
+      acknowledge()
+      await vi.waitFor(() => expect(onDispatched).toHaveBeenCalledTimes(1))
+      expect(send.mock.calls.some(([method]) => method === 'Runtime.releaseObject')).toBe(false)
+      releaseReadback()
+      await expect(pending).resolves.toEqual({ files: [{ name: 'a.pdf', size: 12 }] })
+      expect(onDispatched).toHaveBeenCalledTimes(1)
+    } finally {
+      acknowledge()
+      releaseReadback()
+      await pending
+      await releaseFileInput(contents, handle)
+    }
+  })
+
+  it('reports readback failure separately once Chromium has acknowledged the upload', async () => {
+    const { contents, frame, behavior, send } = await fileInputFixture()
+    const handle = await resolveFileInput(contents, frame, 'captureUploadInput(4)')
+    behavior.rejectReadback = true
+    try {
+      await expect(setFileInputFiles(contents, handle, ['/staged/a.pdf'])).resolves.toEqual({
+        readbackError: 'Execution context was destroyed',
+      })
+    } finally {
+      await releaseFileInput(contents, handle)
+    }
+    expect(send.mock.calls.filter(([method]) => method === 'DOM.setFileInputFiles')).toHaveLength(1)
+    expect(send).toHaveBeenCalledWith('Runtime.releaseObject', { objectId: 'original-input' })
   })
 })
 

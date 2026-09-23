@@ -1,6 +1,6 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -1943,7 +1943,11 @@ describe('executeTool', () => {
     const isolatedFrameEval = vi
       .spyOn(cdp, 'evaluateInIsolatedFrame')
       .mockImplementation((_contents, frame, expression) => {
-        if ((frame as unknown) === mainFrame) return mainFrame.executeJavaScript(expression)
+        if ((frame as unknown) === mainFrame) {
+          return isPageCall(expression, 'readChildFrameElementState')
+            ? mainFrame.executeJavaScript(expression)
+            : contents.executeJavaScript(expression)
+        }
         if ((frame as unknown) === crossFrame) return crossFrame.executeJavaScript(expression)
         return Promise.reject(new Error('unexpected isolated frame target'))
       })
@@ -3764,60 +3768,196 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
   })
 
-  it('attaches staged files to the marked input through DOM.setFileInputFiles', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      markFileInput: { marked: true, multiple: true },
-      readMarkedFileInput: { files: [{ name: 'a.pdf', size: 3 }] },
-      readPageActionState: {},
+  describe('file uploads', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('retains one input handle through staging and releases it after uploading', async () => {
+      const contents = await openPage()
+      respondWith(contents, { readPageActionState: {} })
+      const input = { objectId: 'isolated-input', multiple: true, accept: '.pdf' }
+      const resolve = vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      const setFiles = vi
+        .spyOn(cdp, 'setFileInputFiles')
+        .mockResolvedValue({ files: [{ name: 'a.pdf', size: 3 }] })
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf'] },
+        'call-upload'
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: { uploaded: [{ name: 'a.pdf', size: 3 }], effectObserved: true, accept: '.pdf' },
+      })
+      expect(resolve).toHaveBeenCalledWith(
+        contents,
+        contents.mainFrame,
+        expect.stringContaining('function resolveFileInputTarget(')
+      )
+      expect(stageUploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'call-upload', paths: ['files/a.pdf'] })
+      )
+      expect(setFiles).toHaveBeenCalledWith(
+        contents,
+        input,
+        ['/staged/a.pdf'],
+        expect.any(AbortSignal),
+        expect.any(Function)
+      )
+      expect(release).toHaveBeenCalledWith(contents, input)
+      expect(resolve).toHaveBeenCalledTimes(1)
     })
-    stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
-    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method: string) =>
-      method === 'DOM.performSearch'
-        ? { searchId: 'search', resultCount: 1 }
-        : method === 'DOM.getSearchResults'
-          ? { nodeIds: [7] }
-          : {}
-    )
 
-    const result = await driver.executeTool(
-      'chat-test',
-      'browser_upload_file',
-      { elementId: 0, paths: ['files/a.pdf'] },
-      'call-upload'
-    )
+    it('refuses several files for a single-file input and releases its handle without staging', async () => {
+      const contents = await openPage()
+      const input = { objectId: 'isolated-input', multiple: false }
+      vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockClear()
 
-    expect(result).toMatchObject({
-      ok: true,
-      result: { uploaded: [{ name: 'a.pdf', size: 3 }], effectObserved: true },
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf', 'files/b.pdf'] },
+        'call-single'
+      )
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: expect.stringContaining('accepts one file'),
+      })
+      expect(stageUploadFiles).not.toHaveBeenCalled()
+      expect(release).toHaveBeenCalledWith(contents, input)
     })
-    expect(stageUploadFiles).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'call-upload', paths: ['files/a.pdf'] })
+
+    it.each(['staging', 'attachment'])(
+      'releases the pinned input after %s fails',
+      async (failure) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockRejectedValue(new Error('attachment failed'))
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockReset()
+        if (failure === 'staging') stageUploadFiles.mockRejectedValue(new Error('staging failed'))
+        else stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+        const result = await driver.executeTool(
+          'chat-test',
+          'browser_upload_file',
+          { elementId: 0, paths: ['files/a.pdf'] },
+          'call-failed'
+        )
+
+        expect(result).toMatchObject({
+          ok: false,
+          error: expect.stringContaining(`${failure} failed`),
+        })
+        if (failure === 'staging') expect(setFiles).not.toHaveBeenCalled()
+        expect(release).toHaveBeenCalledTimes(1)
+        expect(release).toHaveBeenCalledWith(contents, input)
+      }
     )
-    expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toEqual([
-      ['DOM.setFileInputFiles', { files: ['/staged/a.pdf'], nodeId: 7 }],
-    ])
-  })
 
-  it('refuses several files for a single-file input before staging anything', async () => {
-    const contents = await openPage()
-    respondWith(contents, { markFileInput: { marked: true, multiple: false } })
-    stageUploadFiles.mockClear()
+    it('reports an acknowledged upload with unavailable readback without inviting a retry', async () => {
+      const contents = await openPage()
+      const input = { objectId: 'isolated-input', multiple: false }
+      vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      vi.spyOn(cdp, 'setFileInputFiles').mockResolvedValue({
+        readbackError: 'Execution context destroyed',
+      })
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
 
-    const result = await driver.executeTool(
-      'chat-test',
-      'browser_upload_file',
-      { elementId: 0, paths: ['files/a.pdf', 'files/b.pdf'] },
-      'call-single'
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf'] },
+        'call-navigated'
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          dispatched: true,
+          observation: { ok: false, doNotRetry: true, error: 'Execution context destroyed' },
+        },
+      })
+      expect(release).toHaveBeenCalledWith(contents, input)
+    })
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'retains an acknowledged upload when readback is %s and releases its handle when readback settles',
+      async (stop) => {
+        const contents = await openPage()
+        respondWith(contents, { readPageActionState: {} })
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        let releaseReadback: (value: { files: Array<{ name: string; size: number }> }) => void =
+          () => {}
+        const readback = new Promise<{ files: Array<{ name: string; size: number }> }>(
+          (resolve) => {
+            releaseReadback = resolve
+          }
+        )
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatched) => {
+            onDispatched?.()
+            return readback
+          })
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        vi.useFakeTimers()
+        try {
+          const timersBefore = vi.getTimerCount()
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'interrupted-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(release).not.toHaveBeenCalled()
+          const queued = driver.executeTool('chat-test', 'browser_list_tabs', {}, 'after-upload')
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'interrupted-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          await expect(pending).resolves.toMatchObject({
+            ok: true,
+            result: {
+              dispatched: true,
+              observation: {
+                ok: false,
+                doNotRetry: true,
+                note: expect.stringContaining('The action already ran'),
+              },
+            },
+          })
+          await expect(queued).resolves.toMatchObject({ ok: true })
+          expect(vi.getTimerCount()).toBe(timersBefore)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(release).not.toHaveBeenCalled()
+        } finally {
+          releaseReadback({ files: [{ name: 'a.pdf', size: 3 }] })
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+        expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
+        expect(setFiles).toHaveBeenCalledTimes(1)
+      }
     )
-
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('accepts one file') })
-    expect(stageUploadFiles).not.toHaveBeenCalled()
-    expect(
-      vi
-        .mocked(contents.executeJavaScript)
-        .mock.calls.some(([expression]) => isPageCall(String(expression), 'readMarkedFileInput'))
-    ).toBe(true)
   })
 
   it('validates upload paths before touching the page', async () => {
@@ -3950,7 +4090,8 @@ describe('credential protection', () => {
     })
     const isolatedFrameEval = vi
       .spyOn(cdp, 'evaluateInIsolatedFrame')
-      .mockImplementation((_contents, _frame, expression) => {
+      .mockImplementation((_contents, frame, expression) => {
+        if ((frame as unknown) === mainFrame) return contents.executeJavaScript(expression)
         if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
         if (isPageCall(expression, 'describeFocusedEditable')) {
           return Promise.resolve({ editable: true, kind: 'input' })

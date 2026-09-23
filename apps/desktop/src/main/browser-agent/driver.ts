@@ -33,7 +33,6 @@ import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
@@ -65,17 +64,16 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
-  markFileInput,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
   readFormFieldState,
-  readMarkedFileInput,
   readPageActionState,
   readPageText,
   readSelectElementState,
+  resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
   setFocusedInputValue,
@@ -115,7 +113,6 @@ export const BROWSER_TOOL_ADMISSION_LIMITS = Object.freeze({
 const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
-const BROWSER_AGENT_ISOLATED_WORLD_ID = 1001
 const BROWSER_WAIT_ELEMENT_STATES = [
   'attached',
   'detached',
@@ -1201,10 +1198,10 @@ function browserElementStateMatches(
 
 /**
  * Serializes a self-contained page function with JSON-encoded arguments.
- * WebContents runs it in a persistent isolated world so page scripts cannot
- * replace the ref registry or built-ins. Child WebFrameMain targets use a CDP
- * isolated world mapped to that exact Chromium frame; test doubles without a
- * frameTreeNodeId alone retain the legacy executeJavaScript fallback.
+ * Root and child frames share a persistent CDP isolated world, so snapshot refs
+ * and retained DOM handles have the same execution context. Page scripts cannot
+ * replace its registry or built-ins. Test doubles without an immutable frame id
+ * retain the executeJavaScript fallback.
  */
 async function execInPage<Args extends unknown[], Result>(
   target: PageExecutionTarget,
@@ -1225,19 +1222,9 @@ async function execInPage<Args extends unknown[], Result>(
       ? `(Date.now() >= ${Math.floor(notAfter)} ? ({error: "expired"}) : ${invocation})`
       : invocation
   try {
-    if (
-      'executeJavaScriptInIsolatedWorld' in target &&
-      typeof target.executeJavaScriptInIsolatedWorld === 'function'
-    ) {
-      return (await target.executeJavaScriptInIsolatedWorld(
-        BROWSER_AGENT_ISOLATED_WORLD_ID,
-        [{ code: expression }],
-        userGesture
-      )) as Result
-    }
-    if ('frameTreeNodeId' in target && typeof target.frameTreeNodeId === 'number') {
-      const contents = session.automationTab()?.view.webContents
-      const frame = target as WebFrameMain
+    const frame = 'getURL' in target ? target.mainFrame : target
+    if (frame && typeof frame.frameTreeNodeId === 'number') {
+      const contents = 'getURL' in target ? target : session.automationTab()?.view.webContents
       if (
         !contents ||
         contents.isDestroyed() ||
@@ -1247,8 +1234,7 @@ async function execInPage<Args extends unknown[], Result>(
       }
       return (await cdp.evaluateInIsolatedFrame(contents, frame, expression, userGesture)) as Result
     }
-    // Unit-test WebFrame mocks omit Electron's immutable frameTreeNodeId. Real
-    // WebFrameMain instances always take the isolated CDP branch above.
+    /** Unit-test frame doubles omit Electron's immutable frameTreeNodeId. */
     return (await target.executeJavaScript(expression, userGesture)) as Result
   } catch (error) {
     const message = getErrorMessage(error)
@@ -2466,7 +2452,8 @@ async function executeToolInner(
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
   invocationEpoch: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onActionCompleted?: (result: unknown) => void
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2628,16 +2615,14 @@ async function executeToolInner(
       const elementId = requireNum(params, 'elementId')
       const paths = uploadPaths(params)
       const target = pageTargetForElement(contents, elementId)
-      const marker = generateShortId()
       assertCurrentExecution()
-      const marked = unwrapPageResult(
-        await execInPage(target, markFileInput, [elementId, marker], false, executionDeadline)
-      )
-      if (!isRecordLike(marked) || marked.marked !== true) {
-        throw new ToolError('Could not locate the file input for that element.')
-      }
+      const frame = 'getURL' in target ? target.mainFrame : target
+      const expression = `(${String(resolveFileInputTarget)})(${elementId})`
+      const input = await cdp.resolveFileInput(contents, frame, expression)
+      let attachment: Awaited<ReturnType<typeof cdp.setFileInputFiles>>
       try {
-        if (marked.multiple !== true && paths.length > 1) {
+        assertCurrentExecution()
+        if (!input.multiple && paths.length > 1) {
           throw new ToolError('That file input accepts one file. Upload the files one at a time.')
         }
         const files = await stageUploadFiles({
@@ -2650,23 +2635,30 @@ async function executeToolInner(
         })
         assertCurrentExecution()
         assertActiveContents(contents)
-        await cdp.setMarkedFileInputFiles(contents, marker, files)
-      } catch (error) {
-        // Reading back also clears the marker, so a failed upload leaves the page as it was.
-        await execInPage(target, readMarkedFileInput, [marker]).catch(() => null)
-        throw error
+        attachment = await cdp.setFileInputFiles(contents, input, files, signal, () => {
+          onActionCompleted?.({ dispatched: true })
+        })
+      } finally {
+        await cdp.releaseFileInput(contents, input)
       }
-      const readback = unwrapPageResult(
-        await execInPage(target, readMarkedFileInput, [marker], false, executionDeadline)
-      )
-      const uploaded = isRecordLike(readback) && Array.isArray(readback.files) ? readback.files : []
-      await sleep(150)
-      const afterPage = await pageActionState(contents)
-      return {
-        uploaded,
-        effectObserved: uploaded.length === paths.length,
-        ...(typeof marked.accept === 'string' ? { accept: marked.accept } : {}),
-        dialogs: Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : [],
+      if ('readbackError' in attachment) {
+        return withFailedPostActionObservation({ dispatched: true }, attachment.readbackError)
+      }
+      const result = {
+        dispatched: true,
+        uploaded: attachment.files,
+        effectObserved: attachment.files.length === paths.length,
+        ...(input.accept ? { accept: input.accept } : {}),
+      }
+      try {
+        await sleep(150)
+        const afterPage = await pageActionState(contents)
+        return {
+          ...result,
+          dialogs: Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : [],
+        }
+      } catch (error) {
+        return withFailedPostActionObservation(result, error)
       }
     }
 
@@ -4967,7 +4959,10 @@ export async function executeTool(
                 assertCurrentExecution,
                 executionDeadline,
                 invocationEpoch,
-                executionController.signal
+                executionController.signal,
+                (result) => {
+                  completedAction = { result }
+                }
               )
               if (params.observe !== undefined) completedAction = { result }
               return result
